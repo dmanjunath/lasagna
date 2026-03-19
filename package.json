@@ -1,0 +1,26 @@
+{
+  "name": "lasagna",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted personal finance platform",
+  "scripts": {
+    "dev": "pnpm --filter @lasagna/api dev",
+    "dev:web": "pnpm --filter @lasagna/web dev",
+    "build": "pnpm -r build",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
+    "eslint": "^10.0.3",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "typescript": "^5.9.3"
+  }
+}
