@@ -1,0 +1,27 @@
+FROM node:20-slim
+RUN apt-get update && apt-get install -y poppler-utils && rm -rf /var/lib/apt/lists/*
+RUN corepack enable
+
+WORKDIR /app
+
+# Copy package files
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/core/package.json packages/core/package.json
+COPY packages/api/package.json packages/api/package.json
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY tsconfig.json ./
+COPY packages/core packages/core
+COPY packages/api packages/api
+
+EXPOSE 3000
+
+# Run API with hot reload, using development condition for core imports
+# Node 20+ has native --watch, CHOKIDAR_USEPOLLING for Docker volume compatibility
+WORKDIR /app/packages/api
+ENV CHOKIDAR_USEPOLLING=true
+ENV WATCHPACK_POLLING=true
+CMD ["node", "--import", "tsx", "--watch", "--watch-preserve-output", "--conditions", "development", "--env-file=/app/.env", "src/index.ts"]

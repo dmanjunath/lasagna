@@ -1,0 +1,226 @@
+---
+const layers = [
+  { color: "#B83B3B", name: "Stabilize + oh-shit fund",    status: "complete", done: true,
+    headline: "Stop the bleeding, build a $1,000 buffer.",
+    detail: "Before anything else: no missed payments, no overdraft fees, no accounts in collections. Then save a bare-minimum $1,000 so one bad week doesn't put you into credit card debt." },
+  { color: "#C25030", name: "Employer match",               status: "complete", done: true,
+    headline: "Free money. Capture every dollar your employer offers.",
+    detail: "If your employer matches 401(k) contributions, every paycheck without the full match is money left on the table. A 100% match on 3% of your salary is an instant double on those dollars." },
+  { color: "#C46425", name: "High-rate debt",               status: "complete", done: true,
+    headline: "Eliminate all debt above 15% APR.",
+    detail: "Credit cards at 22%, payday loans at 400%. These cost more than any investment could earn. Pay the highest rate first, or the smallest balance first. Either way beats minimum payments." },
+  { color: "#B87A1E", name: "Emergency fund",               status: "complete", done: true,
+    headline: "3–6 months of expenses, liquid and accessible.",
+    detail: "A fully funded emergency fund keeps job loss, medical bills, or car trouble from pushing you back into high-rate debt. Keep it in a high-yield savings account, not your checking account." },
+  { color: "#8B7A22", name: "Insurance and will",           status: "focus now", now: true,
+    headline: "One uninsured event can reset you to layer 1.",
+    detail: "Term life insurance costs $30–60/month and replaces your income for dependents. Disability insurance is even more likely to be needed. 1 in 4 workers are disabled before retirement. A will ensures your assets go where you intend." },
+  { color: "#5E7A28", name: "Tax-advantaged investing",     status: "next",
+    headline: "HSA, Roth IRA, 401(k). Start growing tax-free.",
+    detail: "Tax-advantaged account limits reset every year. Miss one and that space is gone forever. $7,000 in a Roth IRA at age 25 grows to roughly $105,000 by retirement, completely tax-free." },
+  { color: "#3D7A35", name: "Medium-rate debt",             status: "queued",
+    headline: "Address debt between 8–15% APR.",
+    detail: "This range is roughly break-even with stock market returns. But tax-advantaged contribution limits are use-it-or-lose-it, while debt can be paid anytime. That's why investing comes first." },
+  { color: "#2D7040", name: "Max contributions",            status: "queued",
+    headline: "Push every tax-advantaged account to its limit.",
+    detail: "401(k) at $23,500/yr, Roth IRA at $7,000/yr, HSA at $4,300/yr. Every dollar in these accounts grows with a built-in tax advantage over a regular brokerage." },
+  { color: "#25664A", name: "Tax optimization",             status: "queued",
+    headline: "Make your money work harder after taxes.",
+    detail: "Tax-loss harvesting, asset location, and Roth conversions can add 0.5–1.5% to your annual returns. Sounds small, but it compounds to six figures over decades." },
+  { color: "#1E5C50", name: "Low-interest debt",            status: "queued",
+    headline: "Pay off remaining debt under 7%. If you want to.",
+    detail: "The math says invest instead. Expected market returns of 7–10% typically beat a guaranteed 3–5% savings. Paying these off is a lifestyle choice, not a math one." },
+  { color: "#185248", name: "Financial independence",       status: "queued",
+    headline: "Your portfolio covers your lifestyle. Work is optional.",
+    detail: "Financial independence means your investments generate enough to cover living expenses indefinitely. Typically 25 times your annual spending. At this point, work becomes a choice." },
+  { color: "#134840", name: "Estate and legacy",            status: "queued",
+    headline: "Protect what outlasts you.",
+    detail: "A revocable trust avoids probate, donor-advised funds maximize charitable giving, and beneficiary designations ensure your assets go exactly where you intend." },
+];
+
+const defaultIdx = layers.findIndex(l => l.now);
+---
+
+<div class="layers-section-wrap">
+  <section id="layers">
+    <div class="section-head">
+      <h2 class="serif">The <em>Lasagna Layers</em><br />your priority stack.</h2>
+    </div>
+
+    <div class="layers-detail">
+      <div class="layers-copy">
+        <div class="eyebrow" id="layer-eyebrow" style="margin-bottom: 18px;">
+          {`LAYER ${String(defaultIdx + 1).padStart(2, '0')} OF 12`}
+        </div>
+        <h3 class="serif" id="layer-headline">{layers[defaultIdx].headline}</h3>
+        <p id="layer-detail">{layers[defaultIdx].detail}</p>
+      </div>
+
+      <div class="layers-list">
+        {layers.map((l, i) => (
+          <div
+            class:list={["layer-row", { "layer-row--active": i === defaultIdx }]}
+            data-idx={i}
+            data-headline={l.headline}
+            data-detail={l.detail}
+            data-name={l.name}
+          >
+            <div class="chip" style={`background: ${l.color};`}></div>
+            <div class:list={["layer-name", { "layer-name--bold": l.now }]}>{l.name}</div>
+            <div class:list={["status", { "status--done": l.done, "status--now": l.now }]}>
+              {l.status}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const rows = document.querySelectorAll('.layer-row');
+    const eyebrow = document.getElementById('layer-eyebrow');
+    const headline = document.getElementById('layer-headline');
+    const detail = document.getElementById('layer-detail');
+
+    rows.forEach(row => {
+      row.addEventListener('click', () => {
+        const idx = parseInt(row.getAttribute('data-idx') || '0');
+        const h = row.getAttribute('data-headline') || '';
+        const d = row.getAttribute('data-detail') || '';
+
+        if (eyebrow) eyebrow.textContent = `LAYER ${String(idx + 1).padStart(2, '0')} OF 12`;
+        if (headline) headline.textContent = h;
+        if (detail) detail.textContent = d;
+
+        rows.forEach(r => r.classList.remove('layer-row--active'));
+        row.classList.add('layer-row--active');
+      });
+    });
+  });
+</script>
+
+<style>
+  .layers-section-wrap {
+    background: var(--cream);
+    border-radius: 28px;
+    margin: 0 20px;
+  }
+
+  section {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 80px 40px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 56px;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  h2 em { font-style: italic; color: var(--sauce); }
+
+  .section-head p {
+    max-width: 360px;
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+    padding-top: 8px;
+  }
+
+  .layers-detail {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 56px;
+    align-items: start;
+  }
+
+  .layers-copy h3 {
+    font-family: var(--serif);
+    font-size: 36px;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    font-weight: 400;
+    margin-bottom: 16px;
+  }
+
+  .layers-copy p {
+    color: var(--ink-soft);
+    line-height: 1.65;
+    font-size: 15px;
+    max-width: 400px;
+    margin: 0;
+  }
+
+  /* Layer rows */
+  .layer-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--rule);
+    cursor: pointer;
+    border-radius: 8px;
+    margin: 0 -12px;
+    transition: background 0.15s ease;
+  }
+
+  .layer-row:hover {
+    background: color-mix(in oklab, var(--ink) 5%, transparent);
+  }
+
+  .layer-row--active {
+    background: color-mix(in oklab, var(--sauce) 8%, transparent);
+  }
+
+  .chip {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .layer-name { font-size: 15px; color: var(--ink); }
+  .layer-name--bold { font-weight: 500; }
+
+  .status {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: var(--cream-deep);
+    color: var(--ink-soft);
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+  }
+
+  .status--done {
+    background: color-mix(in oklab, var(--basil) 15%, transparent);
+    color: var(--basil);
+  }
+
+  .status--now {
+    background: var(--sauce);
+    color: var(--paper);
+  }
+
+  @media (max-width: 860px) {
+    .layers-detail { grid-template-columns: 1fr; gap: 40px; }
+    section { padding: 64px 24px; }
+    .layers-section-wrap { margin: 0 12px; }
+  }
+</style>

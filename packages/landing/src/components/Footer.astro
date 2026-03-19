@@ -1,0 +1,130 @@
+---
+import { GITHUB_URL } from "../config";
+
+const year = new Date().getFullYear();
+---
+
+<footer>
+  <div class="foot-inner">
+    <div class="brand-col">
+      <a href="/" class="brand">
+        <span class="mark"><i></i><i></i><i></i></span>
+        <span class="brand-name serif">Lasagna<em>Fi</em></span>
+      </a>
+      <p>Personal finance with a private AI advisor. Your data stays private.</p>
+    </div>
+
+    <div>
+      <h5>Product</h5>
+      <a href="#layers">Layers</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+    </div>
+
+    <div>
+      <h5>Learn</h5>
+      <a href="#privacy">How privacy works</a>
+      <a href="#how">How it works</a>
+    </div>
+
+    <div>
+      <h5>Open source</h5>
+      <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href={`${GITHUB_URL}/releases`} target="_blank" rel="noopener noreferrer">Releases</a>
+      <a href={`${GITHUB_URL}/issues`} target="_blank" rel="noopener noreferrer">Report an issue</a>
+    </div>
+  </div>
+
+  <div class="foot-bottom">
+    <span>© {year} LasagnaFi, Inc.</span>
+    <span>Made with love. Made with care. Made in VA, USA ❤️</span>
+  </div>
+</footer>
+
+<style>
+  footer {
+    background: var(--cream);
+    border-top: 1px solid var(--rule);
+    margin-top: 0;
+  }
+
+  .foot-inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 64px 32px 48px;
+    display: grid;
+    grid-template-columns: 1.5fr repeat(3, 1fr);
+    gap: 32px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+    margin-bottom: 14px;
+  }
+
+  .brand-name {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  .brand-name em {
+    font-style: italic;
+    color: var(--sauce);
+  }
+
+  .brand-col p {
+    color: var(--ink-soft);
+    max-width: 240px;
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  h5 {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 14px 0;
+    font-weight: 500;
+  }
+
+  a {
+    display: block;
+    color: var(--ink-soft);
+    text-decoration: none;
+    padding: 4px 0;
+    font-size: 14px;
+    transition: color 0.15s;
+  }
+
+  a:hover { color: var(--sauce); }
+
+  .foot-bottom {
+    border-top: 1px solid var(--rule);
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 20px 32px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 860px) {
+    .foot-inner { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 540px) {
+    .foot-inner { grid-template-columns: 1fr; padding: 48px 20px 32px; }
+    .foot-bottom { padding: 16px 20px; flex-direction: column; gap: 4px; }
+  }
+</style>

@@ -1,0 +1,128 @@
+---
+const steps = [
+  {
+    num: "01",
+    title: "Connect your accounts",
+    desc: "Link via Plaid or enter balances manually. Your financial data is stored securely. Never sold, never shared with AI providers.",
+  },
+  {
+    num: "02",
+    title: "See your financial picture",
+    desc: "Balances, spending, debt rates, net worth, all in one place. LasagnaFi shows you where you stand and tells you exactly which layer to focus on next.",
+  },
+  {
+    num: "03",
+    title: "Ask anything, fully private",
+    desc: '"Am I saving enough?" or "Should I pay down debt or invest?" The AI answers based on your real numbers, but never sees your name, bank, or account details.',
+  },
+  {
+    num: "04",
+    title: "Get real answers",
+    desc: "Personalized advice you can act on. Drill down, follow up, run projections. The AI doesn't remember anything between sessions.",
+  },
+];
+---
+
+<section id="how">
+  <div class="inner">
+    <div class="section-head">
+      <h2 class="serif">How it works. <em>Nothing hidden.</em></h2>
+    </div>
+
+    <div class="steps">
+      {steps.map((s) => (
+        <div class="step">
+          <div class="num">{s.num}</div>
+          <h3 class="serif">{s.title}</h3>
+          <p>{s.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  section {
+    border-top: 1px solid var(--rule);
+  }
+
+  .inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 96px 32px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 48px;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  h2 em { font-style: italic; color: var(--sauce); }
+
+  .section-head p {
+    max-width: 360px;
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--rule);
+  }
+
+  .step {
+    padding: 32px 24px 32px 0;
+    border-right: 1px solid var(--rule);
+    margin-left: 24px;
+  }
+
+  .step:last-child { border-right: 0; }
+
+  .num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--sauce);
+    letter-spacing: 0.14em;
+    margin-bottom: 14px;
+  }
+
+  h3 {
+    font-size: 24px;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+    font-weight: 400;
+  }
+
+  p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  @media (max-width: 860px) {
+    .steps { grid-template-columns: 1fr 1fr; }
+    .step { border-right: 0; border-bottom: 1px solid var(--rule); padding: 24px 0; }
+    .step:nth-child(odd) { padding-right: 16px; }
+    .inner { padding: 64px 20px; }
+  }
+
+  @media (max-width: 540px) {
+    .steps { grid-template-columns: 1fr; }
+  }
+</style>

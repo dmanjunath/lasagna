@@ -1,0 +1,49 @@
+{
+  "name": "lasagna",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted personal finance platform",
+  "scripts": {
+    "dev": "docker compose up",
+    "dev:web": "pnpm --filter @lasagna/web dev",
+    "dev:landing": "pnpm --filter @lasagna/landing dev",
+    "build": "pnpm -r build",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose up --build -d",
+    "docker:logs": "docker compose logs -f api",
+    "db:generate": "docker compose exec api pnpm --filter @lasagna/core db:generate",
+    "db:migrate": "docker compose exec api pnpm --filter @lasagna/core db:migrate",
+    "db:push": "docker compose exec api pnpm --filter @lasagna/core db:push",
+    "db:seed": "docker compose exec api pnpm --filter @lasagna/core db:seed",
+    "db:reset": "docker compose exec api pnpm --filter @lasagna/core db:reset",
+    "db:seed-demo": "docker compose exec api pnpm --filter @lasagna/core db:seed-demo"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@10.29.3",
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@google/genai": "^0.7.0",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
+    "@playwright/test": "^1.58.2",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
+    "ai": "^6.0.134",
+    "canvas": "^3.1.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "pdfjs-dist": "^4.10.38",
+    "playwright": "^1.58.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3",
+    "zod": "^4.3.6"
+  }
+}

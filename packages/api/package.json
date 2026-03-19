@@ -1,0 +1,37 @@
+{
+  "name": "@lasagna/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch --env-file=../../.env src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench:llm": "dotenv -e ../../.env -- vitest run --config vitest.bench.config.ts",
+    "bench:llm:score": "dotenv -e ../../.env -- BENCH_SCORE=true vitest run --config vitest.bench.config.ts",
+    "bench:llm:watch": "dotenv -e ../../.env -- vitest --config vitest.bench.config.ts",
+    "bench:baseline": "dotenv -e ../../.env -- tsx src/agent/__tests__/benchmarks/compare.ts baseline",
+    "bench:compare": "dotenv -e ../../.env -- tsx src/agent/__tests__/benchmarks/compare.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "@lasagna/core": "workspace:*",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
+    "ai": "^6.0.134",
+    "hono": "^4.12.8",
+    "node-cron": "^4.2.1",
+    "plaid": "^41.4.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/node-cron": "^3.0.11",
+    "dotenv-cli": "^11.0.0",
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.1"
+  }
+}

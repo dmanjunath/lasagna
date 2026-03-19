@@ -1,0 +1,90 @@
+---
+import { APP_URL, GITHUB_URL } from "../config";
+---
+
+<nav class="top">
+  <div class="nav-inner">
+    <a href="/" class="brand">
+      <span class="mark"><i></i><i></i><i></i></span>
+      <span class="brand-name">Lasagna<em>Fi</em></span>
+    </a>
+    <div class="nav-links">
+      <a href="#privacy">Privacy</a>
+      <a href="#how">How it works</a>
+      <a href="#layers">Layers</a>
+      <a href="#pricing">Pricing</a>
+    </div>
+    <div class="nav-actions">
+      <a href={GITHUB_URL} class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<style>
+  nav.top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: color-mix(in oklab, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .nav-inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-family: var(--serif);
+    font-size: 21px;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+  }
+
+  .brand-name em {
+    font-style: italic;
+    color: var(--sauce);
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 28px;
+  }
+
+  .nav-links a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.15s;
+  }
+
+  .nav-links a:hover {
+    color: var(--sauce);
+  }
+
+  .nav-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  @media (max-width: 860px) {
+    .nav-links { display: none; }
+    .nav-inner { padding: 12px 20px; }
+  }
+</style>

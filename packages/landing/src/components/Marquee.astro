@@ -1,0 +1,56 @@
+---
+const items = [
+  "YOUR DATA STAYS PRIVATE",
+  "THE AI GETS NUMBERS, NEVER NAMES",
+  "AI SEES PATTERNS, NOT PERSONAL DATA",
+  "OPEN SOURCE CORE",
+  "AI THAT SEES NUMBERS, NOT IDENTITIES",
+  "NO DATA BROKERS, EVER",
+];
+---
+
+<div class="marquee">
+  <div class="marquee-inner" aria-hidden="true">
+    {[...items, ...items].map((item) => (
+      <span>{item}</span>
+    ))}
+  </div>
+</div>
+
+<style>
+  .marquee {
+    background: var(--ink);
+    color: var(--cheese);
+    overflow: hidden;
+    border-top: 1px solid #3A322C;
+    border-bottom: 1px solid #3A322C;
+  }
+
+  .marquee-inner {
+    display: flex;
+    gap: 0;
+    padding: 16px 0;
+    white-space: nowrap;
+    animation: scroll 42s linear infinite;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+
+  .marquee-inner span {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 40px;
+  }
+
+  .marquee-inner span::after {
+    content: "✦";
+    color: var(--sauce);
+    padding-left: 40px;
+  }
+
+  @keyframes scroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+</style>

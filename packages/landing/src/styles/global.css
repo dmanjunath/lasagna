@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* LasagnaFi brand tokens — warm earthy */
+    --cream: #F5EDE0;
+    --cream-deep: #EDE1CE;
+    --paper: #FBF6EC;
+    --ink: #1F1A16;
+    --ink-soft: #3A322C;
+    --muted: #8B7E6F;
+    --rule: #E3D6BF;
+    --rule-soft: #EADFC9;
+
+    /* Brand — the lasagna stack */
+    --sauce: #C9543A;
+    --sauce-deep: #A23F29;
+    --cheese: #E6B85C;
+    --basil: #5A6B3F;
+    --noodle: #E8C789;
+    --crust: #8B4A2B;
+    --burgundy: #6B2420;
+
+    --pos: #4C7A3E;
+    --neg: #A23F29;
+
+    /* Type */
+    --serif: "Instrument Serif", "Cormorant Garamond", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    margin: 0;
+    overflow-x: hidden;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3, h4 { margin: 0; font-weight: 500; }
+}
+
+/* ── Shared utilities ── */
+.serif { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em; }
+.mono  { font-family: var(--mono); }
+.tabular { font-variant-numeric: tabular-nums; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ── Logo mark — three stacked layers of varying widths ── */
+.mark {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 22px;
+  flex-shrink: 0;
+}
+.mark i {
+  display: block;
+  height: 4px;
+  border-radius: 1px;
+  font-style: normal;
+}
+.mark i:nth-child(1) { background: var(--sauce);  width: 100%; }
+.mark i:nth-child(2) { background: var(--cheese); width: 78%; }
+.mark i:nth-child(3) { background: var(--basil);  width: 88%; }
+
+.mark.xl { width: 72px; gap: 5px; }
+.mark.xl i { height: 12px; border-radius: 2px; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-1px); }
+
+.btn-primary { background: var(--ink); color: var(--paper); }
+.btn-primary:hover { background: var(--sauce-deep); }
+
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+.btn-ghost:hover { background: var(--cream); border-color: var(--cream-deep); }
+
+.btn-cheese { background: var(--cheese); color: var(--ink); }
+.btn-cheese:hover { background: var(--noodle); }

@@ -1,0 +1,22 @@
+.DS_Store
+node_modules
+dist
+.env
+*.tsbuildinfo
+gcp-service-account.json
+.superpowers/
+docs/
+
+# Playwright
+**/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/e2e/.seeded
+/e2e/.test-user.json
+/e2e/auth-debug.png
+e2e/screenshots/*
+.worktrees/
+tax_docs/
+# LLM benchmark results (local only)
+packages/api/src/agent/__tests__/benchmarks/results/

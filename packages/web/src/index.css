@@ -1,0 +1,290 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   LASAGNAFI BRAND TOKENS
+   Warm earthy palette — cream, ink, sauce (terracotta), cheese,
+   basil, noodle. These cascade into the Tailwind color system.
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* ── LasagnaFi raw brand tokens ── */
+    --lf-paper:      #FBF6EC;
+    --lf-cream:      #F5EDE0;
+    --lf-cream-deep: #EDE1CE;
+    --lf-ink:        #1F1A16;
+    --lf-ink-soft:   #3A322C;
+    --lf-muted:      #8B7E6F;
+    --lf-rule:       #E3D6BF;
+    --lf-rule-soft:  #EADFC9;
+    --lf-sauce:      #C9543A;
+    --lf-sauce-deep: #A23F29;
+    --lf-cheese:     #E6B85C;
+    --lf-basil:      #5A6B3F;
+    --lf-noodle:     #E8C789;
+    --lf-crust:      #8B4A2B;
+    --lf-burgundy:   #6B2420;
+    --lf-pos:        #4C7A3E;
+    --lf-neg:        #A23F29;
+
+    /* ── Backgrounds (RGB triplets for Tailwind alpha modifiers) ── */
+    --color-bg:          251 246 236;   /* paper  #FBF6EC */
+    --color-bg-elevated: 245 237 224;   /* cream  #F5EDE0 */
+    --color-bg-subtle:   237 225 206;   /* cream-deep #EDE1CE */
+
+    /* ── Surfaces ── */
+    --color-surface:       251 246 236;
+    --color-surface-hover: 245 237 224;
+
+    /* ── Text ── */
+    --color-text:           31 26 22;    /* ink      #1F1A16 */
+    --color-text-secondary: 58 50 44;    /* ink-soft #3A322C */
+    --color-text-muted:     139 126 111; /* muted    #8B7E6F */
+    --color-text-disabled:  196 182 168;
+
+    /* ── Brand accent = sauce / terracotta ── */
+    --color-accent:     201 84 58;   /* sauce      #C9543A */
+    --color-accent-dim: 162 63 41;   /* sauce-deep #A23F29 */
+
+    /* ── Secondary accent = cheese / ochre ── */
+    --color-gold:       230 184 92;  /* cheese #E6B85C */
+
+    /* ── Feedback ── */
+    --color-success: 76 122 62;      /* basil/pos  #4C7A3E */
+    --color-warning: 230 184 92;     /* cheese */
+    --color-danger:  201 84 58;      /* sauce */
+
+    /* ── Borders ── */
+    --color-border:        rgba(227, 214, 191, 1);
+    --color-border-light:  rgba(234, 223, 201, 1);
+    --color-border-strong: rgba(212, 198, 169, 1);
+    --color-border-accent: rgba(201, 84, 58, 0.25);
+
+    /* ── Glows & tints ── */
+    --color-accent-glow: rgba(201, 84, 58, 0.08);
+    --color-gold-dim:    rgba(230, 184, 92, 0.15);
+    --card-glow:         rgba(201, 84, 58, 0.03);
+
+    /* ── Shadows ── */
+    --shadow-card:       0 1px 3px rgba(31, 26, 22, 0.06), 0 0 0 1px rgba(227, 214, 191, 0.9);
+    --shadow-card-hover: 0 4px 16px rgba(31, 26, 22, 0.10), 0 0 0 1px rgba(201, 84, 58, 0.20);
+    --shadow-accent-glow: 0 0 16px rgba(201, 84, 58, 0.15);
+    --shadow-accent-glow-hover: 0 0 20px rgba(201, 84, 58, 0.25);
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-bg text-text antialiased;
+    font-family: 'Geist', 'Söhne', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* ============================================================
+   BRAND TYPOGRAPHY HELPERS
+   ============================================================ */
+.lf-serif {
+  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.lf-mono {
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  font-feature-settings: "zero", "ss01";
+}
+
+.lf-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lf-muted);
+}
+
+.lf-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   BRAND MARK — three stacked bars (sauce/cheese/basil)
+   ============================================================ */
+.lf-mark {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 22px;
+  flex-shrink: 0;
+}
+.lf-mark span {
+  display: block;
+  height: 4px;
+  border-radius: 1px;
+}
+.lf-mark span:nth-child(1) { background: var(--lf-sauce);  width: 100%; }
+.lf-mark span:nth-child(2) { background: var(--lf-cheese); width: 78%; }
+.lf-mark span:nth-child(3) { background: var(--lf-basil);  width: 88%; }
+
+/* ============================================================
+   LASAGNAFI CARD
+   ============================================================ */
+.lf-card {
+  background: var(--lf-paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: 14px;
+}
+
+.lf-card-dark {
+  background: var(--lf-ink);
+  border: 1px solid var(--lf-ink);
+  border-radius: 14px;
+  color: var(--lf-paper);
+}
+
+/* ============================================================
+   LASAGNAFI BUTTONS
+   ============================================================ */
+.lf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+}
+.lf-btn:hover { transform: translateY(-1px); }
+
+.lf-btn-primary {
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  border-color: var(--lf-ink);
+}
+.lf-btn-primary:hover { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
+
+.lf-btn-ghost {
+  background: transparent;
+  color: var(--lf-ink);
+  border-color: var(--lf-rule);
+}
+.lf-btn-ghost:hover { background: var(--lf-cream); }
+
+/* ============================================================
+   RESPONSE TYPOGRAPHY  (unchanged — used by chat renderer)
+   ============================================================ */
+@layer components {
+  .response-text {
+    @apply text-base leading-[1.7] text-text-secondary;
+  }
+  .response-heading-1 {
+    @apply text-2xl font-semibold leading-[1.3] text-text;
+  }
+  .response-heading-2 {
+    @apply text-lg font-semibold leading-[1.4] text-text;
+  }
+  .response-heading-3 {
+    @apply text-sm font-medium leading-[1.4] text-text;
+  }
+  .response-label {
+    @apply font-mono text-xs font-medium uppercase tracking-wider text-text-muted;
+  }
+  .response-metric {
+    @apply text-[28px] font-semibold leading-[1.2] text-text;
+  }
+  .response-metric-small {
+    @apply text-xl font-semibold leading-[1.2] text-text;
+  }
+}
+
+/* ============================================================
+   SURFACE CLASSES  (adapted to warm theme)
+   ============================================================ */
+@layer components {
+  .surface-card {
+    background: var(--lf-paper);
+    border: 1px solid var(--lf-rule);
+    border-radius: 14px;
+    box-shadow: var(--shadow-card);
+    position: relative;
+  }
+
+  .surface-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 160px; height: 110px;
+    background: radial-gradient(ellipse at top left, var(--card-glow) 0%, transparent 65%);
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  .surface-card-hover {
+    @apply transition-all duration-300;
+  }
+  .surface-card-hover:hover {
+    border-color: var(--color-border-accent);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-1px);
+  }
+
+  /* backward compat alias */
+  .glass-card {
+    background: var(--lf-paper);
+    border: 1px solid var(--lf-rule);
+    border-radius: 14px;
+    box-shadow: var(--shadow-card);
+    position: relative;
+  }
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 160px; height: 110px;
+    background: radial-gradient(ellipse at top left, var(--card-glow) 0%, transparent 65%);
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  .glass-card-hover {
+    @apply transition-all duration-300;
+  }
+  .glass-card-hover:hover {
+    border-color: var(--color-border-accent);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-1px);
+  }
+
+  .stat-card {
+    background: var(--lf-paper);
+    border: 1px solid var(--lf-rule);
+    border-radius: 14px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .accent-glow { box-shadow: var(--shadow-accent-glow); }
+  .progress-glow { box-shadow: 0 0 12px var(--color-accent-glow); }
+}
+
+@layer utilities {
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(139, 126, 111, 0.25);
+    border-radius: 3px;
+  }
+}

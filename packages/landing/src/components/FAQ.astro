@@ -1,0 +1,82 @@
+---
+const faqs = [
+  {
+    q: "How can the AI give advice without seeing my data?",
+    a: "It does see your numbers: balances, rates, allocations, spending patterns. What it never sees is anything that identifies you: names, bank names, account numbers. Personal details are stripped before any information reaches the AI.",
+  },
+  {
+    q: "Is this really open source?",
+    a: "The core app, scrub layer, tool definitions, and data schema are all on GitHub. Any managed infrastructure (website, hosted deployment, billing, support) may be proprietary.",
+  },
+  {
+    q: "Who is this for?",
+    a: "People who want serious personal finance tooling and don't want their household balance sheet sitting in an ad-targeting pipeline or used for training AI models.",
+  },
+];
+---
+
+<section>
+  <div class="inner">
+    <div class="section-head">
+      <h2 class="serif">Honest answers.</h2>
+    </div>
+
+    {faqs.map((faq) => (
+      <div class="faq-row">
+        <h4 class="serif">{faq.q}</h4>
+        <p>{faq.a}</p>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  section {
+    border-top: 1px solid var(--rule);
+  }
+
+  .inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 96px 32px;
+  }
+
+  .section-head {
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  .faq-row {
+    border-top: 1px solid var(--rule);
+    padding: 28px 0;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 40px;
+  }
+
+  h4 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  p {
+    margin: 0;
+    color: var(--ink-soft);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  @media (max-width: 700px) {
+    .faq-row { grid-template-columns: 1fr; gap: 12px; }
+    .inner { padding: 64px 20px; }
+  }
+</style>

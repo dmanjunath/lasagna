@@ -1,0 +1,58 @@
+---
+import { GITHUB_URL } from "../config";
+---
+
+<section>
+  <div class="inner">
+    <span class="mark xl" style="margin: 0 auto 32px auto;"><i></i><i></i><i></i></span>
+    <h2 class="serif">
+      The last financial app you'll need to <em>actually trust.</em>
+    </h2>
+    <div class="cta-row">
+      <a href={GITHUB_URL} class="btn btn-primary">View on GitHub →</a>
+      <a href="#pricing" class="btn btn-ghost">See pricing</a>
+      <p style="font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 16px; width: 100%;">Hosted version coming soon</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  section {
+    border-top: 1px solid var(--rule);
+  }
+
+  .inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 140px 32px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h2 {
+    font-size: clamp(44px, 6vw, 80px);
+    line-height: 1;
+    letter-spacing: -0.022em;
+    font-weight: 400;
+    max-width: 880px;
+    margin: 0 0 40px 0;
+  }
+
+  h2 em {
+    font-style: italic;
+    color: var(--sauce);
+  }
+
+  .cta-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 540px) {
+    .inner { padding: 80px 20px; }
+  }
+</style>

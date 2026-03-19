@@ -1,0 +1,10 @@
+packages:
+  - packages/*
+
+onlyBuiltDependencies:
+  - canvas
+
+ignoredBuiltDependencies:
+  - esbuild
+  - protobufjs
+  - tesseract.js

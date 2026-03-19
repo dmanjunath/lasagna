@@ -1,0 +1,47 @@
+{
+  "name": "@lasagna/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/react": "^3.0.136",
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "ai": "^6.0.134",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^0.577.0",
+    "pdfjs-dist": "^5.5.207",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.8.0",
+    "tailwind-merge": "^3.5.0",
+    "tesseract.js": "^7.0.0",
+    "vega": "^5.33.1",
+    "vega-embed": "^6.29.0",
+    "vega-lite": "^5.23.0",
+    "wouter": "^3.9.0",
+    "yaml": "^2.8.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19",
+    "vite": "^8.0.1",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.1.1"
+  }
+}

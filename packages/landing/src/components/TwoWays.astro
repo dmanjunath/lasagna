@@ -1,0 +1,177 @@
+---
+import { APP_URL, GITHUB_URL } from "../config";
+
+const managedFeatures = [
+  "We host your Postgres database, encrypted at rest",
+  "Plaid connections included, unlimited accounts",
+  "Managed updates and backups",
+  "AI chat included, your data is anonymized",
+  "Cancel and delete your data in one click",
+];
+
+const selfFeatures = [
+  "Run on your own infrastructure",
+  "Easy to run docker images, one command to run",
+  "Bring your own Plaid and OpenRouter keys",
+  "Every feature, zero gating",
+  "Source available on GitHub",
+];
+---
+
+<section id="pricing">
+  <div class="inner">
+    <div class="section-head">
+      <h2 class="serif">Two ways to run it.<br /><em>Same privacy model.</em></h2>
+    </div>
+
+    <div class="pricing-grid">
+      <!-- Self-hosted / Sovereign -->
+      <div class="plan plan-self">
+        <div class="eyebrow" style="color: var(--cheese);">Self-hosted</div>
+        <h3 class="serif">Sovereign</h3>
+        <div class="price serif">Free<small>forever · open source</small></div>
+        <ul>
+          {selfFeatures.map((f) => <li>{f}</li>)}
+        </ul>
+        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="btn btn-cheese cta-btn">View on GitHub →</a>
+      </div>
+
+      <!-- Managed / Hosted -->
+      <div class="plan plan-hosted">
+        <div class="eyebrow">Hosted</div>
+        <h3 class="serif">Managed</h3>
+        <div class="price serif" style="color: var(--muted);">Coming soon</div>
+        <ul>
+          {managedFeatures.map((f) => <li>{f}</li>)}
+        </ul>
+        <span class="btn btn-primary cta-btn" style="opacity: 0.5; cursor: default;">Coming soon</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  section {
+    border-top: 1px solid var(--rule);
+  }
+
+  .inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 96px 32px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 48px;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  h2 em { font-style: italic; color: var(--sauce); }
+
+  .section-head p {
+    max-width: 360px;
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .plan {
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    padding: 36px;
+    position: relative;
+  }
+
+  .plan-hosted {
+    background: var(--cream);
+  }
+
+  .plan-self {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .plan .eyebrow {
+    margin-bottom: 8px;
+  }
+
+  h3 {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    margin-bottom: 8px;
+  }
+
+  .price {
+    font-family: var(--serif);
+    font-size: 52px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 28px;
+  }
+
+  .price small {
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--muted);
+    margin-left: 6px;
+    font-weight: 400;
+  }
+
+  .plan-self .price small { color: #9a8d77; }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 28px 0;
+  }
+
+  li {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  li::before {
+    content: "✓";
+    color: var(--sauce);
+    font-family: var(--mono);
+    flex-shrink: 0;
+  }
+
+  .plan-self li { border-bottom-color: #3A322C; color: #D4C6B0; }
+  .plan-self li::before { color: var(--cheese); }
+
+  .cta-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  @media (max-width: 700px) {
+    .pricing-grid { grid-template-columns: 1fr; }
+    .inner { padding: 64px 20px; }
+  }
+</style>

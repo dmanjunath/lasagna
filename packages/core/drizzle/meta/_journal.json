@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1773953972659,
+      "tag": "0000_odd_vulcan",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774172311682,
+      "tag": "0001_curious_speed",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774210769428,
+      "tag": "0002_lazy_kree",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1774278286501,
+      "tag": "0003_gifted_mister_fear",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774307289013,
+      "tag": "0004_shallow_bloodstorm",
+      "breakpoints": true
+    }
+  ]
+}
