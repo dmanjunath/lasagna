@@ -26,6 +26,7 @@ export default [
         { argsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
+      "no-undef": "off",
     },
   },
   {
