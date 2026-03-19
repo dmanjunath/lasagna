@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lasagna
+      POSTGRES_PASSWORD: lasagna
+      POSTGRES_DB: lasagna
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://lasagna:lasagna@db:5432/lasagna
+
+volumes:
+  pgdata:
