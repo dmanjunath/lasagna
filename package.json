@@ -8,7 +8,11 @@
     "dev:web": "pnpm --filter @lasagna/web dev",
     "build": "pnpm -r build",
     "lint": "eslint .",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @lasagna/core db:generate",
+    "db:migrate": "pnpm --filter @lasagna/core db:migrate",
+    "db:push": "pnpm --filter @lasagna/core db:push",
+    "db:seed": "pnpm --filter @lasagna/core db:seed"
   },
   "engines": {
     "node": ">=20",
