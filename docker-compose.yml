@@ -9,16 +9,29 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lasagna"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file: .env
     environment:
       DATABASE_URL: postgresql://lasagna:lasagna@db:5432/lasagna
+    volumes:
+      - ./packages/core/src:/app/packages/core/src
+      - ./packages/api/src:/app/packages/api/src
+      - ./.env:/app/.env
+    tty: true
 
 volumes:
   pgdata:

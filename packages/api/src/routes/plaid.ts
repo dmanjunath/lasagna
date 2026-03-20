@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { CountryCode, Products } from "plaid";
-import { eq, plaidItems, encrypt } from "@lasagna/core";
+import { eq, desc, plaidItems, accounts, balanceSnapshots, encrypt } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { plaidClient } from "../lib/plaid.js";
 import { env } from "../lib/env.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { syncItem } from "../lib/sync.js";
 
 export const plaidRoutes = new Hono<AuthEnv>();
 plaidRoutes.use("*", requireAuth);
@@ -56,10 +57,13 @@ plaidRoutes.post("/exchange-token", async (c) => {
     })
     .returning();
 
+  // Sync accounts and balances immediately after linking
+  syncItem(item.id).catch(console.error);
+
   return c.json({ itemId: item.id });
 });
 
-// List linked Plaid items
+// List linked Plaid items with accounts and balances
 plaidRoutes.get("/items", async (c) => {
   const session = c.get("session");
 
@@ -74,7 +78,39 @@ plaidRoutes.get("/items", async (c) => {
     },
   });
 
-  return c.json({ items });
+  // Fetch accounts with latest balances for each item
+  const itemsWithAccounts = await Promise.all(
+    items.map(async (item) => {
+      const accts = await db.query.accounts.findMany({
+        where: eq(accounts.plaidItemId, item.id),
+      });
+
+      const accountsWithBalances = await Promise.all(
+        accts.map(async (acct) => {
+          const latest = await db.query.balanceSnapshots.findFirst({
+            where: eq(balanceSnapshots.accountId, acct.id),
+            orderBy: [desc(balanceSnapshots.snapshotAt)],
+          });
+          return {
+            id: acct.id,
+            name: acct.name,
+            type: acct.type,
+            subtype: acct.subtype,
+            mask: acct.mask,
+            balance: latest?.balance ?? null,
+            currency: latest?.isoCurrencyCode ?? "USD",
+          };
+        })
+      );
+
+      return {
+        ...item,
+        accounts: accountsWithBalances,
+      };
+    })
+  );
+
+  return c.json({ items: itemsWithAccounts });
 });
 
 // Delete a Plaid item
