@@ -41,7 +41,7 @@ pnpm dev:web
 ## Run with Docker
 
 ```bash
-docker-compose up
+docker compose up
 ```
 
 ## Tests

@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -b --force",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
