@@ -34,6 +34,10 @@ export const tenants = pgTable("tenants", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 // ── Users ──────────────────────────────────────────────────────────────────
@@ -49,6 +53,10 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 // ── Plaid Items ────────────────────────────────────────────────────────────
@@ -63,6 +71,13 @@ export const plaidItems = pgTable("plaid_items", {
   institutionName: varchar("institution_name", { length: 255 }),
   status: varchar("status", { length: 50 }).notNull().default("active"),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 // ── Accounts ───────────────────────────────────────────────────────────────
@@ -80,6 +95,13 @@ export const accounts = pgTable("accounts", {
   type: accountTypeEnum("type").notNull(),
   subtype: varchar("subtype", { length: 100 }),
   mask: varchar("mask", { length: 10 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 // ── Balance Snapshots ──────────────────────────────────────────────────────
@@ -113,6 +135,13 @@ export const securities = pgTable("securities", {
   type: varchar("type", { length: 100 }),
   closePrice: numeric("close_price", { precision: 19, scale: 4 }),
   closePriceAsOf: timestamp("close_price_as_of", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 // ── Holdings ───────────────────────────────────────────────────────────────

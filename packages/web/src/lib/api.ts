@@ -49,6 +49,15 @@ export const api = {
         institutionName: string | null;
         status: string;
         lastSyncedAt: string | null;
+        accounts: Array<{
+          id: string;
+          name: string;
+          type: string;
+          subtype: string | null;
+          mask: string | null;
+          balance: string | null;
+          currency: string;
+        }>;
       }>;
     }>("/plaid/items"),
 

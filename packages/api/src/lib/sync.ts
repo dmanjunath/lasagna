@@ -131,11 +131,22 @@ export async function syncItem(itemId: string): Promise<void> {
       .set({ lastSyncedAt: new Date() })
       .where(eq(plaidItems.id, item.id));
   } catch (err) {
+    // Extract detailed Plaid error if available
+    let errorMessage = err instanceof Error ? err.message : String(err);
+    if (err && typeof err === "object" && "response" in err) {
+      const plaidErr = err as { response?: { data?: { error_message?: string; error_code?: string } } };
+      if (plaidErr.response?.data) {
+        const { error_code, error_message } = plaidErr.response.data;
+        errorMessage = `${error_code}: ${error_message}`;
+      }
+    }
+    console.error(`Sync failed for item ${itemId}:`, errorMessage);
+
     await db
       .update(syncLog)
       .set({
         status: "error",
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage,
         completedAt: new Date(),
       })
       .where(eq(syncLog.id, logEntry.id));

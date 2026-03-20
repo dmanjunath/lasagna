@@ -1,0 +1,25 @@
+FROM node:20-slim
+RUN corepack enable
+
+WORKDIR /app
+
+# Copy package files
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/core/package.json packages/core/package.json
+COPY packages/api/package.json packages/api/package.json
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY tsconfig.json ./
+COPY packages/core packages/core
+COPY packages/api packages/api
+
+# Build core package
+RUN pnpm --filter @lasagna/core build
+
+EXPOSE 3000
+
+# Run API with hot reload
+CMD ["pnpm", "--filter", "@lasagna/api", "dev"]

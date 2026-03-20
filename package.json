@@ -4,15 +4,20 @@
   "private": true,
   "description": "Self-hosted personal finance platform",
   "scripts": {
-    "dev": "pnpm --filter @lasagna/core build && pnpm --filter @lasagna/api dev",
+    "dev": "docker compose up",
     "dev:web": "pnpm --filter @lasagna/web dev",
     "build": "pnpm -r build",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
-    "db:generate": "pnpm --filter @lasagna/core db:generate",
-    "db:migrate": "pnpm --filter @lasagna/core db:migrate",
-    "db:push": "pnpm --filter @lasagna/core db:push",
-    "db:seed": "pnpm --filter @lasagna/core db:seed"
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose up --build -d",
+    "docker:logs": "docker compose logs -f api",
+    "db:generate": "docker compose exec api pnpm --filter @lasagna/core db:generate",
+    "db:migrate": "docker compose exec api pnpm --filter @lasagna/core db:migrate",
+    "db:push": "docker compose exec api pnpm --filter @lasagna/core db:push",
+    "db:seed": "docker compose exec api pnpm --filter @lasagna/core db:seed",
+    "db:reset": "docker compose exec api pnpm --filter @lasagna/core db:reset"
   },
   "engines": {
     "node": ">=20",
