@@ -98,6 +98,47 @@ Each plan is a "document" the user opens. Documents have structured sections tha
 ### Hybrid Element
 Within documents, AI interaction sections use chat-forward patterns. Structure of documents, conversational feel of chat.
 
+### Sidebar Structure: Fixed Tabs vs User Plans
+
+The sidebar distinguishes between singleton views and user-created plans:
+
+**Fixed Tabs (Singletons)** — Always one instance, aggregate views:
+- Overview (Dashboard) — To-do list, plan summaries, quick actions
+- Net Worth — Aggregate view of all accounts and balances
+- Cash Flow — Income vs expenses, savings rate
+- Tax Strategy — Tax bracket, optimization opportunities
+
+**User Plans (Multiples)** — User creates and names these:
+- Retirement Plans — Can have multiple scenarios ("Conservative", "Early Retirement")
+- Savings Goals — Multiple goals ("House Down Payment", "Vacation Fund", "New Car")
+- Debt Payoff Plans — Can have multiple strategies
+
+```
+┌─────────────────────────────────────┐
+│ Lasagna                             │
+│ AI Financial Advisor                │
+├─────────────────────────────────────┤
+│ DASHBOARD                           │
+│   ◐ Overview                        │
+│   ◈ Net Worth                       │
+│   ◉ Cash Flow                       │
+│   ◇ Tax Strategy                    │
+├─────────────────────────────────────┤
+│ YOUR PLANS                        ▾ │
+│   ◎ Retirement Plan           v3   │
+│   ◎ House Down Payment       45%   │
+│   ◎ Europe Vacation          72%   │
+│   ◆ Debt Payoff                    │
+│   + New Plan                        │
+└─────────────────────────────────────┘
+```
+
+**Why this structure:**
+- Net Worth is a snapshot — you only have one net worth
+- Cash Flow is aggregate — one view of all money movement
+- Tax Strategy is per-year — typically one active strategy
+- But users often have multiple savings goals and may want to model multiple retirement scenarios
+
 ## Alternative Approaches Considered
 
 ### A: Traditional App + Chat Sidebar
