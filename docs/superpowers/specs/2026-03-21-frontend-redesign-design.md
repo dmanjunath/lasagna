@@ -1,7 +1,8 @@
 # Lasagna Frontend Redesign - Design Spec
 
 **Date:** 2026-03-21
-**Status:** Draft
+**Status:** Approved
+**Reference Mockup:** `mockups/workspace-ui.html`
 
 ## Overview
 
@@ -156,12 +157,21 @@ The sidebar distinguishes between singleton views and user-created plans:
 
 ## Technical Architecture
 
-### Frontend
-- React (existing)
-- Document-based routing (`/plans/:type/:id`)
-- Markdown/rich-text rendering for plan sections
-- Chart library for projections (recharts or similar)
-- PDF generation (react-pdf or server-side)
+### Frontend Stack (Approved)
+- **React** (existing in `packages/web`)
+- **React Router** for document-based routing (`/plans/:type/:id`)
+- **shadcn/ui + Radix UI** for accessible, customizable components
+- **Tailwind CSS** for styling (already in use)
+- **Framer Motion** for high-quality animations (spring physics, layout animations)
+- **Recharts** for data visualization (charts, graphs)
+- **PDF generation** (react-pdf or server-side, future phase)
+
+### Design Tokens
+- Dark theme primary (warm stone palette from mockup)
+- Accent color: Amber/gold (`#fbbf24`)
+- Typography: DM Sans (body), Fraunces (display headings)
+- Glassmorphism cards with subtle borders and backdrop blur
+- Consistent spacing scale via Tailwind
 
 ### Backend
 - Hono API (existing)
@@ -178,16 +188,67 @@ The sidebar distinguishes between singleton views and user-created plans:
 - Defined tools for each planning type
 - Consistent prompt templates for reproducible outputs
 
+## Page Specifications
+
+### Dashboard (`/`)
+- Greeting with user name
+- Plan summary cards (Net Worth, Retirement, Tax Strategy, Debt Payoff, Cash Flow) with status indicators
+- Action items / to-do list with priority indicators, linked to relevant plans
+- Quick action buttons (Sync All Accounts, Run Full Analysis, Export Reports)
+
+### Net Worth (`/net-worth`)
+- Total net worth with month-over-month change
+- Line/area chart showing net worth over time
+- Donut pie chart showing asset allocation (Cash, Investments, Retirement, Real Estate)
+- Expandable account sections grouped by category, showing individual account balances
+- Debt shown separately (not in pie chart, but in accounts list)
+
+### Cash Flow (`/cash-flow`)
+- Monthly income, expenses, savings rate, emergency runway stats
+- Expense breakdown with horizontal bar visualization by category
+
+### Tax Strategy (`/tax-strategy`)
+- Marginal bracket, effective rate, potential savings stats
+- PDF upload for tax return analysis
+- List of optimization opportunities with potential savings amounts
+
+### Retirement Plan (`/plans/retirement`)
+- Header with plan name, version, last updated
+- Expected return display (weighted by asset allocation) with real/nominal toggle
+- Asset allocation breakdown showing each asset class with expected returns
+- Readiness score (large display), projected balance, income gap
+- AI-suggested drawdown order with reasoning (user can reorder)
+- AI recommendations list with "Apply" actions
+- Contextual chat panel (desktop: side panel, mobile: bottom sheet or separate view)
+- Version history modal
+- Scenario runner modal
+
+### Savings Goals (`/plans/savings-:id`)
+- Goal name and target date
+- Current progress with amount and percentage
+- Progress bar with milestones
+- Stats: monthly contribution, remaining amount, months to goal, on-track status
+- Savings history chart
+- Action buttons: Add Contribution, Edit Goal, Set Reminder
+
+### Debt Payoff (`/plans/debt-payoff`)
+- Total debt, monthly payment, debt-free date stats
+- Strategy toggle (Avalanche vs Snowball) with explanation
+- Ordered list of debts with "Focus" indicator on current priority
+- Each debt shows balance, APR, minimum payment
+
 ## Open Questions
 
-1. How should plan versioning work? Auto-save vs explicit versions?
-2. Should AI recommendations require user approval before "applying"?
-3. What's the onboarding flow for collecting user inputs (income, goals, etc.)?
-4. How detailed should the expense categorization be?
+1. ~~How should plan versioning work?~~ Start with explicit versions triggered by major changes
+2. ~~Should AI recommendations require user approval?~~ Yes, show "Apply" button
+3. What's the onboarding flow for collecting user inputs (income, goals, etc.)? — Future phase
+4. How detailed should the expense categorization be? — Start with Plaid categories
 
 ## Next Steps
 
-1. Create high-fidelity mockups
-2. Define plan document schemas
-3. Design AI agent prompts for each workflow
-4. Implementation planning
+1. ~~Create high-fidelity mockups~~ Done: `mockups/workspace-ui.html`
+2. Implementation planning (current)
+3. Build foundation: routing, layout, design system
+4. Implement pages incrementally
+5. Define plan document schemas (as pages are built)
+6. Design AI agent prompts for each workflow (future phase)
