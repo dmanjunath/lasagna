@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lasagna - Workspace UI Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: '#0a0a0a',
+            surface: '#141414',
+            surfaceHover: '#1a1a1a',
+            border: '#262626',
+            borderLight: '#333',
+            text: '#e5e5e5',
+            textMuted: '#737373',
+            accent: '#22c55e',
+            accentDim: '#16a34a',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e5e5e5;
+    }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .animate-slideIn { animation: slideIn 0.3s ease-out; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Mock data for all document types
+    const documentsData = {
+      'dashboard': {
+        icon: '🏠',
+        name: 'Dashboard',
+        type: 'dashboard',
+        todos: [
+          { id: 1, text: 'Review Roth conversion opportunity', plan: 'tax-strategy', priority: 'high', dueDate: 'Apr 15' },
+          { id: 2, text: 'Increase 401k contribution', plan: 'retirement', priority: 'high', dueDate: 'Next paycheck' },
+          { id: 3, text: 'Pay extra $200 on credit card', plan: 'debt-payoff', priority: 'medium', dueDate: 'Mar 28' },
+          { id: 4, text: 'Update tax withholdings', plan: 'tax-strategy', priority: 'low', dueDate: 'Apr 1' },
+        ],
+        planSummaries: {
+          'net-worth': { status: 'good', metric: '+2.4%', label: 'this month' },
+          'retirement': { status: 'warning', metric: '73%', label: 'readiness' },
+          'tax-strategy': { status: 'good', metric: '$12.1k', label: 'savings found' },
+          'debt-payoff': { status: 'good', metric: 'Aug 2029', label: 'debt-free date' },
+          'cash-flow': { status: 'good', metric: '34%', label: 'savings rate' },
+        }
+      },
+      'net-worth': {
+        icon: '📊',
+        name: 'Net Worth',
+        type: 'networth',
+        summary: {
+          total: 523000,
+          change: 12500,
+          changePercent: 2.4,
+        },
+        breakdown: [
+          {
+            category: 'Cash & Checking',
+            value: 45000,
+            color: '#22c55e',
+            accounts: [
+              { name: 'Chase Checking', balance: 12500, institution: 'Chase' },
+              { name: 'Ally Savings', balance: 25000, institution: 'Ally Bank' },
+              { name: 'Emergency Fund', balance: 7500, institution: 'Marcus' },
+            ]
+          },
+          {
+            category: 'Investment Accounts',
+            value: 320000,
+            color: '#3b82f6',
+            accounts: [
+              { name: 'Fidelity Brokerage', balance: 185000, institution: 'Fidelity' },
+              { name: 'Vanguard Taxable', balance: 95000, institution: 'Vanguard' },
+              { name: 'Robinhood', balance: 40000, institution: 'Robinhood' },
+            ]
+          },
+          {
+            category: 'Retirement (401k/IRA)',
+            value: 180000,
+            color: '#8b5cf6',
+            accounts: [
+              { name: '401(k) - Employer', balance: 125000, institution: 'Fidelity' },
+              { name: 'Roth IRA', balance: 45000, institution: 'Vanguard' },
+              { name: 'Traditional IRA', balance: 10000, institution: 'Fidelity' },
+            ]
+          },
+          {
+            category: 'Real Estate Equity',
+            value: 85000,
+            color: '#f59e0b',
+            accounts: [
+              { name: 'Primary Residence', balance: 85000, institution: 'Manual Entry' },
+            ]
+          },
+          {
+            category: 'Debt',
+            value: -107000,
+            color: '#ef4444',
+            accounts: [
+              { name: 'Mortgage', balance: -85000, institution: 'Wells Fargo' },
+              { name: 'Auto Loan', balance: -15000, institution: 'Capital One' },
+              { name: 'Credit Card', balance: -7000, institution: 'Chase' },
+            ]
+          },
+        ],
+      },
+      'retirement': {
+        icon: '🏖️',
+        name: 'Retirement Plan',
+        type: 'retirement',
+        version: 'v3',
+        readinessScore: 73,
+        targetAge: 65,
+        currentAge: 42,
+        lifeExpectancy: 90,
+        incomeRequired: 5500,
+        projectedBalance: 1200000,
+        monthlyIncome: 4000,
+        targetIncome: 5500,
+        gap: 1500,
+        assumptions: [
+          { label: 'Current savings', value: '$450,000', key: 'currentSavings', editable: true },
+          { label: 'Monthly contribution', value: '$2,500', key: 'monthlyContribution', editable: true },
+          { label: 'Expected return', value: '7%', key: 'expectedReturn', editable: true },
+          { label: 'Inflation rate', value: '2.5%', key: 'inflationRate', editable: true },
+          { label: 'Retirement age', value: '65', key: 'retirementAge', editable: true },
+          { label: 'Life expectancy', value: '90', key: 'lifeExpectancy', editable: true },
+          { label: 'Monthly income required', value: '$5,500', key: 'incomeRequired', editable: true },
+          { label: 'Social Security (est.)', value: '$2,100/mo at 67', key: 'socialSecurity', editable: false },
+        ],
+        drawdownOrder: [
+          { id: 1, name: 'Taxable Brokerage', type: 'taxable', balance: 280000, order: 1 },
+          { id: 2, name: 'Traditional 401(k)', type: 'traditional', balance: 125000, order: 2 },
+          { id: 3, name: 'Traditional IRA', type: 'traditional', balance: 10000, order: 3 },
+          { id: 4, name: 'Roth IRA', type: 'roth', balance: 45000, order: 4 },
+        ],
+        withdrawalRules: [
+          { id: 1, condition: 'Market drops > 20%', action: 'Withdraw from cash reserves instead of selling', enabled: true },
+          { id: 2, condition: 'RMD year', action: 'Prioritize Traditional accounts', enabled: true },
+          { id: 3, condition: 'Low income year', action: 'Consider Roth conversion', enabled: false },
+        ],
+        recommendations: [
+          { id: 1, priority: 'high', text: 'Increase 401(k) contribution by $500/month to close the income gap', applied: false },
+          { id: 2, priority: 'medium', text: 'Consider Roth conversion in years with lower income', applied: false },
+          { id: 3, priority: 'low', text: 'Review asset allocation — currently 80/20, consider shifting to 70/30 after 55', applied: false },
+        ],
+        history: [
+          { version: 'v3', date: '2 hours ago', note: 'Updated contribution amount' },
+          { version: 'v2', date: 'Mar 15, 2026', note: 'Added Social Security estimates' },
+          { version: 'v1', date: 'Mar 1, 2026', note: 'Initial plan created' },
+        ],
+      },
+      'tax-strategy': {
+        icon: '📋',
+        name: 'Tax Strategy',
+        type: 'tax',
+        currentBracket: '24%',
+        effectiveRate: '18.2%',
+        estimatedTax: 42500,
+        connectedAccounts: [
+          { name: 'Fidelity Brokerage', type: 'Investment', taxImplication: 'Unrealized gains: $45,000', suggestions: ['Tax-loss harvesting available on VXUS position'] },
+          { name: 'Traditional 401(k)', type: 'Retirement', taxImplication: 'Pre-tax: $125,000', suggestions: ['Consider Roth conversion ladder'] },
+          { name: 'Roth IRA', type: 'Retirement', taxImplication: 'Tax-free growth', suggestions: ['Max out contributions'] },
+          { name: 'Chase Checking', type: 'Cash', taxImplication: 'Interest income: $120/yr', suggestions: [] },
+        ],
+        opportunities: [
+          { type: 'Tax-Loss Harvesting', potential: 2400, description: 'Unrealized losses in VXUS position', account: 'Fidelity Brokerage' },
+          { type: 'Roth Conversion', potential: 8500, description: 'Convert $35k at 24% vs future 32%', account: 'Traditional 401(k)' },
+          { type: 'Asset Location', potential: 1200, description: 'Move bonds to tax-advantaged accounts', account: 'Multiple' },
+        ],
+        uploadedReturns: [],
+      },
+      'debt-payoff': {
+        icon: '💳',
+        name: 'Debt Payoff',
+        type: 'debt',
+        totalDebt: 107000,
+        monthlyPayment: 2100,
+        payoffDate: 'Aug 2029',
+        debts: [
+          { name: 'Mortgage', balance: 85000, rate: 3.25, minPayment: 1200, type: 'mortgage' },
+          { name: 'Auto Loan', balance: 15000, rate: 4.5, minPayment: 450, type: 'auto' },
+          { name: 'Credit Card', balance: 7000, rate: 19.99, minPayment: 200, type: 'credit' },
+        ],
+        strategy: 'avalanche',
+      },
+      'cash-flow': {
+        icon: '💰',
+        name: 'Cash Flow',
+        type: 'cashflow',
+        monthlyIncome: 12500,
+        monthlyExpenses: 8200,
+        savingsRate: 34,
+        runway: '18 months',
+        categories: [
+          { name: 'Housing', amount: 2800 },
+          { name: 'Transportation', amount: 650 },
+          { name: 'Food & Dining', amount: 900 },
+          { name: 'Utilities', amount: 350 },
+          { name: 'Insurance', amount: 400 },
+          { name: 'Entertainment', amount: 300 },
+          { name: 'Other', amount: 800 },
+        ],
+      },
+    };
+
+    const documents = [
+      { id: 'dashboard', name: 'Dashboard', icon: '🏠', type: 'dashboard' },
+      { id: 'net-worth', name: 'Net Worth', icon: '📊', type: 'networth' },
+      { id: 'retirement', name: 'Retirement Plan', icon: '🏖️', type: 'retirement', version: 'v3' },
+      { id: 'tax-strategy', name: 'Tax Strategy', icon: '📋', type: 'tax' },
+      { id: 'debt-payoff', name: 'Debt Payoff', icon: '💳', type: 'debt' },
+      { id: 'cash-flow', name: 'Cash Flow', icon: '💰', type: 'cashflow' },
+    ];
+
+    // Modal Component
+    function Modal({ isOpen, onClose, title, children, wide }) {
+      if (!isOpen) return null;
+      return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+          <div className={`bg-surface border border-border rounded-xl ${wide ? 'max-w-2xl' : 'max-w-lg'} w-full mx-4 animate-fadeIn max-h-[85vh] flex flex-col`} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="font-semibold">{title}</h3>
+              <button onClick={onClose} className="text-textMuted hover:text-text">✕</button>
+            </div>
+            <div className="p-4 overflow-y-auto scrollbar-thin">{children}</div>
+          </div>
+        </div>
+      );
+    }
+
+    // Sidebar Component
+    function Sidebar({ activeDoc, setActiveDoc, onNewPlan }) {
+      return (
+        <div className="w-56 bg-surface border-r border-border flex flex-col">
+          <div className="p-4 border-b border-border">
+            <h1 className="text-lg font-semibold flex items-center gap-2">
+              <span className="text-2xl">🍝</span> Lasagna
+            </h1>
+          </div>
+
+          <div className="p-3 border-b border-border">
+            <div className="text-xs uppercase text-textMuted font-medium mb-2">Documents</div>
+            <div className="space-y-1">
+              {documents.map(doc => (
+                <button
+                  key={doc.id}
+                  onClick={() => setActiveDoc(doc.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
+                    activeDoc === doc.id
+                      ? 'bg-accent/10 text-accent'
+                      : 'hover:bg-surfaceHover text-text'
+                  }`}
+                >
+                  <span>{doc.icon}</span>
+                  <span className="flex-1">{doc.name}</span>
+                  {doc.version && <span className="text-xs text-textMuted">{doc.version}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-3">
+            <button
+              onClick={onNewPlan}
+              className="w-full px-3 py-2 rounded-lg text-sm text-textMuted hover:text-text hover:bg-surfaceHover transition-colors flex items-center gap-2"
+            >
+              <span>+</span> New Plan
+            </button>
+          </div>
+
+          <div className="mt-auto p-3 border-t border-border">
+            <div className="flex items-center gap-2 text-sm text-textMuted">
+              <div className="w-8 h-8 rounded-full bg-border flex items-center justify-center text-xs">DM</div>
+              <div className="flex-1 truncate">dheeraj@example.com</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function ProgressBar({ value, className = '' }) {
+      return (
+        <div className={`h-2 bg-border rounded-full overflow-hidden ${className}`}>
+          <div
+            className="h-full bg-accent rounded-full transition-all duration-500"
+            style={{ width: `${value}%` }}
+          />
+        </div>
+      );
+    }
+
+    function Section({ title, children, actions }) {
+      return (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-textMuted uppercase tracking-wide">{title}</h3>
+            {actions && <div className="flex gap-2">{actions}</div>}
+          </div>
+          {children}
+        </div>
+      );
+    }
+
+    // Dashboard Document
+    function DashboardDocument({ data, setActiveDoc }) {
+      const [completedTodos, setCompletedTodos] = useState([]);
+
+      const toggleTodo = (id) => {
+        setCompletedTodos(prev =>
+          prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+        );
+      };
+
+      const priorityColors = {
+        high: 'bg-red-400',
+        medium: 'bg-yellow-400',
+        low: 'bg-blue-400',
+      };
+
+      const statusColors = {
+        good: 'text-accent',
+        warning: 'text-yellow-400',
+        bad: 'text-red-400',
+      };
+
+      const planInfo = {
+        'net-worth': { icon: '📊', name: 'Net Worth' },
+        'retirement': { icon: '🏖️', name: 'Retirement' },
+        'tax-strategy': { icon: '📋', name: 'Tax Strategy' },
+        'debt-payoff': { icon: '💳', name: 'Debt Payoff' },
+        'cash-flow': { icon: '💰', name: 'Cash Flow' },
+      };
+
+      return (
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 animate-slideIn">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold mb-1">Welcome back, Dheeraj</h2>
+            <p className="text-textMuted">Here's your financial overview</p>
+          </div>
+
+          {/* Plan Summaries Grid */}
+          <Section title="Your Plans">
+            <div className="grid grid-cols-5 gap-4">
+              {Object.entries(data.planSummaries).map(([planId, summary]) => (
+                <button
+                  key={planId}
+                  onClick={() => setActiveDoc(planId)}
+                  className="bg-surface border border-border rounded-xl p-4 hover:border-accent/50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">{planInfo[planId].icon}</span>
+                    <span className="text-xs text-textMuted truncate">{planInfo[planId].name}</span>
+                  </div>
+                  <div className={`text-xl font-bold ${statusColors[summary.status]}`}>
+                    {summary.metric}
+                  </div>
+                  <div className="text-xs text-textMuted mt-1">{summary.label}</div>
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          {/* Action Items */}
+          <Section title="Action Items">
+            <div className="bg-surface border border-border rounded-xl divide-y divide-border">
+              {data.todos.map(todo => (
+                <div
+                  key={todo.id}
+                  className={`p-4 flex items-center gap-3 transition-opacity ${completedTodos.includes(todo.id) ? 'opacity-50' : ''}`}
+                >
+                  <button
+                    onClick={() => toggleTodo(todo.id)}
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      completedTodos.includes(todo.id)
+                        ? 'bg-accent border-accent text-black'
+                        : 'border-border hover:border-accent'
+                    }`}
+                  >
+                    {completedTodos.includes(todo.id) && '✓'}
+                  </button>
+                  <div className={`w-2 h-2 rounded-full ${priorityColors[todo.priority]}`} />
+                  <div className="flex-1">
+                    <div className={`text-sm ${completedTodos.includes(todo.id) ? 'line-through' : ''}`}>
+                      {todo.text}
+                    </div>
+                    <button
+                      onClick={() => setActiveDoc(todo.plan)}
+                      className="text-xs text-textMuted hover:text-accent"
+                    >
+                      {planInfo[todo.plan]?.icon} {planInfo[todo.plan]?.name}
+                    </button>
+                  </div>
+                  <div className="text-xs text-textMuted">{todo.dueDate}</div>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {/* Quick Actions */}
+          <Section title="Quick Actions">
+            <div className="flex gap-3">
+              <button className="px-4 py-2 bg-accent text-black rounded-lg text-sm font-medium hover:bg-accentDim transition-colors">
+                Sync All Accounts
+              </button>
+              <button className="px-4 py-2 bg-surfaceHover border border-border rounded-lg text-sm hover:border-accent/50 transition-colors">
+                Run Full Analysis
+              </button>
+              <button className="px-4 py-2 bg-surfaceHover border border-border rounded-lg text-sm hover:border-accent/50 transition-colors">
+                Export Reports
+              </button>
+            </div>
+          </Section>
+        </div>
+      );
+    }
+
+    // Net Worth Document with account breakdown
+    function NetWorthDocument({ data }) {
+      const [expandedCategories, setExpandedCategories] = useState({});
+
+      const toggleCategory = (category) => {
+        setExpandedCategories(prev => ({
+          ...prev,
+          [category]: !prev[category]
+        }));
+      };
+
+      return (
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 animate-slideIn">
+          <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="text-4xl font-bold">${(data.summary.total / 1000).toFixed(0)}k</div>
+                <div className="text-sm text-textMuted mt-1">Total Net Worth</div>
+              </div>
+              <div className="text-right">
+                <div className={`text-xl font-semibold ${data.summary.change >= 0 ? 'text-accent' : 'text-red-400'}`}>
+                  {data.summary.change >= 0 ? '+' : ''}{(data.summary.change / 1000).toFixed(1)}k
+                </div>
+                <div className="text-sm text-textMuted">This month ({data.summary.changePercent}%)</div>
+              </div>
+            </div>
+          </div>
+
+          <Section title="Asset Breakdown">
+            <div className="space-y-3">
+              {data.breakdown.map((item, i) => (
+                <div key={i} className="bg-surface border border-border rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => toggleCategory(item.category)}
+                    className="w-full p-4 text-left hover:bg-surfaceHover transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`transform transition-transform ${expandedCategories[item.category] ? 'rotate-90' : ''}`}>▶</span>
+                        <span className="text-sm font-medium">{item.category}</span>
+                        <span className="text-xs text-textMuted">({item.accounts.length} accounts)</span>
+                      </div>
+                      <span className={`font-semibold ${item.value < 0 ? 'text-red-400' : ''}`}>
+                        {item.value < 0 ? '-' : ''}${Math.abs(item.value).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-border rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.abs(item.value) / (data.summary.total + 107000) * 100}%`,
+                          backgroundColor: item.color
+                        }}
+                      />
+                    </div>
+                  </button>
+
+                  {expandedCategories[item.category] && (
+                    <div className="border-t border-border bg-bg/50">
+                      {item.accounts.map((account, j) => (
+                        <div key={j} className="px-4 py-3 flex items-center justify-between hover:bg-surfaceHover transition-colors">
+                          <div className="flex items-center gap-3 pl-6">
+                            <div className="w-8 h-8 rounded-lg bg-border flex items-center justify-center text-xs">
+                              {account.institution.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="text-sm">{account.name}</div>
+                              <div className="text-xs text-textMuted">{account.institution}</div>
+                            </div>
+                          </div>
+                          <span className={`text-sm font-medium ${account.balance < 0 ? 'text-red-400' : ''}`}>
+                            {account.balance < 0 ? '-' : ''}${Math.abs(account.balance).toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="px-4 py-2 flex justify-end border-t border-border/50">
+                        <span className="text-xs text-textMuted">
+                          Subtotal: <span className={item.value < 0 ? 'text-red-400' : 'text-text'}>
+                            {item.value < 0 ? '-' : ''}${Math.abs(item.value).toLocaleString()}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {/* Verification */}
+          <div className="bg-surface/50 border border-border rounded-xl p-4 text-sm text-textMuted">
+            <div className="flex items-center justify-between">
+              <span>Asset verification</span>
+              <span className="text-accent">✓ All accounts match</span>
+            </div>
+            <div className="mt-2 text-xs">
+              Assets: ${(data.summary.total + 107000).toLocaleString()} - Liabilities: $107,000 = Net Worth: ${data.summary.total.toLocaleString()}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Tax Strategy Document with PDF upload and account suggestions
+    function TaxStrategyDocument({ data }) {
+      const [uploadedFiles, setUploadedFiles] = useState(data.uploadedReturns);
+      const [isAnalyzing, setIsAnalyzing] = useState(false);
+      const [analysisResult, setAnalysisResult] = useState(null);
+      const fileInputRef = useRef(null);
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type === 'application/pdf') {
+          const newFile = { name: file.name, uploadedAt: 'Just now', status: 'analyzing' };
+          setUploadedFiles(prev => [...prev, newFile]);
+          setIsAnalyzing(true);
+
+          // Simulate analysis
+          setTimeout(() => {
+            setUploadedFiles(prev => prev.map(f =>
+              f.name === file.name ? { ...f, status: 'complete' } : f
+            ));
+            setIsAnalyzing(false);
+            setAnalysisResult({
+              year: '2025',
+              income: 185000,
+              deductions: 28500,
+              taxPaid: 38200,
+              opportunities: [
+                'You may have missed $2,400 in charitable deduction carryover',
+                'HSA contribution was $1,200 below maximum',
+                'Consider bunching deductions in alternating years',
+              ]
+            });
+          }, 3000);
+        }
+      };
+
+      return (
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 animate-slideIn">
+          <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <div className="text-3xl font-bold">{data.currentBracket}</div>
+                <div className="text-sm text-textMuted mt-1">Marginal Tax Bracket</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold">{data.effectiveRate}</div>
+                <div className="text-sm text-textMuted mt-1">Effective Tax Rate</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-accent">
+                  ${data.opportunities.reduce((sum, o) => sum + o.potential, 0).toLocaleString()}
+                </div>
+                <div className="text-sm text-textMuted mt-1">Potential Savings</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tax Return Upload Section */}
+          <Section title="Tax Return Analysis" actions={
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="text-xs text-accent hover:text-accentDim"
+            >
+              + Upload Return
+            </button>
+          }>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".pdf"
+              className="hidden"
+            />
+            <div className="bg-surface border border-border rounded-xl p-4">
+              {uploadedFiles.length === 0 ? (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-8 border-2 border-dashed border-border rounded-lg hover:border-accent/50 transition-colors"
+                >
+                  <div className="text-center">
+                    <div className="text-3xl mb-2">📄</div>
+                    <div className="text-sm font-medium">Upload your tax return PDF</div>
+                    <div className="text-xs text-textMuted mt-1">
+                      We'll anonymize sensitive data and analyze for optimization opportunities
+                    </div>
+                  </div>
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  {uploadedFiles.map((file, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-bg rounded-lg">
+                      <div className="text-2xl">📄</div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{file.name}</div>
+                        <div className="text-xs text-textMuted">Uploaded {file.uploadedAt}</div>
+                      </div>
+                      {file.status === 'analyzing' ? (
+                        <span className="text-xs text-yellow-400 animate-pulse">Analyzing...</span>
+                      ) : (
+                        <span className="text-xs text-accent">✓ Analyzed</span>
+                      )}
+                    </div>
+                  ))}
+
+                  {analysisResult && (
+                    <div className="mt-4 p-4 bg-accent/5 border border-accent/20 rounded-lg">
+                      <div className="text-sm font-medium mb-3">Analysis Results - {analysisResult.year}</div>
+                      <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
+                        <div>
+                          <div className="text-textMuted">Gross Income</div>
+                          <div className="font-medium">${analysisResult.income.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-textMuted">Deductions</div>
+                          <div className="font-medium">${analysisResult.deductions.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-textMuted">Tax Paid</div>
+                          <div className="font-medium">${analysisResult.taxPaid.toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium mb-2">Opportunities Found:</div>
+                      <ul className="space-y-1">
+                        {analysisResult.opportunities.map((opp, i) => (
+                          <li key={i} className="text-sm text-textMuted flex items-start gap-2">
+                            <span className="text-accent">•</span>
+                            {opp}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </Section>
+
+          {/* Connected Account Suggestions */}
+          <Section title="Account-Based Suggestions">
+            <div className="space-y-3">
+              {data.connectedAccounts.filter(a => a.suggestions.length > 0).map((account, i) => (
+                <div key={i} className="bg-surface border border-border rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-border flex items-center justify-center text-sm">
+                      {account.type === 'Investment' ? '📈' : account.type === 'Retirement' ? '🏦' : '💵'}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{account.name}</div>
+                      <div className="text-xs text-textMuted">{account.taxImplication}</div>
+                    </div>
+                  </div>
+                  <div className="pl-13 space-y-2">
+                    {account.suggestions.map((suggestion, j) => (
+                      <div key={j} className="flex items-start gap-2 text-sm">
+                        <span className="text-accent mt-0.5">💡</span>
+                        <span>{suggestion}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {/* Tax Optimization Opportunities */}
+          <Section title="Top Optimization Opportunities">
+            <div className="space-y-3">
+              {data.opportunities.map((opp, i) => (
+                <div key={i} className="bg-surface border border-border rounded-xl p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-medium">{opp.type}</div>
+                      <div className="text-sm text-textMuted mt-1">{opp.description}</div>
+                      <div className="text-xs text-textMuted mt-2">Account: {opp.account}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-accent font-semibold">+${opp.potential.toLocaleString()}</div>
+                      <div className="text-xs text-textMuted">potential savings</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
+      );
+    }
+
+    // Debt Payoff Document
+    function DebtPayoffDocument({ data }) {
+      const [strategy, setStrategy] = useState(data.strategy);
+
+      return (
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 animate-slideIn">
+          <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <div className="text-3xl font-bold text-red-400">${(data.totalDebt / 1000).toFixed(0)}k</div>
+                <div className="text-sm text-textMuted mt-1">Total Debt</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold">${data.monthlyPayment.toLocaleString()}</div>
+                <div className="text-sm text-textMuted mt-1">Monthly Payment</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-accent">{data.payoffDate}</div>
+                <div className="text-sm text-textMuted mt-1">Debt-Free Date</div>
+              </div>
+            </div>
+          </div>
+
+          <Section title="Payoff Strategy" actions={
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStrategy('avalanche')}
+                className={`text-xs px-2 py-1 rounded ${strategy === 'avalanche' ? 'bg-accent text-black' : 'bg-surfaceHover'}`}
+              >
+                Avalanche
+              </button>
+              <button
+                onClick={() => setStrategy('snowball')}
+                className={`text-xs px-2 py-1 rounded ${strategy === 'snowball' ? 'bg-accent text-black' : 'bg-surfaceHover'}`}
+              >
+                Snowball
+              </button>
+            </div>
+          }>
+            <div className="bg-surface border border-border rounded-xl p-4 text-sm text-textMuted">
+              {strategy === 'avalanche'
+                ? 'Paying highest interest rate first. Saves $1,240 in interest vs snowball method.'
+                : 'Paying smallest balance first. Faster psychological wins, costs $1,240 more in interest.'}
+            </div>
+          </Section>
+
+          <Section title="Debts">
+            <div className="space-y-3">
+              {[...data.debts].sort((a, b) => strategy === 'avalanche' ? b.rate - a.rate : a.balance - b.balance).map((debt, i) => (
+                <div key={i} className="bg-surface border border-border rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <span className="font-medium">{debt.name}</span>
+                      {i === 0 && <span className="ml-2 text-xs bg-accent/20 text-accent px-2 py-0.5 rounded">Focus</span>}
+                    </div>
+                    <span className="font-semibold">${debt.balance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-textMuted">
+                    <span>{debt.rate}% APR</span>
+                    <span>${debt.minPayment}/mo minimum</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
+      );
+    }
+
+    // Cash Flow Document
+    function CashFlowDocument({ data }) {
+      return (
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 animate-slideIn">
+          <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+            <div className="grid grid-cols-4 gap-6">
+              <div>
+                <div className="text-2xl font-bold">${(data.monthlyIncome / 1000).toFixed(1)}k</div>
+                <div className="text-sm text-textMuted mt-1">Monthly Income</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">${(data.monthlyExpenses / 1000).toFixed(1)}k</div>
+                <div className="text-sm text-textMuted mt-1">Monthly Expenses</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-accent">{data.savingsRate}%</div>
+                <div className="text-sm text-textMuted mt-1">Savings Rate</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{data.runway}</div>
+                <div className="text-sm text-textMuted mt-1">Emergency Runway</div>
+              </div>
+            </div>
+          </div>
+
+          <Section title="Expense Breakdown">
+            <div className="space-y-2">
+              {data.categories.map((cat, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-32 text-sm text-textMuted">{cat.name}</div>
+                  <div className="flex-1 h-6 bg-border rounded overflow-hidden">
+                    <div
+                      className="h-full bg-accent/60 rounded flex items-center px-2"
+                      style={{ width: `${cat.amount / data.monthlyExpenses * 100}%` }}
+                    >
+                      <span className="text-xs font-medium">${cat.amount}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
+      );
+    }
+
+    // Retirement Document with full interactivity
+    function RetirementDocument({ data, onUpdateData }) {
+      const [chatInput, setChatInput] = useState('');
+      const [messages, setMessages] = useState([
+        { role: 'assistant', content: "I've analyzed your retirement plan. You're on track but there's a $1,500/month gap between your projected and target income. Would you like me to model some scenarios to close this gap?" }
+      ]);
+      const [showHistory, setShowHistory] = useState(false);
+      const [showScenario, setShowScenario] = useState(false);
+      const [showEditAssumptions, setShowEditAssumptions] = useState(false);
+      const [showDrawdownOrder, setShowDrawdownOrder] = useState(false);
+      const [showWithdrawalRules, setShowWithdrawalRules] = useState(false);
+      const [recommendations, setRecommendations] = useState(data.recommendations);
+      const [scenarioResult, setScenarioResult] = useState(null);
+      const [drawdownOrder, setDrawdownOrder] = useState(data.drawdownOrder);
+      const [withdrawalRules, setWithdrawalRules] = useState(data.withdrawalRules);
+      const [assumptions, setAssumptions] = useState({
+        retirementAge: 65,
+        lifeExpectancy: 90,
+        incomeRequired: 5500,
+        currentSavings: 450000,
+        monthlyContribution: 2500,
+        expectedReturn: 7,
+        inflationRate: 2.5,
+      });
+
+      const sendMessage = () => {
+        if (!chatInput.trim()) return;
+        const userMsg = chatInput;
+        setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+        setChatInput('');
+
+        setTimeout(() => {
+          let response = "I'll analyze that for you. Based on your current plan...";
+          if (userMsg.toLowerCase().includes('retire early') || userMsg.toLowerCase().includes('62')) {
+            response = "Retiring at 62 instead of 65 would reduce your projected balance by approximately $180,000. Your monthly income would drop to $3,400, increasing the gap to $2,100. To offset this, you'd need to increase savings by $1,200/month or reduce your target income.";
+          } else if (userMsg.toLowerCase().includes('401k') || userMsg.toLowerCase().includes('contribution')) {
+            response = "If you max out your 401(k) at $23,000/year, your projected balance at 65 increases to $1.45M, bringing monthly income to $4,800. That closes 53% of your current gap.";
+          } else if (userMsg.toLowerCase().includes('social security')) {
+            response = "Delaying Social Security to 70 would increase your benefit from $2,100 to $2,640/month — a 26% increase. Combined with your investments, this could fully close your income gap.";
+          } else if (userMsg.toLowerCase().includes('drawdown') || userMsg.toLowerCase().includes('withdrawal')) {
+            response = "Your current drawdown order prioritizes taxable accounts first to let tax-advantaged accounts grow. This is optimal for most scenarios. The withdrawal rules you've set will protect against sequence-of-returns risk.";
+          }
+          setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+        }, 1000);
+      };
+
+      const applyRecommendation = (id) => {
+        setRecommendations(prev => prev.map(r => r.id === id ? { ...r, applied: true } : r));
+        setMessages(prev => [...prev,
+          { role: 'assistant', content: `✓ Applied recommendation. I've updated your plan assumptions. Your new readiness score is 78%.` }
+        ]);
+      };
+
+      const runScenario = () => {
+        setShowScenario(true);
+        setScenarioResult(null);
+        setTimeout(() => {
+          setScenarioResult({
+            retireAt62: { score: 58, balance: 980000, monthlyIncome: 3200 },
+            retireAt65: { score: 73, balance: 1200000, monthlyIncome: 4000 },
+            retireAt67: { score: 85, balance: 1450000, monthlyIncome: 4800 },
+          });
+        }, 1500);
+      };
+
+      const moveDrawdownItem = (id, direction) => {
+        const idx = drawdownOrder.findIndex(d => d.id === id);
+        if ((direction === 'up' && idx === 0) || (direction === 'down' && idx === drawdownOrder.length - 1)) return;
+
+        const newOrder = [...drawdownOrder];
+        const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+        [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+        newOrder.forEach((item, i) => item.order = i + 1);
+        setDrawdownOrder(newOrder);
+      };
+
+      const toggleWithdrawalRule = (id) => {
+        setWithdrawalRules(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
+      };
+
+      return (
+        <div className="flex-1 flex flex-col h-screen">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-surface">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{data.icon}</span>
+              <div>
+                <h2 className="text-lg font-semibold">{data.name}</h2>
+                <div className="text-xs text-textMuted">Last updated 2 hours ago · {data.version}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowHistory(true)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-border hover:bg-surfaceHover transition-colors"
+              >
+                History
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="px-3 py-1.5 text-sm rounded-lg border border-border hover:bg-surfaceHover transition-colors"
+              >
+                Export PDF
+              </button>
+              <button
+                onClick={runScenario}
+                className="px-3 py-1.5 text-sm rounded-lg bg-accent text-black font-medium hover:bg-accentDim transition-colors"
+              >
+                Run Scenario
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 flex overflow-hidden">
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto scrollbar-thin p-6 animate-slideIn">
+              {/* Summary Card */}
+              <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="text-4xl font-bold text-accent">{data.readinessScore}%</div>
+                    <div className="text-sm text-textMuted mt-1">Retirement Readiness Score</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-semibold">${(data.projectedBalance / 1000000).toFixed(1)}M</div>
+                    <div className="text-sm text-textMuted">Projected at {assumptions.retirementAge}</div>
+                  </div>
+                </div>
+                <ProgressBar value={data.readinessScore} className="mb-4" />
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border">
+                  <div>
+                    <div className="text-lg font-semibold">${data.monthlyIncome.toLocaleString()}</div>
+                    <div className="text-xs text-textMuted">Projected monthly income</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold">${assumptions.incomeRequired.toLocaleString()}</div>
+                    <div className="text-xs text-textMuted">Target monthly income</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold text-orange-400">-${data.gap.toLocaleString()}</div>
+                    <div className="text-xs text-textMuted">Monthly gap</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assumptions */}
+              <Section
+                title="Assumptions"
+                actions={
+                  <button
+                    onClick={() => setShowEditAssumptions(true)}
+                    className="text-xs text-accent hover:text-accentDim"
+                  >
+                    Edit All
+                  </button>
+                }
+              >
+                <div className="bg-surface border border-border rounded-xl p-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex justify-between text-sm p-2">
+                      <span className="text-textMuted">Retirement age</span>
+                      <span className="font-medium">{assumptions.retirementAge}</span>
+                    </div>
+                    <div className="flex justify-between text-sm p-2">
+                      <span className="text-textMuted">Life expectancy</span>
+                      <span className="font-medium">{assumptions.lifeExpectancy}</span>
+                    </div>
+                    <div className="flex justify-between text-sm p-2">
+                      <span className="text-textMuted">Monthly income required</span>
+                      <span className="font-medium">${assumptions.incomeRequired.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm p-2">
+                      <span className="text-textMuted">Current savings</span>
+                      <span className="font-medium">${assumptions.currentSavings.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm p-2">
+                      <span className="text-textMuted">Monthly contribution</span>
+                      <span className="font-medium">${assumptions.monthlyContribution.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm p-2">
+                      <span className="text-textMuted">Expected return</span>
+                      <span className="font-medium">{assumptions.expectedReturn}%</span>
+                    </div>
+                  </div>
+                </div>
+              </Section>
+
+              {/* Drawdown Strategy */}
+              <Section
+                title="Drawdown Order"
+                actions={
+                  <button
+                    onClick={() => setShowDrawdownOrder(true)}
+                    className="text-xs text-accent hover:text-accentDim"
+                  >
+                    Optimize
+                  </button>
+                }
+              >
+                <div className="bg-surface border border-border rounded-xl p-4">
+                  <div className="space-y-2">
+                    {drawdownOrder.map((account, i) => (
+                      <div key={account.id} className="flex items-center gap-3 p-2 rounded hover:bg-surfaceHover">
+                        <span className="text-textMuted text-sm w-6">{i + 1}.</span>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">{account.name}</div>
+                          <div className="text-xs text-textMuted capitalize">{account.type} · ${account.balance.toLocaleString()}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-border text-xs text-textMuted">
+                    Withdraw from accounts in this order to optimize taxes and growth
+                  </div>
+                </div>
+              </Section>
+
+              {/* Withdrawal Rules */}
+              <Section
+                title="Special Withdrawal Rules"
+                actions={
+                  <button
+                    onClick={() => setShowWithdrawalRules(true)}
+                    className="text-xs text-accent hover:text-accentDim"
+                  >
+                    Configure
+                  </button>
+                }
+              >
+                <div className="bg-surface border border-border rounded-xl p-4">
+                  <div className="space-y-3">
+                    {withdrawalRules.map(rule => (
+                      <div key={rule.id} className={`flex items-start gap-3 p-2 rounded ${rule.enabled ? '' : 'opacity-50'}`}>
+                        <div className={`w-2 h-2 rounded-full mt-1.5 ${rule.enabled ? 'bg-accent' : 'bg-border'}`} />
+                        <div className="flex-1">
+                          <div className="text-sm">If: <span className="font-medium">{rule.condition}</span></div>
+                          <div className="text-sm text-textMuted">Then: {rule.action}</div>
+                        </div>
+                        <span className={`text-xs ${rule.enabled ? 'text-accent' : 'text-textMuted'}`}>
+                          {rule.enabled ? 'Active' : 'Disabled'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Section>
+
+              {/* AI Recommendations */}
+              <Section title="AI Recommendations">
+                <div className="space-y-3">
+                  {recommendations.map((rec) => (
+                    <div key={rec.id} className={`bg-surface border rounded-xl p-4 flex items-start gap-3 transition-all ${rec.applied ? 'border-accent/50 bg-accent/5' : 'border-border'}`}>
+                      <div className={`w-2 h-2 rounded-full mt-1.5 ${
+                        rec.applied ? 'bg-accent' :
+                        rec.priority === 'high' ? 'bg-orange-400' :
+                        rec.priority === 'medium' ? 'bg-yellow-400' : 'bg-blue-400'
+                      }`} />
+                      <div className="flex-1">
+                        <div className="text-sm">{rec.text}</div>
+                      </div>
+                      {rec.applied ? (
+                        <span className="text-xs text-accent">✓ Applied</span>
+                      ) : (
+                        <button
+                          onClick={() => applyRecommendation(rec.id)}
+                          className="text-xs text-accent hover:text-accentDim"
+                        >
+                          Apply
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            </div>
+
+            {/* Chat Panel */}
+            <div className="w-96 border-l border-border flex flex-col bg-surface">
+              <div className="p-4 border-b border-border">
+                <h3 className="font-medium">Chat with AI Advisor</h3>
+                <div className="text-xs text-textMuted">Ask questions about this plan</div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] rounded-xl px-4 py-2 text-sm ${
+                      msg.role === 'user'
+                        ? 'bg-accent text-black'
+                        : 'bg-surfaceHover border border-border'
+                    }`}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-4 border-t border-border">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder="Ask about this plan..."
+                    className="flex-1 bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                  <button
+                    onClick={sendMessage}
+                    className="px-3 py-2 bg-accent text-black rounded-lg hover:bg-accentDim transition-colors"
+                  >
+                    →
+                  </button>
+                </div>
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  <button
+                    onClick={() => { setChatInput('What if I retire at 62?'); }}
+                    className="text-xs text-textMuted hover:text-text px-2 py-1 rounded bg-surfaceHover"
+                  >
+                    Retire at 62?
+                  </button>
+                  <button
+                    onClick={() => { setChatInput('Explain drawdown order'); }}
+                    className="text-xs text-textMuted hover:text-text px-2 py-1 rounded bg-surfaceHover"
+                  >
+                    Drawdown order
+                  </button>
+                  <button
+                    onClick={() => { setChatInput('Should I max 401k?'); }}
+                    className="text-xs text-textMuted hover:text-text px-2 py-1 rounded bg-surfaceHover"
+                  >
+                    Max 401k?
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* History Modal */}
+          <Modal isOpen={showHistory} onClose={() => setShowHistory(false)} title="Version History">
+            <div className="space-y-3">
+              {data.history.map((h, i) => (
+                <div key={i} className={`p-3 rounded-lg border ${i === 0 ? 'border-accent bg-accent/5' : 'border-border'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{h.version}</span>
+                    <span className="text-xs text-textMuted">{h.date}</span>
+                  </div>
+                  <div className="text-sm text-textMuted mt-1">{h.note}</div>
+                  {i > 0 && (
+                    <button className="text-xs text-accent mt-2 hover:text-accentDim">Restore this version</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Modal>
+
+          {/* Scenario Modal */}
+          <Modal isOpen={showScenario} onClose={() => setShowScenario(false)} title="Retirement Age Scenarios">
+            {!scenarioResult ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="text-2xl mb-2 animate-pulse">🔮</div>
+                  <div className="text-sm text-textMuted">Running scenarios...</div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {Object.entries(scenarioResult).map(([key, val]) => (
+                  <div key={key} className="p-4 rounded-lg border border-border hover:border-accent/50 cursor-pointer transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">
+                        Retire at {key === 'retireAt62' ? '62' : key === 'retireAt65' ? '65' : '67'}
+                      </span>
+                      <span className={`text-lg font-bold ${val.score >= 80 ? 'text-accent' : val.score >= 70 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                        {val.score}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-textMuted">
+                      <div>Balance: ${(val.balance / 1000000).toFixed(2)}M</div>
+                      <div>Monthly: ${val.monthlyIncome.toLocaleString()}</div>
+                    </div>
+                  </div>
+                ))}
+                <div className="text-xs text-textMuted pt-2 border-t border-border">
+                  Click a scenario to apply it to your plan
+                </div>
+              </div>
+            )}
+          </Modal>
+
+          {/* Edit Assumptions Modal */}
+          <Modal isOpen={showEditAssumptions} onClose={() => setShowEditAssumptions(false)} title="Edit Assumptions" wide>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-textMuted mb-1">Retirement Age</label>
+                  <input
+                    type="number"
+                    value={assumptions.retirementAge}
+                    onChange={(e) => setAssumptions(prev => ({ ...prev, retirementAge: parseInt(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-textMuted mb-1">Life Expectancy</label>
+                  <input
+                    type="number"
+                    value={assumptions.lifeExpectancy}
+                    onChange={(e) => setAssumptions(prev => ({ ...prev, lifeExpectancy: parseInt(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-textMuted mb-1">Monthly Income Required ($)</label>
+                  <input
+                    type="number"
+                    value={assumptions.incomeRequired}
+                    onChange={(e) => setAssumptions(prev => ({ ...prev, incomeRequired: parseInt(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-textMuted mb-1">Current Savings ($)</label>
+                  <input
+                    type="number"
+                    value={assumptions.currentSavings}
+                    onChange={(e) => setAssumptions(prev => ({ ...prev, currentSavings: parseInt(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-textMuted mb-1">Monthly Contribution ($)</label>
+                  <input
+                    type="number"
+                    value={assumptions.monthlyContribution}
+                    onChange={(e) => setAssumptions(prev => ({ ...prev, monthlyContribution: parseInt(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-textMuted mb-1">Expected Return (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={assumptions.expectedReturn}
+                    onChange={(e) => setAssumptions(prev => ({ ...prev, expectedReturn: parseFloat(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end pt-4 border-t border-border">
+                <button
+                  onClick={() => setShowEditAssumptions(false)}
+                  className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-surfaceHover"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setShowEditAssumptions(false)}
+                  className="px-4 py-2 text-sm rounded-lg bg-accent text-black font-medium"
+                >
+                  Save & Recalculate
+                </button>
+              </div>
+            </div>
+          </Modal>
+
+          {/* Drawdown Order Modal */}
+          <Modal isOpen={showDrawdownOrder} onClose={() => setShowDrawdownOrder(false)} title="Optimal Drawdown Order" wide>
+            <div className="space-y-4">
+              <div className="text-sm text-textMuted mb-4">
+                Drag accounts to reorder, or use AI to optimize based on your tax situation.
+              </div>
+              <div className="space-y-2">
+                {drawdownOrder.map((account, i) => (
+                  <div key={account.id} className="flex items-center gap-3 p-3 bg-bg rounded-lg border border-border">
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => moveDrawdownItem(account.id, 'up')}
+                        className="text-xs text-textMuted hover:text-text disabled:opacity-30"
+                        disabled={i === 0}
+                      >▲</button>
+                      <button
+                        onClick={() => moveDrawdownItem(account.id, 'down')}
+                        className="text-xs text-textMuted hover:text-text disabled:opacity-30"
+                        disabled={i === drawdownOrder.length - 1}
+                      >▼</button>
+                    </div>
+                    <span className="text-lg font-bold text-textMuted w-8">{i + 1}</span>
+                    <div className="flex-1">
+                      <div className="font-medium">{account.name}</div>
+                      <div className="text-sm text-textMuted capitalize">{account.type} account</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium">${account.balance.toLocaleString()}</div>
+                      <div className="text-xs text-textMuted">balance</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-accent/5 border border-accent/20 rounded-lg p-4 text-sm">
+                <div className="font-medium mb-1">AI Recommendation</div>
+                <div className="text-textMuted">
+                  Your current order is optimal. Withdrawing from taxable accounts first allows Roth to grow tax-free longest.
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end pt-4 border-t border-border">
+                <button
+                  onClick={() => setShowDrawdownOrder(false)}
+                  className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-surfaceHover"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setShowDrawdownOrder(false)}
+                  className="px-4 py-2 text-sm rounded-lg bg-accent text-black font-medium"
+                >
+                  Save Order
+                </button>
+              </div>
+            </div>
+          </Modal>
+
+          {/* Withdrawal Rules Modal */}
+          <Modal isOpen={showWithdrawalRules} onClose={() => setShowWithdrawalRules(false)} title="Special Withdrawal Rules" wide>
+            <div className="space-y-4">
+              <div className="text-sm text-textMuted mb-4">
+                Configure rules that override the standard drawdown order in specific situations.
+              </div>
+              <div className="space-y-3">
+                {withdrawalRules.map(rule => (
+                  <div key={rule.id} className="p-4 bg-bg rounded-lg border border-border">
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => toggleWithdrawalRule(rule.id)}
+                        className={`mt-0.5 w-10 h-6 rounded-full transition-colors ${rule.enabled ? 'bg-accent' : 'bg-border'}`}
+                      >
+                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${rule.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                      </button>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">When: {rule.condition}</div>
+                        <div className="text-sm text-textMuted mt-1">Action: {rule.action}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button className="w-full py-3 border-2 border-dashed border-border rounded-lg text-sm text-textMuted hover:border-accent/50 transition-colors">
+                + Add Custom Rule
+              </button>
+              <div className="flex gap-2 justify-end pt-4 border-t border-border">
+                <button
+                  onClick={() => setShowWithdrawalRules(false)}
+                  className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-surfaceHover"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setShowWithdrawalRules(false)}
+                  className="px-4 py-2 text-sm rounded-lg bg-accent text-black font-medium"
+                >
+                  Save Rules
+                </button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      );
+    }
+
+    // New Plan Modal
+    function NewPlanModal({ isOpen, onClose }) {
+      const planTypes = [
+        { id: 'retirement', icon: '🏖️', name: 'Retirement Plan', desc: 'Model retirement readiness and income' },
+        { id: 'tax', icon: '📋', name: 'Tax Strategy', desc: 'Optimize taxes and find savings' },
+        { id: 'debt', icon: '💳', name: 'Debt Payoff', desc: 'Create a debt elimination plan' },
+        { id: 'goal', icon: '🎯', name: 'Savings Goal', desc: 'Track progress toward a goal' },
+        { id: 'cashflow', icon: '💰', name: 'Cash Flow Analysis', desc: 'Understand your monthly money flow' },
+      ];
+
+      return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Create New Plan">
+          <div className="space-y-2">
+            {planTypes.map(pt => (
+              <button
+                key={pt.id}
+                onClick={onClose}
+                className="w-full p-4 rounded-lg border border-border hover:border-accent/50 hover:bg-surfaceHover text-left transition-colors flex items-center gap-3"
+              >
+                <span className="text-2xl">{pt.icon}</span>
+                <div>
+                  <div className="font-medium">{pt.name}</div>
+                  <div className="text-sm text-textMuted">{pt.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      );
+    }
+
+    // Main App
+    function App() {
+      const [activeDoc, setActiveDoc] = useState('dashboard');
+      const [showNewPlan, setShowNewPlan] = useState(false);
+
+      const renderDocument = () => {
+        const data = documentsData[activeDoc];
+        if (!data) return null;
+
+        switch (data.type) {
+          case 'dashboard':
+            return <DashboardDocument data={data} setActiveDoc={setActiveDoc} />;
+          case 'networth':
+            return <NetWorthDocument data={data} />;
+          case 'retirement':
+            return <RetirementDocument data={data} />;
+          case 'tax':
+            return <TaxStrategyDocument data={data} />;
+          case 'debt':
+            return <DebtPayoffDocument data={data} />;
+          case 'cashflow':
+            return <CashFlowDocument data={data} />;
+          default:
+            return null;
+        }
+      };
+
+      return (
+        <div className="flex h-screen bg-bg">
+          <Sidebar
+            activeDoc={activeDoc}
+            setActiveDoc={setActiveDoc}
+            onNewPlan={() => setShowNewPlan(true)}
+          />
+          <div className="flex-1 flex flex-col">
+            {renderDocument()}
+          </div>
+          <NewPlanModal isOpen={showNewPlan} onClose={() => setShowNewPlan(false)} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
