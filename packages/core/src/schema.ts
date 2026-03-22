@@ -25,6 +25,22 @@ export const syncStatusEnum = pgEnum("sync_status", [
   "error",
 ]);
 
+export const planTypeEnum = pgEnum("plan_type", [
+  "net_worth",
+  "retirement",
+  "custom",
+]);
+
+export const planStatusEnum = pgEnum("plan_status", [
+  "draft",
+  "active",
+  "archived",
+]);
+
+export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
+
+export const editedByEnum = pgEnum("edited_by", ["user", "agent"]);
+
 // ── Tenants ────────────────────────────────────────────────────────────────
 
 export const tenants = pgTable("tenants", {
@@ -182,4 +198,80 @@ export const syncLog = pgTable("sync_log", {
     .notNull()
     .defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+// ── Plans ─────────────────────────────────────────────────────────────────
+
+export const plans = pgTable("plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  type: planTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  inputs: text("inputs"), // JSON string
+  content: text("content"), // JSON string (UIPayload)
+  status: planStatusEnum("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// ── Plan Edits ────────────────────────────────────────────────────────────
+
+export const planEdits = pgTable("plan_edits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id")
+    .notNull()
+    .references(() => plans.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  editedBy: editedByEnum("edited_by").notNull(),
+  previousContent: text("previous_content").notNull(), // JSON string
+  changeDescription: text("change_description"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ── Chat Threads ──────────────────────────────────────────────────────────
+
+export const chatThreads = pgTable("chat_threads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  planId: uuid("plan_id").references(() => plans.id, { onDelete: "cascade" }),
+  title: text("title"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// ── Messages ──────────────────────────────────────────────────────────────
+
+export const messages = pgTable("messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  threadId: uuid("thread_id")
+    .notNull()
+    .references(() => chatThreads.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  role: messageRoleEnum("role").notNull(),
+  content: text("content").notNull(),
+  toolCalls: text("tool_calls"), // JSON string
+  uiPayload: text("ui_payload"), // JSON string
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });

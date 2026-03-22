@@ -8,6 +8,13 @@
       "when": 1773953972659,
       "tag": "0000_odd_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774172311682,
+      "tag": "0001_curious_speed",
+      "breakpoints": true
     }
   ]
 }
