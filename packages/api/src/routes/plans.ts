@@ -1,9 +1,38 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { db } from "../lib/db.js";
 import { plans, planEdits, chatThreads, eq, and, desc } from "@lasagna/core";
 import type { AuthEnv } from "../middleware/auth.js";
 
 export const plansRouter = new Hono<AuthEnv>();
+
+// Validation schemas
+const uuidSchema = z.string().uuid();
+
+const createPlanSchema = z.object({
+  type: z.enum(["net_worth", "retirement", "custom"]),
+  title: z.string().min(1).max(255),
+});
+
+const updatePlanSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  status: z.enum(["draft", "active", "archived"]).optional(),
+  inputs: z.record(z.string(), z.unknown()).optional(),
+});
+
+const restoreSchema = z.object({
+  editId: z.string().uuid(),
+});
+
+// Safe JSON parse helper
+function safeJsonParse<T>(str: string | null, fallback: T): T {
+  if (!str) return fallback;
+  try {
+    return JSON.parse(str);
+  } catch {
+    return fallback;
+  }
+}
 
 // List all plans
 plansRouter.get("/", async (c) => {
@@ -30,6 +59,11 @@ plansRouter.get("/:id", async (c) => {
   const { tenantId } = c.get("session");
   const planId = c.req.param("id");
 
+  const uuidResult = uuidSchema.safeParse(planId);
+  if (!uuidResult.success) {
+    return c.json({ error: "Invalid plan ID format" }, 400);
+  }
+
   const [plan] = await db
     .select()
     .from(plans)
@@ -41,18 +75,21 @@ plansRouter.get("/:id", async (c) => {
 
   return c.json({
     ...plan,
-    content: plan.content ? JSON.parse(plan.content) : null,
-    inputs: plan.inputs ? JSON.parse(plan.inputs) : null,
+    content: safeJsonParse(plan.content, null),
+    inputs: safeJsonParse(plan.inputs, null),
   });
 });
 
 // Create plan
 plansRouter.post("/", async (c) => {
   const { tenantId } = c.get("session");
-  const body = await c.req.json<{
-    type: "net_worth" | "retirement" | "custom";
-    title: string;
-  }>();
+  const rawBody = await c.req.json();
+
+  const parseResult = createPlanSchema.safeParse(rawBody);
+  if (!parseResult.success) {
+    return c.json({ error: "Invalid request body", details: parseResult.error.issues }, 400);
+  }
+  const body = parseResult.data;
 
   const [newPlan] = await db
     .insert(plans)
@@ -78,11 +115,18 @@ plansRouter.post("/", async (c) => {
 plansRouter.patch("/:id", async (c) => {
   const { tenantId } = c.get("session");
   const planId = c.req.param("id");
-  const body = await c.req.json<{
-    title?: string;
-    status?: "draft" | "active" | "archived";
-    inputs?: Record<string, unknown>;
-  }>();
+
+  const uuidResult = uuidSchema.safeParse(planId);
+  if (!uuidResult.success) {
+    return c.json({ error: "Invalid plan ID format" }, 400);
+  }
+
+  const rawBody = await c.req.json();
+  const parseResult = updatePlanSchema.safeParse(rawBody);
+  if (!parseResult.success) {
+    return c.json({ error: "Invalid request body", details: parseResult.error.issues }, 400);
+  }
+  const body = parseResult.data;
 
   const [plan] = await db
     .select()
@@ -98,6 +142,10 @@ plansRouter.patch("/:id", async (c) => {
   if (body.status) updates.status = body.status;
   if (body.inputs) updates.inputs = JSON.stringify(body.inputs);
 
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: "No valid fields to update" }, 400);
+  }
+
   await db
     .update(plans)
     .set(updates)
@@ -106,10 +154,15 @@ plansRouter.patch("/:id", async (c) => {
   return c.json({ success: true });
 });
 
-// Delete plan
+// Delete plan (soft delete)
 plansRouter.delete("/:id", async (c) => {
   const { tenantId } = c.get("session");
   const planId = c.req.param("id");
+
+  const uuidResult = uuidSchema.safeParse(planId);
+  if (!uuidResult.success) {
+    return c.json({ error: "Invalid plan ID format" }, 400);
+  }
 
   const [plan] = await db
     .select({ id: plans.id })
@@ -133,6 +186,11 @@ plansRouter.get("/:id/history", async (c) => {
   const { tenantId } = c.get("session");
   const planId = c.req.param("id");
 
+  const uuidResult = uuidSchema.safeParse(planId);
+  if (!uuidResult.success) {
+    return c.json({ error: "Invalid plan ID format" }, 400);
+  }
+
   const history = await db
     .select()
     .from(planEdits)
@@ -143,7 +201,7 @@ plansRouter.get("/:id/history", async (c) => {
   return c.json({
     history: history.map((h) => ({
       ...h,
-      previousContent: JSON.parse(h.previousContent),
+      previousContent: safeJsonParse(h.previousContent, null),
     })),
   });
 });
@@ -152,6 +210,11 @@ plansRouter.get("/:id/history", async (c) => {
 plansRouter.post("/:id/clone", async (c) => {
   const { tenantId } = c.get("session");
   const planId = c.req.param("id");
+
+  const uuidResult = uuidSchema.safeParse(planId);
+  if (!uuidResult.success) {
+    return c.json({ error: "Invalid plan ID format" }, 400);
+  }
 
   const [plan] = await db
     .select()
@@ -162,12 +225,14 @@ plansRouter.post("/:id/clone", async (c) => {
     return c.json({ error: "Plan not found" }, 404);
   }
 
+  const clonedTitle = plan.title.length > 245 ? `${plan.title.slice(0, 245)}... (Copy)` : `${plan.title} (Copy)`;
+
   const [newPlan] = await db
     .insert(plans)
     .values({
       tenantId,
       type: plan.type,
-      title: `${plan.title} (Copy)`,
+      title: clonedTitle,
       content: plan.content,
       inputs: plan.inputs,
       status: "draft",
@@ -188,7 +253,18 @@ plansRouter.post("/:id/clone", async (c) => {
 plansRouter.post("/:id/restore", async (c) => {
   const { tenantId } = c.get("session");
   const planId = c.req.param("id");
-  const body = await c.req.json<{ editId: string }>();
+
+  const uuidResult = uuidSchema.safeParse(planId);
+  if (!uuidResult.success) {
+    return c.json({ error: "Invalid plan ID format" }, 400);
+  }
+
+  const rawBody = await c.req.json();
+  const parseResult = restoreSchema.safeParse(rawBody);
+  if (!parseResult.success) {
+    return c.json({ error: "Invalid request body", details: parseResult.error.issues }, 400);
+  }
+  const body = parseResult.data;
 
   const [edit] = await db
     .select()
@@ -205,11 +281,11 @@ plansRouter.post("/:id/restore", async (c) => {
     return c.json({ error: "Edit not found" }, 404);
   }
 
-  // Get current content for history
+  // Get current content for history (with tenant verification)
   const [currentPlan] = await db
     .select({ content: plans.content })
     .from(plans)
-    .where(eq(plans.id, planId));
+    .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
 
   // Save current as edit
   if (currentPlan?.content) {
