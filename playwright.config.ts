@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: "html",
 
   // Global setup runs once before all tests
-  // Seeds the database with test data (dev@lasagna.local user with financial data)
+  // Seeds the database with test data (creates unique user per run)
   globalSetup: require.resolve("./e2e/global-setup.ts"),
 
   use: {
@@ -35,10 +35,20 @@ export default defineConfig({
     },
   ],
 
-  // Start the frontend dev server before tests
-  webServer: {
-    command: "pnpm dev:web",
-    url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
-  },
+  // Start both API and frontend servers before tests
+  // NOTE: Database must be running (docker compose up db)
+  webServer: [
+    {
+      command: "pnpm --filter @lasagna/api dev",
+      url: "http://localhost:3000/api/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 60000,
+    },
+    {
+      command: "pnpm dev:web",
+      url: "http://localhost:5173",
+      reuseExistingServer: !process.env.CI,
+      timeout: 60000,
+    },
+  ],
 });
