@@ -14,7 +14,8 @@
     "@lasagna/core": "workspace:*",
     "better-auth": "^1.5.5",
     "hono": "^4.12.8",
-    "plaid": "^41.4.0"
+    "plaid": "^41.4.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
