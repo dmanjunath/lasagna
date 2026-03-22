@@ -10,3 +10,4 @@ dist
 /playwright/.cache/
 /e2e/.seeded
 /e2e/.test-user.json
+/e2e/auth-debug.png

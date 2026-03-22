@@ -5,7 +5,6 @@ import path from "path";
 const authFile = "e2e/.auth/user.json";
 
 // Read test user credentials created by global-setup.ts
-// The global setup runs db:seed:e2e which creates a unique user per test run
 function getTestUser() {
   const testUserPath = path.resolve(__dirname, ".test-user.json");
   const content = readFileSync(testUserPath, "utf-8");
@@ -18,10 +17,25 @@ function getTestUser() {
   };
 }
 
-setup("authenticate with seeded test user", async ({ page }) => {
+setup("authenticate with seeded test user", async ({ page, request }) => {
   const testUser = getTestUser();
 
-  console.log(`[Auth Setup] Logging in as: ${testUser.email}`);
+  console.log(`[Auth Setup] Test user: ${testUser.email}`);
+
+  // First, verify the API is reachable
+  console.log("[Auth Setup] Checking API health...");
+  try {
+    const healthCheck = await request.get("http://localhost:3000/api/health");
+    if (healthCheck.ok()) {
+      console.log("[Auth Setup] API is healthy");
+    } else {
+      console.error(`[Auth Setup] API health check failed: ${healthCheck.status()}`);
+    }
+  } catch (error) {
+    console.error("[Auth Setup] Cannot reach API server:", error);
+    console.error("[Auth Setup] Make sure 'docker compose up' is running");
+    throw error;
+  }
 
   // Navigate to the app (will show login page)
   await page.goto("/");
@@ -36,10 +50,28 @@ setup("authenticate with seeded test user", async ({ page }) => {
   // Submit the form
   await page.getByRole("button", { name: "Sign In" }).click();
 
-  // Wait for redirect to dashboard (authenticated)
-  await expect(page).toHaveURL("/", { timeout: 10000 });
-  await expect(page.getByText("Overview")).toBeVisible();
+  // Wait for either success (redirect to dashboard) or error message
+  const result = await Promise.race([
+    page.waitForURL("/", { timeout: 10000 }).then(() => "success"),
+    page.getByText(/invalid|error|failed/i).waitFor({ timeout: 10000 }).then(() => "error"),
+  ]).catch(() => "timeout");
 
+  if (result === "error") {
+    // Capture the error message
+    const errorText = await page.locator(".text-danger, [class*='error']").textContent();
+    console.error(`[Auth Setup] Login failed with error: ${errorText}`);
+    throw new Error(`Login failed: ${errorText}`);
+  }
+
+  if (result === "timeout") {
+    // Take screenshot to debug
+    await page.screenshot({ path: "e2e/auth-debug.png" });
+    console.error("[Auth Setup] Login timed out - screenshot saved to e2e/auth-debug.png");
+    throw new Error("Login timed out");
+  }
+
+  // Verify we're on the dashboard
+  await expect(page.getByText("Overview")).toBeVisible({ timeout: 5000 });
   console.log("[Auth Setup] Successfully authenticated");
 
   // Save storage state for reuse in tests
