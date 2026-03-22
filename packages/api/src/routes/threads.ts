@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db.js";
 import { chatThreads, messages, eq, and, desc } from "@lasagna/core";
-import type { AuthEnv } from "../middleware/auth.js";
+import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 
 export const threadsRouter = new Hono<AuthEnv>();
+threadsRouter.use("*", requireAuth);
 
 // Validation schemas
 const uuidSchema = z.string().uuid();

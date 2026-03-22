@@ -5,9 +5,10 @@ import { db } from "../lib/db.js";
 import { chatThreads, messages, plans, planEdits, eq, and } from "@lasagna/core";
 import { getModel, createAgentTools, systemPrompt } from "../agent/index.js";
 import { uiPayloadSchema } from "../agent/types.js";
-import type { AuthEnv } from "../middleware/auth.js";
+import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 
 export const chatRouter = new Hono<AuthEnv>();
+chatRouter.use("*", requireAuth);
 
 // Validation schemas
 const chatRequestSchema = z.object({
