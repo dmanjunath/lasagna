@@ -18,6 +18,7 @@ const fixedTabs: NavItem[] = [
   { id: 'net-worth', name: 'Net Worth', icon: '◈', path: '/net-worth' },
   { id: 'cash-flow', name: 'Cash Flow', icon: '◉', path: '/cash-flow' },
   { id: 'tax-strategy', name: 'Tax Strategy', icon: '◇', path: '/tax-strategy' },
+  { id: 'plans', name: 'AI Plans', icon: '◈', path: '/plans' },
 ];
 
 // TODO: These will come from API later
