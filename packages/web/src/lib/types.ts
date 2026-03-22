@@ -11,7 +11,7 @@ export type StatBlock = {
 export type DataPoint = {
   label: string;
   value: number;
-  [key: string]: unknown;
+  [key: string]: string | number;
 };
 
 export type ChartBlock = {
