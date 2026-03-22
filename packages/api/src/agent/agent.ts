@@ -2,9 +2,10 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { LanguageModel } from "ai";
 import { createFinancialTools } from "./tools/financial.js";
 import { createPlanTools } from "./tools/plans.js";
+import { env } from "../lib/env.js";
 
 const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY!,
+  apiKey: env.OPENROUTER_API_KEY,
 });
 
 export const model: LanguageModel = openrouter("anthropic/claude-sonnet-4");

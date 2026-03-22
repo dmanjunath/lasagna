@@ -12,6 +12,9 @@ export const env = {
   get DATABASE_URL() {
     return required("DATABASE_URL");
   },
+  get OPENROUTER_API_KEY() {
+    return required("OPENROUTER_API_KEY");
+  },
   get ENCRYPTION_KEY() {
     return required("ENCRYPTION_KEY");
   },
