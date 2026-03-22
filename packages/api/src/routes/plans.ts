@@ -98,7 +98,10 @@ plansRouter.patch("/:id", async (c) => {
   if (body.status) updates.status = body.status;
   if (body.inputs) updates.inputs = JSON.stringify(body.inputs);
 
-  await db.update(plans).set(updates).where(eq(plans.id, planId));
+  await db
+    .update(plans)
+    .set(updates)
+    .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
 
   return c.json({ success: true });
 });
@@ -117,7 +120,10 @@ plansRouter.delete("/:id", async (c) => {
     return c.json({ error: "Plan not found" }, 404);
   }
 
-  await db.delete(plans).where(eq(plans.id, planId));
+  await db
+    .update(plans)
+    .set({ status: "archived" })
+    .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
 
   return c.json({ success: true });
 });
@@ -220,7 +226,7 @@ plansRouter.post("/:id/restore", async (c) => {
   await db
     .update(plans)
     .set({ content: edit.previousContent })
-    .where(eq(plans.id, planId));
+    .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
 
   return c.json({ success: true });
 });
