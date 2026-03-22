@@ -8,6 +8,8 @@ This spec covers three related improvements to the Lasagna financial planning ap
 2. **Plan Starter Prompts** — Provide clickable prompts when a new plan is created
 3. **Sidebar Consistency** — Fix hard-coded mock data and wire up the New Plan button
 
+---
+
 ## 1. Chat Tool Use Indicator
 
 ### Problem
@@ -49,16 +51,40 @@ Display transient status messages showing which tool is being called.
 
 ### Technical Approach
 
-The Vercel AI SDK's `streamText` includes tool call information in the stream. We need to:
+**Backend Change Required:**
 
-1. Parse tool calls from the streaming response
-2. Track which tools are currently executing
-3. Render a `ToolStatus` component showing active tools
-4. Clear status when tool completes or response ends
+The current implementation uses `toTextStreamResponse()` which only streams text. To expose tool calls, we must change to `toDataStreamResponse()` which includes tool call events in the stream.
+
+**File:** `packages/api/src/routes/chat.ts`
+
+```typescript
+// Change from:
+return result.toTextStreamResponse();
+
+// To:
+return result.toDataStreamResponse();
+```
+
+**Frontend Change Required:**
+
+The current frontend uses a basic `TextDecoder` to read the stream. We need to use the Vercel AI SDK's `useChat` hook or parse the data stream protocol manually.
+
+**Option A (Recommended):** Use `useChat` hook from `ai/react`
+- Provides built-in support for tool call events
+- Handles streaming, loading states, and message management
+- Requires refactoring ChatPanel to use the hook
+
+**Option B:** Parse data stream manually
+- Keep existing fetch-based approach
+- Parse the data stream protocol to extract tool call events
+- More work but less refactoring
+
+**We will use Option A** — refactor to use `useChat` hook for cleaner integration.
 
 ### Files to Modify
 
-- `packages/web/src/components/chat/chat-panel.tsx` — Parse tool calls from stream
+- `packages/api/src/routes/chat.ts` — Change to `toDataStreamResponse()`
+- `packages/web/src/components/chat/chat-panel.tsx` — Refactor to use `useChat` hook
 - `packages/web/src/components/chat/tool-status.tsx` — New component for status display
 
 ---
@@ -109,23 +135,31 @@ Show 3 contextual starter prompts based on plan type, plus a custom input field.
 ### Visual Design
 
 - Prompts displayed as clickable cards/buttons
-- Arranged in a row or grid
-- Subtle hover effect
+- Arranged in a row or grid (responsive: stack on mobile)
+- Subtle hover effect with accent border
 - Custom input field styled consistently with chat input
 - "Or type your own question..." placeholder
 
 ### Technical Approach
 
-1. Create `StarterPrompts` component
-2. Accept `planType` and `onSelectPrompt` props
-3. Render in plan detail page when `plan.content` is null AND no messages exist
-4. On prompt click or custom submit, send message via existing chat mechanism
-5. Hide prompts once first message is sent
+**Integration with ChatPanel:**
+
+The `StarterPrompts` component will be rendered inside the plan detail page. When a prompt is selected:
+
+1. `StarterPrompts` calls `onSelectPrompt(promptText)` prop
+2. Plan detail page passes the prompt to `ChatPanel` via a new `initialMessage` prop
+3. `ChatPanel` auto-sends the message when `initialMessage` is set
+4. `StarterPrompts` is hidden once `messages.length > 0`
+
+**Condition for showing prompts:**
+- `plan.content === null` (plan has no generated content)
+- `messages.length === 0` (no messages in the thread yet)
 
 ### Files to Modify
 
 - `packages/web/src/components/chat/starter-prompts.tsx` — New component
-- `packages/web/src/pages/plans/[id].tsx` — Integrate starter prompts
+- `packages/web/src/pages/plans/[id].tsx` — Integrate starter prompts, pass initialMessage to ChatPanel
+- `packages/web/src/components/chat/chat-panel.tsx` — Accept optional `initialMessage` prop
 
 ---
 
@@ -142,20 +176,66 @@ Add `debt_payoff` as a new plan type throughout the stack.
 ### Changes Required
 
 #### Database Schema
-- Add `debt_payoff` to plan type enum in `packages/core/src/schema.ts`
-- Create migration to add new enum value
 
-#### API
-- Update validation schema in `packages/api/src/routes/plans.ts` to accept `debt_payoff`
+**File:** `packages/core/src/schema.ts`
 
-#### Frontend
-- Add Debt Payoff card to `packages/web/src/pages/plans/new.tsx`:
-  - Label: "Debt Payoff"
-  - Description: "Create a strategy to pay off debt efficiently"
-  - Icon: Use appropriate lucide icon (e.g., `CreditCard` or `TrendingDown`)
+Update the enum definition:
+```typescript
+export const planTypeEnum = pgEnum("plan_type", [
+  "net_worth",
+  "retirement",
+  "debt_payoff",  // ADD THIS
+  "custom",
+]);
+```
 
-#### Types
-- Update `PlanType` in `packages/web/src/lib/types.ts`
+#### Migration
+
+**File:** `packages/core/drizzle/XXXX_add_debt_payoff_type.sql`
+
+PostgreSQL enum values must be added via ALTER TYPE:
+```sql
+ALTER TYPE plan_type ADD VALUE IF NOT EXISTS 'debt_payoff';
+```
+
+Run migration: `pnpm --filter @lasagna/core db:migrate`
+
+**Note:** After modifying the core package, rebuild it: `pnpm --filter @lasagna/core build`
+
+#### API Validation
+
+**File:** `packages/api/src/routes/plans.ts`
+
+Update the zod schema:
+```typescript
+const createPlanSchema = z.object({
+  type: z.enum(["net_worth", "retirement", "debt_payoff", "custom"]),
+  title: z.string().min(1).max(255),
+});
+```
+
+#### Frontend - New Plan Page
+
+**File:** `packages/web/src/pages/plans/new.tsx`
+
+Add Debt Payoff to the plan types array:
+```typescript
+{
+  type: "debt_payoff",
+  label: "Debt Payoff",
+  description: "Create a strategy to pay off debt efficiently",
+  icon: CreditCard,  // from lucide-react
+},
+```
+
+#### Frontend Types
+
+**File:** `packages/web/src/lib/types.ts`
+
+Update the PlanType:
+```typescript
+export type PlanType = "net_worth" | "retirement" | "debt_payoff" | "custom";
+```
 
 ---
 
@@ -173,26 +253,74 @@ Add `debt_payoff` as a new plan type throughout the stack.
 
 ### Technical Approach
 
+#### Current Structure
+
+The sidebar receives `onNewPlan` as a prop from the parent `Shell` component (`packages/web/src/components/layout/shell.tsx`). The fix must be made in `Shell`, not in `Sidebar`.
+
+**File:** `packages/web/src/components/layout/shell.tsx`
+
+Current (line ~15):
+```typescript
+// TODO: Open new plan modal
+const handleNewPlan = () => console.log("New plan");
+```
+
+Fix:
+```typescript
+const [, setLocation] = useLocation();
+const handleNewPlan = () => setLocation("/plans/new");
+```
+
 #### Fetch User Plans
-- Call `api.getPlans()` on sidebar mount
-- Display actual plan titles with appropriate icons based on plan type
-- Show loading state while fetching
-- Handle empty state (no plans yet)
 
-#### Plan Type Icons
-| Type | Icon |
-|------|------|
-| `net_worth` | TrendingUp |
-| `retirement` | Target |
-| `debt_payoff` | CreditCard |
-| `custom` | Sparkles |
+**File:** `packages/web/src/components/layout/sidebar.tsx`
 
-#### New Plan Button
-- Change from `console.log` to `setLocation("/plans/new")`
+Remove the hard-coded `userPlans` array. Instead:
+
+1. Add state for plans and loading
+2. Fetch plans on mount using `api.getPlans()`
+3. Map API response to sidebar format
+
+```typescript
+const [plans, setPlans] = useState<Plan[]>([]);
+const [loadingPlans, setLoadingPlans] = useState(true);
+
+useEffect(() => {
+  api.getPlans()
+    .then(({ plans }) => setPlans(plans))
+    .finally(() => setLoadingPlans(false));
+}, []);
+```
+
+#### Simplify NavItem Interface
+
+Remove `version` and `progress` fields from NavItem since the API doesn't return them. Use plan type to determine icon.
+
+#### Plan Type to Icon Mapping
+
+```typescript
+const planTypeIcons: Record<PlanType, string> = {
+  net_worth: "◈",
+  retirement: "◎",
+  debt_payoff: "◆",
+  custom: "✦",
+};
+```
+
+(Keep unicode icons for consistency with existing sidebar style)
+
+#### Loading State
+
+Show skeleton or "Loading..." while plans are being fetched.
+
+#### Error State
+
+If fetch fails, show "Could not load plans" with retry option.
 
 ### Files to Modify
 
-- `packages/web/src/components/layout/sidebar.tsx` — Fetch plans, wire button
+- `packages/web/src/components/layout/shell.tsx` — Wire handleNewPlan to navigate
+- `packages/web/src/components/layout/sidebar.tsx` — Fetch plans from API, remove mock data
 
 ---
 
