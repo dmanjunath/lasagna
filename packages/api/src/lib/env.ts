@@ -13,7 +13,8 @@ export const env = {
     return required("DATABASE_URL");
   },
   get OPENROUTER_API_KEY() {
-    return required("OPENROUTER_API_KEY");
+    // Optional - AI features disabled if not set
+    return optional("OPENROUTER_API_KEY", "");
   },
   get ENCRYPTION_KEY() {
     return required("ENCRYPTION_KEY");
