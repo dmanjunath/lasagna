@@ -27,6 +27,11 @@ test.describe("New Plan Page", () => {
       page.getByText("Plan your retirement with withdrawal strategies and projections")
     ).toBeVisible();
 
+    await expect(page.getByRole("heading", { name: "Debt Payoff" })).toBeVisible();
+    await expect(
+      page.getByText("Create a strategy to pay off debt efficiently")
+    ).toBeVisible();
+
     await expect(page.getByRole("heading", { name: "Custom" })).toBeVisible();
     await expect(
       page.getByText("Create a custom plan with AI assistance for any financial goal")
@@ -94,5 +99,21 @@ test.describe("New Plan Page", () => {
     await expect(page).toHaveURL(/\/plans\/[a-f0-9-]+/, { timeout: 10000 });
     // Use exact match to avoid matching the plan title (CSS capitalizes visually, DOM text is lowercase)
     await expect(page.getByText("net worth Plan", { exact: true })).toBeVisible();
+  });
+
+  test("can create debt payoff plan", async ({ page }) => {
+    // Click on Debt Payoff plan type card
+    await page.getByRole("button", { name: /Debt Payoff.*pay off debt/ }).click();
+
+    // Wait for title input and fill it
+    await expect(page.getByPlaceholder("e.g., My Retirement Plan")).toBeVisible();
+    await page.getByPlaceholder("e.g., My Retirement Plan").fill("My Debt Freedom Plan");
+    await page.getByRole("button", { name: "Create Plan" }).click();
+
+    // Wait for redirect to plan detail page
+    await expect(page).toHaveURL(/\/plans\/[a-f0-9-]+/, { timeout: 10000 });
+
+    // Verify plan type is shown (CSS capitalizes visually, DOM text is lowercase)
+    await expect(page.getByText("debt payoff Plan", { exact: true })).toBeVisible();
   });
 });

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."plan_type" ADD VALUE 'debt_payoff' BEFORE 'custom';
