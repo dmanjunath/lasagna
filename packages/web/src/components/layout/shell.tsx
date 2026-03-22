@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { Sidebar } from './sidebar';
 import { MobileNav, MobileMenuButton } from './mobile-nav';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
@@ -9,11 +10,11 @@ interface ShellProps {
 
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
 
   const handleNewPlan = () => {
-    // TODO: Open new plan modal
-    console.log('New plan clicked');
+    setLocation('/plans/new');
   };
 
   return (
