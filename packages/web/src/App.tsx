@@ -10,6 +10,9 @@ import { TaxStrategy } from './pages/tax-strategy';
 import { Retirement } from './pages/retirement';
 import { SavingsGoal } from './pages/savings-goal';
 import { DebtPayoff } from './pages/debt-payoff';
+import { PlansPage } from './pages/plans/index';
+import { NewPlanPage } from './pages/plans/new';
+import { PlanDetailPage } from './pages/plans/[id]';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -34,6 +37,9 @@ function AppRoutes() {
         <Route path="/net-worth" component={NetWorth} />
         <Route path="/cash-flow" component={CashFlow} />
         <Route path="/tax-strategy" component={TaxStrategy} />
+        <Route path="/plans" component={PlansPage} />
+        <Route path="/plans/new" component={NewPlanPage} />
+        <Route path="/plans/:id" component={PlanDetailPage} />
         <Route path="/plans/retirement" component={Retirement} />
         <Route path="/plans/savings/:id" component={SavingsGoal} />
         <Route path="/plans/debt-payoff" component={DebtPayoff} />
