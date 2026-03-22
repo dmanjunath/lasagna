@@ -9,6 +9,8 @@
     "build": "pnpm -r build",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:build": "docker compose up --build -d",
