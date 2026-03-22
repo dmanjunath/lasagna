@@ -72,7 +72,7 @@ export type UIPayload = {
 
 // ── Plan Types ────────────────────────────────────────────────────────────
 
-export type PlanType = "net_worth" | "retirement" | "custom";
+export type PlanType = "net_worth" | "retirement" | "debt_payoff" | "custom";
 export type PlanStatus = "draft" | "active" | "archived";
 
 export type Plan = {

@@ -28,6 +28,7 @@ export const syncStatusEnum = pgEnum("sync_status", [
 export const planTypeEnum = pgEnum("plan_type", [
   "net_worth",
   "retirement",
+  "debt_payoff",
   "custom",
 ]);
 
