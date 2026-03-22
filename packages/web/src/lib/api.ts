@@ -1,3 +1,5 @@
+import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message } from "./types.js";
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     credentials: "include",
@@ -114,4 +116,44 @@ export const api = {
 
   // Sync
   triggerSync: () => request("/sync", { method: "POST" }),
+
+  // Plans
+  getPlans: () => request<{ plans: Plan[] }>("/plans"),
+
+  getPlan: (id: string) => request<Plan>(`/plans/${id}`),
+
+  createPlan: (type: PlanType, title: string) =>
+    request<{ plan: Plan }>("/plans", {
+      method: "POST",
+      body: JSON.stringify({ type, title }),
+    }),
+
+  updatePlan: (id: string, updates: { title?: string; status?: PlanStatus }) =>
+    request(`/plans/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    }),
+
+  deletePlan: (id: string) => request(`/plans/${id}`, { method: "DELETE" }),
+
+  getPlanHistory: (id: string) =>
+    request<{ history: PlanEdit[] }>(`/plans/${id}/history`),
+
+  clonePlan: (id: string) =>
+    request<{ plan: Plan }>(`/plans/${id}/clone`, { method: "POST" }),
+
+  // Threads
+  getThreads: (planId?: string) =>
+    request<{ threads: ChatThread[] }>(
+      planId ? `/threads?planId=${planId}` : "/threads"
+    ),
+
+  getThread: (id: string) =>
+    request<{ thread: ChatThread; messages: Message[] }>(`/threads/${id}`),
+
+  createThread: (planId?: string) =>
+    request<{ thread: ChatThread }>("/threads", {
+      method: "POST",
+      body: JSON.stringify({ planId }),
+    }),
 };
