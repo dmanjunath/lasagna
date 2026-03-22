@@ -11,7 +11,7 @@ plansRouter.use("*", requireAuth);
 const uuidSchema = z.string().uuid();
 
 const createPlanSchema = z.object({
-  type: z.enum(["net_worth", "retirement", "custom"]),
+  type: z.enum(["net_worth", "retirement", "debt_payoff", "custom"]),
   title: z.string().min(1).max(255),
 });
 

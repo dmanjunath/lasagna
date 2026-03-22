@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Target, TrendingUp, Sparkles } from "lucide-react";
+import { Target, TrendingUp, Sparkles, CreditCard } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { Button } from "../../components/ui/button.js";
@@ -18,6 +18,12 @@ const planTypes: { type: PlanType; label: string; description: string; icon: typ
     label: "Retirement",
     description: "Plan your retirement with withdrawal strategies and projections",
     icon: Target,
+  },
+  {
+    type: "debt_payoff",
+    label: "Debt Payoff",
+    description: "Create a strategy to pay off debt efficiently",
+    icon: CreditCard,
   },
   {
     type: "custom",
