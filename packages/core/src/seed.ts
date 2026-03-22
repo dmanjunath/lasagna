@@ -1,3 +1,15 @@
+/**
+ * Database Seed Script
+ *
+ * Modes:
+ * - Normal mode: Creates dev@lasagna.local user with sample data
+ * - E2E mode (E2E_SEED=true): Creates unique timestamped user and outputs JSON credentials
+ *
+ * Usage:
+ *   pnpm --filter @lasagna/core db:seed       # Normal mode
+ *   E2E_SEED=true pnpm --filter @lasagna/core db:seed  # E2E mode
+ */
+
 import { createDb } from "./db.js";
 import {
   tenants,
@@ -17,42 +29,99 @@ if (!DATABASE_URL) {
 
 const db = createDb(DATABASE_URL);
 
-async function seed() {
-  console.log("Seeding database...");
+// Password hashing using PBKDF2 (same as API package)
+const ITERATIONS = 100_000;
+const KEY_LENGTH = 32;
+const SALT_LENGTH = 16;
 
-  // Create a default tenant
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = globalThis.crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+  const key = await globalThis.crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const derived = await globalThis.crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt as BufferSource,
+      iterations: ITERATIONS,
+      hash: "SHA-256",
+    },
+    key,
+    KEY_LENGTH * 8,
+  );
+  return `${bytesToHex(salt)}:${bytesToHex(new Uint8Array(derived))}`;
+}
+
+// Check if running in E2E mode
+const isE2EMode = process.env.E2E_SEED === "true";
+
+async function seed() {
+  const timestamp = Date.now();
+
+  // Determine user credentials based on mode
+  const userEmail = isE2EMode
+    ? `e2e-test-${timestamp}@lasagna.local`
+    : "dev@lasagna.local";
+  const userPassword = isE2EMode ? "testpassword123" : "password123";
+  const tenantName = isE2EMode ? `E2E Test ${timestamp}` : "Local Dev";
+
+  if (!isE2EMode) {
+    console.log("Seeding database...");
+  }
+
+  // Create tenant
   const [tenant] = await db
     .insert(tenants)
-    .values({ name: "Local Dev" })
+    .values({ name: tenantName })
     .returning();
-  console.log(`Created tenant: ${tenant.id}`);
 
-  // Create a default user (password: "password123" — bcrypt hash)
+  if (!isE2EMode) {
+    console.log(`Created tenant: ${tenant.id}`);
+  }
+
+  // Hash password and create user
+  const passwordHash = await hashPassword(userPassword);
   const [user] = await db
     .insert(users)
     .values({
       tenantId: tenant.id,
-      email: "dev@lasagna.local",
-      passwordHash:
-        "$2a$10$K7L1OJ45/4Y2nIvhRVpCe.FSmhDdWoXehVzJptJ/op0lSsvqNu/1u",
+      email: userEmail,
+      passwordHash,
       role: "owner",
     })
     .returning();
-  console.log(`Created user: ${user.email}`);
+
+  if (!isE2EMode) {
+    console.log(`Created user: ${user.email}`);
+  }
 
   // Create a fake plaid item (simulating a linked bank)
+  const itemId = isE2EMode ? `e2e-${timestamp}` : "seed";
   const [plaidItem] = await db
     .insert(plaidItems)
     .values({
       tenantId: tenant.id,
-      accessToken: "seed-fake-access-token",
-      institutionId: "ins_1",
-      institutionName: "Seed Bank",
+      accessToken: `${itemId}-fake-access-token`,
+      institutionId: isE2EMode ? "ins_e2e" : "ins_1",
+      institutionName: isE2EMode ? "E2E Test Bank" : "Seed Bank",
       status: "active",
       lastSyncedAt: new Date(),
     })
     .returning();
-  console.log(`Created plaid item: ${plaidItem.id}`);
+
+  if (!isE2EMode) {
+    console.log(`Created plaid item: ${plaidItem.id}`);
+  }
 
   // Create accounts
   const [checking] = await db
@@ -60,7 +129,7 @@ async function seed() {
     .values({
       tenantId: tenant.id,
       plaidItemId: plaidItem.id,
-      plaidAccountId: "seed-checking-001",
+      plaidAccountId: `${itemId}-checking-001`,
       name: "Checking Account",
       type: "depository",
       subtype: "checking",
@@ -73,7 +142,7 @@ async function seed() {
     .values({
       tenantId: tenant.id,
       plaidItemId: plaidItem.id,
-      plaidAccountId: "seed-savings-001",
+      plaidAccountId: `${itemId}-savings-001`,
       name: "Savings Account",
       type: "depository",
       subtype: "savings",
@@ -86,7 +155,7 @@ async function seed() {
     .values({
       tenantId: tenant.id,
       plaidItemId: plaidItem.id,
-      plaidAccountId: "seed-investment-001",
+      plaidAccountId: `${itemId}-investment-001`,
       name: "Brokerage Account",
       type: "investment",
       subtype: "brokerage",
@@ -99,7 +168,7 @@ async function seed() {
     .values({
       tenantId: tenant.id,
       plaidItemId: plaidItem.id,
-      plaidAccountId: "seed-credit-001",
+      plaidAccountId: `${itemId}-credit-001`,
       name: "Credit Card",
       type: "credit",
       subtype: "credit card",
@@ -107,9 +176,11 @@ async function seed() {
     })
     .returning();
 
-  console.log(
-    `Created accounts: ${[checking, savings, investment, creditCard].map((a) => a.name).join(", ")}`,
-  );
+  if (!isE2EMode) {
+    console.log(
+      `Created accounts: ${[checking, savings, investment, creditCard].map((a) => a.name).join(", ")}`,
+    );
+  }
 
   // Create balance snapshots over the past 30 days
   const now = new Date();
@@ -151,13 +222,18 @@ async function seed() {
       },
     ]);
   }
-  console.log("Created balance snapshots (30 days of history)");
 
-  // Create securities and holdings for the investment account
+  if (!isE2EMode) {
+    console.log("Created balance snapshots (30 days of history)");
+  }
+
+  // Create securities - use unique IDs per run to avoid conflicts
+  const securityPrefix = isE2EMode ? `e2e-${timestamp}` : "seed";
+
   const [aapl] = await db
     .insert(securities)
     .values({
-      plaidSecurityId: "seed-sec-aapl",
+      plaidSecurityId: `${securityPrefix}-sec-aapl`,
       name: "Apple Inc.",
       tickerSymbol: "AAPL",
       type: "equity",
@@ -169,7 +245,7 @@ async function seed() {
   const [vti] = await db
     .insert(securities)
     .values({
-      plaidSecurityId: "seed-sec-vti",
+      plaidSecurityId: `${securityPrefix}-sec-vti`,
       name: "Vanguard Total Stock Market ETF",
       tickerSymbol: "VTI",
       type: "etf",
@@ -181,7 +257,7 @@ async function seed() {
   const [bnd] = await db
     .insert(securities)
     .values({
-      plaidSecurityId: "seed-sec-bnd",
+      plaidSecurityId: `${securityPrefix}-sec-bnd`,
       name: "Vanguard Total Bond Market ETF",
       tickerSymbol: "BND",
       type: "etf",
@@ -222,9 +298,22 @@ async function seed() {
       snapshotAt: now,
     },
   ]);
-  console.log("Created securities and holdings");
 
-  console.log("Seed complete!");
+  if (!isE2EMode) {
+    console.log("Created securities and holdings");
+    console.log("Seed complete!");
+  } else {
+    // E2E mode: output JSON credentials for test setup
+    const testUser = {
+      email: userEmail,
+      password: userPassword,
+      userId: user.id,
+      tenantId: tenant.id,
+      timestamp,
+    };
+    console.log(JSON.stringify(testUser));
+  }
+
   process.exit(0);
 }
 
