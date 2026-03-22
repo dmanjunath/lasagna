@@ -6,6 +6,9 @@ import { plaidRoutes } from "./routes/plaid.js";
 import { accountRoutes } from "./routes/accounts.js";
 import { holdingsRoutes } from "./routes/holdings.js";
 import { syncRoutes } from "./routes/sync.js";
+import { plansRouter } from "./routes/plans.js";
+import { threadsRouter } from "./routes/threads.js";
+import { chatRouter } from "./routes/chat.js";
 
 export const app = new Hono();
 
@@ -21,3 +24,6 @@ app.route("/api/plaid", plaidRoutes);
 app.route("/api/accounts", accountRoutes);
 app.route("/api/holdings", holdingsRoutes);
 app.route("/api/sync", syncRoutes);
+app.route("/api/plans", plansRouter);
+app.route("/api/threads", threadsRouter);
+app.route("/api/chat", chatRouter);
