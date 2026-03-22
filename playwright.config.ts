@@ -35,20 +35,14 @@ export default defineConfig({
     },
   ],
 
-  // Start both API and frontend servers before tests
-  // NOTE: Database must be running (docker compose up db)
-  webServer: [
-    {
-      command: "pnpm --filter @lasagna/api dev",
-      url: "http://localhost:3000/api/health",
-      reuseExistingServer: !process.env.CI,
-      timeout: 60000,
-    },
-    {
-      command: "pnpm dev:web",
-      url: "http://localhost:5173",
-      reuseExistingServer: !process.env.CI,
-      timeout: 60000,
-    },
-  ],
+  // Prerequisites: Run `docker compose up` before running tests
+  // This starts both the database and API server
+  //
+  // The frontend dev server is started by Playwright below
+  webServer: {
+    command: "pnpm dev:web",
+    url: "http://localhost:5173",
+    reuseExistingServer: true,
+    timeout: 60000,
+  },
 });
