@@ -3,7 +3,7 @@ import { z } from "zod";
 import { streamText } from "ai";
 import { db } from "../lib/db.js";
 import { chatThreads, messages, plans, planEdits, eq, and } from "@lasagna/core";
-import { model, createAgentTools, systemPrompt } from "../agent/index.js";
+import { getModel, createAgentTools, systemPrompt } from "../agent/index.js";
 import { uiPayloadSchema } from "../agent/types.js";
 import type { AuthEnv } from "../middleware/auth.js";
 
@@ -77,7 +77,7 @@ chatRouter.post("/", async (c) => {
 
   // Stream response
   const result = streamText({
-    model,
+    model: getModel(),
     system: systemPrompt + planContext,
     messages: history.map((m) => ({
       role: m.role as "user" | "assistant",

@@ -1,14 +1,24 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { LanguageModel } from "ai";
+import type { LanguageModel } from "ai";
 import { createFinancialTools } from "./tools/financial.js";
 import { createPlanTools } from "./tools/plans.js";
 import { env } from "../lib/env.js";
 
-const openrouter = createOpenRouter({
-  apiKey: env.OPENROUTER_API_KEY,
-});
+// Lazy-load model to avoid startup failure when OPENROUTER_API_KEY is not set
+let _model: LanguageModel | null = null;
 
-export const model: LanguageModel = openrouter("anthropic/claude-sonnet-4");
+export function getModel(): LanguageModel {
+  if (!_model) {
+    if (!env.OPENROUTER_API_KEY) {
+      throw new Error("OPENROUTER_API_KEY is required for AI features");
+    }
+    const openrouter = createOpenRouter({
+      apiKey: env.OPENROUTER_API_KEY,
+    });
+    _model = openrouter("anthropic/claude-sonnet-4");
+  }
+  return _model;
+}
 
 export function createAgentTools(tenantId: string) {
   return {
