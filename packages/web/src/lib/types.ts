@@ -124,3 +124,38 @@ export type Message = {
   uiPayload: UIPayload | null;
   createdAt: string;
 };
+
+// ── Tax Types ──────────────────────────────────────────────────────────
+
+export type FilingStatus = "single" | "married_joint" | "married_separate" | "head_of_household";
+export type TaxReturnStatus = "draft" | "complete";
+
+export interface TaxReturn {
+  id: string;
+  tenantId: string;
+  taxYear: number;
+  filingStatus: FilingStatus | null;
+  status: TaxReturnStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExtractedField {
+  value: number;
+  line: string;
+  verified: boolean;
+}
+
+export interface ExtractedData {
+  confidence: number;
+  fields: Record<string, ExtractedField>;
+}
+
+export interface TaxDocument {
+  id: string;
+  taxReturnId: string;
+  documentType: string;
+  extractedData: ExtractedData | null;
+  extractedAt: string | null;
+  createdAt: string;
+}
