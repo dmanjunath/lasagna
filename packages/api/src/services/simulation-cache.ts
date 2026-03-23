@@ -58,14 +58,12 @@ export class SimulationCacheService {
     return inserted.id;
   }
 
-  async invalidateForPlan(planId: string): Promise<number> {
-    const result = await db.delete(simulationResults).where(eq(simulationResults.planId, planId));
-    return result.rowCount ?? 0;
+  async invalidateForPlan(planId: string): Promise<void> {
+    await db.delete(simulationResults).where(eq(simulationResults.planId, planId));
   }
 
-  async cleanupExpired(): Promise<number> {
-    const result = await db.delete(simulationResults).where(sql`${simulationResults.expiresAt} < NOW()`);
-    return result.rowCount ?? 0;
+  async cleanupExpired(): Promise<void> {
+    await db.delete(simulationResults).where(sql`${simulationResults.expiresAt} < NOW()`);
   }
 }
 
