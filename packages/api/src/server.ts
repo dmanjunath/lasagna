@@ -10,6 +10,7 @@ import { plansRouter } from "./routes/plans.js";
 import { threadsRouter } from "./routes/threads.js";
 import { chatRouter } from "./routes/chat.js";
 import { taxRouter } from "./routes/tax.js";
+import { simulationsRouter } from "./routes/simulations.js";
 
 export const app = new Hono();
 
@@ -29,3 +30,4 @@ app.route("/api/plans", plansRouter);
 app.route("/api/threads", threadsRouter);
 app.route("/api/chat", chatRouter);
 app.route("/api/tax", taxRouter);
+app.route("/api/simulations", simulationsRouter);
