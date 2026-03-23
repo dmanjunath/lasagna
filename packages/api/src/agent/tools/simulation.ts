@@ -69,8 +69,7 @@ export function createSimulationTools(tenantId: string) {
           .filter(
             (acc) =>
               acc.type === "investment" ||
-              acc.type === "depository" ||
-              acc.type === "brokerage"
+              acc.type === "depository"
           )
           .reduce((sum, acc) => sum + acc.balance, 0);
 
