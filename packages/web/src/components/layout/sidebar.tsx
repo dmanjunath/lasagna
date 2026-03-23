@@ -30,7 +30,7 @@ const fixedTabs: NavItem[] = [
   { id: 'dashboard', name: 'Overview', icon: LayoutDashboard, path: '/' },
   { id: 'net-worth', name: 'Net Worth', icon: TrendingUp, path: '/net-worth' },
   { id: 'cash-flow', name: 'Cash Flow', icon: ArrowRightLeft, path: '/cash-flow' },
-  { id: 'tax-strategy', name: 'Tax Strategy', icon: Receipt, path: '/tax-strategy' },
+  { id: 'tax-history', name: 'Tax History', icon: Receipt, path: '/tax-history' },
   { id: 'plans', name: 'AI Plans', icon: Sparkles, path: '/plans' },
 ];
 
