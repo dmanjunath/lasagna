@@ -44,6 +44,12 @@ export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
 
 export const editedByEnum = pgEnum("edited_by", ["user", "agent"]);
 
+export const simulationTypeEnum = pgEnum("simulation_type", [
+  "monte_carlo",
+  "backtest",
+  "scenario",
+]);
+
 // ── Tenants ────────────────────────────────────────────────────────────────
 
 export const tenants = pgTable("tenants", {
@@ -278,4 +284,24 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+// ── Simulation Results ───────────────────────────────────────────────────
+
+export const simulationResults = pgTable("simulation_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id")
+    .notNull()
+    .references(() => plans.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  type: simulationTypeEnum("type").notNull(),
+  paramsHash: varchar("params_hash", { length: 64 }).notNull(),
+  params: text("params").notNull(),
+  results: text("results").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
