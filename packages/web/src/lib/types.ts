@@ -67,13 +67,161 @@ export type ActionBlock = {
   params?: Record<string, unknown>;
 };
 
+// ── Retirement Dashboard Blocks ──────────────────────────────────────────────
+
+export type MonteCarloChartBlock = {
+  type: "monte_carlo_chart";
+  variant: "fan" | "histogram";
+  title?: string;
+  data: {
+    successRate: number;
+    percentiles?: {
+      p5: number[];
+      p25: number[];
+      p50: number[];
+      p75: number[];
+      p95: number[];
+    };
+    distribution?: {
+      buckets: number[];
+      counts: number[];
+    };
+  };
+  showPaths?: boolean;
+};
+
+export type BacktestTableBlock = {
+  type: "backtest_table";
+  title?: string;
+  data: {
+    totalPeriods: number;
+    successfulPeriods: number;
+    successRate: number;
+    periods: {
+      startYear: number;
+      endBalance: number;
+      yearsLasted: number;
+      status: "success" | "failed" | "close";
+      worstDrawdown: { year: number; percent: number };
+      bestYear: { year: number; percent: number };
+    }[];
+  };
+  defaultSort?: "startYear" | "endBalance" | "status";
+  defaultFilter?: "all" | "failed" | "close" | "success";
+  showCount?: number;
+};
+
+export type SliderControlBlock = {
+  type: "slider_control";
+  controlType: "swr" | "retirement_age" | "contribution";
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  currentValue: number;
+  unit?: string;
+  impactPreview?: {
+    label: string;
+    values: { value: number; result: string }[];
+  };
+};
+
+export type ScenarioComparisonBlock = {
+  type: "scenario_comparison";
+  title?: string;
+  scenarios: {
+    name: string;
+    description?: string;
+    successRate: number;
+    endBalance: number;
+    isRecommended?: boolean;
+  }[];
+};
+
+export type SequenceRiskChartBlock = {
+  type: "sequence_risk_chart";
+  title?: string;
+  goodSequence: number[];
+  badSequence: number[];
+  labels?: string[];
+};
+
+export type IncomeBreakdownBlock = {
+  type: "income_breakdown";
+  title?: string;
+  sources: {
+    name: string;
+    annualAmount: number;
+    startAge?: number;
+  }[];
+  totalAnnual: number;
+  totalMonthly: number;
+};
+
+export type AccountSummaryBlock = {
+  type: "account_summary";
+  totalBalance: number;
+  allocation: {
+    stocks: number;
+    bonds: number;
+    cash: number;
+  };
+  byType: {
+    type: string;
+    balance: number;
+    percentage: number;
+  }[];
+};
+
+export type FireCalculatorBlock = {
+  type: "fire_calculator";
+  targetNumber: number;
+  currentBalance: number;
+  gap: number;
+  percentComplete: number;
+  withdrawalRate: number;
+  targetAge?: number;
+};
+
+export type FailureAnalysisBlock = {
+  type: "failure_analysis";
+  title?: string;
+  failedPeriods: {
+    startYear: number;
+    earlyReturns: number[];
+    pattern: string;
+  }[];
+  insight: string;
+};
+
+export type ImprovementActionsBlock = {
+  type: "improvement_actions";
+  title?: string;
+  actions: {
+    description: string;
+    impact: string;
+    tradeoff?: string;
+    actionType?: string;
+  }[];
+};
+
 export type UIBlock =
   | StatBlock
   | ChartBlock
   | TableBlock
   | TextBlock
   | ProjectionBlock
-  | ActionBlock;
+  | ActionBlock
+  | MonteCarloChartBlock
+  | BacktestTableBlock
+  | SliderControlBlock
+  | ScenarioComparisonBlock
+  | SequenceRiskChartBlock
+  | IncomeBreakdownBlock
+  | AccountSummaryBlock
+  | FireCalculatorBlock
+  | FailureAnalysisBlock
+  | ImprovementActionsBlock;
 
 export type UIPayload = {
   layout: "single" | "split" | "grid";
