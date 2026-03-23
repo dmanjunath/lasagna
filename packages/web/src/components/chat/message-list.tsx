@@ -11,7 +11,7 @@ export function MessageList({ messages }: { messages: Message[] }) {
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-muted">
+      <div className="flex-1 flex items-center justify-center text-text-muted p-6 text-center min-h-[200px]">
         <p>Start a conversation to get personalized financial insights.</p>
       </div>
     );

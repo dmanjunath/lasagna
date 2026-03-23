@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { Menu } from 'lucide-react';
 import { Sidebar } from './sidebar';
 
 interface MobileNavProps {
@@ -47,9 +48,10 @@ export function MobileMenuButton({ onClick }: { onClick: () => void }) {
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.95 }}
-      className="md:hidden fixed top-4 left-4 z-30 w-10 h-10 rounded-xl bg-surface-solid border border-border flex items-center justify-center"
+      className="md:hidden fixed top-4 left-4 z-30 w-10 h-10 rounded-xl bg-surface-solid border border-border flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <span className="text-lg">☰</span>
+      <Menu className="w-5 h-5 text-text" />
     </motion.button>
   );
 }

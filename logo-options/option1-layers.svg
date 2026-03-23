@@ -1,0 +1,35 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Layered Stack Logo - represents lasagna layers -->
+  <defs>
+    <linearGradient id="pasta" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#F4D03F"/>
+      <stop offset="100%" style="stop-color:#E67E22"/>
+    </linearGradient>
+    <linearGradient id="sauce" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#E74C3C"/>
+      <stop offset="100%" style="stop-color:#C0392B"/>
+    </linearGradient>
+    <linearGradient id="cheese" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FDEBD0"/>
+      <stop offset="100%" style="stop-color:#F5CBA7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Layer 1 - Bottom pasta -->
+  <rect x="30" y="140" width="140" height="20" rx="3" fill="url(#pasta)"/>
+
+  <!-- Layer 2 - Sauce -->
+  <rect x="35" y="115" width="130" height="18" rx="3" fill="url(#sauce)"/>
+
+  <!-- Layer 3 - Cheese -->
+  <rect x="40" y="92" width="120" height="16" rx="3" fill="url(#cheese)"/>
+
+  <!-- Layer 4 - Pasta -->
+  <rect x="45" y="70" width="110" height="16" rx="3" fill="url(#pasta)"/>
+
+  <!-- Layer 5 - Sauce -->
+  <rect x="50" y="50" width="100" height="14" rx="3" fill="url(#sauce)"/>
+
+  <!-- Layer 6 - Top cheese (melted look) -->
+  <path d="M55 38 Q60 48 65 38 Q75 50 85 36 Q95 48 105 36 Q115 48 125 36 Q135 46 145 38 L145 45 Q135 55 125 45 Q115 55 105 45 Q95 55 85 45 Q75 55 65 45 Q55 55 55 45 Z" fill="url(#cheese)"/>
+</svg>

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { db } from "../lib/db.js";
 import { chatThreads, messages, plans, planEdits, eq, and } from "@lasagna/core";
 import { getModel, createAgentTools, systemPrompt } from "../agent/index.js";
@@ -85,15 +85,29 @@ chatRouter.post("/", async (c) => {
       content: m.content,
     })),
     tools,
-    maxRetries: 3,
+    stopWhen: stepCountIs(5), // Allow up to 5 steps for tool calls
     onFinish: async ({ text, toolCalls }) => {
       // Try to extract UI payload from response
       let uiPayload = null;
       try {
-        // Look for JSON in the response
-        const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[1]);
+        // Try markdown code block first
+        let jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+        let jsonStr = jsonMatch?.[1];
+
+        // If no code block, look for raw JSON object with layout and blocks
+        if (!jsonStr) {
+          // Find the last { that starts a layout/blocks object
+          const layoutIdx = text.lastIndexOf('"layout"');
+          if (layoutIdx !== -1) {
+            let braceIdx = text.lastIndexOf('{', layoutIdx);
+            if (braceIdx !== -1) {
+              jsonStr = text.slice(braceIdx);
+            }
+          }
+        }
+
+        if (jsonStr) {
+          const parsed = JSON.parse(jsonStr);
           const validated = uiPayloadSchema.safeParse(parsed);
           if (validated.success) {
             uiPayload = validated.data;
@@ -140,6 +154,6 @@ chatRouter.post("/", async (c) => {
     },
   });
 
-  // Return as SSE stream
+  // Return as text stream
   return result.toTextStreamResponse();
 });

@@ -1,0 +1,23 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Badge/stamp style logo -->
+  <defs>
+    <linearGradient id="badgeBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#E74C3C"/>
+      <stop offset="100%" style="stop-color:#C0392B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Circular badge -->
+  <circle cx="100" cy="100" r="80" fill="url(#badgeBg)"/>
+  <circle cx="100" cy="100" r="70" fill="none" stroke="#FDEBD0" stroke-width="3"/>
+
+  <!-- Layered icon in center -->
+  <g transform="translate(100, 75)">
+    <rect x="-35" y="0" width="70" height="8" rx="2" fill="#FDEBD0"/>
+    <rect x="-30" y="12" width="60" height="8" rx="2" fill="#F5CBA7"/>
+    <rect x="-25" y="24" width="50" height="8" rx="2" fill="#FDEBD0"/>
+  </g>
+
+  <!-- Text curved would be complex, using straight -->
+  <text x="100" y="130" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#FDEBD0" text-anchor="middle" letter-spacing="3">LASAGNA</text>
+</svg>

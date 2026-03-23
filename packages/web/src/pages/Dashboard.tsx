@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
+import { TrendingUp, Target, Receipt, CreditCard, ArrowRightLeft } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { cn } from '../lib/utils';
 import { StatCard } from '../components/common/stat-card';
@@ -25,11 +26,11 @@ const mockTodos: Todo[] = [
 ];
 
 const mockSummaries = [
-  { id: 'net-worth', icon: '◈', name: 'Net Worth', value: '+2.4%', label: 'this month', status: 'success' as const, path: '/net-worth' },
-  { id: 'retirement', icon: '◎', name: 'Retirement', value: '73%', label: 'readiness', status: 'warning' as const, path: '/plans/retirement' },
-  { id: 'tax-strategy', icon: '◇', name: 'Tax Strategy', value: '$12.1k', label: 'savings found', status: 'success' as const, path: '/tax-strategy' },
-  { id: 'debt-payoff', icon: '◆', name: 'Debt Payoff', value: 'Aug 2029', label: 'debt-free date', status: 'success' as const, path: '/plans/debt-payoff' },
-  { id: 'cash-flow', icon: '◉', name: 'Cash Flow', value: '34%', label: 'savings rate', status: 'success' as const, path: '/cash-flow' },
+  { id: 'net-worth', icon: TrendingUp, name: 'Net Worth', value: '+2.4%', label: 'this month', status: 'success' as const, path: '/net-worth' },
+  { id: 'retirement', icon: Target, name: 'Retirement', value: '73%', label: 'readiness', status: 'warning' as const, path: '/plans/retirement' },
+  { id: 'tax-strategy', icon: Receipt, name: 'Tax Strategy', value: '$12.1k', label: 'savings found', status: 'success' as const, path: '/tax-strategy' },
+  { id: 'debt-payoff', icon: CreditCard, name: 'Debt Payoff', value: 'Aug 2029', label: 'debt-free date', status: 'success' as const, path: '/plans/debt-payoff' },
+  { id: 'cash-flow', icon: ArrowRightLeft, name: 'Cash Flow', value: '34%', label: 'savings rate', status: 'success' as const, path: '/cash-flow' },
 ];
 
 export function Dashboard() {
@@ -52,7 +53,7 @@ export function Dashboard() {
   const firstName = user?.email?.split('@')[0] || 'there';
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
+    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
       {/* Greeting */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -61,14 +62,14 @@ export function Dashboard() {
         className="mb-10"
       >
         <p className="text-text-muted text-sm mb-1">Good morning,</p>
-        <h2 className="font-display text-3xl md:text-4xl font-medium tracking-tight capitalize">
+        <h2 className="font-display text-3xl md:text-4xl lg:text-5xl font-medium tracking-tight capitalize">
           {firstName}
         </h2>
       </motion.div>
 
       {/* Plan Summaries */}
       <Section title="Your Financial Plans">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
           {mockSummaries.map((summary, i) => (
             <StatCard
               key={summary.id}
@@ -100,7 +101,7 @@ export function Dashboard() {
               <button
                 onClick={() => toggleTodo(todo.id)}
                 className={cn(
-                  'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0',
+                  'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
                   completedTodos.includes(todo.id)
                     ? 'bg-accent border-accent text-bg'
                     : 'border-border hover:border-accent/50'

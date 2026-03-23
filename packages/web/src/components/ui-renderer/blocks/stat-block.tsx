@@ -12,6 +12,7 @@ export function StatBlockRenderer({ block }: { block: StatBlockType }) {
     <StatCard
       label={block.label}
       value={displayValue}
+      description={block.description}
       status={status}
     />
   );

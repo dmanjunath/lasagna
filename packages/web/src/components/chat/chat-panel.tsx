@@ -1,18 +1,29 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { MessageList } from "./message-list.js";
+import { ToolStatus } from "./tool-status.js";
 import { Button } from "../ui/button.js";
 import type { Message } from "../../lib/types.js";
 
 type ChatPanelProps = {
   threadId: string;
   initialMessages?: Message[];
+  initialMessage?: string | null;
+  onMessageSent?: () => void;
+  onChatResponse?: () => void;
 };
 
-export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
+export function ChatPanel({
+  threadId,
+  initialMessages = [],
+  initialMessage = null,
+  onMessageSent,
+  onChatResponse,
+}: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [currentTool, setCurrentTool] = useState<string | null>(null);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -30,6 +41,7 @@ export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
+    setCurrentTool(null);
 
     try {
       const res = await fetch("/api/chat", {
@@ -76,19 +88,34 @@ export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
           )
         );
       }
+      // Notify parent that response completed (to refresh plan content)
+      onChatResponse?.();
     } catch (error) {
       console.error("Chat error:", error);
       // Remove the user message on error
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
     } finally {
       setIsLoading(false);
+      setCurrentTool(null);
     }
-  }, [threadId, isLoading]);
+  }, [threadId, isLoading, onChatResponse]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     sendMessage(input);
   };
+
+  // Track if we've already sent the initial message
+  const initialMessageSent = useRef(false);
+
+  // Auto-send initial message from starter prompts
+  useEffect(() => {
+    if (initialMessage && !isLoading && !initialMessageSent.current) {
+      initialMessageSent.current = true;
+      sendMessage(initialMessage);
+      onMessageSent?.();
+    }
+  }, [initialMessage, isLoading, sendMessage, onMessageSent]);
 
   return (
     <div className="flex flex-col h-full bg-bg-elevated rounded-2xl border border-border">
@@ -98,6 +125,8 @@ export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
 
       <MessageList messages={messages} />
 
+      {isLoading && <ToolStatus toolName={currentTool || "thinking"} />}
+
       <form
         onSubmit={handleSubmit}
         className="p-4 border-t border-border flex gap-2"
@@ -106,7 +135,7 @@ export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about your finances..."
-          className="flex-1 px-4 py-2 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50"
+          className="flex-1 px-4 py-2 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
           disabled={isLoading}
         />
         <Button type="submit" disabled={isLoading || !input.trim()}>

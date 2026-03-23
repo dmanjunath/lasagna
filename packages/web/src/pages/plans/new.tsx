@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Target, TrendingUp, Sparkles, CreditCard } from "lucide-react";
+import { Target, TrendingUp, Sparkles, CreditCard, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { Button } from "../../components/ui/button.js";
+import { cn } from "../../lib/utils.js";
 import type { PlanType } from "../../lib/types.js";
 
 const planTypes: { type: PlanType; label: string; description: string; icon: typeof Target }[] = [
@@ -53,8 +54,8 @@ export function NewPlanPage() {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-display font-semibold text-text mb-2">
+    <div className="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto">
+      <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text mb-2">
         Create a Plan
       </h1>
       <p className="text-text-muted mb-8">
@@ -69,11 +70,12 @@ export function NewPlanPage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.1 }}
             onClick={() => setSelectedType(pt.type)}
-            className={`w-full p-4 rounded-xl border text-left transition-all ${
+            className={cn(
+              "w-full p-4 rounded-xl border text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
               selectedType === pt.type
                 ? "border-accent bg-accent/10"
                 : "border-border bg-surface hover:border-accent/50"
-            }`}
+            )}
           >
             <div className="flex items-start gap-4">
               <div className="p-2 rounded-lg bg-bg-elevated">
@@ -102,7 +104,7 @@ export function NewPlanPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., My Retirement Plan"
-              className="w-full px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50"
+              className="w-full px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
             />
           </div>
 
@@ -111,7 +113,12 @@ export function NewPlanPage() {
             disabled={!title.trim() || creating}
             className="w-full"
           >
-            {creating ? "Creating..." : "Create Plan"}
+            {creating ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Creating...
+              </span>
+            ) : "Create Plan"}
           </Button>
         </motion.div>
       )}

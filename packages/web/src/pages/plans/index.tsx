@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { Button } from "../../components/ui/button.js";
@@ -20,14 +20,15 @@ export function PlansPage() {
   const planTypeLabels = {
     net_worth: "Net Worth",
     retirement: "Retirement",
+    debt_payoff: "Debt Payoff",
     custom: "Custom",
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-display font-semibold text-text">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text">
             Financial Plans
           </h1>
           <p className="text-text-muted mt-1">
@@ -43,7 +44,12 @@ export function PlansPage() {
       </div>
 
       {loading ? (
-        <div className="text-text-muted">Loading...</div>
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3 text-text-muted">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Loading plans...</span>
+          </div>
+        </div>
       ) : plans.length === 0 ? (
         <div className="glass-card text-center py-12">
           <FileText className="w-12 h-12 text-text-muted mx-auto mb-4" />
