@@ -7,6 +7,8 @@
     "build": "tsc",
     "dev": "tsx watch --env-file=../../.env src/index.ts",
     "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -17,10 +19,12 @@
     "better-auth": "^1.5.5",
     "hono": "^4.12.8",
     "plaid": "^41.4.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.1"
   }
 }
