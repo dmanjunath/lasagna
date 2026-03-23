@@ -18,6 +18,8 @@ export const accountTypeEnum = pgEnum("account_type", [
   "investment",
   "credit",
   "loan",
+  "real_estate",
+  "alternative",
 ]);
 export const syncStatusEnum = pgEnum("sync_status", [
   "running",
@@ -112,6 +114,7 @@ export const accounts = pgTable("accounts", {
   type: accountTypeEnum("type").notNull(),
   subtype: varchar("subtype", { length: 100 }),
   mask: varchar("mask", { length: 10 }),
+  metadata: text("metadata"), // JSON string for loan details, property info, etc.
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
