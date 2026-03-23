@@ -6,6 +6,7 @@ export type StatBlock = {
   value: string;
   change?: string;
   trend?: "up" | "down" | "neutral";
+  description?: string;
 };
 
 export type DataPoint = {
@@ -29,8 +30,9 @@ export type Column = {
 export type TableBlock = {
   type: "table";
   title?: string;
-  columns: Column[];
-  rows: Record<string, string | number>[];
+  columns?: Column[];
+  headers?: string[];
+  rows: (Record<string, string | number> | (string | number)[])[];
 };
 
 export type TextBlock = {
@@ -41,19 +43,27 @@ export type TextBlock = {
 
 export type Scenario = {
   name: string;
+  value?: string;
+  description?: string;
   [key: string]: unknown;
 };
 
 export type ProjectionBlock = {
   type: "projection";
   title?: string;
+  description?: string;
   scenarios: Scenario[];
 };
 
 export type ActionBlock = {
   type: "action";
-  label: string;
-  action: string;
+  // Old format
+  label?: string;
+  action?: string;
+  // New format
+  title?: string;
+  description?: string;
+  actions?: string[];
   params?: Record<string, unknown>;
 };
 

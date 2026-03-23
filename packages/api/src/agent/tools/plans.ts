@@ -78,7 +78,7 @@ export function createPlanTools(tenantId: string) {
     create_plan: tool({
       description: "Create a new plan",
       parameters: z.object({
-        type: z.enum(["net_worth", "retirement", "custom"]),
+        type: z.enum(["net_worth", "retirement", "debt_payoff", "custom"]),
         title: z.string(),
       }),
       // @ts-ignore

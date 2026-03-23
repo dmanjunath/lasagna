@@ -8,6 +8,7 @@ export const statBlockSchema = z.object({
   value: z.string(),
   change: z.string().optional(),
   trend: z.enum(["up", "down", "neutral"]).optional(),
+  description: z.string().optional(),
 });
 
 export const dataPointSchema = z.object({
@@ -30,8 +31,16 @@ export const columnSchema = z.object({
 export const tableBlockSchema = z.object({
   type: z.literal("table"),
   title: z.string().optional(),
-  columns: z.array(columnSchema),
-  rows: z.array(z.record(z.string(), z.union([z.string(), z.number()]))),
+  // Accept either columns (structured) or headers (simple string array)
+  columns: z.array(columnSchema).optional(),
+  headers: z.array(z.string()).optional(),
+  // Accept rows as either records or arrays (AI sometimes generates arrays)
+  rows: z.array(
+    z.union([
+      z.record(z.string(), z.union([z.string(), z.number()])),
+      z.array(z.union([z.string(), z.number()])),
+    ])
+  ),
 });
 
 export const textBlockSchema = z.object({
@@ -42,18 +51,25 @@ export const textBlockSchema = z.object({
 
 export const scenarioSchema = z.object({
   name: z.string(),
+  value: z.string().optional(),
+  description: z.string().optional(),
 }).passthrough();
 
 export const projectionBlockSchema = z.object({
   type: z.literal("projection"),
   title: z.string().optional(),
+  description: z.string().optional(),
   scenarios: z.array(scenarioSchema),
 });
 
 export const actionBlockSchema = z.object({
   type: z.literal("action"),
-  label: z.string(),
-  action: z.string(),
+  // Support both formats: simple (label/action) and rich (title/description/actions)
+  label: z.string().optional(),
+  action: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  actions: z.array(z.string()).optional(),
   params: z.record(z.string(), z.unknown()).optional(),
 });
 

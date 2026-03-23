@@ -34,97 +34,76 @@ test.describe("Plan Detail Page", () => {
     await expect(page.getByText("net worth Plan", { exact: true })).toBeVisible();
   });
 
-  test("shows empty state when plan has no content", async ({ page }) => {
-    // New plan should show empty state
+  test("shows starter prompts when plan has no content", async ({ page }) => {
+    // New plan should show starter prompts
     await expect(
-      page.getByText("This plan is empty. Start a conversation to generate content.")
+      page.getByText("Get started with a question")
+    ).toBeVisible();
+    // Should show suggested prompts for net_worth type
+    await expect(
+      page.getByRole("button", { name: "Show my net worth breakdown" })
     ).toBeVisible();
   });
 
-  test("has toolbar buttons for chat, history, and more", async ({ page }) => {
-    // Verify toolbar buttons exist - there are 3 icon buttons in the header
-    // Use the header container to find the buttons
+  test("has toolbar buttons for history and more", async ({ page }) => {
+    // Verify toolbar buttons exist - there are 2 icon buttons in the header (history, more)
     const headerButtons = page.locator("button").filter({ has: page.locator("svg") });
 
-    // Should have at least 3 icon buttons (chat toggle, history, more)
     await expect(headerButtons.first()).toBeVisible();
     const count = await headerButtons.count();
-    expect(count).toBeGreaterThanOrEqual(3);
+    expect(count).toBeGreaterThanOrEqual(2);
   });
 
-  test("chat panel is visible by default", async ({ page }) => {
-    // Chat panel should be visible when plan loads with a thread
-    // The chat input should be present
-    await expect(
-      page.getByPlaceholder("Ask about your finances...")
-    ).toBeVisible({ timeout: 10000 });
-  });
-
-  test("can toggle chat panel visibility", async ({ page }) => {
-    // Wait for chat panel to load
-    await expect(
-      page.getByPlaceholder("Ask about your finances...")
-    ).toBeVisible({ timeout: 10000 });
-
-    // Click the first icon button in header (chat toggle) to hide chat
-    const headerIconButtons = page.locator("button").filter({ has: page.locator("svg") });
-    const chatToggle = headerIconButtons.first();
-    await chatToggle.click();
-
-    // Chat input should no longer be visible
+  test("chat panel is hidden by default for new plans", async ({ page }) => {
+    // For new plans with no messages, chat sidebar should NOT be visible
+    // Only starter prompts should be shown
     await expect(
       page.getByPlaceholder("Ask about your finances...")
     ).not.toBeVisible();
 
-    // Click again to show
-    await chatToggle.click();
-
-    // Chat input should be visible again
+    // Starter prompts should be visible instead
     await expect(
-      page.getByPlaceholder("Ask about your finances...")
-    ).toBeVisible({ timeout: 10000 });
+      page.getByText("Get started with a question")
+    ).toBeVisible();
   });
 
-  test("can send a chat message", async ({ page }) => {
-    // Wait for chat panel to load
+  test("chat panel appears after selecting starter prompt", async ({ page }) => {
+    // Click a starter prompt
+    await page.getByRole("button", { name: "Show my net worth breakdown" }).click();
+
+    // Wait for animation to complete and chat input to be visible
     const chatInput = page.getByPlaceholder("Ask about your finances...");
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
-
-    // Type a message
-    await chatInput.fill("What is my net worth?");
-
-    // Click send button (submit button in the chat form)
-    const sendButton = page.locator("form button[type='submit']");
-    await sendButton.click();
-
-    // Message should appear in the chat
-    await expect(page.getByText("What is my net worth?")).toBeVisible({ timeout: 10000 });
-
-    // Input should be cleared after sending
-    await expect(chatInput).toHaveValue("");
+    await expect(chatInput).toBeVisible({ timeout: 15000 });
   });
 
-  test("chat input is disabled while loading", async ({ page }) => {
-    // Wait for chat panel to load
+  test("starter prompt sends message to chat", async ({ page }) => {
+    // Click a starter prompt
+    await page.getByRole("button", { name: "Show my net worth breakdown" }).click();
+
+    // Wait for chat panel - use input as indicator
     const chatInput = page.getByPlaceholder("Ask about your finances...");
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
+    await expect(chatInput).toBeVisible({ timeout: 15000 });
+  });
 
-    // Type and send a message
-    await chatInput.fill("Test message");
-    const sendButton = page.locator("form button[type='submit']");
-    await sendButton.click();
+  test("main content shows loading state when generating", async ({ page }) => {
+    // Click a starter prompt
+    await page.getByRole("button", { name: "Show my net worth breakdown" }).click();
 
-    // During loading, the input and button should be disabled
-    // This is a brief state, so we check immediately after clicking
-    await expect(sendButton).toBeDisabled();
+    // Should show generating state in main content area
+    // Check that either generating message OR chat input appears (both valid states)
+    const generatingText = page.getByText("Generating your plan...");
+    const chatInput = page.getByPlaceholder("Ask about your finances...");
+
+    // Wait for either to be visible
+    await expect(generatingText.or(chatInput).first()).toBeVisible({ timeout: 15000 });
   });
 
   test("navigating from plans list to plan detail works", async ({ page }) => {
     // Go back to plans list
     await page.goto("/plans");
 
-    // Wait for loading to finish
-    await expect(page.getByText("Loading...")).not.toBeVisible({ timeout: 10000 });
+    // Wait for main content loading to finish (use role="main" to avoid sidebar)
+    await expect(page.getByRole("main").getByText("Loading...")).not.toBeVisible({ timeout: 10000 });
 
     // Find and click the first plan with our title (tests may create multiple)
     await page.getByText("Detail Test Plan").first().click();

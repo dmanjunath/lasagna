@@ -9,9 +9,17 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { colors } from "../../../styles/theme.js";
 
-// Default colors for donut chart segments
-const DONUT_COLORS = ["#fbbf24", "#22c55e", "#3b82f6", "#a855f7", "#f43f5e", "#06b6d4"];
+// Chart colors that complement the theme
+const CHART_COLORS = [
+  colors.accent.DEFAULT,  // amber
+  colors.success,         // green
+  "#3b82f6",              // blue
+  "#a855f7",              // purple
+  colors.danger,          // red
+  "#06b6d4",              // cyan
+];
 
 export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
   if (block.chartType === "area") {
@@ -36,7 +44,7 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
     const donutData = block.data.map((d, i) => ({
       name: d.label,
       value: d.value,
-      color: DONUT_COLORS[i % DONUT_COLORS.length],
+      color: CHART_COLORS[i % CHART_COLORS.length],
     }));
 
     return (
@@ -61,16 +69,16 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
         )}
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={block.data}>
-            <XAxis dataKey="label" stroke="#a8a29e" fontSize={12} />
-            <YAxis stroke="#a8a29e" fontSize={12} />
+            <XAxis dataKey="label" stroke={colors.text.muted} fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis stroke={colors.text.muted} fontSize={12} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={{
-                backgroundColor: "#1c1917",
-                border: "1px solid rgba(120, 113, 108, 0.2)",
-                borderRadius: "8px",
+                background: colors.bg.elevated,
+                border: `1px solid ${colors.border.DEFAULT}`,
+                borderRadius: "12px",
               }}
             />
-            <Bar dataKey="value" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="value" fill={colors.accent.DEFAULT} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

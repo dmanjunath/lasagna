@@ -1,0 +1,5 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Steeper angle -->
+  <path d="M20 20 L20 80 L80 80" fill="none" stroke="#1a1a1a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="20" y1="80" x2="50" y2="20" stroke="#1a1a1a" stroke-width="4" stroke-linecap="round"/>
+</svg>
