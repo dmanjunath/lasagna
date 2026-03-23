@@ -59,7 +59,7 @@ taxRouter.get("/returns/:id", async (c) => {
   const documents = await db
     .select()
     .from(taxDocuments)
-    .where(eq(taxDocuments.taxReturnId, id));
+    .where(and(eq(taxDocuments.taxReturnId, id), eq(taxDocuments.tenantId, tenantId)));
 
   return c.json({ taxReturn, documents });
 });
