@@ -20,15 +20,17 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx --env-file=../../.env src/seed.ts",
+    "db:seed": "tsx --env-file=../../.env src/seed/index.ts",
     "db:reset": "tsx --env-file=../../.env src/reset.ts",
     "test": "node --import tsx --test src/__tests__/*.test.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.1",
+    "minimist": "^1.2.8",
     "postgres": "^3.4.8"
   },
   "devDependencies": {
+    "@types/minimist": "^1.2.5",
     "@types/node": "^25.5.0",
     "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.10",
