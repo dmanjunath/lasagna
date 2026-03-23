@@ -2,6 +2,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModel } from "ai";
 import { createFinancialTools } from "./tools/financial.js";
 import { createPlanTools } from "./tools/plans.js";
+import { createSimulationTools } from "./tools/simulation.js";
 import { env } from "../lib/env.js";
 
 // Lazy-load model to avoid startup failure when OPENROUTER_API_KEY is not set
@@ -24,6 +25,7 @@ export function createAgentTools(tenantId: string) {
   return {
     ...createFinancialTools(tenantId),
     ...createPlanTools(tenantId),
+    ...createSimulationTools(tenantId),
   };
 }
 
