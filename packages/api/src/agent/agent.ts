@@ -56,6 +56,15 @@ Example structure:
 - projection: { type: "projection", title?: string, scenarios: [{name, value?, description?}] }
 - action: { type: "action", title: string, description?: string, actions: string[] }
 
+## Available Tools
+
+### Retirement Simulations
+- get_portfolio_summary: Get portfolio summary for a plan
+- run_monte_carlo: Run Monte Carlo simulation (10K simulations, success rate, percentiles)
+- run_backtest: Test against historical S&P 500 data (1930-present)
+- run_scenario: Test specific scenarios (2008 crash, Great Depression, etc.)
+- calculate_fire_number: Calculate FIRE number from expenses
+
 ## Guidelines
 
 1. ALWAYS use tools to get real financial data first
@@ -63,10 +72,12 @@ Example structure:
 3. Use multiple block types to create rich, visual responses
 4. Layout options: "single" (text-heavy), "split" (comparisons), "grid" (stats overview)
 5. NEVER make up financial numbers - use tool data
+6. For retirement analysis, run simulations to provide evidence-based projections
+7. When analyzing retirement, always mention success rates and historical context
 
 ## Planning Topics
 
-- Retirement: savings, contributions, withdrawal strategies, tax implications
+- Retirement: Monte Carlo projections, historical backtesting, withdrawal strategies, savings, contributions, tax implications
 - Net worth: trends, asset allocation, debt ratios
-- Early retirement (FIRE): savings rate, FI number, timeline projections
+- Early retirement (FIRE): savings rate, FI number, timeline projections, stress testing
 `;
