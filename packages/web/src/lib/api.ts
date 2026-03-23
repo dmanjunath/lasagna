@@ -1,4 +1,4 @@
-import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message } from "./types.js";
+import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxReturn, TaxDocument, ExtractedData, FilingStatus } from "./types.js";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -156,4 +156,32 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ planId }),
     }),
+
+  // Tax
+  getTaxReturns: () =>
+    request<{ returns: TaxReturn[] }>("/tax/returns"),
+
+  getTaxReturn: (id: string) =>
+    request<{ taxReturn: TaxReturn; documents: TaxDocument[] }>(`/tax/returns/${id}`),
+
+  createTaxReturn: (taxYear: number, filingStatus?: FilingStatus) =>
+    request<{ taxReturn: TaxReturn }>("/tax/returns", {
+      method: "POST",
+      body: JSON.stringify({ taxYear, filingStatus }),
+    }),
+
+  addTaxDocument: (taxReturnId: string, documentType: string, extractedData: ExtractedData) =>
+    request<{ document: TaxDocument }>(`/tax/returns/${taxReturnId}/documents`, {
+      method: "POST",
+      body: JSON.stringify({ documentType, extractedData }),
+    }),
+
+  updateTaxDocument: (id: string, extractedData: ExtractedData) =>
+    request<{ document: TaxDocument }>(`/tax/documents/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ extractedData }),
+    }),
+
+  deleteTaxDocument: (id: string) =>
+    request<{ success: boolean }>(`/tax/documents/${id}`, { method: "DELETE" }),
 };
