@@ -24,6 +24,14 @@ const updateDocumentSchema = z.object({
   extractedData: z.record(z.string(), z.unknown()),
 });
 
+// Helper to parse extractedData JSON string
+function parseDocument(doc: typeof taxDocuments.$inferSelect) {
+  return {
+    ...doc,
+    extractedData: doc.extractedData ? JSON.parse(doc.extractedData) : null,
+  };
+}
+
 // Get all tax returns for tenant
 taxRouter.get("/returns", async (c) => {
   const { tenantId } = c.get("session");
@@ -61,7 +69,7 @@ taxRouter.get("/returns/:id", async (c) => {
     .from(taxDocuments)
     .where(and(eq(taxDocuments.taxReturnId, id), eq(taxDocuments.tenantId, tenantId)));
 
-  return c.json({ taxReturn, documents });
+  return c.json({ taxReturn, documents: documents.map(parseDocument) });
 });
 
 // Create tax return
@@ -131,7 +139,7 @@ taxRouter.post("/returns/:id/documents", async (c) => {
     })
     .returning();
 
-  return c.json({ document }, 201);
+  return c.json({ document: parseDocument(document) }, 201);
 });
 
 // Update document (for manual edits)
@@ -164,7 +172,7 @@ taxRouter.patch("/documents/:id", async (c) => {
     return c.json({ error: "Document not found" }, 404);
   }
 
-  return c.json({ document });
+  return c.json({ document: parseDocument(document) });
 });
 
 // Delete document

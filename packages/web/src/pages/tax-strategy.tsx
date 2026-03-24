@@ -247,7 +247,7 @@ export function TaxStrategy() {
 
 function calculateSummaryStats(documents: TaxDocument[]) {
   const form1040 = documents.find((d) => d.documentType === "1040");
-  if (!form1040?.extractedData) return null;
+  if (!form1040?.extractedData?.fields) return null;
 
   const fields = form1040.extractedData.fields;
   const agi = fields.adjustedGrossIncome?.value ?? 0;

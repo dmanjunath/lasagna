@@ -19,4 +19,5 @@ COPY packages/api packages/api
 EXPOSE 3000
 
 # Run API with hot reload, using development condition for core imports
-CMD ["pnpm", "--filter", "@lasagna/api", "exec", "tsx", "watch", "--conditions", "development", "--env-file=../../.env", "src/index.ts"]
+WORKDIR /app/packages/api
+CMD ["pnpm", "exec", "tsx", "watch", "--conditions", "development", "--env-file=/app/.env", "src/index.ts"]
