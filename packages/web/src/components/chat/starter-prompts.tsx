@@ -7,8 +7,8 @@ import type { PlanType } from "../../lib/types.js";
 const promptsByType: Record<PlanType, string[]> = {
   retirement: [
     "Analyze my retirement readiness",
-    "I want to retire early at 35, am I on track?",
-    "Minimize my lifetime taxes",
+    "I want to retire early, am I on track?",
+    "Stress test my retirement plan",
   ],
   net_worth: [
     "Show my net worth breakdown",
