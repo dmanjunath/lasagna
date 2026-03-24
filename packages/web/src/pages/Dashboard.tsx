@@ -19,16 +19,16 @@ interface Todo {
 
 // Mock data - will come from API
 const mockTodos: Todo[] = [
-  { id: 1, text: 'Review Roth conversion opportunity', plan: 'Tax Strategy', planPath: '/tax-strategy', priority: 'high', dueDate: 'Apr 15' },
+  { id: 1, text: 'Review Roth conversion opportunity', plan: 'Tax Strategy', planPath: '/tax-history', priority: 'high', dueDate: 'Apr 15' },
   { id: 2, text: 'Increase 401k contribution', plan: 'Retirement', planPath: '/plans/retirement', priority: 'high', dueDate: 'Next paycheck' },
   { id: 3, text: 'Pay extra $200 on credit card', plan: 'Debt Payoff', planPath: '/plans/debt-payoff', priority: 'medium', dueDate: 'Mar 28' },
-  { id: 4, text: 'Update tax withholdings', plan: 'Tax Strategy', planPath: '/tax-strategy', priority: 'low', dueDate: 'Apr 1' },
+  { id: 4, text: 'Update tax withholdings', plan: 'Tax Strategy', planPath: '/tax-history', priority: 'low', dueDate: 'Apr 1' },
 ];
 
 const mockSummaries = [
   { id: 'net-worth', icon: TrendingUp, name: 'Net Worth', value: '+2.4%', label: 'this month', status: 'success' as const, path: '/net-worth' },
   { id: 'retirement', icon: Target, name: 'Retirement', value: '73%', label: 'readiness', status: 'warning' as const, path: '/plans/retirement' },
-  { id: 'tax-strategy', icon: Receipt, name: 'Tax Strategy', value: '$12.1k', label: 'savings found', status: 'success' as const, path: '/tax-strategy' },
+  { id: 'tax-strategy', icon: Receipt, name: 'Tax Strategy', value: '$12.1k', label: 'savings found', status: 'success' as const, path: '/tax-history' },
   { id: 'debt-payoff', icon: CreditCard, name: 'Debt Payoff', value: 'Aug 2029', label: 'debt-free date', status: 'success' as const, path: '/plans/debt-payoff' },
   { id: 'cash-flow', icon: ArrowRightLeft, name: 'Cash Flow', value: '34%', label: 'savings rate', status: 'success' as const, path: '/cash-flow' },
 ];

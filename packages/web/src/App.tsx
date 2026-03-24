@@ -36,7 +36,7 @@ function AppRoutes() {
         <Route path="/accounts" component={Accounts} />
         <Route path="/net-worth" component={NetWorth} />
         <Route path="/cash-flow" component={CashFlow} />
-        <Route path="/tax-strategy" component={TaxStrategy} />
+        <Route path="/tax-history" component={TaxStrategy} />
         <Route path="/plans" component={PlansPage} />
         <Route path="/plans/new" component={NewPlanPage} />
         <Route path="/plans/:id" component={PlanDetailPage} />
