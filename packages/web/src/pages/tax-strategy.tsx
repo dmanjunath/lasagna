@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Receipt, Plus } from "lucide-react";
+import { Receipt, Plus, Upload, PenLine } from "lucide-react";
 import { Section } from "../components/common/section.js";
 import { StatCard } from "../components/common/stat-card.js";
 import { Button } from "../components/ui/button.js";
@@ -8,12 +8,16 @@ import { PdfUploader } from "../components/tax/PdfUploader.js";
 import { ExtractionProgress } from "../components/tax/ExtractionProgress.js";
 import { ExtractedFields } from "../components/tax/ExtractedFields.js";
 import { DocumentList } from "../components/tax/DocumentList.js";
+import { ManualEntryForm } from "../components/tax/ManualEntryForm.js";
 import { extractFromPdf, type ProgressCallback } from "../lib/ocr/index.js";
 import type { ExtractionProgress as ProgressType } from "../lib/ocr/types.js";
 import type { TaxReturn, TaxDocument, ExtractedData } from "../lib/types.js";
 import { api } from "../lib/api.js";
+import { cn } from "../lib/utils.js";
 
 const CURRENT_TAX_YEAR = new Date().getFullYear() - 1;
+
+type EntryMode = "upload" | "manual";
 
 export function TaxStrategy() {
   const [taxReturn, setTaxReturn] = useState<TaxReturn | null>(null);
@@ -22,6 +26,7 @@ export function TaxStrategy() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<ProgressType | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [entryMode, setEntryMode] = useState<EntryMode>("upload");
 
   useEffect(() => {
     loadTaxReturn();
@@ -111,6 +116,32 @@ export function TaxStrategy() {
     }
   }, [selectedDoc, documents]);
 
+  const handleManualSave = useCallback(async (data: ExtractedData) => {
+    try {
+      let returnId = taxReturn?.id;
+      if (!returnId) {
+        const { taxReturn: newReturn } = await api.createTaxReturn(CURRENT_TAX_YEAR);
+        setTaxReturn(newReturn);
+        returnId = newReturn.id;
+      }
+
+      // Check if we already have a manually entered 1040
+      const existing1040 = documents.find((d) => d.documentType === "1040");
+      if (existing1040) {
+        const { document } = await api.updateTaxDocument(existing1040.id, data);
+        setDocuments((prev) => prev.map((d) => (d.id === document.id ? document : d)));
+        setSelectedDoc(document);
+      } else {
+        const { document } = await api.addTaxDocument(returnId, "1040", data);
+        setDocuments((prev) => [...prev, document]);
+        setSelectedDoc(document);
+      }
+    } catch (err) {
+      console.error("Failed to save manual entry:", err);
+      throw err;
+    }
+  }, [taxReturn, documents]);
+
   const summaryStats = calculateSummaryStats(documents);
 
   return (
@@ -131,9 +162,50 @@ export function TaxStrategy() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
         <div className="space-y-6">
           <Section title={`Tax Year ${CURRENT_TAX_YEAR}`}>
-            <PdfUploader onFileSelect={handleFileSelect} isProcessing={isProcessing} />
-            {progress && <div className="mt-4"><ExtractionProgress progress={progress} /></div>}
-            {error && <div className="mt-4 p-4 rounded-xl bg-danger/10 border border-danger/20 text-danger text-sm">{error}</div>}
+            {/* Entry Mode Tabs */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setEntryMode("upload")}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  entryMode === "upload"
+                    ? "bg-accent/10 text-accent border border-accent/20"
+                    : "text-text-muted hover:text-text hover:bg-surface-hover border border-transparent"
+                )}
+              >
+                <Upload className="w-4 h-4" />
+                Upload PDF
+              </button>
+              <button
+                onClick={() => setEntryMode("manual")}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  entryMode === "manual"
+                    ? "bg-accent/10 text-accent border border-accent/20"
+                    : "text-text-muted hover:text-text hover:bg-surface-hover border border-transparent"
+                )}
+              >
+                <PenLine className="w-4 h-4" />
+                Enter Manually
+              </button>
+            </div>
+
+            {/* Upload Mode */}
+            {entryMode === "upload" && (
+              <>
+                <PdfUploader onFileSelect={handleFileSelect} isProcessing={isProcessing} />
+                {progress && <div className="mt-4"><ExtractionProgress progress={progress} /></div>}
+                {error && <div className="mt-4 p-4 rounded-xl bg-danger/10 border border-danger/20 text-danger text-sm">{error}</div>}
+              </>
+            )}
+
+            {/* Manual Entry Mode */}
+            {entryMode === "manual" && (
+              <ManualEntryForm
+                initialData={selectedDoc?.extractedData}
+                onSave={handleManualSave}
+              />
+            )}
           </Section>
 
           {documents.length > 0 && (
