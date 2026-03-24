@@ -5,6 +5,16 @@ import {
   ChartBlockRenderer,
   TableBlockRenderer,
   TextBlockRenderer,
+  MonteCarloChartRenderer,
+  BacktestTableRenderer,
+  SliderControlRenderer,
+  ScenarioComparisonRenderer,
+  SequenceRiskChartRenderer,
+  IncomeBreakdownRenderer,
+  AccountSummaryRenderer,
+  FireCalculatorRenderer,
+  FailureAnalysisRenderer,
+  ImprovementActionsRenderer,
 } from "./blocks/index.js";
 
 const layoutClasses = {
@@ -91,6 +101,27 @@ function BlockRenderer({ block }: { block: UIBlock }) {
       return <ProjectionBlockRenderer block={block} />;
     case "action":
       return <ActionBlockRenderer block={block} />;
+    // Retirement dashboard blocks
+    case "monte_carlo_chart":
+      return <MonteCarloChartRenderer block={block} />;
+    case "backtest_table":
+      return <BacktestTableRenderer block={block} />;
+    case "slider_control":
+      return <SliderControlRenderer block={block} />;
+    case "scenario_comparison":
+      return <ScenarioComparisonRenderer block={block} />;
+    case "sequence_risk_chart":
+      return <SequenceRiskChartRenderer block={block} />;
+    case "income_breakdown":
+      return <IncomeBreakdownRenderer block={block} />;
+    case "account_summary":
+      return <AccountSummaryRenderer block={block} />;
+    case "fire_calculator":
+      return <FireCalculatorRenderer block={block} />;
+    case "failure_analysis":
+      return <FailureAnalysisRenderer block={block} />;
+    case "improvement_actions":
+      return <ImprovementActionsRenderer block={block} />;
     default:
       return null;
   }
