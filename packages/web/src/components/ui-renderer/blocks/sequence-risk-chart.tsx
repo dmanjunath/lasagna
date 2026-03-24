@@ -28,7 +28,7 @@ export function SequenceRiskChartRenderer({ block }: { block: SequenceRiskChartB
             <XAxis dataKey="year" stroke={colors.text.muted} fontSize={12} tickLine={false} />
             <YAxis stroke={colors.text.muted} fontSize={12} tickLine={false} tickFormatter={formatCurrency} />
             <Tooltip
-              formatter={(value: number) => formatCurrency(value)}
+              formatter={(value) => formatCurrency(value as number)}
               contentStyle={{
                 background: colors.bg.elevated,
                 border: `1px solid ${colors.border.DEFAULT}`,

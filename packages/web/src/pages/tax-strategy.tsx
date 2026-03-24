@@ -202,7 +202,7 @@ export function TaxStrategy() {
             {/* Manual Entry Mode */}
             {entryMode === "manual" && (
               <ManualEntryForm
-                initialData={selectedDoc?.extractedData}
+                initialData={selectedDoc?.extractedData ?? undefined}
                 onSave={handleManualSave}
               />
             )}

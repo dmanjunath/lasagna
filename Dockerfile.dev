@@ -16,10 +16,7 @@ COPY tsconfig.json ./
 COPY packages/core packages/core
 COPY packages/api packages/api
 
-# Build core package
-RUN pnpm --filter @lasagna/core build
-
 EXPOSE 3000
 
-# Run API with hot reload
-CMD ["pnpm", "--filter", "@lasagna/api", "dev"]
+# Run API with hot reload, using development condition for core imports
+CMD ["pnpm", "--filter", "@lasagna/api", "exec", "tsx", "watch", "--conditions", "development", "--env-file=../../.env", "src/index.ts"]

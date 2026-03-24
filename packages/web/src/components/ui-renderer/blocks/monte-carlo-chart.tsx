@@ -87,7 +87,7 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
               tickFormatter={formatCurrency}
             />
             <Tooltip
-              formatter={(value: number) => formatCurrency(value)}
+              formatter={(value) => formatCurrency(value as number)}
               contentStyle={{
                 background: colors.bg.elevated,
                 border: `1px solid ${colors.border.DEFAULT}`,
@@ -213,7 +213,7 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
               tickFormatter={(v) => `${((v / total) * 100).toFixed(0)}%`}
             />
             <Tooltip
-              formatter={(value: number) => [`${((value / total) * 100).toFixed(1)}%`, "Probability"]}
+              formatter={(value) => [`${(((value as number) / total) * 100).toFixed(1)}%`, "Probability"]}
               contentStyle={{
                 background: colors.bg.elevated,
                 border: `1px solid ${colors.border.DEFAULT}`,

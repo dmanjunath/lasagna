@@ -3,8 +3,9 @@ import Tesseract from "tesseract.js";
 import { templates } from "./templates/form1040.js";
 import type { ExtractionResult, ExtractionProgress, FormTemplate } from "./types.js";
 
-// Configure pdf.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure pdf.js worker - use legacy build for better compatibility
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 export type ProgressCallback = (progress: ExtractionProgress) => void;
 
