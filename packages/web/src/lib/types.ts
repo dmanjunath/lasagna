@@ -205,6 +205,101 @@ export type ImprovementActionsBlock = {
   }[];
 };
 
+// ── Text Formatting Blocks ────────────────────────────────────────────────
+
+export type SectionCardBlock = {
+  type: "section_card";
+  label: string;
+  content: string;
+  variant?: "default" | "highlight" | "warning";
+};
+
+export type CollapsibleDetailsBlock = {
+  type: "collapsible_details";
+  summary: string;
+  content: string;
+  defaultOpen?: boolean;
+};
+
+// ── Dynamic Chart Blocks ──────────────────────────────────────────────────
+
+export type RechartsComponent = {
+  type: "Area" | "Bar" | "Line" | "Scatter" | "Pie" | "Radar" | "Cell" | "Treemap" | "Funnel" | "Sankey";
+  dataKey: string;
+  fill?: string;
+  stroke?: string;
+  stackId?: string;
+  yAxisId?: string;
+  nameKey?: string;
+};
+
+export type AxisConfig = {
+  dataKey?: string;
+  type?: "number" | "category";
+  domain?: [number | "auto", number | "auto"];
+  tickFormatter?: "currency" | "percent" | "number";
+  orientation?: "left" | "right" | "top" | "bottom";
+  yAxisId?: string;
+};
+
+export type TooltipConfig = {
+  formatter?: "currency" | "percent" | "number";
+};
+
+export type LegendConfig = {
+  position?: "top" | "bottom" | "left" | "right";
+};
+
+export type BrushConfig = {
+  dataKey: string;
+  height?: number;
+  startIndex?: number;
+  endIndex?: number;
+};
+
+export type ReferenceLineConfig = {
+  x?: number | string;
+  y?: number | string;
+  stroke?: string;
+  strokeDasharray?: string;
+  label?: string;
+};
+
+export type RechartsConfig = {
+  chartType: "composed" | "pie" | "radar" | "radial" | "treemap" | "funnel" | "sankey";
+  width?: number | "responsive";
+  height?: number;
+  data: Record<string, unknown>[];
+  components: RechartsComponent[];
+  xAxis?: AxisConfig;
+  yAxis?: AxisConfig | AxisConfig[];
+  tooltip?: boolean | TooltipConfig;
+  legend?: boolean | LegendConfig;
+  brush?: BrushConfig;
+  referenceLines?: ReferenceLineConfig[];
+};
+
+export type VegaLiteSpec = {
+  $schema?: string;
+  data: { values: unknown[] };
+  mark: string | { type: string };
+  encoding?: Record<string, unknown>;
+  params?: Array<{ name: string; value?: unknown; bind?: unknown }>;
+  layer?: VegaLiteSpec[];
+  hconcat?: VegaLiteSpec[];
+  vconcat?: VegaLiteSpec[];
+  config?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type DynamicChartBlock = {
+  type: "dynamic_chart";
+  title?: string;
+  renderer: "recharts" | "vega-lite";
+  rechartsConfig?: RechartsConfig;
+  vegaLiteSpec?: VegaLiteSpec;
+};
+
 export type UIBlock =
   | StatBlock
   | ChartBlock
@@ -221,7 +316,10 @@ export type UIBlock =
   | AccountSummaryBlock
   | FireCalculatorBlock
   | FailureAnalysisBlock
-  | ImprovementActionsBlock;
+  | ImprovementActionsBlock
+  | SectionCardBlock
+  | CollapsibleDetailsBlock
+  | DynamicChartBlock;
 
 export type UIPayload = {
   layout: "single" | "split" | "grid";
