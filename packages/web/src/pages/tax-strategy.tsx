@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Receipt, Plus, Upload, PenLine } from "lucide-react";
 import { Section } from "../components/common/section.js";
 import { StatCard } from "../components/common/stat-card.js";
@@ -9,7 +9,8 @@ import { ExtractionProgress } from "../components/tax/ExtractionProgress.js";
 import { ExtractedFields } from "../components/tax/ExtractedFields.js";
 import { DocumentList } from "../components/tax/DocumentList.js";
 import { ManualEntryForm } from "../components/tax/ManualEntryForm.js";
-import { extractFromPdf, type ProgressCallback } from "../lib/ocr/index.js";
+import { RedactionPreview } from "../components/tax/RedactionPreview.js";
+import { previewRedactedPdf, extractFromImages, type ProgressCallback } from "../lib/ocr/index.js";
 import type { ExtractionProgress as ProgressType } from "../lib/ocr/types.js";
 import type { TaxReturn, TaxDocument, ExtractedData } from "../lib/types.js";
 import { api } from "../lib/api.js";
@@ -27,6 +28,10 @@ export function TaxStrategy() {
   const [progress, setProgress] = useState<ProgressType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [entryMode, setEntryMode] = useState<EntryMode>("upload");
+
+  // Preview state
+  const [previewImages, setPreviewImages] = useState<string[] | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
 
   useEffect(() => {
     loadTaxReturn();
@@ -50,7 +55,29 @@ export function TaxStrategy() {
   const handleFileSelect = useCallback(async (file: File) => {
     setIsProcessing(true);
     setError(null);
-    setProgress({ stage: "loading", progress: 0, message: "Starting..." });
+    setProgress({ stage: "loading", progress: 0, message: "Uploading PDF..." });
+
+    try {
+      setProgress({ stage: "detecting", progress: 30, message: "Redacting PII..." });
+
+      // Get preview of redacted images
+      const preview = await previewRedactedPdf(file);
+      setPreviewImages(preview.images);
+
+      setProgress(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to process PDF");
+      setProgress(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, []);
+
+  const handleConfirmExtraction = useCallback(async () => {
+    if (!previewImages) return;
+
+    setIsExtracting(true);
+    setError(null);
 
     try {
       let returnId = taxReturn?.id;
@@ -60,11 +87,12 @@ export function TaxStrategy() {
         returnId = newReturn.id;
       }
 
-      const result = await extractFromPdf(file, setProgress as ProgressCallback);
+      const result = await extractFromImages(previewImages, setProgress as ProgressCallback);
 
       if (result.formId === "unknown") {
-        setError(result.errors[0] || "Could not identify form type");
-        setIsProcessing(false);
+        setError(result.errors[0] || "Could not extract data");
+        setIsExtracting(false);
+        setPreviewImages(null);
         return;
       }
 
@@ -85,13 +113,20 @@ export function TaxStrategy() {
       if (result.errors.length > 0) {
         setError(`Extracted with warnings: ${result.errors.join(", ")}`);
       }
+
+      setPreviewImages(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Extraction failed");
     } finally {
-      setIsProcessing(false);
+      setIsExtracting(false);
       setProgress(null);
     }
-  }, [taxReturn]);
+  }, [previewImages, taxReturn]);
+
+  const handleCancelPreview = useCallback(() => {
+    setPreviewImages(null);
+    setError(null);
+  }, []);
 
   const handleUpdateDocument = useCallback(async (data: ExtractedData) => {
     if (!selectedDoc) return;
@@ -145,7 +180,20 @@ export function TaxStrategy() {
   const summaryStats = calculateSummaryStats(documents);
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
+    <>
+      {/* Redaction Preview Modal */}
+      <AnimatePresence>
+        {previewImages && (
+          <RedactionPreview
+            images={previewImages}
+            onConfirm={handleConfirmExtraction}
+            onCancel={handleCancelPreview}
+            isExtracting={isExtracting}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <h1 className="font-display text-2xl md:text-3xl lg:text-4xl font-medium">Tax History</h1>
         <p className="text-text-muted mt-2">Upload and manage your tax documents</p>
@@ -241,7 +289,8 @@ export function TaxStrategy() {
           </Button>
         </motion.div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
