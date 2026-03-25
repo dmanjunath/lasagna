@@ -14,3 +14,5 @@ export { AccountSummaryRenderer } from "./account-summary.js";
 export { FireCalculatorRenderer } from "./fire-calculator.js";
 export { FailureAnalysisRenderer } from "./failure-analysis.js";
 export { ImprovementActionsRenderer } from "./improvement-actions.js";
+export { SectionCardRenderer } from "./section-card.js";
+export { DynamicChartRenderer } from "./dynamic-chart.js";
