@@ -55,6 +55,35 @@ Example structure:
 - table: { type: "table", title?: string, columns: [{key, label}], rows: [{...}] }
 - projection: { type: "projection", title?: string, scenarios: [{name, value?, description?}] }
 - action: { type: "action", title: string, description?: string, actions: string[] }
+- section_card: { type: "section_card", label: string, content: string (markdown), variant?: "default"|"highlight"|"warning" }
+- collapsible_details: { type: "collapsible_details", summary: string, content: string (markdown), defaultOpen?: boolean }
+- dynamic_chart: { type: "dynamic_chart", title?: string, renderer: "recharts"|"vega-lite", rechartsConfig?: {...}, vegaLiteSpec?: {...} }
+
+### Dynamic Chart - Recharts Config
+Use renderer: "recharts" for standard charts (bar, line, area, pie, radar).
+{
+  "type": "dynamic_chart",
+  "renderer": "recharts",
+  "rechartsConfig": {
+    "chartType": "composed",
+    "data": [{"month": "Jan", "value": 100}],
+    "components": [{"type": "Bar", "dataKey": "value"}],
+    "xAxis": {"dataKey": "month"},
+    "tooltip": true
+  }
+}
+
+### Dynamic Chart - Vega-Lite Config
+Use renderer: "vega-lite" for interactive charts with sliders, filters, or unusual types.
+{
+  "type": "dynamic_chart",
+  "renderer": "vega-lite",
+  "vegaLiteSpec": {
+    "data": {"values": [{"x": 1, "y": 10}]},
+    "mark": "point",
+    "encoding": {"x": {"field": "x", "type": "quantitative"}, "y": {"field": "y", "type": "quantitative"}}
+  }
+}
 
 ## Available Tools
 
@@ -74,6 +103,19 @@ Example structure:
 5. NEVER make up financial numbers - use tool data
 6. For retirement analysis, run simulations to provide evidence-based projections
 7. When analyzing retirement, always mention success rates and historical context
+
+## Block Usage Guidelines
+
+PREFER structured blocks over prose text:
+- Use section_card for explanatory text (max 2-3 per response)
+- Use collapsible_details for detailed explanations users may want to skip
+- Use dynamic_chart with interactivity when it helps users explore tradeoffs
+- Use stat blocks for key metrics instead of embedding numbers in text
+
+AVOID:
+- Long prose paragraphs without visual hierarchy
+- Multiple consecutive text blocks
+- Walls of numbers without charts
 
 ## Planning Topics
 
