@@ -1,18 +1,19 @@
 """
 Tax document extractor service.
-Uses Presidio for PII redaction and OpenRouter/Claude for structured extraction.
+Uses Presidio Image Redactor for PII removal and Claude Vision for extraction.
 """
 
 import os
+import io
 import json
+import base64
 from typing import Any
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import fitz  # PyMuPDF
-from presidio_analyzer import AnalyzerEngine
-from presidio_anonymizer import AnonymizerEngine
-from presidio_anonymizer.entities import OperatorConfig
+from PIL import Image
+from presidio_image_redactor import ImageRedactorEngine
 from openai import OpenAI
 
 app = FastAPI(title="Tax Document Extractor")
@@ -25,9 +26,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Presidio
-analyzer = AnalyzerEngine()
-anonymizer = AnonymizerEngine()
+# Initialize Presidio Image Redactor
+image_redactor = ImageRedactorEngine()
 
 # Initialize OpenRouter client (OpenAI-compatible)
 client = OpenAI(
@@ -35,27 +35,33 @@ client = OpenAI(
     api_key=os.environ.get("OPENROUTER_API_KEY"),
 )
 
-EXTRACTION_PROMPT = """Extract the following fields from this Form 1040 tax return text.
-Return ONLY a JSON object with these fields (use 0 if not found):
+EXTRACTION_PROMPT = """You are extracting data from a Form 1040 U.S. Individual Income Tax Return.
+
+The image shows a tax form with PII (names, SSN, addresses) redacted as black boxes.
+Extract ONLY the financial values from the visible line numbers.
+
+Return a JSON object with these exact fields. Use 0 if a line is blank or not visible:
 
 {
-  "wages": <Line 1a - Wages, salaries, tips>,
-  "interestIncome": <Line 2b - Taxable interest>,
-  "dividendIncome": <Line 3b - Qualified dividends>,
-  "capitalGains": <Line 7 - Capital gain or loss>,
-  "otherIncome": <Line 8 - Other income>,
-  "totalIncome": <Line 9 - Total income>,
-  "adjustments": <Line 10 - Adjustments to income>,
-  "adjustedGrossIncome": <Line 11 - Adjusted gross income>,
-  "standardDeduction": <Line 12 - Standard or itemized deductions>,
-  "taxableIncome": <Line 15 - Taxable income>,
-  "totalTax": <Line 24 - Total tax>,
-  "totalPayments": <Line 33 - Total payments>,
-  "refundOrOwed": <Line 35a or 37 - Refund or amount owed>
+  "wages": <Line 1a or 1z value>,
+  "interestIncome": <Line 2b value>,
+  "dividendIncome": <Line 3b value>,
+  "capitalGains": <Line 7a value>,
+  "otherIncome": <Line 8 value>,
+  "totalIncome": <Line 9 value>,
+  "adjustments": <Line 10 value>,
+  "adjustedGrossIncome": <Line 11a or 11b value>,
+  "standardDeduction": <Line 12e value>,
+  "taxableIncome": <Line 15 value>,
+  "totalTax": <Line 24 value>,
+  "totalPayments": <Line 33 value>,
+  "refundOrOwed": <Line 34, 35a, or 37 value - use positive for refund, negative for owed>
 }
 
-Tax document text (PII redacted):
-"""
+IMPORTANT:
+- Look at the LINE NUMBERS on the left side of the form to identify each value
+- The values are on the RIGHT side of each row
+- Return ONLY the JSON object, no other text"""
 
 
 class ExtractionResult(BaseModel):
@@ -65,68 +71,64 @@ class ExtractionResult(BaseModel):
     errors: list[str]
 
 
-def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extract text from PDF using PyMuPDF."""
+def pdf_to_images(pdf_bytes: bytes, dpi: int = 150) -> list[Image.Image]:
+    """Convert PDF pages to PIL Images."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    text_parts = []
+    images = []
+
     for page in doc:
-        text_parts.append(page.get_text())
+        # Render page to pixmap
+        mat = fitz.Matrix(dpi / 72, dpi / 72)
+        pix = page.get_pixmap(matrix=mat)
+
+        # Convert to PIL Image
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        images.append(img)
+
     doc.close()
-    return "\n".join(text_parts)
+    return images
 
 
-def redact_pii(text: str) -> str:
-    """Redact PII using Presidio."""
-    # Analyze for PII
-    results = analyzer.analyze(
-        text=text,
-        entities=[
-            "PERSON",
-            "PHONE_NUMBER",
-            "EMAIL_ADDRESS",
-            "US_SSN",
-            "US_PASSPORT",
-            "US_DRIVER_LICENSE",
-            "CREDIT_CARD",
-            "US_BANK_NUMBER",
-            "US_ITIN",
-            "IP_ADDRESS",
-            "LOCATION",
-        ],
-        language="en",
-    )
-
-    # Anonymize with replacement
-    operators = {
-        "PERSON": OperatorConfig("replace", {"new_value": "[NAME]"}),
-        "US_SSN": OperatorConfig("replace", {"new_value": "[SSN]"}),
-        "PHONE_NUMBER": OperatorConfig("replace", {"new_value": "[PHONE]"}),
-        "EMAIL_ADDRESS": OperatorConfig("replace", {"new_value": "[EMAIL]"}),
-        "LOCATION": OperatorConfig("replace", {"new_value": "[ADDRESS]"}),
-        "DEFAULT": OperatorConfig("replace", {"new_value": "[REDACTED]"}),
-    }
-
-    anonymized = anonymizer.anonymize(text=text, analyzer_results=results, operators=operators)
-    return anonymized.text
+def redact_image(image: Image.Image) -> Image.Image:
+    """Redact PII from image using Presidio."""
+    return image_redactor.redact(image, fill=(0, 0, 0))
 
 
-def extract_with_llm(redacted_text: str) -> dict[str, Any]:
-    """Use Claude via OpenRouter to extract structured data from redacted text."""
+def image_to_base64(image: Image.Image) -> str:
+    """Convert PIL Image to base64 string."""
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+def extract_with_vision(images: list[Image.Image]) -> dict[str, Any]:
+    """Use Claude Vision via OpenRouter to extract data from redacted images."""
+
+    # Build message content with images
+    content = [{"type": "text", "text": EXTRACTION_PROMPT}]
+
+    for i, img in enumerate(images):
+        b64 = image_to_base64(img)
+        content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{b64}"
+            }
+        })
+        content.append({
+            "type": "text",
+            "text": f"Page {i + 1} of the Form 1040"
+        })
+
     response = client.chat.completions.create(
         model="anthropic/claude-sonnet-4",
         max_tokens=1024,
-        messages=[
-            {
-                "role": "user",
-                "content": EXTRACTION_PROMPT + redacted_text[:15000],  # Limit text length
-            }
-        ],
+        messages=[{"role": "user", "content": content}],
     )
 
-    # Parse JSON from response
     response_text = response.choices[0].message.content
 
-    # Find JSON in response
+    # Parse JSON from response
     try:
         # Try to parse directly
         return json.loads(response_text)
@@ -136,12 +138,12 @@ def extract_with_llm(redacted_text: str) -> dict[str, Any]:
         json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL)
         if json_match:
             return json.loads(json_match.group(1))
-        raise ValueError("Could not parse JSON from LLM response")
+        raise ValueError(f"Could not parse JSON from response: {response_text[:200]}")
 
 
 @app.post("/extract", response_model=ExtractionResult)
 async def extract_tax_document(file: UploadFile):
-    """Extract tax data from uploaded PDF."""
+    """Extract tax data from uploaded PDF using vision."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a PDF file")
 
@@ -149,36 +151,52 @@ async def extract_tax_document(file: UploadFile):
         # Read PDF
         pdf_bytes = await file.read()
 
-        # Extract text
-        text = extract_text_from_pdf(pdf_bytes)
+        # Convert to images
+        images = pdf_to_images(pdf_bytes)
 
-        # Check if it's a 1040
-        if "1040" not in text and "Individual Income Tax Return" not in text:
+        if not images:
             return ExtractionResult(
                 formId="unknown",
                 confidence=0,
                 fields={},
-                errors=["Could not identify as Form 1040"],
+                errors=["Could not read PDF pages"],
             )
 
-        # Redact PII
-        redacted_text = redact_pii(text)
+        # Redact PII from each page
+        redacted_images = [redact_image(img) for img in images]
 
-        # Extract with LLM
-        extracted = extract_with_llm(redacted_text)
+        # Extract with vision (send first 2 pages - that's where 1040 data is)
+        extracted = extract_with_vision(redacted_images[:2])
 
         # Format fields with metadata
         fields = {}
+        line_mapping = {
+            "wages": "1a",
+            "interestIncome": "2b",
+            "dividendIncome": "3b",
+            "capitalGains": "7",
+            "otherIncome": "8",
+            "totalIncome": "9",
+            "adjustments": "10",
+            "adjustedGrossIncome": "11",
+            "standardDeduction": "12e",
+            "taxableIncome": "15",
+            "totalTax": "24",
+            "totalPayments": "33",
+            "refundOrOwed": "35a",
+        }
+
         for key, value in extracted.items():
-            fields[key] = {
-                "value": float(value) if isinstance(value, (int, float)) else 0,
-                "line": get_line_for_field(key),
-                "verified": False,
-            }
+            if key in line_mapping:
+                fields[key] = {
+                    "value": float(value) if isinstance(value, (int, float)) else 0,
+                    "line": line_mapping[key],
+                    "verified": False,
+                }
 
         return ExtractionResult(
             formId="1040",
-            confidence=90,
+            confidence=95,
             fields=fields,
             errors=[],
         )
@@ -192,24 +210,9 @@ async def extract_tax_document(file: UploadFile):
         )
 
 
-def get_line_for_field(field: str) -> str:
-    """Map field names to 1040 line numbers."""
-    mapping = {
-        "wages": "1a",
-        "interestIncome": "2b",
-        "dividendIncome": "3b",
-        "capitalGains": "7",
-        "otherIncome": "8",
-        "totalIncome": "9",
-        "adjustments": "10",
-        "adjustedGrossIncome": "11",
-        "standardDeduction": "12",
-        "taxableIncome": "15",
-        "totalTax": "24",
-        "totalPayments": "33",
-        "refundOrOwed": "35a",
-    }
-    return mapping.get(field, "")
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

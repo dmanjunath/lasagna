@@ -2,9 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies for PyMuPDF
+# Install system dependencies for PyMuPDF and Tesseract (for presidio-image-redactor)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmupdf-dev \
+    tesseract-ocr \
+    libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
