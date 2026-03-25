@@ -3,9 +3,9 @@ import { useParams } from "wouter";
 import { History, MoreVertical, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../lib/api.js";
-import { UIRenderer } from "../../components/ui-renderer/index.js";
-import { ChatPanel, StarterPrompts } from "../../components/chat/index.js";
+import { ChatPanel } from "../../components/chat/index.js";
 import { Button } from "../../components/ui/button.js";
+import { PromptTransition, type TransitionState } from "../../components/plan/prompt-transition.js";
 import type { Plan, ChatThread, Message } from "../../lib/types.js";
 
 export function PlanDetailPage() {
@@ -14,30 +14,44 @@ export function PlanDetailPage() {
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
-  const [initialMessage, setInitialMessage] = useState<string | null>(null);
-  const [generatingContent, setGeneratingContent] = useState(false);
 
-  // Only show chat sidebar if there are messages or we're sending one
-  const hasChat = messages.length > 0 || initialMessage !== null;
+  // New: unified transition state
+  const [transitionState, setTransitionState] = useState<TransitionState>("idle");
+  const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
+
+  // Backward-compatible derived state
+  const initialMessage = transitionState === "animating" || transitionState === "loading" ? submittedPrompt : null;
+
+  // Show sidebar when not idle (has activity)
+  const showSidebar = transitionState !== "idle" || messages.length > 0;
 
   const handleSelectPrompt = async (prompt: string) => {
-    // Create thread if one doesn't exist
+    setSubmittedPrompt(prompt);
+    setTransitionState("animating");
+
+    // Create thread if needed
     if (!thread && id) {
       const { thread: newThread } = await api.createThread(id);
       setThread(newThread);
     }
-    setInitialMessage(prompt);
-    setGeneratingContent(true);
+
+    // Wait for animation, then transition to loading
+    setTimeout(() => {
+      setTransitionState("loading");
+    }, 300);
   };
 
-  // Refresh plan content after chat response
+  // Callback when chat response finishes streaming
   const handleChatResponse = useCallback(async () => {
     if (!id) return;
     try {
       const updatedPlan = await api.getPlan(id);
       setPlan(updatedPlan);
-    } finally {
-      setGeneratingContent(false);
+      // Only transition to complete after plan is ready
+      setTransitionState("complete");
+    } catch (err) {
+      console.error("Failed to fetch updated plan:", err);
+      setTransitionState("complete");
     }
   }, [id]);
 
@@ -49,8 +63,8 @@ export function PlanDetailPage() {
     setPlan(null);
     setThread(null);
     setMessages([]);
-    setInitialMessage(null);
-    setGeneratingContent(false);
+    setTransitionState("idle");
+    setSubmittedPrompt(null);
 
     const loadPlan = async () => {
       const [planData, { threads }] = await Promise.all([
@@ -64,6 +78,10 @@ export function PlanDetailPage() {
         setThread(threads[0]);
         const { messages: threadMessages } = await api.getThread(threads[0].id);
         setMessages(threadMessages);
+        // If there are existing messages, start in complete state
+        if (threadMessages.length > 0) {
+          setTransitionState("complete");
+        }
       }
 
       setLoading(false);
@@ -116,38 +134,30 @@ export function PlanDetailPage() {
             </div>
           </div>
 
-          {/* Plan content */}
-          {generatingContent ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="glass-card p-12 flex flex-col items-center justify-center gap-4"
-            >
-              <Loader2 className="w-8 h-8 text-accent animate-spin" />
-              <p className="text-text-muted">Generating your plan...</p>
-            </motion.div>
-          ) : plan.content ? (
-            <UIRenderer payload={plan.content} />
+          {/* Plan content with transitions */}
+          {plan.content ? (
+            <PromptTransition
+              planType={plan.type}
+              transitionState="complete"
+              submittedPrompt={null}
+              planContent={plan.content}
+              onSelectPrompt={handleSelectPrompt}
+            />
           ) : (
-            <div className="glass-card p-8">
-              {messages.length === 0 && !initialMessage ? (
-                <StarterPrompts
-                  planType={plan.type}
-                  onSelectPrompt={handleSelectPrompt}
-                />
-              ) : (
-                <p className="text-text-muted text-center py-8">
-                  Start a conversation to generate content.
-                </p>
-              )}
-            </div>
+            <PromptTransition
+              planType={plan.type}
+              transitionState={transitionState}
+              submittedPrompt={submittedPrompt}
+              planContent={null}
+              onSelectPrompt={handleSelectPrompt}
+            />
           )}
         </div>
       </div>
 
-      {/* Chat panel - only show when there are messages or sending one */}
+      {/* Chat panel - show when there's activity */}
       <AnimatePresence>
-        {hasChat && thread && (
+        {showSidebar && thread && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 380, opacity: 1 }}
@@ -159,7 +169,7 @@ export function PlanDetailPage() {
               threadId={thread.id}
               initialMessages={messages}
               initialMessage={initialMessage}
-              onMessageSent={() => setInitialMessage(null)}
+              onMessageSent={() => setSubmittedPrompt(null)}
               onChatResponse={handleChatResponse}
             />
           </motion.div>
