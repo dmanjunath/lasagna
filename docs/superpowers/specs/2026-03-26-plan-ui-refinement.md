@@ -46,39 +46,99 @@ Animated transition flow with persistent chat sidebar:
 
 ### Implementation
 
-#### New Component: `PromptTransition`
+#### Integration with Existing Components
 
-Handles the animation from starter prompts to sidebar:
+The current `PlanDetailPage` uses:
+- `StarterPrompts` component for initial prompt selection
+- `initialMessage` state to trigger auto-send
+- `generatingContent` boolean for loading state
+- `hasChat` derived state to control sidebar visibility
 
-```typescript
-type PromptTransitionProps = {
-  prompt: string;
-  onAnimationComplete: () => void;
-};
-
-// Uses framer-motion for:
-// - layoutId for shared element transition (prompt → bubble)
-// - AnimatePresence for sidebar enter/exit
-// - spring physics for natural feel
-```
+**This implementation REPLACES the existing state management** with a unified `transitionState` that handles the full animation flow. The `StarterPrompts` component remains but gains animation capabilities via framer-motion's `layoutId`.
 
 #### Modified: `PlanDetailPage`
 
 ```typescript
-// New state
+// REPLACE existing state (initialMessage, generatingContent) with:
 const [transitionState, setTransitionState] = useState<
   'idle' | 'animating' | 'loading' | 'complete'
 >('idle');
+const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
 
-// Animation sequence
+// Sidebar visibility: show when not idle (replaces hasChat logic)
+const showSidebar = transitionState !== 'idle';
+
+// REPLACE existing handleSelectPrompt with:
 const handleSelectPrompt = async (prompt: string) => {
+  setSubmittedPrompt(prompt);
   setTransitionState('animating');
-  // Create thread, trigger animation
-  await new Promise(resolve => setTimeout(resolve, 300)); // animation duration
+
+  // Create thread if needed (existing logic)
+  if (!thread && id) {
+    const { thread: newThread } = await api.createThread(id);
+    setThread(newThread);
+  }
+
+  // Wait for animation to complete
+  await new Promise(resolve => setTimeout(resolve, 300));
   setTransitionState('loading');
-  // Send message, wait for response
-  setTransitionState('complete');
+
+  // Send message (triggers ChatPanel's sendMessage via initialMessage prop)
+  // ChatPanel's onChatResponse callback will set transitionState to 'complete'
 };
+
+// Callback from ChatPanel when response finishes
+const handleChatResponse = useCallback(async () => {
+  if (!id) return;
+  const updatedPlan = await api.getPlan(id);
+  setPlan(updatedPlan);
+  setTransitionState('complete');
+}, [id]);
+```
+
+#### New Component: `PromptTransition`
+
+Wraps `StarterPrompts` to add shared element animation:
+
+```typescript
+type PromptTransitionProps = {
+  planType: PlanType;
+  transitionState: 'idle' | 'animating' | 'loading' | 'complete';
+  submittedPrompt: string | null;
+  onSelectPrompt: (prompt: string) => void;
+};
+
+function PromptTransition({ planType, transitionState, submittedPrompt, onSelectPrompt }) {
+  return (
+    <AnimatePresence mode="wait">
+      {transitionState === 'idle' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <StarterPrompts planType={planType} onSelectPrompt={onSelectPrompt} />
+        </motion.div>
+      )}
+
+      {transitionState === 'animating' && submittedPrompt && (
+        <motion.div
+          layoutId="prompt-bubble"
+          className="prompt-flying"
+          // Animate from center to sidebar position
+        >
+          {submittedPrompt}
+        </motion.div>
+      )}
+
+      {(transitionState === 'loading' || transitionState === 'complete') && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          {transitionState === 'loading' ? <LoadingSpinner /> : <UIRenderer payload={plan.content} />}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
 ```
 
 #### Animation Details
@@ -88,7 +148,9 @@ const handleSelectPrompt = async (prompt: string) => {
 | Sidebar | slideInRight | 300ms | spring(damping: 25, stiffness: 300) |
 | Prompt bubble | layoutId transition | 300ms | spring |
 | Main content | fadeOut → fadeIn | 200ms | easeOut |
-| Plan blocks | staggered fadeIn | 50ms delay each | easeOut |
+| Plan blocks | staggered fadeIn | 30ms delay each, max 300ms total | easeOut |
+
+**Note on block stagger:** To prevent slow reveals on plans with many blocks, cap total stagger time at 300ms. For N blocks, delay = min(30ms, 300ms / N).
 
 ## 2. Text Formatting
 
@@ -120,6 +182,13 @@ type SectionCardBlock = {
   variant?: "default" | "highlight" | "warning";
 };
 ```
+
+**Variant styling:**
+| Variant | Border Color | Background |
+|---------|--------------|------------|
+| `default` | `border-border` (gray) | `glass-card` default |
+| `highlight` | `border-accent` (amber) | `bg-accent/5` |
+| `warning` | `border-warning` (orange) | `bg-warning/5` |
 
 Renders as:
 ```
@@ -200,12 +269,14 @@ type RechartsConfig = {
 };
 
 type RechartsComponent = {
-  type: "Area" | "Bar" | "Line" | "Scatter" | "Pie" | "Radar" | "Cell";
+  type: "Area" | "Bar" | "Line" | "Scatter" | "Pie" | "Radar" | "Cell" | "Treemap" | "Funnel" | "Sankey";
   dataKey: string;
   fill?: string;
   stroke?: string;
   stackId?: string;
   yAxisId?: string;
+  // Treemap/Sankey specific
+  nameKey?: string;
   // ... other Recharts props
 };
 
@@ -299,6 +370,57 @@ function VegaLiteChart({ spec, title }: { spec: VegaLiteSpec; title?: string }) 
 Maps JSON config to Recharts components:
 
 ```typescript
+import { colors } from "../../../styles/theme.js";
+
+// Theme colors for consistent styling
+const THEME = {
+  text: { muted: colors.text.muted, secondary: colors.text.secondary },
+  accent: colors.accent.DEFAULT,
+  grid: "rgba(120, 113, 108, 0.2)",
+  background: colors.bg.elevated,
+  border: colors.border.DEFAULT,
+  chartColors: [colors.accent.DEFAULT, colors.success, "#3b82f6", "#a855f7", colors.danger, "#06b6d4"],
+};
+
+// Map chartType to Recharts container component
+function getChartContainer(chartType: string) {
+  const containers = {
+    composed: ComposedChart,
+    pie: PieChart,
+    radar: RadarChart,
+    radial: RadialBarChart,
+    treemap: Treemap,
+    funnel: FunnelChart,
+    sankey: Sankey,
+  };
+  return containers[chartType] || ComposedChart;
+}
+
+// Map axis config to Recharts props with theme
+function mapAxisConfig(config: AxisConfig) {
+  return {
+    ...config,
+    stroke: THEME.text.muted,
+    fontSize: 12,
+    tickLine: false,
+    axisLine: false,
+    tickFormatter: config.tickFormatter === "currency"
+      ? (v: number) => `$${v.toLocaleString()}`
+      : config.tickFormatter === "percent"
+      ? (v: number) => `${v}%`
+      : undefined,
+  };
+}
+
+// Apply theme colors to component props
+function applyTheme(props: Record<string, unknown>, index: number) {
+  return {
+    ...props,
+    fill: props.fill || THEME.chartColors[index % THEME.chartColors.length],
+    stroke: props.stroke || THEME.chartColors[index % THEME.chartColors.length],
+  };
+}
+
 function RechartsFromConfig({ config, title }: { config: RechartsConfig; title?: string }) {
   const ChartContainer = getChartContainer(config.chartType);
 
@@ -308,10 +430,21 @@ function RechartsFromConfig({ config, title }: { config: RechartsConfig; title?:
       <ResponsiveContainer width="100%" height={config.height || 300}>
         <ChartContainer data={config.data}>
           {config.xAxis && <XAxis {...mapAxisConfig(config.xAxis)} />}
-          {config.yAxis && renderYAxes(config.yAxis)}
-          {config.tooltip && <Tooltip {...mapTooltipConfig(config.tooltip)} />}
-          {config.legend && <Legend {...mapLegendConfig(config.legend)} />}
-          {config.brush && <Brush {...mapBrushConfig(config.brush)} />}
+          {config.yAxis && (Array.isArray(config.yAxis)
+            ? config.yAxis.map((y, i) => <YAxis key={i} {...mapAxisConfig(y)} />)
+            : <YAxis {...mapAxisConfig(config.yAxis)} />
+          )}
+          {config.tooltip && (
+            <Tooltip
+              contentStyle={{
+                background: THEME.background,
+                border: `1px solid ${THEME.border}`,
+                borderRadius: "12px",
+              }}
+            />
+          )}
+          {config.legend && <Legend />}
+          {config.brush && <Brush {...config.brush} fill={THEME.grid} />}
           {config.components.map((comp, i) => renderComponent(comp, i))}
           {config.referenceLines?.map((line, i) => <ReferenceLine key={i} {...line} />)}
         </ChartContainer>
@@ -320,15 +453,15 @@ function RechartsFromConfig({ config, title }: { config: RechartsConfig; title?:
   );
 }
 
-function renderComponent(comp: RechartsComponent, key: number) {
+function renderComponent(comp: RechartsComponent, index: number) {
   const Component = {
-    Area, Bar, Line, Scatter, Pie, Radar, Cell
+    Area, Bar, Line, Scatter, Pie, Radar, Cell, Treemap, Funnel, Sankey
   }[comp.type];
 
   if (!Component) return null;
 
   const { type, ...props } = comp;
-  return <Component key={key} {...applyTheme(props)} />;
+  return <Component key={index} {...applyTheme(props, index)} />;
 }
 ```
 
@@ -427,12 +560,13 @@ export type RechartsConfig = {
 };
 
 export type RechartsComponent = {
-  type: "Area" | "Bar" | "Line" | "Scatter" | "Pie" | "Radar" | "Cell";
+  type: "Area" | "Bar" | "Line" | "Scatter" | "Pie" | "Radar" | "Cell" | "Treemap" | "Funnel" | "Sankey";
   dataKey: string;
   fill?: string;
   stroke?: string;
   stackId?: string;
   yAxisId?: string;
+  nameKey?: string;  // For Treemap/Sankey
 };
 
 export type AxisConfig = {
@@ -521,12 +655,35 @@ Add to `packages/web/package.json`:
 | `packages/web/src/components/charts/recharts-from-config.tsx` | Create | Recharts config mapper |
 | `packages/web/src/components/plan/prompt-transition.tsx` | Create | Animation component |
 | `packages/web/package.json` | Modify | Add vega dependencies |
-| `packages/api/src/agent/prompts/*.ts` | Modify | Update LLM system prompts |
+| `packages/api/src/agent/agent.ts` | Modify | Update `systemPrompt` constant with new block type guidance |
+
+## Error Handling
+
+When chart configuration is invalid or rendering fails, display a `ChartError` component:
+
+```typescript
+function ChartError({ message, data }: { message: string; data?: unknown[] }) {
+  return (
+    <div className="glass-card p-4 border-warning/30">
+      <div className="text-warning text-sm mb-2">Chart Error: {message}</div>
+      {data && data.length > 0 && (
+        <details className="text-xs text-text-muted">
+          <summary className="cursor-pointer">View raw data</summary>
+          <pre className="mt-2 p-2 bg-surface rounded overflow-auto max-h-48">
+            {JSON.stringify(data.slice(0, 5), null, 2)}
+            {data.length > 5 && `\n... and ${data.length - 5} more rows`}
+          </pre>
+        </details>
+      )}
+    </div>
+  );
+}
+```
 
 ## Testing Considerations
 
 1. **Animation testing**: Verify transitions work across browsers, test with reduced motion preference
 2. **Chart rendering**: Test both renderers with various configurations
-3. **Error handling**: Graceful fallback when chart config is invalid
-4. **Performance**: Vega-Lite specs can be large; consider lazy loading
+3. **Error handling**: Verify ChartError fallback displays correctly with invalid configs
+4. **Performance**: Vega-Lite specs can be large; use React.lazy() for VegaLiteChart component
 5. **Accessibility**: Ensure charts have appropriate ARIA labels, keyboard navigation for interactive elements
