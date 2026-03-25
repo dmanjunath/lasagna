@@ -56,6 +56,13 @@ The current `PlanDetailPage` uses:
 
 **This implementation REPLACES the existing state management** with a unified `transitionState` that handles the full animation flow. The `StarterPrompts` component remains but gains animation capabilities via framer-motion's `layoutId`.
 
+**Backward compatibility:** For any external code that depends on the old state variables, provide derived values:
+```typescript
+// Backward-compatible derived state (if needed by other components)
+const generatingContent = transitionState === 'loading';
+const hasChat = transitionState !== 'idle';
+```
+
 #### Modified: `PlanDetailPage`
 
 ```typescript
@@ -88,10 +95,14 @@ const handleSelectPrompt = async (prompt: string) => {
 };
 
 // Callback from ChatPanel when response finishes
+// TIMING: This fires when streaming completes AND plan content is saved
+// (ChatPanel's existing onChatResponse callback, after reader.read() loop completes)
 const handleChatResponse = useCallback(async () => {
   if (!id) return;
+  // Fetch updated plan content (API returns newly saved content)
   const updatedPlan = await api.getPlan(id);
   setPlan(updatedPlan);
+  // Only transition to 'complete' after plan is fetched and ready to render
   setTransitionState('complete');
 }, [id]);
 ```
@@ -215,17 +226,31 @@ type CollapsibleDetailsBlock = {
 
 ### LLM Prompt Updates
 
-Update system prompts to prefer structured output:
+Update the `systemPrompt` constant in `packages/api/src/agent/agent.ts`. Add the following to the existing UI block guidance section:
 
-```
+```typescript
+// In packages/api/src/agent/agent.ts, append to systemPrompt:
+
+const systemPrompt = `
+... existing prompt content ...
+
+## UI Block Guidelines (Updated)
+
 PREFER returning data as structured blocks:
 - stat: for key metrics (FIRE number, success rate, etc.)
-- dynamic_chart: for visualizations with data
+- dynamic_chart: for visualizations with interactivity
 - table: for comparisons and lists
-- section_card: for explanatory text (use sparingly)
-- collapsible_details: for detailed explanations
+- section_card: for explanatory text (use sparingly, max 2-3 per response)
+- collapsible_details: for detailed explanations users can expand
 
 AVOID long prose paragraphs. Break information into digestible components.
+
+When using dynamic_chart:
+- Use renderer: "recharts" for standard bar/line/area charts, brush selection
+- Use renderer: "vega-lite" for sliders, dropdowns, linked views, or unusual chart types
+- Always include data inline (no external URLs)
+- Prefer interactivity when it helps users explore tradeoffs
+`;
 ```
 
 ## 3. Dynamic Visualizations
@@ -383,8 +408,9 @@ const THEME = {
 };
 
 // Map chartType to Recharts container component
-function getChartContainer(chartType: string) {
-  const containers = {
+// Falls back to ComposedChart for unknown types (most flexible)
+function getChartContainer(chartType: string): React.ComponentType<any> | null {
+  const containers: Record<string, React.ComponentType<any>> = {
     composed: ComposedChart,
     pie: PieChart,
     radar: RadarChart,
@@ -393,7 +419,12 @@ function getChartContainer(chartType: string) {
     funnel: FunnelChart,
     sankey: Sankey,
   };
-  return containers[chartType] || ComposedChart;
+  const container = containers[chartType];
+  if (!container) {
+    console.warn(`Unknown chart type: ${chartType}, falling back to ComposedChart`);
+    return ComposedChart;
+  }
+  return container;
 }
 
 // Map axis config to Recharts props with theme
@@ -601,8 +632,20 @@ export type ReferenceLineConfig = {
   label?: string;
 };
 
-// Vega-Lite types (simplified - full spec is complex)
-export type VegaLiteSpec = Record<string, unknown>;
+// Vega-Lite types - minimum required fields for validation
+// For full type safety, install: pnpm add -D vega-lite (includes types)
+export type VegaLiteSpec = {
+  $schema?: string;
+  data: { values: unknown[] };  // Only inline data allowed (no URLs for security)
+  mark: string | { type: string };
+  encoding?: Record<string, unknown>;
+  params?: Array<{ name: string; value?: unknown; bind?: unknown }>;
+  layer?: VegaLiteSpec[];
+  hconcat?: VegaLiteSpec[];
+  vconcat?: VegaLiteSpec[];
+  config?: Record<string, unknown>;
+  [key: string]: unknown;  // Allow additional Vega-Lite properties
+};
 
 // Update UIBlock union
 export type UIBlock =
@@ -659,7 +702,9 @@ Add to `packages/web/package.json`:
 
 ## Error Handling
 
-When chart configuration is invalid or rendering fails, display a `ChartError` component:
+When chart configuration is invalid or rendering fails, display a `ChartError` component.
+
+**File:** `packages/web/src/components/charts/chart-error.tsx`
 
 ```typescript
 function ChartError({ message, data }: { message: string; data?: unknown[] }) {
