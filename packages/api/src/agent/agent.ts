@@ -42,22 +42,25 @@ Example structure:
   "layout": "grid",
   "blocks": [
     { "type": "stat", "label": "Net Worth", "value": "$125,000" },
-    { "type": "text", "content": "## Analysis\\n\\nYour explanation here..." },
+    { "type": "section_card", "label": "KEY INSIGHT", "content": "Your portfolio is well-positioned...", "variant": "highlight" },
     { "type": "action", "title": "Next Steps", "actions": ["Action 1", "Action 2"] }
   ]
 }
 
 ## Available UI Block Types
 
+### Primary blocks (USE THESE):
 - stat: { type: "stat", label: string, value: string, description?: string }
-- text: { type: "text", content: string (supports markdown) }
-- chart: { type: "chart", chartType: "area"|"bar"|"donut", title?: string, data: [{label, value}] }
-- table: { type: "table", title?: string, columns: [{key, label}], rows: [{...}] }
-- projection: { type: "projection", title?: string, scenarios: [{name, value?, description?}] }
-- action: { type: "action", title: string, description?: string, actions: string[] }
 - section_card: { type: "section_card", label: string, content: string (markdown), variant?: "default"|"highlight"|"warning" }
 - collapsible_details: { type: "collapsible_details", summary: string, content: string (markdown), defaultOpen?: boolean }
 - dynamic_chart: { type: "dynamic_chart", title?: string, renderer: "recharts"|"vega-lite", rechartsConfig?: {...}, vegaLiteSpec?: {...} }
+- table: { type: "table", title?: string, columns: [{key, label}], rows: [{...}] }
+- projection: { type: "projection", title?: string, scenarios: [{name, value?, description?}] }
+- action: { type: "action", title: string, description?: string, actions: string[] }
+
+### DEPRECATED (do not use):
+- text: DEPRECATED - use section_card instead
+- chart: DEPRECATED - use dynamic_chart instead
 
 ### Dynamic Chart - Recharts Config
 Use renderer: "recharts" for standard charts (bar, line, area, pie, radar).
@@ -104,18 +107,49 @@ Use renderer: "vega-lite" for interactive charts with sliders, filters, or unusu
 6. For retirement analysis, run simulations to provide evidence-based projections
 7. When analyzing retirement, always mention success rates and historical context
 
-## Block Usage Guidelines
+## CRITICAL: Block Usage Rules
 
-PREFER structured blocks over prose text:
-- Use section_card for explanatory text (max 2-3 per response)
-- Use collapsible_details for detailed explanations users may want to skip
-- Use dynamic_chart with interactivity when it helps users explore tradeoffs
-- Use stat blocks for key metrics instead of embedding numbers in text
+### NEVER use "text" blocks for explanations
+ALL explanatory text MUST use section_card or collapsible_details:
+- section_card: For important insights (label: "KEY INSIGHT", "THE MATH", "RISK ANALYSIS", etc.)
+- collapsible_details: For supplementary details users can expand
 
-AVOID:
-- Long prose paragraphs without visual hierarchy
-- Multiple consecutive text blocks
-- Walls of numbers without charts
+### NEVER use "chart" blocks - use dynamic_chart instead
+The old "chart" block type is deprecated. Always use dynamic_chart with proper config:
+- Use donut/pie for single success rate: show Success vs Failure segments with percentages
+- Use composed charts for trends over time
+- Always include tooltip: true and legend: true
+
+### Ask follow-up questions IN THE CHAT, not in content
+If you need more info (age, income, etc.), your conversational response before the JSON should ASK the user directly. Do NOT embed "Tell me your age" in the UI blocks. Instead, say it conversationally and provide partial results in the UI.
+
+### Required structure for financial analysis:
+1. stat blocks for key metrics (FIRE number, success rate, etc.) - put these FIRST
+2. dynamic_chart for visualizations (NOT old chart blocks)
+3. section_card for explanations (NOT text blocks)
+4. collapsible_details for detailed methodology
+5. action block for next steps
+
+### Chart formatting for success rates:
+For Monte Carlo success rates, use a donut chart:
+{
+  "type": "dynamic_chart",
+  "title": "Portfolio Success Rate",
+  "renderer": "recharts",
+  "rechartsConfig": {
+    "chartType": "pie",
+    "height": 250,
+    "data": [
+      {"name": "Success", "value": 76.1},
+      {"name": "Failure", "value": 23.9}
+    ],
+    "components": [
+      {"type": "Pie", "dataKey": "value", "nameKey": "name", "innerRadius": 60, "outerRadius": 100}
+    ],
+    "tooltip": true,
+    "legend": true
+  }
+}
 
 ## Planning Topics
 
