@@ -141,9 +141,99 @@ def extract_with_vision(images: list[Image.Image]) -> dict[str, Any]:
         raise ValueError(f"Could not parse JSON from response: {response_text[:200]}")
 
 
+class PreviewResult(BaseModel):
+    images: list[str]  # Base64 encoded redacted images
+    pageCount: int
+
+
+@app.post("/preview", response_model=PreviewResult)
+async def preview_redacted(file: UploadFile):
+    """Preview redacted PDF images before extraction."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Please upload a PDF file")
+
+    try:
+        pdf_bytes = await file.read()
+        images = pdf_to_images(pdf_bytes)
+
+        if not images:
+            raise HTTPException(status_code=400, detail="Could not read PDF pages")
+
+        # Redact PII from each page
+        redacted_images = [redact_image(img) for img in images]
+
+        # Convert to base64
+        b64_images = [image_to_base64(img) for img in redacted_images[:2]]
+
+        return PreviewResult(images=b64_images, pageCount=len(images))
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ExtractFromImagesRequest(BaseModel):
+    images: list[str]  # Base64 encoded images
+
+
+@app.post("/extract-from-images", response_model=ExtractionResult)
+async def extract_from_images(request: ExtractFromImagesRequest):
+    """Extract tax data from pre-redacted images."""
+    try:
+        # Convert base64 back to PIL Images
+        images = []
+        for b64 in request.images:
+            img_bytes = base64.b64decode(b64)
+            img = Image.open(io.BytesIO(img_bytes))
+            images.append(img)
+
+        # Extract with vision
+        extracted = extract_with_vision(images)
+
+        # Format fields with metadata
+        fields = {}
+        line_mapping = {
+            "wages": "1a",
+            "interestIncome": "2b",
+            "dividendIncome": "3b",
+            "capitalGains": "7",
+            "otherIncome": "8",
+            "totalIncome": "9",
+            "adjustments": "10",
+            "adjustedGrossIncome": "11",
+            "standardDeduction": "12e",
+            "taxableIncome": "15",
+            "totalTax": "24",
+            "totalPayments": "33",
+            "refundOrOwed": "35a",
+        }
+
+        for key, value in extracted.items():
+            if key in line_mapping:
+                fields[key] = {
+                    "value": float(value) if isinstance(value, (int, float)) else 0,
+                    "line": line_mapping[key],
+                    "verified": False,
+                }
+
+        return ExtractionResult(
+            formId="1040",
+            confidence=95,
+            fields=fields,
+            errors=[],
+        )
+
+    except Exception as e:
+        return ExtractionResult(
+            formId="1040",
+            confidence=0,
+            fields={},
+            errors=[str(e)],
+        )
+
+
 @app.post("/extract", response_model=ExtractionResult)
 async def extract_tax_document(file: UploadFile):
-    """Extract tax data from uploaded PDF using vision."""
+    """Extract tax data from uploaded PDF using vision (single step)."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a PDF file")
 
