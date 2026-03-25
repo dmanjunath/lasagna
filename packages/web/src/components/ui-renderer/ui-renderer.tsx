@@ -15,6 +15,9 @@ import {
   FireCalculatorRenderer,
   FailureAnalysisRenderer,
   ImprovementActionsRenderer,
+  SectionCardRenderer,
+  CollapsibleDetailsRenderer,
+  DynamicChartRenderer,
 } from "./blocks/index.js";
 
 const layoutClasses = {
@@ -122,6 +125,14 @@ function BlockRenderer({ block }: { block: UIBlock }) {
       return <FailureAnalysisRenderer block={block} />;
     case "improvement_actions":
       return <ImprovementActionsRenderer block={block} />;
+    // Text formatting blocks
+    case "section_card":
+      return <SectionCardRenderer block={block} />;
+    case "collapsible_details":
+      return <CollapsibleDetailsRenderer block={block} />;
+    // Dynamic charts
+    case "dynamic_chart":
+      return <DynamicChartRenderer block={block} />;
     default:
       return null;
   }
