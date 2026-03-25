@@ -25,6 +25,9 @@
     "recharts": "^3.8.0",
     "tailwind-merge": "^3.5.0",
     "tesseract.js": "^7.0.0",
+    "vega": "^5.33.1",
+    "vega-embed": "^6.29.0",
+    "vega-lite": "^5.23.0",
     "wouter": "^3.9.0"
   },
   "devDependencies": {
