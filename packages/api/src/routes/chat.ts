@@ -86,9 +86,11 @@ chatRouter.post("/", async (c) => {
 
   let finalText = "";
   let allToolCalls: any[] = [];
+  const MAX_TOOL_ROUNDS = 5; // Limit tool-calling rounds to prevent infinite loops
 
-  // Loop up to 10 iterations for tool calls
-  for (let step = 0; step < 10; step++) {
+  // Loop up to MAX_TOOL_ROUNDS iterations for tool calls
+  for (let step = 0; step < MAX_TOOL_ROUNDS; step++) {
+    console.log(`[Chat] Step ${step + 1}/${MAX_TOOL_ROUNDS}...`);
 
     const stepResult = await generateText({
       model: getModel(),
@@ -99,9 +101,7 @@ chatRouter.post("/", async (c) => {
     });
 
     const toolCallCount = stepResult.toolCalls?.length || 0;
-    if (toolCallCount > 0) {
-      console.log(`[Chat] Step ${step + 1}: ${toolCallCount} tool call(s)`);
-    }
+    console.log(`[Chat] Step ${step + 1} result: text=${stepResult.text.length} chars, toolCalls=${toolCallCount}, finishReason=${stepResult.finishReason}`);
 
     // Accumulate text
     finalText = stepResult.text;
@@ -116,6 +116,7 @@ chatRouter.post("/", async (c) => {
     const toolResults: any[] = [];
 
     for (const toolCall of stepResult.toolCalls) {
+      console.log(`[Chat] Calling tool: ${toolCall.toolName}`);
       const tool = tools[toolCall.toolName as keyof typeof tools];
       if (tool && 'execute' in tool) {
         try {
@@ -156,10 +157,42 @@ chatRouter.post("/", async (c) => {
       content: stepResult.text,
     });
 
+    // On the last round, tell the model to produce final output without more tool calls
+    const isLastRound = step === MAX_TOOL_ROUNDS - 1;
+    const nextPrompt = isLastRound
+      ? `[System: Tool results]\n\n${toolResultsSummary}\n\nYou have all the data you need. NOW produce your FINAL response with the complete UIPayload JSON. Do NOT call any more tools.`
+      : `[System: Tool results]\n\n${toolResultsSummary}\n\nPlease continue with your analysis using this data and output the final UIPayload JSON.`;
+
     conversationMessages.push({
       role: "user" as const,
-      content: `[System: Tool results]\n\n${toolResultsSummary}\n\nPlease continue with your analysis using this data and output the final UIPayload JSON.`,
+      content: nextPrompt,
     });
+  }
+
+  // Check if we have a valid JSON response
+  const hasJsonPayload = finalText && (
+    finalText.includes('"layout"') && finalText.includes('"blocks"')
+  );
+
+  // If we don't have valid JSON, request a wrap-up response with explicit JSON request
+  if (!hasJsonPayload) {
+    console.log("[Chat] No UIPayload JSON found, requesting wrap-up response...");
+
+    // Add a message requesting the final JSON
+    conversationMessages.push({
+      role: "user" as const,
+      content: "IMPORTANT: You must now produce your FINAL response. Include the complete UIPayload JSON with layout and blocks arrays. Do not call any more tools. Output the JSON now.",
+    });
+
+    const wrapUpResult = await generateText({
+      model: getModel(),
+      system: systemPrompt + planContext,
+      messages: conversationMessages,
+      tools: {}, // No tools - force text response
+      maxSteps: 1,
+    });
+    finalText = wrapUpResult.text;
+    console.log(`[Chat] Wrap-up response: ${finalText.length} chars`);
   }
 
   const text = finalText;
