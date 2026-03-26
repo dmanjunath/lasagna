@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "wouter";
-import { History, MoreVertical, Loader2 } from "lucide-react";
+import { useParams, useLocation } from "wouter";
+import { History, Trash2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
@@ -10,6 +10,7 @@ import type { Plan, ChatThread, Message } from "../../lib/types.js";
 
 export function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,6 +55,19 @@ export function PlanDetailPage() {
       setTransitionState("complete");
     }
   }, [id]);
+
+  const handleDelete = async () => {
+    if (!id || !plan) return;
+    const confirmed = window.confirm(`Delete "${plan.title}"? This will archive the plan.`);
+    if (!confirmed) return;
+
+    try {
+      await api.deletePlan(id);
+      setLocation("/plans");
+    } catch (err) {
+      console.error("Failed to delete plan:", err);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -128,8 +142,8 @@ export function PlanDetailPage() {
               <Button variant="ghost" size="sm">
                 <History className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="sm">
-                <MoreVertical className="w-4 h-4" />
+              <Button variant="ghost" size="sm" onClick={handleDelete}>
+                <Trash2 className="w-4 h-4" />
               </Button>
             </div>
           </div>
