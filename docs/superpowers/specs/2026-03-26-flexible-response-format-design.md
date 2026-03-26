@@ -27,63 +27,134 @@ Replace the rigid 20+ block type UIPayload schema with a minimal, flexible forma
 
 ```typescript
 const responseSchema = z.object({
+  // Optional array. When present, each item must have label + value
   metrics: z.array(z.object({
     label: z.string(),
     value: z.string(),
     context: z.string().optional()
   })).optional(),
 
-  content: z.string(),  // Markdown with embedded directives
+  // Required - the main content
+  content: z.string(),
 
+  // Optional array of action strings
   actions: z.array(z.string()).optional()
 })
 ```
 
-All fields optional. Claude decides what the response needs:
-- `metrics` - Key figures to anchor the reader (rendered as header cards)
-- `content` - Research report with markdown + directives
-- `actions` - Next steps (rendered as footer)
+- `content` - Required. The research report with markdown + directives
+- `metrics` - Optional. When present, items must have `label` and `value`
+- `actions` - Optional. Next steps (rendered as footer)
+
+**Complete example:**
+```json
+{
+  "metrics": [
+    { "label": "FIRE Number", "value": "$2.5M" },
+    { "label": "Success Rate", "value": "85%", "context": "Monte Carlo" }
+  ],
+  "content": "## Your Path to Early Retirement\n\nRetiring at 50 requires careful planning...\n\n::chart\ntype: area\ntitle: Portfolio Projection\nsource: run_monte_carlo\n::\n\nThe simulation shows strong probability of success.\n\n::card{variant=\"warning\"}\nSequence of returns risk is elevated for early retirees.\n::\n\n::collapse{title=\"Methodology\"}\nWe ran 10,000 Monte Carlo simulations...\n::",
+  "actions": [
+    "Increase monthly savings to $2,500",
+    "Review asset allocation quarterly"
+  ]
+}
 
 ### Directives
 
-Embedded in markdown content using `::directive` syntax:
+Embedded in markdown content. All directives are **block-level only** (own paragraph).
+
+**Syntax:**
+```
+::directiveName{attr="value"}
+content (YAML for charts, markdown for card/collapse)
+::
+```
+
+**Directive types:**
+
+| Directive | Attributes | Content |
+|-----------|------------|---------|
+| `chart` | none | YAML config (type, title, source or data) |
+| `card` | `variant`: default, warning, highlight | Markdown text |
+| `collapse` | `title`: string | Markdown text |
 
 **Charts:**
 ```markdown
 ::chart
-type: area | bar | pie | line
-title: Chart Title
-source: monte_carlo_result  # Reference tool result
+type: area
+title: Portfolio Survival Probability
+source: run_monte_carlo
 ::
+```
 
-# Or with inline data:
+With inline data:
+```markdown
 ::chart
 type: pie
 title: Asset Allocation
 data:
-  - label: Stocks, value: 60
-  - label: Bonds, value: 30
-  - label: Cash, value: 10
+  - label: Stocks
+    value: 60
+  - label: Bonds
+    value: 30
 ::
 ```
 
-**Cards (callouts/emphasis):**
+**Cards:**
 ```markdown
 ::card{variant="warning"}
-Early retirement means 35+ years of withdrawals - sequence risk is critical.
-::
-
-::card{variant="highlight"}
-Your current savings rate puts you on track for FIRE by age 47.
+Early retirement means 35+ years of withdrawals.
 ::
 ```
 
-**Collapsible sections:**
+**Collapsible:**
 ```markdown
-::collapse{title="Methodology: Monte Carlo Simulation"}
-We ran 10,000 simulations using historical return distributions...
+::collapse{title="Methodology"}
+We ran 10,000 simulations...
 ::
 ```
+
+### Directive Parsing Rules
+
+**Parser behavior:**
+1. Scan for `::` at start of line
+2. Extract directive name and optional `{attributes}`
+3. Capture content until closing `::` on its own line
+4. Render appropriate component
+
+**Regex pattern:**
+```javascript
+/^::(\w+)(?:\{([^}]+)\})?\n([\s\S]*?)\n::$/gm
+```
+
+**Constraints:**
+- Block-level only - must start on own line
+- No nesting - directives cannot contain other directives
+- Attributes use `key="value"` syntax (double quotes required)
+- Content between `::` markers is trimmed
+
+**Malformed handling:**
+- Unclosed `::` - render as plain text (no crash)
+- Unknown directive name - render as code block with warning
+- Invalid YAML in chart - show error card with raw content
+
+### Tool Result Binding
+
+Charts can reference tool results via `source` field:
+
+```yaml
+source: run_monte_carlo  # Tool name
+```
+
+**Binding mechanism:**
+1. Chat API returns tool results alongside response
+2. Frontend stores tool results in context: `Map<toolName, result>`
+3. ChartDirective looks up `source` in context map
+4. If found, passes result data to Recharts
+5. If not found, shows "Data unavailable" placeholder
+
+**Multiple calls of same tool:** Use most recent result. Future enhancement could support `source: run_monte_carlo[0]` indexing.
 
 ### System Prompt
 
