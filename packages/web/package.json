@@ -6,6 +6,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -28,7 +30,8 @@
     "vega": "^5.33.1",
     "vega-embed": "^6.29.0",
     "vega-lite": "^5.23.0",
-    "wouter": "^3.9.0"
+    "wouter": "^3.9.0",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
@@ -37,6 +40,7 @@
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
-    "vite": "^8.0.1"
+    "vite": "^8.0.1",
+    "vitest": "^4.1.1"
   }
 }
