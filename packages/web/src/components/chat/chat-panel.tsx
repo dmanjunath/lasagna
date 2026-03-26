@@ -4,13 +4,14 @@ import { MessageList } from "./message-list.js";
 import { ToolStatus } from "./tool-status.js";
 import { Button } from "../ui/button.js";
 import type { Message } from "../../lib/types.js";
+import type { ResponseV2, ToolResult } from "../../lib/types-v2.js";
 
 type ChatPanelProps = {
   threadId: string;
   initialMessages?: Message[];
   initialMessage?: string | null;
   onMessageSent?: () => void;
-  onChatResponse?: () => void;
+  onChatResponse?: (response: ResponseV2 | null, toolResults: ToolResult[]) => void;
 };
 
 export function ChatPanel({
@@ -44,7 +45,7 @@ export function ChatPanel({
     setCurrentTool(null);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch("/api/chat/v2", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -55,41 +56,29 @@ export function ChatPanel({
         throw new Error("Failed to send message");
       }
 
-      // Handle streaming response
-      const reader = res.body?.getReader();
-      if (!reader) {
-        throw new Error("No response body");
-      }
+      // V2 returns JSON with response and toolResults
+      const data = await res.json();
+      const { response, toolResults } = data as {
+        response: ResponseV2 | null;
+        toolResults: ToolResult[];
+      };
 
-      let assistantContent = "";
+      // Add assistant message with the response content
+      const assistantContent = response?.content || "No response generated";
       const assistantMessage: Message = {
         id: `temp-${Date.now()}-assistant`,
         threadId,
         role: "assistant",
-        content: "",
+        content: assistantContent,
         toolCalls: null,
-        uiPayload: null,
+        uiPayload: null, // V2 response handled separately via callback
         createdAt: new Date().toISOString(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        assistantContent += decoder.decode(value, { stream: true });
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMessage.id
-              ? { ...m, content: assistantContent }
-              : m
-          )
-        );
-      }
-      // Notify parent that response completed (to refresh plan content)
-      onChatResponse?.();
+      // Notify parent with response and tool results
+      onChatResponse?.(response, toolResults || []);
     } catch (error) {
       console.error("Chat error:", error);
       // Remove the user message on error

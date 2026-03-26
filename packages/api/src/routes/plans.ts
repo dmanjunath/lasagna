@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db.js";
-import { plans, planEdits, chatThreads, eq, and, desc } from "@lasagna/core";
+import { plans, planEdits, chatThreads, eq, ne, and, desc } from "@lasagna/core";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 
 export const plansRouter = new Hono<AuthEnv>();
@@ -49,7 +49,7 @@ plansRouter.get("/", async (c) => {
       updatedAt: plans.updatedAt,
     })
     .from(plans)
-    .where(eq(plans.tenantId, tenantId))
+    .where(and(eq(plans.tenantId, tenantId), ne(plans.status, "archived")))
     .orderBy(desc(plans.updatedAt));
 
   return c.json({ plans: results });
