@@ -21,6 +21,7 @@ import {
   Legend,
   Brush,
   ReferenceLine,
+  Label,
 } from "recharts";
 import { colors } from "../../styles/theme.js";
 import type { RechartsConfig, RechartsComponent, AxisConfig } from "../../lib/types.js";
@@ -81,8 +82,49 @@ function mapAxisConfig(config: AxisConfig) {
   };
 }
 
+// Custom label renderer for pie charts
+const renderPieLabel = ({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  percent,
+  name,
+}: {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+  name: string;
+}) => {
+  // Only show label if segment is large enough (> 5%)
+  if (percent < 0.05) return null;
+
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill={colors.text.DEFAULT}
+      textAnchor="middle"
+      dominantBaseline="central"
+      className="text-xs font-semibold"
+      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+    >
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
 // Render a single chart component with theme colors
-function renderComponent(comp: RechartsComponent, index: number) {
+function renderComponent(comp: RechartsComponent, index: number, data?: any[]) {
   const componentMap: Record<string, React.ComponentType<any>> = {
     Area,
     Bar,
@@ -101,6 +143,32 @@ function renderComponent(comp: RechartsComponent, index: number) {
   }
 
   const { type, ...props } = comp;
+
+  // Special handling for Pie charts - add labels and cells
+  if (type === "Pie" && data) {
+    const pieColors = [colors.accent.DEFAULT, colors.danger, colors.success, "#3b82f6", "#a855f7"];
+    return (
+      <Pie
+        key={`${type}-${index}`}
+        data={data}
+        dataKey={props.dataKey || "value"}
+        nameKey={props.nameKey || "name"}
+        cx="50%"
+        cy="50%"
+        innerRadius={props.innerRadius || 0}
+        outerRadius={props.outerRadius || 80}
+        label={renderPieLabel}
+        labelLine={false}
+        stroke={colors.bg.DEFAULT}
+        strokeWidth={2}
+      >
+        {data.map((_, i) => (
+          <Cell key={`cell-${i}`} fill={pieColors[i % pieColors.length]} />
+        ))}
+      </Pie>
+    );
+  }
+
   const themedProps = {
     ...props,
     fill: props.fill || CHART_COLORS[index % CHART_COLORS.length],
@@ -170,7 +238,7 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
           )}
 
           {/* Chart components */}
-          {config.components.map((comp, i) => renderComponent(comp, i))}
+          {config.components.map((comp, i) => renderComponent(comp, i, config.data))}
 
           {/* Reference lines */}
           {config.referenceLines?.map((line, i) => (
