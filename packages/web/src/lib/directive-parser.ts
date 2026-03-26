@@ -6,6 +6,10 @@ export type ParsedSegment =
   | { type: 'chart'; config: Record<string, unknown> }
   | { type: 'card'; variant: string; content: string }
   | { type: 'collapse'; title: string; content: string }
+  | { type: 'insight'; headline: string; details?: string; variant?: string }
+  | { type: 'comparison'; options: Array<Record<string, unknown>> }
+  | { type: 'action'; action: string; context?: string; priority?: string }
+  | { type: 'scenario-explorer'; config: Record<string, unknown> }
   | { type: 'unknown'; raw: string };
 
 function parseAttributes(attrStr: string): Record<string, string> {
@@ -59,6 +63,45 @@ export function parseDirectives(content: string): ParsedSegment[] {
           title: attrs.title || 'Details',
           content: innerContent.trim(),
         });
+        break;
+      case 'insight': {
+        const parts = innerContent.split('---').map(p => p.trim());
+        segments.push({
+          type: 'insight',
+          headline: parts[0],
+          details: parts[1],
+          variant: attrs.variant,
+        });
+        break;
+      }
+      case 'comparison':
+        try {
+          const config = YAML.parse(innerContent.trim());
+          segments.push({
+            type: 'comparison',
+            options: Array.isArray(config) ? config : [config]
+          });
+        } catch {
+          segments.push({ type: 'unknown', raw: match[0] });
+        }
+        break;
+      case 'action': {
+        const parts = innerContent.split('---').map(p => p.trim());
+        segments.push({
+          type: 'action',
+          action: parts[0],
+          context: parts[1],
+          priority: attrs.priority,
+        });
+        break;
+      }
+      case 'scenario-explorer':
+        try {
+          const config = YAML.parse(innerContent.trim());
+          segments.push({ type: 'scenario-explorer', config });
+        } catch {
+          segments.push({ type: 'unknown', raw: match[0] });
+        }
         break;
       default:
         segments.push({ type: 'unknown', raw: match[0] });
