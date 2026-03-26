@@ -9,6 +9,7 @@ import { syncRoutes } from "./routes/sync.js";
 import { plansRouter } from "./routes/plans.js";
 import { threadsRouter } from "./routes/threads.js";
 import { chatRouter } from "./routes/chat.js";
+import { chatRouterV2 } from "./routes/chat-v2.js";
 import { taxRouter } from "./routes/tax.js";
 import { simulationsRouter } from "./routes/simulations.js";
 
@@ -29,5 +30,6 @@ app.route("/api/sync", syncRoutes);
 app.route("/api/plans", plansRouter);
 app.route("/api/threads", threadsRouter);
 app.route("/api/chat", chatRouter);
+app.route("/api/chat/v2", chatRouterV2);
 app.route("/api/tax", taxRouter);
 app.route("/api/simulations", simulationsRouter);
