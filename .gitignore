@@ -2,6 +2,7 @@ node_modules
 dist
 .env
 *.tsbuildinfo
+.superpowers/*
 
 # Playwright
 /test-results/
@@ -11,3 +12,4 @@ dist
 /e2e/.seeded
 /e2e/.test-user.json
 /e2e/auth-debug.png
+e2e/screenshots/*

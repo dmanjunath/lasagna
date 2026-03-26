@@ -147,16 +147,19 @@ export function createSimulationTools(tenantId: string) {
           stocks: z.number().min(0).max(1),
           bonds: z.number().min(0).max(1),
           cash: z.number().min(0).max(1),
-        }),
+        }).default({ stocks: 0.6, bonds: 0.3, cash: 0.1 }),
         inflationAdjusted: z.boolean().default(true),
         numSimulations: z.number().int().positive().default(1000),
       }),
       execute: async (params) => {
+        // Use default allocation if not provided or malformed
+        const allocation = params.assetAllocation ?? { stocks: 0.6, bonds: 0.3, cash: 0.1 };
+
         // Validate allocation sums to 1
         const allocationSum =
-          params.assetAllocation.stocks +
-          params.assetAllocation.bonds +
-          params.assetAllocation.cash;
+          allocation.stocks +
+          allocation.bonds +
+          allocation.cash;
         if (Math.abs(allocationSum - 1) > 0.01) {
           return {
             error: "Asset allocation must sum to 1 (100%)",
@@ -183,7 +186,7 @@ export function createSimulationTools(tenantId: string) {
           initialBalance: params.initialBalance,
           withdrawalRate: params.withdrawalRate,
           yearsToSimulate: params.yearsToSimulate,
-          assetAllocation: params.assetAllocation,
+          assetAllocation: allocation,
           inflationAdjusted: params.inflationAdjusted,
           numSimulations: params.numSimulations,
         });
@@ -212,7 +215,7 @@ export function createSimulationTools(tenantId: string) {
         assetAllocation: z.object({
           stocks: z.number().min(0).max(1),
           bonds: z.number().min(0).max(1),
-        }),
+        }).default({ stocks: 0.6, bonds: 0.4 }),
         inflationAdjusted: z.boolean().default(true),
         startYearRange: z
           .object({
@@ -222,9 +225,12 @@ export function createSimulationTools(tenantId: string) {
           .optional(),
       }),
       execute: async (params) => {
+        // Use default allocation if not provided or malformed
+        const allocation = params.assetAllocation ?? { stocks: 0.6, bonds: 0.4 };
+
         // Validate allocation sums to 1
         const allocationSum =
-          params.assetAllocation.stocks + params.assetAllocation.bonds;
+          allocation.stocks + allocation.bonds;
         if (Math.abs(allocationSum - 1) > 0.01) {
           return {
             error: "Asset allocation must sum to 1 (100%)",
@@ -247,7 +253,7 @@ export function createSimulationTools(tenantId: string) {
           initialBalance: params.initialBalance,
           withdrawalRate: params.withdrawalRate,
           yearsToSimulate: params.yearsToSimulate,
-          assetAllocation: params.assetAllocation,
+          assetAllocation: allocation,
           inflationAdjusted: params.inflationAdjusted,
           startYearRange: params.startYearRange,
         });
@@ -277,7 +283,7 @@ export function createSimulationTools(tenantId: string) {
           stocks: z.number().min(0).max(1),
           bonds: z.number().min(0).max(1),
           cash: z.number().min(0).max(1),
-        }),
+        }).default({ stocks: 0.6, bonds: 0.3, cash: 0.1 }),
         scenario: z.enum([
           "crash_2008",
           "great_depression",
@@ -295,11 +301,14 @@ export function createSimulationTools(tenantId: string) {
           .optional(),
       }),
       execute: async (params) => {
+        // Use default allocation if not provided or malformed
+        const allocation = params.assetAllocation ?? { stocks: 0.6, bonds: 0.3, cash: 0.1 };
+
         // Validate allocation sums to 1
         const allocationSum =
-          params.assetAllocation.stocks +
-          params.assetAllocation.bonds +
-          params.assetAllocation.cash;
+          allocation.stocks +
+          allocation.bonds +
+          allocation.cash;
         if (Math.abs(allocationSum - 1) > 0.01) {
           return {
             error: "Asset allocation must sum to 1 (100%)",
@@ -330,7 +339,7 @@ export function createSimulationTools(tenantId: string) {
           initialBalance: params.initialBalance,
           withdrawalRate: params.withdrawalRate,
           retirementDuration: params.retirementDuration,
-          assetAllocation: params.assetAllocation,
+          assetAllocation: allocation,
           scenario: params.scenario,
           customParams: params.customParams,
         });

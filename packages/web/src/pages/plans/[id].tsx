@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
-import { History, Trash2, Loader2 } from "lucide-react";
+import { History, Trash2, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { Button } from "../../components/ui/button.js";
 import { PromptTransition, type TransitionState } from "../../components/plan/prompt-transition.js";
-import type { Plan, ChatThread, Message } from "../../lib/types.js";
+import type { Plan, ChatThread, Message, PlanEdit } from "../../lib/types.js";
 
 export function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +15,11 @@ export function PlanDetailPage() {
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // History panel state
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<PlanEdit[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // New: unified transition state
   const [transitionState, setTransitionState] = useState<TransitionState>("idle");
@@ -66,6 +71,38 @@ export function PlanDetailPage() {
       setLocation("/plans");
     } catch (err) {
       console.error("Failed to delete plan:", err);
+    }
+  };
+
+  const handleShowHistory = async () => {
+    if (!id) return;
+    setShowHistory(true);
+    setHistoryLoading(true);
+    try {
+      const { history: planHistory } = await api.getPlanHistory(id);
+      setHistory(planHistory);
+    } catch (err) {
+      console.error("Failed to fetch history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleRestoreVersion = async (editId: string) => {
+    if (!id) return;
+    try {
+      await fetch(`/api/plans/${id}/restore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ editId }),
+      });
+      // Refresh plan after restore
+      const updatedPlan = await api.getPlan(id);
+      setPlan(updatedPlan);
+      setShowHistory(false);
+    } catch (err) {
+      console.error("Failed to restore version:", err);
     }
   };
 
@@ -139,7 +176,7 @@ export function PlanDetailPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={handleShowHistory}>
                 <History className="w-4 h-4" />
               </Button>
               <Button variant="ghost" size="sm" onClick={handleDelete}>
@@ -186,6 +223,70 @@ export function PlanDetailPage() {
               onMessageSent={() => setSubmittedPrompt(null)}
               onChatResponse={handleChatResponse}
             />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* History panel overlay */}
+      <AnimatePresence>
+        {showHistory && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+            onClick={() => setShowHistory(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-bg-elevated border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <h2 className="text-lg font-semibold text-text">Plan History</h2>
+                <Button variant="ghost" size="sm" onClick={() => setShowHistory(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="p-4 overflow-y-auto max-h-[calc(80vh-60px)]">
+                {historyLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-accent" />
+                  </div>
+                ) : history.length === 0 ? (
+                  <p className="text-text-muted text-center py-8">No previous versions found.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {history.map((edit) => (
+                      <div
+                        key={edit.id}
+                        className="p-4 bg-surface rounded-xl border border-border hover:border-accent/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-text font-medium">
+                              {edit.changeDescription || "Plan updated"}
+                            </p>
+                            <p className="text-text-muted text-sm">
+                              {new Date(edit.createdAt).toLocaleString()} • by {edit.editedBy}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRestoreVersion(edit.id)}
+                          >
+                            Restore
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
