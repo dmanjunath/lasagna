@@ -13,34 +13,35 @@ export function TextBlockRenderer({ block }: { block: TextBlockType }) {
     );
   }
 
-  // Research report style prose - elegant, readable, polished
+  // Research Report style (McKinsey-inspired) - elegant typography with accent underlines
   return (
     <div className="col-span-full">
-      <div className="glass-card p-6 rounded-2xl">
+      <div className="relative p-6 rounded-2xl bg-gradient-to-b from-[#141416] to-[#0f0f11] border border-accent/10">
         <div className={cn(
           "prose prose-invert max-w-none",
-          // Base typography - slightly larger, more readable
-          "prose-p:text-text-secondary prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4",
-          // Headings - more prominent with accent touches
-          "prose-headings:text-text prose-headings:font-display prose-headings:font-semibold prose-headings:tracking-tight",
-          "prose-h1:text-2xl prose-h1:mb-4 prose-h1:text-text",
-          "prose-h2:text-xl prose-h2:mt-6 prose-h2:mb-3 prose-h2:flex prose-h2:items-center prose-h2:gap-2",
-          "prose-h3:text-base prose-h3:mt-5 prose-h3:mb-2 prose-h3:text-text prose-h3:uppercase prose-h3:tracking-wider prose-h3:text-[13px]",
-          // Strong/emphasis - accent color for key numbers
+          // Base typography - editorial quality
+          "prose-p:text-[#c5c5c5] prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4 prose-p:text-justify",
+          // H2 - Large with accent underline
+          "prose-h2:text-[22px] prose-h2:font-semibold prose-h2:text-white prose-h2:tracking-[-0.03em] prose-h2:mb-4 prose-h2:mt-0",
+          "[&_h2]:after:content-[''] [&_h2]:after:block [&_h2]:after:w-10 [&_h2]:after:h-[3px] [&_h2]:after:bg-accent [&_h2]:after:mt-3 [&_h2]:after:mb-4 [&_h2]:after:rounded-sm",
+          // H3 - Uppercase accent labels
+          "prose-h3:text-[13px] prose-h3:font-semibold prose-h3:text-accent prose-h3:uppercase prose-h3:tracking-[0.08em] prose-h3:mt-7 prose-h3:mb-3",
+          // Strong - accent highlight for key numbers
           "prose-strong:text-accent prose-strong:font-semibold",
-          "prose-em:text-text prose-em:not-italic prose-em:font-medium",
-          // Lists - better spacing
-          "prose-li:text-text-secondary prose-li:leading-relaxed prose-li:mb-1",
-          "prose-ul:space-y-1 prose-ul:my-3 prose-ol:space-y-1 prose-ol:my-3",
-          "prose-ul:pl-4 prose-ol:pl-4",
+          // Emphasis - white text, not italic
+          "prose-em:text-white prose-em:not-italic prose-em:font-medium",
+          // Lists - clean spacing
+          "prose-li:text-[#c5c5c5] prose-li:leading-relaxed prose-li:mb-1.5",
+          "prose-ul:my-4 prose-ol:my-4",
+          "prose-ul:pl-5 prose-ol:pl-5",
           // Links
           "prose-a:text-accent prose-a:no-underline hover:prose-a:underline",
-          // Blockquotes - more visual
-          "prose-blockquote:border-l-2 prose-blockquote:border-accent prose-blockquote:pl-4 prose-blockquote:py-1 prose-blockquote:my-4 prose-blockquote:bg-accent/5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-blockquote:text-text-secondary",
+          // Blockquotes - accent border
+          "prose-blockquote:border-l-2 prose-blockquote:border-accent prose-blockquote:pl-4 prose-blockquote:py-1 prose-blockquote:my-5 prose-blockquote:bg-accent/5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-blockquote:text-[#a0a0a0]",
           // Code
-          "prose-code:text-accent prose-code:bg-surface prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none",
-          // HR for section breaks
-          "prose-hr:border-border/30 prose-hr:my-6"
+          "prose-code:text-accent prose-code:bg-black/30 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none",
+          // HR - subtle divider
+          "prose-hr:border-accent/20 prose-hr:my-8"
         )}>
           <ReactMarkdown>{block.content}</ReactMarkdown>
         </div>
