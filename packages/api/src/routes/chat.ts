@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { streamText, stepCountIs } from "ai";
+import { generateText } from "ai";
 import { db } from "../lib/db.js";
 import { chatThreads, messages, plans, planEdits, eq, and } from "@lasagna/core";
 import { getModel, createAgentTools, systemPrompt } from "../agent/index.js";
@@ -76,88 +76,165 @@ chatRouter.post("/", async (c) => {
   const threadId = body.threadId;
   const planId = thread.planId;
 
-  // Stream response
-  const result = streamText({
-    model: getModel(),
-    system: systemPrompt + planContext,
-    messages: history.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
-    tools,
-    stopWhen: stepCountIs(5), // Allow up to 5 steps for tool calls
-    onFinish: async ({ text, toolCalls }) => {
-      // Try to extract UI payload from response
-      let uiPayload = null;
-      try {
-        // Try markdown code block first
-        let jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
-        let jsonStr = jsonMatch?.[1];
+  // Manual multi-step tool execution loop (OpenRouter doesn't support auto maxSteps)
+  console.log("[Chat] Starting agentic loop with", Object.keys(tools).length, "tools");
 
-        // If no code block, look for raw JSON object with layout and blocks
-        if (!jsonStr) {
-          // Find the last { that starts a layout/blocks object
-          const layoutIdx = text.lastIndexOf('"layout"');
-          if (layoutIdx !== -1) {
-            let braceIdx = text.lastIndexOf('{', layoutIdx);
-            if (braceIdx !== -1) {
-              jsonStr = text.slice(braceIdx);
-            }
-          }
-        }
+  let conversationMessages = history.map((m) => ({
+    role: m.role as "user" | "assistant",
+    content: m.content,
+  }));
 
-        if (jsonStr) {
-          const parsed = JSON.parse(jsonStr);
-          const validated = uiPayloadSchema.safeParse(parsed);
-          if (validated.success) {
-            uiPayload = validated.data;
-          } else {
-            console.error("[Chat] UIPayload validation failed:", validated.error.issues.slice(0, 3));
-          }
-        } else {
-          console.log("[Chat] No JSON found in response, text length:", text.length);
-        }
-      } catch (e) {
-        console.error("[Chat] JSON parse error:", e instanceof Error ? e.message : e);
-      }
+  let finalText = "";
+  let allToolCalls: any[] = [];
 
-      // Save assistant message
-      await db.insert(messages).values({
-        threadId,
-        tenantId,
-        role: "assistant",
-        content: text,
-        toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
-        uiPayload: uiPayload ? JSON.stringify(uiPayload) : null,
-      });
+  // Loop up to 10 iterations for tool calls
+  for (let step = 0; step < 10; step++) {
 
-      // Update plan content if we have UI payload and plan is attached
-      if (uiPayload && planId) {
-        const [plan] = await db
-          .select({ content: plans.content })
-          .from(plans)
-          .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
+    const stepResult = await generateText({
+      model: getModel(),
+      system: systemPrompt + planContext,
+      messages: conversationMessages,
+      tools,
+      maxSteps: 1, // Single step, we handle multi-step manually
+    });
 
-        // Save edit history
-        if (plan?.content) {
-          await db.insert(planEdits).values({
-            planId,
-            tenantId,
-            editedBy: "agent",
-            previousContent: plan.content,
-            changeDescription: "Updated via chat",
+    const toolCallCount = stepResult.toolCalls?.length || 0;
+    if (toolCallCount > 0) {
+      console.log(`[Chat] Step ${step + 1}: ${toolCallCount} tool call(s)`);
+    }
+
+    // Accumulate text
+    finalText = stepResult.text;
+
+    // If no tool calls or finish reason is not tool-calls, we're done
+    if (!stepResult.toolCalls?.length || stepResult.finishReason !== 'tool-calls') {
+      console.log("[Chat] Agentic loop complete, no more tool calls");
+      break;
+    }
+
+    // Execute tools and add results to conversation
+    const toolResults: any[] = [];
+
+    for (const toolCall of stepResult.toolCalls) {
+      const tool = tools[toolCall.toolName as keyof typeof tools];
+      if (tool && 'execute' in tool) {
+        try {
+          const args = toolCall.args ?? {};
+          const result = await (tool as any).execute(args);
+          toolResults.push({
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            result: JSON.stringify(result),
+          });
+        } catch (e) {
+          console.error(`[Chat] Tool ${toolCall.toolName} error:`, e instanceof Error ? e.message : e);
+          toolResults.push({
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            result: JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),
           });
         }
-
-        // Update plan (with tenant isolation)
-        await db
-          .update(plans)
-          .set({ content: JSON.stringify(uiPayload) })
-          .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
+      } else {
+        toolResults.push({
+          toolCallId: toolCall.toolCallId,
+          toolName: toolCall.toolName,
+          result: JSON.stringify({ error: `Tool ${toolCall.toolName} not found` }),
+        });
       }
-    },
+    }
+
+    allToolCalls.push(...stepResult.toolCalls);
+
+    // Simpler approach: add assistant message and tool results as text for the next step
+    // This avoids complex message format issues
+    const toolResultsSummary = toolResults
+      .map(tr => `[Tool: ${tr.toolName}]\n${tr.result}`)
+      .join("\n\n");
+
+    conversationMessages.push({
+      role: "assistant" as const,
+      content: stepResult.text,
+    });
+
+    conversationMessages.push({
+      role: "user" as const,
+      content: `[System: Tool results]\n\n${toolResultsSummary}\n\nPlease continue with your analysis using this data and output the final UIPayload JSON.`,
+    });
+  }
+
+  const text = finalText;
+  const toolCalls = allToolCalls;
+  console.log(`[Chat] Finished: ${text.length} chars, ${toolCalls.length} tool calls`);
+
+  // Try to extract UI payload from response
+  let uiPayload = null;
+  try {
+    // Try markdown code block first
+    let jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+    let jsonStr = jsonMatch?.[1];
+
+    // If no code block, look for raw JSON object with layout and blocks
+    if (!jsonStr) {
+      // Find the last { that starts a layout/blocks object
+      const layoutIdx = text.lastIndexOf('"layout"');
+      if (layoutIdx !== -1) {
+        let braceIdx = text.lastIndexOf('{', layoutIdx);
+        if (braceIdx !== -1) {
+          jsonStr = text.slice(braceIdx);
+        }
+      }
+    }
+
+    if (jsonStr) {
+      const parsed = JSON.parse(jsonStr);
+      const validated = uiPayloadSchema.safeParse(parsed);
+      if (validated.success) {
+        uiPayload = validated.data;
+      } else {
+        console.error("[Chat] UIPayload validation failed:", validated.error.issues.slice(0, 3));
+      }
+    } else {
+      console.log("[Chat] No JSON found in response, text length:", text.length);
+    }
+  } catch (e) {
+    console.error("[Chat] JSON parse error:", e instanceof Error ? e.message : e);
+  }
+
+  // Save assistant message
+  await db.insert(messages).values({
+    threadId,
+    tenantId,
+    role: "assistant",
+    content: text,
+    toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
+    uiPayload: uiPayload ? JSON.stringify(uiPayload) : null,
   });
 
-  // Return as text stream
-  return result.toTextStreamResponse();
+  // Update plan content if we have UI payload and plan is attached
+  if (uiPayload && planId) {
+    const [plan] = await db
+      .select({ content: plans.content })
+      .from(plans)
+      .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
+
+    // Save edit history
+    if (plan?.content) {
+      await db.insert(planEdits).values({
+        planId,
+        tenantId,
+        editedBy: "agent",
+        previousContent: plan.content,
+        changeDescription: "Updated via chat",
+      });
+    }
+
+    // Update plan (with tenant isolation)
+    await db
+      .update(plans)
+      .set({ content: JSON.stringify(uiPayload) })
+      .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
+  }
+
+  // Return text response (non-streaming for now)
+  return c.text(text);
 });
