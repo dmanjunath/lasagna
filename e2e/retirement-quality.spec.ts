@@ -5,10 +5,10 @@ const RETIREMENT_PROMPT = "lets assume i work until 50 and i want to retire then
 interface QualityScore {
   total: number;
   breakdown: {
-    hasSectionCards: boolean;
+    hasProseContent: boolean;
     hasStatBlocks: boolean;
     hasCharts: boolean;
-    noTextBlocks: boolean;
+    hasSectionCardsOrCallouts: boolean;
     noEmbeddedQuestions: boolean;
     hasActionBlock: boolean;
   };
@@ -18,17 +18,17 @@ interface QualityScore {
 async function scoreLayoutQuality(page: Page): Promise<QualityScore> {
   const issues: string[] = [];
 
-  // Check for section cards (labeled cards with headers)
-  const sectionCardLabels = page.locator('.text-xs.font-medium.uppercase.tracking-wide');
-  const sectionCardCount = await sectionCardLabels.count();
-  const hasSectionCards = sectionCardCount > 0;
-  if (!hasSectionCards) {
-    issues.push("No section_card blocks found - text should use section_card with labels");
+  // Check for prose content (text blocks with markdown - research report style)
+  // Look for rendered markdown: paragraphs, headers, lists
+  const proseContent = page.locator('.prose');
+  const proseCount = await proseContent.count();
+  const hasProseContent = proseCount > 0;
+  if (!hasProseContent) {
+    issues.push("No prose content found - should include narrative text blocks");
   }
 
   // Check for stat blocks (glass-card with stat styling)
-  // Stat cards have a label and value in a specific format
-  const statBlocks = page.locator('[class*="glass-card"]').filter({
+  const statBlocks = page.locator('[class*="stat-card"], [class*="glass-card"]').filter({
     has: page.locator('.text-3xl, .text-2xl') // Large values indicate stat blocks
   });
   const statCount = await statBlocks.count();
@@ -42,17 +42,15 @@ async function scoreLayoutQuality(page: Page): Promise<QualityScore> {
   const chartCount = await charts.count();
   const hasCharts = chartCount > 0;
   if (!hasCharts) {
-    issues.push("No dynamic charts found - visualizations should use dynamic_chart");
+    issues.push("No charts found - visualizations should use dynamic_chart");
   }
 
-  // Check for deprecated text blocks (prose without section card wrapper)
-  // Text blocks would be direct prose content without the label header
-  const pageContent = await page.content();
-  const hasDeprecatedTextBlock = pageContent.includes('"type":"text"') ||
-    pageContent.includes("type: 'text'");
-  const noTextBlocks = !hasDeprecatedTextBlock;
-  if (!noTextBlocks) {
-    issues.push("Found deprecated 'text' blocks - should use section_card instead");
+  // Check for section cards or callouts (for emphasis, warnings, key insights)
+  const sectionCardLabels = page.locator('.tracking-widest.uppercase, .tracking-wide.uppercase');
+  const sectionCardCount = await sectionCardLabels.count();
+  const hasSectionCardsOrCallouts = sectionCardCount > 0;
+  if (!hasSectionCardsOrCallouts) {
+    issues.push("No section cards found - use for key insights/warnings");
   }
 
   // Check for embedded questions in content (should be in chat instead)
@@ -73,7 +71,7 @@ async function scoreLayoutQuality(page: Page): Promise<QualityScore> {
   }
 
   // Check for action blocks (next steps)
-  const actionBlocks = page.locator('text=/Next Steps|Recommended Actions/i');
+  const actionBlocks = page.locator('text=/Next Steps|Recommended Actions|Recommended Next/i');
   const hasActionBlock = await actionBlocks.count() > 0;
   if (!hasActionBlock) {
     issues.push("No action block found - should include Next Steps");
@@ -81,10 +79,10 @@ async function scoreLayoutQuality(page: Page): Promise<QualityScore> {
 
   // Calculate total score (each criterion is worth ~16.6 points)
   const breakdown = {
-    hasSectionCards,
+    hasProseContent,
     hasStatBlocks,
     hasCharts,
-    noTextBlocks,
+    hasSectionCardsOrCallouts,
     noEmbeddedQuestions,
     hasActionBlock,
   };
@@ -137,10 +135,10 @@ test.describe("Retirement Plan Quality", () => {
     console.log("\n=== LAYOUT QUALITY SCORE ===");
     console.log(`Total Score: ${score.total}/100`);
     console.log("\nBreakdown:");
-    console.log(`  Section Cards: ${score.breakdown.hasSectionCards ? "✓" : "✗"}`);
+    console.log(`  Prose Content: ${score.breakdown.hasProseContent ? "✓" : "✗"}`);
     console.log(`  Stat Blocks: ${score.breakdown.hasStatBlocks ? "✓" : "✗"}`);
-    console.log(`  Dynamic Charts: ${score.breakdown.hasCharts ? "✓" : "✗"}`);
-    console.log(`  No Text Blocks: ${score.breakdown.noTextBlocks ? "✓" : "✗"}`);
+    console.log(`  Charts: ${score.breakdown.hasCharts ? "✓" : "✗"}`);
+    console.log(`  Section Cards/Callouts: ${score.breakdown.hasSectionCardsOrCallouts ? "✓" : "✗"}`);
     console.log(`  No Embedded Questions: ${score.breakdown.noEmbeddedQuestions ? "✓" : "✗"}`);
     console.log(`  Action Block: ${score.breakdown.hasActionBlock ? "✓" : "✗"}`);
 

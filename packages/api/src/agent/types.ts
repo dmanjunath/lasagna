@@ -244,10 +244,11 @@ export const dynamicChartSchema = z.object({
     components: z.array(z.record(z.string(), z.unknown())).optional(),
     xAxis: z.record(z.string(), z.unknown()).optional(),
     yAxis: z.record(z.string(), z.unknown()).optional(),
-    tooltip: z.boolean().optional(),
-    legend: z.boolean().optional(),
+    // Accept both boolean and object configs for tooltip/legend
+    tooltip: z.union([z.boolean(), z.record(z.string(), z.unknown())]).optional(),
+    legend: z.union([z.boolean(), z.record(z.string(), z.unknown())]).optional(),
     height: z.number().optional(),
-  }).optional(),
+  }).passthrough().optional(), // passthrough allows extra properties
   vegaLiteSpec: z.record(z.string(), z.unknown()).optional(),
 });
 
