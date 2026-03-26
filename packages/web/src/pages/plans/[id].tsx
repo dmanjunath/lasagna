@@ -6,7 +6,10 @@ import { api } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { Button } from "../../components/ui/button.js";
 import { PromptTransition, type TransitionState } from "../../components/plan/prompt-transition.js";
+import { PlanResponse } from "../../components/plan-response/index.js";
 import type { Plan, ChatThread, Message, PlanEdit } from "../../lib/types.js";
+import type { ResponseV2, ToolResult } from "../../lib/types-v2.js";
+import { isResponseV2 } from "../../lib/types-v2.js";
 
 export function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +28,10 @@ export function PlanDetailPage() {
   const [transitionState, setTransitionState] = useState<TransitionState>("idle");
   const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
 
+  // V2 response state
+  const [responseV2, setResponseV2] = useState<ResponseV2 | null>(null);
+  const [toolResults, setToolResults] = useState<ToolResult[]>([]);
+
   // Backward-compatible derived state
   const initialMessage = transitionState === "animating" || transitionState === "loading" ? submittedPrompt : null;
 
@@ -36,14 +43,54 @@ export function PlanDetailPage() {
     setTransitionState("animating");
 
     // Create thread if needed
+    let activeThread = thread;
     if (!thread && id) {
       const { thread: newThread } = await api.createThread(id);
       setThread(newThread);
+      activeThread = newThread;
     }
 
     // Wait for animation, then transition to loading
-    setTimeout(() => {
+    setTimeout(async () => {
       setTransitionState("loading");
+
+      // Call v2 endpoint
+      if (activeThread && id) {
+        try {
+          const res = await fetch("/api/chat/v2", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ threadId: activeThread.id, message: prompt }),
+          });
+
+          if (!res.ok) {
+            throw new Error("Failed to send message");
+          }
+
+          const data = await res.json();
+          const { toolResults: results } = data;
+
+          // Store tool results
+          if (results) {
+            setToolResults(results);
+          }
+
+          // Fetch updated plan
+          const updatedPlan = await api.getPlan(id);
+          setPlan(updatedPlan);
+
+          // Check if plan content is v2 format
+          if (updatedPlan.content && isResponseV2(updatedPlan.content)) {
+            setResponseV2(updatedPlan.content as ResponseV2);
+          }
+
+          setTransitionState("complete");
+        } catch (err) {
+          console.error("Failed to send message:", err);
+          setTransitionState("complete");
+        }
+      }
     }, 300);
   };
 
@@ -53,6 +100,12 @@ export function PlanDetailPage() {
     try {
       const updatedPlan = await api.getPlan(id);
       setPlan(updatedPlan);
+
+      // Check if plan content is v2 format
+      if (updatedPlan.content && isResponseV2(updatedPlan.content)) {
+        setResponseV2(updatedPlan.content as ResponseV2);
+      }
+
       // Only transition to complete after plan is ready
       setTransitionState("complete");
     } catch (err) {
@@ -116,6 +169,8 @@ export function PlanDetailPage() {
     setMessages([]);
     setTransitionState("idle");
     setSubmittedPrompt(null);
+    setResponseV2(null);
+    setToolResults([]);
 
     const loadPlan = async () => {
       const [planData, { threads }] = await Promise.all([
@@ -124,6 +179,11 @@ export function PlanDetailPage() {
       ]);
 
       setPlan(planData);
+
+      // Check if plan content is v2 format
+      if (planData.content && isResponseV2(planData.content)) {
+        setResponseV2(planData.content as ResponseV2);
+      }
 
       if (threads.length > 0) {
         setThread(threads[0]);
@@ -186,7 +246,12 @@ export function PlanDetailPage() {
           </div>
 
           {/* Plan content with transitions */}
-          {plan.content ? (
+          {responseV2 ? (
+            <PlanResponse
+              response={responseV2}
+              toolResults={toolResults}
+            />
+          ) : plan.content ? (
             <PromptTransition
               planType={plan.type}
               transitionState="complete"
