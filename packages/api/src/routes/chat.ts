@@ -111,10 +111,14 @@ chatRouter.post("/", async (c) => {
           const validated = uiPayloadSchema.safeParse(parsed);
           if (validated.success) {
             uiPayload = validated.data;
+          } else {
+            console.error("[Chat] UIPayload validation failed:", validated.error.issues.slice(0, 3));
           }
+        } else {
+          console.log("[Chat] No JSON found in response, text length:", text.length);
         }
-      } catch {
-        // Not valid JSON, that's ok
+      } catch (e) {
+        console.error("[Chat] JSON parse error:", e instanceof Error ? e.message : e);
       }
 
       // Save assistant message
