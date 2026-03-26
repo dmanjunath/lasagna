@@ -19,5 +19,8 @@ COPY packages/api packages/api
 EXPOSE 3000
 
 # Run API with hot reload, using development condition for core imports
+# Node 20+ has native --watch, CHOKIDAR_USEPOLLING for Docker volume compatibility
 WORKDIR /app/packages/api
-CMD ["pnpm", "exec", "tsx", "watch", "--conditions", "development", "--env-file=/app/.env", "src/index.ts"]
+ENV CHOKIDAR_USEPOLLING=true
+ENV WATCHPACK_POLLING=true
+CMD ["node", "--import", "tsx", "--watch", "--watch-preserve-output", "--conditions", "development", "--env-file=/app/.env", "src/index.ts"]

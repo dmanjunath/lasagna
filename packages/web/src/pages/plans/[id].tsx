@@ -94,24 +94,25 @@ export function PlanDetailPage() {
     }, 300);
   };
 
-  // Callback when chat response finishes streaming
-  const handleChatResponse = useCallback(async () => {
+  // Callback when chat response completes - receives response directly from chat panel
+  const handleChatResponse = useCallback(async (response: ResponseV2 | null, results: ToolResult[]) => {
     if (!id) return;
+
+    // Update state with response from chat
+    if (response) {
+      setResponseV2(response);
+      setToolResults(results);
+    }
+
+    // Refresh plan to get latest persisted state
     try {
       const updatedPlan = await api.getPlan(id);
       setPlan(updatedPlan);
-
-      // Check if plan content is v2 format
-      if (updatedPlan.content && isResponseV2(updatedPlan.content)) {
-        setResponseV2(updatedPlan.content as ResponseV2);
-      }
-
-      // Only transition to complete after plan is ready
-      setTransitionState("complete");
     } catch (err) {
       console.error("Failed to fetch updated plan:", err);
-      setTransitionState("complete");
     }
+
+    setTransitionState("complete");
   }, [id]);
 
   const handleDelete = async () => {

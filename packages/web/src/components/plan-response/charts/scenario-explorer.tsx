@@ -114,7 +114,7 @@ export function ScenarioExplorer({
                 borderRadius: '8px',
                 fontSize: '13px',
               }}
-              formatter={(value: number) => [formatCurrency(value), activeScenarioConfig?.label]}
+              formatter={(value) => [formatCurrency(Number(value) || 0), activeScenarioConfig?.label]}
               labelStyle={{ color: '#6b6b6b' }}
             />
             <Area
