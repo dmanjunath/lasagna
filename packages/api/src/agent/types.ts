@@ -218,6 +218,39 @@ export const improvementActionsSchema = z.object({
   })),
 });
 
+// New text formatting blocks
+export const sectionCardSchema = z.object({
+  type: z.literal("section_card"),
+  label: z.string(),
+  content: z.string(),
+  variant: z.enum(["default", "highlight", "warning"]).optional(),
+});
+
+export const collapsibleDetailsSchema = z.object({
+  type: z.literal("collapsible_details"),
+  summary: z.string(),
+  content: z.string(),
+  defaultOpen: z.boolean().optional(),
+});
+
+// Dynamic chart block (supports Recharts and Vega-Lite)
+export const dynamicChartSchema = z.object({
+  type: z.literal("dynamic_chart"),
+  title: z.string().optional(),
+  renderer: z.enum(["recharts", "vega-lite"]),
+  rechartsConfig: z.object({
+    chartType: z.string(),
+    data: z.array(z.record(z.string(), z.unknown())),
+    components: z.array(z.record(z.string(), z.unknown())).optional(),
+    xAxis: z.record(z.string(), z.unknown()).optional(),
+    yAxis: z.record(z.string(), z.unknown()).optional(),
+    tooltip: z.boolean().optional(),
+    legend: z.boolean().optional(),
+    height: z.number().optional(),
+  }).optional(),
+  vegaLiteSpec: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const uiBlockSchema = z.discriminatedUnion("type", [
   statBlockSchema,
   chartBlockSchema,
@@ -236,6 +269,11 @@ export const uiBlockSchema = z.discriminatedUnion("type", [
   fireCalculatorSchema,
   failureAnalysisSchema,
   improvementActionsSchema,
+  // Text formatting blocks
+  sectionCardSchema,
+  collapsibleDetailsSchema,
+  // Dynamic charts
+  dynamicChartSchema,
 ]);
 
 export const uiPayloadSchema = z.object({
@@ -261,5 +299,8 @@ export type AccountSummaryBlock = z.infer<typeof accountSummarySchema>;
 export type FireCalculatorBlock = z.infer<typeof fireCalculatorSchema>;
 export type FailureAnalysisBlock = z.infer<typeof failureAnalysisSchema>;
 export type ImprovementActionsBlock = z.infer<typeof improvementActionsSchema>;
+export type SectionCardBlock = z.infer<typeof sectionCardSchema>;
+export type CollapsibleDetailsBlock = z.infer<typeof collapsibleDetailsSchema>;
+export type DynamicChartBlock = z.infer<typeof dynamicChartSchema>;
 export type UIBlock = z.infer<typeof uiBlockSchema>;
 export type UIPayload = z.infer<typeof uiPayloadSchema>;
