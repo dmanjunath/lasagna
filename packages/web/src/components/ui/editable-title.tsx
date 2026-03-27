@@ -18,7 +18,7 @@ export const EditableTitle = React.forwardRef<
   const [isSaving, setIsSaving] = React.useState(false);
   const [showSuccess, setShowSuccess] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Update editValue when value prop changes
   React.useEffect(() => {
@@ -143,7 +143,7 @@ export const EditableTitle = React.forwardRef<
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleStartEdit}
     >
-      <span className="text-lg font-medium text-text">
+      <span className={cn("text-text", className)}>
         {value}
       </span>
 
