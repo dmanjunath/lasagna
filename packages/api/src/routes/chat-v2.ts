@@ -239,8 +239,16 @@ chatRouterV2.post("/", async (c) => {
   if (!response && finalText.trim()) {
     console.log("[Chat V2] Using fallback: wrapping raw text as content");
     response = {
+      chat: finalText.slice(0, 200) + (finalText.length > 200 ? '...' : ''), // Truncate for chat
       content: finalText,
     };
+  }
+
+  // Ensure chat field exists (for backwards compatibility)
+  if (response && !response.chat) {
+    // Extract first sentence or first 150 chars as chat fallback
+    const firstSentence = response.content?.match(/^[^.!?]+[.!?]/)?.[0];
+    response.chat = firstSentence || response.content?.slice(0, 150) || 'Analysis complete.';
   }
 
   // Save assistant message

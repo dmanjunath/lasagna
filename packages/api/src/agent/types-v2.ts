@@ -7,8 +7,9 @@ export const metricSchema = z.object({
 });
 
 export const responseSchemaV2 = z.object({
+  chat: z.string(), // Brief conversational response for chat sidebar
   metrics: z.array(metricSchema).optional(),
-  content: z.string(),
+  content: z.string(), // Full structured content for main page
   actions: z.array(z.string()).optional(),
 });
 
