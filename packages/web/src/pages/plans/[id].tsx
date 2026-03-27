@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { Button } from "../../components/ui/button.js";
+import { EditableTitle } from "../../components/ui/editable-title.js";
 import { PromptTransition, type TransitionState } from "../../components/plan/prompt-transition.js";
 import { PlanResponse } from "../../components/plan-response/index.js";
 import type { Plan, ChatThread, Message, PlanEdit } from "../../lib/types.js";
@@ -229,9 +230,14 @@ export function PlanDetailPage() {
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text">
-                {plan.title}
-              </h1>
+              <EditableTitle
+                value={plan.title}
+                onSave={async (newTitle) => {
+                  await api.updatePlan(plan.id, { title: newTitle });
+                  setPlan({ ...plan, title: newTitle });
+                }}
+                className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold"
+              />
               <p className="text-text-muted mt-1 capitalize">
                 {plan.type.replace("_", " ")} Plan
               </p>
