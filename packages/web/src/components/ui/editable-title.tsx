@@ -18,6 +18,7 @@ export const EditableTitle = React.forwardRef<
   const [isSaving, setIsSaving] = React.useState(false);
   const [showSuccess, setShowSuccess] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Update editValue when value prop changes
   React.useEffect(() => {
@@ -25,6 +26,15 @@ export const EditableTitle = React.forwardRef<
       setEditValue(value);
     }
   }, [value, isEditing]);
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   // Auto-focus and select text when entering edit mode
   React.useEffect(() => {
@@ -60,14 +70,19 @@ export const EditableTitle = React.forwardRef<
       setShowSuccess(true);
 
       // Hide success checkmark after 1 second
-      setTimeout(() => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => {
         setShowSuccess(false);
+        timeoutRef.current = null;
       }, 1000);
-    } catch (error) {
+    } catch (error: unknown) {
       // Rollback on error
       setEditValue(value);
       setIsEditing(false);
-      console.error('Failed to save title:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Failed to save title:', errorMessage);
       // You might want to show an error toast here
     } finally {
       setIsSaving(false);
