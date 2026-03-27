@@ -36,16 +36,12 @@ const planTypes: { type: PlanType; label: string; description: string; icon: typ
 
 export function NewPlanPage() {
   const [, setLocation] = useLocation();
-  const [selectedType, setSelectedType] = useState<PlanType | null>(null);
-  const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const handleCreate = async () => {
-    if (!selectedType || !title.trim()) return;
-
+  const handleSelectType = async (type: PlanType) => {
     setCreating(true);
     try {
-      const { plan } = await api.createPlan(selectedType, title);
+      const { plan } = await api.createPlan(type);
       setLocation(`/plans/${plan.id}`);
     } catch (error) {
       console.error("Failed to create plan:", error);
@@ -59,27 +55,32 @@ export function NewPlanPage() {
         Create a Plan
       </h1>
       <p className="text-text-muted mb-8">
-        Choose a plan type and give it a name to get started.
+        Choose a plan type to get started.
       </p>
 
-      <div className="space-y-4 mb-8">
+      <div className="space-y-4">
         {planTypes.map((pt, i) => (
           <motion.button
             key={pt.type}
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.1 }}
-            onClick={() => setSelectedType(pt.type)}
+            onClick={() => handleSelectType(pt.type)}
+            disabled={creating}
             className={cn(
               "w-full p-4 rounded-xl border text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
-              selectedType === pt.type
-                ? "border-accent bg-accent/10"
+              creating
+                ? "opacity-50 cursor-not-allowed"
                 : "border-border bg-surface hover:border-accent/50"
             )}
           >
             <div className="flex items-start gap-4">
               <div className="p-2 rounded-lg bg-bg-elevated">
-                <pt.icon className="w-5 h-5 text-accent" />
+                {creating ? (
+                  <Loader2 className="w-5 h-5 text-accent animate-spin" />
+                ) : (
+                  <pt.icon className="w-5 h-5 text-accent" />
+                )}
               </div>
               <div>
                 <h3 className="font-medium text-text">{pt.label}</h3>
@@ -89,39 +90,6 @@ export function NewPlanPage() {
           </motion.button>
         ))}
       </div>
-
-      {selectedType && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
-        >
-          <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              Plan Name
-            </label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., My Retirement Plan"
-              className="w-full px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
-            />
-          </div>
-
-          <Button
-            onClick={handleCreate}
-            disabled={!title.trim() || creating}
-            className="w-full"
-          >
-            {creating ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Creating...
-              </span>
-            ) : "Create Plan"}
-          </Button>
-        </motion.div>
-      )}
     </div>
   );
 }
