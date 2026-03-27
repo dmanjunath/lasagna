@@ -11,7 +11,8 @@ import {
   CreditCard,
   Plus,
   ChevronDown,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../lib/api';
@@ -51,6 +52,7 @@ export function Sidebar({ onNewPlan, className }: SidebarProps) {
   const [plansExpanded, setPlansExpanded] = useState(true);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     api.getPlans()
@@ -58,6 +60,25 @@ export function Sidebar({ onNewPlan, className }: SidebarProps) {
       .catch((err) => console.error("Failed to load plans:", err))
       .finally(() => setLoadingPlans(false));
   }, [location]);
+
+  const handleDeletePlan = async (planId: string, planTitle: string, e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation to plan detail
+    e.stopPropagation();
+
+    const confirmed = window.confirm(`Delete '${planTitle}'? This will archive the plan.`);
+    if (!confirmed) return;
+
+    setDeletingPlanId(planId);
+    try {
+      await api.deletePlan(planId);
+      setPlans((prevPlans) => prevPlans.filter((plan) => plan.id !== planId));
+    } catch (error) {
+      console.error("Failed to delete plan:", error);
+      alert("Failed to delete plan. Please try again.");
+    } finally {
+      setDeletingPlanId(null);
+    }
+  };
 
   const isActive = (path: string) => location === path;
 
@@ -139,23 +160,39 @@ export function Sidebar({ onNewPlan, className }: SidebarProps) {
                     const planPath = `/plans/${plan.id}`;
                     const PlanIcon = planTypeIcons[plan.type];
                     return (
-                      <motion.button
+                      <motion.div
                         key={plan.id}
-                        onClick={() => navigate(planPath)}
                         whileHover={{ x: 2 }}
                         whileTap={{ scale: 0.98 }}
-                        className={cn(
-                          'w-full text-left px-3 py-3 rounded-xl text-sm flex items-center gap-3 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
-                          isActive(planPath)
-                            ? 'bg-accent/10 text-accent border border-accent/20'
-                            : 'hover:bg-surface-hover text-text-secondary hover:text-text border border-transparent'
-                        )}
+                        className="relative group"
                       >
-                        <PlanIcon className={cn('w-5 h-5', isActive(planPath) ? 'text-accent' : 'text-text-muted')} />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{plan.title}</div>
-                        </div>
-                      </motion.button>
+                        <button
+                          onClick={() => navigate(planPath)}
+                          className={cn(
+                            'w-full text-left px-3 py-3 rounded-xl text-sm flex items-center gap-3 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
+                            isActive(planPath)
+                              ? 'bg-accent/10 text-accent border border-accent/20'
+                              : 'hover:bg-surface-hover text-text-secondary hover:text-text border border-transparent'
+                          )}
+                        >
+                          <PlanIcon className={cn('w-5 h-5', isActive(planPath) ? 'text-accent' : 'text-text-muted')} />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{plan.title}</div>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => handleDeletePlan(plan.id, plan.title, e)}
+                          disabled={deletingPlanId === plan.id}
+                          className="absolute top-1/2 -translate-y-1/2 right-2 p-1 rounded-md hover:bg-red-500/10 text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="Delete plan"
+                        >
+                          {deletingPlanId === plan.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <X className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </motion.div>
                     );
                   })
                 )}
