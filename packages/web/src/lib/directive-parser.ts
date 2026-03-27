@@ -14,7 +14,8 @@ export type ParsedSegment =
 
 function parseAttributes(attrStr: string): Record<string, string> {
   const attrs: Record<string, string> = {};
-  const regex = /(\w+)="([^"]*)"/g;
+  // Handle both single and double quotes
+  const regex = /(\w+)=["']([^"']*)["']/g;
   let match;
   while ((match = regex.exec(attrStr)) !== null) {
     attrs[match[1]] = match[2];
@@ -26,7 +27,10 @@ export function parseDirectives(content: string): ParsedSegment[] {
   const segments: ParsedSegment[] = [];
   let lastIndex = 0;
 
-  const regex = /::(\w+)(?:\{([^}]+)\})?\n([\s\S]*?)\n::/g;
+  // More flexible regex: handles newlines or spaces, and optional closing ::
+  // Pattern 1: ::directive{attrs}\n...\n:: (standard)
+  // Pattern 2: ::directive{attrs}\n...\n:: or just until next :: or end
+  const regex = /::(\w+[-\w]*)(?:\{([^}]*)\})?[\s\n]+([\s\S]*?)(?:\n::|::(?=\s|$)|$)/g;
   let match;
 
   while ((match = regex.exec(content)) !== null) {
@@ -38,34 +42,35 @@ export function parseDirectives(content: string): ParsedSegment[] {
       }
     }
 
-    const [, directiveName, attrStr, innerContent] = match;
+    const [fullMatch, directiveName, attrStr, innerContent] = match;
     const attrs = attrStr ? parseAttributes(attrStr) : {};
+    const trimmedContent = innerContent?.trim() || '';
 
     switch (directiveName) {
       case 'chart':
         try {
-          const config = YAML.parse(innerContent.trim());
+          const config = YAML.parse(trimmedContent);
           segments.push({ type: 'chart', config });
         } catch {
-          segments.push({ type: 'unknown', raw: match[0] });
+          segments.push({ type: 'unknown', raw: fullMatch });
         }
         break;
       case 'card':
         segments.push({
           type: 'card',
           variant: attrs.variant || 'default',
-          content: innerContent.trim(),
+          content: trimmedContent,
         });
         break;
       case 'collapse':
         segments.push({
           type: 'collapse',
           title: attrs.title || 'Details',
-          content: innerContent.trim(),
+          content: trimmedContent,
         });
         break;
       case 'insight': {
-        const parts = innerContent.split('---').map(p => p.trim());
+        const parts = trimmedContent.split('---').map(p => p.trim());
         segments.push({
           type: 'insight',
           headline: parts[0],
@@ -76,17 +81,17 @@ export function parseDirectives(content: string): ParsedSegment[] {
       }
       case 'comparison':
         try {
-          const config = YAML.parse(innerContent.trim());
+          const config = YAML.parse(trimmedContent);
           segments.push({
             type: 'comparison',
             options: Array.isArray(config) ? config : [config]
           });
         } catch {
-          segments.push({ type: 'unknown', raw: match[0] });
+          segments.push({ type: 'unknown', raw: fullMatch });
         }
         break;
       case 'action': {
-        const parts = innerContent.split('---').map(p => p.trim());
+        const parts = trimmedContent.split('---').map(p => p.trim());
         segments.push({
           type: 'action',
           action: parts[0],
@@ -97,17 +102,24 @@ export function parseDirectives(content: string): ParsedSegment[] {
       }
       case 'scenario-explorer':
         try {
-          const config = YAML.parse(innerContent.trim());
+          // Try YAML first, then try parsing inline format
+          let config: Record<string, unknown>;
+          try {
+            config = YAML.parse(trimmedContent);
+          } catch {
+            // Parse inline scenario format: name: "..." outcome: "..." ...
+            config = parseInlineScenarios(trimmedContent);
+          }
           segments.push({ type: 'scenario-explorer', config });
         } catch {
-          segments.push({ type: 'unknown', raw: match[0] });
+          segments.push({ type: 'unknown', raw: fullMatch });
         }
         break;
       default:
-        segments.push({ type: 'unknown', raw: match[0] });
+        segments.push({ type: 'unknown', raw: fullMatch });
     }
 
-    lastIndex = match.index + match[0].length;
+    lastIndex = match.index + fullMatch.length;
   }
 
   // Add remaining markdown
@@ -119,4 +131,30 @@ export function parseDirectives(content: string): ParsedSegment[] {
   }
 
   return segments.length > 0 ? segments : [{ type: 'markdown', content }];
+}
+
+// Parse inline scenario format like: name: "Start at 30" outcome: "$8,300/month" source: "calc"
+function parseInlineScenarios(content: string): Record<string, unknown> {
+  const scenarios: Array<Record<string, string>> = [];
+
+  // Split by "name:" to find each scenario
+  const parts = content.split(/(?=name:)/);
+
+  for (const part of parts) {
+    if (!part.trim()) continue;
+
+    const scenario: Record<string, string> = {};
+    // Match key: "value" or key: 'value' patterns
+    const kvRegex = /(\w+):\s*["']([^"']+)["']/g;
+    let kvMatch;
+    while ((kvMatch = kvRegex.exec(part)) !== null) {
+      scenario[kvMatch[1]] = kvMatch[2];
+    }
+
+    if (Object.keys(scenario).length > 0) {
+      scenarios.push(scenario);
+    }
+  }
+
+  return { scenarios };
 }

@@ -5,8 +5,9 @@ export interface MetricV2 {
 }
 
 export interface ResponseV2 {
+  chat: string; // Brief conversational response for chat sidebar
   metrics?: MetricV2[];
-  content: string;
+  content: string; // Full structured content for main page
   actions?: string[];
 }
 

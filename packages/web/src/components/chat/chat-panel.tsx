@@ -50,7 +50,7 @@ export function ChatPanel({
     setCurrentTool(null);
 
     try {
-      const res = await fetch("/api/chat/v2", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
