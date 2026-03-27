@@ -12,8 +12,19 @@ const uuidSchema = z.string().uuid();
 
 const createPlanSchema = z.object({
   type: z.enum(["net_worth", "retirement", "debt_payoff", "custom"]),
-  title: z.string().min(1).max(255),
+  title: z.string().min(1).max(255).optional(),
 });
+
+// Helper to generate default plan titles
+function getDefaultPlanTitle(type: string): string {
+  const typeLabels: Record<string, string> = {
+    net_worth: "Net Worth",
+    retirement: "Retirement",
+    debt_payoff: "Debt Payoff",
+    custom: "Custom",
+  };
+  return `Untitled ${typeLabels[type] || "Plan"} Plan`;
+}
 
 const updatePlanSchema = z.object({
   title: z.string().min(1).max(255).optional(),
@@ -97,7 +108,7 @@ plansRouter.post("/", async (c) => {
     .values({
       tenantId,
       type: body.type,
-      title: body.title,
+      title: body.title || getDefaultPlanTitle(body.type),
       status: "draft",
     })
     .returning();

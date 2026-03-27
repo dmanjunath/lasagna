@@ -288,6 +288,8 @@ export function PlanDetailPage() {
               initialMessage={initialMessage}
               onMessageSent={() => setSubmittedPrompt(null)}
               onChatResponse={handleChatResponse}
+              planId={plan.id}
+              planTitle={plan.title}
             />
           </motion.div>
         )}

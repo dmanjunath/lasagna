@@ -12,6 +12,8 @@ type ChatPanelProps = {
   initialMessage?: string | null;
   onMessageSent?: () => void;
   onChatResponse?: (response: ResponseV2 | null, toolResults: ToolResult[]) => void;
+  planId?: string;
+  planTitle?: string;
 };
 
 export function ChatPanel({
@@ -20,11 +22,14 @@ export function ChatPanel({
   initialMessage = null,
   onMessageSent,
   onChatResponse,
+  planId,
+  planTitle,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
+  const hasAutoNamed = useRef(false);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -63,8 +68,8 @@ export function ChatPanel({
         toolResults: ToolResult[];
       };
 
-      // Add assistant message with the response content
-      const assistantContent = response?.content || "No response generated";
+      // Add assistant message with the chat response (not full content)
+      const assistantContent = response?.chat || "No response generated";
       const assistantMessage: Message = {
         id: `temp-${Date.now()}-assistant`,
         threadId,
@@ -76,6 +81,31 @@ export function ChatPanel({
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // Auto-name the plan after first message if it starts with "Untitled"
+      if (planId && planTitle && planTitle.startsWith("Untitled") && !hasAutoNamed.current) {
+        hasAutoNamed.current = true;
+        try {
+          // Generate title from first user message (first 50 chars, trimmed at word boundary)
+          let newTitle = content.trim().slice(0, 50);
+          if (content.length > 50) {
+            const lastSpace = newTitle.lastIndexOf(" ");
+            if (lastSpace > 20) {
+              newTitle = newTitle.slice(0, lastSpace);
+            }
+          }
+
+          // Update plan title via API
+          await fetch(`/api/plans/${planId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ title: newTitle }),
+          });
+        } catch (err) {
+          console.error("Failed to auto-name plan:", err);
+        }
+      }
 
       // Notify parent with response and tool results
       onChatResponse?.(response, toolResults || []);

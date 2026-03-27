@@ -122,7 +122,7 @@ export const api = {
 
   getPlan: (id: string) => request<Plan>(`/plans/${id}`),
 
-  createPlan: (type: PlanType, title: string) =>
+  createPlan: (type: PlanType, title?: string) =>
     request<{ plan: Plan }>("/plans", {
       method: "POST",
       body: JSON.stringify({ type, title }),
