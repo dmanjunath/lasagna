@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Plus, FileText, Loader2 } from "lucide-react";
+import { Plus, FileText, Loader2, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { Button } from "../../components/ui/button.js";
@@ -9,6 +9,7 @@ import type { Plan } from "../../lib/types.js";
 export function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     api.getPlans().then(({ plans }) => {
@@ -16,6 +17,25 @@ export function PlansPage() {
       setLoading(false);
     });
   }, []);
+
+  const handleDeletePlan = async (planId: string, planTitle: string, e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation to plan detail
+    e.stopPropagation();
+
+    const confirmed = window.confirm(`Delete '${planTitle}'? This will archive the plan.`);
+    if (!confirmed) return;
+
+    setDeletingPlanId(planId);
+    try {
+      await api.deletePlan(planId);
+      setPlans((prevPlans) => prevPlans.filter((plan) => plan.id !== planId));
+    } catch (error) {
+      console.error("Failed to delete plan:", error);
+      alert("Failed to delete plan. Please try again.");
+    } finally {
+      setDeletingPlanId(null);
+    }
+  };
 
   const planTypeLabels = {
     net_worth: "Net Worth",
@@ -69,8 +89,20 @@ export function PlansPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="glass-card glass-card-hover p-6 cursor-pointer"
+                className="glass-card glass-card-hover p-6 cursor-pointer relative group"
               >
+                <button
+                  onClick={(e) => handleDeletePlan(plan.id, plan.title, e)}
+                  disabled={deletingPlanId === plan.id}
+                  className="absolute top-4 right-4 p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Delete plan"
+                >
+                  {deletingPlanId === plan.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </button>
                 <div className="flex items-start justify-between mb-3">
                   <span className="text-xs px-2 py-1 rounded-full bg-accent/10 text-accent">
                     {planTypeLabels[plan.type]}
