@@ -268,6 +268,33 @@ chatRouter.post("/", async (c) => {
       .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
   }
 
-  // Return text response (non-streaming for now)
-  return c.text(text);
+  // Extract a brief chat summary (first paragraph or sentence before JSON)
+  let chatSummary = "Here's my analysis.";
+  const jsonIdx = text.indexOf('{');
+  if (jsonIdx > 0) {
+    // Get text before JSON
+    const proseText = text.slice(0, jsonIdx).trim();
+    // Get first paragraph or first 200 chars
+    const firstPara = proseText.split('\n\n')[0];
+    if (firstPara && firstPara.length > 10) {
+      chatSummary = firstPara.slice(0, 200);
+      if (firstPara.length > 200) chatSummary += '...';
+    }
+  }
+
+  // Return JSON response matching V2 format expected by frontend
+  return c.json({
+    response: {
+      chat: chatSummary,
+      metrics: [],
+      content: uiPayload ? JSON.stringify(uiPayload) : null,
+      actions: [],
+    },
+    toolResults: allToolCalls.map(tc => ({
+      toolName: tc.toolName,
+      args: tc.args,
+      result: null, // Results already processed
+    })),
+    uiPayload, // Also include the parsed payload directly
+  });
 });
