@@ -109,6 +109,105 @@ ALWAYS end with actionable recommendations. Every report needs next steps.
 ### table, projection (for structured data)
 Use when appropriate for tabular data or scenario comparisons.
 
+## Retirement-Specific Visualizations (FI Calc style)
+
+### portfolio_histogram (for end portfolio distribution)
+Shows distribution of end portfolio values across all historical simulations. Essential for understanding the range of outcomes.
+{
+  "type": "portfolio_histogram",
+  "title": "End Portfolio Distribution",
+  "data": [1500000, 2300000, 1800000, 0, 3200000, ...], // Array of end values from simulations
+  "initialPortfolio": 1000000,
+  "successThreshold": 0 // Portfolio value that counts as "success"
+}
+
+Use this to show:
+- Success rate prominently (percentage that ended above threshold)
+- Percentile breakdown (10th, median, 90th)
+- Visual distribution of outcomes (histogram bars)
+- Clear failure vs success coloring
+
+### quantile_chart (for outcome ranges over time)
+Fan chart showing portfolio value ranges (5th-95th percentile) over the retirement timeline. Essential for visualizing uncertainty.
+{
+  "type": "quantile_chart",
+  "title": "Portfolio Value Range Over Time",
+  "retirementYear": 2045,
+  "data": [
+    { "year": 2024, "p5": 900000, "p10": 950000, "p25": 1050000, "p50": 1200000, "p75": 1400000, "p90": 1600000, "p95": 1800000 },
+    { "year": 2030, "p5": 700000, "p10": 850000, "p25": 1100000, "p50": 1500000, "p75": 2000000, "p90": 2500000, "p95": 3000000 },
+    ...
+  ]
+}
+
+Use this to show:
+- Median trajectory (bold line)
+- 25th-75th percentile band (darker fill)
+- 5th-95th percentile band (lighter fill)
+- When portfolio might hit zero
+
+### withdrawal_timeline (for spending over time)
+Shows annual withdrawals and income sources throughout retirement. Includes portfolio balance toggle.
+{
+  "type": "withdrawal_timeline",
+  "title": "Retirement Income Plan",
+  "targetWithdrawal": 100000,
+  "data": [
+    { "year": 2045, "age": 65, "withdrawal": 40000, "socialSecurity": 30000, "pension": 20000, "portfolioValue": 2000000 },
+    { "year": 2046, "age": 66, "withdrawal": 41000, "socialSecurity": 30900, "portfolioValue": 1950000 },
+    ...
+  ]
+}
+
+Use this to show:
+- Stacked income sources (portfolio, Social Security, pension)
+- How spending changes over time
+- When Social Security kicks in
+- Portfolio depletion trajectory
+
+### simulation_table (for historical period analysis)
+Interactive table showing every historical simulation period and its outcome. Like FI Calc's detailed results view.
+{
+  "type": "simulation_table",
+  "title": "Historical Simulation Results",
+  "simulations": [
+    { "startYear": 1966, "endYear": 1996, "endPortfolio": 0, "yearsLasted": 18, "targetYears": 30, "maxDrawdown": 0.65, "worstYear": { "year": 1974, "return": -0.37 } },
+    { "startYear": 2000, "endYear": 2030, "endPortfolio": 850000, "yearsLasted": 30, "targetYears": 30, "maxDrawdown": 0.51, "worstYear": { "year": 2008, "return": -0.38 } },
+    ...
+  ]
+}
+
+Use this to show:
+- Filter by success/failure/close calls
+- Sort by various metrics
+- Click to see period details
+- Identify which historical periods failed and why
+
+### wealth_projection (for interactive portfolio visualization)
+For Projection Lab style interactive wealth visualization over time. Shows stacked bars with asset allocation breakdown, hover tooltips, and a timeline scrubber.
+{
+  "type": "wealth_projection",
+  "title": "Portfolio Growth Projection",
+  "currentAge": 30,
+  "retirementAge": 65,
+  "categories": [
+    { "id": "stocks", "label": "Stocks", "color": "#6366f1" },
+    { "id": "bonds", "label": "Bonds", "color": "#22c55e" },
+    { "id": "cash", "label": "Cash", "color": "#a855f7" }
+  ],
+  "data": [
+    { "year": 2024, "stocks": 80000, "bonds": 15000, "cash": 5000, "total": 100000 },
+    { "year": 2030, "stocks": 200000, "bonds": 40000, "cash": 10000, "total": 250000 },
+    { "year": 2040, "stocks": 600000, "bonds": 150000, "cash": 50000, "total": 800000 }
+  ]
+}
+
+Use this chart for:
+- Showing portfolio value growth over decades
+- Visualizing asset allocation changes over time
+- Highlighting retirement milestone
+- Making projections interactive and explorable
+
 ## Layout Options
 - "single": Best for report-style content (text-heavy, narrative flow)
 - "grid": Best for dashboard-style (multiple stats, charts side by side)
@@ -127,7 +226,28 @@ Use when appropriate for tabular data or scenario comparisons.
 ### Keep charts focused
 - One clear message per chart
 - Don't overload with data
-- Use donut/pie for single metrics, composed charts for trends
+
+### Chart type semantics (CRITICAL)
+**Pie/Donut charts** - ONLY for parts of a whole that sum to 100%
+- GOOD: Asset allocation (60% stocks, 30% bonds, 10% cash = 100%)
+- GOOD: Success vs failure probability (85% success, 15% failure = 100%)
+- BAD: Withdrawal rates (4%, 3.5%, 3% are options, not parts of a whole)
+- BAD: Comparing dollar amounts across scenarios
+
+**Bar charts** - For comparing values across categories
+- GOOD: Comparing withdrawal rates and their outcomes
+- GOOD: Comparing dollar amounts between scenarios
+- GOOD: Comparing years to retirement across strategies
+
+**Line/Area charts** - For trends over time
+- GOOD: Portfolio value projections over years
+- GOOD: Withdrawal amounts over retirement timeline
+- GOOD: Success probability at different ages
+
+**When in doubt:**
+- If values DON'T sum to 100%, use a bar chart instead of pie
+- If showing change over time, use line/area chart
+- If comparing options/strategies, use bar chart
 
 ### Write like a financial analyst
 - Professional but accessible tone

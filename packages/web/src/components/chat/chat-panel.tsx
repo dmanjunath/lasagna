@@ -13,7 +13,6 @@ type ChatPanelProps = {
   onMessageSent?: () => void;
   onChatResponse?: (response: ResponseV2 | null, toolResults: ToolResult[]) => void;
   planId?: string;
-  planTitle?: string;
 };
 
 export function ChatPanel({
@@ -22,14 +21,31 @@ export function ChatPanel({
   initialMessage = null,
   onMessageSent,
   onChatResponse,
-  planId,
-  planTitle,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
-  const hasAutoNamed = useRef(false);
+
+  // Track if we've synced with initialMessages
+  const lastSyncedLength = useRef(initialMessages.length);
+
+  // Sync messages when initialMessages changes (e.g., page reload, new data from parent)
+  useEffect(() => {
+    // Only sync if initialMessages actually has new data
+    if (initialMessages.length !== lastSyncedLength.current) {
+      lastSyncedLength.current = initialMessages.length;
+
+      // Keep only optimistic messages (temp-*) that aren't in DB yet
+      setMessages(prev => {
+        const dbMessageIds = new Set(initialMessages.map(m => m.id));
+        const optimisticOnly = prev.filter(
+          m => m.id.startsWith('temp-') && !dbMessageIds.has(m.id)
+        );
+        return [...initialMessages, ...optimisticOnly];
+      });
+    }
+  }, [initialMessages]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -82,30 +98,8 @@ export function ChatPanel({
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Auto-name the plan after first message if it starts with "Untitled"
-      if (planId && planTitle && planTitle.startsWith("Untitled") && !hasAutoNamed.current) {
-        hasAutoNamed.current = true;
-        try {
-          // Generate title from first user message (first 50 chars, trimmed at word boundary)
-          let newTitle = content.trim().slice(0, 50);
-          if (content.length > 50) {
-            const lastSpace = newTitle.lastIndexOf(" ");
-            if (lastSpace > 20) {
-              newTitle = newTitle.slice(0, lastSpace);
-            }
-          }
-
-          // Update plan title via API
-          await fetch(`/api/plans/${planId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ title: newTitle }),
-          });
-        } catch (err) {
-          console.error("Failed to auto-name plan:", err);
-        }
-      }
+      // Note: Plan auto-naming is now handled by the backend using AI
+      // The backend will generate a descriptive title if the plan is still "Untitled"
 
       // Notify parent with response and tool results
       onChatResponse?.(response, toolResults || []);
