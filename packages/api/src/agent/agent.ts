@@ -62,8 +62,17 @@ Create a **research report + dashboard hybrid**:
 ## Available UI Block Types
 
 ### text (USE THIS for narrative)
-For flowing prose, explanations, analysis, and context. Supports markdown.
-{ "type": "text", "content": "## Your Retirement Analysis\\n\\nBased on your goal to retire at 50..." }
+For flowing prose, explanations, analysis, and context. Supports rich markdown.
+
+**MARKDOWN FORMATTING RULES:**
+- Use **bold** for key numbers and important terms
+- Use ## or ### headings to structure sections
+- Use bullet lists for multiple related points
+- Keep paragraphs short (2-3 sentences max)
+- Include line breaks between sections for readability
+
+Example:
+{ "type": "text", "content": "## Recommended Asset Allocation\\n\\n**Accumulation Phase (Now through Age 50):**\\n\\n- **80-90% Stocks** — Aggressive growth to maximize wealth building\\n- **10-20% Bonds** — Modest stability without sacrificing growth\\n\\n**Early Retirement Phase (Age 50+):**\\n\\n- **60% Stocks** — Continued growth for portfolio longevity\\n- **30% Bonds** — Income and stability\\n- **10% Cash** — Flexibility for market volatility\\n\\nThis allocation balances growth needs during accumulation with the stability required for extended retirement withdrawals." }
 
 ### stat (for key metrics)
 For 2-3 headline numbers. Don't duplicate what's shown in charts.

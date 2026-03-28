@@ -21,6 +21,7 @@ import {
   Legend,
   Brush,
   ReferenceLine,
+  CartesianGrid,
   Label,
 } from "recharts";
 import { colors } from "../../styles/theme.js";
@@ -35,6 +36,38 @@ const CHART_COLORS = [
   colors.danger,
   "#06b6d4",
 ];
+
+// Format large numbers with K/M suffixes
+function formatCompactNumber(value: number): string {
+  if (Math.abs(value) >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    return `${(value / 1_000).toFixed(0)}K`;
+  }
+  return value.toLocaleString();
+}
+
+// Format currency with commas and compact notation
+function formatCurrency(value: number): string {
+  if (Math.abs(value) >= 1_000_000) {
+    return `$${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    return `$${(value / 1_000).toFixed(0)}K`;
+  }
+  return `$${value.toLocaleString()}`;
+}
+
+// Format full currency for tooltips
+function formatFullCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
 // Map chartType to container component
 function getChartContainer(chartType: string): React.ComponentType<any> {
@@ -58,12 +91,21 @@ function getChartContainer(chartType: string): React.ComponentType<any> {
 // Map tick formatter string to function
 function getTickFormatter(formatter?: string) {
   if (formatter === "currency") {
-    return (v: number) => `$${v.toLocaleString()}`;
+    return formatCurrency;
   }
   if (formatter === "percent") {
     return (v: number) => `${v}%`;
   }
-  return undefined;
+  if (formatter === "number") {
+    return formatCompactNumber;
+  }
+  // Default: format numbers with commas if large
+  return (v: number | string) => {
+    if (typeof v === 'number' && Math.abs(v) >= 1000) {
+      return formatCompactNumber(v);
+    }
+    return String(v);
+  };
 }
 
 // Map axis config to Recharts props
@@ -196,13 +238,41 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
   const ChartContainer = getChartContainer(config.chartType);
   const height = config.height || 300;
 
+  const isPieChart = config.chartType === 'pie';
+  const showGrid = !isPieChart && config.chartType !== 'radar' && config.chartType !== 'radial';
+
+  // Custom tooltip formatter for better number display
+  const tooltipFormatter = (value: number, name: string) => {
+    // Check if it looks like currency (usually larger numbers or has specific data keys)
+    if (typeof value === 'number') {
+      if (Math.abs(value) >= 100 || name.toLowerCase().includes('value') || name.toLowerCase().includes('amount')) {
+        return [formatFullCurrency(value), name];
+      }
+      if (name.toLowerCase().includes('percent') || name.toLowerCase().includes('rate')) {
+        return [`${value.toFixed(1)}%`, name];
+      }
+      return [value.toLocaleString(), name];
+    }
+    return [value, name];
+  };
+
   return (
-    <div className="glass-card p-4">
+    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl p-5 shadow-lg">
       {title && (
-        <h4 className="text-sm font-medium text-text-muted mb-3">{title}</h4>
+        <h4 className="text-sm font-semibold text-text mb-4">{title}</h4>
       )}
       <ResponsiveContainer width="100%" height={height}>
         <ChartContainer data={config.data}>
+          {/* Subtle grid for non-pie charts */}
+          {showGrid && (
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke={colors.border.DEFAULT}
+              strokeOpacity={0.3}
+              vertical={false}
+            />
+          )}
+
           {/* Axes */}
           {config.xAxis && <XAxis {...mapAxisConfig(config.xAxis)} />}
           {config.yAxis && (
@@ -212,20 +282,33 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
           )}
 
           {/* Tooltip */}
-          {config.tooltip && (
+          {config.tooltip !== false && (
             <Tooltip
               contentStyle={{
-                background: colors.bg.elevated,
+                background: 'rgba(12, 10, 9, 0.95)',
                 border: `1px solid ${colors.border.DEFAULT}`,
                 borderRadius: "12px",
+                boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                padding: '12px 16px',
               }}
-              labelStyle={{ color: colors.text.secondary }}
-              itemStyle={{ color: colors.text.DEFAULT }}
+              labelStyle={{ color: colors.text.DEFAULT, fontWeight: 600, marginBottom: 4 }}
+              itemStyle={{ color: colors.text.muted, fontSize: 13 }}
+              formatter={tooltipFormatter}
+              cursor={{ fill: 'rgba(255,255,255,0.03)' }}
             />
           )}
 
-          {/* Legend */}
-          {config.legend && <Legend />}
+          {/* Legend with better styling */}
+          {config.legend && (
+            <Legend
+              wrapperStyle={{ paddingTop: 16 }}
+              iconType="circle"
+              iconSize={8}
+              formatter={(value) => (
+                <span style={{ color: colors.text.muted, fontSize: 12, marginLeft: 4 }}>{value}</span>
+              )}
+            />
+          )}
 
           {/* Brush for selection */}
           {config.brush && (
@@ -246,6 +329,7 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
               key={i}
               {...line}
               stroke={line.stroke || colors.text.muted}
+              strokeDasharray="4 4"
             />
           ))}
         </ChartContainer>

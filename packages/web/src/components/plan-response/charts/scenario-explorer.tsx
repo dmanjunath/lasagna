@@ -37,7 +37,16 @@ interface ScenarioExplorerProps {
 const formatCurrency = (value: number) => {
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-  return `$${value}`;
+  return `$${value.toLocaleString()}`;
+};
+
+const formatFullCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
 };
 
 export function ScenarioExplorer({
@@ -70,13 +79,13 @@ export function ScenarioExplorer({
   const activeScenarioConfig = scenarios.find(s => s.id === activeScenario);
 
   return (
-    <div className="space-y-4">
+    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl p-5 shadow-lg space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="response-heading-2">{title}</h3>
+        <h3 className="text-base font-semibold text-text">{title}</h3>
         {selectedValue !== undefined && (
           <div className="text-right">
-            <span className="response-label">At {selectedYear}</span>
-            <p className="response-metric-small">{formatCurrency(selectedValue)}</p>
+            <span className="text-xs text-text-muted uppercase tracking-wide">At {selectedYear}</span>
+            <p className="text-xl font-semibold text-text tabular-nums">{formatFullCurrency(selectedValue)}</p>
           </div>
         )}
       </div>
@@ -87,42 +96,50 @@ export function ScenarioExplorer({
             <defs>
               {scenarios.map((scenario) => (
                 <linearGradient key={scenario.id} id={`gradient-${scenario.id}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={scenario.color} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={scenario.color} stopOpacity={0} />
+                  <stop offset="5%" stopColor={scenario.color} stopOpacity={0.4} />
+                  <stop offset="95%" stopColor={scenario.color} stopOpacity={0.05} />
                 </linearGradient>
               ))}
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" strokeOpacity={0.5} vertical={false} />
             <XAxis
               dataKey="year"
-              stroke="#6b6b6b"
+              stroke="#57534e"
               fontSize={11}
               tickLine={false}
               axisLine={false}
+              dy={8}
             />
             <YAxis
-              stroke="#6b6b6b"
+              stroke="#57534e"
               fontSize={11}
               tickLine={false}
               axisLine={false}
               tickFormatter={formatCurrency}
+              dx={-8}
+              width={60}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#18181b',
+                backgroundColor: 'rgba(12, 10, 9, 0.95)',
                 border: '1px solid #3f3f46',
-                borderRadius: '8px',
+                borderRadius: '12px',
                 fontSize: '13px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                padding: '12px 16px',
               }}
-              formatter={(value) => [formatCurrency(Number(value) || 0), activeScenarioConfig?.label]}
-              labelStyle={{ color: '#6b6b6b' }}
+              formatter={(value) => [formatFullCurrency(Number(value) || 0), activeScenarioConfig?.label]}
+              labelStyle={{ color: '#f5f5f5', fontWeight: 600, marginBottom: 4 }}
+              itemStyle={{ color: '#a8a29e' }}
+              cursor={{ stroke: activeScenarioConfig?.color, strokeWidth: 1, strokeDasharray: '4 4' }}
             />
             <Area
               type="monotone"
               dataKey={activeScenario}
               stroke={activeScenarioConfig?.color || '#6366f1'}
-              strokeWidth={2}
+              strokeWidth={2.5}
               fill={`url(#gradient-${activeScenario})`}
+              animationDuration={500}
             />
           </AreaChart>
         </ResponsiveContainer>
