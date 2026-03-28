@@ -233,12 +233,26 @@ chatRouter.post("/", async (c) => {
     console.error("[Chat] JSON parse error:", e instanceof Error ? e.message : e);
   }
 
-  // Save assistant message
+  // Extract a brief chat summary (first paragraph or sentence before JSON)
+  let chatSummary = "Here's my analysis.";
+  const jsonIdx = text.indexOf('{');
+  if (jsonIdx > 0) {
+    // Get text before JSON
+    const proseText = text.slice(0, jsonIdx).trim();
+    // Get first paragraph or first 200 chars
+    const firstPara = proseText.split('\n\n')[0];
+    if (firstPara && firstPara.length > 10) {
+      chatSummary = firstPara.slice(0, 200);
+      if (firstPara.length > 200) chatSummary += '...';
+    }
+  }
+
+  // Save assistant message with chat summary (not raw JSON)
   await db.insert(messages).values({
     threadId,
     tenantId,
     role: "assistant",
-    content: text,
+    content: chatSummary,
     toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
     uiPayload: uiPayload ? JSON.stringify(uiPayload) : null,
   });
@@ -246,7 +260,7 @@ chatRouter.post("/", async (c) => {
   // Update plan content if we have UI payload and plan is attached
   if (uiPayload && planId) {
     const [plan] = await db
-      .select({ content: plans.content })
+      .select({ content: plans.content, title: plans.title })
       .from(plans)
       .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
 
@@ -261,24 +275,35 @@ chatRouter.post("/", async (c) => {
       });
     }
 
-    // Update plan (with tenant isolation)
+    // Update plan content (with tenant isolation)
     await db
       .update(plans)
       .set({ content: JSON.stringify(uiPayload) })
       .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
-  }
 
-  // Extract a brief chat summary (first paragraph or sentence before JSON)
-  let chatSummary = "Here's my analysis.";
-  const jsonIdx = text.indexOf('{');
-  if (jsonIdx > 0) {
-    // Get text before JSON
-    const proseText = text.slice(0, jsonIdx).trim();
-    // Get first paragraph or first 200 chars
-    const firstPara = proseText.split('\n\n')[0];
-    if (firstPara && firstPara.length > 10) {
-      chatSummary = firstPara.slice(0, 200);
-      if (firstPara.length > 200) chatSummary += '...';
+    // Auto-generate title if user hasn't manually named the plan
+    if (plan?.title?.startsWith("Untitled")) {
+      try {
+        const titleResult = await generateText({
+          model: getModel(),
+          system: "You are a helpful assistant that generates short, descriptive titles for financial plans. Generate a concise title (3-6 words) that captures the essence of what the user is planning. Do not use quotes. Do not include words like 'Plan' or 'Analysis'. Just output the title, nothing else.",
+          messages: [
+            { role: "user", content: `Generate a short title for this financial planning request: "${body.message}"` }
+          ],
+        });
+
+        const generatedTitle = titleResult.text.trim().slice(0, 100);
+        if (generatedTitle && generatedTitle.length > 2) {
+          await db
+            .update(plans)
+            .set({ title: generatedTitle })
+            .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
+          console.log(`[Chat] Auto-generated plan title: "${generatedTitle}"`);
+        }
+      } catch (err) {
+        console.error("[Chat] Failed to generate plan title:", err);
+        // Non-fatal, continue without updating title
+      }
     }
   }
 

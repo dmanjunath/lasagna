@@ -10,6 +10,7 @@ export type ParsedSegment =
   | { type: 'comparison'; options: Array<Record<string, unknown>> }
   | { type: 'action'; action: string; context?: string; priority?: string }
   | { type: 'scenario-explorer'; config: Record<string, unknown> }
+  | { type: 'wealth-projection'; config: Record<string, unknown> }
   | { type: 'unknown'; raw: string };
 
 function parseAttributes(attrStr: string): Record<string, string> {
@@ -24,6 +25,11 @@ function parseAttributes(attrStr: string): Record<string, string> {
 }
 
 export function parseDirectives(content: string): ParsedSegment[] {
+  // Handle null/undefined content
+  if (!content) {
+    return [];
+  }
+
   const segments: ParsedSegment[] = [];
   let lastIndex = 0;
 
@@ -111,6 +117,14 @@ export function parseDirectives(content: string): ParsedSegment[] {
             config = parseInlineScenarios(trimmedContent);
           }
           segments.push({ type: 'scenario-explorer', config });
+        } catch {
+          segments.push({ type: 'unknown', raw: fullMatch });
+        }
+        break;
+      case 'wealth-projection':
+        try {
+          const config = YAML.parse(trimmedContent);
+          segments.push({ type: 'wealth-projection', config });
         } catch {
           segments.push({ type: 'unknown', raw: fullMatch });
         }

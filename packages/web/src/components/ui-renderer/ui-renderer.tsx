@@ -19,6 +19,13 @@ import {
   CollapsibleDetailsRenderer,
   DynamicChartRenderer,
 } from "./blocks/index.js";
+import {
+  WealthProjection,
+  PortfolioHistogram,
+  QuantileChart,
+  WithdrawalTimeline,
+  SimulationTable,
+} from "../plan-response/charts/index.js";
 
 const layoutClasses = {
   single: "flex flex-col gap-6",
@@ -133,9 +140,85 @@ function BlockRenderer({ block }: { block: UIBlock }) {
     // Dynamic charts
     case "dynamic_chart":
       return <DynamicChartRenderer block={block} />;
+    // Wealth projection (Projection Lab style)
+    case "wealth_projection":
+      return (
+        <WealthProjection
+          title={block.title || "Wealth Projection"}
+          data={block.data}
+          categories={block.categories}
+          scenarios={block.scenarios}
+          currentAge={block.currentAge}
+          retirementAge={block.retirementAge}
+        />
+      );
+    // FI Calc style retirement visualizations
+    case "portfolio_histogram":
+      return (
+        <PortfolioHistogram
+          title={block.title || "End Portfolio Distribution"}
+          data={block.data}
+          initialPortfolio={block.initialPortfolio}
+          successThreshold={block.successThreshold}
+        />
+      );
+    case "quantile_chart":
+      return (
+        <QuantileChart
+          title={block.title || "Portfolio Value Range"}
+          data={block.data}
+          retirementYear={block.retirementYear}
+          initialPortfolio={block.initialPortfolio}
+        />
+      );
+    case "withdrawal_timeline":
+      return (
+        <WithdrawalTimeline
+          title={block.title || "Withdrawal Timeline"}
+          data={block.data}
+          targetWithdrawal={block.targetWithdrawal}
+          retirementAge={block.retirementAge}
+        />
+      );
+    case "simulation_table":
+      return (
+        <SimulationTable
+          title={block.title || "Historical Simulations"}
+          simulations={block.simulations}
+          showCount={block.showCount}
+          defaultSort={block.defaultSort}
+          defaultFilter={block.defaultFilter}
+        />
+      );
     default:
       return null;
   }
+}
+
+// Group consecutive stat blocks together
+function groupBlocks(blocks: UIBlock[]): (UIBlock | UIBlock[])[] {
+  const groups: (UIBlock | UIBlock[])[] = [];
+  let currentStatGroup: UIBlock[] = [];
+
+  for (const block of blocks) {
+    if (block.type === "stat") {
+      currentStatGroup.push(block);
+    } else {
+      // Flush any pending stat group
+      if (currentStatGroup.length > 0) {
+        groups.push(currentStatGroup);
+        currentStatGroup = [];
+      }
+      groups.push(block);
+    }
+  }
+
+  // Don't forget the last stat group
+  if (currentStatGroup.length > 0) {
+    groups.push(currentStatGroup);
+  }
+
+  return groups;
 }
 
 export function UIRenderer({ payload }: { payload: UIPayload }) {
@@ -143,11 +226,24 @@ export function UIRenderer({ payload }: { payload: UIPayload }) {
     return null;
   }
 
+  const groupedBlocks = groupBlocks(payload.blocks);
+
   return (
     <div className={cn(layoutClasses[payload.layout])}>
-      {payload.blocks.map((block, index) => (
-        <BlockRenderer key={index} block={block} />
-      ))}
+      {groupedBlocks.map((item, index) => {
+        // If it's an array, it's a group of stat blocks - render in grid
+        if (Array.isArray(item)) {
+          return (
+            <div key={index} className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {item.map((block, blockIdx) => (
+                <BlockRenderer key={blockIdx} block={block} />
+              ))}
+            </div>
+          );
+        }
+        // Otherwise render as normal
+        return <BlockRenderer key={index} block={item} />;
+      })}
     </div>
   );
 }

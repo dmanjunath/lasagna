@@ -231,6 +231,8 @@ export type RechartsComponent = {
   stackId?: string;
   yAxisId?: string;
   nameKey?: string;
+  innerRadius?: number;
+  outerRadius?: number;
 };
 
 export type AxisConfig = {
@@ -300,6 +302,95 @@ export type DynamicChartBlock = {
   vegaLiteSpec?: VegaLiteSpec;
 };
 
+export type WealthProjectionCategory = {
+  id: string;
+  label: string;
+  color: string;
+};
+
+export type WealthProjectionData = {
+  year: number;
+  total: number;
+  [key: string]: number;
+};
+
+export type WealthProjectionBlock = {
+  type: "wealth_projection";
+  title?: string;
+  currentAge?: number;
+  retirementAge?: number;
+  categories: WealthProjectionCategory[];
+  data: WealthProjectionData[];
+  scenarios?: { id: string; label: string }[];
+};
+
+// FI Calc style retirement visualizations
+export type PortfolioHistogramBlock = {
+  type: "portfolio_histogram";
+  title?: string;
+  data: number[]; // Array of end portfolio values
+  initialPortfolio?: number;
+  successThreshold?: number;
+};
+
+export type QuantileData = {
+  year: number;
+  p5: number;
+  p10: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  p90: number;
+  p95: number;
+};
+
+export type QuantileChartBlock = {
+  type: "quantile_chart";
+  title?: string;
+  data: QuantileData[];
+  retirementYear?: number;
+  initialPortfolio?: number;
+};
+
+export type WithdrawalData = {
+  year: number;
+  age?: number;
+  withdrawal: number;
+  portfolioValue: number;
+  socialSecurity?: number;
+  pension?: number;
+  otherIncome?: number;
+};
+
+export type WithdrawalTimelineBlock = {
+  type: "withdrawal_timeline";
+  title?: string;
+  data: WithdrawalData[];
+  targetWithdrawal?: number;
+  retirementAge?: number;
+};
+
+export type SimulationResult = {
+  startYear: number;
+  endYear: number;
+  endPortfolio: number;
+  yearsLasted: number;
+  targetYears: number;
+  worstYear?: { year: number; return: number };
+  bestYear?: { year: number; return: number };
+  maxDrawdown?: number;
+  inflationAdjustedEnd?: number;
+};
+
+export type SimulationTableBlock = {
+  type: "simulation_table";
+  title?: string;
+  simulations: SimulationResult[];
+  showCount?: number;
+  defaultSort?: "startYear" | "endPortfolio" | "status";
+  defaultFilter?: "all" | "failed" | "close" | "success";
+};
+
 export type UIBlock =
   | StatBlock
   | ChartBlock
@@ -319,7 +410,12 @@ export type UIBlock =
   | ImprovementActionsBlock
   | SectionCardBlock
   | CollapsibleDetailsBlock
-  | DynamicChartBlock;
+  | DynamicChartBlock
+  | WealthProjectionBlock
+  | PortfolioHistogramBlock
+  | QuantileChartBlock
+  | WithdrawalTimelineBlock
+  | SimulationTableBlock;
 
 export type UIPayload = {
   layout: "single" | "split" | "grid";

@@ -125,23 +125,8 @@ function mapAxisConfig(config: AxisConfig) {
 }
 
 // Custom label renderer for pie charts
-const renderPieLabel = ({
-  cx,
-  cy,
-  midAngle,
-  innerRadius,
-  outerRadius,
-  percent,
-  name,
-}: {
-  cx: number;
-  cy: number;
-  midAngle: number;
-  innerRadius: number;
-  outerRadius: number;
-  percent: number;
-  name: string;
-}) => {
+const renderPieLabel = (props: any) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
   // Only show label if segment is large enough (> 5%)
   if (percent < 0.05) return null;
 
@@ -242,18 +227,19 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
   const showGrid = !isPieChart && config.chartType !== 'radar' && config.chartType !== 'radial';
 
   // Custom tooltip formatter for better number display
-  const tooltipFormatter = (value: number, name: string) => {
+  const tooltipFormatter = (value: any, name: any): [string, string] => {
     // Check if it looks like currency (usually larger numbers or has specific data keys)
     if (typeof value === 'number') {
-      if (Math.abs(value) >= 100 || name.toLowerCase().includes('value') || name.toLowerCase().includes('amount')) {
-        return [formatFullCurrency(value), name];
+      const nameStr = String(name || '').toLowerCase();
+      if (Math.abs(value) >= 100 || nameStr.includes('value') || nameStr.includes('amount')) {
+        return [formatFullCurrency(value), String(name)];
       }
-      if (name.toLowerCase().includes('percent') || name.toLowerCase().includes('rate')) {
-        return [`${value.toFixed(1)}%`, name];
+      if (nameStr.includes('percent') || nameStr.includes('rate')) {
+        return [`${value.toFixed(1)}%`, String(name)];
       }
-      return [value.toLocaleString(), name];
+      return [value.toLocaleString(), String(name)];
     }
-    return [value, name];
+    return [String(value), String(name)];
   };
 
   return (
