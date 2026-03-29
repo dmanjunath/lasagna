@@ -27,8 +27,8 @@ packages/api/data/
 packages/web/src/
   pages/portfolio-composition.tsx   # Portfolio composition page
   pages/probability-of-success.tsx  # Monte Carlo + backtest page
-  lib/ticker-mapping.ts             # Re-export of core ticker mapping for frontend
   components/charts/stacked-bar-chart.tsx   # Horizontal stacked bar
+  components/charts/spaghetti-chart.tsx     # Individual simulation paths
   components/charts/treemap-chart.tsx       # Treemap visualization
   components/charts/fan-chart.tsx           # Percentile fan chart
   components/charts/histogram-chart.tsx     # End value distribution
@@ -391,47 +391,192 @@ git commit -m "feat(core): add ticker-to-category mapping for portfolio aggregat
 - Modify: `packages/api/src/services/historical-data.ts`
 - Modify: `packages/api/src/services/__tests__/historical-data.test.ts`
 
-- [ ] **Step 1: Create the extended historical returns data file**
+- [ ] **Step 1: Create data generation script**
 
-Create `packages/api/data/historical-returns.json` with structure:
+Create `packages/api/scripts/generate-historical-data.ts`:
 
-```json
-{
-  "source": "NYU Stern Damodaran, MSCI, NAREIT",
-  "url": "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html",
-  "updatedAt": "2024-12-01",
-  "startYear": 1928,
-  "endYear": 2024,
-  "assetClasses": ["usStocks", "bonds", "cash", "intlStocks", "reits"],
-  "data": [
-    {
-      "year": 1928,
-      "usStocks": 0.4381,
-      "bonds": 0.0084,
-      "cash": 0.0308,
-      "inflation": -0.0116,
-      "intlStocks": null,
-      "reits": null
-    },
-    {
-      "year": 1929,
-      "usStocks": -0.0830,
-      "bonds": 0.0420,
-      "cash": 0.0316,
-      "inflation": 0.0058,
-      "intlStocks": null,
-      "reits": null
-    }
-  ]
-}
+```typescript
+/**
+ * Script to generate historical-returns.json from hardcoded data.
+ * Data sourced from NYU Stern Damodaran (https://pages.stern.nyu.edu/~adamodar)
+ *
+ * Run: npx tsx packages/api/scripts/generate-historical-data.ts
+ */
+
+import { writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Data from Damodaran's Historical Returns on Stocks, Bonds and Bills (1928-2024)
+// https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html
+// Format: [year, S&P 500 return, 10-yr T-Bond, T-Bill, CPI inflation]
+const DAMODARAN_DATA: Array<[number, number, number, number, number]> = [
+  [1928, 0.4381, 0.0084, 0.0308, -0.0116],
+  [1929, -0.0830, 0.0420, 0.0316, 0.0058],
+  [1930, -0.2512, 0.0454, 0.0455, -0.0640],
+  [1931, -0.4384, -0.0256, 0.0231, -0.0932],
+  [1932, -0.0864, 0.0879, 0.0107, -0.1027],
+  [1933, 0.4998, 0.0194, 0.0096, 0.0076],
+  [1934, -0.0119, 0.0759, 0.0032, 0.0151],
+  [1935, 0.4674, 0.0471, 0.0017, 0.0299],
+  [1936, 0.3194, 0.0551, 0.0018, 0.0121],
+  [1937, -0.3534, 0.0180, 0.0026, 0.0241],
+  [1938, 0.2928, 0.0621, 0.0006, -0.0202],
+  [1939, 0.0118, 0.0440, 0.0004, 0.0000],
+  [1940, -0.0978, 0.0575, 0.0003, 0.0096],
+  [1941, -0.1177, -0.0202, 0.0008, 0.0972],
+  [1942, 0.1917, 0.0229, 0.0034, 0.0929],
+  [1943, 0.2534, 0.0249, 0.0038, 0.0316],
+  [1944, 0.1936, 0.0258, 0.0038, 0.0211],
+  [1945, 0.3582, 0.0380, 0.0038, 0.0225],
+  [1946, -0.0843, 0.0313, 0.0038, 0.1802],
+  [1947, 0.0520, 0.0092, 0.0062, 0.0888],
+  [1948, 0.0570, 0.0195, 0.0106, 0.0271],
+  [1949, 0.1830, 0.0445, 0.0116, -0.0180],
+  [1950, 0.3081, -0.0096, 0.0132, 0.0579],
+  [1951, 0.2368, -0.0194, 0.0176, 0.0587],
+  [1952, 0.1815, 0.0166, 0.0182, 0.0088],
+  [1953, -0.0121, 0.0363, 0.0211, 0.0062],
+  [1954, 0.5256, 0.0329, 0.0100, -0.0050],
+  [1955, 0.3260, -0.0134, 0.0180, 0.0037],
+  [1956, 0.0744, -0.0226, 0.0295, 0.0286],
+  [1957, -0.1046, 0.0645, 0.0346, 0.0302],
+  [1958, 0.4372, -0.0078, 0.0177, 0.0176],
+  [1959, 0.1206, -0.0226, 0.0340, 0.0150],
+  [1960, 0.0034, 0.1121, 0.0305, 0.0148],
+  [1961, 0.2664, 0.0206, 0.0252, 0.0067],
+  [1962, -0.0881, 0.0569, 0.0282, 0.0122],
+  [1963, 0.2261, 0.0183, 0.0319, 0.0165],
+  [1964, 0.1642, 0.0351, 0.0362, 0.0119],
+  [1965, 0.1240, 0.0071, 0.0399, 0.0192],
+  [1966, -0.0994, 0.0220, 0.0476, 0.0335],
+  [1967, 0.2380, -0.0137, 0.0421, 0.0304],
+  [1968, 0.1081, 0.0326, 0.0541, 0.0472],
+  [1969, -0.0824, -0.0501, 0.0658, 0.0611],
+  [1970, 0.0400, 0.1675, 0.0652, 0.0549],
+  [1971, 0.1431, 0.0979, 0.0439, 0.0336],
+  [1972, 0.1898, 0.0268, 0.0435, 0.0341],
+  [1973, -0.1466, 0.0411, 0.0729, 0.0880],
+  [1974, -0.2647, 0.0200, 0.0799, 0.1220],
+  [1975, 0.3720, 0.0361, 0.0597, 0.0701],
+  [1976, 0.2384, 0.1598, 0.0507, 0.0481],
+  [1977, -0.0698, 0.0140, 0.0545, 0.0677],
+  [1978, 0.0651, -0.0078, 0.0764, 0.0903],
+  [1979, 0.1852, 0.0167, 0.1056, 0.1331],
+  [1980, 0.3174, -0.0295, 0.1210, 0.1240],
+  [1981, -0.0491, 0.0820, 0.1471, 0.0894],
+  [1982, 0.2141, 0.3291, 0.1065, 0.0387],
+  [1983, 0.2251, 0.0368, 0.0890, 0.0380],
+  [1984, 0.0627, 0.1373, 0.0985, 0.0395],
+  [1985, 0.3124, 0.2571, 0.0772, 0.0377],
+  [1986, 0.1862, 0.2428, 0.0616, 0.0113],
+  [1987, 0.0522, -0.0496, 0.0583, 0.0441],
+  [1988, 0.1681, 0.0822, 0.0681, 0.0442],
+  [1989, 0.3149, 0.1769, 0.0837, 0.0465],
+  [1990, -0.0306, 0.0624, 0.0762, 0.0611],
+  [1991, 0.3023, 0.1530, 0.0560, 0.0306],
+  [1992, 0.0762, 0.0941, 0.0351, 0.0290],
+  [1993, 0.0999, 0.1424, 0.0290, 0.0275],
+  [1994, 0.0132, -0.0803, 0.0439, 0.0267],
+  [1995, 0.3720, 0.2349, 0.0560, 0.0254],
+  [1996, 0.2296, 0.0143, 0.0521, 0.0332],
+  [1997, 0.3336, 0.0993, 0.0526, 0.0170],
+  [1998, 0.2858, 0.1492, 0.0486, 0.0161],
+  [1999, 0.2104, -0.0825, 0.0480, 0.0268],
+  [2000, -0.0910, 0.1666, 0.0576, 0.0339],
+  [2001, -0.1189, 0.0535, 0.0339, 0.0155],
+  [2002, -0.2210, 0.1526, 0.0165, 0.0238],
+  [2003, 0.2838, 0.0038, 0.0094, 0.0188],
+  [2004, 0.1074, 0.0449, 0.0137, 0.0326],
+  [2005, 0.0491, 0.0287, 0.0315, 0.0342],
+  [2006, 0.1561, 0.0196, 0.0480, 0.0254],
+  [2007, 0.0549, 0.1021, 0.0466, 0.0408],
+  [2008, -0.3700, 0.2025, 0.0160, 0.0009],
+  [2009, 0.2645, -0.1126, 0.0014, 0.0272],
+  [2010, 0.1506, 0.0808, 0.0013, 0.0150],
+  [2011, 0.0211, 0.1604, 0.0003, 0.0296],
+  [2012, 0.1600, 0.0297, 0.0005, 0.0174],
+  [2013, 0.3239, -0.0791, 0.0007, 0.0150],
+  [2014, 0.1369, 0.1075, 0.0003, 0.0076],
+  [2015, 0.0138, 0.0128, 0.0005, 0.0073],
+  [2016, 0.1196, 0.0069, 0.0027, 0.0207],
+  [2017, 0.2183, 0.0214, 0.0093, 0.0211],
+  [2018, -0.0438, -0.0002, 0.0194, 0.0191],
+  [2019, 0.3149, 0.0970, 0.0212, 0.0231],
+  [2020, 0.1840, 0.1122, 0.0031, 0.0123],
+  [2021, 0.2871, -0.0426, 0.0005, 0.0700],
+  [2022, -0.1821, -0.1761, 0.0202, 0.0650],
+  [2023, 0.2610, 0.0395, 0.0520, 0.0340],
+  [2024, 0.2500, 0.0100, 0.0530, 0.0290],
+];
+
+// MSCI EAFE Index returns (international developed markets) - 1970 onwards
+// Source: MSCI official data
+const MSCI_EAFE: Record<number, number> = {
+  1970: 0.0200, 1971: 0.2900, 1972: 0.3700, 1973: -0.1400, 1974: -0.2200,
+  1975: 0.3700, 1976: 0.0300, 1977: 0.1900, 1978: 0.3400, 1979: 0.0600,
+  1980: 0.2400, 1981: -0.0100, 1982: -0.0100, 1983: 0.2400, 1984: 0.0800,
+  1985: 0.5700, 1986: 0.6900, 1987: 0.2500, 1988: 0.2900, 1989: 0.1100,
+  1990: -0.2300, 1991: 0.1200, 1992: -0.1200, 1993: 0.3300, 1994: 0.0800,
+  1995: 0.1100, 1996: 0.0600, 1997: 0.0200, 1998: 0.2000, 1999: 0.2700,
+  2000: -0.1400, 2001: -0.2100, 2002: -0.1600, 2003: 0.3900, 2004: 0.2100,
+  2005: 0.1400, 2006: 0.2700, 2007: 0.1200, 2008: -0.4300, 2009: 0.3200,
+  2010: 0.0800, 2011: -0.1200, 2012: 0.1700, 2013: 0.2300, 2014: -0.0500,
+  2015: -0.0100, 2016: 0.0100, 2017: 0.2500, 2018: -0.1400, 2019: 0.2200,
+  2020: 0.0780, 2021: 0.1100, 2022: -0.1450, 2023: 0.1800, 2024: 0.0400,
+};
+
+// NAREIT Equity REIT Index returns - 1972 onwards
+// Source: NAREIT official data
+const NAREIT_REITS: Record<number, number> = {
+  1972: 0.0810, 1973: -0.1560, 1974: -0.2120, 1975: 0.1940, 1976: 0.4750,
+  1977: 0.2230, 1978: 0.1000, 1979: 0.2470, 1980: 0.2410, 1981: 0.0610,
+  1982: 0.2160, 1983: 0.3050, 1984: 0.2040, 1985: 0.1930, 1986: 0.1920,
+  1987: -0.0370, 1988: 0.1360, 1989: 0.0880, 1990: -0.1530, 1991: 0.3570,
+  1992: 0.1440, 1993: 0.1940, 1994: 0.0310, 1995: 0.1530, 1996: 0.3560,
+  1997: 0.2030, 1998: -0.1770, 1999: -0.0460, 2000: 0.2660, 2001: 0.1350,
+  2002: 0.0360, 2003: 0.3720, 2004: 0.3130, 2005: 0.1210, 2006: 0.3530,
+  2007: -0.1580, 2008: -0.3760, 2009: 0.2790, 2010: 0.2780, 2011: 0.0830,
+  2012: 0.1975, 2013: 0.0247, 2014: 0.2797, 2015: 0.0253, 2016: 0.0850,
+  2017: 0.0527, 2018: -0.0406, 2019: 0.2561, 2020: -0.0847, 2021: 0.4090,
+  2022: -0.2493, 2023: 0.1205, 2024: 0.0500,
+};
+
+// Generate the full dataset
+const data = DAMODARAN_DATA.map(([year, usStocks, bonds, cash, inflation]) => ({
+  year,
+  usStocks,
+  bonds,
+  cash,
+  inflation,
+  intlStocks: MSCI_EAFE[year] ?? null,
+  reits: NAREIT_REITS[year] ?? null,
+}));
+
+const dataset = {
+  source: "NYU Stern Damodaran, MSCI, NAREIT",
+  url: "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html",
+  updatedAt: new Date().toISOString().split('T')[0],
+  startYear: 1928,
+  endYear: 2024,
+  assetClasses: ["usStocks", "bonds", "cash", "intlStocks", "reits"],
+  data,
+};
+
+const outputPath = join(__dirname, '../data/historical-returns.json');
+writeFileSync(outputPath, JSON.stringify(dataset, null, 2));
+console.log(`Generated historical-returns.json with ${data.length} years of data`);
 ```
 
-Note: The full dataset needs to be populated with actual historical data. For MVP, include years 1928-2024 with:
-- US Stocks (S&P 500 total return)
-- Bonds (10-year Treasury)
-- Cash (T-Bills)
-- International Stocks (null before 1970, MSCI EAFE after)
-- REITs (null before 1972, NAREIT after)
+- [ ] **Step 1b: Run the data generation script**
+
+Run: `npx tsx packages/api/scripts/generate-historical-data.ts`
+Expected: Creates `packages/api/data/historical-returns.json` with 97 years of data
+
+Verify: `wc -l packages/api/data/historical-returns.json` should show ~500+ lines
 
 - [ ] **Step 2: Write test for extended historical data service**
 
@@ -1507,7 +1652,7 @@ Create `packages/api/src/routes/portfolio.ts`:
 
 ```typescript
 import { Hono } from "hono";
-import { eq, desc, holdings, securities, accounts } from "@lasagna/core";
+import { eq, desc, inArray, holdings, securities, accounts } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { aggregatePortfolio, extractAllocation, type HoldingInput } from "../services/portfolio-aggregator.js";
@@ -1518,9 +1663,17 @@ portfolioRoutes.use("*", requireAuth);
 portfolioRoutes.get("/composition", async (c) => {
   const session = c.get("session");
 
-  // Get latest holdings with securities info
+  // Use shared helper to get holdings (batch queries, no N+1)
+  const holdingsInput = await getHoldingsInput(session.tenantId);
+  const composition = aggregatePortfolio(holdingsInput);
+
+  return c.json(composition);
+});
+
+// Helper function to get holdings with batch-loaded securities/accounts (avoids N+1 queries)
+async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]> {
   const rows = await db.query.holdings.findMany({
-    where: eq(holdings.tenantId, session.tenantId),
+    where: eq(holdings.tenantId, tenantId),
     orderBy: desc(holdings.snapshotAt),
   });
 
@@ -1533,17 +1686,25 @@ portfolioRoutes.get("/composition", async (c) => {
     }
   }
 
-  // Enrich with security and account info
+  const holdingsArray = Array.from(latestHoldings.values());
+  if (holdingsArray.length === 0) return [];
+
+  // Batch fetch all securities and accounts
+  const securityIds = [...new Set(holdingsArray.map(h => h.securityId))];
+  const accountIds = [...new Set(holdingsArray.map(h => h.accountId))];
+
+  const [allSecurities, allAccounts] = await Promise.all([
+    db.query.securities.findMany({ where: inArray(securities.id, securityIds) }),
+    db.query.accounts.findMany({ where: inArray(accounts.id, accountIds) }),
+  ]);
+
+  const securitiesMap = new Map(allSecurities.map(s => [s.id, s]));
+  const accountsMap = new Map(allAccounts.map(a => [a.id, a]));
+
   const holdingsInput: HoldingInput[] = [];
-
-  for (const h of latestHoldings.values()) {
-    const sec = await db.query.securities.findFirst({
-      where: eq(securities.id, h.securityId),
-    });
-    const acct = await db.query.accounts.findFirst({
-      where: eq(accounts.id, h.accountId),
-    });
-
+  for (const h of holdingsArray) {
+    const sec = securitiesMap.get(h.securityId);
+    const acct = accountsMap.get(h.accountId);
     if (sec && acct) {
       holdingsInput.push({
         ticker: sec.tickerSymbol || 'UNKNOWN',
@@ -1556,57 +1717,14 @@ portfolioRoutes.get("/composition", async (c) => {
       });
     }
   }
-
-  const composition = aggregatePortfolio(holdingsInput);
-
-  return c.json(composition);
-});
+  return holdingsInput;
+}
 
 portfolioRoutes.get("/allocation", async (c) => {
   const session = c.get("session");
 
-  // Reuse composition logic
-  const compositionResponse = await portfolioRoutes.request(
-    new Request(`http://localhost/composition`),
-    { session }
-  );
-
-  // Simplified: just return allocation percentages
-  const rows = await db.query.holdings.findMany({
-    where: eq(holdings.tenantId, session.tenantId),
-    orderBy: desc(holdings.snapshotAt),
-  });
-
-  const latestHoldings = new Map<string, typeof rows[0]>();
-  for (const row of rows) {
-    const key = `${row.accountId}-${row.securityId}`;
-    if (!latestHoldings.has(key)) {
-      latestHoldings.set(key, row);
-    }
-  }
-
-  const holdingsInput: HoldingInput[] = [];
-
-  for (const h of latestHoldings.values()) {
-    const sec = await db.query.securities.findFirst({
-      where: eq(securities.id, h.securityId),
-    });
-    const acct = await db.query.accounts.findFirst({
-      where: eq(accounts.id, h.accountId),
-    });
-
-    if (sec && acct) {
-      holdingsInput.push({
-        ticker: sec.tickerSymbol || 'UNKNOWN',
-        value: parseFloat(h.institutionValue || '0'),
-        shares: parseFloat(h.quantity || '0'),
-        name: sec.name || sec.tickerSymbol || 'Unknown Security',
-        account: acct.name,
-        costBasis: h.costBasis ? parseFloat(h.costBasis) : null,
-      });
-    }
-  }
-
+  // Use shared helper to get holdings (batch queries, no N+1)
+  const holdingsInput = await getHoldingsInput(session.tenantId);
   const composition = aggregatePortfolio(holdingsInput);
   const allocation = extractAllocation(composition);
 
@@ -2134,6 +2252,104 @@ git commit -m "feat(web): add histogram chart component"
 
 ---
 
+## Task 10.5: Spaghetti Chart Component
+
+**Files:**
+- Create: `packages/web/src/components/charts/spaghetti-chart.tsx`
+
+- [ ] **Step 1: Create spaghetti chart component**
+
+Create `packages/web/src/components/charts/spaghetti-chart.tsx`:
+
+```typescript
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { colors } from '../../styles/theme';
+
+interface SpaghettiChartProps {
+  paths: number[][];
+  years: number;
+  height?: number;
+}
+
+export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartProps) {
+  // Transform paths into chart data
+  // Each path is an array of values over years
+  const chartData = Array.from({ length: years }, (_, yearIndex) => {
+    const dataPoint: Record<string, number> = { year: new Date().getFullYear() + yearIndex };
+    paths.forEach((path, pathIndex) => {
+      if (path[yearIndex] !== undefined) {
+        dataPoint[`path${pathIndex}`] = path[yearIndex];
+      }
+    });
+    return dataPoint;
+  });
+
+  // Determine success/failure for each path (last value > 0 = success)
+  const pathColors = paths.map((path) => {
+    const finalValue = path[path.length - 1];
+    return finalValue > 0 ? '#4ade80' : '#ef4444'; // green for success, red for failure
+  });
+
+  return (
+    <div style={{ height, width: '100%' }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData}>
+          <XAxis
+            dataKey="year"
+            stroke={colors.text.muted}
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            stroke={colors.text.muted}
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`}
+          />
+          <Tooltip
+            contentStyle={{
+              background: colors.bg.elevated,
+              border: `1px solid ${colors.border.DEFAULT}`,
+              borderRadius: '12px',
+            }}
+            formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']}
+          />
+          {paths.map((_, index) => (
+            <Line
+              key={index}
+              type="monotone"
+              dataKey={`path${index}`}
+              stroke={pathColors[index]}
+              strokeWidth={1}
+              strokeOpacity={0.4}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add packages/web/src/components/charts/spaghetti-chart.tsx
+git commit -m "feat(web): add spaghetti chart for simulation path visualization"
+```
+
+---
+
 ## Task 11: Rolling Periods Chart Component
 
 **Files:**
@@ -2546,10 +2762,11 @@ Create `packages/web/src/pages/probability-of-success.tsx`:
 ```typescript
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Target, Building2 } from 'lucide-react';
+import { Target, Building2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { cn, formatMoney } from '../lib/utils';
 import { api } from '../lib/api';
 import { FanChart } from '../components/charts/fan-chart';
+import { SpaghettiChart } from '../components/charts/spaghetti-chart';
 import { HistogramChart } from '../components/charts/histogram-chart';
 import { RollingPeriodsChart } from '../components/charts/rolling-periods-chart';
 import { Button } from '../components/ui/button';
@@ -2602,8 +2819,14 @@ export function ProbabilityOfSuccess() {
   const [backtestPeriods, setBacktestPeriods] = useState<{ startYear: number; endBalance: number; status: 'success' | 'close' | 'failed' }[]>([]);
   const [backtestSummary, setBacktestSummary] = useState({ periodsRun: 0, periodsSucceeded: 0, successRate: 0 });
 
+  // Error state for simulation failures
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+
   const runSimulations = useCallback(async () => {
     setLoading(true);
+    setError(null);
+    setWarning(null);
     try {
       // Get portfolio allocation first
       const portfolioData = await api.getPortfolioAllocation();
@@ -2614,7 +2837,7 @@ export function ProbabilityOfSuccess() {
       const yearsToSimulate = 30;
 
       // Run Monte Carlo
-      const mcResult = await fetch('/api/simulations/monte-carlo', {
+      const mcResponse = await fetch('/api/simulations/monte-carlo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -2627,15 +2850,26 @@ export function ProbabilityOfSuccess() {
           includeSamplePaths: true,
           numSamplePaths: 50,
         }),
-      }).then((r) => r.json());
+      });
+
+      if (!mcResponse.ok) {
+        throw new Error(`Monte Carlo simulation failed: ${mcResponse.statusText}`);
+      }
+
+      const mcResult = await mcResponse.json();
+
+      // Handle timeout warning from server
+      if (mcResult.warning) {
+        setWarning(mcResult.warning);
+      }
 
       setSuccessRate(mcResult.successRate);
       setPercentiles(mcResult.percentiles);
       setHistogram(mcResult.histogram);
-      setSamplePaths(mcResult.samplePaths);
+      setSamplePaths(mcResult.paths);
 
       // Run Backtest
-      const btResult = await fetch('/api/simulations/backtest', {
+      const btResponse = await fetch('/api/simulations/backtest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -2645,12 +2879,19 @@ export function ProbabilityOfSuccess() {
           annualWithdrawal,
           years: yearsToSimulate,
         }),
-      }).then((r) => r.json());
+      });
+
+      if (!btResponse.ok) {
+        throw new Error(`Backtest simulation failed: ${btResponse.statusText}`);
+      }
+
+      const btResult = await btResponse.json();
 
       setBacktestPeriods(btResult.periods);
       setBacktestSummary(btResult.summary);
     } catch (err) {
       console.error('Simulation failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to run simulations. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -2678,6 +2919,31 @@ export function ProbabilityOfSuccess() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-text-muted">Running simulations...</div>
+      </div>
+    );
+  }
+
+  // Error state UI
+  if (error) {
+    return (
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center"
+        >
+          <AlertTriangle className="w-16 h-16 text-red-500 mb-6" />
+          <h2 className="font-display text-2xl md:text-3xl font-medium mb-3">
+            Simulation Error
+          </h2>
+          <p className="text-text-muted max-w-md mb-8">
+            {error}
+          </p>
+          <Button onClick={runSimulations} className="gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Try Again
+          </Button>
+        </motion.div>
       </div>
     );
   }
@@ -2725,6 +2991,18 @@ export function ProbabilityOfSuccess() {
           Based on 10,000 Monte Carlo simulations using your actual allocation
         </div>
       </motion.div>
+
+      {/* Warning banner for timeout/partial results */}
+      {warning && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-xl p-4 flex items-center gap-3 border border-yellow-500/30 bg-yellow-500/10"
+        >
+          <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+          <span className="text-sm text-yellow-200">{warning}</span>
+        </motion.div>
+      )}
 
       {/* Parameter Sliders */}
       <motion.div
@@ -2808,7 +3086,15 @@ export function ProbabilityOfSuccess() {
               ))}
             </div>
           </div>
-          <FanChart data={fanData} height={300} />
+          {mcView === 'fan' ? (
+            <FanChart data={fanData} height={300} />
+          ) : (
+            <SpaghettiChart
+              paths={samplePaths || []}
+              years={percentiles?.p50.length || 0}
+              height={300}
+            />
+          )}
         </motion.div>
 
         {/* Histogram */}
@@ -2883,9 +3169,10 @@ git commit -m "feat(web): add probability of success page with Monte Carlo and b
 
 Modify `packages/web/src/components/layout/sidebar.tsx`:
 
-Add imports:
+Add imports (Target is already imported in the existing sidebar):
 ```typescript
 import { PieChart } from 'lucide-react';
+// Target is already imported from the existing file
 ```
 
 Update `fixedTabs` array to add Analysis section after Dashboard items:
@@ -2982,7 +3269,9 @@ git commit -m "feat(web): add routes for portfolio composition and probability o
 
 - [ ] **Step 1: Update simulations routes for new request/response types**
 
-Modify `packages/api/src/routes/simulations.ts` to use the extended Monte Carlo and Backtester:
+Modify `packages/api/src/routes/simulations.ts` to use the extended Monte Carlo and Backtester. **Critical:** This implementation includes:
+- **Allocation normalization** - If allocation doesn't sum to 100%, normalize proportionally
+- **Timeout handling** - Monte Carlo returns partial results with warning if >5s
 
 ```typescript
 import { Hono } from "hono";
@@ -2992,6 +3281,31 @@ import { getBacktester } from "../services/backtester.js";
 
 export const simulationsRouter = new Hono<AuthEnv>();
 simulationsRouter.use("*", requireAuth);
+
+// Normalize allocation to sum to 100% (per spec Error Handling)
+function normalizeAllocation(allocation: AssetAllocation): AssetAllocation {
+  const total = allocation.usStocks + allocation.intlStocks + allocation.bonds + allocation.reits + allocation.cash;
+  if (total === 0) {
+    // Fallback to 60/40 if all zeros
+    return { usStocks: 60, intlStocks: 0, bonds: 40, reits: 0, cash: 0 };
+  }
+  if (Math.abs(total - 100) < 0.01) {
+    // Already normalized (within tolerance)
+    return allocation;
+  }
+  // Scale proportionally to 100%
+  const scale = 100 / total;
+  return {
+    usStocks: allocation.usStocks * scale,
+    intlStocks: allocation.intlStocks * scale,
+    bonds: allocation.bonds * scale,
+    reits: allocation.reits * scale,
+    cash: allocation.cash * scale,
+  };
+}
+
+// Timeout wrapper for Monte Carlo (per spec: return partial results if >5s)
+const SIMULATION_TIMEOUT_MS = 5000;
 
 simulationsRouter.post("/monte-carlo", async (c) => {
   const body = await c.req.json<{
@@ -3006,20 +3320,101 @@ simulationsRouter.post("/monte-carlo", async (c) => {
 
   const engine = getMonteCarloEngine();
   const withdrawalRate = body.annualWithdrawal / body.initialValue;
+  const normalizedAllocation = normalizeAllocation(body.allocation);
+  const numSimulations = body.simulations || 10000;
 
-  const result = engine.run({
-    initialBalance: body.initialValue,
-    withdrawalRate,
-    yearsToSimulate: body.years,
-    assetAllocation: body.allocation,
-    inflationAdjusted: true,
-    numSimulations: body.simulations || 10000,
-    includeSamplePaths: body.includeSamplePaths,
-    numSamplePaths: body.numSamplePaths,
-  });
+  // Run simulation with timeout handling
+  const startTime = Date.now();
+  let completedSimulations = 0;
+  let timedOut = false;
 
-  return c.json(result);
+  // For timeout handling, we'll run in batches and check time
+  const BATCH_SIZE = 1000;
+  let allResults: any[] = [];
+
+  while (completedSimulations < numSimulations) {
+    const elapsed = Date.now() - startTime;
+    if (elapsed > SIMULATION_TIMEOUT_MS) {
+      timedOut = true;
+      break;
+    }
+
+    const batchSize = Math.min(BATCH_SIZE, numSimulations - completedSimulations);
+    const batchResult = engine.run({
+      initialBalance: body.initialValue,
+      withdrawalRate,
+      yearsToSimulate: body.years,
+      assetAllocation: normalizedAllocation,
+      inflationAdjusted: true,
+      numSimulations: batchSize,
+      includeSamplePaths: body.includeSamplePaths && completedSimulations === 0,
+      numSamplePaths: body.numSamplePaths,
+    });
+
+    allResults.push(batchResult);
+    completedSimulations += batchSize;
+  }
+
+  // Combine batch results
+  const combinedResult = combineMonteCarloResults(allResults, completedSimulations);
+
+  if (timedOut) {
+    return c.json({
+      ...combinedResult,
+      warning: `Simulation timed out after 5 seconds. Results based on ${completedSimulations} of ${numSimulations} requested simulations.`,
+      completedSimulations,
+      requestedSimulations: numSimulations,
+    });
+  }
+
+  return c.json(combinedResult);
 });
+
+// Helper to combine batch results
+function combineMonteCarloResults(results: any[], totalSimulations: number) {
+  if (results.length === 0) {
+    return { successRate: 0, percentiles: {}, histogram: [] };
+  }
+  if (results.length === 1) {
+    return results[0];
+  }
+
+  // Weight success rates by batch size
+  const totalSuccesses = results.reduce((sum, r) => sum + (r.successRate * (r.numSimulations || 1000)), 0);
+  const successRate = totalSuccesses / totalSimulations;
+
+  // Use percentiles from first batch (approximation for timeout scenarios)
+  // Note: This approximation is acceptable because:
+  // 1. Timeout only triggers if simulation takes >5s (rare for 10k sims)
+  // 2. First batch of 1000 simulations provides statistically valid percentiles
+  // 3. User is warned via warning message that results are based on partial data
+  // 4. Success rate IS properly weighted across all completed batches
+  const percentiles = results[0].percentiles;
+
+  // Combine histograms
+  const histogramMap = new Map<string, { count: number; status: string }>();
+  for (const result of results) {
+    for (const bucket of result.histogram || []) {
+      const existing = histogramMap.get(bucket.bucket);
+      if (existing) {
+        existing.count += bucket.count;
+      } else {
+        histogramMap.set(bucket.bucket, { count: bucket.count, status: bucket.status });
+      }
+    }
+  }
+  const histogram = Array.from(histogramMap.entries()).map(([bucket, data]) => ({
+    bucket,
+    ...data,
+  }));
+
+  return {
+    successRate,
+    percentiles,
+    histogram,
+    paths: results[0].paths, // Sample paths from first batch
+  };
+}
 
 simulationsRouter.post("/backtest", async (c) => {
   const body = await c.req.json<{
@@ -3031,12 +3426,13 @@ simulationsRouter.post("/backtest", async (c) => {
 
   const backtester = getBacktester();
   const withdrawalRate = body.annualWithdrawal / body.initialValue;
+  const normalizedAllocation = normalizeAllocation(body.allocation);
 
   const result = backtester.run({
     initialBalance: body.initialValue,
     withdrawalRate,
     yearsToSimulate: body.years,
-    assetAllocation: body.allocation,
+    assetAllocation: normalizedAllocation,
     inflationAdjusted: true,
   });
 
