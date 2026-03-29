@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Building2 } from 'lucide-react';
 import { cn, formatMoney } from '../lib/utils';
 import { Section } from '../components/common/section';
 import { AreaChart } from '../components/charts/area-chart';
 import { DonutChart } from '../components/charts/pie-chart';
+import { Button } from '../components/ui/button';
 import { api } from '../lib/api';
 
 interface AccountCategory {
@@ -36,6 +39,7 @@ const typeColors: Record<string, string> = {
 };
 
 export function NetWorth() {
+  const [, navigate] = useLocation();
   const [balances, setBalances] = useState<Array<{
     accountId: string;
     name: string;
@@ -103,6 +107,31 @@ export function NetWorth() {
     );
   }
 
+  // Empty state when no accounts are linked
+  if (balances.length === 0) {
+    return (
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center"
+        >
+          <Building2 className="w-16 h-16 text-text-muted mb-6" />
+          <h2 className="font-display text-2xl md:text-3xl font-medium mb-3">
+            No Accounts Linked
+          </h2>
+          <p className="text-text-muted max-w-md mb-8">
+            Connect your bank accounts to track your net worth, view balances, and get personalized financial insights.
+          </p>
+          <Button onClick={() => navigate('/accounts')}>
+            <Plus className="w-4 h-4 mr-2" />
+            Link Your First Account
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
       {/* Net Worth Over Time */}
@@ -118,11 +147,17 @@ export function NetWorth() {
               {formatMoney(totalNetWorth)}
             </div>
           </div>
-          <div className="text-left md:text-right">
-            <div className="text-xl md:text-2xl font-semibold tabular-nums text-success">
-              +$12,500
+          <div className="flex flex-col md:items-end gap-2">
+            <div className="text-left md:text-right">
+              <div className="text-xl md:text-2xl font-semibold tabular-nums text-success">
+                +$12,500
+              </div>
+              <div className="text-sm text-text-muted mt-1">This month (+2.4%)</div>
             </div>
-            <div className="text-sm text-text-muted mt-1">This month (+2.4%)</div>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/accounts')}>
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add Account
+            </Button>
           </div>
         </div>
         <AreaChart

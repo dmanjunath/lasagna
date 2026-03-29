@@ -27,6 +27,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateTenant: (updates: Partial<Tenant>) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -77,8 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTenant(null);
   }, []);
 
+  const updateTenant = useCallback((updates: Partial<Tenant>) => {
+    setTenant((prev) => (prev ? { ...prev, ...updates } : prev));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant }}>
       {children}
     </AuthContext.Provider>
   );
