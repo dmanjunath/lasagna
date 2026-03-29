@@ -19,6 +19,14 @@ const assetAllocationSchema = z.object({
   cash: z.number().min(0).max(1).optional(),
 });
 
+const fiveAssetAllocationSchema = z.object({
+  usStocks: z.number().min(0).max(1),
+  intlStocks: z.number().min(0).max(1),
+  bonds: z.number().min(0).max(1),
+  reits: z.number().min(0).max(1),
+  cash: z.number().min(0).max(1),
+});
+
 const monteCarloParamsSchema = z.object({
   initialBalance: z.number().positive(),
   withdrawalRate: z.number().min(0).max(1),
@@ -32,7 +40,7 @@ const backtestParamsSchema = z.object({
   initialBalance: z.number().positive(),
   withdrawalRate: z.number().min(0).max(1),
   yearsToSimulate: z.number().int().positive(),
-  assetAllocation: assetAllocationSchema,
+  assetAllocation: fiveAssetAllocationSchema,
   inflationAdjusted: z.boolean(),
   startYearRange: z
     .object({
@@ -122,10 +130,7 @@ simulationsRouter.post("/run", async (c) => {
         const btParams = params as z.infer<typeof backtestParamsSchema>;
         result = backtester.run({
           ...btParams,
-          assetAllocation: {
-            stocks: btParams.assetAllocation.stocks,
-            bonds: btParams.assetAllocation.bonds,
-          },
+          assetAllocation: btParams.assetAllocation,
         });
         break;
       }

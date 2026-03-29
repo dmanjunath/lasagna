@@ -8,7 +8,13 @@ describe("Backtester", () => {
     initialBalance: 1000000,
     withdrawalRate: 0.04,
     yearsToSimulate: 30,
-    assetAllocation: { stocks: 0.7, bonds: 0.3 },
+    assetAllocation: {
+      usStocks: 0.7,
+      intlStocks: 0,
+      bonds: 0.3,
+      reits: 0,
+      cash: 0,
+    },
     inflationAdjusted: true,
   };
 
@@ -34,7 +40,7 @@ describe("Backtester", () => {
         expect(period.yearsLasted).toBeDefined();
         expect(period.status).toMatch(/success|failed|close/);
         expect(period.worstDrawdown).toBeDefined();
-        expect(period.bestYear).toBeDefined();
+        expect(period.worstYear).toBeDefined();
       }
     });
 
@@ -59,6 +65,70 @@ describe("Backtester", () => {
       const result = backtester.run(params);
       const period1930 = result.periods.find((p) => p.startYear === 1930);
       expect(period1930).toBeDefined();
+    });
+  });
+
+  describe("run with 5 asset classes", () => {
+    it("accepts 5-asset allocation", () => {
+      const result = backtester.run({
+        initialBalance: 1000000,
+        withdrawalRate: 0.04,
+        yearsToSimulate: 30,
+        assetAllocation: {
+          usStocks: 0.5,
+          intlStocks: 0.2,
+          bonds: 0.2,
+          reits: 0.05,
+          cash: 0.05,
+        },
+        inflationAdjusted: true,
+      });
+
+      expect(result.totalPeriods).toBeGreaterThan(0);
+      expect(result.successRate).toBeGreaterThanOrEqual(0);
+      expect(result.successRate).toBeLessThanOrEqual(1);
+    });
+
+    it("returns period details with worstDrawdown", () => {
+      const result = backtester.run({
+        initialBalance: 1000000,
+        withdrawalRate: 0.04,
+        yearsToSimulate: 20,
+        assetAllocation: {
+          usStocks: 0.6,
+          intlStocks: 0.1,
+          bonds: 0.2,
+          reits: 0.05,
+          cash: 0.05,
+        },
+        inflationAdjusted: false,
+      });
+
+      expect(result.periods.length).toBeGreaterThan(0);
+      expect(result.periods[0]).toHaveProperty("startYear");
+      expect(result.periods[0]).toHaveProperty("endBalance");
+      expect(result.periods[0]).toHaveProperty("status");
+      expect(result.periods[0]).toHaveProperty("worstDrawdown");
+    });
+
+    it("handles proration for early years", () => {
+      const result = backtester.run({
+        initialBalance: 1000000,
+        withdrawalRate: 0.04,
+        yearsToSimulate: 10,
+        assetAllocation: {
+          usStocks: 0.3,
+          intlStocks: 0.3,
+          bonds: 0.3,
+          reits: 0.05,
+          cash: 0.05,
+        },
+        inflationAdjusted: false,
+        startYearRange: { from: 1960, to: 1970 },
+      });
+
+      // Should still run even though intl/reits have no data
+      expect(result.totalPeriods).toBeGreaterThan(0);
     });
   });
 });
