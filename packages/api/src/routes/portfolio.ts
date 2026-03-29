@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, desc, holdings, securities, accounts } from "@lasagna/core";
+import { eq, desc, inArray, holdings, securities, accounts } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { aggregatePortfolio, extractAllocation, type HoldingInput } from "../services/portfolio-aggregator.js";
@@ -36,19 +36,24 @@ async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]> {
   const holdingsArray = Array.from(latestHoldings.values());
   if (holdingsArray.length === 0) return [];
 
-  // Enrich with security and account details
-  const enriched = await Promise.all(
-    holdingsArray.map(async (h) => {
-      const sec = await db.query.securities.findFirst({
-        where: eq(securities.id, h.securityId),
-      });
-      const acct = await db.query.accounts.findFirst({
-        where: eq(accounts.id, h.accountId),
-      });
+  // Batch fetch all securities and accounts using inArray
+  const securityIds = [...new Set(holdingsArray.map(h => h.securityId))];
+  const accountIds = [...new Set(holdingsArray.map(h => h.accountId))];
 
-      if (!sec || !acct) return null;
+  const [allSecurities, allAccounts] = await Promise.all([
+    db.query.securities.findMany({ where: inArray(securities.id, securityIds) }),
+    db.query.accounts.findMany({ where: inArray(accounts.id, accountIds) }),
+  ]);
 
-      return {
+  const securitiesMap = new Map(allSecurities.map(s => [s.id, s]));
+  const accountsMap = new Map(allAccounts.map(a => [a.id, a]));
+
+  const holdingsInput: HoldingInput[] = [];
+  for (const h of holdingsArray) {
+    const sec = securitiesMap.get(h.securityId);
+    const acct = accountsMap.get(h.accountId);
+    if (sec && acct) {
+      holdingsInput.push({
         ticker: sec.tickerSymbol || 'UNKNOWN',
         value: parseFloat(h.institutionValue || '0'),
         shares: parseFloat(h.quantity || '0'),
@@ -56,11 +61,11 @@ async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]> {
         account: acct.name,
         costBasis: h.costBasis ? parseFloat(h.costBasis) : null,
         securityType: sec.type || undefined,
-      } as HoldingInput;
-    }),
-  );
+      });
+    }
+  }
 
-  return enriched.filter((h): h is HoldingInput => h !== null);
+  return holdingsInput;
 }
 
 portfolioRoutes.get("/allocation", async (c) => {
