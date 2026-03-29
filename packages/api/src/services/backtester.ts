@@ -1,12 +1,10 @@
-import { getHistoricalDataService } from "./historical-data.js";
-
-const BOND_RETURN = 0.05;
+import { getHistoricalDataService, type Allocation } from "./historical-data.js";
 
 export interface BacktestParams {
   initialBalance: number;
   withdrawalRate: number;
   yearsToSimulate: number;
-  assetAllocation: { stocks: number; bonds: number };
+  assetAllocation: Allocation;
   inflationAdjusted: boolean;
   startYearRange?: { from: number; to: number };
 }
@@ -17,7 +15,7 @@ export interface BacktestPeriod {
   yearsLasted: number;
   status: "success" | "failed" | "close";
   worstDrawdown: number;
-  bestYear: { year: number; return: number };
+  worstYear: number;
 }
 
 export interface BacktestResult {
@@ -32,8 +30,6 @@ export class Backtester {
 
   run(params: BacktestParams): BacktestResult {
     const { startYear, endYear } = this.historicalData.getAvailableYearRange();
-
-    // Determine the range of starting years
     const fromYear = params.startYearRange?.from ?? startYear;
     const toYear = params.startYearRange?.to ?? endYear - params.yearsToSimulate;
 
@@ -44,7 +40,7 @@ export class Backtester {
       periods.push(period);
     }
 
-    const successfulPeriods = periods.filter(p => p.status === "success").length;
+    const successfulPeriods = periods.filter((p) => p.status === "success").length;
 
     return {
       totalPeriods: periods.length,
@@ -59,38 +55,23 @@ export class Backtester {
     const annualWithdrawal = params.initialBalance * params.withdrawalRate;
     let peakBalance = balance;
     let worstDrawdown = 0;
-    let bestYearReturn = -Infinity;
-    let bestYear = { year: startYear, return: 0 };
-
+    let worstYear = startYear;
     let yearsLasted = 0;
 
     for (let year = 0; year < params.yearsToSimulate; year++) {
       const currentYear = startYear + year;
 
-      // Get historical stock return for this year
-      const stockReturn = this.historicalData.getReturnForYear(currentYear);
+      // Get portfolio return using prorated allocation
+      const portfolioReturn = this.historicalData.calculatePortfolioReturn(
+        params.assetAllocation,
+        currentYear
+      );
 
-      // If we don't have data for this year, stop simulation
-      if (stockReturn === null) {
+      if (portfolioReturn === null) {
         break;
       }
 
-      // Calculate portfolio return based on allocation
-      const portfolioReturn =
-        params.assetAllocation.stocks * stockReturn +
-        params.assetAllocation.bonds * BOND_RETURN;
-
-      // Apply return to balance
       balance = balance * (1 + portfolioReturn);
-
-      // Track best year
-      if (portfolioReturn > bestYearReturn) {
-        bestYearReturn = portfolioReturn;
-        bestYear = { year: currentYear, return: portfolioReturn };
-      }
-
-      // Withdraw after growth
-      balance -= annualWithdrawal;
 
       // Track drawdown
       if (balance > peakBalance) {
@@ -99,19 +80,20 @@ export class Backtester {
       const currentDrawdown = (peakBalance - balance) / peakBalance;
       if (currentDrawdown > worstDrawdown) {
         worstDrawdown = currentDrawdown;
+        worstYear = currentYear;
       }
 
+      // Withdraw
+      balance -= annualWithdrawal;
       yearsLasted++;
 
-      // Check if portfolio is depleted
       if (balance <= 0) {
         break;
       }
     }
 
-    // Determine status
     let status: "success" | "failed" | "close";
-    if (yearsLasted >= params.yearsToSimulate) {
+    if (yearsLasted >= params.yearsToSimulate && balance > 0) {
       status = "success";
     } else if (yearsLasted >= params.yearsToSimulate * 0.9) {
       status = "close";
@@ -125,7 +107,7 @@ export class Backtester {
       yearsLasted,
       status,
       worstDrawdown,
-      bestYear,
+      worstYear,
     };
   }
 }
