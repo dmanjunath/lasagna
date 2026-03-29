@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Building2, Plus, Trash2, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { api } from "../lib/api.js";
-import { useAuth } from "../lib/auth.js";
 import { Button } from "../components/ui/button.js";
 import { Section } from "../components/common/section.js";
 import { cn } from "../lib/utils.js";
@@ -36,22 +34,21 @@ interface PlaidItem {
 }
 
 export function Accounts() {
-  const { logout } = useAuth();
-  const [, navigate] = useLocation();
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
 
-  const loadItems = () => {
-    setLoading(true);
+  const loadItems = (showLoader = true) => {
+    if (showLoader) setLoading(true);
     api.getItems()
       .then((d) => setItems(d.items))
       .catch(() => setError("Failed to load accounts"))
       .finally(() => setLoading(false));
   };
 
-  useEffect(loadItems, []);
+  useEffect(() => loadItems(), []);
 
   const handleLink = async () => {
     setLinking(true);
@@ -70,12 +67,18 @@ export function Accounts() {
       const handler = Plaid.create({
         token: linkToken,
         onSuccess: async (publicToken: string, metadata: PlaidMetadata) => {
-          await api.exchangeToken({
-            publicToken,
-            institutionId: metadata.institution?.institution_id,
-            institutionName: metadata.institution?.name,
-          });
-          loadItems();
+          try {
+            await api.exchangeToken({
+              publicToken,
+              institutionId: metadata.institution?.institution_id,
+              institutionName: metadata.institution?.name,
+            });
+            loadItems(false);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to link account");
+          } finally {
+            setLinking(false);
+          }
         },
         onExit: () => setLinking(false),
       });
@@ -92,6 +95,19 @@ export function Accounts() {
     loadItems();
   };
 
+  const handleSyncAll = async () => {
+    setSyncing(true);
+    setError("");
+    try {
+      await api.triggerSync();
+      loadItems(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sync accounts");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const statusColors: Record<string, string> = {
     healthy: "bg-success/20 text-success",
     error: "bg-danger/20 text-danger",
@@ -105,23 +121,13 @@ export function Accounts() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-2xl md:text-3xl lg:text-4xl font-medium">
-              Linked Accounts
-            </h1>
-            <p className="text-text-muted mt-2">
-              Connect your bank accounts for real-time financial tracking
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" onClick={() => navigate("/")}>
-              Dashboard
-            </Button>
-            <Button variant="secondary" onClick={logout}>
-              Log Out
-            </Button>
-          </div>
+        <div>
+          <h1 className="font-display text-2xl md:text-3xl lg:text-4xl font-medium">
+            Linked Accounts
+          </h1>
+          <p className="text-text-muted mt-2">
+            Connect your bank accounts for real-time financial tracking
+          </p>
         </div>
       </motion.div>
 
@@ -136,7 +142,7 @@ export function Accounts() {
         </motion.div>
       )}
 
-      <div className="mb-8">
+      <div className="mb-8 flex items-center gap-3">
         <Button onClick={handleLink} disabled={linking}>
           {linking ? (
             <span className="flex items-center gap-2">
@@ -150,6 +156,21 @@ export function Accounts() {
             </span>
           )}
         </Button>
+        {items.length > 0 && (
+          <Button variant="secondary" onClick={handleSyncAll} disabled={syncing}>
+            {syncing ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Syncing...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Sync All Accounts
+              </span>
+            )}
+          </Button>
+        )}
       </div>
 
       <Section title="Your Institutions">
