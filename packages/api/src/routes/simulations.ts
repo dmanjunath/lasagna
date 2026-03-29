@@ -1,176 +1,136 @@
 import { Hono } from "hono";
-import { z } from "zod";
-import { db } from "../lib/db.js";
-import { plans, eq, and } from "@lasagna/core";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
-import { getMonteCarloEngine } from "../services/monte-carlo.js";
+import { getMonteCarloEngine, type AssetAllocation } from "../services/monte-carlo.js";
 import { getBacktester } from "../services/backtester.js";
-import { getScenarioEngine } from "../services/scenario.js";
 
 export const simulationsRouter = new Hono<AuthEnv>();
 simulationsRouter.use("*", requireAuth);
 
-// Validation schemas
-const uuidSchema = z.string().uuid();
-
-const assetAllocationSchema = z.object({
-  stocks: z.number().min(0).max(1),
-  bonds: z.number().min(0).max(1),
-  cash: z.number().min(0).max(1).optional(),
-});
-
-const fiveAssetAllocationSchema = z.object({
-  usStocks: z.number().min(0).max(1),
-  intlStocks: z.number().min(0).max(1),
-  bonds: z.number().min(0).max(1),
-  reits: z.number().min(0).max(1),
-  cash: z.number().min(0).max(1),
-});
-
-const monteCarloParamsSchema = z.object({
-  initialBalance: z.number().positive(),
-  withdrawalRate: z.number().min(0).max(1),
-  yearsToSimulate: z.number().int().positive(),
-  assetAllocation: assetAllocationSchema,
-  inflationAdjusted: z.boolean(),
-  numSimulations: z.number().int().positive().max(10000),
-});
-
-const backtestParamsSchema = z.object({
-  initialBalance: z.number().positive(),
-  withdrawalRate: z.number().min(0).max(1),
-  yearsToSimulate: z.number().int().positive(),
-  assetAllocation: fiveAssetAllocationSchema,
-  inflationAdjusted: z.boolean(),
-  startYearRange: z
-    .object({
-      from: z.number().int(),
-      to: z.number().int(),
-    })
-    .optional(),
-});
-
-const scenarioParamsSchema = z.object({
-  initialBalance: z.number().positive(),
-  withdrawalRate: z.number().min(0).max(1),
-  retirementDuration: z.number().int().positive(),
-  assetAllocation: assetAllocationSchema,
-  scenario: z.enum([
-    "crash_2008",
-    "great_depression",
-    "stagflation_70s",
-    "japan_lost_decade",
-    "custom",
-  ]),
-  customParams: z
-    .object({
-      yearOneReturn: z.number(),
-      subsequentReturns: z.number(),
-      inflationRate: z.number(),
-      durationYears: z.number().int().positive(),
-    })
-    .optional(),
-});
-
-const runSimulationSchema = z.object({
-  planId: z.string().uuid(),
-  type: z.enum(["monte_carlo", "backtest", "scenario"]),
-  params: z.union([
-    monteCarloParamsSchema,
-    backtestParamsSchema,
-    scenarioParamsSchema,
-  ]),
-});
-
-// POST /run - Run a simulation
-simulationsRouter.post("/run", async (c) => {
-  const { tenantId } = c.get("session");
-  const rawBody = await c.req.json();
-
-  const parseResult = runSimulationSchema.safeParse(rawBody);
-  if (!parseResult.success) {
-    return c.json(
-      { error: "Invalid request body", details: parseResult.error.issues },
-      400
-    );
+// Normalize allocation to sum to 100%
+function normalizeAllocation(allocation: AssetAllocation): AssetAllocation {
+  const total = allocation.usStocks + allocation.intlStocks + allocation.bonds + allocation.reits + allocation.cash;
+  if (total === 0) {
+    return { usStocks: 60, intlStocks: 0, bonds: 40, reits: 0, cash: 0 };
   }
-
-  const { planId, type, params } = parseResult.data;
-
-  // Verify plan exists and belongs to tenant
-  const [plan] = await db
-    .select({ id: plans.id })
-    .from(plans)
-    .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
-
-  if (!plan) {
-    return c.json({ error: "Plan not found" }, 404);
+  if (Math.abs(total - 100) < 0.01) {
+    return allocation;
   }
+  const scale = 100 / total;
+  return {
+    usStocks: allocation.usStocks * scale,
+    intlStocks: allocation.intlStocks * scale,
+    bonds: allocation.bonds * scale,
+    reits: allocation.reits * scale,
+    cash: allocation.cash * scale,
+  };
+}
 
+const SIMULATION_TIMEOUT_MS = 5000;
+
+simulationsRouter.post("/monte-carlo", async (c) => {
+  const body = await c.req.json<{
+    allocation: AssetAllocation;
+    initialValue: number;
+    annualWithdrawal: number;
+    years: number;
+    simulations?: number;
+    includeSamplePaths?: boolean;
+    numSamplePaths?: number;
+  }>();
+
+  const engine = getMonteCarloEngine();
+  const withdrawalRate = body.annualWithdrawal / body.initialValue;
+  const normalizedAllocation = normalizeAllocation(body.allocation);
+  const numSimulations = body.simulations || 10000;
+
+  // Run with timeout handling in batches
   const startTime = Date.now();
-  let result: unknown;
+  let completedSimulations = 0;
+  let timedOut = false;
+  const BATCH_SIZE = 1000;
+  let allResults: any[] = [];
 
-  try {
-    switch (type) {
-      case "monte_carlo": {
-        const mcEngine = getMonteCarloEngine();
-        const mcParams = params as z.infer<typeof monteCarloParamsSchema>;
-        result = mcEngine.run({
-          ...mcParams,
-          assetAllocation: {
-            stocks: mcParams.assetAllocation.stocks,
-            bonds: mcParams.assetAllocation.bonds,
-            cash: mcParams.assetAllocation.cash ?? 0,
-          },
-        });
-        break;
-      }
-      case "backtest": {
-        const backtester = getBacktester();
-        const btParams = params as z.infer<typeof backtestParamsSchema>;
-        result = backtester.run({
-          ...btParams,
-          assetAllocation: btParams.assetAllocation,
-        });
-        break;
-      }
-      case "scenario": {
-        const scenarioEngine = getScenarioEngine();
-        const scParams = params as z.infer<typeof scenarioParamsSchema>;
-        result = scenarioEngine.run({
-          ...scParams,
-          assetAllocation: {
-            stocks: scParams.assetAllocation.stocks,
-            bonds: scParams.assetAllocation.bonds,
-            cash: scParams.assetAllocation.cash ?? 0,
-          },
-        });
-        break;
-      }
-      default:
-        return c.json({ error: "Invalid simulation type" }, 400);
+  while (completedSimulations < numSimulations) {
+    if (Date.now() - startTime > SIMULATION_TIMEOUT_MS) {
+      timedOut = true;
+      break;
     }
-  } catch (error) {
-    console.error("Simulation error:", error);
-    return c.json(
-      {
-        error: "Simulation failed",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      500
-    );
+
+    const batchSize = Math.min(BATCH_SIZE, numSimulations - completedSimulations);
+    const batchResult = engine.run({
+      initialBalance: body.initialValue,
+      withdrawalRate,
+      yearsToSimulate: body.years,
+      assetAllocation: normalizedAllocation,
+      inflationAdjusted: true,
+      numSimulations: batchSize,
+      includeSamplePaths: body.includeSamplePaths && completedSimulations === 0,
+      numSamplePaths: body.numSamplePaths,
+    });
+
+    allResults.push(batchResult);
+    completedSimulations += batchSize;
   }
 
-  const endTime = Date.now();
-  const executionTimeMs = endTime - startTime;
+  const combinedResult = combineMonteCarloResults(allResults, completedSimulations);
+
+  if (timedOut) {
+    return c.json({
+      ...combinedResult,
+      warning: `Simulation timed out. Results based on ${completedSimulations} of ${numSimulations} simulations.`,
+    });
+  }
+
+  return c.json(combinedResult);
+});
+
+function combineMonteCarloResults(results: any[], totalSimulations: number) {
+  if (results.length === 0) return { successRate: 0, percentiles: {}, histogram: [] };
+  if (results.length === 1) return results[0];
+
+  const totalSuccesses = results.reduce((sum, r) => sum + (r.successRate * (r.numSimulations || 1000)), 0);
+  const successRate = totalSuccesses / totalSimulations;
+  const percentiles = results[0].percentiles;
+
+  const histogramMap = new Map<string, { count: number; status: string }>();
+  for (const result of results) {
+    for (const bucket of result.histogram || []) {
+      const existing = histogramMap.get(bucket.bucket);
+      if (existing) existing.count += bucket.count;
+      else histogramMap.set(bucket.bucket, { count: bucket.count, status: bucket.status });
+    }
+  }
+  const histogram = Array.from(histogramMap.entries()).map(([bucket, data]) => ({ bucket, ...data }));
+
+  return { successRate, percentiles, histogram, paths: results[0].paths };
+}
+
+simulationsRouter.post("/backtest", async (c) => {
+  const body = await c.req.json<{
+    allocation: AssetAllocation;
+    initialValue: number;
+    annualWithdrawal: number;
+    years: number;
+  }>();
+
+  const backtester = getBacktester();
+  const withdrawalRate = body.annualWithdrawal / body.initialValue;
+  const normalizedAllocation = normalizeAllocation(body.allocation);
+
+  const result = backtester.run({
+    initialBalance: body.initialValue,
+    withdrawalRate,
+    yearsToSimulate: body.years,
+    assetAllocation: normalizedAllocation,
+    inflationAdjusted: true,
+  });
 
   return c.json({
-    planId,
-    type,
-    result,
-    timing: {
-      executionTimeMs,
-      timestamp: new Date().toISOString(),
+    summary: {
+      periodsRun: result.totalPeriods,
+      periodsSucceeded: result.successfulPeriods,
+      successRate: result.successRate,
     },
+    periods: result.periods,
   });
 });
