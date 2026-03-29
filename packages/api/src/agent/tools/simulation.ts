@@ -34,7 +34,7 @@ export function createSimulationTools(tenantId: string) {
         if (tenantAccounts.length === 0) {
           return {
             totalBalance: 0,
-            allocation: { stocks: 0, bonds: 0, cash: 0 },
+            allocation: { usStocks: 0, intlStocks: 0, bonds: 0, reits: 0, cash: 0 },
             accounts: [],
           };
         }
@@ -112,11 +112,13 @@ export function createSimulationTools(tenantId: string) {
         const allocation =
           investmentTotal > 0
             ? {
-                stocks: stocksValue / investmentTotal,
+                usStocks: stocksValue / investmentTotal,
+                intlStocks: 0,
                 bonds: bondsValue / investmentTotal,
+                reits: 0,
                 cash: cashValue / investmentTotal,
               }
-            : { stocks: 0.6, bonds: 0.3, cash: 0.1 }; // Default allocation
+            : { usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 }; // Default allocation
 
         return {
           totalBalance,
@@ -144,21 +146,25 @@ export function createSimulationTools(tenantId: string) {
           .describe("Annual withdrawal as percentage (e.g., 0.04 for 4%)"),
         yearsToSimulate: z.number().int().positive(),
         assetAllocation: z.object({
-          stocks: z.number().min(0).max(1),
+          usStocks: z.number().min(0).max(1),
+          intlStocks: z.number().min(0).max(1),
           bonds: z.number().min(0).max(1),
+          reits: z.number().min(0).max(1),
           cash: z.number().min(0).max(1),
-        }).default({ stocks: 0.6, bonds: 0.3, cash: 0.1 }),
+        }).default({ usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 }),
         inflationAdjusted: z.boolean().default(true),
         numSimulations: z.number().int().positive().default(1000),
       }),
       execute: async (params) => {
         // Use default allocation if not provided or malformed
-        const allocation = params.assetAllocation ?? { stocks: 0.6, bonds: 0.3, cash: 0.1 };
+        const allocation = params.assetAllocation ?? { usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 };
 
         // Validate allocation sums to 1
         const allocationSum =
-          allocation.stocks +
+          allocation.usStocks +
+          allocation.intlStocks +
           allocation.bonds +
+          allocation.reits +
           allocation.cash;
         if (Math.abs(allocationSum - 1) > 0.01) {
           return {
@@ -213,9 +219,12 @@ export function createSimulationTools(tenantId: string) {
           .describe("Annual withdrawal as percentage (e.g., 0.04 for 4%)"),
         yearsToSimulate: z.number().int().positive(),
         assetAllocation: z.object({
-          stocks: z.number().min(0).max(1),
+          usStocks: z.number().min(0).max(1),
+          intlStocks: z.number().min(0).max(1),
           bonds: z.number().min(0).max(1),
-        }).default({ stocks: 0.6, bonds: 0.4 }),
+          reits: z.number().min(0).max(1),
+          cash: z.number().min(0).max(1),
+        }).default({ usStocks: 0.6, intlStocks: 0, bonds: 0.4, reits: 0, cash: 0 }),
         inflationAdjusted: z.boolean().default(true),
         startYearRange: z
           .object({
@@ -226,11 +235,15 @@ export function createSimulationTools(tenantId: string) {
       }),
       execute: async (params) => {
         // Use default allocation if not provided or malformed
-        const allocation = params.assetAllocation ?? { stocks: 0.6, bonds: 0.4 };
+        const allocation = params.assetAllocation ?? { usStocks: 0.6, intlStocks: 0, bonds: 0.4, reits: 0, cash: 0 };
 
         // Validate allocation sums to 1
         const allocationSum =
-          allocation.stocks + allocation.bonds;
+          allocation.usStocks +
+          allocation.intlStocks +
+          allocation.bonds +
+          allocation.reits +
+          allocation.cash;
         if (Math.abs(allocationSum - 1) > 0.01) {
           return {
             error: "Asset allocation must sum to 1 (100%)",
@@ -280,10 +293,12 @@ export function createSimulationTools(tenantId: string) {
           .describe("Annual withdrawal as percentage (e.g., 0.04 for 4%)"),
         retirementDuration: z.number().int().positive(),
         assetAllocation: z.object({
-          stocks: z.number().min(0).max(1),
+          usStocks: z.number().min(0).max(1),
+          intlStocks: z.number().min(0).max(1),
           bonds: z.number().min(0).max(1),
+          reits: z.number().min(0).max(1),
           cash: z.number().min(0).max(1),
-        }).default({ stocks: 0.6, bonds: 0.3, cash: 0.1 }),
+        }).default({ usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 }),
         scenario: z.enum([
           "crash_2008",
           "great_depression",
@@ -302,12 +317,14 @@ export function createSimulationTools(tenantId: string) {
       }),
       execute: async (params) => {
         // Use default allocation if not provided or malformed
-        const allocation = params.assetAllocation ?? { stocks: 0.6, bonds: 0.3, cash: 0.1 };
+        const allocation = params.assetAllocation ?? { usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 };
 
         // Validate allocation sums to 1
         const allocationSum =
-          allocation.stocks +
+          allocation.usStocks +
+          allocation.intlStocks +
           allocation.bonds +
+          allocation.reits +
           allocation.cash;
         if (Math.abs(allocationSum - 1) > 0.01) {
           return {

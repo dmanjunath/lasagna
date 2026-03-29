@@ -12,8 +12,10 @@ export interface ScenarioParams {
   withdrawalRate: number;
   retirementDuration: number;
   assetAllocation: {
-    stocks: number;
+    usStocks: number;
+    intlStocks: number;
     bonds: number;
+    reits: number;
     cash: number;
   };
   scenario: ScenarioType;
