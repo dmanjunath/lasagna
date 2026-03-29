@@ -12,6 +12,8 @@ import { chatRouter } from "./routes/chat.js";
 import { chatRouterV2 } from "./routes/chat-v2.js";
 import { taxRouter } from "./routes/tax.js";
 import { simulationsRouter } from "./routes/simulations.js";
+import { settingsRoutes } from "./routes/settings.js";
+import { portfolioRoutes } from "./routes/portfolio.js";
 
 export const app = new Hono();
 
@@ -33,3 +35,5 @@ app.route("/api/chat", chatRouter);
 app.route("/api/chat/v2", chatRouterV2);
 app.route("/api/tax", taxRouter);
 app.route("/api/simulations", simulationsRouter);
+app.route("/api/settings", settingsRoutes);
+app.route("/api/portfolio", portfolioRoutes);
