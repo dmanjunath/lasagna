@@ -184,4 +184,66 @@ export const api = {
 
   deleteTaxDocument: (id: string) =>
     request<{ success: boolean }>(`/tax/documents/${id}`, { method: "DELETE" }),
+
+  // Settings
+  getProfile: () =>
+    request<{
+      profile: {
+        email: string;
+        name: string | null;
+        plan: string;
+        createdAt: string;
+      };
+    }>("/settings/profile"),
+
+  updateProfile: (data: { name?: string }) =>
+    request<{
+      profile: { name: string | null; plan: string };
+    }>("/settings/profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    request<{ ok: boolean }>("/settings/change-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Portfolio
+  getPortfolioComposition: () =>
+    request<{
+      totalValue: number;
+      assetClasses: Array<{
+        name: string;
+        value: number;
+        percentage: number;
+        color: string;
+        subCategories: Array<{
+          name: string;
+          value: number;
+          percentage: number;
+          holdings: Array<{
+            ticker: string;
+            name: string;
+            shares: number;
+            value: number;
+            costBasis: number | null;
+            account: string;
+          }>;
+        }>;
+      }>;
+    }>("/portfolio/composition"),
+
+  getPortfolioAllocation: () =>
+    request<{
+      allocation: {
+        usStocks: number;
+        intlStocks: number;
+        bonds: number;
+        reits: number;
+        cash: number;
+      };
+      totalValue: number;
+    }>("/portfolio/allocation"),
 };
