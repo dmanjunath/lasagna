@@ -25,9 +25,13 @@ Holdings (from Plaid)
   → Visualization
 ```
 
+### Holdings Snapshot Selection
+
+Use the most recent `snapshotAt` timestamp for each holding. The holdings table may contain multiple snapshots over time; always select the latest snapshot per holding to get current portfolio state.
+
 ### Ticker Normalization
 
-Hardcoded mapping of ~150+ tickers to asset categories. Categories use a three-level hierarchy:
+Hardcoded mapping of tickers to asset categories. The mapping file will include the following tickers (comprehensive list for MVP):
 
 **Level 1: Asset Class**
 - US Stocks
@@ -37,16 +41,38 @@ Hardcoded mapping of ~150+ tickers to asset categories. Categories use a three-l
 - Cash/Money Market
 - Other
 
-**Level 2: Sub-Category** (examples for US Stocks)
-- Total Market (VTI, VTSAX, ITOT, SWTSX, FSKAX, FZROX)
-- S&P 500 (VOO, VFIAX, SPY, IVV, FXAIX, SWPPX)
-- Growth (VUG, VIGAX, VOOG, IWF, SCHG)
-- Value (VTV, VVIAX, VOOV, IWD, SCHV)
-- Small Cap (VB, VSMAX, IJR, SCHA)
-- Mid Cap (VO, VIMAX, IJH, SCHM)
-- Dividend (VYM, VHYAX, SCHD, DVY)
+**Level 2: Sub-Category** with specific tickers:
 
-Similar sub-categories exist for International (Developed, Emerging, Total), Bonds (Total, Corporate, Government, TIPS, Municipal), REITs (US, International), and Cash.
+**US Stocks:**
+- Total Market: VTI, VTSAX, ITOT, SWTSX, FSKAX, FZROX, VTSMX
+- S&P 500: VOO, VFIAX, SPY, IVV, FXAIX, SWPPX, VFINX
+- Growth: VUG, VIGAX, VOOG, IWF, SCHG, QQQ, QQQM
+- Value: VTV, VVIAX, VOOV, IWD, SCHV
+- Small Cap: VB, VSMAX, IJR, SCHA, VBR, VISVX
+- Mid Cap: VO, VIMAX, IJH, SCHM
+- Dividend: VYM, VHYAX, SCHD, DVY
+
+**International Stocks:**
+- Developed: VEA, VXUS, IXUS, EFA, IEFA, SWISX
+- Emerging: VWO, VEMAX, IEMG, EEM, SCHE
+- Total International: VXUS, VTIAX, IXUS, FZILX
+
+**Bonds:**
+- Total Bond: BND, VBTLX, AGG, SCHZ, FXNAX
+- Corporate: VCIT, LQD, VCLT
+- Government: VGIT, GOVT, IEF, TLT, VGLT
+- TIPS: VTIP, TIP, SCHP, VAIPX
+- Municipal: VTEB, MUB, VWITX
+
+**REITs:**
+- US REITs: VNQ, VGSLX, IYR, SCHH, FREL
+- International REITs: VNQI, VGRLX
+
+**Cash/Money Market:**
+- Money Market: VMFXX, SPAXX, FDRXX, SWVXX
+- Short-Term: VGSH, SHY, BIL, SGOV
+
+**Unmapped Tickers:** Any ticker not in the mapping is placed in "Other" asset class with sub-category matching the security type from Plaid (equity, fixed income, etc.) or "Unknown" if unavailable.
 
 **Level 3: Individual Holdings**
 - The actual tickers/positions with quantities and values
@@ -114,6 +140,11 @@ Answer the core FIRE question: "Given my actual portfolio, what's my chance of n
 Extended with supplementary data for:
 - International Stocks (MSCI EAFE, 1970+)
 - REITs (NAREIT, 1972+)
+
+**Missing Data Handling:** For years before International (pre-1970) or REIT (pre-1972) data exists, prorate the allocation across available asset classes. Example: If portfolio is 50% US, 20% Intl, 20% Bonds, 10% REIT and simulating 1960:
+- Intl + REIT allocation (30%) is redistributed proportionally to US and Bonds
+- Effective 1960 allocation: ~64% US, ~36% Bonds
+- This applies to both Monte Carlo and backtest calculations
 
 ### Simulation Parameters
 
@@ -239,11 +270,14 @@ services/
   historical-data.ts           # Embedded return data
 ```
 
-**Core (packages/core/src/)**
+**Backend Data (packages/api/data/)**
 ```
-data/
-  historical-returns.json      # Embedded 1928-2024 data
-  ticker-categories.ts         # Shared ticker mapping
+historical-returns.json        # Embedded 1928-2024 multi-asset return data
+```
+
+**Shared (packages/core/src/)**
+```
+ticker-categories.ts           # Shared ticker → category mapping
 ```
 
 ### API Endpoints
@@ -351,19 +385,48 @@ interface BacktestResult {
 
 ### Existing Infrastructure to Leverage
 
-- `monte-carlo.ts` - Has core simulation engine, needs allocation support
-- `backtester.ts` - Has backtest logic, needs multi-asset support
-- `historical-data.ts` - Has some data, needs expansion
-- `DonutChart` component - Already exists
-- `AreaChart` component - Can be extended for fan chart
+- `monte-carlo.ts` - Has core simulation engine with 3 asset classes (stocks/bonds/cash). **Requires extension** to support 5 asset classes (usStocks/intlStocks/bonds/reits/cash), add p25/p75 percentile calculation (currently only has p5/p50/p95), and return sample paths for spaghetti visualization.
+- `backtester.ts` - Has backtest logic with 3 asset classes. **Requires extension** to support 5 asset classes and handle missing historical data via proration.
+- `historical-data.ts` - Loads from `packages/api/data/shiller-historical.json`. **Requires extension** to include international stocks and REIT return series. Historical data JSON file should be placed at `packages/api/data/historical-returns.json`.
+- `DonutChart` component - Already exists, can be reused
+- `AreaChart` component - Can be extended for fan chart with percentile bands
 
 ### Navigation
 
-Add to sidebar (packages/web/src/components/layout/sidebar.tsx):
-- "Portfolio" - links to /portfolio
-- "Probability" - links to /probability
+Add to sidebar (packages/web/src/components/layout/sidebar.tsx) under a new "Analysis" section below Dashboard items:
 
-Both under a new "Analysis" section below Dashboard items.
+| Name | Icon | Path |
+|------|------|------|
+| Portfolio | PieChart (lucide) | /portfolio |
+| Probability | Target (lucide) | /probability |
+
+Analysis section appears after the fixed Dashboard tabs and before "Your Plans".
+
+## Error Handling
+
+- **Unmapped tickers**: Place in "Other" category, don't fail
+- **Missing historical data**: Prorate allocation (see Missing Data Handling above)
+- **Allocation doesn't sum to 100%**: Normalize to 100% before running simulations
+- **No holdings linked**: Show empty state directing user to link accounts
+- **Simulation timeout**: If Monte Carlo takes >5s, return partial results with warning
+
+## Color Scheme
+
+Consistent colors across both pages:
+
+| Asset Class | Color | Hex |
+|-------------|-------|-----|
+| US Stocks | Green | #4ade80 |
+| Intl Stocks | Blue | #60a5fa |
+| Bonds | Amber | #f59e0b |
+| REITs | Purple | #8b5cf6 |
+| Cash | Pink | #ec4899 |
+| Other | Stone | #a8a29e |
+
+Success indicators:
+- Success: Green #4ade80
+- Close (within 10% of failure): Amber #f59e0b
+- Failure: Red #ef4444
 
 ## Out of Scope
 
