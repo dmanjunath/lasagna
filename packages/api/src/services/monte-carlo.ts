@@ -325,7 +325,7 @@ export class MonteCarloEngine {
     numPaths: number
   ): number[][] {
     // Select evenly spaced simulations to get a representative sample
-    const step = Math.floor(simulations.length / numPaths);
+    const step = Math.max(1, Math.floor(simulations.length / numPaths));
     const paths: number[][] = [];
 
     for (let i = 0; i < numPaths && i * step < simulations.length; i++) {
