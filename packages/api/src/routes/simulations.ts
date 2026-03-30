@@ -120,15 +120,15 @@ simulationsRouter.post("/backtest", async (c) => {
   }
 
   const backtester = getBacktester();
-  const withdrawalRate = body.annualWithdrawal / body.initialValue;
   const normalizedAllocation = normalizeAllocation(body.allocation);
 
   const result = backtester.run({
     initialBalance: body.initialValue,
-    withdrawalRate,
+    annualWithdrawal: body.annualWithdrawal,
     yearsToSimulate: body.years,
     assetAllocation: normalizedAllocation,
-    inflationAdjusted: true,
+    strategy: "constant_dollar",
+    strategyParams: { inflationAdjusted: true },
   });
 
   // Calculate average final value from successful periods

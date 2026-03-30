@@ -264,10 +264,11 @@ export function createSimulationTools(tenantId: string) {
         const backtester = getBacktester();
         const result = backtester.run({
           initialBalance: params.initialBalance,
-          withdrawalRate: params.withdrawalRate,
+          annualWithdrawal: params.initialBalance * params.withdrawalRate,
           yearsToSimulate: params.yearsToSimulate,
           assetAllocation: allocation,
-          inflationAdjusted: params.inflationAdjusted,
+          strategy: "constant_dollar",
+          strategyParams: { inflationAdjusted: params.inflationAdjusted },
           startYearRange: params.startYearRange,
         });
 
