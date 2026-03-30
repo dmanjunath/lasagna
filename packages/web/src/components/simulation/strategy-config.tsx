@@ -24,6 +24,8 @@ interface StrategyConfigProps {
   strategy: StrategyType;
   params: StrategyParams;
   annualSpending: number;
+  monthlySpend: number;
+  onMonthlySpendChange: (v: number) => void;
   onStrategyChange: (s: StrategyType) => void;
   onParamsChange: (p: StrategyParams) => void;
 }
@@ -93,17 +95,43 @@ function SliderField({
 
 function ConstantDollarControls({
   params,
-  annualSpending,
+  monthlySpend,
+  onMonthlySpendChange,
   onParamsChange,
 }: {
   params: StrategyParams;
-  annualSpending: number;
+  monthlySpend: number;
+  onMonthlySpendChange: (v: number) => void;
   onParamsChange: (p: StrategyParams) => void;
 }) {
   const inflationAdjusted = params.inflationAdjusted ?? true;
 
   return (
     <div className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-text-secondary">
+          Monthly Spending
+        </label>
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+          <input
+            type="number"
+            value={monthlySpend}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v) && v >= 0) onMonthlySpendChange(v);
+            }}
+            min={0}
+            max={100000}
+            className="w-full bg-surface rounded-xl border border-border pl-8 pr-4 py-3 text-text tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+        </div>
+        <p className="text-xs text-text-muted">
+          ${(monthlySpend * 12).toLocaleString()}/yr
+          {inflationAdjusted ? ", adjusted for inflation each year" : ""}
+        </p>
+      </div>
+
       <label className="flex items-center gap-3 cursor-pointer">
         <input
           type="checkbox"
@@ -117,11 +145,6 @@ function ConstantDollarControls({
           Adjust for inflation
         </span>
       </label>
-      <p className="text-xs text-text-muted mt-1">
-        Withdraw a fixed amount each year ($
-        {annualSpending.toLocaleString()}/yr), optionally adjusted for
-        inflation.
-      </p>
     </div>
   );
 }
@@ -320,6 +343,8 @@ export function StrategyConfig({
   strategy,
   params,
   annualSpending,
+  monthlySpend,
+  onMonthlySpendChange,
   onStrategyChange,
   onParamsChange,
 }: StrategyConfigProps) {
@@ -346,7 +371,8 @@ export function StrategyConfig({
         {strategy === "constant_dollar" && (
           <ConstantDollarControls
             params={params}
-            annualSpending={annualSpending}
+            monthlySpend={monthlySpend}
+            onMonthlySpendChange={onMonthlySpendChange}
             onParamsChange={onParamsChange}
           />
         )}

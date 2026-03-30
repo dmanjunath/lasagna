@@ -155,7 +155,12 @@ export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
               border: `1px solid ${colors.border.DEFAULT}`,
               borderRadius: '12px',
               fontSize: '13px',
+              color: colors.text.DEFAULT,
             }}
+            itemStyle={{ color: colors.text.DEFAULT }}
+            labelStyle={{ color: colors.text.muted }}
+            wrapperStyle={{ outline: 'none' }}
+            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
             formatter={(value: any, _name: any, props: any) => {
               const pct = totalSimulations > 0
                 ? ((value as number) / totalSimulations * 100).toFixed(1)

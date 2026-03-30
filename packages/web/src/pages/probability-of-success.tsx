@@ -343,16 +343,13 @@ export function ProbabilityOfSuccess() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
-      {/* Editable Stat Cards */}
-      <div className={cn("grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 md:mb-8", simulating && "opacity-50 pointer-events-none")}>
-        <EditableStatCard
+      {/* Stat Cards */}
+      <div className={cn("grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 md:mb-8", simulating && "opacity-50 pointer-events-none")}>
+        <StatCard
           icon={Wallet}
           label="Portfolio Value"
-          value={totalValue}
-          prefix="$"
-          min={0}
-          max={100000000}
-          onChange={setTotalValue}
+          value={`$${Math.round(totalValue).toLocaleString()}`}
+          delay={0}
         />
         <EditableStatCard
           icon={Calendar}
@@ -370,15 +367,6 @@ export function ProbabilityOfSuccess() {
           max={200}
           onChange={setLifeExpectancy}
         />
-        <EditableStatCard
-          icon={Wallet}
-          label="Monthly Spend"
-          value={monthlySpend}
-          prefix="$"
-          min={500}
-          max={50000}
-          onChange={setMonthlySpend}
-        />
       </div>
 
       {/* Withdrawal Strategy */}
@@ -393,6 +381,8 @@ export function ProbabilityOfSuccess() {
             strategy={strategy}
             params={strategyParams}
             annualSpending={monthlySpend * 12}
+            monthlySpend={monthlySpend}
+            onMonthlySpendChange={setMonthlySpend}
             onStrategyChange={setStrategy}
             onParamsChange={setStrategyParams}
           />
@@ -630,8 +620,11 @@ export function ProbabilityOfSuccess() {
 
       {/* Historical Backtest Table */}
       {backtestPeriods.length > 0 && !simulating && (
-        <Section title="Historical Backtest Analysis">
+        <Section title="Historical Backtest">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card rounded-2xl p-4 md:p-6">
+            <p className="text-xs text-text-muted mb-4">
+              Tests your plan against every historical period since 1928. Results may differ from Monte Carlo because MC generates random scenarios including ones that never actually occurred.
+            </p>
             <BacktestTable
               periods={backtestPeriods}
               useRealDollars={useRealDollars}
