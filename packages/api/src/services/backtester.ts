@@ -1,12 +1,26 @@
 import { getHistoricalDataService, type Allocation } from "./historical-data.js";
+import { computeWithdrawal, type StrategyType, type StrategyParams } from "./withdrawal-strategies.js";
 
 export interface BacktestParams {
   initialBalance: number;
-  withdrawalRate: number;
+  annualWithdrawal: number;
   yearsToSimulate: number;
   assetAllocation: Allocation;
-  inflationAdjusted: boolean;
+  strategy?: StrategyType;
+  strategyParams?: StrategyParams;
   startYearRange?: { from: number; to: number };
+}
+
+export interface YearDetail {
+  year: number;
+  portfolioValue: number;
+  portfolioValueReal: number;
+  marketReturn: number;
+  withdrawalAmount: number;
+  withdrawalAmountReal: number;
+  cumulativeInflation: number;
+  withdrawalSource?: string;
+  notes: string[];
 }
 
 export interface BacktestPeriod {
@@ -16,6 +30,7 @@ export interface BacktestPeriod {
   status: "success" | "failed" | "close";
   worstDrawdown: number;
   worstYear: number;
+  yearByYear: YearDetail[];
 }
 
 export interface BacktestResult {
@@ -24,6 +39,9 @@ export interface BacktestResult {
   successRate: number;
   periods: BacktestPeriod[];
 }
+
+const ASSET_CLASSES = ["usStocks", "intlStocks", "bonds", "reits", "cash"] as const;
+type AssetClass = (typeof ASSET_CLASSES)[number];
 
 export class Backtester {
   private historicalData = getHistoricalDataService();
@@ -51,49 +69,148 @@ export class Backtester {
   }
 
   private simulatePeriod(params: BacktestParams, startYear: number): BacktestPeriod {
-    let balance = params.initialBalance;
-    const annualWithdrawal = params.initialBalance * params.withdrawalRate;
-    let peakBalance = balance;
+    const strategy: StrategyType = params.strategy ?? "constant_dollar";
+    const strategyParams: StrategyParams = params.strategyParams ?? { inflationAdjusted: true };
+
+    // Initialize per-class dollar balances
+    const proratedInitial = this.historicalData.prorateAllocation(params.assetAllocation, startYear);
+    const balances: Record<AssetClass, number> = {
+      usStocks: params.initialBalance * proratedInitial.usStocks,
+      intlStocks: params.initialBalance * proratedInitial.intlStocks,
+      bonds: params.initialBalance * proratedInitial.bonds,
+      reits: params.initialBalance * proratedInitial.reits,
+      cash: params.initialBalance * proratedInitial.cash,
+    };
+
+    let peakBalance = params.initialBalance;
     let worstDrawdown = 0;
     let worstYear = startYear;
     let yearsLasted = 0;
+    let cumulativeInflation = 1.0;
+    let previousWithdrawal: number | undefined;
+
+    const yearByYear: YearDetail[] = [];
 
     for (let year = 0; year < params.yearsToSimulate; year++) {
       const currentYear = startYear + year;
 
-      // Get portfolio return using prorated allocation
-      const portfolioReturn = this.historicalData.calculatePortfolioReturn(
-        params.assetAllocation,
-        currentYear
-      );
-
-      if (portfolioReturn === null) {
+      const returns = this.historicalData.getReturnsForYear(currentYear);
+      if (!returns) {
         break;
       }
 
-      balance = balance * (1 + portfolioReturn);
+      // Prorate allocation for this year (handles missing intl/reits data)
+      const proratedAlloc = this.historicalData.prorateAllocation(params.assetAllocation, currentYear);
+
+      // Apply per-class returns
+      const usReturn = returns.usStocks;
+      const intlReturn = returns.intlStocks ?? 0;
+      const bondsReturn = returns.bonds;
+      const reitsReturn = returns.reits ?? 0;
+      const cashReturn = returns.cash;
+
+      balances.usStocks *= (1 + usReturn);
+      balances.intlStocks *= (1 + intlReturn);
+      balances.bonds *= (1 + bondsReturn);
+      balances.reits *= (1 + reitsReturn);
+      balances.cash *= (1 + cashReturn);
+
+      const totalBalance = ASSET_CLASSES.reduce((s, k) => s + balances[k], 0);
+
+      // Compute weighted portfolio return
+      const prevTotal = totalBalance / (1 + this.weightedReturn(balances, {
+        usStocks: usReturn, intlStocks: intlReturn, bonds: bondsReturn, reits: reitsReturn, cash: cashReturn,
+      }));
+      const marketReturn = prevTotal > 0 ? (totalBalance - prevTotal) / prevTotal : 0;
+
+      // Compute equity return (weighted avg of US + intl stock returns by their pre-return balances)
+      const preUs = balances.usStocks / (1 + usReturn);
+      const preIntl = balances.intlStocks / (1 + intlReturn);
+      const equityTotal = preUs + preIntl;
+      const equityReturn = equityTotal > 0
+        ? (preUs * usReturn + preIntl * intlReturn) / equityTotal
+        : usReturn;
 
       // Track drawdown
-      if (balance > peakBalance) {
-        peakBalance = balance;
+      if (totalBalance > peakBalance) {
+        peakBalance = totalBalance;
       }
-      const currentDrawdown = (peakBalance - balance) / peakBalance;
+      const currentDrawdown = (peakBalance - totalBalance) / peakBalance;
       if (currentDrawdown > worstDrawdown) {
         worstDrawdown = currentDrawdown;
         worstYear = currentYear;
       }
 
-      // Withdraw
-      balance -= annualWithdrawal;
+      // Update cumulative inflation
+      cumulativeInflation *= (1 + returns.inflation);
+
+      // Build current allocation as dollar amounts for withdrawal context
+      const currentAllocation: Record<string, number> = {};
+      for (const k of ASSET_CLASSES) {
+        currentAllocation[k] = balances[k];
+      }
+
+      // Compute withdrawal
+      const withdrawalResult = computeWithdrawal(strategy, strategyParams, {
+        currentBalance: totalBalance,
+        initialBalance: params.initialBalance,
+        year: year + 1,
+        annualWithdrawal: params.annualWithdrawal,
+        cumulativeInflation,
+        yearInflationRate: returns.inflation,
+        equityReturn,
+        currentAllocation,
+        previousWithdrawal,
+      });
+
+      const withdrawalAmount = withdrawalResult.amount;
+      previousWithdrawal = withdrawalAmount;
+
+      // Apply withdrawal to balances
+      if (strategy === "rules_based" && withdrawalResult.allocationAfterWithdrawal) {
+        // Rules-based: use the allocation returned by the strategy (no rebalance)
+        for (const k of ASSET_CLASSES) {
+          balances[k] = withdrawalResult.allocationAfterWithdrawal[k] ?? 0;
+        }
+      } else {
+        // Other strategies: subtract proportionally, then rebalance to target
+        const balanceAfterWithdrawal = totalBalance - withdrawalAmount;
+        if (balanceAfterWithdrawal > 0) {
+          for (const k of ASSET_CLASSES) {
+            balances[k] = balanceAfterWithdrawal * proratedAlloc[k];
+          }
+        } else {
+          for (const k of ASSET_CLASSES) {
+            balances[k] = 0;
+          }
+        }
+      }
+
+      const postWithdrawalBalance = ASSET_CLASSES.reduce((s, k) => s + balances[k], 0);
+
       yearsLasted++;
 
-      if (balance <= 0) {
+      yearByYear.push({
+        year: currentYear,
+        portfolioValue: postWithdrawalBalance,
+        portfolioValueReal: postWithdrawalBalance / cumulativeInflation,
+        marketReturn,
+        withdrawalAmount,
+        withdrawalAmountReal: withdrawalAmount / cumulativeInflation,
+        cumulativeInflation,
+        withdrawalSource: withdrawalResult.source,
+        notes: withdrawalResult.notes,
+      });
+
+      if (postWithdrawalBalance <= 0) {
         break;
       }
     }
 
+    const finalBalance = ASSET_CLASSES.reduce((s, k) => s + balances[k], 0);
+
     let status: "success" | "failed" | "close";
-    if (yearsLasted >= params.yearsToSimulate && balance > 0) {
+    if (yearsLasted >= params.yearsToSimulate && finalBalance > 0) {
       status = "success";
     } else if (yearsLasted >= params.yearsToSimulate * 0.9) {
       status = "close";
@@ -103,12 +220,31 @@ export class Backtester {
 
     return {
       startYear,
-      endBalance: Math.max(0, balance),
+      endBalance: Math.max(0, finalBalance),
       yearsLasted,
       status,
       worstDrawdown,
       worstYear,
+      yearByYear,
     };
+  }
+
+  /**
+   * Compute the weighted return given current (post-return) balances and per-class returns.
+   * Used to back-derive the pre-return total for market return calculation.
+   */
+  private weightedReturn(
+    postBalances: Record<AssetClass, number>,
+    returns: Record<AssetClass, number>
+  ): number {
+    let preTotal = 0;
+    let growth = 0;
+    for (const k of ASSET_CLASSES) {
+      const pre = postBalances[k] / (1 + returns[k]);
+      preTotal += pre;
+      growth += pre * returns[k];
+    }
+    return preTotal > 0 ? growth / preTotal : 0;
   }
 }
 
