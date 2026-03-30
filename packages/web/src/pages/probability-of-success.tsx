@@ -8,10 +8,14 @@ import { usePageContext } from "../lib/page-context";
 import { FanChart } from "../components/charts/fan-chart";
 import { SpaghettiChart } from "../components/charts/spaghetti-chart";
 import { HistogramChart } from "../components/charts/histogram-chart";
-import { RollingPeriodsChart } from "../components/charts/rolling-periods-chart";
+import { StrategyConfig } from "../components/simulation/strategy-config";
+import type { StrategyType, StrategyParams } from "../components/simulation/strategy-config";
+import { BacktestTable } from "../components/simulation/backtest-table";
+import type { BacktestPeriod } from "../components/simulation/backtest-table";
 import { Button } from "../components/ui/button";
 import { Section } from "../components/common/section";
 import { StatCard } from "../components/common/stat-card";
+import { EditableStatCard } from "../components/common/editable-stat-card";
 import { Clock } from "lucide-react";
 
 type MonteCarloView = "fan" | "spaghetti";
@@ -79,12 +83,17 @@ export function ProbabilityOfSuccess() {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const currentAllocationRef = useRef<Allocation | null>(null);
 
+  // Strategy
+  const [strategy, setStrategy] = useState<StrategyType>("constant_dollar");
+  const [strategyParams, setStrategyParams] = useState<StrategyParams>({ inflationAdjusted: true });
+  const [useRealDollars, setUseRealDollars] = useState(true);
+
   // Results
   const [successRate, setSuccessRate] = useState<number | null>(null);
   const [percentiles, setPercentiles] = useState<any[]>([]);
   const [histogram, setHistogram] = useState<any[]>([]);
   const [samplePaths, setSamplePaths] = useState<any[]>([]);
-  const [backtestPeriods, setBacktestPeriods] = useState<any[]>([]);
+  const [backtestPeriods, setBacktestPeriods] = useState<BacktestPeriod[]>([]);
   const [backtestSummary, setBacktestSummary] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -162,12 +171,14 @@ export function ProbabilityOfSuccess() {
           retirementAge,
           monthlySpend,
           allocation,
+          strategy,
+          strategyParams,
           successRate,
           backtestSummary,
         },
       });
     }
-  }, [initialLoading, hasAccounts, totalValue, retirementAge, lifeExpectancy, monthlySpend, allocation, successRate, backtestSummary, setPageContext]);
+  }, [initialLoading, hasAccounts, totalValue, retirementAge, lifeExpectancy, monthlySpend, allocation, strategy, strategyParams, successRate, backtestSummary, setPageContext]);
 
   const runSimulations = useCallback(async () => {
     if (totalValue <= 0) return;
@@ -192,6 +203,8 @@ export function ProbabilityOfSuccess() {
           simulations: 5000,
           includeSamplePaths: true,
           numSamplePaths: 20,
+          strategy,
+          strategyParams,
         }),
       });
 
@@ -228,6 +241,8 @@ export function ProbabilityOfSuccess() {
           initialValue: totalValue,
           annualWithdrawal,
           years,
+          strategy,
+          strategyParams,
         }),
       });
 
@@ -243,7 +258,7 @@ export function ProbabilityOfSuccess() {
     } finally {
       setSimulating(false);
     }
-  }, [retirementAge, lifeExpectancy, monthlySpend, allocation, totalValue, warning]);
+  }, [retirementAge, lifeExpectancy, monthlySpend, allocation, totalValue, strategy, strategyParams, warning]);
 
   // Auto-run after initial data loads and when key parameters change
   useEffect(() => {
@@ -328,155 +343,63 @@ export function ProbabilityOfSuccess() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
-      {/* Hero */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-card rounded-2xl p-6 md:p-8 mb-6 md:mb-8"
-      >
-        {simulating ? (
-          <div className="flex items-center gap-4 py-4">
-            <RefreshCw className="w-8 h-8 animate-spin text-accent" />
-            <div>
-              <p className="text-text-muted text-sm">Running simulations...</p>
-              <p className="text-xs text-text-muted mt-1">5,000 Monte Carlo + historical backtest</p>
-            </div>
-          </div>
-        ) : error ? (
-          <div className="flex items-center gap-4">
-            <AlertTriangle className="w-10 h-10 text-danger flex-shrink-0" />
-            <div className="flex-1">
-              <p className="font-medium text-danger">Simulation Error</p>
-              <p className="text-text-muted text-sm mt-1">{error}</p>
-            </div>
-            <Button variant="secondary" onClick={runSimulations}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Retry
-            </Button>
-          </div>
-        ) : successRate !== null ? (
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className={cn(
-                "w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center",
-                status === 'success' && "bg-success/10",
-                status === 'warning' && "bg-warning/10",
-                status === 'danger' && "bg-danger/10",
-              )}>
-                <Target className={cn(
-                  "w-8 h-8 md:w-10 md:h-10",
-                  status === 'success' && "text-success",
-                  status === 'warning' && "text-warning",
-                  status === 'danger' && "text-danger",
-                )} />
-              </div>
-              <div>
-                <p className="text-text-muted text-sm mb-1">Probability of Success</p>
-                <div className={cn(
-                  "font-display text-4xl md:text-5xl font-semibold tabular-nums",
-                  status === 'success' && "text-success",
-                  status === 'warning' && "text-warning",
-                  status === 'danger' && "text-danger",
-                )}>
-                  {(successRate * 100).toFixed(1)}%
-                </div>
-              </div>
-            </div>
-            <div className="text-text-muted text-sm md:text-right">
-              Based on {lifeExpectancy - retirementAge} year projection
-              <br />
-              <span className="text-text-secondary">Starting balance: {formatMoney(totalValue)}</span>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-4">
-            <p className="text-text-muted">Adjust parameters below and run the simulation</p>
-          </div>
-        )}
-      </motion.div>
+      {/* Editable Stat Cards */}
+      <div className={cn("grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 md:mb-8", simulating && "opacity-50 pointer-events-none")}>
+        <EditableStatCard
+          icon={Wallet}
+          label="Portfolio Value"
+          value={totalValue}
+          prefix="$"
+          min={0}
+          max={100000000}
+          onChange={setTotalValue}
+        />
+        <EditableStatCard
+          icon={Calendar}
+          label="Retirement Age"
+          value={retirementAge}
+          min={18}
+          max={200}
+          onChange={setRetirementAge}
+        />
+        <EditableStatCard
+          icon={Target}
+          label="Life Expectancy"
+          value={lifeExpectancy}
+          min={18}
+          max={200}
+          onChange={setLifeExpectancy}
+        />
+        <EditableStatCard
+          icon={Wallet}
+          label="Monthly Spend"
+          value={monthlySpend}
+          prefix="$"
+          min={500}
+          max={50000}
+          onChange={setMonthlySpend}
+        />
+      </div>
 
-      {/* Warning */}
-      {warning && (
+      {/* Withdrawal Strategy */}
+      <Section title="Withdrawal Strategy">
         <motion.div
-          initial={{ opacity: 0, y: -8 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-card rounded-2xl p-4 mb-6 border-warning/30 bg-warning/5"
+          transition={{ delay: 0.05 }}
+          className="glass-card rounded-2xl p-4 md:p-6"
         >
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-warning mt-0.5 flex-shrink-0" />
-            <p className="text-text-muted text-sm">{warning}</p>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Stats Row */}
-      {successRate !== null && (
-        <div className={cn("grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 md:mb-8", simulating && "opacity-50 pointer-events-none")}>
-          <div className="glass-card rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-5 h-5 text-text-muted" />
-              <span className="text-sm text-text-secondary font-medium">Retirement Age</span>
-            </div>
-            <input
-              type="number"
-              defaultValue={retirementAge}
-              min={18}
-              max={200}
-              onBlur={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (!isNaN(v) && v >= 18 && v <= 200) setRetirementAge(v);
-                else e.target.value = String(retirementAge);
-              }}
-              className="font-display text-2xl font-semibold tabular-nums bg-transparent border-b-2 border-accent focus:outline-none w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            />
-          </div>
-          <div className="glass-card rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Target className="w-5 h-5 text-text-muted" />
-              <span className="text-sm text-text-secondary font-medium">Life Expectancy</span>
-            </div>
-            <input
-              type="number"
-              defaultValue={lifeExpectancy}
-              min={18}
-              max={200}
-              onBlur={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (!isNaN(v) && v >= 18 && v <= 200) setLifeExpectancy(v);
-                else e.target.value = String(lifeExpectancy);
-              }}
-              className="font-display text-2xl font-semibold tabular-nums bg-transparent border-b-2 border-accent focus:outline-none w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            />
-          </div>
-          <StatCard
-            icon={Clock}
-            label="Duration"
-            value={`${lifeExpectancy - retirementAge} years`}
-            description="Life expectancy − retirement age"
-            delay={0.15}
+          <StrategyConfig
+            strategy={strategy}
+            params={strategyParams}
+            annualSpending={monthlySpend * 12}
+            onStrategyChange={setStrategy}
+            onParamsChange={setStrategyParams}
           />
-          <div className="glass-card rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Wallet className="w-5 h-5 text-text-muted" />
-              <span className="text-sm text-text-secondary font-medium">Monthly Spend</span>
-            </div>
-            <input
-              type="number"
-              defaultValue={monthlySpend}
-              min={500}
-              max={50000}
-              onBlur={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlySpend(v);
-                else e.target.value = String(monthlySpend);
-              }}
-              className="font-display text-2xl font-semibold tabular-nums bg-transparent border-b-2 border-accent focus:outline-none w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            />
-          </div>
-        </div>
-      )}
+        </motion.div>
+      </Section>
 
-      {/* Parameters */}
+      {/* Portfolio Allocation */}
       <Section title="Portfolio Allocation">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -575,6 +498,107 @@ export function ProbabilityOfSuccess() {
         </motion.div>
       </Section>
 
+      {/* Dollar Toggle */}
+      {(backtestPeriods.length > 0 || percentiles.length > 0) && !simulating && (
+        <div className="flex items-center gap-2 mb-6">
+          <span className="text-sm text-text-muted">Values in:</span>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button
+              className={cn("px-3 py-1.5 text-sm", useRealDollars ? "bg-accent/10 text-accent" : "text-text-muted")}
+              onClick={() => setUseRealDollars(true)}
+            >
+              Real $
+            </button>
+            <button
+              className={cn("px-3 py-1.5 text-sm", !useRealDollars ? "bg-accent/10 text-accent" : "text-text-muted")}
+              onClick={() => setUseRealDollars(false)}
+            >
+              Nominal $
+            </button>
+          </div>
+          <span className="text-xs text-text-muted">(backtest only)</span>
+        </div>
+      )}
+
+      {/* Hero */}
+      {(successRate !== null || simulating || error) && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-2xl p-6 md:p-8 mb-6 md:mb-8"
+        >
+          {simulating ? (
+            <div className="flex items-center gap-4 py-4">
+              <RefreshCw className="w-8 h-8 animate-spin text-accent" />
+              <div>
+                <p className="text-text-muted text-sm">Running simulations...</p>
+                <p className="text-xs text-text-muted mt-1">5,000 Monte Carlo + historical backtest</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="flex items-center gap-4">
+              <AlertTriangle className="w-10 h-10 text-danger flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-danger">Simulation Error</p>
+                <p className="text-text-muted text-sm mt-1">{error}</p>
+              </div>
+              <Button variant="secondary" onClick={runSimulations}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          ) : successRate !== null ? (
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex items-center gap-4">
+                <div className={cn(
+                  "w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center",
+                  status === 'success' && "bg-success/10",
+                  status === 'warning' && "bg-warning/10",
+                  status === 'danger' && "bg-danger/10",
+                )}>
+                  <Target className={cn(
+                    "w-8 h-8 md:w-10 md:h-10",
+                    status === 'success' && "text-success",
+                    status === 'warning' && "text-warning",
+                    status === 'danger' && "text-danger",
+                  )} />
+                </div>
+                <div>
+                  <p className="text-text-muted text-sm mb-1">Probability of Success</p>
+                  <div className={cn(
+                    "font-display text-4xl md:text-5xl font-semibold tabular-nums",
+                    status === 'success' && "text-success",
+                    status === 'warning' && "text-warning",
+                    status === 'danger' && "text-danger",
+                  )}>
+                    {(successRate * 100).toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+              <div className="text-text-muted text-sm md:text-right">
+                Based on {lifeExpectancy - retirementAge} year projection
+                <br />
+                <span className="text-text-secondary">Starting balance: {formatMoney(totalValue)}</span>
+              </div>
+            </div>
+          ) : null}
+        </motion.div>
+      )}
+
+      {/* Warning */}
+      {warning && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card rounded-2xl p-4 mb-6 border-warning/30 bg-warning/5"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-warning mt-0.5 flex-shrink-0" />
+            <p className="text-text-muted text-sm">{warning}</p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Monte Carlo Chart */}
       {percentiles.length > 0 && !simulating && (
         <Section
@@ -604,36 +628,15 @@ export function ProbabilityOfSuccess() {
         </Section>
       )}
 
-      {/* Historical Backtest */}
-      {backtestPeriods.length > 0 && backtestSummary && !simulating && (
+      {/* Historical Backtest Table */}
+      {backtestPeriods.length > 0 && !simulating && (
         <Section title="Historical Backtest Analysis">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card rounded-2xl p-4 md:p-6">
-            <RollingPeriodsChart data={backtestPeriods} initialBalance={totalValue} />
-            <div className="grid grid-cols-3 gap-4 pt-6 mt-6 border-t border-border">
-              <div className="text-center">
-                <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Success Rate</div>
-                <div className={cn(
-                  "font-display text-2xl md:text-3xl font-semibold tabular-nums",
-                  getStatus(backtestSummary.successRate * 100) === 'success' && "text-success",
-                  getStatus(backtestSummary.successRate * 100) === 'warning' && "text-warning",
-                  getStatus(backtestSummary.successRate * 100) === 'danger' && "text-danger",
-                )}>
-                  {(backtestSummary.successRate * 100).toFixed(1)}%
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Avg Final Value</div>
-                <div className="font-display text-2xl md:text-3xl font-semibold tabular-nums">
-                  {formatMoney(backtestSummary.avgFinalValue, true)}
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Periods Tested</div>
-                <div className="font-display text-2xl md:text-3xl font-semibold tabular-nums">
-                  {backtestSummary.totalPeriods}
-                </div>
-              </div>
-            </div>
+            <BacktestTable
+              periods={backtestPeriods}
+              useRealDollars={useRealDollars}
+              showWithdrawalSource={strategy === "rules_based"}
+            />
           </motion.div>
         </Section>
       )}
