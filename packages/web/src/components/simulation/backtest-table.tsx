@@ -167,7 +167,7 @@ export function BacktestTable({
             <tr>
               {(
                 [
-                  ["startYear", "Start Year"],
+                  ["startYear", "Period"],
                   ["yearsLasted", "Years Lasted"],
                   ["endBalance", "End Balance"],
                   ["status", "Status"],
@@ -197,13 +197,17 @@ export function BacktestTable({
                   className="cursor-pointer hover:bg-bg-secondary/50 transition-colors"
                 >
                   <td className="text-sm tabular-nums px-3 py-2">
-                    {period.startYear}
+                    {period.startYear}–{period.startYear + period.yearsLasted}
                   </td>
                   <td className="text-sm tabular-nums px-3 py-2">
                     {period.yearsLasted}
                   </td>
                   <td className="text-sm tabular-nums px-3 py-2">
-                    {formatMoney(period.endBalance)}
+                    {formatMoney(
+                      useRealDollars && period.yearByYear.length > 0
+                        ? period.yearByYear[period.yearByYear.length - 1].portfolioValueReal
+                        : period.endBalance
+                    )}
                   </td>
                   <td className="text-sm px-3 py-2">
                     <span
