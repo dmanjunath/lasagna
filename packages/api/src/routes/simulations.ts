@@ -41,7 +41,6 @@ simulationsRouter.post("/monte-carlo", async (c) => {
   }
 
   const engine = getMonteCarloEngine();
-  const withdrawalRate = body.annualWithdrawal / body.initialValue;
   const normalizedAllocation = normalizeAllocation(body.allocation);
   const numSimulations = body.simulations || 10000;
 
@@ -61,10 +60,9 @@ simulationsRouter.post("/monte-carlo", async (c) => {
     const batchSize = Math.min(BATCH_SIZE, numSimulations - completedSimulations);
     const batchResult = engine.run({
       initialBalance: body.initialValue,
-      withdrawalRate,
+      annualWithdrawal: body.annualWithdrawal,
       yearsToSimulate: body.years,
       assetAllocation: normalizedAllocation,
-      inflationAdjusted: true,
       numSimulations: batchSize,
       includeSamplePaths: body.includeSamplePaths && completedSimulations === 0,
       numSamplePaths: body.numSamplePaths,

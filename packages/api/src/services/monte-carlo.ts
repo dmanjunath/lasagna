@@ -3,6 +3,13 @@
  * Simulates portfolio performance over time with stochastic returns.
  */
 
+import {
+  computeWithdrawal,
+  type StrategyType,
+  type StrategyParams,
+  type WithdrawalContext,
+} from "./withdrawal-strategies.js";
+
 export interface AssetAllocation {
   usStocks: number;
   intlStocks: number;
@@ -11,13 +18,22 @@ export interface AssetAllocation {
   cash: number;
 }
 
+const ASSET_CLASSES: (keyof AssetAllocation)[] = [
+  "usStocks",
+  "intlStocks",
+  "bonds",
+  "reits",
+  "cash",
+];
+
 export interface MonteCarloParams {
   initialBalance: number;
-  withdrawalRate: number; // Annual withdrawal as percentage of initial balance
+  annualWithdrawal: number; // Dollar amount withdrawn per year
   yearsToSimulate: number;
   assetAllocation: AssetAllocation;
-  inflationAdjusted: boolean;
   numSimulations: number;
+  strategy?: StrategyType;
+  strategyParams?: StrategyParams;
   includeSamplePaths?: boolean; // Whether to include sample paths for spaghetti chart
   numSamplePaths?: number; // Number of sample paths to include (default: 10)
 }
@@ -29,6 +45,7 @@ export interface HistogramBucket {
 }
 
 export interface MonteCarloResult {
+  numSimulations: number; // Number of simulations that produced this result
   successRate: number; // Percentage of simulations where portfolio didn't run out
   percentiles: {
     p5: number[]; // 5th percentile balance over time
@@ -57,7 +74,7 @@ const MODEL = {
   bonds: { mean: 0.05, stdDev: 0.07 }, // 5% avg return, 7% volatility
   reits: { mean: 0.09, stdDev: 0.22 }, // 9% avg return, 22% volatility
   cash: { mean: 0.02, stdDev: 0.01 }, // 2% avg return, 1% volatility
-  inflation: { mean: 0.03, stdDev: 0.01 }, // 3% avg inflation, 1% volatility
+  inflation: { mean: 0.03, stdDev: 0.015 }, // 3% avg inflation, 1.5% volatility
 };
 
 export class MonteCarloEngine {
@@ -117,6 +134,7 @@ export class MonteCarloEngine {
     }
 
     return {
+      numSimulations: params.numSimulations,
       successRate,
       percentiles,
       finalBalanceDistribution: distribution,
@@ -130,51 +148,105 @@ export class MonteCarloEngine {
    * Run a single simulation path
    */
   private runSingleSimulation(params: MonteCarloParams): number[] {
-    const balances: number[] = [params.initialBalance];
+    const strategy: StrategyType = params.strategy ?? "constant_dollar";
+    const strategyParams: StrategyParams = params.strategyParams ?? { inflationAdjusted: true };
+    const isRulesBased = strategy === "rules_based";
+
+    // Initialize per-asset-class dollar balances
+    const balanceByClass: Record<string, number> = {};
+    for (const cls of ASSET_CLASSES) {
+      balanceByClass[cls] = params.initialBalance * params.assetAllocation[cls];
+    }
+
     let currentBalance = params.initialBalance;
-    const annualWithdrawal = params.initialBalance * params.withdrawalRate;
+    const balances: number[] = [currentBalance];
+
+    let cumulativeInflation = 1.0;
+    let previousWithdrawal: number | undefined;
 
     for (let year = 1; year <= params.yearsToSimulate; year++) {
-      // Generate random returns for each asset class
-      const usStocksReturn = this.randomNormal(
-        MODEL.usStocks.mean,
-        MODEL.usStocks.stdDev
-      );
-      const intlStocksReturn = this.randomNormal(
-        MODEL.intlStocks.mean,
-        MODEL.intlStocks.stdDev
-      );
-      const bondsReturn = this.randomNormal(MODEL.bonds.mean, MODEL.bonds.stdDev);
-      const reitsReturn = this.randomNormal(MODEL.reits.mean, MODEL.reits.stdDev);
-      const cashReturn = this.randomNormal(MODEL.cash.mean, MODEL.cash.stdDev);
-
-      // Calculate weighted portfolio return
-      const portfolioReturn =
-        usStocksReturn * params.assetAllocation.usStocks +
-        intlStocksReturn * params.assetAllocation.intlStocks +
-        bondsReturn * params.assetAllocation.bonds +
-        reitsReturn * params.assetAllocation.reits +
-        cashReturn * params.assetAllocation.cash;
-
-      // Apply return to current balance
-      currentBalance *= 1 + portfolioReturn;
-
-      // Calculate withdrawal amount (adjusted for inflation if needed)
-      let withdrawal = annualWithdrawal;
-      if (params.inflationAdjusted) {
-        const inflation = this.randomNormal(
-          MODEL.inflation.mean,
-          MODEL.inflation.stdDev
-        );
-        // Compound inflation over years
-        withdrawal = annualWithdrawal * Math.pow(1 + inflation, year);
+      // Generate random per-class returns and apply to per-class balances
+      const returns: Record<string, number> = {};
+      for (const cls of ASSET_CLASSES) {
+        const r = this.randomNormal(MODEL[cls].mean, MODEL[cls].stdDev);
+        returns[cls] = r;
+        balanceByClass[cls] *= 1 + r;
       }
 
-      // Subtract withdrawal
-      currentBalance -= withdrawal;
+      // Compute total balance after growth
+      currentBalance = 0;
+      for (const cls of ASSET_CLASSES) {
+        currentBalance += balanceByClass[cls];
+      }
 
-      // Ensure balance doesn't go negative
-      currentBalance = Math.max(0, currentBalance);
+      // Generate inflation for this year
+      const yearInflationRate = this.randomNormal(
+        MODEL.inflation.mean,
+        MODEL.inflation.stdDev
+      );
+      cumulativeInflation *= 1 + yearInflationRate;
+
+      // Compute equity return as weighted average of US + intl stock returns
+      const usBalance = balanceByClass.usStocks;
+      const intlBalance = balanceByClass.intlStocks;
+      const equityTotal = usBalance + intlBalance;
+      const equityReturn =
+        equityTotal > 0
+          ? (returns.usStocks * usBalance + returns.intlStocks * intlBalance) /
+            equityTotal
+          : 0;
+
+      // Build current allocation as dollar amounts for WithdrawalContext
+      const currentAllocation: Record<string, number> = {};
+      for (const cls of ASSET_CLASSES) {
+        currentAllocation[cls] = balanceByClass[cls];
+      }
+
+      // Build WithdrawalContext and compute withdrawal
+      const ctx: WithdrawalContext = {
+        currentBalance,
+        initialBalance: params.initialBalance,
+        year,
+        annualWithdrawal: params.annualWithdrawal,
+        cumulativeInflation,
+        yearInflationRate,
+        equityReturn,
+        currentAllocation,
+        previousWithdrawal,
+      };
+
+      const result = computeWithdrawal(strategy, strategyParams, ctx);
+      const withdrawalAmount = result.amount;
+      previousWithdrawal = withdrawalAmount;
+
+      if (isRulesBased && result.allocationAfterWithdrawal) {
+        // Rules-based: use the allocation returned by the strategy (no rebalance)
+        for (const cls of ASSET_CLASSES) {
+          balanceByClass[cls] = result.allocationAfterWithdrawal[cls] ?? 0;
+        }
+      } else {
+        // Non-rules-based: subtract withdrawal proportionally, then rebalance to target allocation
+        if (currentBalance > 0) {
+          for (const cls of ASSET_CLASSES) {
+            balanceByClass[cls] -=
+              (balanceByClass[cls] / currentBalance) * withdrawalAmount;
+          }
+        }
+        currentBalance -= withdrawalAmount;
+        currentBalance = Math.max(0, currentBalance);
+
+        // Rebalance to target allocation
+        for (const cls of ASSET_CLASSES) {
+          balanceByClass[cls] = currentBalance * params.assetAllocation[cls];
+        }
+      }
+
+      // Recompute total from per-class balances
+      currentBalance = 0;
+      for (const cls of ASSET_CLASSES) {
+        balanceByClass[cls] = Math.max(0, balanceByClass[cls]);
+        currentBalance += balanceByClass[cls];
+      }
 
       balances.push(currentBalance);
     }

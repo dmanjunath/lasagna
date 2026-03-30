@@ -190,11 +190,11 @@ export function createSimulationTools(tenantId: string) {
         const engine = getMonteCarloEngine();
         const result = engine.run({
           initialBalance: params.initialBalance,
-          withdrawalRate: params.withdrawalRate,
+          annualWithdrawal: params.initialBalance * params.withdrawalRate,
           yearsToSimulate: params.yearsToSimulate,
           assetAllocation: allocation,
-          inflationAdjusted: params.inflationAdjusted,
           numSimulations: params.numSimulations,
+          strategyParams: { inflationAdjusted: params.inflationAdjusted },
         });
 
         // Cache result if planId provided
