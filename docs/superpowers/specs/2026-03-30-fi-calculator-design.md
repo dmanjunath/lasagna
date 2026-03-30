@@ -71,6 +71,10 @@ Triggers both Monte Carlo (5,000 simulations) and Historical Backtest (every pos
 
 ## Results / Output
 
+### Dollar Value Toggle
+
+A toggle at the top of the results section: **Real (today's) dollars** vs **Nominal (future) dollars**. Default: Real. When toggled, all dollar values throughout the results — hero card, histogram, backtest table, year-by-year detail — update to show inflation-adjusted or nominal values. The backtest response includes both `portfolioValue` (nominal) and `portfolioValueReal` (inflation-adjusted) for each year, so this is a frontend-only toggle with no re-simulation needed.
+
 ### 1. Hero Card
 
 Prominent display of:
@@ -175,9 +179,12 @@ Backtest response enhanced:
       yearByYear: [
         {
           year: number,
-          portfolioValue: number,
+          portfolioValue: number,         // nominal
+          portfolioValueReal: number,     // inflation-adjusted to start year
           marketReturn: number,
-          withdrawalAmount: number,
+          withdrawalAmount: number,       // nominal
+          withdrawalAmountReal: number,   // inflation-adjusted
+          cumulativeInflation: number,    // cumulative inflation multiplier from start
           withdrawalSource?: string,
           notes: string[],
         }
