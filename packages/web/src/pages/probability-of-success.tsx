@@ -89,8 +89,8 @@ export function ProbabilityOfSuccess() {
   const [useRealDollars, setUseRealDollars] = useState(true);
 
   // Fees & cash rate (match ficalc defaults)
-  const fees = { equities: 0.0004, bonds: 0.0005, reits: 0.0004, cash: 0 };
-  const cashGrowthRate = 0.015;
+  const [fees, setFees] = useState({ equities: 0.04, bonds: 0.05, reits: 0.04, cash: 0 }); // in percentage, e.g., 0.04 = 0.04%
+  const [cashGrowthRate, setCashGrowthRate] = useState(1.5); // percentage, e.g., 1.5 = 1.5%
 
   // Results
   const [successRate, setSuccessRate] = useState<number | null>(null);
@@ -209,8 +209,8 @@ export function ProbabilityOfSuccess() {
           numSamplePaths: 20,
           strategy,
           strategyParams,
-          fees,
-          cashGrowthRate,
+          fees: { equities: fees.equities / 100, bonds: fees.bonds / 100, reits: fees.reits / 100, cash: fees.cash / 100 },
+          cashGrowthRate: cashGrowthRate / 100,
         }),
       });
 
@@ -249,8 +249,8 @@ export function ProbabilityOfSuccess() {
           years,
           strategy,
           strategyParams,
-          fees,
-          cashGrowthRate,
+          fees: { equities: fees.equities / 100, bonds: fees.bonds / 100, reits: fees.reits / 100, cash: fees.cash / 100 },
+          cashGrowthRate: cashGrowthRate / 100,
         }),
       });
 
@@ -275,7 +275,7 @@ export function ProbabilityOfSuccess() {
       runSimulations();
     }, 600);
     return () => clearTimeout(timer);
-  }, [initialLoading, retirementAge, lifeExpectancy, monthlySpend, allocation, strategy, strategyParams, totalValue]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialLoading, retirementAge, lifeExpectancy, monthlySpend, allocation, strategy, strategyParams, totalValue, fees, cashGrowthRate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectPreset = (preset: PortfolioPreset) => {
     setAllocation(preset.allocation);
@@ -444,20 +444,22 @@ export function ProbabilityOfSuccess() {
               )}
             </div>
 
-            {/* Allocation Sliders */}
+            {/* Allocation Sliders with Fees */}
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
               {([
-                ["usStocks", "US Stocks"],
-                ["intlStocks", "Int'l Stocks"],
-                ["bonds", "Bonds"],
-                ["reits", "REITs"],
-                ["cash", "Cash"],
-              ] as const).map(([key, label]) => (
+                ["usStocks", "US Stocks", "equities"],
+                ["intlStocks", "Int'l Stocks", "equities"],
+                ["bonds", "Bonds", "bonds"],
+                ["reits", "REITs", "reits"],
+                ["cash", "Cash", "cash"],
+              ] as const).map(([key, label, feeKey]) => (
                 <div key={key} className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-text-muted">
                       {label}
-                      <span className="ml-1.5 text-text-muted/60">({HISTORICAL_RETURNS[key]}% avg)</span>
+                      <span className="ml-1.5 text-text-muted/60">
+                        ({key === "cash" ? `${cashGrowthRate}% growth` : `${HISTORICAL_RETURNS[key]}% avg`})
+                      </span>
                     </label>
                     <span className="text-xs font-semibold tabular-nums">{allocation[key]}%</span>
                   </div>
@@ -465,6 +467,42 @@ export function ProbabilityOfSuccess() {
                     value={allocation[key]}
                     onChange={(e) => updateAllocation(key, parseInt(e.target.value))}
                     className="w-full accent-accent h-1.5" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-text-muted/60">Fee:</span>
+                    {key === "cash" ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={cashGrowthRate}
+                          onChange={(e) => {
+                            const v = parseFloat(e.target.value);
+                            if (!isNaN(v) && v >= 0 && v <= 10) setCashGrowthRate(v);
+                          }}
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          className="w-14 bg-surface rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-[10px] text-text-muted/60">% growth</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={fees[feeKey as keyof typeof fees]}
+                          onChange={(e) => {
+                            const v = parseFloat(e.target.value);
+                            if (!isNaN(v) && v >= 0 && v <= 5) setFees(prev => ({ ...prev, [feeKey]: v }));
+                          }}
+                          step="0.01"
+                          min="0"
+                          max="5"
+                          className="w-14 bg-surface rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-[10px] text-text-muted/60">%/yr</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
