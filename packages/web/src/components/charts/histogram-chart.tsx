@@ -52,8 +52,8 @@ function getNiceStep(range: number, targetBins: number): number {
 }
 
 // Re-bucket the data into bins with nice round boundaries
-function rebucket(data: HistogramBucket[]): HistogramBucket[] {
-  if (data.length === 0) return data;
+function rebucket(data: HistogramBucket[]): { buckets: HistogramBucket[]; step: number } {
+  if (data.length === 0) return { buckets: data, step: 0 };
 
   // Get all bucket values as numbers
   const values = data.map(d => typeof d.bucket === 'string' ? parseFloat(d.bucket) : d.bucket);
@@ -61,7 +61,7 @@ function rebucket(data: HistogramBucket[]): HistogramBucket[] {
   const maxVal = Math.max(...values);
   const range = maxVal - minVal;
 
-  if (range === 0) return data;
+  if (range === 0) return { buckets: data, step: 0 };
 
   // Target around 12-15 bins for a clean look
   const targetBins = 12;
@@ -116,14 +116,19 @@ function rebucket(data: HistogramBucket[]): HistogramBucket[] {
     return aVal - bVal;
   });
 
-  return result;
+  return { buckets: result, step };
 }
 
 export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
-  const displayData = rebucket(data).map((d) => ({
-    ...d,
-    label: formatValue(typeof d.bucket === 'string' ? parseFloat(d.bucket) : d.bucket),
-  }));
+  const { buckets, step } = rebucket(data);
+  const totalSimulations = buckets.reduce((sum, d) => sum + d.count, 0);
+  const displayData = buckets.map((d) => {
+    const bucketVal = typeof d.bucket === 'string' ? parseFloat(d.bucket) : d.bucket;
+    const label = step > 0
+      ? `${formatValue(bucketVal)}\u2013${formatValue(bucketVal + step)}`
+      : formatValue(bucketVal);
+    return { ...d, label };
+  });
 
   return (
     <div style={{ height, width: '100%' }}>
@@ -152,8 +157,10 @@ export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
               fontSize: '13px',
             }}
             formatter={(value: any, _name: any, props: any) => {
-              const bucket = typeof props.payload.bucket === 'string' ? parseFloat(props.payload.bucket) : props.payload.bucket;
-              return [`${value} simulations ended near ${formatValue(bucket)}`, ''];
+              const pct = totalSimulations > 0
+                ? ((value as number) / totalSimulations * 100).toFixed(1)
+                : '0.0';
+              return [`${props.payload.label}  —  ${value} simulations (${pct}%)`, ''];
             }}
             labelFormatter={() => ''}
           />
