@@ -20,16 +20,6 @@ interface AccountCategory {
   }>;
 }
 
-// Mock data for net worth history - will come from API
-const netWorthHistory = [
-  { month: 'Oct', value: 485000 },
-  { month: 'Nov', value: 492000 },
-  { month: 'Dec', value: 501000 },
-  { month: 'Jan', value: 498000 },
-  { month: 'Feb', value: 510500 },
-  { month: 'Mar', value: 523000 },
-];
-
 // Color mapping for account types
 const typeColors: Record<string, string> = {
   depository: '#4ade80',
@@ -50,16 +40,23 @@ export function NetWorth() {
   }>>([]);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [historyData, setHistoryData] = useState<Array<{ date: string; value: number }>>([]);
 
   useEffect(() => {
-    api.getBalances()
-      .then((data) => {
-        setBalances(data.balances);
+    Promise.all([
+      api.getBalances(),
+      api.getNetWorthHistory().catch(() => ({ history: [] })),
+    ])
+      .then(([balanceData, historyRes]) => {
+        setBalances(balanceData.balances);
         // Expand all by default
         const expanded: Record<string, boolean> = {};
-        const types = new Set(data.balances.map((b) => b.type));
+        const types = new Set(balanceData.balances.map((b) => b.type));
         types.forEach((t) => { expanded[t] = true; });
         setExpandedCategories(expanded);
+
+        // Format history for chart
+        setHistoryData(historyRes.history);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -89,7 +86,11 @@ export function NetWorth() {
     accounts: data.accounts,
   }));
 
-  const totalNetWorth = categories.reduce((sum, c) => sum + c.value, 0);
+  const totalNetWorth = categories.reduce((sum, c) => {
+    return c.category.toLowerCase() === 'credit' || c.category.toLowerCase() === 'loan'
+      ? sum - c.value
+      : sum + c.value;
+  }, 0);
   const assets = categories.filter((c) => c.value > 0);
   const totalAssets = assets.reduce((sum, c) => sum + c.value, 0);
 
@@ -98,6 +99,23 @@ export function NetWorth() {
     value: c.value,
     color: c.color,
   }));
+
+  // Compute change from history
+  const change = historyData.length >= 2
+    ? historyData[historyData.length - 1].value - historyData[0].value
+    : null;
+  const changePercent = change !== null && historyData[0].value !== 0
+    ? (change / Math.abs(historyData[0].value)) * 100
+    : null;
+
+  // Format history for chart display
+  const chartData = historyData.map((d) => {
+    const date = new Date(d.date);
+    return {
+      month: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      value: d.value,
+    };
+  });
 
   if (loading) {
     return (
@@ -148,24 +166,39 @@ export function NetWorth() {
             </div>
           </div>
           <div className="flex flex-col md:items-end gap-2">
-            <div className="text-left md:text-right">
-              <div className="text-xl md:text-2xl font-semibold tabular-nums text-success">
-                +$12,500
+            {change !== null && (
+              <div className="text-left md:text-right">
+                <div className={cn(
+                  'text-xl md:text-2xl font-semibold tabular-nums',
+                  change >= 0 ? 'text-success' : 'text-danger'
+                )}>
+                  {change >= 0 ? '+' : ''}{formatMoney(change)}
+                </div>
+                {changePercent !== null && (
+                  <div className="text-sm text-text-muted mt-1">
+                    {change >= 0 ? '+' : ''}{changePercent.toFixed(1)}% over period
+                  </div>
+                )}
               </div>
-              <div className="text-sm text-text-muted mt-1">This month (+2.4%)</div>
-            </div>
+            )}
             <Button variant="secondary" size="sm" onClick={() => navigate('/accounts')}>
               <Plus className="w-4 h-4 mr-1.5" />
               Add Account
             </Button>
           </div>
         </div>
-        <AreaChart
-          data={netWorthHistory}
-          xKey="month"
-          yKey="value"
-          height={200}
-        />
+        {chartData.length > 1 ? (
+          <AreaChart
+            data={chartData}
+            xKey="month"
+            yKey="value"
+            height={200}
+          />
+        ) : (
+          <div className="h-[200px] flex items-center justify-center text-text-muted text-sm">
+            Sync your accounts again to build history over time
+          </div>
+        )}
       </motion.div>
 
       {/* Asset Allocation */}

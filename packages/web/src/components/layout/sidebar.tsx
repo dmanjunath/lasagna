@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   TrendingUp,
-  ArrowRightLeft,
   Receipt,
   Sparkles,
   Target,
@@ -36,7 +35,6 @@ interface NavItem {
 const fixedTabs: NavItem[] = [
   { id: 'dashboard', name: 'Overview', icon: LayoutDashboard, path: '/' },
   { id: 'net-worth', name: 'Net Worth', icon: TrendingUp, path: '/net-worth' },
-  { id: 'cash-flow', name: 'Cash Flow', icon: ArrowRightLeft, path: '/cash-flow' },
   { id: 'tax-history', name: 'Tax History', icon: Receipt, path: '/tax-history' },
   { id: 'accounts', name: 'Linked Accounts', icon: Building2, path: '/accounts' },
   { id: 'plans', name: 'AI Plans', icon: Sparkles, path: '/plans' },

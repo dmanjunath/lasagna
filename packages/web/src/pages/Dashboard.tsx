@@ -1,10 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
-import { TrendingUp, Building2, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
+import {
+  TrendingUp,
+  Building2,
+  Sparkles,
+  Loader2,
+  CheckCircle2,
+  Circle,
+  User,
+  Wallet,
+  Target,
+  ChevronRight,
+  CreditCard,
+  Shield,
+} from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
+import { usePageContext } from '../lib/page-context';
 import { StatCard } from '../components/common/stat-card';
 import { Section } from '../components/common/section';
 import type { Plan } from '../lib/types';
@@ -25,113 +39,149 @@ function getGreeting(): string {
   return 'Good evening,';
 }
 
-interface ActionItem {
+interface ChecklistItem {
   id: string;
-  text: string;
-  linkText: string;
+  label: string;
+  description: string;
   path: string;
-  priority: 'high' | 'medium' | 'low';
+  done: boolean;
+  icon: typeof User;
+}
+
+interface BalanceEntry {
+  accountId: string;
+  name: string;
+  type: string;
+  mask: string | null;
+  balance: string | null;
+  available: string | null;
+  currency: string;
+  asOf: string | null;
 }
 
 export function Dashboard() {
   const { user, tenant } = useAuth();
   const [, navigate] = useLocation();
-  const [completedActions, setCompletedActions] = useState<string[]>([]);
+  const { setPageContext } = usePageContext();
   const [loading, setLoading] = useState(true);
   const [netWorth, setNetWorth] = useState<number | null>(null);
   const [accountCount, setAccountCount] = useState(0);
   const [planCount, setPlanCount] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [institutionCount, setInstitutionCount] = useState(0);
+  const [hasName, setHasName] = useState(false);
+  const [monthlySpend, setMonthlySpend] = useState<number | null>(null);
+  const [runwayMonths, setRunwayMonths] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([
-      api.getBalances().catch(() => ({ balances: [] })),
+      api.getBalances().catch(() => ({ balances: [] as BalanceEntry[] })),
       api.getPlans().catch(() => ({ plans: [] as Plan[] })),
       api.getItems().catch(() => ({ items: [] })),
-    ]).then(([balanceData, planData, itemData]) => {
-      // Compute net worth from balances
+      api.getProfile().catch(() => ({ profile: { name: null, email: '', plan: 'free', createdAt: '' } })),
+    ]).then(([balanceData, planData, itemData, profileData]) => {
       const balances = balanceData.balances;
+
+      // Compute net worth
+      let totalAssets = 0;
+      let totalLiabilities = 0;
+      let depositoryTotal = 0;
+      let creditTotal = 0;
+
+      for (const b of balances) {
+        const val = parseFloat(b.balance || '0');
+        if (b.type === 'credit' || b.type === 'loan') {
+          totalLiabilities += val;
+          if (b.type === 'credit') creditTotal += val;
+        } else {
+          totalAssets += val;
+          if (b.type === 'depository') depositoryTotal += val;
+        }
+      }
+
       if (balances.length > 0) {
-        const total = balances.reduce((sum, b) => {
-          const val = parseFloat(b.balance || '0');
-          // Credit and loan balances are liabilities
-          return b.type === 'credit' || b.type === 'loan' ? sum - val : sum + val;
-        }, 0);
-        setNetWorth(total);
+        setNetWorth(totalAssets - totalLiabilities);
       }
       setAccountCount(balances.length);
+
+      // Monthly spend estimate from credit card balances
+      if (creditTotal > 0) {
+        setMonthlySpend(creditTotal);
+        // Runway = liquid cash / monthly spend
+        if (depositoryTotal > 0) {
+          setRunwayMonths(Math.floor(depositoryTotal / creditTotal));
+        }
+      }
 
       setPlans(planData.plans);
       setPlanCount(planData.plans.length);
 
       setInstitutionCount(itemData.items.length);
+
+      const name = profileData.profile.name;
+      setHasName(!!name && name !== profileData.profile.email?.split('@')[0]);
     }).finally(() => setLoading(false));
   }, []);
 
-  const toggleAction = (id: string) => {
-    setCompletedActions((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
-    );
-  };
-
-  const priorityColors = {
-    high: 'bg-danger',
-    medium: 'bg-warning',
-    low: 'bg-accent',
-  };
+  // Set page context for floating chat
+  useEffect(() => {
+    if (!loading) {
+      setPageContext({
+        pageId: 'dashboard',
+        pageTitle: 'Dashboard',
+        description: 'Overview of financial health including net worth, accounts, and plans.',
+        data: {
+          netWorth,
+          accountCount,
+          planCount,
+          institutionCount,
+          monthlySpend,
+          runwayMonths,
+        },
+      });
+    }
+  }, [loading, netWorth, accountCount, planCount, institutionCount, monthlySpend, runwayMonths, setPageContext]);
 
   const firstName = tenant?.name?.split(' ')[0] || 'there';
 
-  // Build contextual action items based on actual state
-  const actionItems: ActionItem[] = [];
-  if (institutionCount === 0) {
-    actionItems.push({
-      id: 'link-account',
-      text: 'Link your first bank account to get started',
-      linkText: 'Linked Accounts',
+  // Onboarding checklist
+  const checklist: ChecklistItem[] = useMemo(() => [
+    {
+      id: 'profile',
+      label: 'Set up your profile',
+      description: 'Add your name so we can personalize your experience',
+      path: '/settings',
+      done: hasName,
+      icon: User,
+    },
+    {
+      id: 'connect',
+      label: 'Connect a bank account',
+      description: 'Link your accounts for real-time tracking',
       path: '/accounts',
-      priority: 'high',
-    });
-  }
-  if (planCount === 0) {
-    actionItems.push({
-      id: 'create-plan',
-      text: 'Create your first financial plan',
-      linkText: 'AI Plans',
-      path: '/plans',
-      priority: 'high',
-    });
-  }
-  if (institutionCount > 0 && planCount === 0) {
-    actionItems.push({
-      id: 'review-net-worth',
-      text: 'Review your net worth breakdown',
-      linkText: 'Net Worth',
+      done: institutionCount > 0,
+      icon: Building2,
+    },
+    {
+      id: 'net-worth',
+      label: 'Review your net worth',
+      description: 'See your full financial picture in one place',
       path: '/net-worth',
-      priority: 'medium',
-    });
-  }
-  if (plans.length > 0) {
-    // Add an action item for the most recent plan
-    const latestPlan = plans[0];
-    actionItems.push({
-      id: `plan-${latestPlan.id}`,
-      text: `Continue working on "${latestPlan.title}"`,
-      linkText: latestPlan.title,
-      path: `/plans/${latestPlan.id}`,
-      priority: 'medium',
-    });
-  }
-  if (institutionCount > 0) {
-    actionItems.push({
-      id: 'check-cash-flow',
-      text: 'Check your cash flow and spending',
-      linkText: 'Cash Flow',
-      path: '/cash-flow',
-      priority: 'low',
-    });
-  }
+      done: netWorth !== null,
+      icon: Wallet,
+    },
+    {
+      id: 'plan',
+      label: 'Create a financial plan',
+      description: 'Get AI-powered analysis for retirement, debt, or custom goals',
+      path: '/plans/new',
+      done: planCount > 0,
+      icon: Target,
+    },
+  ], [hasName, institutionCount, netWorth, planCount]);
+
+  const completedCount = checklist.filter((c) => c.done).length;
+  const allDone = completedCount === checklist.length;
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
@@ -147,6 +197,67 @@ export function Dashboard() {
         </h2>
       </motion.div>
 
+      {/* Onboarding Checklist */}
+      {!loading && !allDone && (
+        <Section title={`Get Started — ${completedCount} of ${checklist.length}`}>
+          <div className="glass-card rounded-2xl overflow-hidden">
+            {/* Progress bar */}
+            <div className="px-5 pt-4 pb-2">
+              <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full bg-accent"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(completedCount / checklist.length) * 100}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                />
+              </div>
+            </div>
+
+            <div className="divide-y divide-border">
+              {checklist.map((item, i) => {
+                const Icon = item.icon;
+                return (
+                  <motion.button
+                    key={item.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04, duration: 0.3 }}
+                    onClick={() => !item.done && navigate(item.path)}
+                    className={cn(
+                      'w-full px-5 py-4 flex items-center gap-4 text-left transition-colors',
+                      item.done
+                        ? 'opacity-50'
+                        : 'hover:bg-surface-hover cursor-pointer'
+                    )}
+                  >
+                    {item.done ? (
+                      <CheckCircle2 className="w-5 h-5 text-accent flex-shrink-0" />
+                    ) : (
+                      <Circle className="w-5 h-5 text-border flex-shrink-0" />
+                    )}
+
+                    <Icon className={cn('w-5 h-5 flex-shrink-0', item.done ? 'text-text-muted' : 'text-text-secondary')} />
+
+                    <div className="flex-1 min-w-0">
+                      <div className={cn('text-sm font-medium', item.done && 'line-through text-text-muted')}>
+                        {item.label}
+                      </div>
+                      <div className="text-xs text-text-muted mt-0.5">
+                        {item.description}
+                      </div>
+                    </div>
+
+                    {!item.done && (
+                      <ChevronRight className="w-4 h-4 text-text-muted flex-shrink-0" />
+                    )}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* Summary Cards */}
       <Section title="Your Finances">
         {loading ? (
@@ -155,7 +266,7 @@ export function Dashboard() {
             <span className="text-sm">Loading...</span>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
             <StatCard
               icon={TrendingUp}
               label="Net Worth"
@@ -166,13 +277,29 @@ export function Dashboard() {
               delay={0}
             />
             <StatCard
+              icon={CreditCard}
+              label="Monthly Spend"
+              value={monthlySpend !== null ? formatCurrency(monthlySpend) : '—'}
+              description={monthlySpend !== null ? 'From credit card balances' : 'Link a credit card'}
+              status={monthlySpend !== null ? 'default' : 'default'}
+              delay={0.05}
+            />
+            <StatCard
+              icon={Shield}
+              label="Runway"
+              value={runwayMonths !== null ? `${runwayMonths} mo` : '—'}
+              description={runwayMonths !== null ? 'Months of expenses covered' : 'Based on cash & spending'}
+              status={runwayMonths !== null && runwayMonths >= 6 ? 'success' : runwayMonths !== null ? 'warning' : 'default'}
+              delay={0.1}
+            />
+            <StatCard
               icon={Building2}
               label="Linked Accounts"
               value={String(institutionCount)}
               description={institutionCount > 0 ? `${accountCount} account${accountCount !== 1 ? 's' : ''} total` : 'No accounts linked'}
               status={institutionCount > 0 ? 'success' : 'warning'}
               onClick={() => navigate('/accounts')}
-              delay={0.05}
+              delay={0.15}
             />
             <StatCard
               icon={Sparkles}
@@ -181,62 +308,11 @@ export function Dashboard() {
               description={planCount > 0 ? `${plans.filter(p => p.status === 'active').length} active` : 'Create your first plan'}
               status={planCount > 0 ? 'success' : 'default'}
               onClick={() => navigate('/plans')}
-              delay={0.1}
+              delay={0.2}
             />
           </div>
         )}
       </Section>
-
-      {/* Action Items */}
-      {actionItems.length > 0 && (
-        <Section title="Suggested Next Steps">
-          <div className="glass-card rounded-2xl divide-y divide-border overflow-hidden">
-            {actionItems.map((item, i) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05, duration: 0.4 }}
-                className={cn(
-                  'p-4 md:p-5 flex items-center gap-3 md:gap-4 transition-all duration-300 hover:bg-surface-hover',
-                  completedActions.includes(item.id) && 'opacity-40'
-                )}
-              >
-                <button
-                  onClick={() => toggleAction(item.id)}
-                  className={cn(
-                    'w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
-                    completedActions.includes(item.id)
-                      ? 'bg-accent border-accent text-bg'
-                      : 'border-border hover:border-accent/50'
-                  )}
-                >
-                  {completedActions.includes(item.id) && (
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-
-                <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', priorityColors[item.priority])} />
-
-                <div className="flex-1 min-w-0">
-                  <div className={cn('text-sm font-medium', completedActions.includes(item.id) && 'line-through text-text-muted')}>
-                    {item.text}
-                  </div>
-                  <button
-                    onClick={() => navigate(item.path)}
-                    className="text-sm text-text-muted hover:text-accent transition-colors flex items-center gap-1"
-                  >
-                    {item.linkText}
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </Section>
-      )}
     </div>
   );
 }

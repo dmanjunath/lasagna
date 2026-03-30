@@ -97,7 +97,7 @@ chatRouter.post("/", async (c) => {
       system: systemPrompt + planContext,
       messages: conversationMessages,
       tools,
-      maxSteps: 1, // Single step, we handle multi-step manually
+      // Note: We handle multi-step manually with the loop above
     });
 
     const toolCallCount = stepResult.toolCalls?.length || 0;
@@ -120,7 +120,7 @@ chatRouter.post("/", async (c) => {
       const tool = tools[toolCall.toolName as keyof typeof tools];
       if (tool && 'execute' in tool) {
         try {
-          const args = toolCall.args ?? {};
+          const args = (toolCall as any).args ?? {};
           const result = await (tool as any).execute(args);
           toolResults.push({
             toolCallId: toolCall.toolCallId,
@@ -189,7 +189,6 @@ chatRouter.post("/", async (c) => {
       system: systemPrompt + planContext,
       messages: conversationMessages,
       tools: {}, // No tools - force text response
-      maxSteps: 1,
     });
     finalText = wrapUpResult.text;
     console.log(`[Chat] Wrap-up response: ${finalText.length} chars`);
