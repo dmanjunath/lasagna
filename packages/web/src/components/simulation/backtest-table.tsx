@@ -46,6 +46,8 @@ const statusOrder: Record<string, number> = {
   failed: 2,
 };
 
+export type { BacktestPeriod };
+
 export function BacktestTable({
   periods,
   useRealDollars,
