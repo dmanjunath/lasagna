@@ -260,12 +260,14 @@ export function ProbabilityOfSuccess() {
     }
   }, [retirementAge, lifeExpectancy, monthlySpend, allocation, totalValue, strategy, strategyParams, warning]);
 
-  // Auto-run after initial data loads and when key parameters change
+  // Auto-run on any input change with debounce
   useEffect(() => {
-    if (!initialLoading && totalValue > 0) {
+    if (initialLoading || totalValue <= 0) return;
+    const timer = setTimeout(() => {
       runSimulations();
-    }
-  }, [initialLoading, retirementAge, lifeExpectancy, monthlySpend]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [initialLoading, retirementAge, lifeExpectancy, monthlySpend, allocation, strategy, strategyParams, totalValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectPreset = (preset: PortfolioPreset) => {
     setAllocation(preset.allocation);
@@ -475,16 +477,13 @@ export function ProbabilityOfSuccess() {
             </div>
           </div>
 
-          {/* Run Button */}
-          <div className="border-t border-border pt-4">
-            <Button onClick={runSimulations} disabled={simulating || !allocValid || totalValue <= 0}>
-              {simulating ? (
-                <span className="flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" /> Running...</span>
-              ) : (
-                <span className="flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Run Simulation</span>
-              )}
-            </Button>
-          </div>
+          {/* Auto-run indicator */}
+          {simulating && (
+            <div className="border-t border-border pt-4 flex items-center gap-2 text-text-muted text-sm">
+              <RefreshCw className="w-4 h-4 animate-spin text-accent" />
+              Recalculating...
+            </div>
+          )}
         </motion.div>
       </Section>
 

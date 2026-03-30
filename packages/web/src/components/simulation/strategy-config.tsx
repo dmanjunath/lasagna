@@ -289,18 +289,90 @@ function GuardrailsControls({
 
 function RulesBasedControls({
   params,
+  monthlySpend,
+  onMonthlySpendChange,
   onParamsChange,
 }: {
   params: StrategyParams;
+  monthlySpend: number;
+  onMonthlySpendChange: (v: number) => void;
   onParamsChange: (p: StrategyParams) => void;
 }) {
   const threshold = params.marketDownThreshold ?? -10;
-  const depletionOrder = params.depletionOrder ?? DEFAULT_DEPLETION_ORDER;
 
   return (
     <div className="space-y-5">
+      {/* Monthly spend */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-text-secondary">Monthly Spending</label>
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+          <input
+            type="number"
+            value={monthlySpend}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v) && v >= 0) onMonthlySpendChange(v);
+            }}
+            min={0}
+            max={100000}
+            className="w-full bg-surface rounded-xl border border-border pl-8 pr-4 py-3 text-text tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+        </div>
+        <p className="text-xs text-text-muted">${(monthlySpend * 12).toLocaleString()}/yr, adjusted for inflation</p>
+      </div>
+
+      {/* Decision rules as a visual flowchart */}
+      <div className="space-y-3">
+        <label className="text-sm font-medium text-text-secondary">Withdrawal Rules</label>
+
+        <div className="rounded-xl border border-border overflow-hidden">
+          {/* Rule 1: Down market */}
+          <div className="p-3 bg-danger/5 border-b border-border">
+            <div className="flex items-start gap-3">
+              <span className="text-xs font-semibold text-danger bg-danger/10 rounded px-1.5 py-0.5 mt-0.5 flex-shrink-0">IF</span>
+              <div className="flex-1">
+                <p className="text-sm text-text">
+                  Equities drop more than <strong className="text-danger">{threshold}%</strong> in a year
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-warning bg-warning/10 rounded px-1.5 py-0.5">THEN</span>
+                  <p className="text-xs text-text-secondary">Withdraw from safe assets first:</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-1.5 ml-12">
+                  {["Cash", "Bonds", "REITs"].map((item, i) => (
+                    <span key={item} className="flex items-center gap-1">
+                      <span className="bg-surface-solid rounded border border-border px-2 py-0.5 text-xs font-medium text-text">{item}</span>
+                      {i < 2 && <span className="text-text-muted text-xs">&rarr;</span>}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-text-muted mt-1.5 ml-12">If safe assets run out, remainder comes from equities.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Rule 2: Flat/up market */}
+          <div className="p-3 bg-success/5">
+            <div className="flex items-start gap-3">
+              <span className="text-xs font-semibold text-success bg-success/10 rounded px-1.5 py-0.5 mt-0.5 flex-shrink-0">ELSE</span>
+              <div className="flex-1">
+                <p className="text-sm text-text">
+                  Market is flat or up
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-accent bg-accent/10 rounded px-1.5 py-0.5">THEN</span>
+                  <p className="text-xs text-text-secondary">Withdraw proportionally from all asset classes</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Threshold slider */}
       <SliderField
-        label="Market down threshold"
+        label="Market drop threshold"
         value={threshold}
         min={-30}
         max={-5}
@@ -308,33 +380,8 @@ function RulesBasedControls({
         format={(v) => `${v}%`}
         minLabel="-30%"
         maxLabel="-5%"
-        onChange={(v) =>
-          onParamsChange({ ...params, marketDownThreshold: v })
-        }
+        onChange={(v) => onParamsChange({ ...params, marketDownThreshold: v })}
       />
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-text-secondary">
-          Depletion order
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {depletionOrder.map((item, i) => (
-            <span key={item} className="flex items-center gap-1">
-              <span className="bg-surface rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text">
-                {item}
-              </span>
-              {i < depletionOrder.length - 1 && (
-                <span className="text-text-muted text-xs">&rarr;</span>
-              )}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <p className="text-xs text-text-muted mt-1">
-        When equities drop more than {threshold}%, withdraw from cash and bonds
-        first.
-      </p>
     </div>
   );
 }
@@ -391,6 +438,8 @@ export function StrategyConfig({
         {strategy === "rules_based" && (
           <RulesBasedControls
             params={params}
+            monthlySpend={monthlySpend}
+            onMonthlySpendChange={onMonthlySpendChange}
             onParamsChange={onParamsChange}
           />
         )}
