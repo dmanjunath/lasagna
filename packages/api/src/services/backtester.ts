@@ -141,16 +141,14 @@ export class Backtester {
         worstYear = currentYear;
       }
 
-      // Update cumulative inflation
-      cumulativeInflation *= (1 + returns.inflation);
-
       // Build current allocation as dollar amounts for withdrawal context
       const currentAllocation: Record<string, number> = {};
       for (const k of ASSET_CLASSES) {
         currentAllocation[k] = balances[k];
       }
 
-      // Compute withdrawal
+      // Compute withdrawal BEFORE updating cumulative inflation
+      // so year 1 uses cumulativeInflation=1.0 (base withdrawal, no adjustment)
       const withdrawalResult = computeWithdrawal(strategy, strategyParams, {
         currentBalance: totalBalance,
         initialBalance: params.initialBalance,
@@ -162,6 +160,9 @@ export class Backtester {
         currentAllocation,
         previousWithdrawal,
       });
+
+      // Update cumulative inflation AFTER withdrawal (affects next year)
+      cumulativeInflation *= (1 + returns.inflation);
 
       const withdrawalAmount = withdrawalResult.amount;
       previousWithdrawal = withdrawalAmount;
@@ -211,9 +212,8 @@ export class Backtester {
 
     let status: "success" | "failed" | "close";
     if (yearsLasted >= params.yearsToSimulate && finalBalance > 0) {
-      status = "success";
-    } else if (yearsLasted >= params.yearsToSimulate * 0.9) {
-      status = "close";
+      // Survived the full period — but barely if final balance < 50% of starting
+      status = finalBalance < params.initialBalance * 0.5 ? "close" : "success";
     } else {
       status = "failed";
     }
