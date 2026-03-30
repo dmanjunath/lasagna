@@ -37,6 +37,8 @@ simulationsRouter.post("/monte-carlo", async (c) => {
     numSamplePaths?: number;
     strategy?: StrategyType;
     strategyParams?: StrategyParams;
+    fees?: { equities?: number; bonds?: number; reits?: number; cash?: number };
+    cashGrowthRate?: number;
   }>();
 
   if (!body.initialValue || body.initialValue <= 0) {
@@ -69,6 +71,8 @@ simulationsRouter.post("/monte-carlo", async (c) => {
       numSimulations: batchSize,
       strategy: body.strategy,
       strategyParams: body.strategyParams,
+      fees: body.fees,
+      cashGrowthRate: body.cashGrowthRate,
       includeSamplePaths: body.includeSamplePaths && completedSimulations === 0,
       numSamplePaths: body.numSamplePaths,
     });
@@ -118,6 +122,8 @@ simulationsRouter.post("/backtest", async (c) => {
     years: number;
     strategy?: StrategyType;
     strategyParams?: StrategyParams;
+    fees?: { equities?: number; bonds?: number; reits?: number; cash?: number };
+    cashGrowthRate?: number;
   }>();
 
   if (!body.initialValue || body.initialValue <= 0) {
@@ -132,6 +138,8 @@ simulationsRouter.post("/backtest", async (c) => {
     annualWithdrawal: body.annualWithdrawal,
     yearsToSimulate: body.years,
     assetAllocation: normalizedAllocation,
+    fees: body.fees,
+    cashGrowthRate: body.cashGrowthRate,
     strategy: body.strategy,
     strategyParams: body.strategyParams,
   });

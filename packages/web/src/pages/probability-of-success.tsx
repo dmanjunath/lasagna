@@ -88,6 +88,10 @@ export function ProbabilityOfSuccess() {
   const [strategyParams, setStrategyParams] = useState<StrategyParams>({ inflationAdjusted: true });
   const [useRealDollars, setUseRealDollars] = useState(true);
 
+  // Fees & cash rate (match ficalc defaults)
+  const fees = { equities: 0.0004, bonds: 0.0005, reits: 0.0004, cash: 0 };
+  const cashGrowthRate = 0.015;
+
   // Results
   const [successRate, setSuccessRate] = useState<number | null>(null);
   const [percentiles, setPercentiles] = useState<any[]>([]);
@@ -205,6 +209,8 @@ export function ProbabilityOfSuccess() {
           numSamplePaths: 20,
           strategy,
           strategyParams,
+          fees,
+          cashGrowthRate,
         }),
       });
 
@@ -243,6 +249,8 @@ export function ProbabilityOfSuccess() {
           years,
           strategy,
           strategyParams,
+          fees,
+          cashGrowthRate,
         }),
       });
 

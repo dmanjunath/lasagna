@@ -1,6 +1,13 @@
 import { getHistoricalDataService, type Allocation } from "./historical-data.js";
 import { computeWithdrawal, type StrategyType, type StrategyParams } from "./withdrawal-strategies.js";
 
+export interface AssetFees {
+  equities?: number;  // annual expense ratio, e.g., 0.0004 for 0.04%
+  bonds?: number;
+  reits?: number;
+  cash?: number;
+}
+
 export interface BacktestParams {
   initialBalance: number;
   annualWithdrawal: number;
@@ -9,6 +16,8 @@ export interface BacktestParams {
   strategy?: StrategyType;
   strategyParams?: StrategyParams;
   startYearRange?: { from: number; to: number };
+  fees?: AssetFees;
+  cashGrowthRate?: number;  // fixed annual cash growth rate (default 0.015 = 1.5%)
 }
 
 export interface YearDetail {
@@ -102,12 +111,19 @@ export class Backtester {
       // Prorate allocation for this year (handles missing intl/reits data)
       const proratedAlloc = this.historicalData.prorateAllocation(params.assetAllocation, currentYear);
 
-      // Apply per-class returns
-      const usReturn = returns.usStocks;
-      const intlReturn = returns.intlStocks ?? 0;
-      const bondsReturn = returns.bonds;
-      const reitsReturn = returns.reits ?? 0;
-      const cashReturn = returns.cash;
+      // Apply per-class returns, minus fees
+      const fees = params.fees ?? {};
+      const equityFee = fees.equities ?? 0;
+      const bondFee = fees.bonds ?? 0;
+      const reitFee = fees.reits ?? 0;
+      const cashFee = fees.cash ?? 0;
+
+      const usReturn = returns.usStocks - equityFee;
+      const intlReturn = (returns.intlStocks ?? 0) - equityFee;
+      const bondsReturn = returns.bonds - bondFee;
+      const reitsReturn = (returns.reits ?? 0) - reitFee;
+      // Cash uses fixed growth rate (default 1.5%) instead of T-bill returns
+      const cashReturn = (params.cashGrowthRate ?? 0.015) - cashFee;
 
       balances.usStocks *= (1 + usReturn);
       balances.intlStocks *= (1 + intlReturn);
