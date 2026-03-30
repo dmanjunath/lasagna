@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { getMonteCarloEngine, type AssetAllocation } from "../services/monte-carlo.js";
 import { getBacktester } from "../services/backtester.js";
+import type { StrategyType, StrategyParams } from "../services/withdrawal-strategies.js";
 
 export const simulationsRouter = new Hono<AuthEnv>();
 simulationsRouter.use("*", requireAuth);
@@ -34,6 +35,8 @@ simulationsRouter.post("/monte-carlo", async (c) => {
     simulations?: number;
     includeSamplePaths?: boolean;
     numSamplePaths?: number;
+    strategy?: StrategyType;
+    strategyParams?: StrategyParams;
   }>();
 
   if (!body.initialValue || body.initialValue <= 0) {
@@ -64,6 +67,8 @@ simulationsRouter.post("/monte-carlo", async (c) => {
       yearsToSimulate: body.years,
       assetAllocation: normalizedAllocation,
       numSimulations: batchSize,
+      strategy: body.strategy,
+      strategyParams: body.strategyParams,
       includeSamplePaths: body.includeSamplePaths && completedSimulations === 0,
       numSamplePaths: body.numSamplePaths,
     });
@@ -88,7 +93,7 @@ function combineMonteCarloResults(results: any[], totalSimulations: number) {
   if (results.length === 0) return { successRate: 0, percentiles: {}, histogram: [] };
   if (results.length === 1) return results[0];
 
-  const totalSuccesses = results.reduce((sum, r) => sum + (r.successRate * (r.numSimulations || 1000)), 0);
+  const totalSuccesses = results.reduce((sum, r) => sum + (r.successRate * r.numSimulations), 0);
   const successRate = totalSuccesses / totalSimulations;
   const percentiles = results[0].percentiles;
 
@@ -111,6 +116,8 @@ simulationsRouter.post("/backtest", async (c) => {
     initialValue: number;
     annualWithdrawal: number;
     years: number;
+    strategy?: StrategyType;
+    strategyParams?: StrategyParams;
   }>();
 
   if (!body.initialValue || body.initialValue <= 0) {
@@ -125,8 +132,8 @@ simulationsRouter.post("/backtest", async (c) => {
     annualWithdrawal: body.annualWithdrawal,
     yearsToSimulate: body.years,
     assetAllocation: normalizedAllocation,
-    strategy: "constant_dollar",
-    strategyParams: { inflationAdjusted: true },
+    strategy: body.strategy,
+    strategyParams: body.strategyParams,
   });
 
   // Calculate average final value from successful periods
