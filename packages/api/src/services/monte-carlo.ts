@@ -26,6 +26,13 @@ const ASSET_CLASSES: (keyof AssetAllocation)[] = [
   "cash",
 ];
 
+export interface AssetFees {
+  equities?: number;
+  bonds?: number;
+  reits?: number;
+  cash?: number;
+}
+
 export interface MonteCarloParams {
   initialBalance: number;
   annualWithdrawal: number; // Dollar amount withdrawn per year
@@ -33,6 +40,8 @@ export interface MonteCarloParams {
   assetAllocation: AssetAllocation;
   numSimulations: number;
   strategy?: StrategyType;
+  fees?: AssetFees;
+  cashGrowthRate?: number;  // fixed annual cash growth rate (default 0.015)
   strategyParams?: StrategyParams;
   includeSamplePaths?: boolean; // Whether to include sample paths for spaghetti chart
   numSamplePaths?: number; // Number of sample paths to include (default: 10)
@@ -165,10 +174,21 @@ export class MonteCarloEngine {
     let previousWithdrawal: number | undefined;
 
     for (let year = 1; year <= params.yearsToSimulate; year++) {
-      // Generate random per-class returns and apply to per-class balances
+      // Generate random per-class returns, apply fees, and update balances
+      const fees = params.fees ?? {};
       const returns: Record<string, number> = {};
       for (const cls of ASSET_CLASSES) {
-        const r = this.randomNormal(MODEL[cls].mean, MODEL[cls].stdDev);
+        let r: number;
+        if (cls === "cash") {
+          // Cash uses fixed growth rate (default 1.5%) instead of random model
+          r = (params.cashGrowthRate ?? 0.015) - (fees.cash ?? 0);
+        } else {
+          const fee = cls === "usStocks" || cls === "intlStocks"
+            ? (fees.equities ?? 0)
+            : cls === "bonds" ? (fees.bonds ?? 0)
+            : (fees.reits ?? 0);
+          r = this.randomNormal(MODEL[cls].mean, MODEL[cls].stdDev) - fee;
+        }
         returns[cls] = r;
         balanceByClass[cls] *= 1 + r;
       }
