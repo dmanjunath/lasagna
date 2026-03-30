@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, desc, accounts, balanceSnapshots } from "@lasagna/core";
+import { eq, desc, and, sql, accounts, balanceSnapshots } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 
@@ -45,6 +45,50 @@ accountRoutes.get("/balances", async (c) => {
   );
 
   return c.json({ balances });
+});
+
+// Get net worth history (aggregated across all accounts by date)
+// Must be before /:id/history to avoid matching "net-worth" as an :id
+accountRoutes.get("/net-worth/history", async (c) => {
+  const session = c.get("session");
+
+  const accts = await db.query.accounts.findMany({
+    where: eq(accounts.tenantId, session.tenantId),
+  });
+  if (accts.length === 0) {
+    return c.json({ history: [] });
+  }
+
+  const liabilityTypes = new Set(["credit", "loan"]);
+  const accountTypeMap = new Map(accts.map((a) => [a.id, a.type]));
+
+  // Get latest snapshot per account per day
+  const rows = await db
+    .select({
+      date: sql<string>`date_trunc('day', ${balanceSnapshots.snapshotAt})::date`.as("date"),
+      accountId: balanceSnapshots.accountId,
+      balance: sql<string>`(array_agg(${balanceSnapshots.balance} ORDER BY ${balanceSnapshots.snapshotAt} DESC))[1]`.as("balance"),
+    })
+    .from(balanceSnapshots)
+    .where(eq(balanceSnapshots.tenantId, session.tenantId))
+    .groupBy(sql`date_trunc('day', ${balanceSnapshots.snapshotAt})::date`, balanceSnapshots.accountId)
+    .orderBy(sql`date_trunc('day', ${balanceSnapshots.snapshotAt})::date`);
+
+  // Aggregate per-date net worth
+  const dateMap = new Map<string, number>();
+  for (const row of rows) {
+    const date = String(row.date);
+    const bal = parseFloat(row.balance || "0");
+    const type = accountTypeMap.get(row.accountId);
+    const signed = type && liabilityTypes.has(type) ? -bal : bal;
+    dateMap.set(date, (dateMap.get(date) || 0) + signed);
+  }
+
+  const history = Array.from(dateMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, value]) => ({ date, value: Math.round(value * 100) / 100 }));
+
+  return c.json({ history });
 });
 
 // Get balance history for a single account

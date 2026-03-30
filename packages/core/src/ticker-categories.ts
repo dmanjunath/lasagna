@@ -28,11 +28,16 @@ const TICKER_MAP: Record<string, [AssetClass, SubCategory]> = {
   // US Stocks - Total Market
   VTI: ['US Stocks', 'Total Market'],
   VTSAX: ['US Stocks', 'Total Market'],
+  VFTAX: ['US Stocks', 'Total Market'],
   ITOT: ['US Stocks', 'Total Market'],
   SWTSX: ['US Stocks', 'Total Market'],
   FSKAX: ['US Stocks', 'Total Market'],
   FZROX: ['US Stocks', 'Total Market'],
   VTSMX: ['US Stocks', 'Total Market'],
+
+  // US Stocks - Total World (US-heavy global funds)
+  VT: ['US Stocks', 'Total World'],
+  VTWAX: ['US Stocks', 'Total World'],
 
   // US Stocks - S&P 500
   VOO: ['US Stocks', 'S&P 500'],
@@ -49,8 +54,13 @@ const TICKER_MAP: Record<string, [AssetClass, SubCategory]> = {
   VOOG: ['US Stocks', 'Growth'],
   IWF: ['US Stocks', 'Growth'],
   SCHG: ['US Stocks', 'Growth'],
-  QQQ: ['US Stocks', 'Growth'],
-  QQQM: ['US Stocks', 'Growth'],
+
+  // US Stocks - Nasdaq
+  QQQ: ['US Stocks', 'Nasdaq'],
+  QQQM: ['US Stocks', 'Nasdaq'],
+  ONEQ: ['US Stocks', 'Nasdaq'],
+  NASDX: ['US Stocks', 'Nasdaq'],
+  FNCMX: ['US Stocks', 'Nasdaq'],
 
   // US Stocks - Value
   VTV: ['US Stocks', 'Value'],
@@ -91,12 +101,20 @@ const TICKER_MAP: Record<string, [AssetClass, SubCategory]> = {
   IEMG: ['International Stocks', 'Emerging'],
   EEM: ['International Stocks', 'Emerging'],
   SCHE: ['International Stocks', 'Emerging'],
+  FLCH: ['International Stocks', 'Emerging'],
+  FXI: ['International Stocks', 'Emerging'],
+  MCHI: ['International Stocks', 'Emerging'],
+  KWEB: ['International Stocks', 'Emerging'],
 
   // International Stocks - Total International
   VXUS: ['International Stocks', 'Total International'],
   VTIAX: ['International Stocks', 'Total International'],
   IXUS: ['International Stocks', 'Total International'],
   FZILX: ['International Stocks', 'Total International'],
+  VTISX: ['International Stocks', 'Total International'],
+  VITNX: ['International Stocks', 'Total International'],
+  VTSNX: ['International Stocks', 'Total International'],
+  FSPSX: ['International Stocks', 'Total International'],
 
   // Bonds - Total Bond
   BND: ['Bonds', 'Total Bond'],
@@ -144,6 +162,9 @@ const TICKER_MAP: Record<string, [AssetClass, SubCategory]> = {
   SPAXX: ['Cash', 'Money Market'],
   FDRXX: ['Cash', 'Money Market'],
   SWVXX: ['Cash', 'Money Market'],
+  QAJDS: ['Cash', 'Money Market'],
+  SPRXX: ['Cash', 'Money Market'],
+  VMMXX: ['Cash', 'Money Market'],
 
   // Cash - Short Term
   VGSH: ['Cash', 'Short-Term'],

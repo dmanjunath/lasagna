@@ -100,6 +100,11 @@ export const api = {
       }>;
     }>(`/accounts/${accountId}/history`),
 
+  getNetWorthHistory: () =>
+    request<{
+      history: Array<{ date: string; value: number }>;
+    }>("/accounts/net-worth/history"),
+
   // Holdings
   getHoldings: () =>
     request<{

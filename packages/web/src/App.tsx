@@ -1,11 +1,11 @@
 import { Route, Switch } from 'wouter';
 import { AuthProvider, useAuth } from './lib/auth';
+import { PageContextProvider } from './lib/page-context';
 import { Shell } from './components/layout/shell';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Accounts } from './pages/Accounts';
 import { NetWorth } from './pages/net-worth';
-import { CashFlow } from './pages/cash-flow';
 import { TaxStrategy } from './pages/tax-strategy';
 import { Retirement } from './pages/retirement';
 import { SavingsGoal } from './pages/savings-goal';
@@ -33,29 +33,30 @@ function AppRoutes() {
   }
 
   return (
-    <Shell>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/accounts" component={Accounts} />
-        <Route path="/net-worth" component={NetWorth} />
-        <Route path="/cash-flow" component={CashFlow} />
-        <Route path="/tax-history" component={TaxStrategy} />
-        <Route path="/plans" component={PlansPage} />
-        <Route path="/plans/new" component={NewPlanPage} />
-        <Route path="/plans/:id" component={PlanDetailPage} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/plans/retirement" component={Retirement} />
-        <Route path="/plans/savings/:id" component={SavingsGoal} />
-        <Route path="/plans/debt-payoff" component={DebtPayoff} />
-        <Route path="/portfolio" component={PortfolioComposition} />
-        <Route path="/probability" component={ProbabilityOfSuccess} />
-        <Route>
-          <div className="flex-1 flex items-center justify-center text-text-muted">
-            Page not found
-          </div>
-        </Route>
-      </Switch>
-    </Shell>
+    <PageContextProvider>
+      <Shell>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/accounts" component={Accounts} />
+          <Route path="/net-worth" component={NetWorth} />
+          <Route path="/tax-history" component={TaxStrategy} />
+          <Route path="/plans" component={PlansPage} />
+          <Route path="/plans/new" component={NewPlanPage} />
+          <Route path="/plans/:id" component={PlanDetailPage} />
+          <Route path="/settings" component={Settings} />
+          <Route path="/plans/retirement" component={Retirement} />
+          <Route path="/plans/savings/:id" component={SavingsGoal} />
+          <Route path="/plans/debt-payoff" component={DebtPayoff} />
+          <Route path="/portfolio" component={PortfolioComposition} />
+          <Route path="/probability" component={ProbabilityOfSuccess} />
+          <Route>
+            <div className="flex-1 flex items-center justify-center text-text-muted">
+              Page not found
+            </div>
+          </Route>
+        </Switch>
+      </Shell>
+    </PageContextProvider>
   );
 }
 

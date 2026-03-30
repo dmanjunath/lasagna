@@ -1,0 +1,2 @@
+- [ ] Pull actual asset class historical data instead of hardcoded historical data
+- [ ] Pull actual data grouping tickers to asset type (eg VTI -> US Total Stock Market, QQQ -> Nasdaq)

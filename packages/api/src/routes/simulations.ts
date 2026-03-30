@@ -6,22 +6,20 @@ import { getBacktester } from "../services/backtester.js";
 export const simulationsRouter = new Hono<AuthEnv>();
 simulationsRouter.use("*", requireAuth);
 
-// Normalize allocation to sum to 100%
+// Normalize allocation to fractions summing to 1.0
+// Input may be percentages (0-100) or fractions (0-1)
 function normalizeAllocation(allocation: AssetAllocation): AssetAllocation {
   const total = allocation.usStocks + allocation.intlStocks + allocation.bonds + allocation.reits + allocation.cash;
   if (total === 0) {
-    return { usStocks: 60, intlStocks: 0, bonds: 40, reits: 0, cash: 0 };
+    return { usStocks: 0.60, intlStocks: 0, bonds: 0.40, reits: 0, cash: 0 };
   }
-  if (Math.abs(total - 100) < 0.01) {
-    return allocation;
-  }
-  const scale = 100 / total;
+  // Convert to fractions summing to 1.0
   return {
-    usStocks: allocation.usStocks * scale,
-    intlStocks: allocation.intlStocks * scale,
-    bonds: allocation.bonds * scale,
-    reits: allocation.reits * scale,
-    cash: allocation.cash * scale,
+    usStocks: allocation.usStocks / total,
+    intlStocks: allocation.intlStocks / total,
+    bonds: allocation.bonds / total,
+    reits: allocation.reits / total,
+    cash: allocation.cash / total,
   };
 }
 
@@ -37,6 +35,10 @@ simulationsRouter.post("/monte-carlo", async (c) => {
     includeSamplePaths?: boolean;
     numSamplePaths?: number;
   }>();
+
+  if (!body.initialValue || body.initialValue <= 0) {
+    return c.json({ error: "Portfolio value must be greater than zero" }, 400);
+  }
 
   const engine = getMonteCarloEngine();
   const withdrawalRate = body.annualWithdrawal / body.initialValue;
@@ -113,6 +115,10 @@ simulationsRouter.post("/backtest", async (c) => {
     years: number;
   }>();
 
+  if (!body.initialValue || body.initialValue <= 0) {
+    return c.json({ error: "Portfolio value must be greater than zero" }, 400);
+  }
+
   const backtester = getBacktester();
   const withdrawalRate = body.annualWithdrawal / body.initialValue;
   const normalizedAllocation = normalizeAllocation(body.allocation);
@@ -125,11 +131,18 @@ simulationsRouter.post("/backtest", async (c) => {
     inflationAdjusted: true,
   });
 
+  // Calculate average final value from successful periods
+  const successfulPeriods = result.periods.filter(p => p.status === 'success');
+  const avgFinalValue = successfulPeriods.length > 0
+    ? successfulPeriods.reduce((sum, p) => sum + p.endBalance, 0) / successfulPeriods.length
+    : 0;
+
   return c.json({
     summary: {
-      periodsRun: result.totalPeriods,
+      totalPeriods: result.totalPeriods,
       periodsSucceeded: result.successfulPeriods,
       successRate: result.successRate,
+      avgFinalValue,
     },
     periods: result.periods,
   });
