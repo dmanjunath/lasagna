@@ -6,7 +6,7 @@ describe("MonteCarloEngine", () => {
 
   const defaultParams: MonteCarloParams = {
     initialBalance: 1000000,
-    withdrawalRate: 0.04,
+    annualWithdrawal: 40000, // $40k/year (equivalent to 4% of $1M)
     yearsToSimulate: 30,
     assetAllocation: {
       usStocks: 0.50,
@@ -15,7 +15,6 @@ describe("MonteCarloEngine", () => {
       reits: 0.05,
       cash: 0.05,
     },
-    inflationAdjusted: true,
     numSimulations: 1000,
   };
 
@@ -38,8 +37,8 @@ describe("MonteCarloEngine", () => {
       expect(result.percentiles.p95[0]).toBe(defaultParams.initialBalance);
     });
 
-    it("handles zero withdrawal rate", () => {
-      const params = { ...defaultParams, withdrawalRate: 0 };
+    it("handles zero withdrawal", () => {
+      const params = { ...defaultParams, annualWithdrawal: 0 };
       const result = engine.run(params);
       expect(result.successRate).toBe(1);
     });
@@ -131,9 +130,9 @@ describe("MonteCarloEngine", () => {
   });
 
   describe("calculates reasonable results", () => {
-    it("higher withdrawal rate = lower success rate", () => {
-      const low = engine.run({ ...defaultParams, withdrawalRate: 0.03 });
-      const high = engine.run({ ...defaultParams, withdrawalRate: 0.06 });
+    it("higher withdrawal = lower success rate", () => {
+      const low = engine.run({ ...defaultParams, annualWithdrawal: 30000 });
+      const high = engine.run({ ...defaultParams, annualWithdrawal: 60000 });
       expect(low.successRate).toBeGreaterThan(high.successRate);
     });
 

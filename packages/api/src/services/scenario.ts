@@ -124,8 +124,8 @@ export class ScenarioEngine {
 
     const mcEngine = getMonteCarloEngine();
     const baselineResult = mcEngine.run({
-      initialBalance, withdrawalRate, yearsToSimulate: retirementDuration,
-      assetAllocation, inflationAdjusted: true, numSimulations: 1000,
+      initialBalance, annualWithdrawal, yearsToSimulate: retirementDuration,
+      assetAllocation, numSimulations: 1000,
     });
 
     return {
