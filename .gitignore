@@ -3,6 +3,7 @@ dist
 .env
 *.tsbuildinfo
 .superpowers/*
+docs/
 
 # Playwright
 /test-results/
