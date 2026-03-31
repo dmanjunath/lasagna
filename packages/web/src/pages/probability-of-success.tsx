@@ -195,7 +195,7 @@ export function ProbabilityOfSuccess() {
       const annualWithdrawal = monthlySpend * 12;
 
       // Run Monte Carlo
-      const mcResponse = await fetch(`${API_BASE}/api/simulations/monte-carlo", {
+      const mcResponse = await fetch(`${API_BASE}/api/simulations/monte-carlo`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -238,7 +238,7 @@ export function ProbabilityOfSuccess() {
       if (mcData.warning) setWarning(mcData.warning);
 
       // Run Backtest
-      const btResponse = await fetch(`${API_BASE}/api/simulations/backtest", {
+      const btResponse = await fetch(`${API_BASE}/api/simulations/backtest`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
