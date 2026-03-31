@@ -5,11 +5,13 @@ import { cn } from "../../lib/utils";
 import { formatMoney } from "../../lib/utils";
 import { YearDetail } from "./year-detail";
 
-interface YearDetail {
+interface YearDetailData {
   year: number;
   portfolioValue: number;
   portfolioValueReal: number;
   marketReturn: number;
+  assetReturns?: Record<string, number>;
+  assetWeights?: Record<string, number>;
   withdrawalAmount: number;
   withdrawalAmountReal: number;
   cumulativeInflation: number;
@@ -24,7 +26,7 @@ interface BacktestPeriod {
   status: "success" | "close" | "failed";
   worstDrawdown: number;
   worstYear: number;
-  yearByYear: YearDetail[];
+  yearByYear: YearDetailData[];
 }
 
 interface BacktestTableProps {

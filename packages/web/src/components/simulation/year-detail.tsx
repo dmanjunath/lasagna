@@ -114,7 +114,7 @@ export function YearDetail({ yearByYear, useRealDollars, showWithdrawalSource }:
               <td className="text-sm tabular-nums px-3 py-2">
                 <span
                   className={cn(
-                    'underline decoration-dotted cursor-help',
+                    'underline decoration-dotted',
                     y.marketReturn >= 0 ? 'text-success' : 'text-danger'
                   )}
                   onMouseEnter={(e) => showTooltip(e, y)}
