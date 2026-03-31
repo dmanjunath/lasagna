@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Target, TrendingUp, AlertTriangle, RefreshCw, Calendar, Wallet, Building2, Plus } from "lucide-react";
 import { cn, formatMoney } from "../lib/utils";
-import { api } from "../lib/api";
+import { api, API_BASE } from "../lib/api";
 import { usePageContext } from "../lib/page-context";
 import { FanChart } from "../components/charts/fan-chart";
 import { SpaghettiChart } from "../components/charts/spaghetti-chart";
@@ -195,7 +195,7 @@ export function ProbabilityOfSuccess() {
       const annualWithdrawal = monthlySpend * 12;
 
       // Run Monte Carlo
-      const mcResponse = await fetch("/api/simulations/monte-carlo", {
+      const mcResponse = await fetch(`${API_BASE}/api/simulations/monte-carlo", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -238,7 +238,7 @@ export function ProbabilityOfSuccess() {
       if (mcData.warning) setWarning(mcData.warning);
 
       // Run Backtest
-      const btResponse = await fetch("/api/simulations/backtest", {
+      const btResponse = await fetch(`${API_BASE}/api/simulations/backtest", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

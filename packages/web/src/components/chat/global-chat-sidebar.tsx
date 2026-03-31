@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Loader2 } from 'lucide-react';
 import { usePageContext } from '../../lib/page-context';
-import { api } from '../../lib/api';
+import { api, API_BASE } from '../../lib/api';
 import { MessageList } from './message-list';
 import type { Message } from '../../lib/types';
 
@@ -75,7 +75,7 @@ export function GlobalChatSidebar() {
         : content.trim();
 
       // Send to chat API
-      const res = await fetch('/api/chat', {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
