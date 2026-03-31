@@ -1,6 +1,0 @@
-<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Minimal wallet -->
-  <rect x="15" y="30" width="60" height="45" rx="4" fill="none" stroke="#1a1a1a" stroke-width="4"/>
-  <rect x="55" y="45" width="30" height="18" rx="3" fill="none" stroke="#1a1a1a" stroke-width="4"/>
-  <circle cx="72" cy="54" r="3" fill="#1a1a1a"/>
-</svg>

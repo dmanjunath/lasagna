@@ -1,9 +1,0 @@
-<svg width="300" height="60" viewBox="0 0 300 60" xmlns="http://www.w3.org/2000/svg">
-  <!-- Clean typography options -->
-
-  <!-- Option A: Lowercase, light weight -->
-  <text x="0" y="25" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="300" fill="#1a1a1a" letter-spacing="2">lasagna</text>
-
-  <!-- Option B: Uppercase, bold -->
-  <text x="0" y="55" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="700" fill="#1a1a1a" letter-spacing="4">LASAGNA</text>
-</svg>
