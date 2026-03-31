@@ -33,7 +33,6 @@ COPY --from=build /app/packages/web/dist packages/web/dist
 
 # Serve web static files from the API
 ENV NODE_ENV=production
-ENV PORT=3000
 EXPOSE 3000
 
 CMD ["node", "packages/api/dist/index.js"]
