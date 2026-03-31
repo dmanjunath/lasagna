@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { cn, formatMoney } from '../../lib/utils';
 
-interface YearDetail {
+interface YearDetailData {
   year: number;
   portfolioValue: number;
   portfolioValueReal: number;
@@ -16,7 +17,7 @@ interface YearDetail {
 }
 
 interface YearDetailProps {
-  yearByYear: YearDetail[];
+  yearByYear: YearDetailData[];
   useRealDollars: boolean;
   showWithdrawalSource: boolean;
 }
@@ -29,21 +30,20 @@ const ASSET_LABELS: Record<string, string> = {
   cash: 'Cash',
 };
 
-function ReturnTooltip({ year }: { year: YearDetail }) {
+function ReturnTooltipContent({ year }: { year: YearDetailData }) {
   if (!year.assetReturns || !year.assetWeights) return null;
 
   const entries = Object.entries(year.assetReturns)
     .filter(([key]) => (year.assetWeights?.[key] ?? 0) > 0.001);
 
   return (
-    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-surface-solid border border-border rounded-xl shadow-lg p-3 pointer-events-none">
+    <>
       <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Return Breakdown</div>
       <div className="space-y-1.5">
         {entries.map(([key, ret]) => {
           const weight = year.assetWeights?.[key] ?? 0;
-          const contribution = ret * weight;
           return (
-            <div key={key} className="flex items-center justify-between text-xs">
+            <div key={key} className="flex items-center justify-between text-xs gap-4">
               <span className="text-text-secondary">{ASSET_LABELS[key] ?? key}</span>
               <div className="flex items-center gap-2 tabular-nums">
                 <span className="text-text-muted">{(weight * 100).toFixed(0)}%</span>
@@ -61,14 +61,27 @@ function ReturnTooltip({ year }: { year: YearDetail }) {
           {year.marketReturn >= 0 ? '+' : ''}{(year.marketReturn * 100).toFixed(1)}%
         </span>
       </div>
-      {/* Arrow */}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-surface-solid border-r border-b border-border -mt-1" />
-    </div>
+    </>
   );
 }
 
 export function YearDetail({ yearByYear, useRealDollars, showWithdrawalSource }: YearDetailProps) {
-  const [hoveredYear, setHoveredYear] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{ year: YearDetailData; x: number; y: number } | null>(null);
+  const hideTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const showTooltip = useCallback((e: React.MouseEvent, year: YearDetailData) => {
+    clearTimeout(hideTimeout.current);
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setTooltip({ year, x: rect.left + rect.width / 2, y: rect.top });
+  }, []);
+
+  const hideTooltip = useCallback(() => {
+    hideTimeout.current = setTimeout(() => setTooltip(null), 100);
+  }, []);
+
+  const keepTooltip = useCallback(() => {
+    clearTimeout(hideTimeout.current);
+  }, []);
 
   return (
     <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
@@ -98,18 +111,17 @@ export function YearDetail({ yearByYear, useRealDollars, showWithdrawalSource }:
               <td className="text-sm tabular-nums px-3 py-2">
                 {formatMoney(useRealDollars ? y.portfolioValueReal : y.portfolioValue)}
               </td>
-              <td
-                className="text-sm tabular-nums px-3 py-2 relative cursor-default"
-                onMouseEnter={() => setHoveredYear(y.year)}
-                onMouseLeave={() => setHoveredYear(null)}
-              >
-                <span className={cn(
-                  'underline decoration-dotted',
-                  y.marketReturn >= 0 ? 'text-success' : 'text-danger'
-                )}>
+              <td className="text-sm tabular-nums px-3 py-2">
+                <span
+                  className={cn(
+                    'underline decoration-dotted cursor-help',
+                    y.marketReturn >= 0 ? 'text-success' : 'text-danger'
+                  )}
+                  onMouseEnter={(e) => showTooltip(e, y)}
+                  onMouseLeave={hideTooltip}
+                >
                   {y.marketReturn >= 0 ? '+' : ''}{(y.marketReturn * 100).toFixed(1)}%
                 </span>
-                {hoveredYear === y.year && <ReturnTooltip year={y} />}
               </td>
               <td className="text-sm tabular-nums px-3 py-2">
                 {formatMoney(useRealDollars ? y.withdrawalAmountReal : y.withdrawalAmount)}
@@ -126,6 +138,19 @@ export function YearDetail({ yearByYear, useRealDollars, showWithdrawalSource }:
           ))}
         </tbody>
       </table>
+
+      {/* Portal tooltip — renders outside the scroll container */}
+      {tooltip && createPortal(
+        <div
+          className="fixed z-[9999] w-52 bg-surface-solid border border-border rounded-xl shadow-lg p-3"
+          style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%) translateY(-8px)' }}
+          onMouseEnter={keepTooltip}
+          onMouseLeave={hideTooltip}
+        >
+          <ReturnTooltipContent year={tooltip.year} />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
