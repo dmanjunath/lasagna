@@ -5,6 +5,7 @@ import { ToolStatus } from "./tool-status.js";
 import { Button } from "../ui/button.js";
 import type { Message } from "../../lib/types.js";
 import type { ResponseV2, ToolResult } from "../../lib/types-v2.js";
+import { API_BASE } from "../../lib/api.js";
 
 type ChatPanelProps = {
   threadId: string;
@@ -66,7 +67,7 @@ export function ChatPanel({
     setCurrentTool(null);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

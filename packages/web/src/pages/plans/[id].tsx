@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { History, Trash2, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "../../lib/api.js";
+import { api, API_BASE } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { Button } from "../../components/ui/button.js";
 import { EditableTitle } from "../../components/ui/editable-title.js";
@@ -58,7 +58,7 @@ export function PlanDetailPage() {
       // Call v2 endpoint
       if (activeThread && id) {
         try {
-          const res = await fetch("/api/chat", {
+          const res = await fetch(`${API_BASE}/api/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
@@ -146,7 +146,7 @@ export function PlanDetailPage() {
   const handleRestoreVersion = async (editId: string) => {
     if (!id) return;
     try {
-      await fetch(`/api/plans/${id}/restore`, {
+      await fetch(`${API_BASE}/api/plans/${id}/restore`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
