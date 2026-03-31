@@ -25,6 +25,8 @@ export interface YearDetail {
   portfolioValue: number;
   portfolioValueReal: number;
   marketReturn: number;
+  assetReturns: Record<string, number>;  // per-class return after fees, e.g., { usStocks: 0.12, bonds: -0.02 }
+  assetWeights: Record<string, number>;  // allocation weights at start of year, e.g., { usStocks: 0.80 }
   withdrawalAmount: number;
   withdrawalAmountReal: number;
   cumulativeInflation: number;
@@ -118,34 +120,37 @@ export class Backtester {
       const reitFee = fees.reits ?? 0;
       const cashFee = fees.cash ?? 0;
 
-      const usReturn = returns.usStocks - equityFee;
-      const intlReturn = (returns.intlStocks ?? 0) - equityFee;
-      const bondsReturn = returns.bonds - bondFee;
-      const reitsReturn = (returns.reits ?? 0) - reitFee;
-      // Cash uses fixed growth rate (default 1.5%) instead of T-bill returns
-      const cashReturn = (params.cashGrowthRate ?? 0.015) - cashFee;
+      const perClassReturn: Record<string, number> = {
+        usStocks: returns.usStocks - equityFee,
+        intlStocks: (returns.intlStocks ?? 0) - equityFee,
+        bonds: returns.bonds - bondFee,
+        reits: (returns.reits ?? 0) - reitFee,
+        cash: (params.cashGrowthRate ?? 0.015) - cashFee,
+      };
 
-      balances.usStocks *= (1 + usReturn);
-      balances.intlStocks *= (1 + intlReturn);
-      balances.bonds *= (1 + bondsReturn);
-      balances.reits *= (1 + reitsReturn);
-      balances.cash *= (1 + cashReturn);
+      // Capture weights before applying returns
+      const preReturnTotal = ASSET_CLASSES.reduce((s, k) => s + balances[k], 0);
+      const assetWeights: Record<string, number> = {};
+      for (const k of ASSET_CLASSES) {
+        assetWeights[k] = preReturnTotal > 0 ? balances[k] / preReturnTotal : 0;
+      }
+
+      for (const k of ASSET_CLASSES) {
+        balances[k] *= (1 + perClassReturn[k]);
+      }
 
       const totalBalance = ASSET_CLASSES.reduce((s, k) => s + balances[k], 0);
 
       // Compute weighted portfolio return
-      const prevTotal = totalBalance / (1 + this.weightedReturn(balances, {
-        usStocks: usReturn, intlStocks: intlReturn, bonds: bondsReturn, reits: reitsReturn, cash: cashReturn,
-      }));
-      const marketReturn = prevTotal > 0 ? (totalBalance - prevTotal) / prevTotal : 0;
+      const marketReturn = preReturnTotal > 0 ? (totalBalance - preReturnTotal) / preReturnTotal : 0;
 
       // Compute equity return (weighted avg of US + intl stock returns by their pre-return balances)
-      const preUs = balances.usStocks / (1 + usReturn);
-      const preIntl = balances.intlStocks / (1 + intlReturn);
+      const preUs = balances.usStocks / (1 + perClassReturn.usStocks);
+      const preIntl = balances.intlStocks / (1 + perClassReturn.intlStocks);
       const equityTotal = preUs + preIntl;
       const equityReturn = equityTotal > 0
-        ? (preUs * usReturn + preIntl * intlReturn) / equityTotal
-        : usReturn;
+        ? (preUs * perClassReturn.usStocks + preIntl * perClassReturn.intlStocks) / equityTotal
+        : perClassReturn.usStocks;
 
       // Track drawdown
       if (totalBalance > peakBalance) {
@@ -212,6 +217,8 @@ export class Backtester {
         portfolioValue: postWithdrawalBalance,
         portfolioValueReal: postWithdrawalBalance / cumulativeInflation,
         marketReturn,
+        assetReturns: { ...perClassReturn },
+        assetWeights,
         withdrawalAmount,
         withdrawalAmountReal: withdrawalAmount / cumulativeInflation,
         cumulativeInflation,
@@ -245,23 +252,6 @@ export class Backtester {
     };
   }
 
-  /**
-   * Compute the weighted return given current (post-return) balances and per-class returns.
-   * Used to back-derive the pre-return total for market return calculation.
-   */
-  private weightedReturn(
-    postBalances: Record<AssetClass, number>,
-    returns: Record<AssetClass, number>
-  ): number {
-    let preTotal = 0;
-    let growth = 0;
-    for (const k of ASSET_CLASSES) {
-      const pre = postBalances[k] / (1 + returns[k]);
-      preTotal += pre;
-      growth += pre * returns[k];
-    }
-    return preTotal > 0 ? growth / preTotal : 0;
-  }
 }
 
 let instance: Backtester | null = null;
