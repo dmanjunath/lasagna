@@ -12,6 +12,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google-cloud/dlp": "^6.6.0",
+    "@google-cloud/documentai": "^9.6.0",
+    "@google-cloud/storage": "^7.19.0",
     "@hono/node-server": "^1.19.11",
     "@lasagna/core": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.3.3",
