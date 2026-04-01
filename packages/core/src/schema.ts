@@ -7,6 +7,7 @@ import {
   numeric,
   pgEnum,
   integer,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
@@ -25,18 +26,6 @@ export const syncStatusEnum = pgEnum("sync_status", [
   "running",
   "success",
   "error",
-]);
-
-export const filingStatusEnum = pgEnum("filing_status", [
-  "single",
-  "married_joint",
-  "married_separate",
-  "head_of_household",
-]);
-
-export const taxReturnStatusEnum = pgEnum("tax_return_status", [
-  "draft",
-  "complete",
 ]);
 
 export const planTypeEnum = pgEnum("plan_type", [
@@ -318,15 +307,19 @@ export const simulationResults = pgTable("simulation_results", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
-// ── Tax Returns ────────────────────────────────────────────────────────────
-export const taxReturns = pgTable("tax_returns", {
+// ── Tax Documents ─────────────────────────────────────────────────────────
+export const taxDocuments = pgTable("tax_documents", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id")
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
-  taxYear: integer("tax_year").notNull(),
-  filingStatus: filingStatusEnum("filing_status"),
-  status: taxReturnStatusEnum("status").notNull().default("draft"),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  gcsPath: text("gcs_path").notNull(),
+  rawExtraction: jsonb("raw_extraction").notNull(),
+  llmFields: jsonb("llm_fields").notNull(),
+  llmSummary: text("llm_summary").notNull(),
+  taxYear: integer("tax_year"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -334,20 +327,4 @@ export const taxReturns = pgTable("tax_returns", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
-
-export const taxDocuments = pgTable("tax_documents", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  taxReturnId: uuid("tax_return_id")
-    .notNull()
-    .references(() => taxReturns.id, { onDelete: "cascade" }),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  documentType: varchar("document_type", { length: 50 }).notNull(),
-  extractedData: text("extracted_data"), // JSON string
-  extractedAt: timestamp("extracted_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
 });
