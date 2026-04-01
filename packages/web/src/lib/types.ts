@@ -469,35 +469,31 @@ export type Message = {
 
 // ── Tax Types ──────────────────────────────────────────────────────────
 
-export type FilingStatus = "single" | "married_joint" | "married_separate" | "head_of_household";
-export type TaxReturnStatus = "draft" | "complete";
-
-export interface TaxReturn {
+export interface TaxDocument {
   id: string;
   tenantId: string;
-  taxYear: number;
-  filingStatus: FilingStatus | null;
-  status: TaxReturnStatus;
+  fileName: string;
+  fileType: string;
+  gcsPath: string;
+  rawExtraction: Array<{ key: string; value: string }>;
+  llmFields: Record<string, unknown>;
+  llmSummary: string;
+  taxYear: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface ExtractedField {
-  value: number;
-  line: string;
-  verified: boolean;
-}
-
-export interface ExtractedData {
-  confidence: number;
-  fields: Record<string, ExtractedField>;
-}
-
-export interface TaxDocument {
+export interface TaxDocumentSummary {
   id: string;
-  taxReturnId: string;
-  documentType: string;
-  extractedData: ExtractedData | null;
-  extractedAt: string | null;
+  fileName: string;
+  llmSummary: string;
+  taxYear: number | null;
   createdAt: string;
+}
+
+export interface UploadResult {
+  id: string;
+  llmFields: Record<string, unknown>;
+  llmSummary: string;
+  taxYear: number | null;
 }

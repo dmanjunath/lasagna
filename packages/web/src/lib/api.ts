@@ -1,4 +1,4 @@
-import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxReturn, TaxDocument, ExtractedData, FilingStatus } from "./types.js";
+import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult } from "./types.js";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -164,29 +164,32 @@ export const api = {
       body: JSON.stringify({ planId }),
     }),
 
-  // Tax
-  getTaxReturns: () =>
-    request<{ returns: TaxReturn[] }>("/tax/returns"),
+  // Tax Documents
+  getTaxDocuments: () =>
+    request<{ documents: TaxDocumentSummary[] }>("/tax/documents"),
 
-  getTaxReturn: (id: string) =>
-    request<{ taxReturn: TaxReturn; documents: TaxDocument[] }>(`/tax/returns/${id}`),
+  getTaxDocument: (id: string) =>
+    request<{ document: TaxDocument }>(`/tax/documents/${id}`),
 
-  createTaxReturn: (taxYear: number, filingStatus?: FilingStatus) =>
-    request<{ taxReturn: TaxReturn }>("/tax/returns", {
+  uploadTaxDocument: async (file: File): Promise<UploadResult> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/tax/documents/upload`, {
       method: "POST",
-      body: JSON.stringify({ taxYear, filingStatus }),
-    }),
+      credentials: "include",
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Upload failed" }));
+      throw new Error(err.error || "Upload failed");
+    }
+    return res.json();
+  },
 
-  addTaxDocument: (taxReturnId: string, documentType: string, extractedData: ExtractedData) =>
-    request<{ document: TaxDocument }>(`/tax/returns/${taxReturnId}/documents`, {
-      method: "POST",
-      body: JSON.stringify({ documentType, extractedData }),
-    }),
-
-  updateTaxDocument: (id: string, extractedData: ExtractedData) =>
+  updateTaxDocument: (id: string, data: { taxYear?: number | null }) =>
     request<{ document: TaxDocument }>(`/tax/documents/${id}`, {
       method: "PATCH",
-      body: JSON.stringify({ extractedData }),
+      body: JSON.stringify(data),
     }),
 
   deleteTaxDocument: (id: string) =>
