@@ -7,7 +7,6 @@ on:
 env:
   REGISTRY: ghcr.io
   API_IMAGE: ghcr.io/${{ github.repository }}/api
-  EXTRACTOR_IMAGE: ghcr.io/${{ github.repository }}/extractor
 
 jobs:
   build-api:
@@ -32,26 +31,3 @@ jobs:
           tags: |
             ${{ env.API_IMAGE }}:${{ github.sha }}
             ${{ env.API_IMAGE }}:latest
-
-  build-extractor:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: services/extractor
-          file: services/extractor/Dockerfile
-          push: true
-          tags: |
-            ${{ env.EXTRACTOR_IMAGE }}:${{ github.sha }}
-            ${{ env.EXTRACTOR_IMAGE }}:latest
