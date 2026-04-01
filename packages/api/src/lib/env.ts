@@ -40,4 +40,7 @@ export const env = {
   get MULTI_TENANT() {
     return optional("MULTI_TENANT", "false") === "true";
   },
+  get GCS_BUCKET() {
+    return optional("GCS_BUCKET", "lasagna-prod-tax-documents");
+  },
 };
