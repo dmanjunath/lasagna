@@ -63,13 +63,11 @@ export async function extractFormFields(
   return cleanFields(raw);
 }
 
-function textFromLayout(
-  layout: { textAnchor?: { textSegments?: Array<{ startIndex?: string; endIndex?: string }> } } | null | undefined,
-  fullText: string
-): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function textFromLayout(layout: any, fullText: string): string {
   if (!layout?.textAnchor?.textSegments) return "";
   return layout.textAnchor.textSegments
-    .map((seg) => {
+    .map((seg: { startIndex?: string; endIndex?: string }) => {
       const start = parseInt(seg.startIndex || "0", 10);
       const end = parseInt(seg.endIndex || "0", 10);
       return fullText.slice(start, end);
