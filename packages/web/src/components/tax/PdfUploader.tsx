@@ -17,7 +17,7 @@ const ACCEPT_STRING = Object.entries(ACCEPTED_TYPES)
   .join(",");
 
 interface PdfUploaderProps {
-  onFileSelect: (file: File) => void;
+  onFileSelect: (files: File[]) => void;
   isProcessing: boolean;
 }
 
@@ -41,14 +41,14 @@ export function PdfUploader({ onFileSelect, isProcessing }: PdfUploaderProps) {
       e.preventDefault();
       setIsDragging(false);
       setError(null);
-      const file = e.dataTransfer.files[0];
-      if (!file) return;
-      const validationError = validateFile(file);
-      if (validationError) {
-        setError(validationError);
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+      const firstError = files.map(validateFile).find(Boolean);
+      if (firstError) {
+        setError(firstError);
         return;
       }
-      onFileSelect(file);
+      onFileSelect(files);
     },
     [onFileSelect, validateFile]
   );
@@ -56,15 +56,15 @@ export function PdfUploader({ onFileSelect, isProcessing }: PdfUploaderProps) {
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setError(null);
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const validationError = validateFile(file);
-      if (validationError) {
-        setError(validationError);
+      const files = Array.from(e.target.files ?? []);
+      if (files.length === 0) return;
+      const firstError = files.map(validateFile).find(Boolean);
+      if (firstError) {
+        setError(firstError);
         e.target.value = ""; // Reset input
         return;
       }
-      onFileSelect(file);
+      onFileSelect(files);
     },
     [onFileSelect, validateFile]
   );
@@ -82,7 +82,7 @@ export function PdfUploader({ onFileSelect, isProcessing }: PdfUploaderProps) {
           error && "border-red-500"
         )}
       >
-        <input type="file" accept={ACCEPT_STRING} onChange={handleFileInput} className="hidden" disabled={isProcessing} />
+        <input type="file" accept={ACCEPT_STRING} multiple onChange={handleFileInput} className="hidden" disabled={isProcessing} />
         <div className="text-center">
           {isProcessing ? (
             <Loader2 className="w-12 h-12 text-accent mx-auto mb-4 animate-spin" />
@@ -90,7 +90,7 @@ export function PdfUploader({ onFileSelect, isProcessing }: PdfUploaderProps) {
             <FileUp className="w-12 h-12 text-text-muted mx-auto mb-4" />
           )}
           <div className="font-medium mb-1">{isProcessing ? "Processing..." : "Drop tax documents here"}</div>
-          <div className="text-sm text-text-muted">PDF or images (PNG, JPG, etc.) up to 5MB</div>
+          <div className="text-sm text-text-muted">PDF or images (PNG, JPG, etc.) up to 5MB each</div>
         </div>
       </label>
       {error && (
