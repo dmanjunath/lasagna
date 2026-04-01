@@ -5,6 +5,7 @@ import { taxDocuments, eq, and, desc } from "@lasagna/core";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { processDocument } from "../lib/tax-extraction.js";
 import { deleteFile } from "../lib/gcs.js";
+import { env } from "../lib/env.js";
 
 export const taxDocumentsRouter = new Hono<AuthEnv>();
 
@@ -12,6 +13,10 @@ taxDocumentsRouter.use("*", requireAuth);
 
 // Upload + process document
 taxDocumentsRouter.post("/upload", async (c) => {
+  if (!env.GCP_CONFIGURED) {
+    return c.json({ error: "Tax document processing is not available. GCP credentials are not configured." }, 503);
+  }
+
   const { tenantId } = c.get("session");
   const body = await c.req.parseBody();
   const file = body.file;

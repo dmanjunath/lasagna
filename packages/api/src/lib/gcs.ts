@@ -1,10 +1,15 @@
 import { Storage } from "@google-cloud/storage";
 import { env } from "./env.js";
 
-const storage = new Storage();
+let _storage: Storage | null = null;
+
+function getStorage() {
+  if (!_storage) _storage = new Storage();
+  return _storage;
+}
 
 function getBucket() {
-  return storage.bucket(env.GCS_BUCKET);
+  return getStorage().bucket(env.GCS_BUCKET);
 }
 
 export async function uploadFile(
