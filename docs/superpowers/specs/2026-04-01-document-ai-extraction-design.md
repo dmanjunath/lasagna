@@ -26,7 +26,7 @@ User uploads PDF/image(s)
    |  6. Single insert -> Postgres    |
    +----------------------------------+
         |
-   Return { id, llmFields, llmSummary, taxYear, filingStatus }
+   Return { id, llmFields, llmSummary, taxYear }
 ```
 
 Processing is synchronous per request (~6-18 seconds depending on document size and LLM latency). Multiple files upload in parallel (one request per file). If any pipeline step fails, the upload fails — the GCS file is cleaned up and nothing is persisted to the database.
@@ -54,11 +54,10 @@ Single table replaces both `tax_returns` and `tax_documents`.
 | `llm_fields` | jsonb | NOT NULL | Freeform structured data from LLM |
 | `llm_summary` | text | NOT NULL | Human-readable summary for dashboard |
 | `tax_year` | integer | nullable | From LLM or user override |
-| `filing_status` | enum | nullable | From LLM or user override; default single at query time |
 | `created_at` | timestamp | NOT NULL | Upload time |
 | `updated_at` | timestamp | NOT NULL | Last modified |
 
-The `tax_returns` table is dropped. The `taxReturnStatusEnum` is also dropped (no longer used).
+The `tax_returns` table is dropped. The `taxReturnStatusEnum` and `filingStatusEnum` are also dropped (no longer used). Filing status lives inside `llm_fields` if the LLM extracts it from the document.
 
 ## Migration
 
@@ -67,7 +66,7 @@ This is a destructive migration — existing data in `tax_returns` and `tax_docu
 1. Drop `tax_documents` table (depends on `tax_returns`)
 2. Drop `tax_returns` table
 3. Drop `tax_return_status` enum
-4. Add `qualifying_surviving_spouse` to `filing_status` enum
+4. Drop `filing_status` enum
 5. Create new `tax_documents` table with the schema above
 
 This is acceptable for v1 since the product is pre-launch and no production user data exists. If data preservation is needed later, a migration script should map old `tax_documents.extracted_data` into the new `raw_extraction` column.
@@ -126,15 +125,13 @@ Send the redacted key-value pairs to an LLM (Claude) with a prompt to return:
     "total_income": 169686
   },
   "summary": "2025 Form 1040 (Married Filing Jointly). Total income $169,686...",
-  "tax_year": 2025,
-  "filing_status": "married_filing_jointly"
+  "tax_year": 2025
 }
 ```
 
-- **`fields`**: Freeform structured object with sensible key names and numeric values. Schema varies by document type. Used as context in future AI calls.
+- **`fields`**: Freeform structured object with sensible key names and numeric values. Schema varies by document type. Used as context in future AI calls. Filing status, if present in the document, is included here (e.g., `"filing_status": "married_filing_jointly"`).
 - **`summary`**: Human-readable summary for the dashboard.
 - **`tax_year`**: Extracted from the document if present.
-- **`filing_status`**: Extracted from the document if present. Valid values match the existing enum: `single`, `married_joint`, `married_separate`, `head_of_household`. Add `qualifying_surviving_spouse` via `ALTER TYPE filing_status ADD VALUE 'qualifying_surviving_spouse'`.
 
 The LLM response is validated (must be valid JSON with required properties) before storing.
 
@@ -146,13 +143,13 @@ Single insert with all data populated. No partial writes.
 
 ### New
 
-- **`POST /tax/documents/upload`** — Multipart form upload. Accepts `file` (required). Max file size: 20MB (Document AI sync limit). Accepted types: `application/pdf`, `image/jpeg`, `image/png`, `image/tiff`. Runs full pipeline. Returns `{ id, llmFields, llmSummary, taxYear, filingStatus }`.
+- **`POST /tax/documents/upload`** — Multipart form upload. Accepts `file` (required). Max file size: 20MB (Document AI sync limit). Accepted types: `application/pdf`, `image/jpeg`, `image/png`, `image/tiff`. Runs full pipeline. Returns `{ id, llmFields, llmSummary, taxYear }`.
 
 ### Modified
 
-- **`GET /tax/documents`** — List all documents for tenant. Returns `id`, `fileName`, `llmSummary`, `taxYear`, `filingStatus`, `createdAt`.
+- **`GET /tax/documents`** — List all documents for tenant. Returns `id`, `fileName`, `llmSummary`, `taxYear`, `createdAt`.
 - **`GET /tax/documents/:id`** — Full document detail including `rawExtraction`, `llmFields`, `llmSummary`.
-- **`PATCH /tax/documents/:id`** — Update `taxYear`, `filingStatus` (user corrections).
+- **`PATCH /tax/documents/:id`** — Update `taxYear` (user correction).
 - **`DELETE /tax/documents/:id`** — Deletes DB row and GCS file (GCS deletion is best-effort; orphaned files are acceptable).
 
 ### Removed
@@ -172,7 +169,7 @@ Single insert with all data populated. No partial writes.
 ### Modified
 
 - **Upload flow**: Drag/drop files -> parallel `POST /tax/documents/upload` per file -> show per-file progress -> display results
-- **Dashboard**: Each document shows `llm_summary`, `tax_year`, `filing_status`. User can edit `tax_year` and `filing_status` inline.
+- **Dashboard**: Each document shows `llm_summary`, `tax_year`. User can edit `tax_year` inline.
 - **Tax strategy page**: Reads from new `GET /tax/documents` endpoint instead of `/tax/returns`
 
 ## Infrastructure Changes
