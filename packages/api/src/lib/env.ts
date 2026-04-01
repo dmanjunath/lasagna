@@ -10,7 +10,7 @@ function optional(key: string, fallback: string): string {
 
 export const env = {
   get DATABASE_URL() {
-    return required("DATABASE_URL");
+    return optional("DATABASE_URL", "");
   },
   get OPENROUTER_API_KEY() {
     // Optional - AI features disabled if not set
