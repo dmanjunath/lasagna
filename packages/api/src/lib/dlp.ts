@@ -3,7 +3,12 @@ import { DlpServiceClient } from "@google-cloud/dlp";
 const PROJECT_ID = "lasagna-prod";
 const LOCATION = "us";
 
-const client = new DlpServiceClient();
+let _client: DlpServiceClient | null = null;
+
+function getClient() {
+  if (!_client) _client = new DlpServiceClient();
+  return _client;
+}
 
 const INFO_TYPES = [
   "PERSON_NAME",
@@ -25,7 +30,7 @@ export async function redactPii(fields: Field[]): Promise<Field[]> {
     fields.map((f) => `${f.key}: ${f.value}`).join("\n")
   );
 
-  const [response] = await client.deidentifyContent({
+  const [response] = await getClient().deidentifyContent({
     parent: `projects/${PROJECT_ID}/locations/${LOCATION}`,
     inspectConfig: {
       infoTypes: INFO_TYPES.map((name) => ({ name })),

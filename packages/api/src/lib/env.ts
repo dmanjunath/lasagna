@@ -43,4 +43,7 @@ export const env = {
   get GCS_BUCKET() {
     return optional("GCS_BUCKET", "lasagna-prod-tax-documents");
   },
+  get GCP_CONFIGURED() {
+    return !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  },
 };

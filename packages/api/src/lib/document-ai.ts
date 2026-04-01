@@ -4,9 +4,16 @@ const PROJECT_ID = "lasagna-prod";
 const LOCATION = "us";
 const PROCESSOR_ID = "2a4ce4b54806000e";
 
-const client = new DocumentProcessorServiceClient({
-  apiEndpoint: `${LOCATION}-documentai.googleapis.com`,
-});
+let _client: DocumentProcessorServiceClient | null = null;
+
+function getClient() {
+  if (!_client) {
+    _client = new DocumentProcessorServiceClient({
+      apiEndpoint: `${LOCATION}-documentai.googleapis.com`,
+    });
+  }
+  return _client;
+}
 
 const PII_KEY_PATTERNS = [
   /social security/i,
@@ -40,7 +47,7 @@ export async function extractFormFields(
 ): Promise<ExtractedField[]> {
   const processorName = `projects/${PROJECT_ID}/locations/${LOCATION}/processors/${PROCESSOR_ID}`;
 
-  const [result] = await client.processDocument({
+  const [result] = await getClient().processDocument({
     name: processorName,
     rawDocument: { content: buffer.toString("base64"), mimeType },
   });
