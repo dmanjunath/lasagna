@@ -29,7 +29,7 @@ User uploads PDF/image(s)
    Return { id, llmFields, llmSummary, taxYear, filingStatus }
 ```
 
-Processing is synchronous per request. Multiple files upload in parallel (one request per file). If any pipeline step fails, the upload fails and nothing is persisted.
+Processing is synchronous per request (~6-18 seconds depending on document size and LLM latency). Multiple files upload in parallel (one request per file). If any pipeline step fails, the upload fails — the GCS file is cleaned up and nothing is persisted to the database.
 
 ## Storage
 
@@ -58,7 +58,19 @@ Single table replaces both `tax_returns` and `tax_documents`.
 | `created_at` | timestamp | NOT NULL | Upload time |
 | `updated_at` | timestamp | NOT NULL | Last modified |
 
-The `tax_returns` table is dropped.
+The `tax_returns` table is dropped. The `taxReturnStatusEnum` is also dropped (no longer used).
+
+## Migration
+
+This is a destructive migration — existing data in `tax_returns` and `tax_documents` is dropped.
+
+1. Drop `tax_documents` table (depends on `tax_returns`)
+2. Drop `tax_returns` table
+3. Drop `tax_return_status` enum
+4. Add `qualifying_surviving_spouse` to `filing_status` enum
+5. Create new `tax_documents` table with the schema above
+
+This is acceptable for v1 since the product is pre-launch and no production user data exists. If data preservation is needed later, a migration script should map old `tax_documents.extracted_data` into the new `raw_extraction` column.
 
 ## Pipeline Details
 
@@ -72,6 +84,7 @@ Store the raw file at `{tenantId}/{documentId}/{originalFilename}`. The document
 - Project: `lasagna-prod`
 - Accepts PDF and image (JPEG, PNG, TIFF) inputs natively
 - Returns key-value pairs with confidence scores and bounding box info
+- Confidence scores are preserved in `raw_extraction` for debugging
 
 ### Step 3: Clean Extracted Data
 
@@ -121,7 +134,7 @@ Send the redacted key-value pairs to an LLM (Claude) with a prompt to return:
 - **`fields`**: Freeform structured object with sensible key names and numeric values. Schema varies by document type. Used as context in future AI calls.
 - **`summary`**: Human-readable summary for the dashboard.
 - **`tax_year`**: Extracted from the document if present.
-- **`filing_status`**: Extracted from the document if present. Valid values: `single`, `married_filing_jointly`, `married_filing_separately`, `head_of_household`, `qualifying_surviving_spouse`.
+- **`filing_status`**: Extracted from the document if present. Valid values match the existing enum: `single`, `married_joint`, `married_separate`, `head_of_household`. Add `qualifying_surviving_spouse` via `ALTER TYPE filing_status ADD VALUE 'qualifying_surviving_spouse'`.
 
 The LLM response is validated (must be valid JSON with required properties) before storing.
 
@@ -133,14 +146,14 @@ Single insert with all data populated. No partial writes.
 
 ### New
 
-- **`POST /tax/documents/upload`** — Multipart form upload. Accepts `file` (required). Runs full pipeline. Returns `{ id, llmFields, llmSummary, taxYear, filingStatus }`.
+- **`POST /tax/documents/upload`** — Multipart form upload. Accepts `file` (required). Max file size: 20MB (Document AI sync limit). Accepted types: `application/pdf`, `image/jpeg`, `image/png`, `image/tiff`. Runs full pipeline. Returns `{ id, llmFields, llmSummary, taxYear, filingStatus }`.
 
 ### Modified
 
 - **`GET /tax/documents`** — List all documents for tenant. Returns `id`, `fileName`, `llmSummary`, `taxYear`, `filingStatus`, `createdAt`.
 - **`GET /tax/documents/:id`** — Full document detail including `rawExtraction`, `llmFields`, `llmSummary`.
 - **`PATCH /tax/documents/:id`** — Update `taxYear`, `filingStatus` (user corrections).
-- **`DELETE /tax/documents/:id`** — Deletes DB row and GCS file.
+- **`DELETE /tax/documents/:id`** — Deletes DB row and GCS file (GCS deletion is best-effort; orphaned files are acceptable).
 
 ### Removed
 
