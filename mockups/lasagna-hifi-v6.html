@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Lasagna</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0a1a10;
+  --bg-primary: #0f1f16;
+  --bg-card: #162b1d;
+  --bg-card-hover: #1a3323;
+  --bg-surface: #1e3a27;
+  --bg-elevated: #245232;
+  --green-accent: #38a866;
+  --green-light: #4cc97e;
+  --green-muted: #2d7a4a;
+  --green-subtle: rgba(56,168,102,0.12);
+  --amber: #d4a24e;
+  --amber-light: #e8b960;
+  --amber-bg: rgba(212,162,78,0.12);
+  --red: #d45050;
+  --red-bg: rgba(212,80,80,0.1);
+  --text-primary: #f0f5f1;
+  --text-secondary: rgba(240,245,241,0.65);
+  --text-muted: rgba(240,245,241,0.4);
+  --text-inverse: #0f2e1c;
+  --border: rgba(255,255,255,0.08);
+  --border-light: rgba(255,255,255,0.12);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Outfit', system-ui, -apple-system, sans-serif;
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.2);
+  --shadow-elevated: 0 8px 32px rgba(0,0,0,0.3);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; font-family: var(--font-body); background: var(--bg-deep); overflow: hidden; color: var(--text-primary); }
+button { font-family: inherit; border: none; cursor: pointer; background: none; color: inherit; }
+input, textarea { font-family: inherit; }
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+.app-shell { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:radial-gradient(80% 60% at 50% 30%,#1a3d26,var(--bg-deep)); }
+.app-frame { width:100%; max-width:430px; height:100%; background:var(--bg-primary); overflow:hidden; position:relative; display:flex; flex-direction:column; }
+@media (min-width:768px) { .app-frame { max-height:900px; border-radius:28px; box-shadow:0 24px 80px rgba(6,16,10,0.5),0 0 0 1px rgba(255,255,255,0.05); } }
+
+/* ─── Top Bar ─── */
+.top-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; position:relative; z-index:10; flex-shrink:0; background:linear-gradient(180deg,var(--bg-primary) 60%,transparent); }
+.top-bar-left { display:flex; align-items:center; gap:8px; }
+.top-bar-greeting { font-size:15px; font-weight:500; }
+.avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--green-accent),var(--green-muted)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:white; flex-shrink:0; }
+
+/* ─── Persona Toggles ─── */
+.persona-toggles { display:flex; gap:6px; align-items:center; }
+.persona-toggle { display:flex; background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border); }
+.persona-opt { padding:5px 10px; font-size:10px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; color:var(--text-muted); transition:all 0.2s; white-space:nowrap; }
+.persona-opt.active { background:var(--green-subtle); color:var(--green-light); }
+
+/* ─── Tab Content ─── */
+.tab-content-area { flex:1; overflow:hidden; position:relative; }
+.tab-panel { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; padding:0 16px 24px; opacity:0; pointer-events:none; transform:translateY(8px); transition:opacity 0.3s ease,transform 0.3s ease; }
+.tab-panel.active { opacity:1; pointer-events:auto; transform:translateY(0); }
+
+/* ─── Cards ─── */
+.card { background:var(--bg-card); border-radius:var(--radius-lg); padding:20px; margin-bottom:14px; border:1px solid var(--border); transition:background 0.2s; }
+.card:hover { background:var(--bg-card-hover); }
+.card-header { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.card-label { font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--green-accent); }
+.card-label.amber { color:var(--amber); }
+.card-label.red { color:var(--red); }
+.card-dot { width:6px; height:6px; border-radius:50%; background:var(--green-accent); flex-shrink:0; }
+.card-dot.amber { background:var(--amber); }
+.card-dot.red { background:var(--red); }
+.card-title { font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--text-primary); line-height:1.25; margin-bottom:6px; }
+.card-subtitle { font-size:13px; color:var(--text-secondary); line-height:1.5; }
+.card-action { display:inline-flex; align-items:center; gap:6px; margin-top:14px; padding:8px 16px; border-radius:var(--radius-sm); background:var(--green-subtle); color:var(--green-light); font-size:13px; font-weight:600; transition:background 0.2s; }
+.card-action:hover { background:rgba(56,168,102,0.2); }
+.card-action.amber { background:var(--amber-bg); color:var(--amber); }
+.card-action.amber:hover { background:rgba(212,162,78,0.2); }
+
+.card-featured { background:linear-gradient(135deg,#0e3520,#1a5c38); border:1px solid rgba(56,168,102,0.2); padding:24px; position:relative; overflow:hidden; }
+.card-featured::before { content:''; position:absolute; top:-40px; right:-30px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle,rgba(56,168,102,0.2),transparent 70%); }
+.card-featured .card-title { font-size:26px; }
+.tag-row { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.tag { display:inline-flex; align-items:center; gap:4px; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600; background:rgba(56,168,102,0.15); color:var(--green-light); }
+.tag.amber { background:var(--amber-bg); color:var(--amber); }
+.tag.red { background:var(--red-bg); color:var(--red); }
+
+.card-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
+.card-grid .card { margin-bottom:0; }
+
+.stat-row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border); }
+.stat-row:last-child { border-bottom:none; }
+.stat-label { font-size:13px; color:var(--text-secondary); }
+.stat-value { font-size:14px; font-weight:600; }
+.stat-value.amber { color:var(--amber); }
+.stat-value.green { color:var(--green-light); }
+.stat-value.red { color:var(--red); }
+
+.ops-list { display:flex; flex-direction:column; }
+.ops-item { display:flex; align-items:flex-start; gap:14px; padding:14px 0; border-bottom:1px solid var(--border); }
+.ops-item:last-child { border-bottom:none; }
+.ops-num { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; background:var(--green-accent); color:white; }
+.ops-num.pending { background:transparent; border:2px solid var(--border-light); color:var(--text-muted); }
+.ops-text { flex:1; }
+.ops-text-title { font-size:14px; font-weight:600; margin-bottom:2px; }
+.ops-text-sub { font-size:12px; color:var(--text-muted); }
+.ops-badge { padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; flex-shrink:0; margin-top:2px; }
+.ops-badge.now { background:var(--amber-bg); color:var(--amber); }
+.ops-badge.next { background:var(--green-subtle); color:var(--green-light); }
+.ops-badge.later { background:rgba(255,255,255,0.05); color:var(--text-muted); }
+
+.big-number { font-family:var(--font-display); font-size:36px; font-weight:700; color:var(--text-primary); line-height:1; margin-bottom:4px; }
+.big-number.small { font-size:28px; }
+
+.progress-bar-track { width:100%; height:8px; border-radius:4px; background:rgba(255,255,255,0.08); overflow:hidden; margin:12px 0; }
+.progress-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--green-accent),var(--green-light)); transition:width 0.8s cubic-bezier(0.22,1,0.36,1); }
+
+.mini-chart { height:80px; display:flex; align-items:flex-end; gap:4px; padding-top:10px; }
+.mini-chart-bar { flex:1; border-radius:3px 3px 0 0; background:linear-gradient(180deg,var(--green-accent),rgba(56,168,102,0.3)); transition:height 0.5s cubic-bezier(0.22,1,0.36,1); min-height:4px; }
+
+.debt-item { display:flex; align-items:center; gap:14px; padding:16px; background:var(--bg-card); border-radius:var(--radius-md); margin-bottom:10px; border:1px solid var(--border); }
+.debt-icon { width:40px; height:40px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.debt-info { flex:1; min-width:0; }
+.debt-name { font-size:14px; font-weight:600; }
+.debt-detail { font-size:12px; color:var(--text-muted); margin-top:2px; }
+.debt-amount { text-align:right; }
+.debt-balance { font-size:15px; font-weight:700; }
+.debt-rate { font-size:11px; color:var(--text-muted); margin-top:2px; }
+
+/* ─── Action Item ─── */
+.action-item { display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
+.action-item:last-child { border-bottom:none; }
+.action-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border-light); flex-shrink:0; margin-top:1px; display:flex; align-items:center; justify-content:center; font-size:11px; color:transparent; transition:all 0.2s; cursor:pointer; }
+.action-check.done { background:var(--green-accent); border-color:var(--green-accent); color:white; }
+.action-text { flex:1; }
+.action-title { font-size:14px; font-weight:500; }
+.action-desc { font-size:12px; color:var(--text-muted); margin-top:2px; }
+.action-impact { display:inline-block; margin-top:4px; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:600; }
+.action-impact.green { background:var(--green-subtle); color:var(--green-light); }
+.action-impact.amber { background:var(--amber-bg); color:var(--amber); }
+.action-impact.red { background:var(--red-bg); color:var(--red); }
+
+/* ─── Chat Drawer ─── */
+.chat-backdrop { position:absolute; inset:0; z-index:35; background:rgba(0,0,0,0.5); opacity:0; pointer-events:none; transition:opacity 0.35s ease; }
+.chat-backdrop.visible { opacity:1; pointer-events:auto; }
+.chat-drawer { position:absolute; left:0; right:0; bottom:0; z-index:40; background:var(--bg-primary); border-radius:var(--radius-xl) var(--radius-xl) 0 0; display:flex; flex-direction:column; max-height:92%; transform:translateY(100%); transition:transform 0.35s cubic-bezier(0.32,0.72,0,1); box-shadow:0 -8px 40px rgba(0,0,0,0.4); will-change:transform; touch-action:none; }
+.chat-drawer.open { transform:translateY(0); }
+.chat-drawer-handle { display:flex; flex-direction:column; align-items:center; padding:10px 20px 0; cursor:grab; flex-shrink:0; -webkit-user-select:none; user-select:none; }
+.chat-drawer-handle:active { cursor:grabbing; }
+.chat-drawer-pill { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,0.2); margin-bottom:10px; }
+.chat-header { display:flex; align-items:center; justify-content:space-between; padding:4px 20px 12px; flex-shrink:0; }
+.chat-header-left { display:flex; align-items:center; gap:10px; }
+.chat-avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#245232,#38a866); display:flex; align-items:center; justify-content:center; font-size:16px; }
+.chat-name { font-weight:600; font-size:14px; }
+.chat-status { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-muted); }
+.chat-status-dot { width:5px; height:5px; border-radius:50%; background:var(--green-accent); }
+.chat-close { width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text-secondary); transition:background 0.2s; }
+.chat-close:hover { background:rgba(255,255,255,0.1); }
+.chat-messages { flex:1; overflow-y:auto; padding:12px 20px; display:flex; flex-direction:column; gap:14px; min-height:0; }
+.chat-bubble { max-width:85%; padding:11px 15px; border-radius:18px; font-size:14px; line-height:1.55; animation:bubbleIn 0.3s ease; }
+@keyframes bubbleIn { from { opacity:0; transform:translateY(8px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+.chat-bubble.bot { background:var(--bg-card); border:1px solid var(--border); align-self:flex-start; border-bottom-left-radius:4px; color:var(--text-primary); }
+.chat-bubble.user { background:linear-gradient(135deg,var(--green-accent),#2d8a50); align-self:flex-end; border-bottom-right-radius:4px; color:white; }
+.chat-suggestions { display:flex; gap:8px; flex-wrap:wrap; padding:4px 20px 8px; flex-shrink:0; }
+.chat-suggestion { padding:7px 13px; border-radius:20px; font-size:12px; font-weight:500; background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); transition:all 0.2s; white-space:nowrap; }
+.chat-suggestion:hover { background:var(--bg-card-hover); color:var(--text-primary); border-color:var(--border-light); }
+.chat-input-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; padding-bottom:calc(10px + var(--safe-bottom)); border-top:1px solid var(--border); flex-shrink:0; }
+.chat-input { flex:1; padding:10px 16px; border-radius:24px; border:1px solid var(--border); background:var(--bg-card); color:var(--text-primary); font-size:14px; outline:none; transition:border-color 0.2s; }
+.chat-input:focus { border-color:var(--green-accent); }
+.chat-input::placeholder { color:var(--text-muted); }
+.chat-send { width:40px; height:40px; border-radius:50%; background:var(--green-accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:opacity 0.2s; }
+.chat-send:disabled { opacity:0.3; }
+.chat-peek-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; background:var(--bg-card); border-top:1px solid var(--border); cursor:pointer; flex-shrink:0; transition:background 0.2s; }
+.chat-peek-bar:hover { background:var(--bg-card-hover); }
+.chat-peek-avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#245232,#38a866); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.chat-peek-text { flex:1; font-size:13px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chat-peek-badge { width:8px; height:8px; border-radius:50%; background:var(--green-accent); flex-shrink:0; animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+.typing-indicator { display:flex; gap:4px; padding:4px 0; }
+.typing-indicator span { width:6px; height:6px; border-radius:50%; background:var(--text-muted); animation:typingBounce 1.4s infinite; }
+.typing-indicator span:nth-child(2) { animation-delay:0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay:0.4s; }
+@keyframes typingBounce { 0%,60%,100% { transform:translateY(0); opacity:0.4; } 30% { transform:translateY(-4px); opacity:1; } }
+
+/* ─── Bottom Nav ─── */
+.bottom-nav { display:flex; align-items:center; justify-content:space-around; padding:8px 8px; padding-bottom:calc(8px + var(--safe-bottom)); background:var(--bg-primary); border-top:1px solid var(--border); flex-shrink:0; position:relative; z-index:30; }
+.nav-item { display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 12px; border-radius:var(--radius-sm); transition:all 0.2s; position:relative; min-width:56px; }
+.nav-item .nav-icon { font-size:20px; transition:transform 0.2s; }
+.nav-item .nav-label { font-size:10px; font-weight:500; color:var(--text-muted); transition:color 0.2s; }
+.nav-item.active .nav-icon { transform:scale(1.1); }
+.nav-item.active .nav-label { color:var(--green-light); font-weight:600; }
+.nav-item.active::after { content:''; position:absolute; top:-8px; left:50%; transform:translateX(-50%); width:20px; height:3px; border-radius:2px; background:var(--green-accent); }
+
+.section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; margin-top:6px; }
+.section-title { font-family:var(--font-display); font-size:20px; font-weight:600; }
+
+.net-worth-card { background:linear-gradient(160deg,#0e3520 0%,#1a5c38 50%,#245e3a 100%); border-radius:var(--radius-xl); padding:24px 20px; margin-bottom:16px; position:relative; overflow:hidden; border:1px solid rgba(56,168,102,0.15); }
+.net-worth-card::before { content:''; position:absolute; top:-50px; right:-40px; width:180px; height:180px; border-radius:50%; background:radial-gradient(circle,rgba(76,201,126,0.15),transparent 70%); }
+.net-worth-label { font-size:11px; font-weight:600; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
+.net-worth-amount { font-family:var(--font-display); font-size:38px; font-weight:700; color:white; line-height:1; margin-bottom:4px; position:relative; }
+.net-worth-change { font-size:13px; color:var(--green-light); font-weight:500; position:relative; }
+
+.profile-header { display:flex; flex-direction:column; align-items:center; padding:24px 0 20px; text-align:center; }
+.profile-avatar { width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg,var(--green-accent),var(--green-muted)); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700; color:white; margin-bottom:12px; }
+.profile-name { font-family:var(--font-display); font-size:24px; font-weight:600; margin-bottom:4px; }
+.profile-email { font-size:13px; color:var(--text-muted); }
+.profile-row { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.2s; }
+.profile-row:hover { background:rgba(255,255,255,0.02); }
+.profile-row-left { display:flex; align-items:center; gap:14px; }
+.profile-row-icon { width:36px; height:36px; border-radius:var(--radius-sm); background:var(--bg-card); display:flex; align-items:center; justify-content:center; font-size:16px; }
+.profile-row-text { font-size:15px; font-weight:500; }
+.profile-row-arrow { font-size:14px; color:var(--text-muted); }
+
+.prompt-tiles { display:flex; gap:8px; overflow-x:auto; padding:2px 0 14px; margin:0 -16px; padding-left:16px; padding-right:16px; scroll-snap-type:x proximity; }
+.prompt-tile { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:var(--radius-md); background:var(--bg-card); border:1px solid var(--border); min-width:200px; max-width:220px; flex-shrink:0; cursor:pointer; transition:background 0.2s,border-color 0.2s,transform 0.15s; scroll-snap-align:start; }
+.prompt-tile:hover { background:var(--bg-card-hover); border-color:var(--border-light); transform:translateY(-1px); }
+.prompt-tile:active { transform:scale(0.98); }
+.prompt-tile-icon { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; background:var(--green-subtle); }
+.prompt-tile-text { font-size:13px; line-height:1.4; color:var(--text-secondary); flex:1; }
+
+@keyframes fadeInUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+.animate-in { animation:fadeInUp 0.5s ease both; }
+.animate-in:nth-child(1) { animation-delay:0.05s; }
+.animate-in:nth-child(2) { animation-delay:0.1s; }
+.animate-in:nth-child(3) { animation-delay:0.15s; }
+.animate-in:nth-child(4) { animation-delay:0.2s; }
+.animate-in:nth-child(5) { animation-delay:0.25s; }
+.animate-in:nth-child(6) { animation-delay:0.3s; }
+.animate-in:nth-child(7) { animation-delay:0.35s; }
+
+/* Persona visibility */
+[data-show] { display:none !important; }
+[data-show].persona-visible { display:revert !important; }
+
+@media (min-width:1024px) { .app-frame { max-width:430px; } }
+</style>
+</head>
+<body>
+<div class="app-shell">
+<div class="app-frame">
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="top-bar-left"><span class="top-bar-greeting">🍝 Lasagna</span></div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="persona-toggles">
+      <div class="persona-toggle" id="toggle-debt">
+        <button class="persona-opt active" data-val="debt">Debt</button>
+        <button class="persona-opt" data-val="free">No Debt</button>
+      </div>
+      <div class="persona-toggle" id="toggle-invest">
+        <button class="persona-opt active" data-val="invest">Invest</button>
+        <button class="persona-opt" data-val="noinvest">No $</button>
+      </div>
+    </div>
+    <div class="avatar">M</div>
+  </div>
+</div>
+
+<!-- Tab Content -->
+<div class="tab-content-area">
+
+<!-- ═══════════════════ HOME ═══════════════════ -->
+<div class="tab-panel active" id="tab-home">
+  <!-- Net worth: varies by persona -->
+  <div class="net-worth-card animate-in" id="home-networth">
+    <div class="net-worth-label">Net Worth</div>
+    <div class="net-worth-amount" id="nw-amount">$23,800</div>
+    <div class="net-worth-change" id="nw-change">↑ $620 this month</div>
+  </div>
+
+  <!-- Do This Next -->
+  <div class="card animate-in" id="home-next-action" style="border-color:rgba(212,162,78,0.25);background:linear-gradient(135deg,rgba(212,162,78,0.08),var(--bg-card))">
+    <div class="card-header"><div class="card-dot amber"></div><span class="card-label amber">Do This Next</span></div>
+    <div class="card-title" style="font-size:18px" id="next-action-title"></div>
+    <div class="card-subtitle" id="next-action-desc"></div>
+    <button class="card-action amber" id="next-action-btn">Walk me through this →</button>
+  </div>
+
+  <!-- Your Layers summary -->
+  <div class="section-header animate-in"><span class="section-title">Your Layers</span></div>
+
+  <div class="card animate-in" style="cursor:pointer" data-nav="debt" id="home-debt-card">
+    <div class="card-header"><div class="card-dot" id="home-debt-dot"></div><span class="card-label" id="home-debt-label">Debt</span></div>
+    <div id="home-debt-summary"></div>
+  </div>
+
+  <div class="card animate-in" style="cursor:pointer" data-nav="invest" id="home-invest-card">
+    <div class="card-header"><div class="card-dot" id="home-invest-dot"></div><span class="card-label" id="home-invest-label">Invest</span></div>
+    <div id="home-invest-summary"></div>
+  </div>
+
+  <div class="card animate-in" style="cursor:pointer" data-nav="tax" id="home-tax-card">
+    <div class="card-header"><div class="card-dot"></div><span class="card-label">Tax Optimization</span></div>
+    <div id="home-tax-summary"></div>
+  </div>
+
+  <!-- Ask Lasagna -->
+  <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+  <div class="prompt-tiles animate-in" id="home-prompts"></div>
+  <div style="height:24px"></div>
+</div>
+
+<!-- ═══════════════════ DEBT ═══════════════════ -->
+<div class="tab-panel" id="tab-debt"></div>
+
+<!-- ═══════════════════ INVEST ═══════════════════ -->
+<div class="tab-panel" id="tab-invest"></div>
+
+<!-- ═══════════════════ TAX ═══════════════════ -->
+<div class="tab-panel" id="tab-tax"></div>
+
+<!-- ═══════════════════ PROFILE ═══════════════════ -->
+<div class="tab-panel" id="tab-profile">
+  <div class="profile-header animate-in">
+    <div class="profile-avatar">M</div>
+    <div class="profile-name">Marcus Chen</div>
+    <div class="profile-email">demo@example.com</div>
+  </div>
+  <div class="card animate-in" style="padding:0;overflow:hidden">
+    <div class="profile-row"><div class="profile-row-left"><div class="profile-row-icon">👤</div><span class="profile-row-text">Personal Info</span></div><span class="profile-row-arrow">›</span></div>
+    <div class="profile-row"><div class="profile-row-left"><div class="profile-row-icon">💼</div><span class="profile-row-text">Income & Employment</span></div><span class="profile-row-arrow">›</span></div>
+    <div class="profile-row"><div class="profile-row-left"><div class="profile-row-icon">🏦</div><span class="profile-row-text">Linked Accounts</span></div><span class="profile-row-arrow">›</span></div>
+    <div class="profile-row"><div class="profile-row-left"><div class="profile-row-icon">🎯</div><span class="profile-row-text">Financial Goals</span></div><span class="profile-row-arrow">›</span></div>
+  </div>
+  <div class="section-header animate-in" style="margin-top:8px"><span class="section-title">Your Profile</span></div>
+  <div class="card animate-in">
+    <div class="stat-row"><span class="stat-label">Age</span><span class="stat-value">28</span></div>
+    <div class="stat-row"><span class="stat-label">Gross income</span><span class="stat-value">$72,000/yr</span></div>
+    <div class="stat-row"><span class="stat-label">Filing status</span><span class="stat-value">Single</span></div>
+    <div class="stat-row"><span class="stat-label">State</span><span class="stat-value">California</span></div>
+    <div class="stat-row"><span class="stat-label">Risk tolerance</span><span class="stat-value" style="color:var(--green-light)">Moderate-aggressive</span></div>
+  </div>
+  <div class="card animate-in" style="padding:0;overflow:hidden">
+    <div class="profile-row"><div class="profile-row-left"><div class="profile-row-icon">🔔</div><span class="profile-row-text">Notifications</span></div><span class="profile-row-arrow">›</span></div>
+    <div class="profile-row"><div class="profile-row-left"><div class="profile-row-icon">🔒</div><span class="profile-row-text">Privacy & Security</span></div><span class="profile-row-arrow">›</span></div>
+    <div class="profile-row" style="border-bottom:none"><div class="profile-row-left"><div class="profile-row-icon">🚪</div><span class="profile-row-text" style="color:var(--red)">Sign Out</span></div><span class="profile-row-arrow">›</span></div>
+  </div>
+  <div style="text-align:center;padding:20px 0 16px"><div style="font-size:12px;color:var(--text-muted)">Lasagna v0.1.0 · Built in the open</div></div>
+  <div style="height:24px"></div>
+</div>
+
+</div><!-- /tab-content-area -->
+
+<!-- Chat Backdrop -->
+<div class="chat-backdrop" id="chat-backdrop"></div>
+
+<!-- Chat Drawer -->
+<div class="chat-drawer" id="chat-drawer">
+  <div class="chat-drawer-handle" id="chat-handle"><div class="chat-drawer-pill"></div></div>
+  <div class="chat-header">
+    <div class="chat-header-left"><div class="chat-avatar">🍝</div><div><div class="chat-name">Lasagna</div><div class="chat-status"><div class="chat-status-dot"></div> Online</div></div></div>
+    <button class="chat-close" id="chat-close" aria-label="Close chat">✕</button>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-bubble bot" id="chat-welcome"></div>
+  </div>
+  <div class="chat-suggestions" id="chat-suggestions"></div>
+  <div class="chat-input-bar">
+    <input class="chat-input" id="chat-input" type="text" placeholder="Ask anything..." autocomplete="off">
+    <button class="chat-send" id="chat-send" disabled aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+  </div>
+</div>
+
+<!-- Chat Peek Bar -->
+<div class="chat-peek-bar" id="chat-peek-bar">
+  <div class="chat-peek-avatar">🍝</div>
+  <div class="chat-peek-text">Ask Lasagna anything...</div>
+  <div class="chat-peek-badge"></div>
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav" id="bottom-nav">
+  <button class="nav-item active" data-tab="home"><span class="nav-icon">🏠</span><span class="nav-label">Home</span></button>
+  <button class="nav-item" data-tab="debt"><span class="nav-icon">💳</span><span class="nav-label">Debt</span></button>
+  <button class="nav-item" data-tab="invest"><span class="nav-icon">📈</span><span class="nav-label">Invest</span></button>
+  <button class="nav-item" data-tab="tax"><span class="nav-icon">🏦</span><span class="nav-label">Tax</span></button>
+  <button class="nav-item" data-tab="profile"><span class="nav-icon">👤</span><span class="nav-label">Profile</span></button>
+</nav>
+
+</div>
+</div>
+
+<script>
+(function(){
+// ─── STATE ───
+let persona = { debt: true, invest: true };
+
+// ─── PERSONA DATA ───
+const P = {
+  debt_invest: {
+    nw: '$23,800', nwChange: '↑ $620 this month',
+    nextTitle: 'Set your 401(k) to 4% to capture employer match',
+    nextDesc: "Even while paying off debt, free money is free money. Your employer matches dollar-for-dollar — that's $2,080/year you're leaving behind.",
+    nextPrompt: 'How do I set up my 401(k) match while paying off debt?',
+    debtDot: 'red', debtLabel: 'Debt — $14,200 remaining',
+    debtSummary: '<div style="font-size:18px;font-weight:700;color:var(--red)">$14,200 to go</div><div class="card-subtitle">3 debts · Avalanche strategy active · Debt-free by Nov 2027</div>',
+    investDot: 'amber', investLabel: 'Invest — Match only',
+    investSummary: '<div style="font-size:18px;font-weight:700">Capture match only</div><div class="card-subtitle">Don\'t invest beyond 401(k) match until high-interest debt is gone</div>',
+    taxSummary: '<div style="font-size:18px;font-weight:700">3 actions available</div><div class="card-subtitle">401(k) pre-tax · W-4 check · Saver\'s Credit eligibility</div>',
+    homePrompts: [
+      ['🎯','What should I focus on: debt or investing?','Should I pay off debt first or invest?'],
+      ['💳','How fast can I be debt-free?','How fast can I pay off all my debt?'],
+      ['📊','Am I on track for my age?','Am I saving enough for my age?']
+    ],
+    chatWelcome: "I see you have $14,200 in debt and want to start investing. Smart thinking — let's build your plan layer by layer. Step one: capture your 401(k) match (free money), then throw everything at that high-interest debt.",
+    chatSuggestions: [['Pay debt or invest?','Should I pay off debt first or invest?'],['Fastest payoff plan','What is the fastest way to pay off my debt?'],['401(k) match setup','How do I set up my 401(k) match while paying off debt?'],['Lower my rates','How can I negotiate lower interest rates on my debt?']],
+
+    debtTab: `
+      <div class="card-featured animate-in">
+        <div class="card-header"><div class="card-dot red"></div><span class="card-label red" style="color:rgba(255,200,200,0.7)">Debt Command Center</span></div>
+        <div class="card-title">$14,200 remaining</div>
+        <div class="card-subtitle">Avalanche strategy active · Paying highest APR first</div>
+        <div class="tag-row"><span class="tag red">3 active debts</span><span class="tag">$650/mo payments</span></div>
+      </div>
+
+      <div class="section-header animate-in"><span class="section-title">Payoff Strategy</span></div>
+      <div class="card animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label">Avalanche Method — Active</span></div>
+        <div class="card-subtitle" style="margin-bottom:12px">Pay minimums on everything, then throw all extra cash at the <strong style="color:var(--text-primary)">highest APR</strong> debt first. This saves the most money mathematically.</div>
+        <div class="stat-row"><span class="stat-label">Your strategy</span><span class="stat-value" style="color:var(--green-light)">Avalanche (highest APR first)</span></div>
+        <div class="stat-row"><span class="stat-label">Alternative</span><span class="stat-value" style="color:var(--text-muted)">Snowball (smallest balance first)</span></div>
+        <div class="stat-row"><span class="stat-label">Interest saved vs snowball</span><span class="stat-value green">$840</span></div>
+        <div style="margin-top:12px;padding:10px 12px;border-radius:var(--radius-sm);background:rgba(255,255,255,0.03);font-size:12px;color:var(--text-secondary)"><strong style="color:var(--text-primary)">Snowball</strong> pays smallest balance first for quicker wins. <strong style="color:var(--text-primary)">Avalanche</strong> targets highest APR to minimize total interest. Avalanche saves you $840 here.</div>
+        <button class="card-action">Should I switch to snowball? →</button>
+      </div>
+
+      <div class="section-header animate-in"><span class="section-title">Payoff Timeline</span></div>
+      <div class="card animate-in">
+        <div class="stat-row"><span class="stat-label">Minimum payments only</span><span class="stat-value red">Mar 2031 (5 years)</span></div>
+        <div class="stat-row"><span class="stat-label">Lasagna's plan ($650/mo)</span><span class="stat-value green">Nov 2027 (19 months)</span></div>
+        <div class="stat-row"><span class="stat-label">Time saved</span><span class="stat-value green">3 years 4 months</span></div>
+        <div class="stat-row"><span class="stat-label">Interest saved vs minimums</span><span class="stat-value green">$4,200</span></div>
+        <div class="progress-bar-track" style="margin-top:8px"><div class="progress-bar-fill" style="width:23%;background:linear-gradient(90deg,var(--amber),var(--amber-light))"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px"><span style="font-size:12px;color:var(--text-muted)">Started Feb 2026</span><span style="font-size:12px;color:var(--amber)">Free by Nov 2027</span></div>
+      </div>
+
+      <div class="section-header animate-in"><span class="section-title">Payoff Order</span></div>
+      <div class="animate-in">
+        <div class="debt-item" style="border-color:rgba(212,80,80,0.25)">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:32px"><div class="ops-num" style="width:24px;height:24px;font-size:11px;background:var(--red)">1</div><div style="font-size:9px;color:var(--red);font-weight:600">FIRST</div></div>
+          <div class="debt-info"><div class="debt-name">Chase Sapphire</div><div class="debt-detail">21.99% APR · Min $65/mo · Paying $280/mo</div><div style="margin-top:4px;font-size:11px;color:var(--text-muted)">Min payoff: <span style="color:var(--red)">Jul 2033</span> · Your plan: <span style="color:var(--green-light)">Jul 2027</span></div></div>
+          <div class="debt-amount"><div class="debt-balance" style="color:var(--red)">$4,200</div></div>
+        </div>
+        <div class="debt-item">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:32px"><div class="ops-num" style="width:24px;height:24px;font-size:11px;background:var(--amber)">2</div><div style="font-size:9px;color:var(--amber);font-weight:600">NEXT</div></div>
+          <div class="debt-info"><div class="debt-name">Personal Line of Credit</div><div class="debt-detail">11.5% APR · Min $50/mo · Paying $150/mo</div><div style="margin-top:4px;font-size:11px;color:var(--text-muted)">Min payoff: <span style="color:var(--red)">Sep 2032</span> · Your plan: <span style="color:var(--green-light)">Sep 2027</span></div></div>
+          <div class="debt-amount"><div class="debt-balance">$3,000</div></div>
+        </div>
+        <div class="debt-item">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:32px"><div class="ops-num pending" style="width:24px;height:24px;font-size:11px">3</div><div style="font-size:9px;color:var(--text-muted);font-weight:600">LAST</div></div>
+          <div class="debt-info"><div class="debt-name">Student Loan (Fed)</div><div class="debt-detail">5.28% APR · Min $120/mo · Paying $220/mo</div><div style="margin-top:4px;font-size:11px;color:var(--text-muted)">Min payoff: <span style="color:var(--red)">Mar 2030</span> · Your plan: <span style="color:var(--green-light)">Nov 2027</span></div></div>
+          <div class="debt-amount"><div class="debt-balance">$7,000</div></div>
+        </div>
+      </div>
+
+      <div class="section-header animate-in"><span class="section-title">Actions</span></div>
+      <div class="card animate-in">
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Call Chase to negotiate lower APR</div><div class="action-desc">Ask for hardship reduction or balance transfer offer. Average savings: $600/year.</div><div class="action-impact red">Saves ~$50/mo interest</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set up autopay on all 3 debts</div><div class="action-desc">Never miss a payment. Some lenders give 0.25% rate discount for autopay.</div><div class="action-impact green">Protects credit score</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Increase Chase payment to $350/mo</div><div class="action-desc">Extra $70/mo shaves 4 months off payoff and saves $380 in interest.</div><div class="action-impact amber">Debt-free 4mo sooner</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Check balance transfer card offers</div><div class="action-desc">A 0% APR balance transfer card could save $77/mo in interest on the Chase card.</div><div class="action-impact amber">$924/year saved</div></div></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+      <div class="prompt-tiles animate-in"><button class="prompt-tile" data-prompt="Should I use avalanche or snowball method?"><div class="prompt-tile-icon">❄️</div><div class="prompt-tile-text">Avalanche vs snowball — which is better?</div></button><button class="prompt-tile" data-prompt="How can I negotiate lower interest rates on my debt?"><div class="prompt-tile-icon">📞</div><div class="prompt-tile-text">How to negotiate lower rates</div></button><button class="prompt-tile" data-prompt="Should I pay off debt first or invest?"><div class="prompt-tile-icon">⚖️</div><div class="prompt-tile-text">Pay off debt or invest?</div></button></div>
+      <div style="height:24px"></div>`,
+
+    investTab: `
+      <div class="card-featured animate-in">
+        <div class="card-header"><div class="card-dot amber"></div><span class="card-label amber" style="color:rgba(255,220,150,0.7)">Investing While in Debt</span></div>
+        <div class="card-title">Capture the match only</div>
+        <div class="card-subtitle">Your employer matches 401(k) up to 4%. That's an instant 100% return — better than any debt payoff. Beyond the match, every dollar should attack your 21.99% APR debt.</div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Actions</span></div>
+      <div class="card animate-in">
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set 401(k) contribution to 4%</div><div class="action-desc">Log into Fidelity, set contribution rate to 4%. Takes 5 minutes.</div><div class="action-impact green">+$2,080/yr free money</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Choose a target-date fund (FDEWX)</div><div class="action-desc">Set it and forget it until you're debt-free and can think about allocation.</div><div class="action-impact green">Auto-diversified</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Do NOT invest beyond the match</div><div class="action-desc">Your Chase card at 21.99% costs more than markets return. Every extra dollar → debt payoff.</div><div class="action-impact red">21.99% guaranteed "return"</div></div></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">After You're Debt-Free</span></div>
+      <div class="card animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label">Order of Operations</span></div>
+        <div class="ops-list">
+          <div class="ops-item"><div class="ops-num">1</div><div class="ops-text"><div class="ops-text-title">401(k) to 4% match</div><div class="ops-text-sub">✓ Do this now, even with debt</div></div><span class="ops-badge now">Now</span></div>
+          <div class="ops-item"><div class="ops-num pending">2</div><div class="ops-text"><div class="ops-text-title">Pay off all high-interest debt</div><div class="ops-text-sub">Everything above 6% APR</div></div><span class="ops-badge next">Current</span></div>
+          <div class="ops-item"><div class="ops-num pending">3</div><div class="ops-text"><div class="ops-text-title">Build 3-6mo emergency fund</div><div class="ops-text-sub">Then max Roth IRA ($7,000/yr)</div></div><span class="ops-badge later">Later</span></div>
+          <div class="ops-item"><div class="ops-num pending">4</div><div class="ops-text"><div class="ops-text-title">Max 401(k) ($23,500/yr)</div><div class="ops-text-sub">Then taxable brokerage</div></div><span class="ops-badge later">Later</span></div>
+        </div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+      <div class="prompt-tiles animate-in"><button class="prompt-tile" data-prompt="Should I pay off debt first or invest?"><div class="prompt-tile-icon">⚖️</div><div class="prompt-tile-text">Debt payoff vs investing math</div></button><button class="prompt-tile" data-prompt="How do I set up my 401(k) match while paying off debt?"><div class="prompt-tile-icon">💰</div><div class="prompt-tile-text">Set up 401(k) match</div></button></div>
+      <div style="height:24px"></div>`,
+
+    taxTab: '' // filled below
+  },
+
+  debt_noinvest: {
+    nw: '$8,400', nwChange: '↓ $14,200 in debt',
+    nextTitle: 'Build a $1,000 starter emergency fund',
+    nextDesc: "Before attacking debt aggressively, stash $1,000 for emergencies. This prevents new debt when life happens.",
+    nextPrompt: 'How do I build an emergency fund while in debt?',
+    debtDot: 'red', debtLabel: 'Debt — $14,200 remaining',
+    debtSummary: '<div style="font-size:18px;font-weight:700;color:var(--red)">$14,200 to go</div><div class="card-subtitle">3 debts · Need a payoff strategy · No extra cash yet</div>',
+    investDot: '', investLabel: 'Invest — Not yet',
+    investSummary: '<div style="font-size:18px;font-weight:700;color:var(--text-muted)">Focus on debt first</div><div class="card-subtitle">Exception: if employer offers 401(k) match, capture it</div>',
+    taxSummary: '<div style="font-size:18px;font-weight:700">2 actions available</div><div class="card-subtitle">Check W-4 withholding · Saver\'s Credit eligibility</div>',
+    homePrompts: [
+      ['🆘','Where do I even start?','I have debt and no savings. Where do I start?'],
+      ['💡','How to free up cash for payments?','How can I free up more money to pay off debt?'],
+      ['🎯','Am I on track for my age?','Am I saving enough for my age?']
+    ],
+    chatWelcome: "Let's take this one layer at a time. First: a $1,000 mini emergency fund so you don't add more debt. Then we'll attack that $14,200 with a clear plan. You've got this.",
+    chatSuggestions: [['Where do I start?','I have debt and no savings. Where do I start?'],['Free up cash','How can I free up more money to pay off debt?'],['Stop the bleeding','How do I stop accumulating more debt?'],['Negotiate rates','How can I negotiate lower interest rates on my debt?']],
+
+    debtTab: `
+      <div class="card-featured animate-in">
+        <div class="card-header"><div class="card-dot red"></div><span class="card-label red" style="color:rgba(255,200,200,0.7)">Debt Command Center</span></div>
+        <div class="card-title">$14,200 remaining</div>
+        <div class="card-subtitle">Let's build your payoff strategy. Every dollar toward debt is a guaranteed return equal to the APR you eliminate.</div>
+        <div class="tag-row"><span class="tag red">3 active debts</span><span class="tag amber">$137/mo going to interest</span></div>
+      </div>
+
+      <div class="section-header animate-in"><span class="section-title">Payoff Strategy</span></div>
+      <div class="card animate-in">
+        <div class="card-header"><div class="card-dot amber"></div><span class="card-label amber">Choose Your Strategy</span></div>
+        <div style="display:flex;gap:10px;margin-bottom:14px">
+          <div style="flex:1;padding:12px;border-radius:var(--radius-sm);background:var(--green-subtle);text-align:center;border:1px solid rgba(56,168,102,0.2)"><div style="font-size:12px;color:var(--green-light);font-weight:700;margin-bottom:4px">❄️ Avalanche</div><div style="font-size:11px;color:var(--text-secondary)">Highest APR first</div><div style="font-size:10px;color:var(--green-light);margin-top:4px">Saves most money</div></div>
+          <div style="flex:1;padding:12px;border-radius:var(--radius-sm);background:var(--amber-bg);text-align:center;border:1px solid rgba(212,162,78,0.15)"><div style="font-size:12px;color:var(--amber);font-weight:700;margin-bottom:4px">⛄ Snowball</div><div style="font-size:11px;color:var(--text-secondary)">Smallest balance first</div><div style="font-size:10px;color:var(--amber);margin-top:4px">Fastest first win</div></div>
+        </div>
+        <div class="card-subtitle">Lasagna recommends <strong style="color:var(--green-light)">Avalanche</strong> for you — your Chase card at 21.99% is costing $77/mo in interest. Killing it first saves $840 more than snowball.</div>
+        <button class="card-action">Help me choose a strategy →</button>
+      </div>
+
+      <div class="section-header animate-in"><span class="section-title">Payoff Timeline</span></div>
+      <div class="card animate-in">
+        <div class="stat-row"><span class="stat-label">Minimum payments only ($235/mo)</span><span class="stat-value red">Mar 2031 (5 years)</span></div>
+        <div class="stat-row"><span class="stat-label">Lasagna's plan ($650/mo)</span><span class="stat-value green">Nov 2027 (19 months)</span></div>
+        <div class="stat-row"><span class="stat-label">Time saved</span><span class="stat-value green">3 years 4 months</span></div>
+        <div class="stat-row"><span class="stat-label">Interest saved vs minimums</span><span class="stat-value green">$4,200</span></div>
+      </div>
+
+      <div class="section-header animate-in"><span class="section-title">Payoff Order (Avalanche)</span></div>
+      <div class="animate-in">
+        <div class="debt-item" style="border-color:rgba(212,80,80,0.25)">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:32px"><div class="ops-num" style="width:24px;height:24px;font-size:11px;background:var(--red)">1</div><div style="font-size:9px;color:var(--red);font-weight:600">FIRST</div></div>
+          <div class="debt-info"><div class="debt-name">Chase Sapphire</div><div class="debt-detail">21.99% APR · $77/mo in interest</div><div style="margin-top:4px;font-size:11px;color:var(--text-muted)">Min only: <span style="color:var(--red)">Jul 2033</span> · Suggested: <span style="color:var(--green-light)">Jul 2027</span></div></div>
+          <div class="debt-amount"><div class="debt-balance" style="color:var(--red)">$4,200</div></div>
+        </div>
+        <div class="debt-item">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:32px"><div class="ops-num" style="width:24px;height:24px;font-size:11px;background:var(--amber)">2</div><div style="font-size:9px;color:var(--amber);font-weight:600">NEXT</div></div>
+          <div class="debt-info"><div class="debt-name">Personal Line of Credit</div><div class="debt-detail">11.5% APR · $29/mo in interest</div><div style="margin-top:4px;font-size:11px;color:var(--text-muted)">Min only: <span style="color:var(--red)">Sep 2032</span> · Suggested: <span style="color:var(--green-light)">Sep 2027</span></div></div>
+          <div class="debt-amount"><div class="debt-balance">$3,000</div></div>
+        </div>
+        <div class="debt-item">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:32px"><div class="ops-num pending" style="width:24px;height:24px;font-size:11px">3</div><div style="font-size:9px;color:var(--text-muted);font-weight:600">LAST</div></div>
+          <div class="debt-info"><div class="debt-name">Student Loan (Fed)</div><div class="debt-detail">5.28% APR · $31/mo in interest</div><div style="margin-top:4px;font-size:11px;color:var(--text-muted)">Min only: <span style="color:var(--red)">Mar 2030</span> · Suggested: <span style="color:var(--green-light)">Nov 2027</span></div></div>
+          <div class="debt-amount"><div class="debt-balance">$7,000</div></div>
+        </div>
+      </div>
+
+      <div class="section-header animate-in"><span class="section-title">Urgent Actions</span></div>
+      <div class="card animate-in">
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Save $1,000 starter emergency fund</div><div class="action-desc">Before aggressive payoff. Sell unused items, cut one subscription, save $250/mo → done in 4 weeks.</div><div class="action-impact amber">Prevents new debt</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Call Chase — negotiate your APR down</div><div class="action-desc">Ask for hardship program or rate reduction. Worst they can say is no. Average reduction: 5-7%.</div><div class="action-impact red">Saves ~$50/mo</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set up autopay minimums on all debts</div><div class="action-desc">Never miss a payment while building your strategy.</div><div class="action-impact green">Protects credit score</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Audit subscriptions — cancel 2-3</div><div class="action-desc">Free up $50-200/mo to accelerate payoff.</div><div class="action-impact amber">+$50-200/mo freed</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Apply for 0% balance transfer card</div><div class="action-desc">Move Chase balance to 0% APR for 15-18 months. Eliminates $77/mo in interest.</div><div class="action-impact red">$924/yr saved</div></div></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+      <div class="prompt-tiles animate-in"><button class="prompt-tile" data-prompt="Should I use avalanche or snowball method?"><div class="prompt-tile-icon">❄️</div><div class="prompt-tile-text">Avalanche vs snowball?</div></button><button class="prompt-tile" data-prompt="I have debt and no savings. Where do I start?"><div class="prompt-tile-icon">🆘</div><div class="prompt-tile-text">Where do I even start?</div></button><button class="prompt-tile" data-prompt="How can I free up more money to pay off debt?"><div class="prompt-tile-icon">💡</div><div class="prompt-tile-text">How to free up cash fast</div></button></div>
+      <div style="height:24px"></div>`,
+
+    investTab: `
+      <div class="card-featured animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label" style="color:rgba(255,255,255,0.6)">Investing — Not Yet</span></div>
+        <div class="card-title">Focus on debt first</div>
+        <div class="card-subtitle">Your Chase card at 21.99% APR costs more than the stock market returns (~10%/yr). Paying off debt IS investing — at a guaranteed 21.99% return.</div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">The One Exception</span></div>
+      <div class="card animate-in" style="border-color:rgba(212,162,78,0.25);background:linear-gradient(135deg,rgba(212,162,78,0.08),var(--bg-card))">
+        <div class="card-header"><div class="card-dot amber"></div><span class="card-label amber">Free Money Alert</span></div>
+        <div class="card-title" style="font-size:18px">Does your employer match 401(k)?</div>
+        <div class="card-subtitle">If yes, contribute the minimum to get the full match. An employer match is an instant 50-100% return — the only investment that beats paying off 21.99% debt.</div>
+        <button class="card-action amber">Check my 401(k) match →</button>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Your Future Roadmap</span></div>
+      <div class="card animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label">After Debt is Gone</span></div>
+        <div class="ops-list">
+          <div class="ops-item"><div class="ops-num pending">1</div><div class="ops-text"><div class="ops-text-title">Build 3-6mo emergency fund</div><div class="ops-text-sub">In a high-yield savings account</div></div><span class="ops-badge later">Future</span></div>
+          <div class="ops-item"><div class="ops-num pending">2</div><div class="ops-text"><div class="ops-text-title">Max 401(k) match + Roth IRA</div><div class="ops-text-sub">Tax-advantaged growth</div></div><span class="ops-badge later">Future</span></div>
+          <div class="ops-item"><div class="ops-num pending">3</div><div class="ops-text"><div class="ops-text-title">Increase 401(k) to 15%+</div><div class="ops-text-sub">Then open taxable brokerage</div></div><span class="ops-badge later">Future</span></div>
+        </div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+      <div class="prompt-tiles animate-in"><button class="prompt-tile" data-prompt="Should I pay off debt first or invest?"><div class="prompt-tile-icon">⚖️</div><div class="prompt-tile-text">The math: debt vs investing</div></button><button class="prompt-tile" data-prompt="When will I be ready to invest?"><div class="prompt-tile-icon">⏰</div><div class="prompt-tile-text">When can I start investing?</div></button></div>
+      <div style="height:24px"></div>`,
+
+    taxTab: ''
+  },
+
+  free_invest: {
+    nw: '$47,230', nwChange: '↑ $1,840 this month (+4.1%)',
+    nextTitle: 'Set your 401(k) contribution to 4%',
+    nextDesc: "Your employer matches dollar-for-dollar. That's $2,080/year in free money you're leaving on the table.",
+    nextPrompt: 'How do I set up my 401(k) match?',
+    debtDot: '', debtLabel: 'Debt',
+    debtSummary: '<div style="font-size:18px;font-weight:700;color:var(--green-light)">Debt-free ✓</div><div class="card-subtitle">$18,400 paid off · $2,340 interest saved</div>',
+    investDot: 'amber', investLabel: 'Invest & Portfolio',
+    investSummary: '<div style="font-size:18px;font-weight:700">$31,210 invested</div><div class="card-subtitle">401(k) match uncaptured · Roth IRA unfunded this year</div>',
+    taxSummary: '<div style="font-size:18px;font-weight:700">4 actions available</div><div class="card-subtitle">401(k) optimization · Roth IRA · HSA check · Withholding review</div>',
+    homePrompts: [
+      ['🎯','What should I focus on next financially?','What should I focus on next financially?'],
+      ['📊','Am I on track for my age?','Am I saving enough for my age?'],
+      ['📋','Give me a monthly financial review.','Give me a monthly financial review.']
+    ],
+    chatWelcome: "You cleared your debt — that's huge. Now you have $800/month to put to work. Step one is capturing your 401(k) match today. It takes 5 minutes and it's a 100% instant return.",
+    chatSuggestions: [['Free money check','How do I set up my 401(k) match?'],['Roth vs traditional?','Should I pick Roth or traditional IRA?'],['Index funds?','What are index funds and why should I use them?'],['How much risk?','How much risk should I take at my age?']],
+
+    debtTab: `
+      <div class="card-featured animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label" style="color:rgba(255,255,255,0.6)">Debt Status</span></div>
+        <div class="card-title">Debt-free! 🎉</div>
+        <div class="card-subtitle">You paid off $18,400 in 14 months. That's $800/month now freed up.</div>
+        <div class="tag-row"><span class="tag">✓ $0 credit card debt</span><span class="tag">✓ Student loans paid</span></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Stay Debt-Free</span></div>
+      <div class="card animate-in">
+        <div class="action-item"><div class="action-check done" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set all credit cards to autopay full balance</div><div class="action-desc">Never pay interest again. Autopay the full statement balance, not minimum.</div><div class="action-impact green">$0 interest forever</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set up credit monitoring</div><div class="action-desc">Free via Credit Karma or your bank. Catches fraud and tracks score.</div><div class="action-impact green">Early fraud detection</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Keep emergency fund at 6 months</div><div class="action-desc">Your $12,600 covers 6 months. This is your insurance against new debt.</div><div class="action-impact green">Debt prevention buffer</div></div></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">What You Paid Off</span></div>
+      <div class="animate-in">
+        <div class="debt-item"><div class="debt-icon" style="background:var(--green-subtle)">💳</div><div class="debt-info"><div class="debt-name">Chase Sapphire</div><div class="debt-detail">Paid off Dec 2025</div></div><div class="debt-amount"><div class="debt-balance" style="color:var(--green-light)">$0</div><div class="debt-rate" style="text-decoration:line-through">was $4,200</div></div></div>
+        <div class="debt-item"><div class="debt-icon" style="background:var(--green-subtle)">🎓</div><div class="debt-info"><div class="debt-name">Student Loan</div><div class="debt-detail">Paid off Mar 2026</div></div><div class="debt-amount"><div class="debt-balance" style="color:var(--green-light)">$0</div><div class="debt-rate" style="text-decoration:line-through">was $11,200</div></div></div>
+        <div class="debt-item"><div class="debt-icon" style="background:var(--green-subtle)">🏦</div><div class="debt-info"><div class="debt-name">Personal LoC</div><div class="debt-detail">Paid off Oct 2025</div></div><div class="debt-amount"><div class="debt-balance" style="color:var(--green-light)">$0</div><div class="debt-rate" style="text-decoration:line-through">was $3,000</div></div></div>
+      </div>
+      <div class="card animate-in"><div class="big-number" style="color:var(--green-light)">$2,340</div><div class="card-subtitle">Interest saved with the avalanche method vs. minimum payments.</div></div>
+      <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+      <div class="prompt-tiles animate-in"><button class="prompt-tile" data-prompt="Is it ever smart to take on debt again, like a mortgage?"><div class="prompt-tile-icon">🏠</div><div class="prompt-tile-text">Is a mortgage "good debt"?</div></button><button class="prompt-tile" data-prompt="How did the avalanche method work for my payoff?"><div class="prompt-tile-icon">❄️</div><div class="prompt-tile-text">How avalanche saved me $2,340</div></button></div>
+      <div style="height:24px"></div>`,
+
+    investTab: `
+      <div class="card-featured animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label" style="color:rgba(255,255,255,0.6)">Investment Readiness</span></div>
+        <div class="card-title">Ready to invest</div>
+        <div class="card-subtitle">$800/month available · Emergency fund ✓ · Debt cleared ✓</div>
+        <div class="tag-row"><span class="tag">✓ No high-interest debt</span><span class="tag">✓ 6mo emergency fund</span></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Actions</span></div>
+      <div class="card animate-in">
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set 401(k) contribution to 4%</div><div class="action-desc">Capture your full employer match. 5 minutes in Fidelity.</div><div class="action-impact green">+$2,080/yr free money</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Open & fund Roth IRA ($7,000)</div><div class="action-desc">Vanguard or Fidelity. Invest in 3-fund index portfolio (VTI/VXUS/BND).</div><div class="action-impact green">Tax-free growth forever</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set up automatic monthly investment</div><div class="action-desc">Auto-transfer $583/mo to Roth IRA. Removes emotion from investing.</div><div class="action-impact green">Dollar-cost averaging</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Increase 401(k) to 10%+ over time</div><div class="action-desc">After maxing Roth, bump 401(k) each raise. Target: $23,500/yr max.</div><div class="action-impact amber">Long-term wealth builder</div></div></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Order of Operations</span></div>
+      <div class="card animate-in">
+        <div class="ops-list">
+          <div class="ops-item"><div class="ops-num">1</div><div class="ops-text"><div class="ops-text-title">401(k) to 4% match</div><div class="ops-text-sub">Instant 100% return — do this today</div></div><span class="ops-badge now">Now</span></div>
+          <div class="ops-item"><div class="ops-num pending">2</div><div class="ops-text"><div class="ops-text-title">Max Roth IRA ($7,000)</div><div class="ops-text-sub">Tax-free growth forever</div></div><span class="ops-badge next">Next</span></div>
+          <div class="ops-item"><div class="ops-num pending">3</div><div class="ops-text"><div class="ops-text-title">Back to 401(k) max ($23,500)</div><div class="ops-text-sub">Tax-deferred compound growth</div></div><span class="ops-badge later">Later</span></div>
+        </div>
+        <button class="card-action">Why this order? →</button>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Portfolio Intelligence</span></div>
+      <div class="card animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label">Target: 60/30/10</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px">US Stocks (VTI)</span><span style="font-size:13px;font-weight:600">62%</span></div><div class="progress-bar-track" style="margin:0"><div class="progress-bar-fill" style="width:62%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px">Int'l (VXUS)</span><span style="font-size:13px;font-weight:600">28%</span></div><div class="progress-bar-track" style="margin:0"><div class="progress-bar-fill" style="width:28%;background:linear-gradient(90deg,#38a866,#62d98f)"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px">Bonds (BND)</span><span style="font-size:13px;font-weight:600">10%</span></div><div class="progress-bar-track" style="margin:0"><div class="progress-bar-fill" style="width:10%;background:linear-gradient(90deg,#5a9,#8cc)"></div></div></div>
+        </div>
+        <div style="margin-top:12px;padding:10px 12px;border-radius:var(--radius-sm);background:var(--green-subtle);font-size:12px;color:var(--green-light)">✓ On target — no rebalancing needed · 0.04% expense ratio</div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+      <div class="prompt-tiles animate-in"><button class="prompt-tile" data-prompt="How do I set up my 401(k) match?"><div class="prompt-tile-icon">💰</div><div class="prompt-tile-text">401(k) match setup guide</div></button><button class="prompt-tile" data-prompt="Should I pick Roth or traditional IRA?"><div class="prompt-tile-icon">⚖️</div><div class="prompt-tile-text">Roth or traditional?</div></button><button class="prompt-tile" data-prompt="How much risk should I take at my age?"><div class="prompt-tile-icon">🛡️</div><div class="prompt-tile-text">Is my risk level right?</div></button></div>
+      <div style="height:24px"></div>`,
+
+    taxTab: ''
+  },
+
+  free_noinvest: {
+    nw: '$5,200', nwChange: '↑ $400 this month',
+    nextTitle: 'Build your emergency fund to 3 months',
+    nextDesc: "You have $5,200 in cash. Target: $7,500 (3 months of expenses). Open a high-yield savings account earning 4.5% APY.",
+    nextPrompt: 'How do I build an emergency fund fast?',
+    debtDot: '', debtLabel: 'Debt',
+    debtSummary: '<div style="font-size:18px;font-weight:700;color:var(--green-light)">Debt-free ✓</div><div class="card-subtitle">Great foundation — now build your safety net</div>',
+    investDot: '', investLabel: 'Invest — Building foundation',
+    investSummary: '<div style="font-size:18px;font-weight:700;color:var(--text-muted)">Not yet — build savings first</div><div class="card-subtitle">Need 3-6mo emergency fund before investing</div>',
+    taxSummary: '<div style="font-size:18px;font-weight:700">2 actions available</div><div class="card-subtitle">Check W-4 withholding · Saver\'s Credit eligibility</div>',
+    homePrompts: [
+      ['🏦','Where should I keep my savings?','Should I keep my emergency fund in a HYSA or money market?'],
+      ['💡','How to save more each month?','How can I free up more money to save?'],
+      ['🎯','When can I start investing?','When will I be ready to invest?']
+    ],
+    chatWelcome: "You're debt-free — that's a great foundation! The next layer is building your emergency fund to 3-6 months of expenses. Let's get your money earning 4.5%+ in a high-yield savings account while you build it up.",
+    chatSuggestions: [['Best savings account?','Should I keep my emergency fund in a HYSA or money market?'],['How to save faster','How can I free up more money to save?'],['When to invest?','When will I be ready to invest?'],['What goals at 28?','What should my financial goals be at 28?']],
+
+    debtTab: `
+      <div class="card-featured animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label" style="color:rgba(255,255,255,0.6)">Debt Status</span></div>
+        <div class="card-title">Debt-free ✓</div>
+        <div class="card-subtitle">You have no debt — now build your financial safety net.</div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Stay Debt-Free</span></div>
+      <div class="card animate-in">
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set credit cards to autopay full balance</div><div class="action-desc">Use credit cards for rewards, but never carry a balance.</div><div class="action-impact green">$0 interest forever</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Build emergency fund to 3 months</div><div class="action-desc">Target: $7,500. You have $5,200 — need $2,300 more.</div><div class="action-impact amber">~3 months to goal</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set up credit monitoring</div><div class="action-desc">Free via Credit Karma. Protects against fraud.</div><div class="action-impact green">Peace of mind</div></div></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+      <div class="prompt-tiles animate-in"><button class="prompt-tile" data-prompt="How do I build an emergency fund fast?"><div class="prompt-tile-icon">🏦</div><div class="prompt-tile-text">Build my emergency fund faster</div></button></div>
+      <div style="height:24px"></div>`,
+
+    investTab: `
+      <div class="card-featured animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label" style="color:rgba(255,255,255,0.6)">Build Your Foundation</span></div>
+        <div class="card-title">Savings first, invest later</div>
+        <div class="card-subtitle">You need 3-6 months of expenses in a high-yield savings account before investing. You're at 2.1 months — almost there.</div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Actions</span></div>
+      <div class="card animate-in">
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Open a high-yield savings account</div><div class="action-desc">Ally, Marcus, or Wealthfront — currently paying 4.3-4.5% APY. Your $5,200 earns $234/yr instead of $0.52.</div><div class="action-impact green">+$234/yr in interest</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Set up automatic $200/week transfer</div><div class="action-desc">From checking to HYSA. Hit $7,500 target in ~3 months.</div><div class="action-impact green">Automates saving</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Review subscriptions — cancel 2-3</div><div class="action-desc">Free up $50-150/mo to accelerate emergency fund.</div><div class="action-impact amber">Faster to goal</div></div></div>
+        <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Check if employer offers 401(k) match</div><div class="action-desc">If yes, start at 4% even now. Free money shouldn't wait.</div><div class="action-impact green">Don't miss free money</div></div></div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">When You're Ready</span></div>
+      <div class="card animate-in">
+        <div class="card-header"><div class="card-dot"></div><span class="card-label">Your Future Order</span></div>
+        <div class="ops-list">
+          <div class="ops-item"><div class="ops-num">1</div><div class="ops-text"><div class="ops-text-title">3-6mo emergency fund</div><div class="ops-text-sub">Currently at 2.1 months</div></div><span class="ops-badge now">Now</span></div>
+          <div class="ops-item"><div class="ops-num pending">2</div><div class="ops-text"><div class="ops-text-title">401(k) to employer match</div><div class="ops-text-sub">Free money first</div></div><span class="ops-badge next">Next</span></div>
+          <div class="ops-item"><div class="ops-num pending">3</div><div class="ops-text"><div class="ops-text-title">Max Roth IRA ($7,000/yr)</div><div class="ops-text-sub">Tax-free growth</div></div><span class="ops-badge later">Later</span></div>
+        </div>
+      </div>
+      <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+      <div class="prompt-tiles animate-in"><button class="prompt-tile" data-prompt="When will I be ready to invest?"><div class="prompt-tile-icon">⏰</div><div class="prompt-tile-text">When can I start investing?</div></button><button class="prompt-tile" data-prompt="Should I keep my emergency fund in a HYSA or money market?"><div class="prompt-tile-icon">🏦</div><div class="prompt-tile-text">HYSA vs money market?</div></button></div>
+      <div style="height:24px"></div>`,
+
+    taxTab: ''
+  }
+};
+
+// ─── TAX TAB (shared structure, varies by persona) ───
+function taxTabHTML(key) {
+  const hasDebt = key.startsWith('debt');
+  const canInvest = key.endsWith('invest');
+  const actionCount = (canInvest ? 4 : 2) + (hasDebt ? 0 : 1);
+  return `
+    <div class="card-featured animate-in">
+      <div class="card-header"><div class="card-dot"></div><span class="card-label" style="color:rgba(255,255,255,0.6)">Tax Optimization Playbook</span></div>
+      <div class="card-title">${actionCount} actions to reduce taxes</div>
+      <div class="card-subtitle">Every dollar saved on taxes is a dollar that goes to work for you.</div>
+      <div class="tag-row"><span class="tag">W-2 employee</span><span class="tag">Single · CA</span></div>
+    </div>
+    <div class="section-header animate-in"><span class="section-title">Actions</span></div>
+    <div class="card animate-in">
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Increase 401(k) pre-tax contributions</div><div class="action-desc">Every $1,000 extra saves $220 at your 22% marginal rate. Maxing to $23,500 could save ~$2,800/yr in federal tax.</div><div class="action-impact green">Up to $2,800/yr saved</div></div></div>
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Check your W-4 withholding</div><div class="action-desc">Are you getting a big tax refund? That's an interest-free loan to the IRS. Adjust W-4 to keep more per paycheck.</div><div class="action-impact amber">More cash per paycheck</div></div></div>
+      ${canInvest ? `
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Fund your Roth IRA ($7,000)</div><div class="action-desc">Contributions are after-tax, but all growth and withdrawals are tax-free in retirement. Lock in your low bracket now.</div><div class="action-impact green">Tax-free growth forever</div></div></div>
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Check HSA eligibility</div><div class="action-desc">If your employer offers a high-deductible plan, HSA contributions are triple tax-advantaged: deductible, grow tax-free, withdraw tax-free for medical.</div><div class="action-impact green">Triple tax advantage</div></div></div>` : ''}
+      ${!hasDebt ? `
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Check Saver's Credit eligibility</div><div class="action-desc">If AGI is under $38,250, you may qualify for a tax credit of up to $1,000 for retirement contributions.</div><div class="action-impact green">Up to $1,000 tax credit</div></div></div>` : ''}
+      ${hasDebt ? `
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Check Saver's Credit eligibility</div><div class="action-desc">Even small 401(k) contributions may qualify you for a tax credit of up to $1,000.</div><div class="action-impact green">Up to $1,000 tax credit</div></div></div>` : ''}
+    </div>
+    <div class="section-header animate-in"><span class="section-title">Tax-Advantaged Account Stack</span></div>
+    <div class="card animate-in">
+      <div class="stat-row"><span class="stat-label">401(k) pre-tax</span><span class="stat-value amber">${canInvest ? 'Contribute more' : 'Check match'}</span></div>
+      ${canInvest ? '<div class="stat-row"><span class="stat-label">Roth IRA ($7,000 limit)</span><span class="stat-value amber">Unfunded</span></div>' : '<div class="stat-row"><span class="stat-label">Roth IRA ($7,000 limit)</span><span class="stat-value" style="color:var(--text-muted)">After debt/savings</span></div>'}
+      <div class="stat-row"><span class="stat-label">HSA ($4,150 limit)</span><span class="stat-value" style="color:var(--text-muted)">Check eligibility</span></div>
+    </div>
+    ${canInvest ? `
+    <div class="section-header animate-in"><span class="section-title">Roth vs Traditional</span></div>
+    <div class="card animate-in">
+      <div class="card-subtitle">At 28 with a 22% marginal rate, Roth wins. You'll likely be in a higher bracket later — pay taxes now at the lower rate.</div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <div style="flex:1;padding:12px;border-radius:var(--radius-sm);background:var(--green-subtle);text-align:center"><div style="font-size:12px;color:var(--green-light);font-weight:600;margin-bottom:4px">Roth ← Recommended</div><div style="font-size:11px;color:var(--text-secondary)">Pay tax now, tax-free later</div></div>
+        <div style="flex:1;padding:12px;border-radius:var(--radius-sm);background:var(--amber-bg);text-align:center"><div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:4px">Traditional</div><div style="font-size:11px;color:var(--text-secondary)">Deduct now, taxed later</div></div>
+      </div>
+      <button class="card-action">Which is better for my exact situation? →</button>
+    </div>` : ''}
+    <div class="section-header animate-in"><span class="section-title">Tax Calendar</span></div>
+    <div class="card animate-in">
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Apr 15 — Roth IRA deadline for 2025</div><div class="action-desc">Last day to make Roth IRA contributions for the prior tax year.</div></div></div>
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Dec 31 — 401(k) contribution deadline</div><div class="action-desc">Max your 401(k) before year-end to reduce this year's taxable income.</div></div></div>
+      <div class="action-item"><div class="action-check" onclick="this.classList.toggle('done')">✓</div><div class="action-text"><div class="action-title">Nov — Open enrollment</div><div class="action-desc">Review if HSA-eligible health plan is available. Could save $1,000+ in taxes.</div></div></div>
+    </div>
+    <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
+    <div class="prompt-tiles animate-in">
+      <button class="prompt-tile" data-prompt="How can I lower my tax bill this year?"><div class="prompt-tile-icon">💡</div><div class="prompt-tile-text">Lower my tax bill this year</div></button>
+      <button class="prompt-tile" data-prompt="What tax-advantaged accounts should I use beyond 401(k)?"><div class="prompt-tile-icon">🏦</div><div class="prompt-tile-text">Accounts beyond 401(k)?</div></button>
+    </div>
+    <div style="height:24px"></div>`;
+}
+
+// ─── CHAT RESPONSES ───
+const responses = {
+  "How do I set up my 401(k) match?": "Great question! Here's how:\n\n1. Log into your Fidelity 401(k) portal\n2. Go to \"Contribution Rate\"\n3. Set it to at least 4%\n4. Choose a target-date fund like FDEWX\n\nYour employer matches dollar-for-dollar up to 4%. At $72k, that's $2,880/yr in free money.",
+  "How do I set up my 401(k) match while paying off debt?": "Even with debt, always capture the employer match — it's a 100% instant return. Here's how:\n\n1. Log into Fidelity, set contribution to 4%\n2. Choose a target-date fund (FDEWX)\n3. That's it — $240/mo comes from your paycheck pre-tax\n\nDon't go above 4% until the debt is gone. Every dollar beyond the match should attack your 21.99% Chase card.",
+  "Should I pick Roth or traditional IRA?": "At 28 with $72k income, lean Roth. Your marginal rate is 22% — likely to go up as you earn more. Pay 22% now, never pay tax on the growth.\n\nRoth advantages:\n• Tax-free withdrawals in retirement\n• No required distributions\n• Can pull contributions penalty-free",
+  "What are index funds and why should I use them?": "Index funds buy every stock in an index automatically. No stock picking.\n\nWhy they win:\n• 0.03% fees vs 1%+ for active funds\n• 90%+ of active managers lose to indexes over 10 years\n• Instant diversification\n• Warren Buffett recommends them\n\nThe 3-fund portfolio (VTI + VXUS + BND) gives you the whole global economy in 3 funds.",
+  "How much risk should I take at my age?": "At 28 with 30+ years, be aggressive:\n\n• 90% stocks (60% US/VTI, 30% intl/VXUS)\n• 10% bonds (BND)\n\nWhy: 30+ years smooths every crash. A crash at 28 is a buying opportunity. Only invest money you won't need for 5+ years.",
+  "Should I pay off debt first or invest?": "The math is clear: your Chase card at 21.99% APR costs more than markets return (~10%/yr avg).\n\nThe strategy:\n1. Capture 401(k) match (100% return > any debt rate)\n2. Pay off everything above 6-7% APR aggressively\n3. Then invest\n\nException: low-rate debt like a 3.5% mortgage — invest instead of paying extra.",
+  "How fast can I pay off all my debt?": "With $650/mo payments using the avalanche method:\n\n1. Chase Sapphire ($4,200 at 21.99%) — paid off in ~17 months\n2. Personal LoC ($3,000 at 11.5%) — freed payment rolls over, paid in ~6 more months\n3. Student Loan ($7,000 at 5.28%) — remaining balance cleared ~4 months after\n\nTotal: ~27 months (Nov 2027). Increase payments by even $100/mo and you shave 4 months off.",
+  "I have debt and no savings. Where do I start?": "Step 1 is a $1,000 mini emergency fund. Here's how:\n\n• Sell 3-5 unused items (electronics, clothes) — quick $200-500\n• Cancel 2-3 subscriptions you don't use weekly\n• Set up $50/week auto-transfer to savings\n\nOnce you have $1,000 saved, attack debt with the avalanche method (highest APR first). Don't try to do everything at once — one layer at a time.",
+  "How can I free up more money to pay off debt?": "Quick wins:\n\n1. Audit subscriptions ($50-200/mo freed typically)\n2. Meal prep instead of eating out ($200-400/mo)\n3. Sell unused items ($200-1000 one-time)\n4. Call providers to negotiate rates (phone, internet, insurance)\n5. Pick up a side gig ($200-500/mo)\n\nEven $200/mo extra on your Chase card saves $380 in interest and pays it off 4 months sooner.",
+  "How can I negotiate lower interest rates on my debt?": "Call your credit card company and say:\n\n\"I've been a customer for X years and I'd like to request an APR reduction. I've received offers from other cards at lower rates.\"\n\nTips:\n• Call during business hours (best-trained reps)\n• Mention competitor offers\n• Ask for a supervisor if first rep can't help\n• Average reduction: 5-7 percentage points\n• If denied, ask again in 3 months",
+  "When will I be ready to invest?": "You'll be ready when:\n\n1. ✓ Debt-free (you're there!)\n2. 3-6 months expenses saved ($7,500-15,000)\n3. You currently have $5,200 — need about $2,300 more\n\nAt $200/week savings, you'll be ready in ~3 months. Exception: if employer offers 401(k) match, start that immediately — free money shouldn't wait.",
+  "How do I build an emergency fund fast?": "Here's the plan to go from $5,200 to $7,500:\n\n1. Open a HYSA (4.5% APY) — Ally, Marcus, or Wealthfront\n2. Auto-transfer $200/week from checking\n3. Cancel unused subscriptions ($50-150/mo freed)\n4. Sell 3-5 unused items for quick cash\n\nTimeline: ~3 months. Your $5,200 is already earning $234/yr in a HYSA vs ~$0.50 in a regular savings account.",
+  "What should I focus on next financially?": "Priority stack right now:\n\n1. 401(k) match (TODAY) — $2,080/yr in free money\n2. Max Roth IRA ($7,000/yr)\n3. Increase 401(k) toward $23,500 max\n\nStep 1 is a 5-minute task with a 100% return.",
+  "Am I saving enough for my age?": "Fidelity's guideline is 1x salary by 30. You're at 28 with varying net worth depending on your situation — but the key is: are you making progress each month? Even $500/mo invested from age 28 grows to ~$1.2M by 65 at 8% returns.",
+  "Give me a monthly financial review.": "Here's your snapshot:\n\n✅ What's going well: You're engaged with your finances\n⚠️ Action items depend on your situation\n🎯 Focus: Complete the next action Lasagna recommends\n\nThe most important thing is consistency. One action per week beats a perfect plan you never execute.",
+  "How can I lower my tax bill this year?": "Top moves:\n\n1. Max 401(k) pre-tax — every $1,000 saves $220\n2. Fund Roth IRA ($7,000) — tax-free growth\n3. Check HSA eligibility — triple tax advantage\n4. Review W-4 withholding — stop over-paying\n\nThe 401(k) is your biggest lever.",
+  "What tax-advantaged accounts should I use beyond 401(k)?": "The full stack:\n\n1. 401(k) — $23,500 limit, pre-tax\n2. Roth IRA — $7,000 limit, tax-free growth\n3. HSA — $4,150 limit, triple tax advantage\n4. Mega backdoor Roth — if your plan allows it\n\nPriority: match → Roth → HSA → 401(k) max → taxable brokerage",
+  "Should I keep my emergency fund in a HYSA or money market?": "Both work — HYSA is simpler. Online banks (Ally, Marcus, Wealthfront) pay 4.3-4.5% APY. Money markets pay similar. The 0.1% difference isn't worth the hassle. Just move your cash out of a 0.01% checking account.",
+  "Is it ever smart to take on debt again, like a mortgage?": "Yes — a mortgage is fundamentally different:\n\n• 6-7% vs credit cards at 20%+\n• Secured by an appreciating asset\n• Interest may be tax-deductible\n\nRule: save 20% down, keep housing under 28% of gross income ($1,680/mo for you).",
+  "How did the avalanche method work for my payoff?": "Avalanche = highest APR first:\n\n1. Chase (21.99%) — attacked first\n2. Personal LoC (11.5%) — next\n3. Student Loan (5.28%) — last\n\nSaved $2,340 in interest vs minimum payments.",
+  "What should my financial goals be at 28?": "✅ Done: debt-free, engaged with finances\n\n🎯 By 30: 1x salary saved, max Roth IRA, 401(k) at 15%\n🔮 By 35: 2x salary, consider homeownership\n\nKey: automation. Set it and forget it.",
+  "Should I use avalanche or snowball method?": "Avalanche (highest APR first) saves the most money mathematically. Snowball (smallest balance first) gives faster psychological wins.\n\nFor you: Avalanche. Your Chase card at 21.99% is costing $77/mo in interest — attacking it first saves hundreds. If you need motivation, snowball is fine — the best method is the one you stick with.",
+  "What is the fastest way to pay off my debt?": "Fastest path:\n\n1. Cut expenses and throw everything extra at highest-APR debt\n2. Negotiate lower rates (call Chase today)\n3. Balance transfer to 0% APR card\n4. Sell unused items for lump-sum payments\n5. Pick up temporary side income\n\nEach $100/mo extra shaves months off and saves hundreds in interest."
+};
+
+const defaultResponses = [
+  "Great question. Based on your financial profile, here's how I'd think about it...",
+  "Let me look at your specific numbers and give you a personalized take...",
+  "This is exactly the kind of question that builds wealth. Here's my recommendation..."
+];
+
+// ─── RENDER FUNCTIONS ───
+function getKey() {
+  return (persona.debt ? 'debt' : 'free') + '_' + (persona.invest ? 'invest' : 'noinvest');
+}
+
+function applyPersona() {
+  const key = getKey();
+  const d = P[key];
+
+  // Home tab
+  document.getElementById('nw-amount').textContent = d.nw;
+  document.getElementById('nw-change').textContent = d.nwChange;
+  document.getElementById('next-action-title').textContent = d.nextTitle;
+  document.getElementById('next-action-desc').textContent = d.nextDesc;
+  document.getElementById('next-action-btn').dataset.prompt = d.nextPrompt;
+
+  const debtDot = document.getElementById('home-debt-dot');
+  debtDot.className = 'card-dot' + (d.debtDot ? ' ' + d.debtDot : '');
+  document.getElementById('home-debt-label').textContent = d.debtLabel;
+  document.getElementById('home-debt-summary').innerHTML = d.debtSummary;
+
+  const investDot = document.getElementById('home-invest-dot');
+  investDot.className = 'card-dot' + (d.investDot ? ' ' + d.investDot : '');
+  document.getElementById('home-invest-label').textContent = d.investLabel;
+  document.getElementById('home-invest-summary').innerHTML = d.investSummary;
+  document.getElementById('home-tax-summary').innerHTML = d.taxSummary;
+
+  // Home prompts
+  const hp = document.getElementById('home-prompts');
+  hp.innerHTML = d.homePrompts.map(p => `<button class="prompt-tile" data-prompt="${p[2]}"><div class="prompt-tile-icon">${p[0]}</div><div class="prompt-tile-text">${p[1]}</div></button>`).join('');
+
+  // Content tabs
+  document.getElementById('tab-debt').innerHTML = d.debtTab;
+  document.getElementById('tab-invest').innerHTML = d.investTab;
+  document.getElementById('tab-tax').innerHTML = taxTabHTML(key);
+
+  // Chat
+  document.getElementById('chat-welcome').textContent = d.chatWelcome;
+  const cs = document.getElementById('chat-suggestions');
+  cs.innerHTML = d.chatSuggestions.map(s => `<button class="chat-suggestion" data-msg="${s[1]}">${s[0]}</button>`).join('');
+
+  // Re-bind all dynamic elements
+  bindDynamic();
+}
+
+function bindDynamic() {
+  document.querySelectorAll('.prompt-tile[data-prompt]').forEach(t => {
+    t.onclick = () => { if (!chatOpen) openChat(); setTimeout(() => sendMessage(t.dataset.prompt), 400); };
+  });
+  document.querySelectorAll('.card-action').forEach(btn => {
+    btn.onclick = () => {
+      const prompt = btn.dataset.prompt || btn.textContent.replace('→','').trim();
+      if (!chatOpen) openChat();
+      setTimeout(() => sendMessage(prompt), 400);
+    };
+  });
+  document.querySelectorAll('[data-nav]').forEach(card => {
+    card.onclick = () => switchTab(card.dataset.nav);
+  });
+  document.querySelectorAll('.chat-suggestion[data-msg]').forEach(btn => {
+    btn.onclick = () => sendMessage(btn.dataset.msg);
+  });
+  document.getElementById('next-action-btn').onclick = () => {
+    const prompt = document.getElementById('next-action-btn').dataset.prompt;
+    if (!chatOpen) openChat();
+    setTimeout(() => sendMessage(prompt), 400);
+  };
+}
+
+// ─── TAB NAVIGATION ───
+const navItems = document.querySelectorAll('.nav-item');
+const tabPanels = document.querySelectorAll('.tab-panel');
+
+function switchTab(tabId) {
+  navItems.forEach(i => i.classList.toggle('active', i.dataset.tab === tabId));
+  tabPanels.forEach(p => { const a = p.id === 'tab-' + tabId; p.classList.toggle('active', a); if (a) p.scrollTop = 0; });
+}
+navItems.forEach(i => i.addEventListener('click', () => switchTab(i.dataset.tab)));
+
+// ─── PERSONA TOGGLE ───
+document.querySelectorAll('.persona-toggle').forEach(toggle => {
+  toggle.querySelectorAll('.persona-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      toggle.querySelectorAll('.persona-opt').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      if (toggle.id === 'toggle-debt') persona.debt = opt.dataset.val === 'debt';
+      if (toggle.id === 'toggle-invest') persona.invest = opt.dataset.val === 'invest';
+      applyPersona();
+    });
+  });
+});
+
+// ─── CHAT DRAWER ───
+const chatDrawer = document.getElementById('chat-drawer');
+const chatBackdrop = document.getElementById('chat-backdrop');
+const chatHandle = document.getElementById('chat-handle');
+const chatClose = document.getElementById('chat-close');
+const chatInput = document.getElementById('chat-input');
+const chatSend = document.getElementById('chat-send');
+const chatMessages = document.getElementById('chat-messages');
+const chatPeekBar = document.getElementById('chat-peek-bar');
+let chatOpen = false;
+
+function openChat() {
+  chatOpen = true;
+  chatDrawer.classList.add('open');
+  chatBackdrop.classList.add('visible');
+  chatPeekBar.style.display = 'none';
+  setTimeout(() => chatInput.focus(), 350);
+}
+function closeChat() {
+  chatOpen = false;
+  chatDrawer.classList.remove('open');
+  chatBackdrop.classList.remove('visible');
+  chatPeekBar.style.display = '';
+  chatInput.blur();
+}
+chatPeekBar.addEventListener('click', openChat);
+chatClose.addEventListener('click', closeChat);
+chatBackdrop.addEventListener('click', closeChat);
+
+// Drag to dismiss
+let dragStartY = 0, dragging = false;
+chatHandle.addEventListener('touchstart', e => { dragStartY = e.touches[0].clientY; dragging = true; chatDrawer.style.transition = 'none'; }, { passive: true });
+chatHandle.addEventListener('touchmove', e => { if (!dragging) return; const dy = e.touches[0].clientY - dragStartY; if (dy > 0) chatDrawer.style.transform = 'translateY(' + dy + 'px)'; }, { passive: true });
+chatHandle.addEventListener('touchend', e => { if (!dragging) return; dragging = false; chatDrawer.style.transition = ''; chatDrawer.style.transform = ''; if (e.changedTouches[0].clientY - dragStartY > 100) closeChat(); });
+chatHandle.addEventListener('mousedown', e => {
+  dragStartY = e.clientY; dragging = true; chatDrawer.style.transition = 'none';
+  const onMove = ev => { const dy = ev.clientY - dragStartY; if (dy > 0) chatDrawer.style.transform = 'translateY(' + dy + 'px)'; };
+  const onUp = ev => { dragging = false; chatDrawer.style.transition = ''; chatDrawer.style.transform = ''; if (ev.clientY - dragStartY > 100) closeChat(); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+});
+
+chatInput.addEventListener('input', () => { chatSend.disabled = !chatInput.value.trim(); });
+
+function addMessage(text, isUser) {
+  const b = document.createElement('div');
+  b.className = 'chat-bubble ' + (isUser ? 'user' : 'bot');
+  b.textContent = text;
+  chatMessages.appendChild(b);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+function addTypingIndicator() {
+  const i = document.createElement('div');
+  i.className = 'chat-bubble bot'; i.id = 'typing-indicator';
+  i.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  chatMessages.appendChild(i); chatMessages.scrollTop = chatMessages.scrollHeight;
+  return i;
+}
+function sendMessage(text) {
+  if (!text.trim()) return;
+  addMessage(text, true);
+  chatInput.value = ''; chatSend.disabled = true;
+  document.getElementById('chat-suggestions').style.display = 'none';
+  const typing = addTypingIndicator();
+  setTimeout(() => { typing.remove(); addMessage(responses[text] || defaultResponses[Math.floor(Math.random() * defaultResponses.length)], false); }, 800 + Math.random() * 1200);
+}
+
+chatSend.addEventListener('click', () => sendMessage(chatInput.value));
+chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && chatInput.value.trim()) sendMessage(chatInput.value); });
+
+// ─── INIT ───
+applyPersona();
+})();
+</script>
+</body>
+</html>
