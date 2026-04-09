@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
+import { MessageSquare, X } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav, MobileMenuButton } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
+import { useAuth } from '../../lib/auth';
 import { usePageContext } from '../../lib/page-context';
 import { FloatingChatInput } from '../chat/floating-chat-input';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
@@ -15,10 +17,14 @@ interface ShellProps {
 
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [desktopChatOpen, setDesktopChatOpen] = useState(true);
   const [, setLocation] = useLocation();
   const [location] = useLocation();
   const isMobile = useIsMobile();
+  const { user } = useAuth();
   const { chatOpen, closeChat } = usePageContext();
+
+  const isAdmin = user?.role === 'admin';
 
   const handleNewPlan = () => {
     setLocation('/plans/new');
@@ -28,7 +34,7 @@ export function Shell({ children }: ShellProps) {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg flex flex-col">
-      {/* Mobile: hamburger + content + tab bar */}
+      {/* Mobile: hamburger */}
       {isMobile && (
         <>
           <MobileMenuButton onClick={() => setMobileMenuOpen(true)} />
@@ -60,27 +66,67 @@ export function Shell({ children }: ShellProps) {
           </div>
         </main>
 
-        {/* Desktop chat sidebar */}
-        {!isMobile && (
-          <aside className="w-[340px] flex-shrink-0 border-l border-border flex flex-col overflow-hidden">
-            <GlobalChatSidebar />
-          </aside>
+        {/* Desktop chat sidebar — admin only, closable */}
+        {!isMobile && isAdmin && (
+          <AnimatePresence>
+            {desktopChatOpen ? (
+              <motion.aside
+                key="chat-panel"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 340, opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="flex-shrink-0 border-l border-border flex flex-col overflow-hidden"
+              >
+                {/* Close button */}
+                <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
+                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Chat</span>
+                  <button
+                    onClick={() => setDesktopChatOpen(false)}
+                    className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted hover:text-text"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  <GlobalChatSidebar />
+                </div>
+              </motion.aside>
+            ) : (
+              /* Collapsed: small toggle button at edge */
+              <motion.div
+                key="chat-toggle"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex-shrink-0 border-l border-border flex flex-col items-center pt-3 px-1.5"
+              >
+                <button
+                  onClick={() => setDesktopChatOpen(true)}
+                  className="p-2.5 rounded-lg bg-surface hover:bg-surface-hover border border-border transition-colors text-text-muted hover:text-accent"
+                  title="Open chat"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         )}
       </div>
 
-      {/* Mobile bottom tab bar */}
+      {/* Mobile bottom area */}
       {isMobile && (
         <div className="flex-shrink-0">
-          {/* Peek bar */}
-          {!isPlanPage && <FloatingChatInput />}
+          {/* Peek bar — admin only */}
+          {!isPlanPage && isAdmin && <FloatingChatInput />}
           {/* Tab bar */}
           <MobileTabBar />
         </div>
       )}
 
-      {/* Mobile chat drawer */}
+      {/* Mobile chat drawer — admin only */}
       <AnimatePresence>
-        {isMobile && chatOpen && (
+        {isMobile && isAdmin && chatOpen && (
           <motion.div
             className="fixed inset-0 z-50"
             initial={{ opacity: 0 }}
@@ -102,7 +148,6 @@ export function Shell({ children }: ShellProps) {
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 400, damping: 35 }}
             >
-              {/* Drag handle */}
               <div className="flex justify-center py-2 flex-shrink-0">
                 <div className="w-9 h-1 rounded-full bg-white/20" />
               </div>
