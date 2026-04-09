@@ -13,10 +13,10 @@ import {
   Loader2,
   X,
   Building2,
-  Settings,
   LogOut,
   ChevronUp,
-  PieChart
+  PieChart,
+  User,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../lib/api';
@@ -33,16 +33,11 @@ interface NavItem {
 }
 
 const fixedTabs: NavItem[] = [
-  { id: 'dashboard', name: 'Overview', icon: LayoutDashboard, path: '/' },
-  { id: 'net-worth', name: 'Net Worth', icon: TrendingUp, path: '/net-worth' },
-  { id: 'tax-history', name: 'Tax History', icon: Receipt, path: '/tax-history' },
-  { id: 'accounts', name: 'Linked Accounts', icon: Building2, path: '/accounts' },
-  { id: 'plans', name: 'AI Plans', icon: Sparkles, path: '/plans' },
-];
-
-const analysisTabs: NavItem[] = [
-  { id: 'portfolio', name: 'Portfolio', icon: PieChart, path: '/portfolio' },
-  { id: 'probability', name: 'Probability', icon: Target, path: '/probability' },
+  { id: 'home', name: 'Home', icon: LayoutDashboard, path: '/' },
+  { id: 'accounts', name: 'Accounts', icon: Building2, path: '/accounts' },
+  { id: 'debt', name: 'Debt', icon: CreditCard, path: '/debt' },
+  { id: 'invest', name: 'Invest', icon: PieChart, path: '/invest' },
+  { id: 'tax', name: 'Tax', icon: Receipt, path: '/tax' },
 ];
 
 const planTypeIcons: Record<PlanType, LucideIcon> = {
@@ -124,39 +119,10 @@ export function Sidebar({ onNewPlan, className }: SidebarProps) {
         {/* Fixed Tabs */}
         <div className="mb-6">
           <div className="text-xs uppercase tracking-wider text-text-secondary font-semibold mb-3 px-2">
-            Dashboard
+            Main
           </div>
           <div className="space-y-1">
             {fixedTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <motion.button
-                  key={tab.id}
-                  onClick={() => navigate(tab.path)}
-                  whileHover={{ x: 2 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={cn(
-                    'w-full text-left px-3 py-3 rounded-xl text-sm flex items-center gap-3 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
-                    isActive(tab.path)
-                      ? 'bg-accent/10 text-accent border border-accent/20'
-                      : 'hover:bg-surface-hover text-text-secondary hover:text-text border border-transparent'
-                  )}
-                >
-                  <Icon className={cn('w-5 h-5', isActive(tab.path) ? 'text-accent' : 'text-text-muted')} />
-                  <span className="flex-1 font-medium">{tab.name}</span>
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Analysis */}
-        <div className="mb-6">
-          <div className="text-xs uppercase tracking-wider text-text-secondary font-semibold mb-3 px-2">
-            Analysis
-          </div>
-          <div className="space-y-1">
-            {analysisTabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <motion.button
@@ -278,11 +244,11 @@ export function Sidebar({ onNewPlan, className }: SidebarProps) {
               className="absolute bottom-full left-2 right-2 mb-1 bg-surface-solid border border-border rounded-xl shadow-lg overflow-hidden z-50"
             >
               <button
-                onClick={() => { setUserMenuOpen(false); navigate('/settings'); }}
+                onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
                 className="w-full px-3 py-2.5 text-sm text-text-secondary hover:text-text hover:bg-surface-hover flex items-center gap-2.5 transition-colors"
               >
-                <Settings className="w-4 h-4" />
-                Settings
+                <User className="w-4 h-4" />
+                Profile
               </button>
               <div className="border-t border-border" />
               <button

@@ -1,10 +1,9 @@
-import { Route, Switch } from 'wouter';
+import { Route, Switch, Redirect } from 'wouter';
 import { AuthProvider, useAuth } from './lib/auth';
 import { PageContextProvider } from './lib/page-context';
 import { Shell } from './components/layout/shell';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
-import { Accounts } from './pages/Accounts';
 import { NetWorth } from './pages/net-worth';
 import { TaxStrategy } from './pages/tax-strategy';
 import { Retirement } from './pages/retirement';
@@ -16,6 +15,7 @@ import { PlansPage } from './pages/plans/index';
 import { NewPlanPage } from './pages/plans/new';
 import { PlanDetailPage } from './pages/plans/[id]';
 import { Settings } from './pages/Settings';
+import { Debt } from './pages/debt';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -37,18 +37,25 @@ function AppRoutes() {
       <Shell>
         <Switch>
           <Route path="/" component={Dashboard} />
-          <Route path="/accounts" component={Accounts} />
-          <Route path="/net-worth" component={NetWorth} />
-          <Route path="/tax-history" component={TaxStrategy} />
+          <Route path="/accounts" component={NetWorth} />
+          <Route path="/debt" component={Debt} />
+          <Route path="/invest" component={PortfolioComposition} />
+          <Route path="/tax" component={TaxStrategy} />
+          <Route path="/profile" component={Settings} />
           <Route path="/plans" component={PlansPage} />
           <Route path="/plans/new" component={NewPlanPage} />
           <Route path="/plans/:id" component={PlanDetailPage} />
-          <Route path="/settings" component={Settings} />
           <Route path="/plans/retirement" component={Retirement} />
           <Route path="/plans/savings/:id" component={SavingsGoal} />
           <Route path="/plans/debt-payoff" component={DebtPayoff} />
-          <Route path="/portfolio" component={PortfolioComposition} />
           <Route path="/probability" component={ProbabilityOfSuccess} />
+
+          {/* Redirects from old paths */}
+          <Route path="/net-worth"><Redirect to="/accounts" /></Route>
+          <Route path="/portfolio"><Redirect to="/invest" /></Route>
+          <Route path="/tax-history"><Redirect to="/tax" /></Route>
+          <Route path="/settings"><Redirect to="/profile" /></Route>
+
           <Route>
             <div className="flex-1 flex items-center justify-center text-text-muted">
               Page not found
