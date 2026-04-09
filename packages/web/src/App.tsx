@@ -4,6 +4,7 @@ import { PageContextProvider } from './lib/page-context';
 import { Shell } from './components/layout/shell';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { Accounts } from './pages/Accounts';
 import { NetWorth } from './pages/net-worth';
 import { TaxStrategy } from './pages/tax-strategy';
 import { Retirement } from './pages/retirement';
@@ -37,7 +38,7 @@ function AppRoutes() {
       <Shell>
         <Switch>
           <Route path="/" component={Dashboard} />
-          <Route path="/accounts" component={NetWorth} />
+          <Route path="/accounts" component={Accounts} />
           <Route path="/debt" component={Debt} />
           <Route path="/invest" component={PortfolioComposition} />
           <Route path="/tax" component={TaxStrategy} />

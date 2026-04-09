@@ -104,7 +104,7 @@ export function Sidebar({ onNewPlan, className }: SidebarProps) {
   const isActive = (path: string) => location === path;
 
   return (
-    <aside className={cn('w-56 h-full bg-bg-elevated border-r border-border flex flex-col', className)}>
+    <aside className={cn('w-full h-full bg-bg-elevated flex flex-col', className)}>
       {/* Logo */}
       <div className="p-5 border-b border-border">
         <h1 className="font-display text-xl font-medium tracking-tight flex items-center gap-3">

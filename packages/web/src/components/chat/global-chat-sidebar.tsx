@@ -184,7 +184,7 @@ export function GlobalChatSidebar() {
   const activeThread = activeThreadIndex !== null ? threads[activeThreadIndex] : null;
 
   return (
-    <div className="flex flex-col h-full bg-bg border-l border-border">
+    <div className="flex flex-col flex-1 min-h-0 bg-bg">
       {activeThread ? (
         <ChatThreadView
           thread={activeThread.thread}
