@@ -1,132 +1,341 @@
-import { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Building2 } from 'lucide-react';
+import {
+  PieChart, BarChart3, Grid3x3, ChevronRight, Building2,
+  Plus, Layers, RefreshCw, Loader2, AlertCircle,
+} from 'lucide-react';
 import { cn, formatMoney } from '../lib/utils';
-import { Section } from '../components/common/section';
-import { AreaChart } from '../components/charts/area-chart';
-import { DonutChart } from '../components/charts/pie-chart';
-import { Button } from '../components/ui/button';
 import { api } from '../lib/api';
+import { usePageContext } from '../lib/page-context';
+import { DonutChart } from '../components/charts/pie-chart';
+import { StackedBarChart } from '../components/charts/stacked-bar-chart';
+import { TreemapChart } from '../components/charts/treemap-chart';
+import { Button } from '../components/ui/button';
+import { Section } from '../components/common/section';
 
-interface AccountCategory {
-  category: string;
+type ChartType = 'donut' | 'bar' | 'treemap';
+type GroupingLevel = 'assetClass' | 'subCategory' | 'holding';
+
+interface AssetClass {
+  name: string;
   value: number;
+  percentage: number;
   color: string;
-  accounts: Array<{
-    name: string;
-    balance: number;
-    institution: string;
-  }>;
+  subCategories: SubCategory[];
 }
 
-// Color mapping for account types
-const typeColors: Record<string, string> = {
-  depository: '#4ade80',
-  investment: '#60a5fa',
-  credit: '#f87171',
-  loan: '#f87171',
+interface SubCategory {
+  name: string;
+  value: number;
+  percentage: number;
+  holdings: Holding[];
+}
+
+interface Holding {
+  ticker: string;
+  name: string;
+  shares: number;
+  value: number;
+  costBasis: number | null;
+  account: string;
+}
+
+// Plaid Link types
+interface PlaidLinkFactory {
+  create: (config: {
+    token: string;
+    onSuccess: (publicToken: string, metadata: PlaidMetadata) => void;
+    onExit: () => void;
+  }) => { open: () => void };
+}
+
+interface PlaidMetadata {
+  institution?: {
+    institution_id: string;
+    name: string;
+  };
+}
+
+// Color palette matching app theme
+const COLORS = [
+  '#4ade80', '#60a5fa', '#f59e0b', '#ec4899', '#8b5cf6',
+  '#14b8a6', '#f43f5e', '#6366f1', '#10b981', '#a855f7',
+];
+
+const GROUPING_LABELS: Record<GroupingLevel, string> = {
+  assetClass: 'Asset Class',
+  subCategory: 'Sub-Category',
+  holding: 'Individual Holdings',
 };
 
 export function NetWorth() {
-  const [, navigate] = useLocation();
-  const [balances, setBalances] = useState<Array<{
-    accountId: string;
-    name: string;
-    type: string;
-    mask: string | null;
-    balance: string | null;
-    currency: string;
-  }>>([]);
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const { setPageContext } = usePageContext();
   const [loading, setLoading] = useState(true);
-  const [historyData, setHistoryData] = useState<Array<{ date: string; value: number }>>([]);
+  const [totalValue, setTotalValue] = useState(0);
+  const [assetClasses, setAssetClasses] = useState<AssetClass[]>([]);
+  const [chartType, setChartType] = useState<ChartType>('donut');
+  const [groupingLevel, setGroupingLevel] = useState<GroupingLevel>('assetClass');
+  const [drillLevel1, setDrillLevel1] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    Promise.all([
-      api.getBalances(),
-      api.getNetWorthHistory().catch(() => ({ history: [] })),
-    ])
-      .then(([balanceData, historyRes]) => {
-        setBalances(balanceData.balances);
-        // Expand all by default
-        const expanded: Record<string, boolean> = {};
-        const types = new Set(balanceData.balances.map((b) => b.type));
-        types.forEach((t) => { expanded[t] = true; });
-        setExpandedCategories(expanded);
+  // Plaid / account management state
+  const [linking, setLinking] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState('');
 
-        // Format history for chart
-        setHistoryData(historyRes.history);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  const toggleCategory = (category: string) => {
-    setExpandedCategories((prev) => ({ ...prev, [category]: !prev[category] }));
+  const fetchData = async () => {
+    try {
+      const data = await api.getPortfolioComposition();
+      setTotalValue(data.totalValue);
+      setAssetClasses(data.assetClasses);
+      // Expand ALL categories by default
+      const expanded: Record<string, boolean> = {};
+      for (const ac of data.assetClasses) {
+        expanded[ac.name] = true;
+      }
+      setExpandedCategories(expanded);
+    } catch (err) {
+      console.error('Failed to fetch portfolio composition:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Group accounts by type
-  const categories: AccountCategory[] = Object.entries(
-    balances.reduce<Record<string, { value: number; accounts: Array<{ name: string; balance: number; institution: string }> }>>(
-      (acc, b) => {
-        const type = b.type;
-        if (!acc[type]) acc[type] = { value: 0, accounts: [] };
-        const balance = parseFloat(b.balance || '0');
-        acc[type].value += balance;
-        acc[type].accounts.push({ name: b.name, balance, institution: 'Linked Account' });
-        return acc;
-      },
-      {}
-    )
-  ).map(([category, data]) => ({
-    category: category.charAt(0).toUpperCase() + category.slice(1),
-    value: data.value,
-    color: typeColors[category] || '#a8a29e',
-    accounts: data.accounts,
-  }));
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const totalNetWorth = categories.reduce((sum, c) => {
-    return c.category.toLowerCase() === 'credit' || c.category.toLowerCase() === 'loan'
-      ? sum - c.value
-      : sum + c.value;
-  }, 0);
-  const assets = categories.filter((c) => c.value > 0);
-  const totalAssets = assets.reduce((sum, c) => sum + c.value, 0);
+  // Set page context for floating chat
+  useEffect(() => {
+    if (!loading && assetClasses.length > 0) {
+      setPageContext({
+        pageId: 'accounts',
+        pageTitle: 'Accounts',
+        description: 'Shows portfolio allocation across asset classes, sub-categories, and individual holdings with account management.',
+        data: {
+          totalValue,
+          assetClasses: assetClasses.map(ac => ({
+            name: ac.name,
+            value: ac.value,
+            percentage: ac.percentage,
+            subCategories: ac.subCategories.map(sc => ({
+              name: sc.name,
+              value: sc.value,
+              percentage: sc.percentage,
+            })),
+          })),
+        },
+      });
+    }
+  }, [loading, totalValue, assetClasses, setPageContext]);
 
-  const pieData = assets.map((c) => ({
-    name: c.category,
-    value: c.value,
-    color: c.color,
-  }));
+  const toggleCategory = (name: string) => {
+    setExpandedCategories(prev => ({ ...prev, [name]: !prev[name] }));
+  };
 
-  // Compute change from history
-  const change = historyData.length >= 2
-    ? historyData[historyData.length - 1].value - historyData[0].value
-    : null;
-  const changePercent = change !== null && historyData[0].value !== 0
-    ? (change / Math.abs(historyData[0].value)) * 100
-    : null;
+  // ── Plaid Link ──
+  const handleLink = async () => {
+    setLinking(true);
+    setError('');
+    try {
+      const { linkToken } = await api.createLinkToken();
+      const Plaid = (window as unknown as { Plaid: PlaidLinkFactory }).Plaid;
+      if (!Plaid) {
+        setError('Plaid Link script not loaded. Add it to index.html.');
+        setLinking(false);
+        return;
+      }
+      const handler = Plaid.create({
+        token: linkToken,
+        onSuccess: async (publicToken: string, metadata: PlaidMetadata) => {
+          try {
+            await api.exchangeToken({
+              publicToken,
+              institutionId: metadata.institution?.institution_id,
+              institutionName: metadata.institution?.name,
+            });
+            // Refresh portfolio data after linking
+            fetchData();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to link account');
+          } finally {
+            setLinking(false);
+          }
+        },
+        onExit: () => setLinking(false),
+      });
+      handler.open();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start linking');
+      setLinking(false);
+    }
+  };
 
-  // Format history for chart display
-  const chartData = historyData.map((d) => {
-    const date = new Date(d.date);
-    return {
-      month: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      value: d.value,
-    };
-  });
+  const handleSyncAll = async () => {
+    setSyncing(true);
+    setError('');
+    try {
+      await api.triggerSync();
+      // Refresh portfolio data after syncing
+      fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sync accounts');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
+  // ── Derived data for chart views ──
+  const holdingsByTicker = useMemo(() => {
+    const tickerMap = new Map<string, { holdings: Holding[]; totalValue: number; totalShares: number }>();
+    for (const ac of assetClasses) {
+      for (const sc of ac.subCategories) {
+        for (const h of sc.holdings) {
+          const existing = tickerMap.get(h.ticker);
+          if (existing) {
+            existing.holdings.push(h);
+            existing.totalValue += h.value;
+            existing.totalShares += h.shares;
+          } else {
+            tickerMap.set(h.ticker, {
+              holdings: [h],
+              totalValue: h.value,
+              totalShares: h.shares,
+            });
+          }
+        }
+      }
+    }
+    return Array.from(tickerMap.entries())
+      .map(([ticker, data], i) => ({
+        ticker,
+        ...data,
+        color: COLORS[i % COLORS.length],
+        percentage: (data.totalValue / totalValue) * 100,
+      }))
+      .sort((a, b) => b.totalValue - a.totalValue);
+  }, [assetClasses, totalValue]);
+
+  const allSubCategories = useMemo(() => {
+    const result: { name: string; value: number; percentage: number; color: string; holdings: Holding[] }[] = [];
+    let colorIndex = 0;
+    for (const ac of assetClasses) {
+      for (const sc of ac.subCategories) {
+        result.push({
+          name: sc.name,
+          value: sc.value,
+          percentage: (sc.value / totalValue) * 100,
+          color: COLORS[colorIndex % COLORS.length],
+          holdings: sc.holdings,
+        });
+        colorIndex++;
+      }
+    }
+    return result.sort((a, b) => b.value - a.value);
+  }, [assetClasses, totalValue]);
+
+  // ── Chart drill-down state machine ──
+  const getCurrentData = () => {
+    if (groupingLevel === 'assetClass') {
+      if (drillLevel1) {
+        const assetClass = assetClasses.find(ac => ac.name === drillLevel1);
+        const allHoldings: { name: string; value: number; percentage: number; color: string }[] = [];
+        const acTotal = assetClass?.value || 0;
+        let colorIndex = 0;
+        for (const sc of assetClass?.subCategories || []) {
+          for (const h of sc.holdings) {
+            allHoldings.push({
+              name: h.ticker,
+              value: h.value,
+              percentage: acTotal > 0 ? (h.value / acTotal) * 100 : 0,
+              color: COLORS[colorIndex % COLORS.length],
+            });
+            colorIndex++;
+          }
+        }
+        return allHoldings.sort((a, b) => b.value - a.value);
+      }
+      return assetClasses.map(ac => ({
+        name: ac.name,
+        value: ac.value,
+        percentage: ac.percentage,
+        color: ac.color,
+      }));
+    }
+
+    if (groupingLevel === 'subCategory') {
+      if (drillLevel1) {
+        const subCategory = allSubCategories.find(sc => sc.name === drillLevel1);
+        const subTotal = subCategory?.holdings.reduce((sum, h) => sum + h.value, 0) || 0;
+        return subCategory?.holdings.map((h, i) => ({
+          name: h.ticker,
+          value: h.value,
+          percentage: subTotal > 0 ? (h.value / subTotal) * 100 : 0,
+          color: COLORS[i % COLORS.length],
+        })) || [];
+      }
+      return allSubCategories.map(sc => ({
+        name: sc.name,
+        value: sc.value,
+        percentage: sc.percentage,
+        color: sc.color,
+      }));
+    }
+
+    if (groupingLevel === 'holding') {
+      if (drillLevel1) {
+        const tickerGroup = holdingsByTicker.find(t => t.ticker === drillLevel1);
+        return tickerGroup?.holdings.map((h, i) => ({
+          name: h.account,
+          value: h.value,
+          percentage: tickerGroup.totalValue > 0 ? (h.value / tickerGroup.totalValue) * 100 : 0,
+          color: COLORS[i % COLORS.length],
+        })) || [];
+      }
+      return holdingsByTicker.map(t => ({
+        name: t.ticker,
+        value: t.totalValue,
+        percentage: t.percentage,
+        color: t.color,
+      }));
+    }
+
+    return [];
+  };
+
+  const handleChartClick = (name: string) => {
+    if (!drillLevel1) {
+      setDrillLevel1(name);
+    }
+  };
+
+  const handleBreadcrumbClick = (index: number) => {
+    if (index === 0) {
+      setDrillLevel1(null);
+    }
+  };
+
+  const getBreadcrumbs = () => {
+    const rootLabel = groupingLevel === 'assetClass' ? 'Asset Class'
+      : groupingLevel === 'subCategory' ? 'Sub-Category'
+      : 'Holdings';
+    return [
+      { label: rootLabel },
+      ...(drillLevel1 ? [{ label: drillLevel1 }] : []),
+    ];
+  };
+
+  // ── Loading state ──
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-text-muted">Loading...</div>
+        <div className="text-text-muted">Loading portfolio...</div>
       </div>
     );
   }
 
-  // Empty state when no accounts are linked
-  if (balances.length === 0) {
+  // ── Empty state — no accounts linked ──
+  if (assetClasses.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
         <motion.div
@@ -136,140 +345,273 @@ export function NetWorth() {
         >
           <Building2 className="w-16 h-16 text-text-muted mb-6" />
           <h2 className="font-display text-2xl md:text-3xl font-medium mb-3">
-            No Accounts Linked
+            Link Your First Account
           </h2>
           <p className="text-text-muted max-w-md mb-8">
-            Connect your bank accounts to track your net worth, view balances, and get personalized financial insights.
+            Connect your bank and investment accounts to see your portfolio composition and asset allocation.
           </p>
-          <Button onClick={() => navigate('/accounts')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Link Your First Account
+
+          {error && (
+            <div className="mb-6 p-4 rounded-xl bg-danger/10 border border-danger/20 flex items-center gap-3 text-danger">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <span className="text-sm">{error}</span>
+            </div>
+          )}
+
+          <Button onClick={handleLink} disabled={linking}>
+            {linking ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Linking...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Link Your First Account
+              </span>
+            )}
           </Button>
         </motion.div>
       </div>
     );
   }
 
+  // ── Main view ──
+  const chartData = getCurrentData();
+  const breadcrumbs = getBreadcrumbs();
+
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
-      {/* Net Worth Over Time */}
+      {/* Error banner */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 rounded-xl bg-danger/10 border border-danger/20 flex items-center gap-3 text-danger"
+        >
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm">{error}</span>
+        </motion.div>
+      )}
+
+      {/* Header Card with Total Value + Charts */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         className="glass-card rounded-2xl p-4 md:p-8 mb-6 md:mb-8"
       >
-        <div className="flex flex-col md:flex-row md:items-start justify-between mb-4 md:mb-6 gap-4">
+        <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-4">
           <div>
-            <p className="text-text-muted text-sm mb-2">Total Net Worth</p>
+            <p className="text-text-muted text-sm mb-2">Total Portfolio Value</p>
             <div className="font-display text-4xl md:text-5xl font-semibold tracking-tight tabular-nums">
-              {formatMoney(totalNetWorth)}
+              {formatMoney(totalValue)}
             </div>
           </div>
-          <div className="flex flex-col md:items-end gap-2">
-            {change !== null && (
-              <div className="text-left md:text-right">
-                <div className={cn(
-                  'text-xl md:text-2xl font-semibold tabular-nums',
-                  change >= 0 ? 'text-success' : 'text-danger'
-                )}>
-                  {change >= 0 ? '+' : ''}{formatMoney(change)}
-                </div>
-                {changePercent !== null && (
-                  <div className="text-sm text-text-muted mt-1">
-                    {change >= 0 ? '+' : ''}{changePercent.toFixed(1)}% over period
-                  </div>
-                )}
-              </div>
-            )}
-            <Button variant="secondary" size="sm" onClick={() => navigate('/accounts')}>
-              <Plus className="w-4 h-4 mr-1.5" />
-              Add Account
-            </Button>
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
+            {/* Grouping Level Selector */}
+            <div className="flex items-center gap-2 bg-surface-solid rounded-lg p-1">
+              <Layers className="h-4 w-4 text-text-muted ml-2" />
+              <select
+                value={groupingLevel}
+                onChange={(e) => {
+                  setGroupingLevel(e.target.value as GroupingLevel);
+                  setDrillLevel1(null);
+                }}
+                className="bg-transparent text-sm font-medium pr-2 py-1.5 focus:outline-none cursor-pointer"
+              >
+                <option value="assetClass">Asset Class</option>
+                <option value="subCategory">Sub-Category</option>
+                <option value="holding">Holdings</option>
+              </select>
+            </div>
+            {/* Chart Type Buttons */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant={chartType === 'donut' ? 'default' : 'secondary'}
+                size="sm"
+                onClick={() => setChartType('donut')}
+              >
+                <PieChart className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={chartType === 'bar' ? 'default' : 'secondary'}
+                size="sm"
+                onClick={() => setChartType('bar')}
+              >
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={chartType === 'treemap' ? 'default' : 'secondary'}
+                size="sm"
+                onClick={() => setChartType('treemap')}
+              >
+                <Grid3x3 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
-        {chartData.length > 1 ? (
-          <AreaChart
-            data={chartData}
-            xKey="month"
-            yKey="value"
-            height={200}
-          />
-        ) : (
-          <div className="h-[200px] flex items-center justify-center text-text-muted text-sm">
-            Sync your accounts again to build history over time
-          </div>
-        )}
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-6 text-sm">
+          {breadcrumbs.map((crumb, index) => (
+            <div key={index} className="flex items-center gap-2">
+              {index > 0 && <ChevronRight className="h-4 w-4 text-text-muted" />}
+              <button
+                onClick={() => handleBreadcrumbClick(index)}
+                className={cn(
+                  'transition-colors',
+                  index === breadcrumbs.length - 1
+                    ? 'text-text font-medium'
+                    : 'text-text-muted hover:text-text'
+                )}
+                disabled={index === breadcrumbs.length - 1}
+              >
+                {crumb.label}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Chart Display */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${groupingLevel}-${drillLevel1}-${chartType}`}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col items-center"
+          >
+            {chartType === 'donut' && (
+              <div className="flex flex-col md:flex-row items-center gap-6 md:gap-8 w-full">
+                <DonutChart data={chartData} size={280} />
+                <div className="flex-1 grid grid-cols-2 gap-3 md:gap-4 w-full">
+                  {chartData.slice(0, 8).map((item) => (
+                    <button
+                      key={item.name}
+                      onClick={() => handleChartClick(item.name)}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-hover transition-colors text-left"
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{item.name}</div>
+                        <div className="text-xs text-text-muted tabular-nums">
+                          {item.percentage.toFixed(1)}% · {formatMoney(item.value, true)}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {chartType === 'bar' && (
+              <div className="w-full">
+                <StackedBarChart
+                  data={chartData}
+                  height={80}
+                  onClick={handleChartClick}
+                />
+                <div className="flex flex-wrap gap-4 mt-4 justify-center">
+                  {chartData.map((item) => (
+                    <button
+                      key={item.name}
+                      onClick={() => handleChartClick(item.name)}
+                      className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity"
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-text-secondary">{item.name}</span>
+                      <span className="text-text-muted tabular-nums">{item.percentage.toFixed(1)}%</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {chartType === 'treemap' && (
+              <div className="w-full">
+                <TreemapChart
+                  data={chartData}
+                  height={400}
+                  onClick={handleChartClick}
+                />
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </motion.div>
 
-      {/* Asset Allocation */}
-      {pieData.length > 0 && (
-        <Section title="Asset Allocation">
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="glass-card rounded-2xl p-4 md:p-6"
-          >
-            <div className="flex flex-col md:flex-row items-center gap-6 md:gap-8">
-              <DonutChart data={pieData} size={200} />
-              <div className="flex-1 grid grid-cols-2 gap-3 md:gap-4 w-full">
-                {assets.map((item) => (
-                  <div key={item.category} className="flex items-center gap-3">
-                    <span
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{item.category}</div>
-                      <div className="text-xs text-text-muted tabular-nums">
-                        {((item.value / totalAssets) * 100).toFixed(1)}% · {formatMoney(item.value, true)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        </Section>
-      )}
+      {/* Action Buttons: Add Account + Sync */}
+      <div className="flex items-center gap-3 mb-6 md:mb-8">
+        <Button onClick={handleLink} disabled={linking}>
+          {linking ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Linking...
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Add Account
+            </span>
+          )}
+        </Button>
+        <Button variant="secondary" onClick={handleSyncAll} disabled={syncing}>
+          {syncing ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Syncing...
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Sync All Accounts
+            </span>
+          )}
+        </Button>
+      </div>
 
-      {/* Accounts */}
-      <Section title="Accounts">
+      {/* Breakdown Table - responds to grouping level */}
+      <Section title={GROUPING_LABELS[groupingLevel]}>
         <div className="space-y-3">
-          {categories.map((category, i) => (
+          {groupingLevel === 'assetClass' && assetClasses.map((assetClass, i) => (
             <motion.div
-              key={category.category}
+              key={assetClass.name}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 * i }}
               className="glass-card rounded-2xl overflow-hidden"
             >
               <button
-                onClick={() => toggleCategory(category.category)}
+                onClick={() => toggleCategory(assetClass.name)}
                 className="w-full p-4 md:p-5 text-left hover:bg-surface-hover transition-all duration-200"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span
                       className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: category.color }}
+                      style={{ backgroundColor: assetClass.color }}
                     />
-                    <span className="font-medium">{category.category}</span>
+                    <span className="font-medium">{assetClass.name}</span>
                     <span className="text-sm text-text-muted px-2 py-0.5 rounded-full bg-surface-solid">
-                      {category.accounts.length}
+                      {assetClass.subCategories.length}
                     </span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span
-                      className={cn(
-                        'font-display text-lg md:text-xl font-semibold tabular-nums',
-                        category.value < 0 && 'text-danger'
-                      )}
-                    >
-                      {formatMoney(category.value)}
-                    </span>
+                    <div className="text-right">
+                      <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
+                        {formatMoney(assetClass.value)}
+                      </span>
+                      <span className="text-text-muted text-sm ml-2">
+                        {assetClass.percentage.toFixed(1)}%
+                      </span>
+                    </div>
                     <motion.span
-                      animate={{ rotate: expandedCategories[category.category] ? 180 : 0 }}
+                      animate={{ rotate: expandedCategories[assetClass.name] ? 180 : 0 }}
                       className="text-text-muted"
                     >
                       ▾
@@ -279,7 +621,7 @@ export function NetWorth() {
               </button>
 
               <AnimatePresence>
-                {expandedCategories[category.category] && (
+                {expandedCategories[assetClass.name] && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -287,31 +629,48 @@ export function NetWorth() {
                     transition={{ duration: 0.2 }}
                     className="border-t border-border bg-bg/30 overflow-hidden"
                   >
-                    {category.accounts.map((account, j) => (
+                    {assetClass.subCategories.map((subCategory, j) => (
                       <motion.div
-                        key={j}
+                        key={subCategory.name}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ delay: j * 0.05 }}
-                        className="px-4 md:px-5 py-3 md:py-4 flex items-center justify-between hover:bg-surface-hover transition-colors"
+                        transition={{ delay: j * 0.03 }}
+                        className="px-4 md:px-5 py-3 md:py-4"
                       >
-                        <div className="flex items-center gap-3 md:gap-4 pl-4 md:pl-6">
-                          <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-surface-solid flex items-center justify-center text-xs md:text-sm font-medium text-text-muted">
-                            {account.institution.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm md:text-base">{account.name}</div>
-                            <div className="text-xs md:text-sm text-text-muted">{account.institution}</div>
+                        <div className="flex items-center justify-between mb-2 pl-4 md:pl-6">
+                          <span className="font-medium text-sm">{subCategory.name}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm tabular-nums">{formatMoney(subCategory.value)}</span>
+                            <span className="text-xs text-text-muted tabular-nums w-12 text-right">
+                              {subCategory.percentage.toFixed(1)}%
+                            </span>
                           </div>
                         </div>
-                        <span
-                          className={cn(
-                            'font-medium tabular-nums text-sm md:text-base',
-                            account.balance < 0 && 'text-danger'
-                          )}
-                        >
-                          {formatMoney(account.balance)}
-                        </span>
+                        {/* Holdings */}
+                        <div className="pl-4 md:pl-6 space-y-1">
+                          {subCategory.holdings.map((holding) => (
+                            <div
+                              key={`${holding.ticker}-${holding.account}`}
+                              className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-surface-hover transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                                  {holding.ticker.slice(0, 3)}
+                                </div>
+                                <div>
+                                  <div className="font-medium text-text-secondary">{holding.ticker}</div>
+                                  <div className="text-xs text-text-muted">{holding.account}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="tabular-nums">{formatMoney(holding.value)}</div>
+                                <div className="text-xs text-text-muted tabular-nums">
+                                  {holding.shares.toFixed(2)} shares
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </motion.div>
                     ))}
                   </motion.div>
@@ -319,6 +678,219 @@ export function NetWorth() {
               </AnimatePresence>
             </motion.div>
           ))}
+
+          {groupingLevel === 'subCategory' && (() => {
+            const subCategories: { name: string; value: number; percentage: number; color: string; holdings: Holding[] }[] = [];
+            let colorIndex = 0;
+            for (const ac of assetClasses) {
+              for (const sc of ac.subCategories) {
+                subCategories.push({
+                  name: sc.name,
+                  value: sc.value,
+                  percentage: (sc.value / totalValue) * 100,
+                  color: COLORS[colorIndex % COLORS.length],
+                  holdings: sc.holdings,
+                });
+                colorIndex++;
+              }
+            }
+            return subCategories.sort((a, b) => b.value - a.value).map((subCategory, i) => (
+              <motion.div
+                key={subCategory.name}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * i }}
+                className="glass-card rounded-2xl overflow-hidden"
+              >
+                <button
+                  onClick={() => toggleCategory(subCategory.name)}
+                  className="w-full p-4 md:p-5 text-left hover:bg-surface-hover transition-all duration-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: subCategory.color }}
+                      />
+                      <span className="font-medium">{subCategory.name}</span>
+                      <span className="text-sm text-text-muted px-2 py-0.5 rounded-full bg-surface-solid">
+                        {subCategory.holdings.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
+                          {formatMoney(subCategory.value)}
+                        </span>
+                        <span className="text-text-muted text-sm ml-2">
+                          {subCategory.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      <motion.span
+                        animate={{ rotate: expandedCategories[subCategory.name] ? 180 : 0 }}
+                        className="text-text-muted"
+                      >
+                        ▾
+                      </motion.span>
+                    </div>
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {expandedCategories[subCategory.name] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="border-t border-border bg-bg/30 overflow-hidden px-4 md:px-5 py-3 md:py-4"
+                    >
+                      <div className="space-y-1">
+                        {subCategory.holdings.map((holding) => (
+                          <div
+                            key={`${holding.ticker}-${holding.account}`}
+                            className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-surface-hover transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                                {holding.ticker.slice(0, 3)}
+                              </div>
+                              <div>
+                                <div className="font-medium text-text-secondary">{holding.ticker}</div>
+                                <div className="text-xs text-text-muted">{holding.account}</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="tabular-nums">{formatMoney(holding.value)}</div>
+                              <div className="text-xs text-text-muted tabular-nums">
+                                {holding.shares.toFixed(2)} shares
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ));
+          })()}
+
+          {groupingLevel === 'holding' && (() => {
+            const tickerMap = new Map<string, { holdings: Holding[]; totalValue: number; totalShares: number }>();
+            for (const ac of assetClasses) {
+              for (const sc of ac.subCategories) {
+                for (const h of sc.holdings) {
+                  const existing = tickerMap.get(h.ticker);
+                  if (existing) {
+                    existing.holdings.push(h);
+                    existing.totalValue += h.value;
+                    existing.totalShares += h.shares;
+                  } else {
+                    tickerMap.set(h.ticker, {
+                      holdings: [h],
+                      totalValue: h.value,
+                      totalShares: h.shares,
+                    });
+                  }
+                }
+              }
+            }
+
+            const groupedHoldings = Array.from(tickerMap.entries())
+              .map(([ticker, data], i) => ({
+                ticker,
+                ...data,
+                color: COLORS[i % COLORS.length],
+                percentage: (data.totalValue / totalValue) * 100,
+              }))
+              .sort((a, b) => b.totalValue - a.totalValue);
+
+            return groupedHoldings.map((group, i) => (
+              <motion.div
+                key={group.ticker}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.03 * Math.min(i, 10) }}
+                className="glass-card rounded-2xl overflow-hidden"
+              >
+                <button
+                  onClick={() => toggleCategory(`holding-${group.ticker}`)}
+                  className="w-full p-4 md:p-5 text-left hover:bg-surface-hover transition-all duration-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: group.color }}
+                      />
+                      <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                        {group.ticker.slice(0, 3)}
+                      </div>
+                      <div>
+                        <div className="font-medium">{group.ticker}</div>
+                        <div className="text-xs text-text-muted">
+                          {group.totalShares.toFixed(2)} shares
+                          {group.holdings.length > 1 && ` · ${group.holdings.length} accounts`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
+                          {formatMoney(group.totalValue)}
+                        </span>
+                        <span className="text-text-muted text-sm ml-2">
+                          {group.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      {group.holdings.length > 1 && (
+                        <motion.span
+                          animate={{ rotate: expandedCategories[`holding-${group.ticker}`] ? 180 : 0 }}
+                          className="text-text-muted"
+                        >
+                          ▾
+                        </motion.span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                {group.holdings.length > 1 && (
+                  <AnimatePresence>
+                    {expandedCategories[`holding-${group.ticker}`] && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-t border-border bg-bg/30 overflow-hidden px-4 md:px-5 py-3 md:py-4"
+                      >
+                        <div className="space-y-2">
+                          {group.holdings.sort((a, b) => b.value - a.value).map((holding) => (
+                            <div
+                              key={`${holding.ticker}-${holding.account}`}
+                              className="flex items-center justify-between text-sm py-2 px-3 rounded-lg hover:bg-surface-hover transition-colors"
+                            >
+                              <div className="text-text-secondary">{holding.account}</div>
+                              <div className="flex items-center gap-6">
+                                <div className="text-right">
+                                  <div className="tabular-nums">{formatMoney(holding.value)}</div>
+                                </div>
+                                <div className="text-right text-text-muted w-24">
+                                  <div className="tabular-nums">{holding.shares.toFixed(2)} shares</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                )}
+              </motion.div>
+            ));
+          })()}
         </div>
       </Section>
     </div>
