@@ -38,6 +38,8 @@ const fixedTabs: NavItem[] = [
   { id: 'debt', name: 'Debt', icon: CreditCard, path: '/debt' },
   { id: 'invest', name: 'Invest', icon: PieChart, path: '/invest' },
   { id: 'tax', name: 'Tax', icon: Receipt, path: '/tax' },
+  { id: 'portfolio', name: 'Portfolio', icon: TrendingUp, path: '/net-worth' },
+  { id: 'probability', name: 'Projections', icon: Target, path: '/probability' },
 ];
 
 const planTypeIcons: Record<PlanType, LucideIcon> = {

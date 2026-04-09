@@ -51,8 +51,9 @@ function AppRoutes() {
           <Route path="/plans/debt-payoff" component={DebtPayoff} />
           <Route path="/probability" component={ProbabilityOfSuccess} />
 
+          <Route path="/net-worth" component={NetWorth} />
+
           {/* Redirects from old paths */}
-          <Route path="/net-worth"><Redirect to="/accounts" /></Route>
           <Route path="/portfolio"><Redirect to="/invest" /></Route>
           <Route path="/tax-history"><Redirect to="/tax" /></Route>
           <Route path="/settings"><Redirect to="/profile" /></Route>
