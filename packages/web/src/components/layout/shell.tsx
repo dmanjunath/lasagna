@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Sidebar } from './sidebar';
 import { MobileNav, MobileMenuButton } from './mobile-nav';
+import { MobileTabBar } from './mobile-tab-bar';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { FloatingChatInput } from '../chat/floating-chat-input';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
@@ -41,9 +42,12 @@ export function Shell({ children }: ShellProps) {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0">
+      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0">
         {children}
       </main>
+
+      {/* Mobile bottom tab bar */}
+      {isMobile && <MobileTabBar />}
 
       {/* Floating chat input (not on plan pages) */}
       {!isPlanPage && <FloatingChatInput />}
