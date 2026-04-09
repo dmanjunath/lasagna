@@ -9,6 +9,7 @@ import { StackedBarChart } from '../components/charts/stacked-bar-chart';
 import { TreemapChart } from '../components/charts/treemap-chart';
 import { Button } from '../components/ui/button';
 import { Section } from '../components/common/section';
+import { ActionItem } from '../components/common/action-item';
 import { useLocation } from 'wouter';
 
 type ChartType = 'donut' | 'bar' | 'treemap';
@@ -300,6 +301,140 @@ export default function PortfolioComposition() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
+      {/* Investment Readiness Hero */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-card p-6 mb-6 relative overflow-hidden"
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-2 h-2 rounded-full bg-success" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-success/70">
+            Investment Readiness
+          </span>
+        </div>
+        <div className="font-display text-2xl md:text-3xl font-semibold tracking-tight mb-1">
+          Ready to invest
+        </div>
+        <p className="text-sm text-text-secondary">
+          $800/month available &middot; Emergency fund &#10003; &middot; Debt cleared &#10003;
+        </p>
+        <div className="flex gap-2 mt-3 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/15 text-success">
+            &#10003; No high-interest debt
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/15 text-success">
+            &#10003; 6mo emergency fund
+          </span>
+        </div>
+      </motion.div>
+
+      {/* Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.08 }}
+      >
+        <Section title="Actions">
+          <div className="bg-bg-elevated border border-border rounded-xl px-4">
+            <ActionItem
+              title="Set 401(k) contribution to 4%"
+              tag="INVEST"
+              description="Your employer matches up to 4%. Not contributing enough means you're leaving free money on the table every paycheck."
+              impact="+$2,080/yr free money"
+              impactColor="green"
+              chatPrompt="How do I set my 401(k) contribution to get the full employer match?"
+              defaultOpen
+            />
+            <ActionItem
+              title="Open & fund Roth IRA $7,000"
+              tag="INVEST"
+              description="A Roth IRA lets your investments grow tax-free forever. The $7,000 annual limit is use-it-or-lose-it."
+              impact="Tax-free growth forever"
+              impactColor="green"
+              chatPrompt="Walk me through opening and funding a Roth IRA."
+            />
+            <ActionItem
+              title="Set up automatic monthly investment"
+              tag="INVEST"
+              description="Automate a fixed amount each month to take emotion out of investing. This strategy is called dollar-cost averaging."
+              impact="Dollar-cost averaging"
+              impactColor="green"
+              chatPrompt="How do I set up automatic monthly investments?"
+            />
+            <ActionItem
+              title="Increase 401(k) to 10%+ over time"
+              tag="INVEST"
+              description="Once you've captured the match, gradually increase contributions. Even 1% more per year adds up significantly over decades."
+              impact="Long-term wealth builder"
+              impactColor="green"
+              chatPrompt="What's a good plan to gradually increase my 401(k) contributions?"
+            />
+          </div>
+        </Section>
+      </motion.div>
+
+      {/* Order of Operations */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.16 }}
+      >
+        <Section title="Order of Operations">
+          <div className="glass-card p-5">
+            <div className="space-y-4">
+              {/* Step 1 */}
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-success text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  1
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">401(k) to 4% match</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-success/15 text-success">
+                      NOW
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-muted mt-0.5">Capture 100% employer match — instant 100% return</p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full border-2 border-border text-text-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  2
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">Max Roth IRA ($7,000)</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-warning/15 text-warning">
+                      NEXT
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-muted mt-0.5">Tax-free growth and withdrawals in retirement</p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full border-2 border-border text-text-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  3
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">Back to 401(k) max ($23,500)</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-surface-hover text-text-muted">
+                      LATER
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-muted mt-0.5">Maximize tax-advantaged space before taxable accounts</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Section>
+      </motion.div>
+
       {/* Header Card with Total Value */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
