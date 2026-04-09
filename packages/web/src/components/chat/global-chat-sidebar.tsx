@@ -1,220 +1,206 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 import { usePageContext } from '../../lib/page-context';
 import { api, API_BASE } from '../../lib/api';
-import { MessageList } from './message-list';
+import { ChatThreadList } from './chat-thread-list';
+import { ChatThreadView } from './chat-thread-view';
+import type { Thread } from './chat-thread-list';
 import type { Message } from '../../lib/types';
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
+interface ThreadData {
+  thread: Thread;
+  messages: Message[];
+  apiThreadId: string | null;
 }
 
 export function GlobalChatSidebar() {
-  const { chatOpen, closeChat, currentPage, pendingMessage, clearPendingMessage } = usePageContext();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
+  const { currentPage, pendingMessage, clearPendingMessage, chatOpen } = usePageContext();
+  const [threads, setThreads] = useState<ThreadData[]>([]);
+  const [activeThreadIndex, setActiveThreadIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Reset messages when page changes
-  useEffect(() => {
-    setMessages([]);
-    setThreadId(null);
-  }, [currentPage?.pageId]);
+  // Suggestions based on page context
+  const suggestions = currentPage
+    ? [
+        `Summarize my ${currentPage.pageTitle.toLowerCase()}`,
+        `What should I focus on?`,
+        `Any concerns?`,
+      ]
+    : ['What is my net worth?', 'How are my investments doing?', 'Help me save more'];
 
-  // Handle pending message from floating input
+  // Handle pending message from peek bar / floating input
   useEffect(() => {
     if (pendingMessage && chatOpen) {
-      sendMessage(pendingMessage);
+      handleNewMessage(pendingMessage);
       clearPendingMessage();
     }
   }, [pendingMessage, chatOpen]);
 
-  // Focus input when opened
-  useEffect(() => {
-    if (chatOpen && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 300);
-    }
-  }, [chatOpen]);
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const sendMessage = async (content: string) => {
-    if (!content.trim() || loading) return;
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: content.trim(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setLoading(true);
-
+  const sendToApi = useCallback(async (content: string, existingThreadId: string | null): Promise<{ response: string; threadId: string }> => {
     try {
-      // Create thread if needed
-      let currentThreadId = threadId;
-      if (!currentThreadId) {
+      let threadId = existingThreadId;
+      if (!threadId) {
         const { thread } = await api.createThread();
-        currentThreadId = thread.id;
-        setThreadId(currentThreadId);
+        threadId = thread.id;
       }
 
-      // Build context-aware message
       const contextMessage = currentPage
-        ? `[Context: User is on the "${currentPage.pageTitle}" page. ${currentPage.description || ''} Page data: ${JSON.stringify(currentPage.data || {})}]\n\nUser question: ${content.trim()}`
-        : content.trim();
+        ? `[Context: User is on the "${currentPage.pageTitle}" page. ${currentPage.description || ''} Page data: ${JSON.stringify(currentPage.data || {})}]\n\nUser question: ${content}`
+        : content;
 
-      // Send to chat API
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          threadId: currentThreadId,
-          message: contextMessage,
-        }),
+        body: JSON.stringify({ threadId, message: contextMessage }),
       });
 
       if (!res.ok) throw new Error('Chat request failed');
 
       const data = await res.json();
-      const assistantContent = data.response?.chat || data.response?.content || 'I apologize, but I could not process your request.';
-
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: assistantContent,
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error('Chat error:', error);
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setLoading(false);
+      const response = data.response?.chat || data.response?.content || 'I apologize, but I could not process your request.';
+      return { response, threadId };
+    } catch {
+      return { response: 'Sorry, I encountered an error. Please try again.', threadId: existingThreadId || '' };
     }
-  };
+  }, [currentPage]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sendMessage(input);
-  };
+  const handleNewMessage = useCallback(async (text: string) => {
+    if (!text.trim() || loading) return;
+
+    const userMsg: Message = {
+      id: `user-${Date.now()}`,
+      threadId: '',
+      role: 'user',
+      content: text.trim(),
+      toolCalls: null,
+      uiPayload: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+    const newThread: ThreadData = {
+      thread: {
+        id: `thread-${Date.now()}`,
+        question: text.trim(),
+        answerPreview: '',
+        timestamp,
+      },
+      messages: [userMsg],
+      apiThreadId: null,
+    };
+
+    const newIndex = threads.length;
+    setThreads(prev => [...prev, newThread]);
+    setActiveThreadIndex(newIndex);
+    setLoading(true);
+
+    const { response, threadId } = await sendToApi(text.trim(), null);
+
+    const assistantMsg: Message = {
+      id: `assistant-${Date.now()}`,
+      threadId: threadId || '',
+      role: 'assistant',
+      content: response,
+      toolCalls: null,
+      uiPayload: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    setThreads(prev => {
+      const updated = [...prev];
+      const target = updated[newIndex];
+      if (target) {
+        updated[newIndex] = {
+          ...target,
+          thread: {
+            ...target.thread,
+            answerPreview: response.slice(0, 120),
+          },
+          messages: [...target.messages, assistantMsg],
+          apiThreadId: threadId,
+        };
+      }
+      return updated;
+    });
+    setLoading(false);
+  }, [threads, loading, sendToApi]);
+
+  const handleFollowUp = useCallback(async (text: string) => {
+    if (!text.trim() || loading || activeThreadIndex === null) return;
+
+    const userMsg: Message = {
+      id: `user-${Date.now()}`,
+      threadId: '',
+      role: 'user',
+      content: text.trim(),
+      toolCalls: null,
+      uiPayload: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    setThreads(prev => {
+      const updated = [...prev];
+      const target = updated[activeThreadIndex];
+      if (target) {
+        updated[activeThreadIndex] = {
+          ...target,
+          messages: [...target.messages, userMsg],
+        };
+      }
+      return updated;
+    });
+    setLoading(true);
+
+    const currentThread = threads[activeThreadIndex];
+    const { response, threadId } = await sendToApi(text.trim(), currentThread?.apiThreadId || null);
+
+    const assistantMsg: Message = {
+      id: `assistant-${Date.now()}`,
+      threadId: threadId || '',
+      role: 'assistant',
+      content: response,
+      toolCalls: null,
+      uiPayload: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    setThreads(prev => {
+      const updated = [...prev];
+      const target = updated[activeThreadIndex];
+      if (target) {
+        updated[activeThreadIndex] = {
+          ...target,
+          messages: [...target.messages, assistantMsg],
+          apiThreadId: threadId,
+        };
+      }
+      return updated;
+    });
+    setLoading(false);
+  }, [activeThreadIndex, threads, loading, sendToApi]);
+
+  const activeThread = activeThreadIndex !== null ? threads[activeThreadIndex] : null;
 
   return (
-    <AnimatePresence>
-      {chatOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={closeChat}
-            className="fixed inset-0 bg-black/40 z-40 md:hidden"
-          />
-
-          {/* Sidebar */}
-          <motion.div
-            initial={{ x: '100%', opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '100%', opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed right-0 top-0 h-full w-full max-w-md bg-bg border-l border-border z-50 flex flex-col shadow-2xl"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div>
-                <h2 className="font-display text-lg font-semibold">Ask a question</h2>
-                {currentPage && (
-                  <p className="text-sm text-text-muted">About: {currentPage.pageTitle}</p>
-                )}
-              </div>
-              <button
-                onClick={closeChat}
-                className="p-2 hover:bg-surface-hover rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-text-muted" />
-              </button>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.length === 0 ? (
-                <div className="text-center text-text-muted py-8">
-                  <p className="text-sm">Ask me anything about this page.</p>
-                  {currentPage && (
-                    <p className="text-xs mt-2 opacity-70">
-                      I have context about your {currentPage.pageTitle.toLowerCase()} data.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
-                        msg.role === 'user'
-                          ? 'bg-accent text-white'
-                          : 'bg-surface-elevated border border-border'
-                      }`}
-                    >
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="bg-surface-elevated border border-border rounded-2xl px-4 py-2.5">
-                    <Loader2 className="w-4 h-4 animate-spin text-text-muted" />
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input */}
-            <form onSubmit={handleSubmit} className="p-4 border-t border-border">
-              <div className="flex items-center gap-2 bg-surface-elevated rounded-xl px-4 py-2 border border-border focus-within:border-accent/50 transition-colors">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your question..."
-                  disabled={loading}
-                  className="flex-1 bg-transparent text-text placeholder:text-text-muted focus:outline-none text-sm"
-                />
-                <button
-                  type="submit"
-                  disabled={!input.trim() || loading}
-                  className="p-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </>
+    <div className="flex flex-col h-full bg-bg border-l border-border">
+      {activeThread ? (
+        <ChatThreadView
+          thread={activeThread.thread}
+          messages={activeThread.messages}
+          onBack={() => setActiveThreadIndex(null)}
+          onFollowUp={handleFollowUp}
+          loading={loading}
+        />
+      ) : (
+        <ChatThreadList
+          threads={threads.map(t => t.thread)}
+          onSelectThread={(index) => setActiveThreadIndex(index)}
+          onNewMessage={handleNewMessage}
+          suggestions={suggestions}
+        />
       )}
-    </AnimatePresence>
+    </div>
   );
 }
