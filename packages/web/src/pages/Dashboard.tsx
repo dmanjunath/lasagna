@@ -1,27 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'wouter';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import {
-  TrendingUp,
-  Building2,
-  Sparkles,
-  Loader2,
-  CheckCircle2,
-  Circle,
-  User,
-  Wallet,
-  Target,
-  ChevronRight,
-  CreditCard,
-  Shield,
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
-import { cn } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
-import { StatCard } from '../components/common/stat-card';
+import { MetricTile } from '../components/common/metric-tile';
+import { ActionItem } from '../components/common/action-item';
 import { Section } from '../components/common/section';
-import type { Plan } from '../lib/types';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -39,15 +24,6 @@ function getGreeting(): string {
   return 'Good evening,';
 }
 
-interface ChecklistItem {
-  id: string;
-  label: string;
-  description: string;
-  path: string;
-  done: boolean;
-  icon: typeof User;
-}
-
 interface BalanceEntry {
   accountId: string;
   name: string;
@@ -59,30 +35,100 @@ interface BalanceEntry {
   asOf: string | null;
 }
 
+const ACTION_ITEMS = [
+  {
+    title: 'Set 401(k) contribution to 4%',
+    tag: 'INVEST',
+    description:
+      'Log into Fidelity and set your contribution rate to 4%. Your employer matches dollar-for-dollar — this is an instant 100% return.',
+    impact: '+$2,080/yr free money',
+    impactColor: 'green' as const,
+    chatPrompt: 'How do I set up my 401(k) match?',
+  },
+  {
+    title: 'Open & fund Roth IRA',
+    tag: 'INVEST',
+    description:
+      'Open a Roth IRA at Vanguard or Fidelity. Invest in a 3-fund index portfolio (VTI/VXUS/BND). Contributions grow tax-free forever.',
+    impact: 'Tax-free growth forever',
+    impactColor: 'green' as const,
+    chatPrompt: 'How do I open and fund a Roth IRA?',
+  },
+  {
+    title: 'Check HSA eligibility',
+    tag: 'TAX',
+    description:
+      'If you have a high-deductible health plan, you can contribute pre-tax dollars to an HSA — triple tax advantage for medical expenses.',
+    impact: 'Triple tax advantage',
+    impactColor: 'amber' as const,
+    chatPrompt: 'Am I eligible for an HSA and how does it save on taxes?',
+  },
+  {
+    title: 'Set up automatic monthly investment',
+    tag: 'INVEST',
+    description:
+      'Auto-transfer a fixed amount each month to your investment account. Removes emotion from investing and builds wealth consistently.',
+    impact: 'Dollar-cost averaging',
+    impactColor: 'green' as const,
+    chatPrompt: 'How do I set up automatic monthly investments?',
+  },
+  {
+    title: 'Increase 401(k) pre-tax contributions',
+    tag: 'TAX',
+    description:
+      'After maxing your Roth, bump 401(k) each raise. Target the $23,500/yr max for significant tax savings.',
+    impact: 'Long-term wealth builder',
+    impactColor: 'amber' as const,
+    chatPrompt: 'How much should I contribute to my 401(k)?',
+  },
+  {
+    title: 'Set up credit monitoring',
+    tag: 'DEBT',
+    description:
+      'Free via Credit Karma or your bank. Catches fraud early and tracks your credit score over time.',
+    impact: 'Early fraud detection',
+    impactColor: 'green' as const,
+    chatPrompt: 'How do I set up credit monitoring?',
+  },
+];
+
+const ASK_PROMPTS = [
+  {
+    emoji: '\uD83C\uDFAF',
+    text: 'What should I focus on first?',
+    prompt: 'What should I focus on financially right now?',
+  },
+  {
+    emoji: '\uD83D\uDCB0',
+    text: 'Am I on track for my age?',
+    prompt: 'Am I saving enough for my age?',
+  },
+  {
+    emoji: '\uD83D\uDCC8',
+    text: 'How can I grow my net worth?',
+    prompt: 'What are the best ways to grow my net worth?',
+  },
+];
+
 export function Dashboard() {
-  const { user, tenant } = useAuth();
-  const [, navigate] = useLocation();
-  const { setPageContext } = usePageContext();
+  const { tenant } = useAuth();
+  const { setPageContext, openChat } = usePageContext();
   const [loading, setLoading] = useState(true);
   const [netWorth, setNetWorth] = useState<number | null>(null);
-  const [accountCount, setAccountCount] = useState(0);
-  const [planCount, setPlanCount] = useState(0);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [institutionCount, setInstitutionCount] = useState(0);
-  const [hasName, setHasName] = useState(false);
+  const [totalDebt, setTotalDebt] = useState<number>(0);
+  const [emergencyFund, setEmergencyFund] = useState<number>(0);
   const [monthlySpend, setMonthlySpend] = useState<number | null>(null);
   const [runwayMonths, setRunwayMonths] = useState<number | null>(null);
+  const [accountCount, setAccountCount] = useState(0);
+  const [institutionCount, setInstitutionCount] = useState(0);
 
   useEffect(() => {
     Promise.all([
       api.getBalances().catch(() => ({ balances: [] as BalanceEntry[] })),
-      api.getPlans().catch(() => ({ plans: [] as Plan[] })),
       api.getItems().catch(() => ({ items: [] })),
-      api.getProfile().catch(() => ({ profile: { name: null, email: '', plan: 'free', createdAt: '' } })),
-    ]).then(([balanceData, planData, itemData, profileData]) => {
+    ]).then(([balanceData, itemData]) => {
       const balances = balanceData.balances;
 
-      // Compute net worth
       let totalAssets = 0;
       let totalLiabilities = 0;
       let depositoryTotal = 0;
@@ -102,24 +148,18 @@ export function Dashboard() {
       if (balances.length > 0) {
         setNetWorth(totalAssets - totalLiabilities);
       }
+      setTotalDebt(totalLiabilities);
+      setEmergencyFund(depositoryTotal);
       setAccountCount(balances.length);
 
-      // Monthly spend estimate from credit card balances
       if (creditTotal > 0) {
         setMonthlySpend(creditTotal);
-        // Runway = liquid cash / monthly spend
         if (depositoryTotal > 0) {
           setRunwayMonths(Math.floor(depositoryTotal / creditTotal));
         }
       }
 
-      setPlans(planData.plans);
-      setPlanCount(planData.plans.length);
-
       setInstitutionCount(itemData.items.length);
-
-      const name = profileData.profile.name;
-      setHasName(!!name && name !== profileData.profile.email?.split('@')[0]);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -133,55 +173,17 @@ export function Dashboard() {
         data: {
           netWorth,
           accountCount,
-          planCount,
           institutionCount,
           monthlySpend,
           runwayMonths,
+          totalDebt,
+          emergencyFund,
         },
       });
     }
-  }, [loading, netWorth, accountCount, planCount, institutionCount, monthlySpend, runwayMonths, setPageContext]);
+  }, [loading, netWorth, accountCount, institutionCount, monthlySpend, runwayMonths, totalDebt, emergencyFund, setPageContext]);
 
   const firstName = tenant?.name?.split(' ')[0] || 'there';
-
-  // Onboarding checklist
-  const checklist: ChecklistItem[] = useMemo(() => [
-    {
-      id: 'profile',
-      label: 'Set up your profile',
-      description: 'Add your name so we can personalize your experience',
-      path: '/settings',
-      done: hasName,
-      icon: User,
-    },
-    {
-      id: 'connect',
-      label: 'Connect a bank account',
-      description: 'Link your accounts for real-time tracking',
-      path: '/accounts',
-      done: institutionCount > 0,
-      icon: Building2,
-    },
-    {
-      id: 'net-worth',
-      label: 'Review your net worth',
-      description: 'See your full financial picture in one place',
-      path: '/net-worth',
-      done: netWorth !== null,
-      icon: Wallet,
-    },
-    {
-      id: 'plan',
-      label: 'Create a financial plan',
-      description: 'Get AI-powered analysis for retirement, debt, or custom goals',
-      path: '/plans/new',
-      done: planCount > 0,
-      icon: Target,
-    },
-  ], [hasName, institutionCount, netWorth, planCount]);
-
-  const completedCount = checklist.filter((c) => c.done).length;
-  const allDone = completedCount === checklist.length;
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
@@ -190,129 +192,123 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="mb-10"
+        className="mb-6"
       >
         <h2 className="font-display text-3xl md:text-4xl lg:text-5xl font-medium tracking-tight">
           {getGreeting()} <span className="capitalize">{firstName}</span>
         </h2>
       </motion.div>
 
-      {/* Onboarding Checklist */}
-      {!loading && !allDone && (
-        <Section title={`Get Started — ${completedCount} of ${checklist.length}`}>
-          <div className="glass-card rounded-2xl overflow-hidden">
-            {/* Progress bar */}
-            <div className="px-5 pt-4 pb-2">
-              <div className="h-1.5 rounded-full bg-border overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full bg-accent"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(completedCount / checklist.length) * 100}%` }}
-                  transition={{ duration: 0.6, ease: 'easeOut' }}
-                />
-              </div>
-            </div>
-
-            <div className="divide-y divide-border">
-              {checklist.map((item, i) => {
-                const Icon = item.icon;
-                return (
-                  <motion.button
-                    key={item.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04, duration: 0.3 }}
-                    onClick={() => !item.done && navigate(item.path)}
-                    className={cn(
-                      'w-full px-5 py-4 flex items-center gap-4 text-left transition-colors',
-                      item.done
-                        ? 'opacity-50'
-                        : 'hover:bg-surface-hover cursor-pointer'
-                    )}
-                  >
-                    {item.done ? (
-                      <CheckCircle2 className="w-5 h-5 text-accent flex-shrink-0" />
-                    ) : (
-                      <Circle className="w-5 h-5 text-border flex-shrink-0" />
-                    )}
-
-                    <Icon className={cn('w-5 h-5 flex-shrink-0', item.done ? 'text-text-muted' : 'text-text-secondary')} />
-
-                    <div className="flex-1 min-w-0">
-                      <div className={cn('text-sm font-medium', item.done && 'line-through text-text-muted')}>
-                        {item.label}
-                      </div>
-                      <div className="text-xs text-text-muted mt-0.5">
-                        {item.description}
-                      </div>
-                    </div>
-
-                    {!item.done && (
-                      <ChevronRight className="w-4 h-4 text-text-muted flex-shrink-0" />
-                    )}
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-        </Section>
-      )}
-
-      {/* Summary Cards */}
-      <Section title="Your Finances">
-        {loading ? (
-          <div className="flex items-center gap-2 text-text-muted py-4">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Loading...</span>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-            <StatCard
-              icon={TrendingUp}
-              label="Net Worth"
-              value={netWorth !== null ? formatCurrency(netWorth) : '—'}
-              description={accountCount > 0 ? `Across ${accountCount} account${accountCount !== 1 ? 's' : ''}` : 'Link accounts to track'}
+      {loading ? (
+        <div className="flex items-center gap-2 text-text-muted py-4">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">Loading...</span>
+        </div>
+      ) : (
+        <>
+          {/* Metric Tiles */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+            <MetricTile
+              label="NET WORTH"
+              value={netWorth !== null ? formatCurrency(netWorth) : '\u2014'}
+              subtitle={netWorth !== null ? `Across ${accountCount} account${accountCount !== 1 ? 's' : ''}` : 'Link accounts to track'}
               status={netWorth !== null && netWorth > 0 ? 'success' : 'default'}
-              onClick={() => navigate('/net-worth')}
               delay={0}
             />
-            <StatCard
-              icon={CreditCard}
-              label="Monthly Spend"
-              value={monthlySpend !== null ? formatCurrency(monthlySpend) : '—'}
-              description={monthlySpend !== null ? 'From credit card balances' : 'Link a credit card'}
-              status={monthlySpend !== null ? 'default' : 'default'}
-              delay={0.05}
+            {totalDebt > 0 && (
+              <MetricTile
+                label="TOTAL DEBT"
+                value={formatCurrency(totalDebt)}
+                subtitle="Active liabilities"
+                status="danger"
+                delay={0.04}
+              />
+            )}
+            <MetricTile
+              label="EMERGENCY FUND"
+              value={emergencyFund > 0 ? formatCurrency(emergencyFund) : '\u2014'}
+              subtitle={
+                emergencyFund > 0 && monthlySpend
+                  ? `${Math.round((emergencyFund / monthlySpend) * 10) / 10} months saved`
+                  : 'Cash in depository accounts'
+              }
+              status={
+                emergencyFund > 0 && monthlySpend && emergencyFund / monthlySpend >= 6
+                  ? 'success'
+                  : emergencyFund > 0
+                    ? 'warning'
+                    : 'default'
+              }
+              delay={0.08}
             />
-            <StatCard
-              icon={Shield}
-              label="Runway"
-              value={runwayMonths !== null ? `${runwayMonths} mo` : '—'}
-              description={runwayMonths !== null ? 'Months of expenses covered' : 'Based on cash & spending'}
-              status={runwayMonths !== null && runwayMonths >= 6 ? 'success' : runwayMonths !== null ? 'warning' : 'default'}
-              delay={0.1}
+            <MetricTile
+              label="MONTHLY SPEND"
+              value={monthlySpend !== null ? formatCurrency(monthlySpend) : '\u2014'}
+              subtitle={monthlySpend !== null ? 'From credit card balances' : 'Link a credit card'}
+              delay={0.12}
             />
-            <StatCard
-              icon={Building2}
-              label="Linked Accounts"
+            <MetricTile
+              label="RUNWAY"
+              value={runwayMonths !== null ? `${runwayMonths} mo` : '\u2014'}
+              subtitle={runwayMonths !== null ? 'Months of expenses covered' : 'Based on cash & spending'}
+              status={
+                runwayMonths !== null && runwayMonths >= 6
+                  ? 'success'
+                  : runwayMonths !== null
+                    ? 'warning'
+                    : 'default'
+              }
+              delay={0.16}
+            />
+            <MetricTile
+              label="LINKED ACCOUNTS"
               value={String(institutionCount)}
-              description={institutionCount > 0 ? `${accountCount} account${accountCount !== 1 ? 's' : ''} total` : 'No accounts linked'}
+              subtitle={
+                institutionCount > 0
+                  ? `${accountCount} account${accountCount !== 1 ? 's' : ''} total`
+                  : 'No accounts linked'
+              }
               status={institutionCount > 0 ? 'success' : 'warning'}
-              onClick={() => navigate('/accounts')}
-              delay={0.15}
-            />
-            <StatCard
-              icon={Sparkles}
-              label="AI Plans"
-              value={String(planCount)}
-              description={planCount > 0 ? `${plans.filter(p => p.status === 'active').length} active` : 'Create your first plan'}
-              status={planCount > 0 ? 'success' : 'default'}
-              onClick={() => navigate('/plans')}
               delay={0.2}
             />
           </div>
-        )}
-      </Section>
+
+          {/* Action Items */}
+          <Section title="Action Items">
+            <div className="bg-bg-elevated border border-border rounded-xl px-4">
+              {ACTION_ITEMS.map((item, i) => (
+                <ActionItem
+                  key={item.title}
+                  title={item.title}
+                  tag={item.tag}
+                  description={item.description}
+                  impact={item.impact}
+                  impactColor={item.impactColor}
+                  chatPrompt={item.chatPrompt}
+                  defaultOpen={i === 0}
+                />
+              ))}
+            </div>
+          </Section>
+
+          {/* Ask Lasagna — mobile only */}
+          <Section title="Ask Lasagna" className="md:hidden">
+            <div className="grid grid-cols-1 gap-2">
+              {ASK_PROMPTS.map((p) => (
+                <button
+                  key={p.prompt}
+                  type="button"
+                  onClick={() => openChat(p.prompt)}
+                  className="flex items-center gap-3 bg-bg-elevated border border-border rounded-xl px-4 py-3 text-left hover:border-accent/40 transition-colors"
+                >
+                  <span className="text-lg">{p.emoji}</span>
+                  <span className="text-sm text-text-secondary font-medium">{p.text}</span>
+                </button>
+              ))}
+            </div>
+          </Section>
+        </>
+      )}
     </div>
   );
 }
