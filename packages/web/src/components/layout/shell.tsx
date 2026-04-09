@@ -24,44 +24,59 @@ export function Shell({ children }: ShellProps) {
     setLocation('/plans/new');
   };
 
-  // Don't show floating chat on plan pages (they have their own chat)
   const isPlanPage = location.startsWith('/plans/') && location !== '/plans/new';
 
   return (
-    <div className="flex h-screen bg-bg">
-      {/* Mobile menu button */}
-      {isMobile && <MobileMenuButton onClick={() => setMobileMenuOpen(true)} />}
+    <div className="h-screen w-screen overflow-hidden bg-bg flex flex-col">
+      {/* Mobile: hamburger + content + tab bar */}
+      {isMobile && (
+        <>
+          <MobileMenuButton onClick={() => setMobileMenuOpen(true)} />
+          <MobileNav
+            isOpen={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            onNewPlan={handleNewPlan}
+          />
+        </>
+      )}
 
-      {/* Mobile drawer nav */}
-      <MobileNav
-        isOpen={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        onNewPlan={handleNewPlan}
-      />
+      {/* Main layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Desktop sidebar */}
+        {!isMobile && (
+          <aside className="w-[200px] flex-shrink-0 border-r border-border overflow-y-auto">
+            <Sidebar onNewPlan={handleNewPlan} />
+          </aside>
+        )}
 
-      {/* Desktop: 3-column grid layout */}
-      <div className="flex-1 flex md:grid md:grid-cols-[200px_1fr_340px]">
-        {/* Left: Desktop sidebar */}
-        <div className="hidden md:block">
-          <Sidebar onNewPlan={handleNewPlan} />
-        </div>
-
-        {/* Center: Main content */}
-        <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0">
-          {children}
+        {/* Main content area */}
+        <main
+          className={`flex-1 flex flex-col overflow-hidden ${
+            isMobile ? 'pt-14 pb-28' : ''
+          }`}
+        >
+          <div className="flex-1 overflow-y-auto">
+            {children}
+          </div>
         </main>
 
-        {/* Right: Chat sidebar (desktop only) */}
-        <div className="hidden md:flex">
-          <GlobalChatSidebar />
-        </div>
+        {/* Desktop chat sidebar */}
+        {!isMobile && (
+          <aside className="w-[340px] flex-shrink-0 border-l border-border flex flex-col overflow-hidden">
+            <GlobalChatSidebar />
+          </aside>
+        )}
       </div>
 
       {/* Mobile bottom tab bar */}
-      {isMobile && <MobileTabBar />}
-
-      {/* Mobile peek bar (not on plan pages) */}
-      {!isPlanPage && <FloatingChatInput />}
+      {isMobile && (
+        <div className="flex-shrink-0">
+          {/* Peek bar */}
+          {!isPlanPage && <FloatingChatInput />}
+          {/* Tab bar */}
+          <MobileTabBar />
+        </div>
+      )}
 
       {/* Mobile chat drawer */}
       <AnimatePresence>
@@ -72,7 +87,6 @@ export function Shell({ children }: ShellProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Backdrop */}
             <motion.div
               className="absolute inset-0 bg-black/50"
               onClick={closeChat}
@@ -80,20 +94,19 @@ export function Shell({ children }: ShellProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             />
-            {/* Drawer */}
             <motion.div
-              className="absolute bottom-0 left-0 right-0 max-h-[92vh] bg-bg rounded-t-2xl flex flex-col shadow-[0_-4px_24px_rgba(0,0,0,0.5)]"
+              className="absolute bottom-0 left-0 right-0 bg-bg rounded-t-xl flex flex-col shadow-[0_-4px_24px_rgba(0,0,0,0.5)]"
+              style={{ maxHeight: '88vh' }}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 400, damping: 35 }}
             >
               {/* Drag handle */}
-              <div className="flex justify-center py-2.5 flex-shrink-0">
+              <div className="flex justify-center py-2 flex-shrink-0">
                 <div className="w-9 h-1 rounded-full bg-white/20" />
               </div>
-              {/* Chat content */}
-              <div className="flex-1 min-h-0 overflow-hidden" style={{ height: '80vh' }}>
+              <div className="flex-1 overflow-hidden flex flex-col">
                 <GlobalChatSidebar />
               </div>
             </motion.div>
