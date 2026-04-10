@@ -6,17 +6,6 @@ import { usePageContext } from '../lib/page-context';
 import { Section } from '../components/common/section';
 import { ActionItem } from '../components/common/action-item';
 
-interface BalanceEntry {
-  accountId: string;
-  name: string;
-  type: string;
-  mask: string | null;
-  balance: string | null;
-  available: string | null;
-  currency: string;
-  asOf: string | null;
-}
-
 interface DebtAccount {
   name: string;
   balance: number;
@@ -35,18 +24,6 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-/** Generate placeholder APR based on account type and balance (proxy) */
-function estimateApr(type: string, balance: number): number {
-  if (type === 'credit') return 18 + (balance / 1000) * 1.2; // ~18-24%
-  return 5 + (balance / 2000); // loans: ~5-10%
-}
-
-/** Estimate minimum monthly payment */
-function estimateMinPayment(balance: number, _apr: number): number {
-  // Roughly 2% of balance or $25, whichever is greater
-  return Math.max(25, Math.round(balance * 0.02));
 }
 
 /** Calculate months to pay off with given monthly payment */
@@ -82,26 +59,19 @@ export function Debt() {
 
   useEffect(() => {
     api
-      .getBalances()
-      .catch(() => ({ balances: [] as BalanceEntry[] }))
-      .then(({ balances }) => {
-        const debtAccounts = balances.filter(
-          (b) => b.type === 'credit' || b.type === 'loan',
-        );
-
-        let total = 0;
-        const mapped: DebtAccount[] = debtAccounts.map((b) => {
-          const balance = Math.abs(parseFloat(b.balance || '0'));
-          total += balance;
-          const apr = estimateApr(b.type, balance);
-          const minPay = estimateMinPayment(balance, apr);
+      .getDebts()
+      .catch(() => ({ debts: [] as Array<{ name: string; type: string; balance: number; interestRate: number | null; minimumPayment: number }>, totalDebt: 0, monthlyInterest: 0 }))
+      .then(({ debts: apiDebts, totalDebt: apiTotal }) => {
+        const mapped: DebtAccount[] = apiDebts.map((d) => {
+          const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : 6.5);
+          const minPay = d.minimumPayment;
           const suggestedPay = Math.round(minPay * 1.8);
-          const minMonths = monthsToPayoff(balance, apr, minPay);
-          const sugMonths = monthsToPayoff(balance, apr, suggestedPay);
+          const minMonths = monthsToPayoff(d.balance, apr, minPay);
+          const sugMonths = monthsToPayoff(d.balance, apr, suggestedPay);
           return {
-            name: b.name,
-            balance,
-            type: b.type,
+            name: d.name,
+            balance: d.balance,
+            type: d.type,
             apr: Math.round(apr * 100) / 100,
             minPayment: minPay,
             suggestedPayment: suggestedPay,
@@ -110,10 +80,10 @@ export function Debt() {
           };
         });
 
-        // Sort by balance descending (proxy for APR priority since we lack real APR)
-        mapped.sort((a, b) => b.balance - a.balance);
+        // Sort by APR descending (avalanche order)
+        mapped.sort((a, b) => b.apr - a.apr);
         setDebts(mapped);
-        setTotalDebt(total);
+        setTotalDebt(apiTotal);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -133,12 +103,32 @@ export function Debt() {
   const hasDebt = totalDebt > 0;
   const totalMonthlyPayment = debts.reduce((s, d) => s + d.suggestedPayment, 0);
 
-  // Placeholder calculations for strategy section
-  const interestSavedVsSnowball = 840;
   const minOnlyMonths = debts.length > 0 ? Math.max(...debts.map((d) => monthsToPayoff(d.balance, d.apr, d.minPayment))) : 0;
   const suggestedMonths = debts.length > 0 ? Math.max(...debts.map((d) => monthsToPayoff(d.balance, d.apr, d.suggestedPayment))) : 0;
   const monthsSaved = minOnlyMonths - suggestedMonths;
-  const interestSavedVsMinimums = Math.round(totalDebt * 0.165); // rough placeholder
+
+  // Calculate total interest paid under min-only vs suggested plan
+  const totalInterestMin = debts.reduce((sum, d) => {
+    const months = monthsToPayoff(d.balance, d.apr, d.minPayment);
+    return sum + (d.minPayment * months - d.balance);
+  }, 0);
+  const totalInterestSuggested = debts.reduce((sum, d) => {
+    const months = monthsToPayoff(d.balance, d.apr, d.suggestedPayment);
+    return sum + (d.suggestedPayment * months - d.balance);
+  }, 0);
+  const interestSavedVsMinimums = Math.round(Math.max(0, totalInterestMin - totalInterestSuggested));
+
+  // Avalanche vs snowball: estimate savings by comparing interest order vs balance order
+  const snowballOrder = [...debts].sort((a, b) => a.balance - b.balance);
+  const avalancheInterest = debts.reduce((sum, d) => {
+    const months = monthsToPayoff(d.balance, d.apr, d.suggestedPayment);
+    return sum + (d.suggestedPayment * months - d.balance);
+  }, 0);
+  const snowballInterest = snowballOrder.reduce((sum, d) => {
+    const months = monthsToPayoff(d.balance, d.apr, d.suggestedPayment);
+    return sum + (d.suggestedPayment * months - d.balance);
+  }, 0);
+  const interestSavedVsSnowball = Math.round(Math.max(0, snowballInterest - avalancheInterest));
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">

@@ -102,6 +102,24 @@ export const api = {
       }>;
     }>(`/accounts/${accountId}/history`),
 
+  getDebts: () =>
+    request<{
+      debts: Array<{
+        id: string;
+        name: string;
+        type: string;
+        subtype: string | null;
+        balance: number;
+        interestRate: number | null;
+        termMonths: number | null;
+        originationDate: string | null;
+        minimumPayment: number;
+        lastUpdated: string | null;
+      }>;
+      totalDebt: number;
+      monthlyInterest: number;
+    }>("/accounts/debts"),
+
   getNetWorthHistory: () =>
     request<{
       history: Array<{ date: string; value: number }>;
