@@ -24,7 +24,7 @@ export function Shell({ children }: ShellProps) {
   const { user } = useAuth();
   const { chatOpen, closeChat } = usePageContext();
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'owner';
 
   const handleNewPlan = () => {
     setLocation('/plans/new');
