@@ -19,6 +19,7 @@ const tagColors: Record<string, string> = {
   INVEST: 'text-success',
   TAX: 'text-warning',
   SAVINGS: 'text-warning',
+  SETUP: 'text-accent',
 };
 
 const impactBgColors: Record<string, string> = {
