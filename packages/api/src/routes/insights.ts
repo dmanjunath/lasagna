@@ -1,0 +1,106 @@
+import { Hono } from "hono";
+import { eq, and, desc, insights, sql } from "@lasagna/core";
+import { db } from "../lib/db.js";
+import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+
+export const insightsRoutes = new Hono<AuthEnv>();
+
+insightsRoutes.use("*", requireAuth);
+
+// List active insights (not dismissed, not expired)
+insightsRoutes.get("/", async (c) => {
+  const session = c.get("session");
+
+  const rows = await db
+    .select()
+    .from(insights)
+    .where(
+      and(
+        eq(insights.tenantId, session.tenantId),
+        sql`${insights.dismissed} IS NULL`,
+        sql`(${insights.expiresAt} IS NULL OR ${insights.expiresAt} > NOW())`
+      )
+    )
+    .orderBy(
+      // Critical first, then high, medium, low
+      sql`CASE ${insights.urgency}
+        WHEN 'critical' THEN 0
+        WHEN 'high' THEN 1
+        WHEN 'medium' THEN 2
+        WHEN 'low' THEN 3
+      END`,
+      desc(insights.createdAt)
+    )
+    .limit(20);
+
+  return c.json({
+    insights: rows.map((r) => ({
+      id: r.id,
+      category: r.category,
+      urgency: r.urgency,
+      title: r.title,
+      description: r.description,
+      impact: r.impact,
+      impactColor: r.impactColor,
+      chatPrompt: r.chatPrompt,
+      generatedBy: r.generatedBy,
+      createdAt: r.createdAt,
+    })),
+  });
+});
+
+// Dismiss an insight
+insightsRoutes.post("/:id/dismiss", async (c) => {
+  const session = c.get("session");
+  const { id } = c.req.param();
+
+  await db
+    .update(insights)
+    .set({ dismissed: new Date() })
+    .where(and(eq(insights.id, id), eq(insights.tenantId, session.tenantId)));
+
+  return c.json({ ok: true });
+});
+
+// Mark an insight as acted on
+insightsRoutes.post("/:id/acted", async (c) => {
+  const session = c.get("session");
+  const { id } = c.req.param();
+
+  await db
+    .update(insights)
+    .set({ actedOn: new Date() })
+    .where(and(eq(insights.id, id), eq(insights.tenantId, session.tenantId)));
+
+  return c.json({ ok: true });
+});
+
+// Get dismissed/historical insights
+insightsRoutes.get("/history", async (c) => {
+  const session = c.get("session");
+
+  const rows = await db
+    .select()
+    .from(insights)
+    .where(
+      and(
+        eq(insights.tenantId, session.tenantId),
+        sql`${insights.dismissed} IS NOT NULL`
+      )
+    )
+    .orderBy(desc(insights.createdAt))
+    .limit(50);
+
+  return c.json({
+    insights: rows.map((r) => ({
+      id: r.id,
+      category: r.category,
+      title: r.title,
+      description: r.description,
+      impact: r.impact,
+      dismissedAt: r.dismissed,
+      actedOnAt: r.actedOn,
+      createdAt: r.createdAt,
+    })),
+  });
+});

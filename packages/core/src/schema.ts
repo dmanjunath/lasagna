@@ -347,6 +347,49 @@ export const simulationResults = pgTable("simulation_results", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
+// ── Insights ──────────────────────────────────────────────────────────────
+
+export const insightCategoryEnum = pgEnum("insight_category", [
+  "portfolio",
+  "debt",
+  "tax",
+  "savings",
+  "general",
+]);
+
+export const insightUrgencyEnum = pgEnum("insight_urgency", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
+export const insights = pgTable("insights", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  category: insightCategoryEnum("category").notNull(),
+  urgency: insightUrgencyEnum("urgency").notNull().default("medium"),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  impact: text("impact"), // e.g. "Saves $340/yr" or "+$2,080 free money"
+  impactColor: varchar("impact_color", { length: 10 }), // green, amber, red
+  chatPrompt: text("chat_prompt"), // message to send to AI for deeper discussion
+  dismissed: timestamp("dismissed_at", { withTimezone: true }),
+  actedOn: timestamp("acted_on_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  generatedBy: varchar("generated_by", { length: 50 }).notNull().default("system"), // system, ai, manual
+  sourceData: text("source_data"), // JSON snapshot of data that triggered this insight
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
 // ── Tax Documents ─────────────────────────────────────────────────────────
 export const taxDocuments = pgTable("tax_documents", {
   id: uuid("id").primaryKey().defaultRandom(),
