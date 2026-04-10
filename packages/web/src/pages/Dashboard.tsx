@@ -59,21 +59,25 @@ export function Dashboard() {
   const { setPageContext, openChat } = usePageContext();
   const [loading, setLoading] = useState(true);
   const [netWorth, setNetWorth] = useState<number | null>(null);
+  const [netWorthChange, setNetWorthChange] = useState<number | null>(null);
   const [totalDebt, setTotalDebt] = useState<number>(0);
   const [emergencyFund, setEmergencyFund] = useState<number>(0);
   const [monthlySpend, setMonthlySpend] = useState<number | null>(null);
   const [runwayMonths, setRunwayMonths] = useState<number | null>(null);
   const [accountCount, setAccountCount] = useState(0);
   const [institutionCount, setInstitutionCount] = useState(0);
+  const [debtFreeDate, setDebtFreeDate] = useState<string | null>(null);
+  const [employerMatch, setEmployerMatch] = useState<number | null>(null);
   const [actionItems, setActionItems] = useState<ActionItemData[]>([]);
 
   useEffect(() => {
     Promise.all([
       api.getBalances().catch(() => ({ balances: [] as BalanceEntry[] })),
       api.getItems().catch(() => ({ items: [] as Array<{ id: string }> })),
-      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; balance: number; interestRate: number | null }>, totalDebt: 0, monthlyInterest: 0 })),
+      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; balance: number; interestRate: number | null; minimumPayment: number }>, totalDebt: 0, monthlyInterest: 0 })),
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
-    ]).then(([balanceData, itemData, debtData, profileData]) => {
+      api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
+    ]).then(([balanceData, itemData, debtData, profileData, historyData]) => {
       const balances = balanceData.balances;
 
       let totalAssets = 0;
@@ -110,9 +114,64 @@ export function Dashboard() {
 
       setInstitutionCount(itemData.items.length);
 
+      // Net worth monthly change from history
+      const nwHistory = historyData.history;
+      if (nwHistory.length >= 2) {
+        const latest = nwHistory[nwHistory.length - 1].value;
+        const previous = nwHistory[nwHistory.length - 2].value;
+        setNetWorthChange(latest - previous);
+      }
+
+      // Employer match from financial profile
+      const profile = profileData.financialProfile;
+      if (profile?.employerMatchPercent !== undefined) {
+        setEmployerMatch(profile.employerMatchPercent);
+      }
+
+      // Debt-free date calculation
+      const debtsForCalc = debtData.debts;
+      const totalDebtAmount = debtData.totalDebt;
+      if (totalDebtAmount > 0 && debtsForCalc.length > 0) {
+        const totalMinPayment = debtsForCalc.reduce((sum, d) => sum + (d.minimumPayment || 0), 0);
+        // Weighted average APR
+        let weightedAprSum = 0;
+        let balanceWithRate = 0;
+        for (const d of debtsForCalc) {
+          if (d.interestRate !== null && d.interestRate > 0) {
+            weightedAprSum += d.interestRate * d.balance;
+            balanceWithRate += d.balance;
+          }
+        }
+        const avgApr = balanceWithRate > 0 ? weightedAprSum / balanceWithRate : 0;
+        const monthlyRate = avgApr / 100 / 12;
+
+        if (totalMinPayment > 0) {
+          let months: number;
+          if (monthlyRate > 0 && totalMinPayment > totalDebtAmount * monthlyRate) {
+            // Standard amortization formula: n = -log(1 - B*r/P) / log(1+r)
+            months = Math.ceil(
+              -Math.log(1 - (totalDebtAmount * monthlyRate) / totalMinPayment) /
+              Math.log(1 + monthlyRate)
+            );
+          } else if (monthlyRate === 0) {
+            // No interest — simple division
+            months = Math.ceil(totalDebtAmount / totalMinPayment);
+          } else {
+            // Payment too low to cover interest — show nothing
+            months = -1;
+          }
+
+          if (months > 0) {
+            const target = new Date();
+            target.setMonth(target.getMonth() + months);
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            setDebtFreeDate(`${monthNames[target.getMonth()]} ${target.getFullYear()}`);
+          }
+        }
+      }
+
       // Compute financial state for action items
       const debts = debtData.debts;
-      const profile = profileData.financialProfile;
 
       let highestApr: number | null = null;
       let highestAprCreditor: string | null = null;
@@ -150,16 +209,19 @@ export function Dashboard() {
         description: 'Overview of financial health including net worth, accounts, and plans.',
         data: {
           netWorth,
+          netWorthChange,
           accountCount,
           institutionCount,
           monthlySpend,
           runwayMonths,
           totalDebt,
           emergencyFund,
+          debtFreeDate,
+          employerMatch,
         },
       });
     }
-  }, [loading, netWorth, accountCount, institutionCount, monthlySpend, runwayMonths, totalDebt, emergencyFund, setPageContext]);
+  }, [loading, netWorth, netWorthChange, accountCount, institutionCount, monthlySpend, runwayMonths, totalDebt, emergencyFund, debtFreeDate, employerMatch, setPageContext]);
 
   const firstName = tenant?.name?.split(' ')[0] || 'there';
 
@@ -189,7 +251,13 @@ export function Dashboard() {
             <MetricTile
               label="NET WORTH"
               value={netWorth !== null ? formatCurrency(netWorth) : '\u2014'}
-              subtitle={netWorth !== null ? `Across ${accountCount} account${accountCount !== 1 ? 's' : ''}` : 'Link accounts to track'}
+              subtitle={
+                netWorthChange !== null
+                  ? `${netWorthChange >= 0 ? '+' : ''}${formatCurrency(netWorthChange)} this month`
+                  : netWorth !== null
+                    ? `Across ${accountCount} account${accountCount !== 1 ? 's' : ''}`
+                    : 'Link accounts to track'
+              }
               status={netWorth !== null && netWorth > 0 ? 'success' : 'default'}
               delay={0}
             />
@@ -197,7 +265,7 @@ export function Dashboard() {
               <MetricTile
                 label="TOTAL DEBT"
                 value={formatCurrency(totalDebt)}
-                subtitle="Active liabilities"
+                subtitle={debtFreeDate ? `Debt-free by ${debtFreeDate}` : 'Active liabilities'}
                 status="danger"
                 delay={0.04}
               />
@@ -248,6 +316,13 @@ export function Dashboard() {
               }
               status={institutionCount > 0 ? 'success' : 'warning'}
               delay={0.2}
+            />
+            <MetricTile
+              label="401(K) MATCH"
+              value={employerMatch !== null ? `${employerMatch}%` : '\u2014'}
+              subtitle={employerMatch !== null ? `${employerMatch}% available` : 'Not set'}
+              status={employerMatch !== null && employerMatch > 0 ? 'success' : 'default'}
+              delay={0.24}
             />
           </div>
 
