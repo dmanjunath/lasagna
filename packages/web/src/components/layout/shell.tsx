@@ -67,50 +67,33 @@ export function Shell({ children }: ShellProps) {
         </main>
 
         {/* Desktop chat sidebar — admin only, closable */}
-        {!isMobile && isAdmin && (
-          <AnimatePresence>
-            {desktopChatOpen ? (
-              <motion.aside
-                key="chat-panel"
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 340, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                className="flex-shrink-0 border-l border-border flex flex-col overflow-hidden"
+        {!isMobile && isAdmin && desktopChatOpen && (
+          <aside className="w-[340px] flex-shrink-0 border-l border-border flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
+              <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Chat</span>
+              <button
+                onClick={() => setDesktopChatOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted hover:text-text"
               >
-                {/* Close button */}
-                <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
-                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Chat</span>
-                  <button
-                    onClick={() => setDesktopChatOpen(false)}
-                    className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted hover:text-text"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <GlobalChatSidebar />
-                </div>
-              </motion.aside>
-            ) : (
-              /* Collapsed: small toggle button at edge */
-              <motion.div
-                key="chat-toggle"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-shrink-0 border-l border-border flex flex-col items-center pt-3 px-1.5"
-              >
-                <button
-                  onClick={() => setDesktopChatOpen(true)}
-                  className="p-2.5 rounded-lg bg-surface hover:bg-surface-hover border border-border transition-colors text-text-muted hover:text-accent"
-                  title="Open chat"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+              <GlobalChatSidebar />
+            </div>
+          </aside>
+        )}
+        {/* Collapsed chat toggle — admin only */}
+        {!isMobile && isAdmin && !desktopChatOpen && (
+          <div className="flex-shrink-0 border-l border-border flex flex-col items-center pt-3 px-1.5">
+            <button
+              onClick={() => setDesktopChatOpen(true)}
+              className="p-2.5 rounded-lg bg-surface hover:bg-surface-hover border border-border transition-colors text-text-muted hover:text-accent"
+              title="Open chat"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
+          </div>
         )}
       </div>
 
