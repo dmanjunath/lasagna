@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Circle, ChevronRight } from 'lucide-react';
+import { Check, ChevronRight, ChevronDown } from 'lucide-react';
 import { useLocation } from 'wouter';
 
 export interface SetupStep {
@@ -18,13 +18,19 @@ interface SetupProgressProps {
 export function SetupProgress({ steps }: SetupProgressProps) {
   const [, navigate] = useLocation();
   const [dismissed, setDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const completedCount = steps.filter((s) => s.completed).length;
   const totalCount = steps.length;
   const allDone = completedCount === totalCount;
   const progress = totalCount > 0 ? completedCount / totalCount : 0;
 
-  // Auto-hide after 2 seconds when all complete
+  // Show up to 3 incomplete steps when collapsed, all when expanded
+  const incompleteSteps = steps.filter((s) => !s.completed);
+  const completedSteps = steps.filter((s) => s.completed);
+  const visibleIncomplete = expanded ? incompleteSteps : incompleteSteps.slice(0, 3);
+  const hiddenCount = incompleteSteps.length - visibleIncomplete.length;
+
   useEffect(() => {
     if (allDone) {
       const timer = setTimeout(() => setDismissed(true), 2000);
@@ -48,74 +54,63 @@ export function SetupProgress({ steps }: SetupProgressProps) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden' }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="glass-card p-5 mb-6"
+          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          className="glass-card px-4 py-3 mb-5"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">
-              {allDone ? 'Setup Complete \u2713' : 'Get Started'}
-            </h3>
-            <span className="text-xs text-text-muted font-medium tabular-nums">
-              {completedCount} of {totalCount}
+          {/* Header + progress bar inline */}
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">
+              {allDone ? 'Complete ✓' : 'Get Started'}
+            </span>
+            <div className="flex-1 h-1 rounded-full bg-surface">
+              <motion.div
+                className="h-full rounded-full bg-accent"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress * 100}%` }}
+                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              />
+            </div>
+            <span className="text-xs text-text-muted tabular-nums whitespace-nowrap">
+              {completedCount}/{totalCount}
             </span>
           </div>
 
-          {/* Progress bar */}
-          <div className="w-full h-1.5 rounded-full bg-surface mb-5">
-            <motion.div
-              className="h-full rounded-full bg-accent"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress * 100}%` }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              style={{
-                boxShadow: '0 0 8px rgba(52, 199, 89, 0.4)',
-              }}
-            />
-          </div>
-
-          {/* Steps list */}
-          <div className="space-y-0.5">
-            {steps.map((step) => (
+          {/* Compact step rows — incomplete first */}
+          <div className="space-y-px">
+            {visibleIncomplete.map((step) => (
               <button
                 key={step.id}
                 type="button"
                 onClick={() => handleStepClick(step)}
-                disabled={step.completed}
-                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
-                  step.completed
-                    ? 'cursor-default'
-                    : 'hover:bg-surface-hover cursor-pointer'
-                }`}
+                className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-surface-hover transition-colors"
               >
-                {step.completed ? (
-                  <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
-                ) : (
-                  <Circle className="w-5 h-5 text-text-muted shrink-0" />
-                )}
-
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm font-medium leading-tight ${
-                      step.completed ? 'opacity-60' : 'text-text'
-                    }`}
-                  >
-                    {step.label}
-                  </p>
-                  <p
-                    className={`text-xs mt-0.5 leading-tight ${
-                      step.completed ? 'text-text-muted opacity-60' : 'text-text-muted'
-                    }`}
-                  >
-                    {step.description}
-                  </p>
-                </div>
-
-                {!step.completed && (
-                  <ChevronRight className="w-4 h-4 text-text-muted shrink-0" />
-                )}
+                <div className="w-4 h-4 rounded-full border-[1.5px] border-text-muted/40 shrink-0" />
+                <span className="flex-1 text-[13px] font-medium text-text truncate">{step.label}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-text-muted shrink-0" />
               </button>
             ))}
+
+            {/* Show more / less toggle */}
+            {incompleteSteps.length > 3 && (
+              <button
+                type="button"
+                onClick={() => setExpanded(!expanded)}
+                className="w-full flex items-center gap-2.5 rounded-md px-2 py-1 text-left text-xs text-text-muted hover:text-text-secondary transition-colors"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                <span>{expanded ? 'Show less' : `${hiddenCount} more`}</span>
+              </button>
+            )}
+
+            {/* Completed steps — collapsed summary */}
+            {completedCount > 0 && (
+              <div className="flex items-center gap-2 px-2 py-1">
+                <Check className="w-3.5 h-3.5 text-success shrink-0" />
+                <span className="text-xs text-text-muted">
+                  {completedCount} completed
+                </span>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
