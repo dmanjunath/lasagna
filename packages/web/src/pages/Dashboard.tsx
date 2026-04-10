@@ -7,6 +7,7 @@ import { usePageContext } from '../lib/page-context';
 import { MetricTile } from '../components/common/metric-tile';
 import { ActionItem } from '../components/common/action-item';
 import { Section } from '../components/common/section';
+import { generateActionItems, type ActionItemData, type FinancialState } from '../lib/action-generator';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -34,63 +35,6 @@ interface BalanceEntry {
   currency: string;
   asOf: string | null;
 }
-
-const ACTION_ITEMS = [
-  {
-    title: 'Set 401(k) contribution to 4%',
-    tag: 'INVEST',
-    description:
-      'Log into Fidelity and set your contribution rate to 4%. Your employer matches dollar-for-dollar — this is an instant 100% return.',
-    impact: '+$2,080/yr free money',
-    impactColor: 'green' as const,
-    chatPrompt: 'How do I set up my 401(k) match?',
-  },
-  {
-    title: 'Open & fund Roth IRA',
-    tag: 'INVEST',
-    description:
-      'Open a Roth IRA at Vanguard or Fidelity. Invest in a 3-fund index portfolio (VTI/VXUS/BND). Contributions grow tax-free forever.',
-    impact: 'Tax-free growth forever',
-    impactColor: 'green' as const,
-    chatPrompt: 'How do I open and fund a Roth IRA?',
-  },
-  {
-    title: 'Check HSA eligibility',
-    tag: 'TAX',
-    description:
-      'If you have a high-deductible health plan, you can contribute pre-tax dollars to an HSA — triple tax advantage for medical expenses.',
-    impact: 'Triple tax advantage',
-    impactColor: 'amber' as const,
-    chatPrompt: 'Am I eligible for an HSA and how does it save on taxes?',
-  },
-  {
-    title: 'Set up automatic monthly investment',
-    tag: 'INVEST',
-    description:
-      'Auto-transfer a fixed amount each month to your investment account. Removes emotion from investing and builds wealth consistently.',
-    impact: 'Dollar-cost averaging',
-    impactColor: 'green' as const,
-    chatPrompt: 'How do I set up automatic monthly investments?',
-  },
-  {
-    title: 'Increase 401(k) pre-tax contributions',
-    tag: 'TAX',
-    description:
-      'After maxing your Roth, bump 401(k) each raise. Target the $23,500/yr max for significant tax savings.',
-    impact: 'Long-term wealth builder',
-    impactColor: 'amber' as const,
-    chatPrompt: 'How much should I contribute to my 401(k)?',
-  },
-  {
-    title: 'Set up credit monitoring',
-    tag: 'DEBT',
-    description:
-      'Free via Credit Karma or your bank. Catches fraud early and tracks your credit score over time.',
-    impact: 'Early fraud detection',
-    impactColor: 'green' as const,
-    chatPrompt: 'How do I set up credit monitoring?',
-  },
-];
 
 const ASK_PROMPTS = [
   {
@@ -121,17 +65,21 @@ export function Dashboard() {
   const [runwayMonths, setRunwayMonths] = useState<number | null>(null);
   const [accountCount, setAccountCount] = useState(0);
   const [institutionCount, setInstitutionCount] = useState(0);
+  const [actionItems, setActionItems] = useState<ActionItemData[]>([]);
 
   useEffect(() => {
     Promise.all([
       api.getBalances().catch(() => ({ balances: [] as BalanceEntry[] })),
-      api.getItems().catch(() => ({ items: [] })),
-    ]).then(([balanceData, itemData]) => {
+      api.getItems().catch(() => ({ items: [] as Array<{ id: string }> })),
+      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; balance: number; interestRate: number | null }>, totalDebt: 0, monthlyInterest: 0 })),
+      api.getFinancialProfile().catch(() => ({ financialProfile: null })),
+    ]).then(([balanceData, itemData, debtData, profileData]) => {
       const balances = balanceData.balances;
 
       let totalAssets = 0;
       let totalLiabilities = 0;
       let depositoryTotal = 0;
+      let investmentTotal = 0;
       let creditTotal = 0;
 
       for (const b of balances) {
@@ -142,6 +90,7 @@ export function Dashboard() {
         } else {
           totalAssets += val;
           if (b.type === 'depository') depositoryTotal += val;
+          if (b.type === 'investment') investmentTotal += val;
         }
       }
 
@@ -160,6 +109,35 @@ export function Dashboard() {
       }
 
       setInstitutionCount(itemData.items.length);
+
+      // Compute financial state for action items
+      const debts = debtData.debts;
+      const profile = profileData.financialProfile;
+
+      let highestApr: number | null = null;
+      let highestAprCreditor: string | null = null;
+      for (const d of debts) {
+        if (d.interestRate !== null && (highestApr === null || d.interestRate > highestApr)) {
+          highestApr = d.interestRate;
+          highestAprCreditor = d.name;
+        }
+      }
+
+      const financialState: FinancialState = {
+        totalDebt: debtData.totalDebt || totalLiabilities,
+        totalDepository: depositoryTotal,
+        totalInvestment: investmentTotal,
+        monthlyExpenses: creditTotal,
+        hasLinkedAccounts: itemData.items.length > 0,
+        employerMatchPercent: profile?.employerMatchPercent ?? null,
+        annualIncome: profile?.annualIncome ?? null,
+        riskTolerance: profile?.riskTolerance ?? null,
+        debtCount: debts.length,
+        highestApr,
+        highestAprCreditor,
+      };
+
+      setActionItems(generateActionItems(financialState));
     }).finally(() => setLoading(false));
   }, []);
 
@@ -276,7 +254,7 @@ export function Dashboard() {
           {/* Action Items */}
           <Section title="Action Items">
             <div className="bg-bg-elevated border border-border rounded-xl px-4">
-              {ACTION_ITEMS.map((item, i) => (
+              {actionItems.map((item, i) => (
                 <ActionItem
                   key={item.title}
                   title={item.title}
