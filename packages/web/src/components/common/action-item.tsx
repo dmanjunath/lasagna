@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { usePageContext } from '../../lib/page-context';
 
@@ -12,6 +12,7 @@ interface ActionItemProps {
   impactColor: 'green' | 'amber' | 'red';
   chatPrompt: string;
   defaultOpen?: boolean;
+  onDismiss?: () => void;
 }
 
 const tagColors: Record<string, string> = {
@@ -36,6 +37,7 @@ export function ActionItem({
   impactColor,
   chatPrompt,
   defaultOpen = false,
+  onDismiss,
 }: ActionItemProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [done, setDone] = useState(false);
@@ -90,6 +92,18 @@ export function ActionItem({
         >
           {tag}
         </span>
+
+        {/* Dismiss (if insight) */}
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+            className="p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text-secondary transition-colors flex-shrink-0"
+            title="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
 
         {/* Chevron */}
         <ChevronDown

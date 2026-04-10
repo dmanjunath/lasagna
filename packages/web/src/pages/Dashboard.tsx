@@ -80,7 +80,8 @@ export function Dashboard() {
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
       api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
       api.getPlans().catch(() => ({ plans: [] as Array<{ id: string }> })),
-    ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData]) => {
+      api.getInsights().catch(() => ({ insights: [] as Array<{ id: string; category: string; urgency: string; title: string; description: string; impact: string | null; impactColor: string | null; chatPrompt: string | null; generatedBy: string; createdAt: string }> })),
+    ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, insightsData]) => {
       const balances = balanceData.balances;
 
       let totalAssets = 0;
@@ -199,7 +200,28 @@ export function Dashboard() {
         highestAprCreditor,
       };
 
-      setActionItems(generateActionItems(financialState));
+      // AI-generated insights take priority, fallback to rule-based actions
+      const apiInsights = insightsData.insights;
+      if (apiInsights.length > 0) {
+        const categoryToTag: Record<string, string> = {
+          portfolio: 'INVEST',
+          debt: 'DEBT',
+          tax: 'TAX',
+          savings: 'SAVINGS',
+          general: 'SETUP',
+        };
+        setActionItems(apiInsights.map((ins) => ({
+          title: ins.title,
+          tag: categoryToTag[ins.category] || ins.category.toUpperCase(),
+          description: ins.description,
+          impact: ins.impact || '',
+          impactColor: (ins.impactColor as 'green' | 'amber' | 'red') || 'green',
+          chatPrompt: ins.chatPrompt || ins.title,
+          insightId: ins.id,
+        })));
+      } else {
+        setActionItems(generateActionItems(financialState));
+      }
 
       // Compute setup completion steps
       const hasLinked = itemData.items.length > 0;
@@ -397,23 +419,29 @@ export function Dashboard() {
             />
           </div>
 
-          {/* Action Items */}
-          <Section title="Action Items">
-            <div className="bg-bg-elevated border border-border rounded-xl px-4">
-              {actionItems.map((item, i) => (
-                <ActionItem
-                  key={item.title}
-                  title={item.title}
-                  tag={item.tag}
-                  description={item.description}
-                  impact={item.impact}
-                  impactColor={item.impactColor}
-                  chatPrompt={item.chatPrompt}
-                  defaultOpen={i === 0}
-                />
-              ))}
-            </div>
-          </Section>
+          {/* Insights / Action Items */}
+          {actionItems.length > 0 && (
+            <Section title="Insights">
+              <div className="bg-bg-elevated border border-border rounded-xl px-4">
+                {actionItems.map((item, i) => (
+                  <ActionItem
+                    key={item.insightId || item.title}
+                    title={item.title}
+                    tag={item.tag}
+                    description={item.description}
+                    impact={item.impact}
+                    impactColor={item.impactColor}
+                    chatPrompt={item.chatPrompt}
+                    defaultOpen={i === 0}
+                    onDismiss={item.insightId ? async () => {
+                      await api.dismissInsight(item.insightId!);
+                      setActionItems(prev => prev.filter(a => a.insightId !== item.insightId));
+                    } : undefined}
+                  />
+                ))}
+              </div>
+            </Section>
+          )}
 
           {/* Ask Lasagna — mobile only */}
           <Section title="Ask Lasagna" className="md:hidden">

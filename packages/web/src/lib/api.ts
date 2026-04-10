@@ -268,6 +268,29 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Insights
+  getInsights: () =>
+    request<{
+      insights: Array<{
+        id: string;
+        category: string;
+        urgency: string;
+        title: string;
+        description: string;
+        impact: string | null;
+        impactColor: string | null;
+        chatPrompt: string | null;
+        generatedBy: string;
+        createdAt: string;
+      }>;
+    }>("/insights"),
+
+  dismissInsight: (id: string) =>
+    request<{ ok: boolean }>(`/insights/${id}/dismiss`, { method: "POST" }),
+
+  actOnInsight: (id: string) =>
+    request<{ ok: boolean }>(`/insights/${id}/acted`, { method: "POST" }),
+
   // Portfolio
   getPortfolioComposition: () =>
     request<{

@@ -19,6 +19,7 @@ export interface ActionItemData {
   impact: string;
   impactColor: 'green' | 'amber' | 'red';
   chatPrompt: string;
+  insightId?: string; // if backed by a DB insight, enables dismiss
 }
 
 function formatCurrency(value: number): string {
