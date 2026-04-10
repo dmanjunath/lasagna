@@ -307,9 +307,15 @@ export function Dashboard() {
       ) : (
         <>
           {/* Setup Progress */}
-          {setupSteps.length > 0 && (
-            <SetupProgress steps={setupSteps} />
-          )}
+          <SetupProgress steps={setupSteps.length > 0 ? setupSteps : [
+            { id: 'link-account', label: 'Link a bank account', description: 'Connect your bank to see balances', completed: false, action: '/accounts' },
+            { id: 'complete-profile', label: 'Complete your profile', description: 'Add your age and income', completed: false, action: '/profile' },
+            { id: 'set-income', label: 'Set income & employment', description: 'Help us understand your earnings', completed: false, action: '/profile' },
+            { id: 'set-filing-status', label: 'Set filing status', description: 'For tax optimization', completed: false, action: '/profile' },
+            { id: 'set-risk-tolerance', label: 'Set risk tolerance', description: 'Tailor investment advice', completed: false, action: '/profile' },
+            { id: 'set-employer-match', label: 'Set employer match', description: 'Maximize 401(k) contributions', completed: false, action: '/profile' },
+            { id: 'review-plan', label: 'Create a financial plan', description: 'Get a personalized plan', completed: false, action: '/plans' },
+          ]} />
 
           {/* Metric Tiles */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
