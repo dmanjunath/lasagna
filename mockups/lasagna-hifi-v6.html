@@ -7,35 +7,35 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg-deep: #0a1a10;
-  --bg-primary: #0f1f16;
-  --bg-card: #162b1d;
-  --bg-card-hover: #1a3323;
-  --bg-surface: #1e3a27;
-  --bg-elevated: #245232;
-  --green-accent: #38a866;
-  --green-light: #4cc97e;
-  --green-muted: #2d7a4a;
-  --green-subtle: rgba(56,168,102,0.12);
-  --amber: #d4a24e;
-  --amber-light: #e8b960;
-  --amber-bg: rgba(212,162,78,0.12);
-  --red: #d45050;
-  --red-bg: rgba(212,80,80,0.1);
-  --text-primary: #f0f5f1;
-  --text-secondary: rgba(240,245,241,0.65);
-  --text-muted: rgba(240,245,241,0.4);
-  --text-inverse: #0f2e1c;
-  --border: rgba(255,255,255,0.08);
+  --bg-deep: #0c0c0e;
+  --bg-primary: #111113;
+  --bg-card: #19191d;
+  --bg-card-hover: #1f1f24;
+  --bg-surface: #232328;
+  --bg-elevated: #2a2a30;
+  --green-accent: #34c759;
+  --green-light: #4cd964;
+  --green-muted: #2a9d48;
+  --green-subtle: rgba(52,199,89,0.1);
+  --amber: #f0a030;
+  --amber-light: #f5b84d;
+  --amber-bg: rgba(240,160,48,0.1);
+  --red: #e04848;
+  --red-bg: rgba(224,72,72,0.1);
+  --text-primary: #e8e8ec;
+  --text-secondary: rgba(232,232,236,0.6);
+  --text-muted: rgba(232,232,236,0.36);
+  --text-inverse: #111113;
+  --border: rgba(255,255,255,0.07);
   --border-light: rgba(255,255,255,0.12);
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 24px;
-  --font-display: 'Playfair Display', Georgia, serif;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
   --font-body: 'Outfit', system-ui, -apple-system, sans-serif;
-  --shadow-card: 0 2px 12px rgba(0,0,0,0.2);
-  --shadow-elevated: 0 8px 32px rgba(0,0,0,0.3);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-elevated: 0 4px 16px rgba(0,0,0,0.4);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -46,15 +46,16 @@ input, textarea { font-family: inherit; }
 ::-webkit-scrollbar { display: none; }
 * { scrollbar-width: none; }
 
-.app-shell { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:radial-gradient(80% 60% at 50% 30%,#1a3d26,var(--bg-deep)); }
+.app-shell { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--bg-deep); }
 .app-frame { width:100%; max-width:430px; height:100%; background:var(--bg-primary); overflow:hidden; position:relative; display:flex; flex-direction:column; }
-@media (min-width:768px) { .app-frame { max-height:900px; border-radius:28px; box-shadow:0 24px 80px rgba(6,16,10,0.5),0 0 0 1px rgba(255,255,255,0.05); } }
+@media (min-width:768px) and (max-width:1023px) { .app-frame { max-height:900px; border-radius:20px; box-shadow:0 24px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04); } }
 
 /* ─── Top Bar ─── */
-.top-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; position:relative; z-index:10; flex-shrink:0; background:linear-gradient(180deg,var(--bg-primary) 60%,transparent); }
-.top-bar-left { display:flex; align-items:center; gap:8px; }
+.top-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; position:relative; z-index:10; flex-shrink:0; background:var(--bg-primary); border-bottom:1px solid var(--border); }
+.top-bar-left { display:flex; align-items:center; gap:6px; }
+.logo-mark { width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .top-bar-greeting { font-size:15px; font-weight:500; }
-.avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--green-accent),var(--green-muted)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:white; flex-shrink:0; }
+.avatar { width:32px; height:32px; border-radius:50%; background:var(--bg-elevated); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:var(--text-secondary); flex-shrink:0; border:1px solid var(--border-light); }
 
 /* ─── Persona Toggles ─── */
 .persona-toggles { display:flex; gap:6px; align-items:center; }
@@ -78,17 +79,17 @@ input, textarea { font-family: inherit; }
 .card-dot.amber { background:var(--amber); }
 .card-dot.red { background:var(--red); }
 .card-title { font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--text-primary); line-height:1.25; margin-bottom:6px; }
-.card-subtitle { font-size:13px; color:var(--text-secondary); line-height:1.5; }
-.card-action { display:inline-flex; align-items:center; gap:6px; margin-top:14px; padding:8px 16px; border-radius:var(--radius-sm); background:var(--green-subtle); color:var(--green-light); font-size:13px; font-weight:600; transition:background 0.2s; }
-.card-action:hover { background:rgba(56,168,102,0.2); }
+.card-subtitle { font-size:14px; color:var(--text-secondary); line-height:1.5; }
+.card-action { display:inline-flex; align-items:center; gap:6px; margin-top:14px; padding:8px 16px; border-radius:var(--radius-sm); background:var(--green-subtle); color:var(--green-light); font-size:14px; font-weight:600; transition:background 0.2s; }
+.card-action:hover { background:rgba(52,199,89,0.2); }
 .card-action.amber { background:var(--amber-bg); color:var(--amber); }
 .card-action.amber:hover { background:rgba(212,162,78,0.2); }
 
-.card-featured { background:linear-gradient(135deg,#0e3520,#1a5c38); border:1px solid rgba(56,168,102,0.2); padding:24px; position:relative; overflow:hidden; }
-.card-featured::before { content:''; position:absolute; top:-40px; right:-30px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle,rgba(56,168,102,0.2),transparent 70%); }
-.card-featured .card-title { font-size:26px; }
+.card-featured { background:var(--bg-card); border:1px solid var(--border-light); padding:24px; position:relative; overflow:hidden; }
+.card-featured::before { display:none; }
+.card-featured .card-title { font-size:24px; }
 .tag-row { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
-.tag { display:inline-flex; align-items:center; gap:4px; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600; background:rgba(56,168,102,0.15); color:var(--green-light); }
+.tag { display:inline-flex; align-items:center; gap:4px; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600; background:rgba(52,199,89,0.15); color:var(--green-light); }
 .tag.amber { background:var(--amber-bg); color:var(--amber); }
 .tag.red { background:var(--red-bg); color:var(--red); }
 
@@ -97,7 +98,7 @@ input, textarea { font-family: inherit; }
 
 .stat-row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border); }
 .stat-row:last-child { border-bottom:none; }
-.stat-label { font-size:13px; color:var(--text-secondary); }
+.stat-label { font-size:14px; color:var(--text-secondary); }
 .stat-value { font-size:14px; font-weight:600; }
 .stat-value.amber { color:var(--amber); }
 .stat-value.green { color:var(--green-light); }
@@ -110,7 +111,7 @@ input, textarea { font-family: inherit; }
 .ops-num.pending { background:transparent; border:2px solid var(--border-light); color:var(--text-muted); }
 .ops-text { flex:1; }
 .ops-text-title { font-size:14px; font-weight:600; margin-bottom:2px; }
-.ops-text-sub { font-size:12px; color:var(--text-muted); }
+.ops-text-sub { font-size:13px; color:var(--text-muted); }
 .ops-badge { padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; flex-shrink:0; margin-top:2px; }
 .ops-badge.now { background:var(--amber-bg); color:var(--amber); }
 .ops-badge.next { background:var(--green-subtle); color:var(--green-light); }
@@ -123,16 +124,16 @@ input, textarea { font-family: inherit; }
 .progress-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--green-accent),var(--green-light)); transition:width 0.8s cubic-bezier(0.22,1,0.36,1); }
 
 .mini-chart { height:80px; display:flex; align-items:flex-end; gap:4px; padding-top:10px; }
-.mini-chart-bar { flex:1; border-radius:3px 3px 0 0; background:linear-gradient(180deg,var(--green-accent),rgba(56,168,102,0.3)); transition:height 0.5s cubic-bezier(0.22,1,0.36,1); min-height:4px; }
+.mini-chart-bar { flex:1; border-radius:3px 3px 0 0; background:linear-gradient(180deg,var(--green-accent),rgba(52,199,89,0.2)); transition:height 0.5s cubic-bezier(0.22,1,0.36,1); min-height:4px; }
 
 .debt-item { display:flex; align-items:center; gap:14px; padding:16px; background:var(--bg-card); border-radius:var(--radius-md); margin-bottom:10px; border:1px solid var(--border); }
 .debt-icon { width:40px; height:40px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
 .debt-info { flex:1; min-width:0; }
-.debt-name { font-size:14px; font-weight:600; }
-.debt-detail { font-size:12px; color:var(--text-muted); margin-top:2px; }
+.debt-name { font-size:15px; font-weight:600; }
+.debt-detail { font-size:13px; color:var(--text-muted); margin-top:2px; }
 .debt-amount { text-align:right; }
-.debt-balance { font-size:15px; font-weight:700; }
-.debt-rate { font-size:11px; color:var(--text-muted); margin-top:2px; }
+.debt-balance { font-size:16px; font-weight:700; }
+.debt-rate { font-size:13px; color:var(--text-muted); margin-top:2px; }
 
 /* ─── Action Item ─── */
 .action-item { display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
@@ -140,34 +141,125 @@ input, textarea { font-family: inherit; }
 .action-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border-light); flex-shrink:0; margin-top:1px; display:flex; align-items:center; justify-content:center; font-size:11px; color:transparent; transition:all 0.2s; cursor:pointer; }
 .action-check.done { background:var(--green-accent); border-color:var(--green-accent); color:white; }
 .action-text { flex:1; }
-.action-title { font-size:14px; font-weight:500; }
-.action-desc { font-size:12px; color:var(--text-muted); margin-top:2px; }
-.action-impact { display:inline-block; margin-top:4px; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:600; }
+.action-title { font-size:15px; font-weight:500; }
+.action-desc { font-size:13px; color:var(--text-muted); margin-top:2px; }
+.action-impact { display:inline-block; margin-top:4px; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:600; }
 .action-impact.green { background:var(--green-subtle); color:var(--green-light); }
 .action-impact.amber { background:var(--amber-bg); color:var(--amber); }
 .action-impact.red { background:var(--red-bg); color:var(--red); }
+.todo-done .action-title { text-decoration:line-through; color:var(--text-muted); }
+.todo-done .todo-tag { opacity:0.3; }
+
+/* ─── Accordion Todos ─── */
+.todo-item { border-bottom:1px solid var(--border); }
+.todo-item:last-child { border-bottom:none; }
+.todo-header { display:flex; align-items:center; gap:12px; padding:14px 0; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.todo-header .action-check { flex-shrink:0; }
+.todo-header .todo-title { flex:1; font-size:15px; font-weight:500; }
+.todo-header .todo-tag { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; flex-shrink:0; }
+.todo-header .todo-chevron { font-size:12px; color:var(--text-muted); transition:transform 0.2s; flex-shrink:0; margin-left:4px; }
+.todo-item.open .todo-chevron { transform:rotate(180deg); }
+.todo-body { max-height:0; overflow:hidden; transition:max-height 0.25s ease, padding 0.25s ease; padding:0 0 0 34px; }
+.todo-item.open .todo-body { max-height:200px; padding:0 0 14px 34px; }
+.todo-body-desc { font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:8px; }
+.todo-body-impact { display:inline-block; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:600; margin-bottom:8px; }
+.todo-body-impact.green { background:var(--green-subtle); color:var(--green-light); }
+.todo-body-impact.amber { background:var(--amber-bg); color:var(--amber); }
+.todo-body-impact.red { background:var(--red-bg); color:var(--red); }
+.todo-body-action { font-size:13px; font-weight:600; color:var(--green-light); cursor:pointer; }
+.todo-body-action:hover { text-decoration:underline; }
+.todo-item.todo-done .todo-title { text-decoration:line-through; color:var(--text-muted); }
+.todo-item.todo-done .todo-tag { opacity:0.3; }
+.todo-item.todo-done .todo-body { max-height:0 !important; padding:0 0 0 34px !important; }
+
+/* ─── Account Groups ─── */
+.acct-group { border-bottom:1px solid var(--border); }
+.acct-group:last-child { border-bottom:none; }
+.acct-group-header { display:flex; align-items:center; padding:14px 20px; cursor:pointer; transition:background 0.15s; }
+.acct-group-header:hover { background:rgba(255,255,255,0.02); }
+.acct-group-body { max-height:0; overflow:hidden; transition:max-height 0.3s ease; padding:0 20px; }
+.acct-group.open .acct-group-body { max-height:600px; padding:0 20px 8px; }
+.acct-group.open .acct-chevron { transform:rotate(180deg); }
+
+/* ─── Stat Cards ─── */
+.stat-cards { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:16px; }
+@media (max-width:767px) { .stat-cards { grid-template-columns:repeat(2,1fr); } }
+.stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; cursor:default; transition:background 0.15s; }
+.stat-card:hover { background:var(--bg-card-hover); }
+.stat-card-icon { font-size:16px; margin-bottom:8px; color:var(--text-muted); }
+.stat-card-label { font-size:12px; color:var(--text-secondary); font-weight:500; margin-bottom:4px; }
+.stat-card-value { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2; }
+.stat-card-desc { font-size:11px; color:var(--text-muted); margin-top:4px; }
+
+/* ─── Chart Controls ─── */
+.chart-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.chart-btn { padding:6px 12px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; background:var(--bg-card); border:1px solid var(--border); color:var(--text-muted); transition:all 0.15s; }
+.chart-btn:hover { background:var(--bg-card-hover); color:var(--text-secondary); }
+.chart-btn.active { background:var(--green-subtle); color:var(--green-light); border-color:rgba(52,199,89,0.2); }
+.chart-select { padding:6px 12px; border-radius:var(--radius-sm); font-size:12px; font-weight:500; background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); outline:none; }
+.chart-breadcrumbs { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--text-muted); margin-top:8px; }
+.chart-breadcrumbs span { cursor:pointer; color:var(--green-light); }
+.chart-breadcrumbs span:last-child { color:var(--text-primary); cursor:default; }
+
+/* ─── SVG Charts ─── */
+.chart-tooltip { position:absolute; background:var(--bg-elevated); border:1px solid var(--border-light); border-radius:10px; padding:6px 12px; font-size:12px; pointer-events:none; z-index:10; white-space:nowrap; transform:translateX(-50%); opacity:0; transition:opacity 0.15s; }
+.chart-tooltip.visible { opacity:1; }
+.treemap-rect { cursor:pointer; transition:opacity 0.15s; }
+.treemap-rect:hover { opacity:0.85; }
+.donut-segment { cursor:pointer; transition:opacity 0.15s; }
+.donut-segment:hover { opacity:0.8; }
+.nw-dot:hover { opacity:1 !important; }
+
+/* ─── Portfolio Breakdown ─── */
+.pf-row { display:flex; align-items:center; padding:12px 20px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.15s; }
+.pf-row:hover { background:rgba(255,255,255,0.02); }
+.pf-row:last-child { border-bottom:none; }
+.pf-row-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-right:10px; }
+.pf-row-name { flex:1; font-size:14px; font-weight:500; }
+.pf-row-val { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; margin-right:8px; }
+.pf-row-pct { font-size:12px; color:var(--text-muted); width:40px; text-align:right; }
+.pf-row-chevron { font-size:12px; color:var(--text-muted); margin-left:8px; transition:transform 0.2s; }
+.pf-sub { max-height:0; overflow:hidden; transition:max-height 0.3s ease; }
+.pf-row.open + .pf-sub { max-height:600px; }
+.pf-row.open .pf-row-chevron { transform:rotate(180deg); }
+.pf-sub-row { display:flex; align-items:center; padding:10px 20px 10px 40px; border-bottom:1px solid var(--border); }
+.pf-sub-row:last-child { border-bottom:none; }
+.pf-ticker { display:inline-flex; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; background:var(--bg-surface); color:var(--text-secondary); margin-right:8px; }
+
+.mobile-only { display:block; }
+.chat-suggestions-area { padding:8px 12px; flex-shrink:0; display:flex; flex-wrap:wrap; gap:6px; }
+.chat-suggestions-area:empty { display:none; }
+.chat-sug-chip { padding:7px 12px; border-radius:16px; font-size:12px; font-weight:500; background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); cursor:pointer; transition:all 0.15s; }
+.chat-sug-chip:hover { background:var(--bg-card-hover); color:var(--text-primary); border-color:var(--border-light); }
 
 /* ─── Chat Drawer ─── */
 .chat-backdrop { position:absolute; inset:0; z-index:35; background:rgba(0,0,0,0.5); opacity:0; pointer-events:none; transition:opacity 0.35s ease; }
 .chat-backdrop.visible { opacity:1; pointer-events:auto; }
-.chat-drawer { position:absolute; left:0; right:0; bottom:0; z-index:40; background:var(--bg-primary); border-radius:var(--radius-xl) var(--radius-xl) 0 0; display:flex; flex-direction:column; max-height:92%; transform:translateY(100%); transition:transform 0.35s cubic-bezier(0.32,0.72,0,1); box-shadow:0 -8px 40px rgba(0,0,0,0.4); will-change:transform; touch-action:none; }
+.chat-drawer { position:absolute; left:0; right:0; bottom:0; z-index:40; background:var(--bg-primary); border-radius:var(--radius-lg) var(--radius-lg) 0 0; display:flex; flex-direction:column; max-height:92%; transform:translateY(100%); transition:transform 0.35s cubic-bezier(0.32,0.72,0,1); box-shadow:0 -4px 24px rgba(0,0,0,0.5); will-change:transform; touch-action:none; }
 .chat-drawer.open { transform:translateY(0); }
 .chat-drawer-handle { display:flex; flex-direction:column; align-items:center; padding:10px 20px 0; cursor:grab; flex-shrink:0; -webkit-user-select:none; user-select:none; }
 .chat-drawer-handle:active { cursor:grabbing; }
 .chat-drawer-pill { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,0.2); margin-bottom:10px; }
-.chat-header { display:flex; align-items:center; justify-content:space-between; padding:4px 20px 12px; flex-shrink:0; }
-.chat-header-left { display:flex; align-items:center; gap:10px; }
-.chat-avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#245232,#38a866); display:flex; align-items:center; justify-content:center; font-size:16px; }
-.chat-name { font-weight:600; font-size:14px; }
-.chat-status { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-muted); }
-.chat-status-dot { width:5px; height:5px; border-radius:50%; background:var(--green-accent); }
+.chat-avatar { width:32px; height:32px; border-radius:50%; background:var(--bg-elevated); display:flex; align-items:center; justify-content:center; font-size:16px; border:1px solid var(--border-light); }
+/* Thread list */
+.chat-thread-list { display:flex; flex-direction:column; flex:1; min-height:0; }
+.chat-threads { flex:1; overflow-y:auto; padding:4px 12px; }
+.chat-thread-item { display:flex; align-items:flex-start; gap:10px; padding:12px; border-radius:var(--radius-sm); cursor:pointer; transition:background 0.15s; border-bottom:1px solid var(--border); }
+.chat-thread-item:last-child { border-bottom:none; }
+.chat-thread-item:hover { background:rgba(255,255,255,0.03); }
+.chat-thread-q { font-size:14px; font-weight:500; color:var(--text-primary); line-height:1.4; }
+.chat-thread-a { font-size:13px; color:var(--text-muted); line-height:1.4; margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.chat-thread-time { font-size:12px; color:var(--text-muted); margin-top:4px; }
+.chat-thread-empty { padding:40px 20px; text-align:center; color:var(--text-muted); font-size:14px; }
+/* Thread view */
+.chat-thread-view { display:flex; flex-direction:column; flex:1; min-height:0; }
 .chat-close { width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--text-secondary); transition:background 0.2s; }
 .chat-close:hover { background:rgba(255,255,255,0.1); }
 .chat-messages { flex:1; overflow-y:auto; padding:12px 20px; display:flex; flex-direction:column; gap:14px; min-height:0; }
 .chat-bubble { max-width:85%; padding:11px 15px; border-radius:18px; font-size:14px; line-height:1.55; animation:bubbleIn 0.3s ease; }
 @keyframes bubbleIn { from { opacity:0; transform:translateY(8px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
 .chat-bubble.bot { background:var(--bg-card); border:1px solid var(--border); align-self:flex-start; border-bottom-left-radius:4px; color:var(--text-primary); }
-.chat-bubble.user { background:linear-gradient(135deg,var(--green-accent),#2d8a50); align-self:flex-end; border-bottom-right-radius:4px; color:white; }
+.chat-bubble.user { background:var(--green-accent); align-self:flex-end; border-bottom-right-radius:4px; color:white; }
 .chat-suggestions { display:flex; gap:8px; flex-wrap:wrap; padding:4px 20px 8px; flex-shrink:0; }
 .chat-suggestion { padding:7px 13px; border-radius:20px; font-size:12px; font-weight:500; background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); transition:all 0.2s; white-space:nowrap; }
 .chat-suggestion:hover { background:var(--bg-card-hover); color:var(--text-primary); border-color:var(--border-light); }
@@ -179,8 +271,8 @@ input, textarea { font-family: inherit; }
 .chat-send:disabled { opacity:0.3; }
 .chat-peek-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; background:var(--bg-card); border-top:1px solid var(--border); cursor:pointer; flex-shrink:0; transition:background 0.2s; }
 .chat-peek-bar:hover { background:var(--bg-card-hover); }
-.chat-peek-avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#245232,#38a866); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
-.chat-peek-text { flex:1; font-size:13px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chat-peek-avatar { width:28px; height:28px; border-radius:50%; background:var(--bg-elevated); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; border:1px solid var(--border-light); }
+.chat-peek-text { flex:1; font-size:14px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .chat-peek-badge { width:8px; height:8px; border-radius:50%; background:var(--green-accent); flex-shrink:0; animation:pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 .typing-indicator { display:flex; gap:4px; padding:4px 0; }
@@ -194,23 +286,34 @@ input, textarea { font-family: inherit; }
 .nav-item { display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 12px; border-radius:var(--radius-sm); transition:all 0.2s; position:relative; min-width:56px; }
 .nav-item .nav-icon { font-size:20px; transition:transform 0.2s; }
 .nav-item .nav-label { font-size:10px; font-weight:500; color:var(--text-muted); transition:color 0.2s; }
+.nav-item .nav-desc { display:none; }
 .nav-item.active .nav-icon { transform:scale(1.1); }
 .nav-item.active .nav-label { color:var(--green-light); font-weight:600; }
 .nav-item.active::after { content:''; position:absolute; top:-8px; left:50%; transform:translateX(-50%); width:20px; height:3px; border-radius:2px; background:var(--green-accent); }
+.nav-brand { display:none; }
+.nav-section-label { display:none; }
+.nav-spacer { display:none; }
 
 .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; margin-top:6px; }
 .section-title { font-family:var(--font-display); font-size:20px; font-weight:600; }
 
-.net-worth-card { background:linear-gradient(160deg,#0e3520 0%,#1a5c38 50%,#245e3a 100%); border-radius:var(--radius-xl); padding:24px 20px; margin-bottom:16px; position:relative; overflow:hidden; border:1px solid rgba(56,168,102,0.15); }
-.net-worth-card::before { content:''; position:absolute; top:-50px; right:-40px; width:180px; height:180px; border-radius:50%; background:radial-gradient(circle,rgba(76,201,126,0.15),transparent 70%); }
-.net-worth-label { font-size:11px; font-weight:600; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
-.net-worth-amount { font-family:var(--font-display); font-size:38px; font-weight:700; color:white; line-height:1; margin-bottom:4px; position:relative; }
-.net-worth-change { font-size:13px; color:var(--green-light); font-weight:500; position:relative; }
+.net-worth-card { background:var(--bg-card); border-radius:var(--radius-lg); padding:24px 20px; margin-bottom:16px; border:1px solid var(--border); }
+.net-worth-card::before { display:none; }
+.net-worth-label { font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
+.net-worth-amount { font-family:var(--font-display); font-size:36px; font-weight:700; color:var(--text-primary); line-height:1; margin-bottom:4px; }
+.net-worth-change { font-size:14px; color:var(--green-accent); font-weight:500; }
+
+/* ─── Metric Tiles ─── */
+.metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+.metric-tile { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px 16px; }
+.metric-tile-label { font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px; }
+.metric-tile-value { font-size:20px; font-weight:700; color:var(--text-primary); line-height:1; }
+.metric-tile-sub { font-size:12px; color:var(--text-muted); margin-top:4px; }
 
 .profile-header { display:flex; flex-direction:column; align-items:center; padding:24px 0 20px; text-align:center; }
-.profile-avatar { width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg,var(--green-accent),var(--green-muted)); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700; color:white; margin-bottom:12px; }
+.profile-avatar { width:72px; height:72px; border-radius:50%; background:var(--bg-elevated); border:2px solid var(--border-light); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700; color:var(--text-secondary); margin-bottom:12px; }
 .profile-name { font-family:var(--font-display); font-size:24px; font-weight:600; margin-bottom:4px; }
-.profile-email { font-size:13px; color:var(--text-muted); }
+.profile-email { font-size:14px; color:var(--text-muted); }
 .profile-row { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.2s; }
 .profile-row:hover { background:rgba(255,255,255,0.02); }
 .profile-row-left { display:flex; align-items:center; gap:14px; }
@@ -222,8 +325,8 @@ input, textarea { font-family: inherit; }
 .prompt-tile { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:var(--radius-md); background:var(--bg-card); border:1px solid var(--border); min-width:200px; max-width:220px; flex-shrink:0; cursor:pointer; transition:background 0.2s,border-color 0.2s,transform 0.15s; scroll-snap-align:start; }
 .prompt-tile:hover { background:var(--bg-card-hover); border-color:var(--border-light); transform:translateY(-1px); }
 .prompt-tile:active { transform:scale(0.98); }
-.prompt-tile-icon { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; background:var(--green-subtle); }
-.prompt-tile-text { font-size:13px; line-height:1.4; color:var(--text-secondary); flex:1; }
+.prompt-tile-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; background:var(--green-subtle); }
+.prompt-tile-text { font-size:14px; line-height:1.4; color:var(--text-secondary); flex:1; }
 
 @keyframes fadeInUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
 .animate-in { animation:fadeInUp 0.5s ease both; }
@@ -239,7 +342,66 @@ input, textarea { font-family: inherit; }
 [data-show] { display:none !important; }
 [data-show].persona-visible { display:revert !important; }
 
-@media (min-width:1024px) { .app-frame { max-width:430px; } }
+/* tablet: phone frame */
+@media (min-width:768px) and (max-width:1023px) { .app-frame { max-width:430px; } }
+
+/* ─── Desktop Layout ─── */
+@media (min-width:1024px) {
+  .app-shell { align-items:stretch; justify-content:stretch; background:var(--bg-primary); }
+  .app-frame { max-width:100%; height:100%; display:grid; grid-template-columns:200px 1fr 340px; grid-template-rows:auto 1fr; border-radius:0; overflow:visible; }
+  .top-bar { grid-column:1/-1; grid-row:1; border-bottom:1px solid var(--border); padding:12px 24px; }
+  .top-bar-left { display:flex; }
+  .tab-content-area { grid-column:2; grid-row:2; overflow:hidden; position:relative; }
+  .tab-panel { padding:0 32px 32px; }
+
+  /* Sidebar nav */
+  .bottom-nav {
+    grid-column:1; grid-row:2;
+    flex-direction:column; justify-content:flex-start; align-items:stretch;
+    padding:12px 8px; gap:1px;
+    border-top:none; border-right:1px solid var(--border);
+    overflow-y:auto;
+  }
+  .nav-brand { display:none !important; }
+  .nav-section-label { display:none !important; }
+  .nav-spacer { display:block !important; flex:1; }
+  .nav-item {
+    flex-direction:row !important; justify-content:flex-start; align-items:center; gap:12px;
+    padding:10px 16px; min-width:auto;
+    border-radius:var(--radius-sm);
+    transition:background 0.15s;
+  }
+  .nav-item .nav-icon { font-size:20px; width:26px; text-align:center; line-height:1; }
+  .nav-item .nav-label { font-size:14px; font-weight:500; color:var(--text-secondary); }
+  .nav-item:hover { background:rgba(255,255,255,0.04); }
+  .nav-item:hover .nav-label { color:var(--text-primary); }
+  .nav-item.active { background:rgba(255,255,255,0.06); }
+  .nav-item.active::after { display:none; }
+  .nav-item.active .nav-label { color:var(--text-primary); font-weight:600; }
+
+  /* Chat as persistent side panel */
+  .chat-peek-bar { display:none !important; }
+  .chat-backdrop { display:none !important; }
+  .chat-drawer {
+    position:static !important; grid-column:3; grid-row:2;
+    transform:none !important; max-height:none; border-radius:0;
+    box-shadow:none; border-left:1px solid var(--border);
+    opacity:1; pointer-events:auto; transition:none;
+  }
+  .chat-drawer-handle { display:none; }
+  .chat-close { display:none !important; }
+
+  /* Desktop content — wider card grids */
+  .card-grid { grid-template-columns:1fr 1fr 1fr; }
+  .metric-grid { grid-template-columns:1fr 1fr 1fr; }
+
+  /* Prompt tiles wrap */
+  .prompt-tiles { flex-wrap:wrap; overflow-x:visible; margin:0; padding-left:0; padding-right:0; }
+  .prompt-tile { min-width:180px; max-width:none; flex:1 1 180px; }
+
+  /* Hide mobile prompts on desktop, show in chat sidebar */
+  .mobile-only { display:none !important; }
+}
 </style>
 </head>
 <body>
@@ -248,7 +410,7 @@ input, textarea { font-family: inherit; }
 
 <!-- Top Bar -->
 <div class="top-bar">
-  <div class="top-bar-left"><span class="top-bar-greeting">🍝 Lasagna</span></div>
+  <div class="top-bar-left"><div class="logo-mark"><svg width="40" height="40" viewBox="130 125 140 150" xmlns="http://www.w3.org/2000/svg"><g transform="translate(200,200)"><path d="M0-65 L56-32.5 L56 32.5 L0 65 L-56 32.5 L-56-32.5Z" fill="#34c759" opacity=".08"/><path d="M0-50 L22-38 L22 18 L0 6Z" fill="#4cd964" opacity=".95"/><path d="M0-50 L-22-38 L-46-24 L-46-4 L-22-18 L0-10Z" fill="#4cd964" opacity=".95"/><path d="M0 6 L22 18 L46 4 L46-20 L22-6 L0-16Z" fill="#34c759" opacity=".7"/><path d="M0 6 L-22 18 L-22 46 L0 56 L0 28Z" fill="#34c759" opacity=".7"/><path d="M0 56 L22 46 L46 30 L46 12 L22 26 L0 38Z" fill="#2a9d48" opacity=".5"/><path d="M-46-4 L-46 18 L-22 32 L-22 0Z" fill="#2a9d48" opacity=".5"/></g></svg></div><span class="top-bar-greeting">Lasagna</span></div>
   <div style="display:flex;align-items:center;gap:8px;">
     <div class="persona-toggles">
       <div class="persona-toggle" id="toggle-debt">
@@ -269,44 +431,21 @@ input, textarea { font-family: inherit; }
 
 <!-- ═══════════════════ HOME ═══════════════════ -->
 <div class="tab-panel active" id="tab-home">
-  <!-- Net worth: varies by persona -->
-  <div class="net-worth-card animate-in" id="home-networth">
-    <div class="net-worth-label">Net Worth</div>
-    <div class="net-worth-amount" id="nw-amount">$23,800</div>
-    <div class="net-worth-change" id="nw-change">↑ $620 this month</div>
-  </div>
+  <!-- Metric Tiles (includes net worth as first tile) -->
+  <div class="metric-grid animate-in" id="home-metrics"></div>
 
-  <!-- Do This Next -->
-  <div class="card animate-in" id="home-next-action" style="border-color:rgba(212,162,78,0.25);background:linear-gradient(135deg,rgba(212,162,78,0.08),var(--bg-card))">
-    <div class="card-header"><div class="card-dot amber"></div><span class="card-label amber">Do This Next</span></div>
-    <div class="card-title" style="font-size:18px" id="next-action-title"></div>
-    <div class="card-subtitle" id="next-action-desc"></div>
-    <button class="card-action amber" id="next-action-btn">Walk me through this →</button>
-  </div>
+  <!-- Action Items -->
+  <div class="section-header animate-in"><span class="section-title">Action Items</span></div>
+  <div class="card animate-in" id="home-todos" style="padding:12px 20px"></div>
 
-  <!-- Your Layers summary -->
-  <div class="section-header animate-in"><span class="section-title">Your Layers</span></div>
-
-  <div class="card animate-in" style="cursor:pointer" data-nav="debt" id="home-debt-card">
-    <div class="card-header"><div class="card-dot" id="home-debt-dot"></div><span class="card-label" id="home-debt-label">Debt</span></div>
-    <div id="home-debt-summary"></div>
-  </div>
-
-  <div class="card animate-in" style="cursor:pointer" data-nav="invest" id="home-invest-card">
-    <div class="card-header"><div class="card-dot" id="home-invest-dot"></div><span class="card-label" id="home-invest-label">Invest</span></div>
-    <div id="home-invest-summary"></div>
-  </div>
-
-  <div class="card animate-in" style="cursor:pointer" data-nav="tax" id="home-tax-card">
-    <div class="card-header"><div class="card-dot"></div><span class="card-label">Tax Optimization</span></div>
-    <div id="home-tax-summary"></div>
-  </div>
-
-  <!-- Ask Lasagna -->
-  <div class="section-header animate-in"><span class="section-title">Ask Lasagna</span></div>
-  <div class="prompt-tiles animate-in" id="home-prompts"></div>
+  <!-- Ask Lasagna (mobile only) -->
+  <div class="section-header animate-in mobile-only"><span class="section-title">Ask Lasagna</span></div>
+  <div class="prompt-tiles animate-in mobile-only" id="home-prompts"></div>
   <div style="height:24px"></div>
 </div>
+
+<!-- ═══════════════════ ACCOUNTS ═══════════════════ -->
+<div class="tab-panel" id="tab-accounts"></div>
 
 <!-- ═══════════════════ DEBT ═══════════════════ -->
 <div class="tab-panel" id="tab-debt"></div>
@@ -355,34 +494,85 @@ input, textarea { font-family: inherit; }
 <!-- Chat Drawer -->
 <div class="chat-drawer" id="chat-drawer">
   <div class="chat-drawer-handle" id="chat-handle"><div class="chat-drawer-pill"></div></div>
-  <div class="chat-header">
-    <div class="chat-header-left"><div class="chat-avatar">🍝</div><div><div class="chat-name">Lasagna</div><div class="chat-status"><div class="chat-status-dot"></div> Online</div></div></div>
-    <button class="chat-close" id="chat-close" aria-label="Close chat">✕</button>
+
+  <!-- Thread list view -->
+  <div class="chat-thread-list" id="chat-thread-list">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px 8px">
+      <div style="font-size:15px;font-weight:600">Conversations</div>
+      <button class="chat-close" id="chat-close" aria-label="Close chat">✕</button>
+    </div>
+    <div class="chat-threads" id="chat-threads"></div>
+    <div class="chat-suggestions-area" id="chat-suggestions-area"></div>
+    <div class="chat-input-bar">
+      <input class="chat-input" id="chat-input" type="text" placeholder="Ask a new question..." autocomplete="off">
+      <button class="chat-send" id="chat-send" disabled aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+    </div>
   </div>
-  <div class="chat-messages" id="chat-messages">
-    <div class="chat-bubble bot" id="chat-welcome"></div>
-  </div>
-  <div class="chat-suggestions" id="chat-suggestions"></div>
-  <div class="chat-input-bar">
-    <input class="chat-input" id="chat-input" type="text" placeholder="Ask anything..." autocomplete="off">
-    <button class="chat-send" id="chat-send" disabled aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+
+  <!-- Single thread view -->
+  <div class="chat-thread-view" id="chat-thread-view" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 20px 8px">
+      <button id="chat-back" style="font-size:14px;color:var(--text-secondary);padding:4px 0">← Back</button>
+      <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="chat-thread-title"></div>
+      <button class="chat-close" id="chat-close-2" aria-label="Close chat">✕</button>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-bar">
+      <input class="chat-input" id="chat-input-thread" type="text" placeholder="Follow up..." autocomplete="off">
+      <button class="chat-send" id="chat-send-thread" disabled aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+    </div>
   </div>
 </div>
 
 <!-- Chat Peek Bar -->
 <div class="chat-peek-bar" id="chat-peek-bar">
-  <div class="chat-peek-avatar">🍝</div>
+  <div class="chat-peek-avatar"><svg width="20" height="20" viewBox="140 130 120 140" xmlns="http://www.w3.org/2000/svg"><g transform="translate(200,200)"><path d="M0-50 L22-38 L22 18 L0 6Z" fill="#4cd964" opacity=".95"/><path d="M0-50 L-22-38 L-46-24 L-46-4 L-22-18 L0-10Z" fill="#4cd964" opacity=".95"/><path d="M0 6 L22 18 L46 4 L46-20 L22-6 L0-16Z" fill="#34c759" opacity=".7"/><path d="M0 6 L-22 18 L-22 46 L0 56 L0 28Z" fill="#34c759" opacity=".7"/><path d="M0 56 L22 46 L46 30 L46 12 L22 26 L0 38Z" fill="#2a9d48" opacity=".5"/><path d="M-46-4 L-46 18 L-22 32 L-22 0Z" fill="#2a9d48" opacity=".5"/></g></svg></div>
   <div class="chat-peek-text">Ask Lasagna anything...</div>
   <div class="chat-peek-badge"></div>
 </div>
 
-<!-- Bottom Nav -->
+<!-- Bottom Nav / Sidebar -->
 <nav class="bottom-nav" id="bottom-nav">
-  <button class="nav-item active" data-tab="home"><span class="nav-icon">🏠</span><span class="nav-label">Home</span></button>
-  <button class="nav-item" data-tab="debt"><span class="nav-icon">💳</span><span class="nav-label">Debt</span></button>
-  <button class="nav-item" data-tab="invest"><span class="nav-icon">📈</span><span class="nav-label">Invest</span></button>
-  <button class="nav-item" data-tab="tax"><span class="nav-icon">🏦</span><span class="nav-label">Tax</span></button>
-  <button class="nav-item" data-tab="profile"><span class="nav-icon">👤</span><span class="nav-label">Profile</span></button>
+  <div class="nav-brand">
+    <div class="nav-brand-logo"><svg width="32" height="32" viewBox="130 125 140 150" xmlns="http://www.w3.org/2000/svg"><g transform="translate(200,200)"><path d="M0-65 L56-32.5 L56 32.5 L0 65 L-56 32.5 L-56-32.5Z" fill="#34c759" opacity=".08"/><path d="M0-50 L22-38 L22 18 L0 6Z" fill="#4cd964" opacity=".95"/><path d="M0-50 L-22-38 L-46-24 L-46-4 L-22-18 L0-10Z" fill="#4cd964" opacity=".95"/><path d="M0 6 L22 18 L46 4 L46-20 L22-6 L0-16Z" fill="#34c759" opacity=".7"/><path d="M0 6 L-22 18 L-22 46 L0 56 L0 28Z" fill="#34c759" opacity=".7"/><path d="M0 56 L22 46 L46 30 L46 12 L22 26 L0 38Z" fill="#2a9d48" opacity=".5"/><path d="M-46-4 L-46 18 L-22 32 L-22 0Z" fill="#2a9d48" opacity=".5"/></g></svg></div>
+    <div class="nav-brand-text">
+      <div class="nav-brand-name">Lasagna</div>
+      <div class="nav-brand-tag">Built in layers</div>
+    </div>
+  </div>
+  <div class="nav-section-label">Modules</div>
+  <button class="nav-item active" data-tab="home">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label">Home</span>
+    <span class="nav-desc">Dashboard</span>
+  </button>
+  <button class="nav-item" data-tab="accounts">
+    <span class="nav-icon">🏦</span>
+    <span class="nav-label">Accounts</span>
+    <span class="nav-desc">Net Worth</span>
+  </button>
+  <button class="nav-item" data-tab="debt">
+    <span class="nav-icon">💳</span>
+    <span class="nav-label">Debt</span>
+    <span class="nav-desc">Command Center</span>
+  </button>
+  <button class="nav-item" data-tab="invest">
+    <span class="nav-icon">📈</span>
+    <span class="nav-label">Invest</span>
+    <span class="nav-desc">Launchpad & Portfolio</span>
+  </button>
+  <button class="nav-item" data-tab="tax">
+    <span class="nav-icon">📋</span>
+    <span class="nav-label">Tax</span>
+    <span class="nav-desc">Optimization Playbook</span>
+  </button>
+  <div class="nav-spacer"></div>
+  <div class="nav-section-label">Account</div>
+  <button class="nav-item" data-tab="profile">
+    <span class="nav-icon">👤</span>
+    <span class="nav-label">Profile</span>
+    <span class="nav-desc">Marcus Chen</span>
+  </button>
 </nav>
 
 </div>
@@ -396,15 +586,22 @@ let persona = { debt: true, invest: true };
 // ─── PERSONA DATA ───
 const P = {
   debt_invest: {
-    nw: '$23,800', nwChange: '↑ $620 this month',
-    nextTitle: 'Set your 401(k) to 4% to capture employer match',
-    nextDesc: "Even while paying off debt, free money is free money. Your employer matches dollar-for-dollar — that's $2,080/year you're leaving behind.",
-    nextPrompt: 'How do I set up my 401(k) match while paying off debt?',
-    debtDot: 'red', debtLabel: 'Debt — $14,200 remaining',
-    debtSummary: '<div style="font-size:18px;font-weight:700;color:var(--red)">$14,200 to go</div><div class="card-subtitle">3 debts · Avalanche strategy active · Debt-free by Nov 2027</div>',
-    investDot: 'amber', investLabel: 'Invest — Match only',
-    investSummary: '<div style="font-size:18px;font-weight:700">Capture match only</div><div class="card-subtitle">Don\'t invest beyond 401(k) match until high-interest debt is gone</div>',
-    taxSummary: '<div style="font-size:18px;font-weight:700">3 actions available</div><div class="card-subtitle">401(k) pre-tax · W-4 check · Saver\'s Credit eligibility</div>',
+    todos: [
+      ['Set 401(k) contribution to 4%', 'Invest', 'How do I set up my 401(k) match while paying off debt?', 'Log into Fidelity and set your contribution rate to 4%. Your employer matches dollar-for-dollar — this is an instant 100% return, even while paying off debt.', '+$2,080/yr free money', 'green'],
+      ['Call Chase to negotiate lower APR', 'Debt', 'How can I negotiate lower interest rates on my debt?', 'Call the number on the back of your card and ask for a hardship rate reduction or balance transfer offer. Average reduction: 5-7%.', 'Saves ~$50/mo interest', 'red'],
+      ['Set up autopay on all 3 debts', 'Debt', 'What is the fastest way to pay off my debt?', 'Never miss a payment and protect your credit score. Some lenders give a 0.25% rate discount for autopay.', 'Protects credit score', 'green'],
+      ['Check balance transfer card offers', 'Debt', 'How can I free up more money to pay off debt?', 'A 0% APR balance transfer card could eliminate $77/mo in interest on the Chase card for 15-18 months.', '$924/yr saved', 'amber'],
+      ['Increase Chase payment to $350/mo', 'Debt', 'How fast can I pay off all my debt?', 'Extra $70/mo shaves 4 months off payoff and saves $380 in interest.', 'Debt-free 4mo sooner', 'amber'],
+      ['Check your W-4 withholding', 'Tax', 'How can I lower my tax bill this year?', 'Are you getting a big tax refund? That means you\'re giving the IRS an interest-free loan. Adjust your W-4 to keep more per paycheck.', 'More cash per paycheck', 'amber'],
+    ],
+    metrics: [
+      ['Net Worth', '$23,800', '↑ $620 this month', ''],
+      ['Total Debt', '$14,200', '3 debts active', 'red'],
+      ['Monthly Payment', '$650/mo', '$137 to interest', 'amber'],
+      ['Emergency Fund', '$3,200', '1.3 months saved', ''],
+      ['Debt-Free Date', 'Nov 2027', '19 months away', 'green'],
+      ['401(k) Match', '$0 captured', '$2,080/yr available', 'amber'],
+    ],
     homePrompts: [
       ['🎯','What should I focus on: debt or investing?','Should I pay off debt first or invest?'],
       ['💳','How fast can I be debt-free?','How fast can I pay off all my debt?'],
@@ -502,15 +699,22 @@ const P = {
   },
 
   debt_noinvest: {
-    nw: '$8,400', nwChange: '↓ $14,200 in debt',
-    nextTitle: 'Build a $1,000 starter emergency fund',
-    nextDesc: "Before attacking debt aggressively, stash $1,000 for emergencies. This prevents new debt when life happens.",
-    nextPrompt: 'How do I build an emergency fund while in debt?',
-    debtDot: 'red', debtLabel: 'Debt — $14,200 remaining',
-    debtSummary: '<div style="font-size:18px;font-weight:700;color:var(--red)">$14,200 to go</div><div class="card-subtitle">3 debts · Need a payoff strategy · No extra cash yet</div>',
-    investDot: '', investLabel: 'Invest — Not yet',
-    investSummary: '<div style="font-size:18px;font-weight:700;color:var(--text-muted)">Focus on debt first</div><div class="card-subtitle">Exception: if employer offers 401(k) match, capture it</div>',
-    taxSummary: '<div style="font-size:18px;font-weight:700">2 actions available</div><div class="card-subtitle">Check W-4 withholding · Saver\'s Credit eligibility</div>',
+    todos: [
+      ['Save $1,000 starter emergency fund', 'Savings', 'I have debt and no savings. Where do I start?', 'Before attacking debt aggressively, stash $1,000 for emergencies. Sell unused items, cut one subscription — done in 4 weeks.', 'Prevents new debt', 'amber'],
+      ['Call Chase to negotiate lower APR', 'Debt', 'How can I negotiate lower interest rates on my debt?', 'Ask for hardship program or rate reduction. Worst they say is no. Average reduction: 5-7%.', 'Saves ~$50/mo', 'red'],
+      ['Set up autopay minimums on all debts', 'Debt', 'What is the fastest way to pay off my debt?', 'Never miss a payment while building your strategy. Protects your credit score.', 'Protects credit score', 'green'],
+      ['Audit subscriptions — cancel 2-3', 'Savings', 'How can I free up more money to pay off debt?', 'Average person has $200/mo in unused subscriptions. Free that cash for debt payoff or emergency fund.', '+$50-200/mo freed', 'amber'],
+      ['Apply for 0% balance transfer card', 'Debt', 'How can I free up more money to pay off debt?', 'Move Chase balance to 0% APR for 15-18 months. Eliminates $77/mo in interest.', '$924/yr saved', 'red'],
+      ['Check W-4 withholding', 'Tax', 'How can I lower my tax bill this year?', 'Stop over-withholding — a big refund means you gave the IRS a free loan all year.', 'More cash per paycheck', 'amber'],
+    ],
+    metrics: [
+      ['Net Worth', '$8,400', '↓ $14,200 in debt', 'red'],
+      ['Total Debt', '$14,200', '3 debts active', 'red'],
+      ['Monthly to Interest', '$137/mo', 'Money being wasted', 'red'],
+      ['Emergency Fund', '$0', 'Target: $1,000', 'amber'],
+      ['Highest APR', '21.99%', 'Chase Sapphire', 'red'],
+      ['Income', '$72,000/yr', '$6,000/mo gross', ''],
+    ],
     homePrompts: [
       ['🆘','Where do I even start?','I have debt and no savings. Where do I start?'],
       ['💡','How to free up cash for payments?','How can I free up more money to pay off debt?'],
@@ -531,7 +735,7 @@ const P = {
       <div class="card animate-in">
         <div class="card-header"><div class="card-dot amber"></div><span class="card-label amber">Choose Your Strategy</span></div>
         <div style="display:flex;gap:10px;margin-bottom:14px">
-          <div style="flex:1;padding:12px;border-radius:var(--radius-sm);background:var(--green-subtle);text-align:center;border:1px solid rgba(56,168,102,0.2)"><div style="font-size:12px;color:var(--green-light);font-weight:700;margin-bottom:4px">❄️ Avalanche</div><div style="font-size:11px;color:var(--text-secondary)">Highest APR first</div><div style="font-size:10px;color:var(--green-light);margin-top:4px">Saves most money</div></div>
+          <div style="flex:1;padding:12px;border-radius:var(--radius-sm);background:var(--green-subtle);text-align:center;border:1px solid rgba(52,199,89,0.2)"><div style="font-size:12px;color:var(--green-light);font-weight:700;margin-bottom:4px">❄️ Avalanche</div><div style="font-size:11px;color:var(--text-secondary)">Highest APR first</div><div style="font-size:10px;color:var(--green-light);margin-top:4px">Saves most money</div></div>
           <div style="flex:1;padding:12px;border-radius:var(--radius-sm);background:var(--amber-bg);text-align:center;border:1px solid rgba(212,162,78,0.15)"><div style="font-size:12px;color:var(--amber);font-weight:700;margin-bottom:4px">⛄ Snowball</div><div style="font-size:11px;color:var(--text-secondary)">Smallest balance first</div><div style="font-size:10px;color:var(--amber);margin-top:4px">Fastest first win</div></div>
         </div>
         <div class="card-subtitle">Lasagna recommends <strong style="color:var(--green-light)">Avalanche</strong> for you — your Chase card at 21.99% is costing $77/mo in interest. Killing it first saves $840 more than snowball.</div>
@@ -607,15 +811,22 @@ const P = {
   },
 
   free_invest: {
-    nw: '$47,230', nwChange: '↑ $1,840 this month (+4.1%)',
-    nextTitle: 'Set your 401(k) contribution to 4%',
-    nextDesc: "Your employer matches dollar-for-dollar. That's $2,080/year in free money you're leaving on the table.",
-    nextPrompt: 'How do I set up my 401(k) match?',
-    debtDot: '', debtLabel: 'Debt',
-    debtSummary: '<div style="font-size:18px;font-weight:700;color:var(--green-light)">Debt-free ✓</div><div class="card-subtitle">$18,400 paid off · $2,340 interest saved</div>',
-    investDot: 'amber', investLabel: 'Invest & Portfolio',
-    investSummary: '<div style="font-size:18px;font-weight:700">$31,210 invested</div><div class="card-subtitle">401(k) match uncaptured · Roth IRA unfunded this year</div>',
-    taxSummary: '<div style="font-size:18px;font-weight:700">4 actions available</div><div class="card-subtitle">401(k) optimization · Roth IRA · HSA check · Withholding review</div>',
+    todos: [
+      ['Set 401(k) contribution to 4%', 'Invest', 'How do I set up my 401(k) match?', 'Capture your full employer match. Log into Fidelity, set contribution to 4%. Takes 5 minutes.', '+$2,080/yr free money', 'green'],
+      ['Open & fund Roth IRA ($7,000)', 'Invest', 'Should I pick Roth or traditional IRA?', 'Open at Vanguard or Fidelity. Invest in a 3-fund index portfolio (VTI/VXUS/BND). Tax-free growth forever.', 'Tax-free growth', 'green'],
+      ['Set up automatic monthly investment', 'Invest', 'What are index funds and why should I use them?', 'Auto-transfer $583/mo to Roth IRA. Dollar-cost averaging removes emotion from investing.', 'Consistent wealth building', 'green'],
+      ['Check HSA eligibility', 'Tax', 'What tax-advantaged accounts should I use beyond 401(k)?', 'If your employer offers a high-deductible health plan, HSA is the best account in the tax code — triple tax advantage.', 'Triple tax benefit', 'green'],
+      ['Increase 401(k) pre-tax contributions', 'Tax', 'How can I lower my tax bill this year?', 'Every $1,000 extra saves $220 at your 22% marginal rate. Maxing to $23,500 could save ~$2,800/yr.', 'Up to $2,800/yr saved', 'amber'],
+      ['Set up credit monitoring', 'Debt', 'Is it ever smart to take on debt again, like a mortgage?', 'Free via Credit Karma or your bank. Catches fraud early and tracks your credit score.', 'Early fraud detection', 'green'],
+    ],
+    metrics: [
+      ['Net Worth', '$47,230', '↑ $1,840 this month (+4.1%)', 'green'],
+      ['Portfolio', '$31,210', '+12.4% all time', 'green'],
+      ['Available/mo', '$800', 'Freed from debt payoff', 'green'],
+      ['Emergency Fund', '$12,600', '6 months covered', 'green'],
+      ['401(k) Match', 'Uncaptured', '$2,080/yr free money', 'amber'],
+      ['Roth IRA 2026', '$0 / $7,000', 'Unfunded this year', 'amber'],
+    ],
     homePrompts: [
       ['🎯','What should I focus on next financially?','What should I focus on next financially?'],
       ['📊','Am I on track for my age?','Am I saving enough for my age?'],
@@ -676,8 +887,8 @@ const P = {
         <div class="card-header"><div class="card-dot"></div><span class="card-label">Target: 60/30/10</span></div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px">US Stocks (VTI)</span><span style="font-size:13px;font-weight:600">62%</span></div><div class="progress-bar-track" style="margin:0"><div class="progress-bar-fill" style="width:62%"></div></div></div>
-          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px">Int'l (VXUS)</span><span style="font-size:13px;font-weight:600">28%</span></div><div class="progress-bar-track" style="margin:0"><div class="progress-bar-fill" style="width:28%;background:linear-gradient(90deg,#38a866,#62d98f)"></div></div></div>
-          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px">Bonds (BND)</span><span style="font-size:13px;font-weight:600">10%</span></div><div class="progress-bar-track" style="margin:0"><div class="progress-bar-fill" style="width:10%;background:linear-gradient(90deg,#5a9,#8cc)"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px">Int'l (VXUS)</span><span style="font-size:13px;font-weight:600">28%</span></div><div class="progress-bar-track" style="margin:0"><div class="progress-bar-fill" style="width:28%;background:linear-gradient(90deg,#34c759,#4cd964)"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px">Bonds (BND)</span><span style="font-size:13px;font-weight:600">10%</span></div><div class="progress-bar-track" style="margin:0"><div class="progress-bar-fill" style="width:10%;background:linear-gradient(90deg,#2a9d48,#4cd964)"></div></div></div>
         </div>
         <div style="margin-top:12px;padding:10px 12px;border-radius:var(--radius-sm);background:var(--green-subtle);font-size:12px;color:var(--green-light)">✓ On target — no rebalancing needed · 0.04% expense ratio</div>
       </div>
@@ -689,15 +900,22 @@ const P = {
   },
 
   free_noinvest: {
-    nw: '$5,200', nwChange: '↑ $400 this month',
-    nextTitle: 'Build your emergency fund to 3 months',
-    nextDesc: "You have $5,200 in cash. Target: $7,500 (3 months of expenses). Open a high-yield savings account earning 4.5% APY.",
-    nextPrompt: 'How do I build an emergency fund fast?',
-    debtDot: '', debtLabel: 'Debt',
-    debtSummary: '<div style="font-size:18px;font-weight:700;color:var(--green-light)">Debt-free ✓</div><div class="card-subtitle">Great foundation — now build your safety net</div>',
-    investDot: '', investLabel: 'Invest — Building foundation',
-    investSummary: '<div style="font-size:18px;font-weight:700;color:var(--text-muted)">Not yet — build savings first</div><div class="card-subtitle">Need 3-6mo emergency fund before investing</div>',
-    taxSummary: '<div style="font-size:18px;font-weight:700">2 actions available</div><div class="card-subtitle">Check W-4 withholding · Saver\'s Credit eligibility</div>',
+    todos: [
+      ['Open a high-yield savings account', 'Savings', 'Should I keep my emergency fund in a HYSA or money market?', 'Ally, Marcus, or Wealthfront pay 4.3-4.5% APY. Your $5,200 earns $234/yr instead of $0.52.', '+$234/yr interest', 'green'],
+      ['Set up automatic $200/week transfer', 'Savings', 'How do I build an emergency fund fast?', 'From checking to HYSA. Hit your $7,500 emergency fund target in ~3 months.', 'Goal in ~3 months', 'amber'],
+      ['Review subscriptions — cancel 2-3', 'Savings', 'How can I free up more money to save?', 'Free up $50-150/mo to accelerate your emergency fund and future investing.', '+$50-150/mo freed', 'amber'],
+      ['Set credit cards to autopay full balance', 'Debt', 'How do I stay debt-free?', 'Use credit cards for rewards but never carry a balance. Autopay the full statement balance, not minimum.', '$0 interest forever', 'green'],
+      ['Check if employer offers 401(k) match', 'Invest', 'When will I be ready to invest?', 'If yes, start at 4% even now — free money shouldn\'t wait for a perfect emergency fund.', 'Don\'t miss free money', 'amber'],
+      ['Check W-4 withholding', 'Tax', 'How can I lower my tax bill this year?', 'A big refund means you overpaid all year. Adjust W-4 to keep more per paycheck.', 'More cash per paycheck', 'amber'],
+    ],
+    metrics: [
+      ['Net Worth', '$5,200', '↑ $400 this month', ''],
+      ['Cash Savings', '$5,200', 'In checking account', ''],
+      ['Emergency Goal', '$7,500', '3 months expenses', 'amber'],
+      ['Progress', '69%', '$2,300 to go', 'amber'],
+      ['HYSA Rate', '0% → 4.5%', 'Open a HYSA', 'green'],
+      ['Monthly to Save', '$800', 'Available after expenses', 'green'],
+    ],
     homePrompts: [
       ['🏦','Where should I keep my savings?','Should I keep my emergency fund in a HYSA or money market?'],
       ['💡','How to save more each month?','How can I free up more money to save?'],
@@ -753,6 +971,356 @@ const P = {
 };
 
 // ─── TAX TAB (shared structure, varies by persona) ───
+// ─── ACCOUNTS TAB (full app fidelity) ───
+// State for interactive charts
+let acctChartType = 'donut'; // donut | bar | treemap
+let acctGrouping = 'assetClass'; // assetClass | subCategory | holding
+let acctDrill = null; // null or asset class name
+
+function initAccountsInteractivity() {
+  // Chart type toggle
+  document.querySelectorAll('.acct-chart-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      acctChartType = b.dataset.chart;
+      document.querySelectorAll('.acct-chart-btn').forEach(x => x.classList.toggle('active', x.dataset.chart === acctChartType));
+      renderAccountChart();
+    });
+  });
+  // Grouping selector
+  const sel = document.getElementById('acct-grouping');
+  if (sel) sel.addEventListener('change', () => {
+    acctGrouping = sel.value;
+    acctDrill = null;
+    renderAccountChart();
+    renderPortfolioBreakdown();
+  });
+  // Area chart tooltip
+  initAreaChartTooltip();
+  renderAccountChart();
+  renderPortfolioBreakdown();
+}
+
+function initAreaChartTooltip() {
+  const svg = document.getElementById('nw-area-svg');
+  const tip = document.getElementById('nw-area-tooltip');
+  if (!svg || !tip) return;
+  const dots = svg.querySelectorAll('.nw-dot');
+  dots.forEach(d => {
+    d.addEventListener('mouseenter', e => {
+      tip.textContent = d.dataset.label;
+      tip.style.left = d.getAttribute('cx') + 'px';
+      tip.style.top = (parseFloat(d.getAttribute('cy')) - 30) + 'px';
+      tip.classList.add('visible');
+    });
+    d.addEventListener('mouseleave', () => tip.classList.remove('visible'));
+  });
+}
+
+function renderAccountChart() {
+  const container = document.getElementById('acct-chart-area');
+  if (!container) return;
+  const data = window._acctPortfolio;
+  if (!data || !data.length) { container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)">No investment data</div>'; return; }
+
+  // Apply drill filter
+  let chartData = data;
+  const rootLabel = acctGrouping === 'assetClass' ? 'Asset Class' : acctGrouping === 'subCategory' ? 'Sub-Category' : 'Holdings';
+  if (acctDrill) {
+    const cls = data.find(d => d.name === acctDrill);
+    if (cls && cls.subs) {
+      chartData = cls.subs.map((s,i) => ({name:s.name,value:s.value,color:['#4ade80','#60a5fa','#f59e0b','#ec4899','#8b5cf6'][i%5]}));
+    }
+  }
+  // Update breadcrumbs
+  const bcEl = document.getElementById('acct-breadcrumbs');
+  if (bcEl) {
+    if (acctDrill) {
+      bcEl.innerHTML = '<span onclick="acctDrill=null;renderAccountChart();renderPortfolioBreakdown();" style="cursor:pointer;color:var(--text-muted)">' + rootLabel + '</span> <span style="color:var(--text-muted);margin:0 4px">›</span> <span style="color:var(--text-primary);font-weight:500">' + acctDrill + '</span>';
+    } else {
+      bcEl.innerHTML = '<span style="color:var(--text-primary);font-weight:500">' + rootLabel + '</span>';
+    }
+  }
+
+  const total = chartData.reduce((s, d) => s + d.value, 0);
+
+  if (acctChartType === 'donut') {
+    // SVG donut
+    let segments = '';
+    let offset = 0;
+    const cx=100, cy=100, r=70, r2=45;
+    chartData.forEach((d, i) => {
+      const pct = d.value / total;
+      const gap = 0.005;
+      const start = offset + gap;
+      const end = offset + pct - gap;
+      const a1 = start * Math.PI * 2 - Math.PI/2;
+      const a2 = end * Math.PI * 2 - Math.PI/2;
+      const large = pct > 0.5 ? 1 : 0;
+      const path = `M${cx+r*Math.cos(a1)},${cy+r*Math.sin(a1)} A${r},${r} 0 ${large} 1 ${cx+r*Math.cos(a2)},${cy+r*Math.sin(a2)} L${cx+r2*Math.cos(a2)},${cy+r2*Math.sin(a2)} A${r2},${r2} 0 ${large} 0 ${cx+r2*Math.cos(a1)},${cy+r2*Math.sin(a1)} Z`;
+      segments += '<path class="donut-segment" d="'+path+'" fill="'+d.color+'" data-name="'+d.name+'" data-value="$'+Math.round(d.value).toLocaleString()+'" data-pct="'+Math.round(pct*100)+'%"/>';
+      offset += pct;
+    });
+    const legend = chartData.map(d => '<div style="display:flex;align-items:center;gap:8px"><div style="width:10px;height:10px;border-radius:50%;background:'+d.color+';flex-shrink:0"></div><div><div style="font-size:13px;font-weight:500">'+d.name+'</div><div style="font-size:11px;color:var(--text-muted)">'+Math.round(d.value/total*100)+'% · $'+Math.round(d.value).toLocaleString()+'</div></div></div>').join('');
+    container.innerHTML = '<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap"><div style="position:relative;width:200px;height:200px;flex-shrink:0"><svg viewBox="0 0 200 200" style="width:100%;height:100%">'+segments+'</svg><div id="donut-tip" class="chart-tooltip"></div></div><div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:120px">'+legend+'</div></div>';
+    // Click + hover
+    container.querySelectorAll('.donut-segment').forEach(s => {
+      s.addEventListener('click', () => { if (!acctDrill) { acctDrill = s.dataset.name; renderAccountChart(); renderPortfolioBreakdown(); }});
+      s.addEventListener('mouseenter', e => { const t=document.getElementById('donut-tip'); if(t){t.textContent=s.dataset.name+': '+s.dataset.value+' ('+s.dataset.pct+')'; t.style.left='100px'; t.style.top='90px'; t.classList.add('visible');} });
+      s.addEventListener('mouseleave', () => { const t=document.getElementById('donut-tip'); if(t) t.classList.remove('visible'); });
+    });
+  } else if (acctChartType === 'bar') {
+    // Stacked bar
+    const bars = chartData.map(d => {
+      const pct = Math.round(d.value/total*100);
+      return '<div class="donut-segment" style="flex:'+pct+';height:48px;background:'+d.color+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.5);cursor:pointer;overflow:hidden;white-space:nowrap;padding:0 4px" data-name="'+d.name+'">'+(pct>=8?d.name+' '+pct+'%':'')+'</div>';
+    }).join('');
+    container.innerHTML = '<div style="display:flex;border-radius:8px;overflow:hidden;gap:2px">'+bars+'</div>';
+    container.querySelectorAll('.donut-segment').forEach(s => {
+      s.addEventListener('click', () => { if (!acctDrill) { acctDrill = s.dataset.name; renderAccountChart(); renderPortfolioBreakdown(); }});
+    });
+  } else {
+    // Treemap
+    const w=600, h=300;
+    let rects = '';
+    // Simple treemap layout (horizontal strips)
+    let x=0;
+    chartData.forEach(d => {
+      const pw = Math.round(d.value/total*w);
+      const label = pw > 60 ? '<text x="'+(x+pw/2)+'" y="'+(h/2-6)+'" fill="white" font-size="12" font-weight="700" text-anchor="middle">'+d.name+'</text><text x="'+(x+pw/2)+'" y="'+(h/2+12)+'" fill="rgba(255,255,255,0.7)" font-size="10" text-anchor="middle">$'+Math.round(d.value/1000)+'k</text>' : '';
+      rects += '<rect class="treemap-rect" x="'+x+'" y="0" width="'+Math.max(pw-2,1)+'" height="'+h+'" rx="4" fill="'+d.color+'" data-name="'+d.name+'" data-value="$'+Math.round(d.value).toLocaleString()+'"/>'+label;
+      x += pw;
+    });
+    container.innerHTML = '<div style="position:relative"><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:auto;display:block">'+rects+'</svg><div id="treemap-tip" class="chart-tooltip"></div></div>';
+    container.querySelectorAll('.treemap-rect').forEach(r => {
+      r.addEventListener('click', () => { if (!acctDrill) { acctDrill = r.dataset.name; renderAccountChart(); renderPortfolioBreakdown(); }});
+      r.addEventListener('mouseenter', e => { const t=document.getElementById('treemap-tip'); if(t){t.textContent=r.dataset.name+': '+r.dataset.value; const box=r.getBoundingClientRect(); const pbox=r.closest('div').getBoundingClientRect(); t.style.left=(box.x-pbox.x+box.width/2)+'px'; t.style.top=(box.y-pbox.y-30)+'px'; t.classList.add('visible');} });
+      r.addEventListener('mouseleave', () => { const t=document.getElementById('treemap-tip'); if(t) t.classList.remove('visible'); });
+    });
+  }
+}
+
+function renderPortfolioBreakdown() {
+  const container = document.getElementById('acct-pf-breakdown');
+  if (!container) return;
+  const data = window._acctPortfolio;
+  if (!data || !data.length) { container.innerHTML = ''; return; }
+
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const filtered = acctDrill ? data.filter(d => d.name === acctDrill) : data;
+  const title = acctGrouping === 'holding' ? 'Holdings' : acctGrouping === 'subCategory' ? 'Sub-Categories' : 'Asset Classes';
+
+  let html = '<div class="section-header"><span class="section-title">'+title+'</span></div><div class="card" style="padding:0;overflow:hidden">';
+
+  filtered.forEach((cls, ci) => {
+    if (acctGrouping === 'holding') {
+      // Flat list of all holdings
+      (cls.subs || []).forEach(sub => {
+        (sub.holdings || []).forEach(h => {
+          html += '<div class="pf-sub-row"><span class="pf-ticker">'+h.ticker+'</span><span class="pf-row-name">'+h.name+'</span><span class="pf-row-val">$'+Math.round(h.value).toLocaleString()+'</span><span class="pf-row-pct">'+h.shares+' sh</span></div>';
+        });
+      });
+    } else if (acctGrouping === 'subCategory') {
+      (cls.subs || []).forEach((sub, si) => {
+        const subTotal = sub.value;
+        html += '<div class="pf-row open" onclick="this.classList.toggle(\'open\')"><div class="pf-row-dot" style="background:'+cls.color+'"></div><span class="pf-row-name">'+sub.name+'</span><span class="pf-row-val">$'+Math.round(subTotal).toLocaleString()+'</span><span class="pf-row-pct">'+Math.round(subTotal/total*100)+'%</span><span class="pf-row-chevron">▾</span></div>';
+        html += '<div class="pf-sub">';
+        (sub.holdings || []).forEach(h => {
+          html += '<div class="pf-sub-row"><span class="pf-ticker">'+h.ticker+'</span><span class="pf-row-name" style="font-size:13px">'+h.name+'</span><span style="font-size:12px;color:var(--text-muted);margin-left:auto;margin-right:8px">'+h.account+'</span><span class="pf-row-val" style="font-size:13px">$'+Math.round(h.value).toLocaleString()+'</span><span class="pf-row-pct">'+h.shares+' sh</span></div>';
+        });
+        html += '</div>';
+      });
+    } else {
+      // Asset class level
+      const pct = Math.round(cls.value/total*100);
+      html += '<div class="pf-row open" onclick="this.classList.toggle(\'open\')"><div class="pf-row-dot" style="background:'+cls.color+'"></div><span class="pf-row-name">'+cls.name+'</span><span style="font-size:12px;color:var(--text-muted);background:var(--bg-surface);padding:1px 8px;border-radius:10px;margin-right:8px">'+(cls.subs?cls.subs.length:0)+'</span><span class="pf-row-val">$'+Math.round(cls.value).toLocaleString()+'</span><span class="pf-row-pct">'+pct+'%</span><span class="pf-row-chevron">▾</span></div>';
+      html += '<div class="pf-sub">';
+      (cls.subs || []).forEach(sub => {
+        html += '<div class="pf-sub-row" style="padding-left:40px"><span class="pf-row-name" style="font-size:13px">'+sub.name+'</span><span class="pf-row-val" style="font-size:13px">$'+Math.round(sub.value).toLocaleString()+'</span><span class="pf-row-pct">'+Math.round(sub.value/total*100)+'%</span></div>';
+        (sub.holdings || []).forEach(h => {
+          html += '<div class="pf-sub-row" style="padding-left:56px"><span class="pf-ticker">'+h.ticker+'</span><span class="pf-row-name" style="font-size:12px">'+h.name+'</span><span style="font-size:11px;color:var(--text-muted);margin-left:auto;margin-right:8px">'+h.account+'</span><span class="pf-row-val" style="font-size:12px">$'+Math.round(h.value).toLocaleString()+'</span><span class="pf-row-pct" style="font-size:11px">'+h.shares+' sh</span></div>';
+        });
+      });
+      html += '</div>';
+    }
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function accountsTabHTML(key) {
+  const hasDebt = key.startsWith('debt');
+  const canInvest = key.endsWith('invest');
+  const D = {
+    debt_invest: {
+      nw:'$23,800', nwPrev:'$23,180', assets:'$38,000', liabilities:'$14,200',
+      change:'+$620', changePct:'+2.7%',
+      spend:'$3,100', runway:'1.0 mo',
+      nwHistory:[18200,19400,20100,21300,22600,23180,23800],
+      nwMonths:['Oct','Nov','Dec','Jan','Feb','Mar','Apr'],
+      alloc:[{name:'Depository',val:6400,pct:17,color:'#4ade80'},{name:'Investment',val:31600,pct:83,color:'#60a5fa'}],
+      groups:[
+        {type:'Depository',icon:'🏦',total:'$6,400',color:'#4ade80',accounts:[
+          {name:'Checking',inst:'Chase ••4821',bal:'$3,200',mask:'4821'},
+          {name:'Savings',inst:'Ally HYSA ••7733',bal:'$3,200',mask:'7733',note:'4.5% APY'},
+        ]},
+        {type:'Investment',icon:'📈',total:'$31,600',color:'#60a5fa',accounts:[
+          {name:'401(k)',inst:'Fidelity',bal:'$24,600',note:'+$320/mo'},
+          {name:'Roth IRA',inst:'Vanguard',bal:'$7,000'},
+        ]},
+        {type:'Credit',icon:'💳',total:'-$4,200',color:'#f87171',accounts:[
+          {name:'Chase Sapphire',inst:'Credit Card',bal:'-$4,200',note:'21.99% APR'},
+        ]},
+        {type:'Loan',icon:'🎓',total:'-$10,000',color:'#f87171',accounts:[
+          {name:'Student Loan',inst:'Federal',bal:'-$7,000',note:'5.28% APR'},
+          {name:'Personal LoC',inst:'Bank',bal:'-$3,000',note:'11.5% APR'},
+        ]},
+      ],
+      holdings:[{name:'US Stocks (VTI)',val:'$19,600',pct:'62%'},{name:"Int'l (VXUS)",val:'$8,800',pct:'28%'},{name:'Bonds (BND)',val:'$3,200',pct:'10%'}],
+      portfolio:[
+        {name:'Stocks',value:28400,color:'#4ade80',subs:[
+          {name:'US Stocks',value:19600,holdings:[{ticker:'VTI',name:'Vanguard Total Stock',shares:'48.2',value:19600,account:'401(k)'}]},
+          {name:'International',value:8800,holdings:[{ticker:'VXUS',name:'Vanguard Total Intl',shares:'142.6',value:8800,account:'Roth IRA'}]}
+        ]},
+        {name:'Bonds',value:3200,color:'#60a5fa',subs:[
+          {name:'US Bonds',value:3200,holdings:[{ticker:'BND',name:'Vanguard Total Bond',shares:'43.2',value:3200,account:'401(k)'}]}
+        ]}
+      ],
+    },
+    debt_noinvest: {
+      nw:'$8,400', nwPrev:'$8,100', assets:'$22,600', liabilities:'$14,200',
+      change:'+$300', changePct:'+3.7%',
+      spend:'$3,400', runway:'0.8 mo',
+      nwHistory:[5200,5800,6400,7100,7600,8100,8400],
+      nwMonths:['Oct','Nov','Dec','Jan','Feb','Mar','Apr'],
+      alloc:[{name:'Depository',val:2600,pct:12,color:'#4ade80'},{name:'Investment',val:18000,pct:80,color:'#60a5fa'},{name:'Other',val:2000,pct:8,color:'#a78bfa'}],
+      groups:[
+        {type:'Depository',icon:'🏦',total:'$2,600',color:'#4ade80',accounts:[
+          {name:'Checking',inst:'Chase ••4821',bal:'$2,400'},
+          {name:'Savings',inst:'Chase ••9102',bal:'$200',note:'0.01% APY'},
+        ]},
+        {type:'Investment',icon:'📈',total:'$18,000',color:'#60a5fa',accounts:[
+          {name:'401(k)',inst:'Fidelity',bal:'$18,000'},
+        ]},
+        {type:'Credit',icon:'💳',total:'-$4,200',color:'#f87171',accounts:[
+          {name:'Chase Sapphire',inst:'Credit Card',bal:'-$4,200',note:'21.99% APR'},
+        ]},
+        {type:'Loan',icon:'🎓',total:'-$10,000',color:'#f87171',accounts:[
+          {name:'Student Loan',inst:'Federal',bal:'-$7,000',note:'5.28% APR'},
+          {name:'Personal LoC',inst:'Bank',bal:'-$3,000',note:'11.5% APR'},
+        ]},
+      ],
+      holdings:[],
+      portfolio:[],
+    },
+    free_invest: {
+      nw:'$47,230', nwPrev:'$45,390', assets:'$47,230', liabilities:'$0',
+      change:'+$1,840', changePct:'+4.1%',
+      spend:'$2,840', runway:'5.6 mo',
+      nwHistory:[38200,40100,41800,43600,45390,46200,47230],
+      nwMonths:['Oct','Nov','Dec','Jan','Feb','Mar','Apr'],
+      alloc:[{name:'Depository',val:16020,pct:34,color:'#4ade80'},{name:'Investment',val:31210,pct:66,color:'#60a5fa'}],
+      groups:[
+        {type:'Depository',icon:'🏦',total:'$16,020',color:'#4ade80',accounts:[
+          {name:'Checking',inst:'Chase ••4821',bal:'$3,420'},
+          {name:'Emergency Fund',inst:'Ally HYSA ••7733',bal:'$12,600',note:'4.5% APY'},
+        ]},
+        {type:'Investment',icon:'📈',total:'$31,210',color:'#60a5fa',accounts:[
+          {name:'401(k)',inst:'Fidelity',bal:'$24,310',note:'+$320/mo'},
+          {name:'Roth IRA',inst:'Vanguard',bal:'$6,900',note:'+$583/mo'},
+        ]},
+      ],
+      holdings:[{name:'US Stocks (VTI)',val:'$19,350',pct:'62%'},{name:"Int'l (VXUS)",val:'$8,740',pct:'28%'},{name:'Bonds (BND)',val:'$3,120',pct:'10%'}],
+      portfolio:[
+        {name:'Stocks',value:28090,color:'#4ade80',subs:[
+          {name:'US Stocks',value:19350,holdings:[{ticker:'VTI',name:'Vanguard Total Stock',shares:'47.5',value:14450,account:'401(k)'},{ticker:'VTI',name:'Vanguard Total Stock',shares:'12.1',value:4900,account:'Roth IRA'}]},
+          {name:'International',value:8740,holdings:[{ticker:'VXUS',name:'Vanguard Total Intl',shares:'141.6',value:8740,account:'Roth IRA'}]}
+        ]},
+        {name:'Bonds',value:3120,color:'#60a5fa',subs:[
+          {name:'US Bonds',value:3120,holdings:[{ticker:'BND',name:'Vanguard Total Bond',shares:'42.1',value:3120,account:'401(k)'}]}
+        ]}
+      ],
+    },
+    free_noinvest: {
+      nw:'$5,200', nwPrev:'$4,800', assets:'$5,200', liabilities:'$0',
+      change:'+$400', changePct:'+8.3%',
+      spend:'$2,500', runway:'2.1 mo',
+      nwHistory:[2100,2800,3400,3900,4400,4800,5200],
+      nwMonths:['Oct','Nov','Dec','Jan','Feb','Mar','Apr'],
+      alloc:[{name:'Depository',val:5200,pct:100,color:'#4ade80'}],
+      groups:[
+        {type:'Depository',icon:'🏦',total:'$5,200',color:'#4ade80',accounts:[
+          {name:'Checking',inst:'Chase ••4821',bal:'$5,200'},
+        ]},
+      ],
+      holdings:[],
+      portfolio:[],
+    },
+  };
+  const d = D[key];
+  window._acctPortfolio = d.portfolio;
+  acctDrill = null;
+  acctGrouping = 'assetClass';
+  acctChartType = 'donut';
+
+  // Compute total portfolio value
+  const totalPortfolio = d.portfolio.reduce((s,p) => s+p.value, 0);
+
+  // Empty state if no portfolio
+  if (!d.portfolio.length) {
+    return `
+      <div class="card animate-in" style="padding:48px 24px;text-align:center">
+        <div style="font-size:48px;margin-bottom:16px;color:var(--text-muted)">🏦</div>
+        <div style="font-size:22px;font-weight:600;margin-bottom:8px">No Holdings Found</div>
+        <div style="font-size:14px;color:var(--text-muted);max-width:360px;margin:0 auto 24px">Connect your investment accounts to see your portfolio composition and asset allocation.</div>
+        <button class="card-action" style="margin:0 auto;display:inline-flex">+ Link Account</button>
+      </div>
+      <div style="height:24px"></div>`;
+  }
+
+  return `
+    <!-- Header Card (matches /portfolio) -->
+    <div class="card animate-in" style="padding:24px;margin-bottom:16px">
+      <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px">
+        <div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px">Total Portfolio Value</div>
+          <div style="font-size:40px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-0.02em">$${totalPortfolio.toLocaleString()}</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:6px;background:var(--bg-surface);border-radius:var(--radius-sm);padding:2px 4px 2px 10px">
+            <span style="font-size:12px;color:var(--text-muted)">⧉</span>
+            <select class="chart-select" id="acct-grouping" style="background:transparent;border:none;font-size:13px;color:var(--text-primary);padding:6px 4px">
+              <option value="assetClass">Asset Class</option>
+              <option value="subCategory">Sub-Category</option>
+              <option value="holding">Holdings</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:2px">
+            <button class="acct-chart-btn chart-btn active" data-chart="donut" style="padding:7px 10px">◉</button>
+            <button class="acct-chart-btn chart-btn" data-chart="bar" style="padding:7px 10px">▬</button>
+            <button class="acct-chart-btn chart-btn" data-chart="treemap" style="padding:7px 10px">▦</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Breadcrumbs -->
+      <div class="chart-breadcrumbs" id="acct-breadcrumbs" style="margin-bottom:16px"></div>
+
+      <!-- Chart area -->
+      <div id="acct-chart-area" style="min-height:200px"></div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display:flex;gap:8px;margin-bottom:16px" class="animate-in">
+      <button class="card-action" style="margin:0;padding:8px 16px;font-size:13px">+ Add Account</button>
+      <button class="card-action" style="margin:0;padding:8px 16px;font-size:13px;background:rgba(255,255,255,0.05);color:var(--text-secondary)">↻ Sync All Accounts</button>
+    </div>
+
+    <!-- Breakdown Table -->
+    <div id="acct-pf-breakdown"></div>
+
+    <div style="height:24px"></div>`;
+}
+
 function taxTabHTML(key) {
   const hasDebt = key.startsWith('debt');
   const canInvest = key.endsWith('invest');
@@ -849,36 +1417,81 @@ function applyPersona() {
   const d = P[key];
 
   // Home tab
-  document.getElementById('nw-amount').textContent = d.nw;
-  document.getElementById('nw-change').textContent = d.nwChange;
-  document.getElementById('next-action-title').textContent = d.nextTitle;
-  document.getElementById('next-action-desc').textContent = d.nextDesc;
-  document.getElementById('next-action-btn').dataset.prompt = d.nextPrompt;
+  // Net worth is now part of the metric tiles
+  // Next action removed — actions are now inline in layer cards
 
-  const debtDot = document.getElementById('home-debt-dot');
-  debtDot.className = 'card-dot' + (d.debtDot ? ' ' + d.debtDot : '');
-  document.getElementById('home-debt-label').textContent = d.debtLabel;
-  document.getElementById('home-debt-summary').innerHTML = d.debtSummary;
+  // Todos (accordion)
+  const todosEl = document.getElementById('home-todos');
+  const tagColors = {Debt:'red',Invest:'green-light',Tax:'amber',Savings:'amber'};
+  todosEl.innerHTML = d.todos.map((t, i) => {
+    const tc = tagColors[t[1]] || 'text-muted';
+    return '<div class="todo-item" data-todo-idx="'+i+'">' +
+      '<div class="todo-header">' +
+        '<div class="action-check" data-check="'+i+'">✓</div>' +
+        '<div class="todo-title">'+t[0]+'</div>' +
+        '<div class="todo-tag" style="color:var(--'+tc+')">'+t[1]+'</div>' +
+        '<div class="todo-chevron">▼</div>' +
+      '</div>' +
+      '<div class="todo-body">' +
+        '<div class="todo-body-desc">'+t[3]+'</div>' +
+        '<div class="todo-body-impact '+t[5]+'">'+t[4]+'</div><br>' +
+        '<span class="todo-body-action" data-prompt="'+t[2]+'">Walk me through this →</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 
-  const investDot = document.getElementById('home-invest-dot');
-  investDot.className = 'card-dot' + (d.investDot ? ' ' + d.investDot : '');
-  document.getElementById('home-invest-label').textContent = d.investLabel;
-  document.getElementById('home-invest-summary').innerHTML = d.investSummary;
-  document.getElementById('home-tax-summary').innerHTML = d.taxSummary;
+  // Auto-expand first todo
+  const firstTodo = todosEl.querySelector('.todo-item');
+  if (firstTodo) firstTodo.classList.add('open');
 
-  // Home prompts
+  // Bind accordion toggle + check
+  todosEl.querySelectorAll('.todo-header').forEach(h => {
+    h.addEventListener('click', e => {
+      if (e.target.closest('.action-check')) return; // don't toggle on check click
+      h.closest('.todo-item').classList.toggle('open');
+    });
+  });
+  todosEl.querySelectorAll('.action-check').forEach(c => {
+    c.addEventListener('click', e => {
+      e.stopPropagation();
+      c.classList.toggle('done');
+      c.closest('.todo-item').classList.toggle('todo-done');
+    });
+  });
+  todosEl.querySelectorAll('.todo-body-action').forEach(a => {
+    a.addEventListener('click', e => {
+      e.stopPropagation();
+      if (!chatOpen) openChat();
+      setTimeout(() => sendMessage(a.dataset.prompt), 400);
+    });
+  });
+
+  // Metric tiles
+  const hm = document.getElementById('home-metrics');
+  hm.innerHTML = d.metrics.map(m => {
+    const colorClass = m[3] ? ' style="color:var(--' + (m[3] === 'red' ? 'red' : m[3] === 'amber' ? 'amber' : 'green-light') + ')"' : '';
+    return '<div class="metric-tile"><div class="metric-tile-label">' + m[0] + '</div><div class="metric-tile-value"' + colorClass + '>' + m[1] + '</div><div class="metric-tile-sub">' + m[2] + '</div></div>';
+  }).join('');
+
+  // Home prompts (mobile) + chat suggestions (desktop)
   const hp = document.getElementById('home-prompts');
   hp.innerHTML = d.homePrompts.map(p => `<button class="prompt-tile" data-prompt="${p[2]}"><div class="prompt-tile-icon">${p[0]}</div><div class="prompt-tile-text">${p[1]}</div></button>`).join('');
 
+  const csa = document.getElementById('chat-suggestions-area');
+  csa.innerHTML = d.homePrompts.map(p => `<button class="chat-sug-chip" data-prompt="${p[2]}">${p[1]}</button>`).join('');
+  csa.querySelectorAll('.chat-sug-chip').forEach(c => {
+    c.addEventListener('click', () => sendMessage(c.dataset.prompt));
+  });
+
   // Content tabs
+  document.getElementById('tab-accounts').innerHTML = accountsTabHTML(key);
+  setTimeout(initAccountsInteractivity, 50);
   document.getElementById('tab-debt').innerHTML = d.debtTab;
   document.getElementById('tab-invest').innerHTML = d.investTab;
   document.getElementById('tab-tax').innerHTML = taxTabHTML(key);
 
   // Chat
-  document.getElementById('chat-welcome').textContent = d.chatWelcome;
-  const cs = document.getElementById('chat-suggestions');
-  cs.innerHTML = d.chatSuggestions.map(s => `<button class="chat-suggestion" data-msg="${s[1]}">${s[0]}</button>`).join('');
+  // Chat: no welcome message needed with threaded UI
 
   // Re-bind all dynamic elements
   bindDynamic();
@@ -898,14 +1511,8 @@ function bindDynamic() {
   document.querySelectorAll('[data-nav]').forEach(card => {
     card.onclick = () => switchTab(card.dataset.nav);
   });
-  document.querySelectorAll('.chat-suggestion[data-msg]').forEach(btn => {
-    btn.onclick = () => sendMessage(btn.dataset.msg);
-  });
-  document.getElementById('next-action-btn').onclick = () => {
-    const prompt = document.getElementById('next-action-btn').dataset.prompt;
-    if (!chatOpen) openChat();
-    setTimeout(() => sendMessage(prompt), 400);
-  };
+  // chat suggestions removed - using threaded UI
+  // Todo items are interactive via inline onclick
 }
 
 // ─── TAB NAVIGATION ───
@@ -931,19 +1538,30 @@ document.querySelectorAll('.persona-toggle').forEach(toggle => {
   });
 });
 
-// ─── CHAT DRAWER ───
+// ─── CHAT (Threaded) ───
 const chatDrawer = document.getElementById('chat-drawer');
 const chatBackdrop = document.getElementById('chat-backdrop');
 const chatHandle = document.getElementById('chat-handle');
-const chatClose = document.getElementById('chat-close');
+const chatPeekBar = document.getElementById('chat-peek-bar');
+const chatThreadList = document.getElementById('chat-thread-list');
+const chatThreadView = document.getElementById('chat-thread-view');
+const chatThreadsEl = document.getElementById('chat-threads');
+const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const chatSend = document.getElementById('chat-send');
-const chatMessages = document.getElementById('chat-messages');
-const chatPeekBar = document.getElementById('chat-peek-bar');
+const chatInputThread = document.getElementById('chat-input-thread');
+const chatSendThread = document.getElementById('chat-send-thread');
+const chatThreadTitle = document.getElementById('chat-thread-title');
+
 let chatOpen = false;
+let threads = []; // [{q, a, time}]
+let activeThread = -1;
+
+function isDesktop() { return window.innerWidth >= 1024; }
 
 function openChat() {
   chatOpen = true;
+  if (isDesktop()) { chatInput.focus(); return; }
   chatDrawer.classList.add('open');
   chatBackdrop.classList.add('visible');
   chatPeekBar.style.display = 'none';
@@ -951,13 +1569,16 @@ function openChat() {
 }
 function closeChat() {
   chatOpen = false;
+  if (isDesktop()) return;
   chatDrawer.classList.remove('open');
   chatBackdrop.classList.remove('visible');
   chatPeekBar.style.display = '';
-  chatInput.blur();
+  showThreadList();
 }
+
 chatPeekBar.addEventListener('click', openChat);
-chatClose.addEventListener('click', closeChat);
+document.getElementById('chat-close').addEventListener('click', closeChat);
+document.getElementById('chat-close-2').addEventListener('click', closeChat);
 chatBackdrop.addEventListener('click', closeChat);
 
 // Drag to dismiss
@@ -972,33 +1593,123 @@ chatHandle.addEventListener('mousedown', e => {
   document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
 });
 
-chatInput.addEventListener('input', () => { chatSend.disabled = !chatInput.value.trim(); });
+function renderThreadList() {
+  if (threads.length === 0) {
+    chatThreadsEl.innerHTML = '<div class="chat-thread-empty">No conversations yet.<br>Ask a question to get started.</div>';
+    return;
+  }
+  chatThreadsEl.innerHTML = threads.map((t, i) =>
+    '<div class="chat-thread-item" data-idx="' + i + '">' +
+    '<div style="flex:1"><div class="chat-thread-q">' + t.q + '</div>' +
+    '<div class="chat-thread-a">' + (t.a || 'Thinking...') + '</div>' +
+    '<div class="chat-thread-time">' + t.time + '</div></div>' +
+    '<span style="color:var(--text-muted);font-size:14px;margin-top:2px">›</span></div>'
+  ).reverse().join('');
+  chatThreadsEl.querySelectorAll('.chat-thread-item').forEach(el => {
+    el.addEventListener('click', () => showThread(parseInt(el.dataset.idx)));
+  });
+}
 
-function addMessage(text, isUser) {
-  const b = document.createElement('div');
-  b.className = 'chat-bubble ' + (isUser ? 'user' : 'bot');
-  b.textContent = text;
-  chatMessages.appendChild(b);
+function showThreadList() {
+  activeThread = -1;
+  chatThreadList.style.display = '';
+  chatThreadView.style.display = 'none';
+}
+
+function showThread(idx) {
+  activeThread = idx;
+  const t = threads[idx];
+  chatThreadList.style.display = 'none';
+  chatThreadView.style.display = '';
+  chatThreadTitle.textContent = t.q;
+  chatMessages.innerHTML = '';
+  // Render messages
+  const qBub = document.createElement('div');
+  qBub.className = 'chat-bubble user'; qBub.textContent = t.q;
+  chatMessages.appendChild(qBub);
+  if (t.a) {
+    const aBub = document.createElement('div');
+    aBub.className = 'chat-bubble bot'; aBub.textContent = t.a;
+    chatMessages.appendChild(aBub);
+  }
+  // Render follow-ups
+  (t.followups || []).forEach(f => {
+    const fq = document.createElement('div');
+    fq.className = 'chat-bubble user'; fq.textContent = f.q;
+    chatMessages.appendChild(fq);
+    if (f.a) { const fa = document.createElement('div'); fa.className = 'chat-bubble bot'; fa.textContent = f.a; chatMessages.appendChild(fa); }
+  });
   chatMessages.scrollTop = chatMessages.scrollHeight;
+  chatInputThread.value = ''; chatSendThread.disabled = true;
 }
-function addTypingIndicator() {
-  const i = document.createElement('div');
-  i.className = 'chat-bubble bot'; i.id = 'typing-indicator';
-  i.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
-  chatMessages.appendChild(i); chatMessages.scrollTop = chatMessages.scrollHeight;
-  return i;
+
+document.getElementById('chat-back').addEventListener('click', showThreadList);
+
+function getResponse(text) {
+  return responses[text] || defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
 }
+
 function sendMessage(text) {
   if (!text.trim()) return;
-  addMessage(text, true);
+  const time = new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  const thread = { q: text, a: null, time: time, followups: [] };
+  threads.push(thread);
+  const idx = threads.length - 1;
+  renderThreadList();
+  showThread(idx);
+  if (!chatOpen) openChat();
+  // Simulate typing
+  const typing = document.createElement('div');
+  typing.className = 'chat-bubble bot';
+  typing.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  chatMessages.appendChild(typing);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  setTimeout(() => {
+    typing.remove();
+    thread.a = getResponse(text);
+    const aBub = document.createElement('div');
+    aBub.className = 'chat-bubble bot'; aBub.textContent = thread.a;
+    chatMessages.appendChild(aBub);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    renderThreadList();
+  }, 800 + Math.random() * 1200);
   chatInput.value = ''; chatSend.disabled = true;
-  document.getElementById('chat-suggestions').style.display = 'none';
-  const typing = addTypingIndicator();
-  setTimeout(() => { typing.remove(); addMessage(responses[text] || defaultResponses[Math.floor(Math.random() * defaultResponses.length)], false); }, 800 + Math.random() * 1200);
 }
 
+function sendFollowUp(text) {
+  if (!text.trim() || activeThread < 0) return;
+  const thread = threads[activeThread];
+  const fu = { q: text, a: null };
+  thread.followups.push(fu);
+  const qBub = document.createElement('div');
+  qBub.className = 'chat-bubble user'; qBub.textContent = text;
+  chatMessages.appendChild(qBub);
+  chatInputThread.value = ''; chatSendThread.disabled = true;
+  const typing = document.createElement('div');
+  typing.className = 'chat-bubble bot';
+  typing.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  chatMessages.appendChild(typing);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  setTimeout(() => {
+    typing.remove();
+    fu.a = getResponse(text);
+    const aBub = document.createElement('div');
+    aBub.className = 'chat-bubble bot'; aBub.textContent = fu.a;
+    chatMessages.appendChild(aBub);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    renderThreadList();
+  }, 800 + Math.random() * 1200);
+}
+
+// Input handlers
+chatInput.addEventListener('input', () => { chatSend.disabled = !chatInput.value.trim(); });
 chatSend.addEventListener('click', () => sendMessage(chatInput.value));
 chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && chatInput.value.trim()) sendMessage(chatInput.value); });
+chatInputThread.addEventListener('input', () => { chatSendThread.disabled = !chatInputThread.value.trim(); });
+chatSendThread.addEventListener('click', () => sendFollowUp(chatInputThread.value));
+chatInputThread.addEventListener('keydown', e => { if (e.key === 'Enter' && chatInputThread.value.trim()) sendFollowUp(chatInputThread.value); });
+
+renderThreadList();
 
 // ─── INIT ───
 applyPersona();

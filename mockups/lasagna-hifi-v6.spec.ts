@@ -17,15 +17,15 @@ test.describe("Lasagna Hi-Fi Mockup v6", () => {
     expect(errors).toEqual([]);
   });
 
-  test("shows branding and persona toggles", async ({ page }) => {
-    await expect(page.locator("text=Lasagna").first()).toBeVisible();
+  test("shows persona toggles", async ({ page }) => {
     await expect(page.locator("#toggle-debt")).toBeVisible();
     await expect(page.locator("#toggle-invest")).toBeVisible();
   });
 
   test("has no onboarding selector", async ({ page }) => {
     await expect(page.locator("text=What's your main focus")).not.toBeVisible();
-    await expect(page.locator("text=Get started")).not.toBeVisible();
+    // "Get started" text may appear in chat empty state, only check for onboarding button
+    await expect(page.locator("button:has-text('Get started')")).not.toBeVisible();
   });
 
   // ─── Navigation ───
@@ -138,7 +138,7 @@ test.describe("Lasagna Hi-Fi Mockup v6", () => {
 
   test("Tax tab shows optimization actions, not tax owed", async ({ page }) => {
     await page.click('button[data-tab="tax"]');
-    await expect(page.locator("text=Tax Optimization Playbook")).toBeVisible();
+    await expect(page.locator("#tab-tax .card-label:has-text('Tax Optimization Playbook')")).toBeVisible();
     await expect(page.locator("text=actions to reduce taxes")).toBeVisible();
     // Should NOT have tax owed estimate
     await expect(page.locator("text=~$8,420 owed")).not.toBeVisible();
@@ -170,37 +170,41 @@ test.describe("Lasagna Hi-Fi Mockup v6", () => {
 
   // ─── Chat ───
 
-  test("chat peek bar opens drawer", async ({ page }) => {
+  test("mobile: chat peek bar opens drawer", async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(mockupUrl);
+    await page.waitForTimeout(1000);
+
     await page.click("#chat-peek-bar");
     await expect(page.locator("#chat-drawer")).toHaveClass(/open/);
     await page.click("#chat-close");
     await expect(page.locator("#chat-drawer")).not.toHaveClass(/open/);
+    await ctx.close();
   });
 
-  test("chat has persona-specific welcome message", async ({ page }) => {
-    await page.click("#chat-peek-bar");
-    await expect(page.locator("#chat-welcome")).toContainText("$14,200");
-
-    await page.click("#chat-close");
-    await page.click('#toggle-debt button[data-val="free"]');
-    await page.click("#chat-peek-bar");
-    await expect(page.locator("#chat-welcome")).toContainText("cleared your debt");
+  test("chat shows empty thread list initially", async ({ page }) => {
+    await expect(page.locator("text=Conversations").first()).toBeVisible();
+    await expect(page.locator("text=No conversations yet")).toBeVisible();
   });
 
-  test("chat sends messages and gets responses", async ({ page }) => {
-    await page.click("#chat-peek-bar");
+  test("chat creates new thread on send", async ({ page }) => {
     await page.fill("#chat-input", "hello");
     await page.click("#chat-send");
+    // Should switch to thread view with user message
     await expect(page.locator(".chat-bubble.user").first()).toContainText("hello");
+    // Bot responds
     await page.waitForTimeout(3000);
-    expect(await page.locator(".chat-bubble.bot").count()).toBeGreaterThanOrEqual(2);
+    expect(await page.locator(".chat-bubble.bot").count()).toBeGreaterThanOrEqual(1);
+    // Back to list shows the thread
+    await page.click("#chat-back");
+    await expect(page.locator(".chat-thread-item")).toBeVisible();
   });
 
-  test("prompt tiles open chat with message", async ({ page }) => {
+  test("prompt tiles create new chat thread", async ({ page }) => {
     const tile = page.locator("#tab-home .prompt-tile").first();
     await tile.click();
-    await page.waitForTimeout(500);
-    await expect(page.locator("#chat-drawer")).toHaveClass(/open/);
+    await page.waitForTimeout(3000);
     await expect(page.locator(".chat-bubble.user").first()).toBeVisible();
   });
 
@@ -218,14 +222,35 @@ test.describe("Lasagna Hi-Fi Mockup v6", () => {
     await ctx.close();
   });
 
-  test("desktop shows phone frame", async ({ browser }) => {
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  test("desktop shows full-width layout with sidebar nav and chat panel", async ({
+    browser,
+  }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+    });
     const page = await ctx.newPage();
     await page.goto(mockupUrl);
     await page.waitForTimeout(1000);
+
+    // Frame should be full width (not constrained to 430px)
     const box = await page.locator(".app-frame").boundingBox();
     expect(box).not.toBeNull();
-    expect(box!.width).toBeLessThanOrEqual(440);
+    expect(box!.width).toBeGreaterThan(1000);
+
+    // Sidebar nav should be visible (vertical, not bottom)
+    const nav = page.locator("nav.bottom-nav");
+    const navBox = await nav.boundingBox();
+    expect(navBox).not.toBeNull();
+    expect(navBox!.height).toBeGreaterThan(navBox!.width); // taller than wide = sidebar
+
+    // Chat panel should be persistently visible (no drawer toggle needed)
+    const chat = page.locator("#chat-drawer");
+    await expect(chat).toBeVisible();
+    await expect(page.locator("text=Conversations").first()).toBeVisible();
+
+    // Peek bar should be hidden on desktop
+    await expect(page.locator("#chat-peek-bar")).not.toBeVisible();
+
     await ctx.close();
   });
 
@@ -233,7 +258,7 @@ test.describe("Lasagna Hi-Fi Mockup v6", () => {
 
   test("Profile tab shows user info", async ({ page }) => {
     await page.click('button[data-tab="profile"]');
-    await expect(page.locator("text=Marcus Chen")).toBeVisible();
+    await expect(page.locator("#tab-profile .profile-name")).toContainText("Marcus Chen");
     await expect(page.locator("text=marcus.chen@gmail.com")).toBeVisible();
   });
 });

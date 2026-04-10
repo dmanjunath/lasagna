@@ -85,6 +85,46 @@ export const users = pgTable("users", {
     .$onUpdate(() => new Date()),
 });
 
+// ── Financial Profiles ────────────────────────────────────────────────────
+
+export const filingStatusEnum = pgEnum("filing_status", [
+  "single",
+  "married_joint",
+  "married_separate",
+  "head_of_household",
+]);
+
+export const riskToleranceEnum = pgEnum("risk_tolerance", [
+  "conservative",
+  "moderate_conservative",
+  "moderate",
+  "moderate_aggressive",
+  "aggressive",
+]);
+
+export const financialProfiles = pgTable("financial_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" })
+    .unique(),
+  dateOfBirth: timestamp("date_of_birth", { withTimezone: true }),
+  annualIncome: numeric("annual_income", { precision: 19, scale: 2 }),
+  filingStatus: filingStatusEnum("filing_status"),
+  stateOfResidence: varchar("state_of_residence", { length: 2 }),
+  employmentType: varchar("employment_type", { length: 50 }),
+  riskTolerance: riskToleranceEnum("risk_tolerance"),
+  retirementAge: integer("retirement_age"),
+  employerMatch: numeric("employer_match_percent", { precision: 5, scale: 2 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
 // ── Plaid Items ────────────────────────────────────────────────────────────
 
 export const plaidItems = pgTable("plaid_items", {

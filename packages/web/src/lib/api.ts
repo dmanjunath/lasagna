@@ -220,6 +220,36 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getFinancialProfile: () =>
+    request<{
+      financialProfile: {
+        dateOfBirth: string | null;
+        age: number | null;
+        annualIncome: number | null;
+        filingStatus: string | null;
+        stateOfResidence: string | null;
+        employmentType: string | null;
+        riskTolerance: string | null;
+        retirementAge: number | null;
+        employerMatchPercent: number | null;
+      } | null;
+    }>("/settings/financial-profile"),
+
+  updateFinancialProfile: (data: {
+    dateOfBirth?: string | null;
+    annualIncome?: number | null;
+    filingStatus?: string | null;
+    stateOfResidence?: string | null;
+    employmentType?: string | null;
+    riskTolerance?: string | null;
+    retirementAge?: number | null;
+    employerMatchPercent?: number | null;
+  }) =>
+    request<{ ok: boolean }>("/settings/financial-profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   // Portfolio
   getPortfolioComposition: () =>
     request<{

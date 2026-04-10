@@ -94,7 +94,7 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
               fontSize: '12px',
             }}
             labelFormatter={(label) => `Year ${label}`}
-            formatter={(value: number) => [formatValue(value), 'Portfolio Value']}
+            formatter={(value) => [formatValue(typeof value === 'number' ? value : 0), 'Portfolio Value']}
           />
           {/* Reference line at $0 */}
           <ReferenceLine y={0} stroke={colors.border.DEFAULT} strokeDasharray="3 3" />

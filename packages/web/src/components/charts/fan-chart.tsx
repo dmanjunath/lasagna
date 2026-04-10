@@ -105,7 +105,7 @@ export function FanChart({
               fontSize: '12px',
             }}
             labelFormatter={(label) => `Year ${label}`}
-            formatter={(value: number, name: string) => {
+            formatter={(value, name) => {
               const labels: Record<string, string> = {
                 p5: '5th percentile',
                 p25: '25th percentile',
@@ -113,7 +113,8 @@ export function FanChart({
                 p75: '75th percentile',
                 p95: '95th percentile',
               };
-              return [formatValue(value), labels[name] || name];
+              const nameStr = String(name ?? '');
+              return [formatValue(typeof value === 'number' ? value : 0), labels[nameStr] || nameStr];
             }}
           />
           {/* Reference line at $0 */}
