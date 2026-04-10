@@ -7,6 +7,7 @@ import { usePageContext } from '../lib/page-context';
 import { MetricTile } from '../components/common/metric-tile';
 import { ActionItem } from '../components/common/action-item';
 import { Section } from '../components/common/section';
+import { SetupProgress, type SetupStep } from '../components/common/setup-progress';
 import { generateActionItems, type ActionItemData, type FinancialState } from '../lib/action-generator';
 
 function formatCurrency(value: number): string {
@@ -69,6 +70,7 @@ export function Dashboard() {
   const [debtFreeDate, setDebtFreeDate] = useState<string | null>(null);
   const [employerMatch, setEmployerMatch] = useState<number | null>(null);
   const [actionItems, setActionItems] = useState<ActionItemData[]>([]);
+  const [setupSteps, setSetupSteps] = useState<SetupStep[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -77,7 +79,8 @@ export function Dashboard() {
       api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; balance: number; interestRate: number | null; minimumPayment: number }>, totalDebt: 0, monthlyInterest: 0 })),
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
       api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
-    ]).then(([balanceData, itemData, debtData, profileData, historyData]) => {
+      api.getPlans().catch(() => ({ plans: [] as Array<{ id: string }> })),
+    ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData]) => {
       const balances = balanceData.balances;
 
       let totalAssets = 0;
@@ -197,6 +200,63 @@ export function Dashboard() {
       };
 
       setActionItems(generateActionItems(financialState));
+
+      // Compute setup completion steps
+      const hasLinked = itemData.items.length > 0;
+      const profileExists = profile !== null && profile !== undefined;
+      const hasProfileBasics = profileExists && profile.age !== null && profile.annualIncome !== null;
+
+      setSetupSteps([
+        {
+          id: 'link-account',
+          label: 'Link a bank account',
+          description: 'Connect your bank to see balances and transactions',
+          completed: hasLinked,
+          action: '/accounts',
+        },
+        {
+          id: 'complete-profile',
+          label: 'Complete your profile',
+          description: 'Add your age and income for personalized advice',
+          completed: hasProfileBasics,
+          action: '/profile',
+        },
+        {
+          id: 'set-income',
+          label: 'Set income & employment',
+          description: 'Help us understand your earnings',
+          completed: profileExists && profile.annualIncome !== null,
+          action: '/profile',
+        },
+        {
+          id: 'set-filing-status',
+          label: 'Set filing status',
+          description: 'Used for tax optimization recommendations',
+          completed: profileExists && profile.filingStatus !== null,
+          action: '/profile',
+        },
+        {
+          id: 'set-risk-tolerance',
+          label: 'Set risk tolerance',
+          description: 'Tailor investment recommendations to your comfort',
+          completed: profileExists && profile.riskTolerance !== null,
+          action: '/profile',
+        },
+        {
+          id: 'set-employer-match',
+          label: 'Set employer match',
+          description: 'Maximize your 401(k) contributions',
+          completed: profileExists && profile.employerMatchPercent !== null,
+          action: '/profile',
+        },
+        {
+          id: 'review-plan',
+          label: 'Review your financial plan',
+          description: 'Generate a personalized financial plan',
+          completed: plansData.plans.length > 0,
+          action: '/plans',
+        },
+      ]);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -246,6 +306,11 @@ export function Dashboard() {
         </div>
       ) : (
         <>
+          {/* Setup Progress */}
+          {setupSteps.length > 0 && (
+            <SetupProgress steps={setupSteps} />
+          )}
+
           {/* Metric Tiles */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
             <MetricTile
