@@ -631,7 +631,7 @@ export function Spending() {
             )}
             {debouncedSearch && (
               <span className="inline-flex items-center gap-1 bg-bg-surface text-text-secondary text-xs font-medium px-2.5 py-1 rounded-full">
-                Search: "{debouncedSearch}"
+                Search: &ldquo;{debouncedSearch}&rdquo;
                 <button
                   onClick={() => setSearchQuery('')}
                   className="ml-0.5 hover:text-text-primary"
