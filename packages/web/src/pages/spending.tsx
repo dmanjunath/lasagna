@@ -123,12 +123,13 @@ interface MonthlyTrendEntry {
 // Custom Recharts Tooltip
 // ---------------------------------------------------------------------------
 
-function TrendTooltip({ active, payload, label }: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-bg-elevated border border-border rounded-lg px-3 py-2 shadow-lg">
       <p className="text-xs text-text-muted mb-1">{label}</p>
-      {payload.map((entry: any) => (
+      {payload.map((entry: { name: string; value: number; color: string }) => (
         <p key={entry.name} className="text-sm font-medium" style={{ color: entry.color }}>
           {entry.name}: {formatCurrency(entry.value)}
         </p>
@@ -137,7 +138,8 @@ function TrendTooltip({ active, payload, label }: any) {
   );
 }
 
-function PieTooltip({ active, payload }: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function PieTooltip({ active, payload }: { active?: boolean; payload?: any[] }) {
   if (!active || !payload?.length) return null;
   const data = payload[0];
   const cat = getCategoryDisplay(data.name);
@@ -188,11 +190,6 @@ export function Spending() {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setTxPage(1);
-  }, [selectedCategory, debouncedSearch, currentMonth]);
 
   // Fetch spending summary
   useEffect(() => {
@@ -263,9 +260,11 @@ export function Spending() {
 
   const prevMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+    setTxPage(1);
   }, []);
   const nextMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+    setTxPage(1);
   }, []);
 
   const spendingCategories = useMemo(
