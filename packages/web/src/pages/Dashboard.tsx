@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { Loader2, TrendingUp, TrendingDown, ArrowRight, Plus, Target, ChevronRight } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
@@ -146,7 +146,6 @@ export function Dashboard() {
   const [totalSpending, setTotalSpending] = useState(0);
   const [totalIncome, setTotalIncome] = useState(0);
   const [goals, setGoals] = useState<Array<{ id: string; name: string; targetAmount: string; currentAmount: string; deadline: string | null; category: string; status: string; icon: string | null }>>([]);
-  const [hasProfile, setHasProfile] = useState(false);
   const [healthScore, setHealthScore] = useState<{ score: number; grade: string; color: string } | null>(null);
 
   useEffect(() => {
@@ -209,7 +208,7 @@ export function Dashboard() {
       // Profile
       const profile = profileData.financialProfile;
       const profileExists = profile !== null && profile !== undefined;
-      setHasProfile(profileExists && profile.annualIncome !== null);
+      const hasProfile = profileExists && profile.annualIncome !== null;
       if (profile?.employerMatchPercent !== undefined) {
         setEmployerMatch(profile.employerMatchPercent);
       }
@@ -323,6 +322,7 @@ export function Dashboard() {
         { id: 'review-plan', label: 'Review your financial plan', description: 'Generate a personalized financial plan', completed: plansData.plans.length > 0, action: '/plans' },
       ]);
     }).finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Page context for floating chat
@@ -506,7 +506,7 @@ export function Dashboard() {
               className="bg-bg-elevated border border-border rounded-xl p-5"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">This Month's Spending</h3>
+                <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">This Month&apos;s Spending</h3>
                 <button
                   onClick={() => navigate('/spending')}
                   className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1"
@@ -527,7 +527,7 @@ export function Dashboard() {
                           outerRadius={42}
                           strokeWidth={0}
                         >
-                          {spendingCategories.slice(0, 6).map((entry, i) => (
+                          {spendingCategories.slice(0, 6).map((entry) => (
                             <Cell key={entry.category} fill={CATEGORY_CONFIG[entry.category]?.color || '#78716c'} />
                           ))}
                         </Pie>
