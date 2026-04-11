@@ -1,7 +1,8 @@
 import { useLocation } from 'wouter';
 import {
   LayoutDashboard,
-  Building2,
+  Wallet,
+  Flag,
   CreditCard,
   PieChart,
 } from 'lucide-react';
@@ -16,7 +17,8 @@ interface TabItem {
 
 const tabs: TabItem[] = [
   { name: 'Home', icon: LayoutDashboard, path: '/' },
-  { name: 'Accounts', icon: Building2, path: '/accounts' },
+  { name: 'Spending', icon: Wallet, path: '/spending' },
+  { name: 'Goals', icon: Flag, path: '/goals' },
   { name: 'Debt', icon: CreditCard, path: '/debt' },
   { name: 'Invest', icon: PieChart, path: '/invest' },
 ];

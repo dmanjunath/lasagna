@@ -36,8 +36,25 @@ export function ChatThreadList({ threads, onSelectThread, onNewMessage, suggesti
       {/* Thread list */}
       <div className="flex-1 overflow-y-auto px-3 py-1">
         {threads.length === 0 ? (
-          <div className="text-center text-text-muted py-10 px-5 text-sm">
-            No conversations yet. Ask a question to get started.
+          <div className="py-6 px-3">
+            <p className="text-center text-text-muted text-sm mb-4">
+              Ask me anything about your finances
+            </p>
+            <div className="space-y-2">
+              {[
+                'Summarize my dashboard',
+                'What should I focus on?',
+                'Any concerns?',
+              ].map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => onNewMessage(prompt)}
+                  className="w-full text-left px-3 py-2.5 rounded-lg border border-border text-sm text-text-secondary hover:bg-surface-hover hover:text-text hover:border-accent/30 transition-colors"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           threads.map((thread, index) => (
