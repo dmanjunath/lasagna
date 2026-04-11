@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq, and, desc, insights, sql } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { generateInsights } from "../lib/insights-engine.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
 
@@ -103,4 +104,20 @@ insightsRoutes.get("/history", async (c) => {
       createdAt: r.createdAt,
     })),
   });
+});
+
+// Generate new insights (triggers AI analysis)
+insightsRoutes.post("/generate", async (c) => {
+  const session = c.get("session");
+
+  try {
+    const count = await generateInsights(session.tenantId);
+    return c.json({ ok: true, generated: count });
+  } catch (e) {
+    console.error("Insights generation failed:", e);
+    return c.json(
+      { error: "Failed to generate insights", details: e instanceof Error ? e.message : "Unknown error" },
+      500
+    );
+  }
 });

@@ -421,7 +421,29 @@ export function Dashboard() {
 
           {/* Insights / Action Items */}
           {actionItems.length > 0 && (
-            <Section title="Insights">
+            <Section
+              title="Insights"
+              actions={
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await api.generateInsights();
+                    const { insights: fresh } = await api.getInsights();
+                    if (fresh.length > 0) {
+                      const categoryToTag: Record<string, string> = { portfolio: 'INVEST', debt: 'DEBT', tax: 'TAX', savings: 'SAVINGS', general: 'SETUP' };
+                      setActionItems(fresh.map((ins) => ({
+                        title: ins.title, tag: categoryToTag[ins.category] || ins.category.toUpperCase(),
+                        description: ins.description, impact: ins.impact || '', impactColor: (ins.impactColor as 'green' | 'amber' | 'red') || 'green',
+                        chatPrompt: ins.chatPrompt || ins.title, insightId: ins.id,
+                      })));
+                    }
+                  }}
+                  className="text-xs text-text-muted hover:text-accent transition-colors"
+                >
+                  ↻ Refresh
+                </button>
+              }
+            >
               <div className="bg-bg-elevated border border-border rounded-xl px-4">
                 {actionItems.map((item, i) => (
                   <ActionItem
