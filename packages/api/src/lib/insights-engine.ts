@@ -245,7 +245,7 @@ export async function generateInsights(tenantId: string): Promise<number> {
     system: INSIGHTS_PROMPT,
     prompt: `Here is the user's financial data:\n\n${dataJson}`,
     temperature: 0.3,
-    maxTokens: 2000,
+    maxOutputTokens: 2000,
   });
 
   // Parse the response
