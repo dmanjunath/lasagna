@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, ArrowRight, Plus, Target, ChevronRight } from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
@@ -9,6 +11,7 @@ import { ActionItem } from '../components/common/action-item';
 import { Section } from '../components/common/section';
 import { SetupProgress, type SetupStep } from '../components/common/setup-progress';
 import { generateActionItems, type ActionItemData, type FinancialState } from '../lib/action-generator';
+import { cn } from '../lib/utils';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -16,6 +19,15 @@ function formatCurrency(value: number): string {
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatCompact(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 1,
   }).format(value);
 }
 
@@ -38,26 +50,84 @@ interface BalanceEntry {
 }
 
 const ASK_PROMPTS = [
-  {
-    emoji: '\uD83C\uDFAF',
-    text: 'What should I focus on first?',
-    prompt: 'What should I focus on financially right now?',
-  },
-  {
-    emoji: '\uD83D\uDCB0',
-    text: 'Am I on track for my age?',
-    prompt: 'Am I saving enough for my age?',
-  },
-  {
-    emoji: '\uD83D\uDCC8',
-    text: 'How can I grow my net worth?',
-    prompt: 'What are the best ways to grow my net worth?',
-  },
+  { emoji: '\uD83C\uDFAF', text: 'What should I focus on first?', prompt: 'What should I focus on financially right now?' },
+  { emoji: '\uD83D\uDCB0', text: 'Am I on track for my age?', prompt: 'Am I saving enough for my age?' },
+  { emoji: '\uD83D\uDCC8', text: 'How can I grow my net worth?', prompt: 'What are the best ways to grow my net worth?' },
 ];
+
+const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
+  income: { label: 'Income', icon: '💰', color: '#22c55e' },
+  housing: { label: 'Housing', icon: '🏠', color: '#8b5cf6' },
+  transportation: { label: 'Transport', icon: '🚗', color: '#f59e0b' },
+  food_dining: { label: 'Dining', icon: '🍽️', color: '#ef4444' },
+  groceries: { label: 'Groceries', icon: '🛒', color: '#10b981' },
+  utilities: { label: 'Utilities', icon: '⚡', color: '#6366f1' },
+  healthcare: { label: 'Health', icon: '🏥', color: '#ec4899' },
+  insurance: { label: 'Insurance', icon: '🛡️', color: '#14b8a6' },
+  entertainment: { label: 'Fun', icon: '🎬', color: '#f97316' },
+  shopping: { label: 'Shopping', icon: '🛍️', color: '#a855f7' },
+  subscriptions: { label: 'Subs', icon: '📱', color: '#d946ef' },
+  savings_investment: { label: 'Savings', icon: '📈', color: '#22d3ee' },
+  debt_payment: { label: 'Debt', icon: '💳', color: '#f43f5e' },
+  transfer: { label: 'Transfers', icon: '↔️', color: '#94a3b8' },
+  other: { label: 'Other', icon: '📋', color: '#78716c' },
+};
+
+// Financial Health Score calculation
+function calculateHealthScore(data: {
+  netWorth: number | null;
+  totalDebt: number;
+  emergencyFundMonths: number;
+  hasProfile: boolean;
+  hasAccounts: boolean;
+  savingsRate: number | null;
+}): { score: number; grade: string; color: string } {
+  let score = 0;
+  const max = 100;
+
+  // Net worth positive (0-25 points)
+  if (data.netWorth !== null) {
+    if (data.netWorth > 0) score += Math.min(25, Math.floor(data.netWorth / 10000));
+    else score += 0;
+  }
+
+  // Emergency fund (0-25 points)
+  score += Math.min(25, data.emergencyFundMonths * 4);
+
+  // Debt ratio (0-25 points) - lower is better
+  if (data.netWorth !== null && data.netWorth > 0) {
+    const debtRatio = data.totalDebt / (data.netWorth + data.totalDebt);
+    score += Math.floor((1 - debtRatio) * 25);
+  } else if (data.totalDebt === 0) {
+    score += 25;
+  }
+
+  // Setup completeness (0-15 points)
+  if (data.hasAccounts) score += 8;
+  if (data.hasProfile) score += 7;
+
+  // Savings rate bonus (0-10 points)
+  if (data.savingsRate !== null && data.savingsRate > 0) {
+    score += Math.min(10, Math.floor(data.savingsRate * 50));
+  }
+
+  score = Math.min(max, score);
+
+  let grade: string;
+  let color: string;
+  if (score >= 80) { grade = 'Excellent'; color = '#22c55e'; }
+  else if (score >= 65) { grade = 'Good'; color = '#84cc16'; }
+  else if (score >= 50) { grade = 'Fair'; color = '#f59e0b'; }
+  else if (score >= 35) { grade = 'Needs Work'; color = '#f97316'; }
+  else { grade = 'Getting Started'; color = '#ef4444'; }
+
+  return { score, grade, color };
+}
 
 export function Dashboard() {
   const { tenant } = useAuth();
   const { setPageContext, openChat } = usePageContext();
+  const [, navigate] = useLocation();
   const [loading, setLoading] = useState(true);
   const [netWorth, setNetWorth] = useState<number | null>(null);
   const [netWorthChange, setNetWorthChange] = useState<number | null>(null);
@@ -71,6 +141,13 @@ export function Dashboard() {
   const [employerMatch, setEmployerMatch] = useState<number | null>(null);
   const [actionItems, setActionItems] = useState<ActionItemData[]>([]);
   const [setupSteps, setSetupSteps] = useState<SetupStep[]>([]);
+  const [nwHistory, setNwHistory] = useState<Array<{ date: string; value: number }>>([]);
+  const [spendingCategories, setSpendingCategories] = useState<Array<{ category: string; total: number; count: number; percentage: number }>>([]);
+  const [totalSpending, setTotalSpending] = useState(0);
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [goals, setGoals] = useState<Array<{ id: string; name: string; targetAmount: string; currentAmount: string; deadline: string | null; category: string; status: string; icon: string | null }>>([]);
+  const [hasProfile, setHasProfile] = useState(false);
+  const [healthScore, setHealthScore] = useState<{ score: number; grade: string; color: string } | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -81,7 +158,9 @@ export function Dashboard() {
       api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
       api.getPlans().catch(() => ({ plans: [] as Array<{ id: string }> })),
       api.getInsights().catch(() => ({ insights: [] as Array<{ id: string; category: string; urgency: string; title: string; description: string; impact: string | null; impactColor: string | null; chatPrompt: string | null; generatedBy: string; createdAt: string }> })),
-    ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, insightsData]) => {
+      api.getSpendingSummary().catch(() => ({ categories: [], totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
+      api.getGoals().catch(() => ({ goals: [] })),
+    ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, insightsData, spendingData, goalsData]) => {
       const balances = balanceData.balances;
 
       let totalAssets = 0;
@@ -118,26 +197,36 @@ export function Dashboard() {
 
       setInstitutionCount(itemData.items.length);
 
-      // Net worth monthly change from history
-      const nwHistory = historyData.history;
-      if (nwHistory.length >= 2) {
-        const latest = nwHistory[nwHistory.length - 1].value;
-        const previous = nwHistory[nwHistory.length - 2].value;
+      // Net worth history
+      const nwHist = historyData.history;
+      setNwHistory(nwHist);
+      if (nwHist.length >= 2) {
+        const latest = nwHist[nwHist.length - 1].value;
+        const previous = nwHist[nwHist.length - 2].value;
         setNetWorthChange(latest - previous);
       }
 
-      // Employer match from financial profile
+      // Profile
       const profile = profileData.financialProfile;
+      const profileExists = profile !== null && profile !== undefined;
+      setHasProfile(profileExists && profile.annualIncome !== null);
       if (profile?.employerMatchPercent !== undefined) {
         setEmployerMatch(profile.employerMatchPercent);
       }
 
-      // Debt-free date calculation
+      // Spending data
+      setSpendingCategories(spendingData.categories.filter((c: { category: string }) => c.category !== 'income'));
+      setTotalSpending(spendingData.totalSpending);
+      setTotalIncome(spendingData.totalIncome);
+
+      // Goals
+      setGoals(goalsData.goals);
+
+      // Debt-free date
       const debtsForCalc = debtData.debts;
       const totalDebtAmount = debtData.totalDebt;
       if (totalDebtAmount > 0 && debtsForCalc.length > 0) {
-        const totalMinPayment = debtsForCalc.reduce((sum, d) => sum + (d.minimumPayment || 0), 0);
-        // Weighted average APR
+        const totalMinPayment = debtsForCalc.reduce((sum: number, d: { minimumPayment: number }) => sum + (d.minimumPayment || 0), 0);
         let weightedAprSum = 0;
         let balanceWithRate = 0;
         for (const d of debtsForCalc) {
@@ -152,19 +241,12 @@ export function Dashboard() {
         if (totalMinPayment > 0) {
           let months: number;
           if (monthlyRate > 0 && totalMinPayment > totalDebtAmount * monthlyRate) {
-            // Standard amortization formula: n = -log(1 - B*r/P) / log(1+r)
-            months = Math.ceil(
-              -Math.log(1 - (totalDebtAmount * monthlyRate) / totalMinPayment) /
-              Math.log(1 + monthlyRate)
-            );
+            months = Math.ceil(-Math.log(1 - (totalDebtAmount * monthlyRate) / totalMinPayment) / Math.log(1 + monthlyRate));
           } else if (monthlyRate === 0) {
-            // No interest — simple division
             months = Math.ceil(totalDebtAmount / totalMinPayment);
           } else {
-            // Payment too low to cover interest — show nothing
             months = -1;
           }
-
           if (months > 0) {
             const target = new Date();
             target.setMonth(target.getMonth() + months);
@@ -174,9 +256,20 @@ export function Dashboard() {
         }
       }
 
-      // Compute financial state for action items
-      const debts = debtData.debts;
+      // Health score
+      const emergencyMonths = creditTotal > 0 ? depositoryTotal / creditTotal : (depositoryTotal > 0 ? 12 : 0);
+      const savingsRate = totalIncome > 0 ? (spendingData.totalIncome - spendingData.totalSpending) / spendingData.totalIncome : null;
+      setHealthScore(calculateHealthScore({
+        netWorth: totalAssets - totalLiabilities,
+        totalDebt: totalLiabilities,
+        emergencyFundMonths: emergencyMonths,
+        hasProfile: profileExists && profile.annualIncome !== null,
+        hasAccounts: itemData.items.length > 0,
+        savingsRate,
+      }));
 
+      // Action items
+      const debts = debtData.debts;
       let highestApr: number | null = null;
       let highestAprCreditor: string | null = null;
       for (const d of debts) {
@@ -200,16 +293,9 @@ export function Dashboard() {
         highestAprCreditor,
       };
 
-      // AI-generated insights take priority, fallback to rule-based actions
       const apiInsights = insightsData.insights;
       if (apiInsights.length > 0) {
-        const categoryToTag: Record<string, string> = {
-          portfolio: 'INVEST',
-          debt: 'DEBT',
-          tax: 'TAX',
-          savings: 'SAVINGS',
-          general: 'SETUP',
-        };
+        const categoryToTag: Record<string, string> = { portfolio: 'INVEST', debt: 'DEBT', tax: 'TAX', savings: 'SAVINGS', general: 'SETUP' };
         setActionItems(apiInsights.map((ins) => ({
           title: ins.title,
           tag: categoryToTag[ins.category] || ins.category.toUpperCase(),
@@ -223,89 +309,37 @@ export function Dashboard() {
         setActionItems(generateActionItems(financialState));
       }
 
-      // Compute setup completion steps
+      // Setup steps
       const hasLinked = itemData.items.length > 0;
-      const profileExists = profile !== null && profile !== undefined;
       const hasProfileBasics = profileExists && profile.age !== null && profile.annualIncome !== null;
 
       setSetupSteps([
-        {
-          id: 'link-account',
-          label: 'Link a bank account',
-          description: 'Connect your bank to see balances and transactions',
-          completed: hasLinked,
-          action: '/accounts',
-        },
-        {
-          id: 'complete-profile',
-          label: 'Complete your profile',
-          description: 'Add your age and income for personalized advice',
-          completed: hasProfileBasics,
-          action: '/profile',
-        },
-        {
-          id: 'set-income',
-          label: 'Set income & employment',
-          description: 'Help us understand your earnings',
-          completed: profileExists && profile.annualIncome !== null,
-          action: '/profile',
-        },
-        {
-          id: 'set-filing-status',
-          label: 'Set filing status',
-          description: 'Used for tax optimization recommendations',
-          completed: profileExists && profile.filingStatus !== null,
-          action: '/profile',
-        },
-        {
-          id: 'set-risk-tolerance',
-          label: 'Set risk tolerance',
-          description: 'Tailor investment recommendations to your comfort',
-          completed: profileExists && profile.riskTolerance !== null,
-          action: '/profile',
-        },
-        {
-          id: 'set-employer-match',
-          label: 'Set employer match',
-          description: 'Maximize your 401(k) contributions',
-          completed: profileExists && profile.employerMatchPercent !== null,
-          action: '/profile',
-        },
-        {
-          id: 'review-plan',
-          label: 'Review your financial plan',
-          description: 'Generate a personalized financial plan',
-          completed: plansData.plans.length > 0,
-          action: '/plans',
-        },
+        { id: 'link-account', label: 'Link a bank account', description: 'Connect your bank to see balances and transactions', completed: hasLinked, action: '/accounts' },
+        { id: 'complete-profile', label: 'Complete your profile', description: 'Add your age and income for personalized advice', completed: hasProfileBasics, action: '/profile' },
+        { id: 'set-income', label: 'Set income & employment', description: 'Help us understand your earnings', completed: profileExists && profile.annualIncome !== null, action: '/profile' },
+        { id: 'set-filing-status', label: 'Set filing status', description: 'Used for tax optimization recommendations', completed: profileExists && profile.filingStatus !== null, action: '/profile' },
+        { id: 'set-risk-tolerance', label: 'Set risk tolerance', description: 'Tailor investment recommendations to your comfort', completed: profileExists && profile.riskTolerance !== null, action: '/profile' },
+        { id: 'set-employer-match', label: 'Set employer match', description: 'Maximize your 401(k) contributions', completed: profileExists && profile.employerMatchPercent !== null, action: '/profile' },
+        { id: 'review-plan', label: 'Review your financial plan', description: 'Generate a personalized financial plan', completed: plansData.plans.length > 0, action: '/plans' },
       ]);
     }).finally(() => setLoading(false));
   }, []);
 
-  // Set page context for floating chat
+  // Page context for floating chat
   useEffect(() => {
     if (!loading) {
       setPageContext({
         pageId: 'dashboard',
         pageTitle: 'Dashboard',
         description: 'Overview of financial health including net worth, accounts, and plans.',
-        data: {
-          netWorth,
-          netWorthChange,
-          accountCount,
-          institutionCount,
-          monthlySpend,
-          runwayMonths,
-          totalDebt,
-          emergencyFund,
-          debtFreeDate,
-          employerMatch,
-        },
+        data: { netWorth, netWorthChange, accountCount, institutionCount, monthlySpend, runwayMonths, totalDebt, emergencyFund, debtFreeDate, employerMatch },
       });
     }
   }, [loading, netWorth, netWorthChange, accountCount, institutionCount, monthlySpend, runwayMonths, totalDebt, emergencyFund, debtFreeDate, employerMatch, setPageContext]);
 
   const firstName = tenant?.name?.split(' ')[0] || 'there';
+  const completedSteps = setupSteps.filter(s => s.completed).length;
+  const allSetupComplete = completedSteps === setupSteps.length;
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
@@ -328,32 +362,99 @@ export function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Setup Progress */}
-          <SetupProgress steps={setupSteps.length > 0 ? setupSteps : [
-            { id: 'link-account', label: 'Link a bank account', description: 'Connect your bank to see balances', completed: false, action: '/accounts' },
-            { id: 'complete-profile', label: 'Complete your profile', description: 'Add your age and income', completed: false, action: '/profile' },
-            { id: 'set-income', label: 'Set income & employment', description: 'Help us understand your earnings', completed: false, action: '/profile' },
-            { id: 'set-filing-status', label: 'Set filing status', description: 'For tax optimization', completed: false, action: '/profile' },
-            { id: 'set-risk-tolerance', label: 'Set risk tolerance', description: 'Tailor investment advice', completed: false, action: '/profile' },
-            { id: 'set-employer-match', label: 'Set employer match', description: 'Maximize 401(k) contributions', completed: false, action: '/profile' },
-            { id: 'review-plan', label: 'Create a financial plan', description: 'Get a personalized plan', completed: false, action: '/plans' },
-          ]} />
+          {/* Setup Progress - only show if incomplete */}
+          {!allSetupComplete && (
+            <SetupProgress steps={setupSteps} />
+          )}
 
-          {/* Metric Tiles */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
-            <MetricTile
-              label="NET WORTH"
-              value={netWorth !== null ? formatCurrency(netWorth) : '\u2014'}
-              subtitle={
-                netWorthChange !== null
-                  ? `${netWorthChange >= 0 ? '+' : ''}${formatCurrency(netWorthChange)} this month`
-                  : netWorth !== null
-                    ? `Across ${accountCount} account${accountCount !== 1 ? 's' : ''}`
-                    : 'Link accounts to track'
-              }
-              status={netWorth !== null && netWorth > 0 ? 'success' : 'default'}
-              delay={0}
-            />
+          {/* Financial Health Score + Net Worth Hero */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* Health Score */}
+            {healthScore && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05, duration: 0.4 }}
+                className="bg-bg-elevated border border-border rounded-xl p-5 flex items-center gap-4"
+              >
+                <div className="relative w-16 h-16 flex-shrink-0">
+                  <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="3" className="text-border" />
+                    <circle
+                      cx="18" cy="18" r="15.5" fill="none"
+                      stroke={healthScore.color}
+                      strokeWidth="3"
+                      strokeDasharray={`${healthScore.score * 0.9741} 97.41`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold" style={{ color: healthScore.color }}>
+                    {healthScore.score}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-1">Financial Health</p>
+                  <p className="text-base font-semibold" style={{ color: healthScore.color }}>{healthScore.grade}</p>
+                  <p className="text-xs text-text-muted mt-0.5">Based on your full picture</p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Net Worth with Sparkline */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.4 }}
+              className="bg-bg-elevated border border-border rounded-xl p-5 md:col-span-2 cursor-pointer hover:border-accent/30 transition-colors"
+              onClick={() => navigate('/net-worth')}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-1">Net Worth</p>
+                  <p className="text-2xl font-bold tabular-nums">
+                    {netWorth !== null ? formatCurrency(netWorth) : '—'}
+                  </p>
+                  {netWorthChange !== null && (
+                    <div className={cn('flex items-center gap-1 mt-1 text-sm font-medium', netWorthChange >= 0 ? 'text-success' : 'text-danger')}>
+                      {netWorthChange >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                      <span>{netWorthChange >= 0 ? '+' : ''}{formatCurrency(netWorthChange)} this month</span>
+                    </div>
+                  )}
+                </div>
+                <ChevronRight className="w-4 h-4 text-text-muted" />
+              </div>
+              {nwHistory.length > 1 && (
+                <div className="h-16 mt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={nwHistory}>
+                      <defs>
+                        <linearGradient id="nwGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <Area type="monotone" dataKey="value" stroke="#22c55e" strokeWidth={2} fill="url(#nwGradient)" dot={false} />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-bg-elevated border border-border rounded-lg px-3 py-1.5 text-xs shadow-lg">
+                                <span className="font-semibold">{formatCurrency(payload[0].value as number)}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </motion.div>
+          </div>
+
+          {/* Key Metrics Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             {totalDebt > 0 && (
               <MetricTile
                 label="TOTAL DEBT"
@@ -365,7 +466,7 @@ export function Dashboard() {
             )}
             <MetricTile
               label="EMERGENCY FUND"
-              value={emergencyFund > 0 ? formatCurrency(emergencyFund) : '\u2014'}
+              value={emergencyFund > 0 ? formatCurrency(emergencyFund) : '—'}
               subtitle={
                 emergencyFund > 0 && monthlySpend
                   ? `${Math.round((emergencyFund / monthlySpend) * 10) / 10} months saved`
@@ -381,41 +482,162 @@ export function Dashboard() {
               delay={0.08}
             />
             <MetricTile
-              label="MONTHLY SPEND"
-              value={monthlySpend !== null ? formatCurrency(monthlySpend) : '\u2014'}
-              subtitle={monthlySpend !== null ? 'From credit card balances' : 'Link a credit card'}
+              label="MONTHLY INCOME"
+              value={totalIncome > 0 ? formatCurrency(totalIncome) : '—'}
+              subtitle={totalIncome > 0 && totalSpending > 0 ? `${Math.round((1 - totalSpending / totalIncome) * 100)}% savings rate` : 'From linked accounts'}
+              status={totalIncome > 0 ? 'success' : 'default'}
               delay={0.12}
             />
             <MetricTile
-              label="RUNWAY"
-              value={runwayMonths !== null ? `${runwayMonths} mo` : '\u2014'}
-              subtitle={runwayMonths !== null ? 'Months of expenses covered' : 'Based on cash & spending'}
-              status={
-                runwayMonths !== null && runwayMonths >= 6
-                  ? 'success'
-                  : runwayMonths !== null
-                    ? 'warning'
-                    : 'default'
-              }
+              label="MONTHLY SPEND"
+              value={totalSpending > 0 ? formatCurrency(totalSpending) : (monthlySpend !== null ? formatCurrency(monthlySpend) : '—')}
+              subtitle={totalSpending > 0 ? `Across ${spendingCategories.length} categories` : 'Link accounts to track'}
               delay={0.16}
             />
+          </div>
+
+          {/* Spending Breakdown + Goals Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {/* Spending Breakdown */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              className="bg-bg-elevated border border-border rounded-xl p-5"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">This Month's Spending</h3>
+                <button
+                  onClick={() => navigate('/spending')}
+                  className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1"
+                >
+                  Details <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              {spendingCategories.length > 0 ? (
+                <div className="flex gap-4">
+                  <div className="w-24 h-24 flex-shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={spendingCategories.slice(0, 6)}
+                          dataKey="total"
+                          nameKey="category"
+                          innerRadius={25}
+                          outerRadius={42}
+                          strokeWidth={0}
+                        >
+                          {spendingCategories.slice(0, 6).map((entry, i) => (
+                            <Cell key={entry.category} fill={CATEGORY_CONFIG[entry.category]?.color || '#78716c'} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 space-y-2 min-w-0">
+                    {spendingCategories.slice(0, 5).map((cat) => {
+                      const config = CATEGORY_CONFIG[cat.category] || CATEGORY_CONFIG.other;
+                      return (
+                        <div key={cat.category} className="flex items-center gap-2">
+                          <span className="text-sm flex-shrink-0">{config.icon}</span>
+                          <span className="text-xs text-text-secondary truncate flex-1">{config.label}</span>
+                          <span className="text-xs font-semibold tabular-nums">{formatCompact(cat.total)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-text-muted py-4 text-center">
+                  No spending data yet. Link accounts to track spending.
+                </div>
+              )}
+            </motion.div>
+
+            {/* Goals Progress */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25, duration: 0.4 }}
+              className="bg-bg-elevated border border-border rounded-xl p-5"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">Goals</h3>
+                <button
+                  onClick={() => navigate('/goals')}
+                  className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1"
+                >
+                  {goals.length > 0 ? 'View all' : 'Set goals'} <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              {goals.length > 0 ? (
+                <div className="space-y-3">
+                  {goals.slice(0, 3).map((goal) => {
+                    const target = parseFloat(goal.targetAmount);
+                    const current = parseFloat(goal.currentAmount);
+                    const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+                    return (
+                      <div key={goal.id}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium flex items-center gap-1.5">
+                            {goal.icon || '🎯'} {goal.name}
+                          </span>
+                          <span className="text-xs text-text-muted tabular-nums">{Math.round(pct)}%</span>
+                        </div>
+                        <div className="h-2 bg-border rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${pct}%`,
+                              backgroundColor: pct >= 100 ? '#22c55e' : pct >= 50 ? '#84cc16' : '#f59e0b',
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-0.5">
+                          <span className="text-xs text-text-muted">{formatCompact(current)}</span>
+                          <span className="text-xs text-text-muted">{formatCompact(target)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <Target className="w-8 h-8 text-text-muted mx-auto mb-2" />
+                  <p className="text-sm text-text-muted mb-3">Set financial goals to track your progress</p>
+                  <button
+                    onClick={() => navigate('/goals')}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent/80 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Create a goal
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+
+          {/* Additional Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
             <MetricTile
               label="LINKED ACCOUNTS"
               value={String(institutionCount)}
-              subtitle={
-                institutionCount > 0
-                  ? `${accountCount} account${accountCount !== 1 ? 's' : ''} total`
-                  : 'No accounts linked'
-              }
+              subtitle={institutionCount > 0 ? `${accountCount} account${accountCount !== 1 ? 's' : ''} total` : 'No accounts linked'}
               status={institutionCount > 0 ? 'success' : 'warning'}
               delay={0.2}
             />
             <MetricTile
+              label="RUNWAY"
+              value={runwayMonths !== null ? `${runwayMonths} mo` : '—'}
+              subtitle={runwayMonths !== null ? 'Months of expenses covered' : 'Based on cash & spending'}
+              status={runwayMonths !== null && runwayMonths >= 6 ? 'success' : runwayMonths !== null ? 'warning' : 'default'}
+              delay={0.24}
+            />
+            <MetricTile
               label="401(K) MATCH"
-              value={employerMatch !== null ? `${employerMatch}%` : '\u2014'}
+              value={employerMatch !== null ? `${employerMatch}%` : '—'}
               subtitle={employerMatch !== null ? `${employerMatch}% available` : 'Not set'}
               status={employerMatch !== null && employerMatch > 0 ? 'success' : 'default'}
-              delay={0.24}
+              delay={0.28}
             />
           </div>
 

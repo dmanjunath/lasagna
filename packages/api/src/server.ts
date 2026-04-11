@@ -15,6 +15,8 @@ import { simulationsRouter } from "./routes/simulations.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { portfolioRoutes } from "./routes/portfolio.js";
 import { insightsRoutes } from "./routes/insights.js";
+import { transactionRoutes } from "./routes/transactions.js";
+import { goalRoutes } from "./routes/goals.js";
 
 export const app = new Hono();
 
@@ -42,3 +44,5 @@ app.route("/api/simulations", simulationsRouter);
 app.route("/api/settings", settingsRoutes);
 app.route("/api/portfolio", portfolioRoutes);
 app.route("/api/insights", insightsRoutes);
+app.route("/api/transactions", transactionRoutes);
+app.route("/api/goals", goalRoutes);

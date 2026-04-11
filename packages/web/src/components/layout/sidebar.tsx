@@ -8,6 +8,8 @@ import {
   Sparkles,
   Target,
   CreditCard,
+  Wallet,
+  Flag,
   Plus,
   ChevronDown,
   Loader2,
@@ -35,6 +37,8 @@ interface NavItem {
 const fixedTabs: NavItem[] = [
   { id: 'home', name: 'Home', icon: LayoutDashboard, path: '/' },
   { id: 'accounts', name: 'Accounts', icon: Building2, path: '/accounts' },
+  { id: 'spending', name: 'Spending', icon: Wallet, path: '/spending' },
+  { id: 'goals', name: 'Goals', icon: Flag, path: '/goals' },
   { id: 'debt', name: 'Debt', icon: CreditCard, path: '/debt' },
   { id: 'invest', name: 'Invest', icon: PieChart, path: '/invest' },
   { id: 'tax', name: 'Tax', icon: Receipt, path: '/tax' },

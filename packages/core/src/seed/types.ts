@@ -33,11 +33,22 @@ export interface LoanConfig {
   [key: `rental${number}_mortgage`]: number | string;
 }
 
+export interface ProfileConfig {
+  annualIncome?: number;
+  age?: number;
+  filingStatus?: "single" | "married_joint" | "married_separate" | "head_of_household";
+  stateOfResidence?: string;
+  riskTolerance?: "conservative" | "moderate_conservative" | "moderate" | "moderate_aggressive" | "aggressive";
+  retirementAge?: number;
+  employerMatch?: number;
+}
+
 export interface SeedConfig {
   assets?: AssetConfig;
   property?: PropertyConfig;
   alternatives?: AlternativesConfig;
   loans?: LoanConfig;
+  profile?: ProfileConfig;
 }
 
 export interface SeedResult {

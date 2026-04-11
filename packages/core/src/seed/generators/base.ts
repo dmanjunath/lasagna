@@ -1,6 +1,7 @@
 import type { Database } from "../../db.js";
-import { tenants, users, plaidItems } from "../../schema.js";
+import { tenants, users, plaidItems, financialProfiles } from "../../schema.js";
 import { hashPassword } from "../utils.js";
+import type { ProfileConfig } from "../types.js";
 
 export interface BaseEntities {
   tenant: typeof tenants.$inferSelect;
@@ -12,6 +13,7 @@ export async function createBaseEntities(
   db: Database,
   timestamp: number,
   presetName?: string,
+  profileConfig?: ProfileConfig,
 ): Promise<BaseEntities> {
   const suffix = presetName ? `-${presetName}` : "";
   const tenantName = `Seed ${timestamp}${suffix}`;
@@ -48,6 +50,24 @@ export async function createBaseEntities(
       lastSyncedAt: new Date(),
     })
     .returning();
+
+  // Create financial profile if config provided
+  if (profileConfig) {
+    const dob = profileConfig.age
+      ? new Date(new Date().getFullYear() - profileConfig.age, 0, 15)
+      : undefined;
+
+    await db.insert(financialProfiles).values({
+      tenantId: tenant.id,
+      dateOfBirth: dob,
+      annualIncome: profileConfig.annualIncome ? String(profileConfig.annualIncome) : undefined,
+      filingStatus: profileConfig.filingStatus,
+      stateOfResidence: profileConfig.stateOfResidence,
+      riskTolerance: profileConfig.riskTolerance,
+      retirementAge: profileConfig.retirementAge,
+      employerMatch: profileConfig.employerMatch ? String(profileConfig.employerMatch) : undefined,
+    });
+  }
 
   return { tenant, user, plaidItem };
 }

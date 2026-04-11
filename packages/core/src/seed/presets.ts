@@ -4,6 +4,7 @@ export const PRESETS: Record<string, SeedConfig> = {
   negative: {
     assets: { cash: 2000 },
     loans: { credit_card: 8000, student_loan: 40000, car: 12000 },
+    profile: { annualIncome: 45000, age: 24, filingStatus: "single", riskTolerance: "aggressive", retirementAge: 65, stateOfResidence: "TX" },
   },
 
   "100k": {
@@ -14,6 +15,7 @@ export const PRESETS: Record<string, SeedConfig> = {
       brokerage: 15000,
     },
     loans: { credit_card: 3000, car: 5000 },
+    profile: { annualIncome: 85000, age: 30, filingStatus: "single", riskTolerance: "moderate_aggressive", retirementAge: 65, employerMatch: 4, stateOfResidence: "CA" },
   },
 
   "750k": {
@@ -27,6 +29,7 @@ export const PRESETS: Record<string, SeedConfig> = {
     },
     property: { primary: 450000 },
     loans: { primary_mortgage: 400000 },
+    profile: { annualIncome: 175000, age: 38, filingStatus: "married_joint", riskTolerance: "moderate", retirementAge: 60, employerMatch: 5, stateOfResidence: "WA" },
   },
 
   "1.8M": {
@@ -39,6 +42,7 @@ export const PRESETS: Record<string, SeedConfig> = {
     },
     property: { primary: 800000, rental1: 400000 },
     loans: { primary_mortgage: 500000, rental1_mortgage: 150000 },
+    profile: { annualIncome: 250000, age: 45, filingStatus: "married_joint", riskTolerance: "moderate", retirementAge: 58, employerMatch: 6, stateOfResidence: "NY" },
   },
 
   "4M": {
@@ -52,6 +56,7 @@ export const PRESETS: Record<string, SeedConfig> = {
     property: { primary: 1200000, rental1: 600000 },
     alternatives: { pe: 300000 },
     loans: { primary_mortgage: 500000, rental1_mortgage: 200000 },
+    profile: { annualIncome: 400000, age: 50, filingStatus: "married_joint", riskTolerance: "moderate_conservative", retirementAge: 57, employerMatch: 6, stateOfResidence: "CO" },
   },
 
   "7M": {
@@ -69,6 +74,7 @@ export const PRESETS: Record<string, SeedConfig> = {
       rental1_mortgage: 150000,
       rental2_mortgage: 100000,
     },
+    profile: { annualIncome: 500000, age: 55, filingStatus: "married_joint", riskTolerance: "moderate", retirementAge: 60, employerMatch: 6, stateOfResidence: "FL" },
   },
 
   "12M": {
@@ -86,6 +92,7 @@ export const PRESETS: Record<string, SeedConfig> = {
       rental1_mortgage: 200000,
       rental2_mortgage: 50000,
     },
+    profile: { annualIncome: 750000, age: 52, filingStatus: "married_joint", riskTolerance: "moderate", retirementAge: 58, employerMatch: 6, stateOfResidence: "CT" },
   },
 
   "25M": {
@@ -108,6 +115,7 @@ export const PRESETS: Record<string, SeedConfig> = {
       rental1_mortgage: 100000,
       rental2_mortgage: 100000,
     },
+    profile: { annualIncome: 1000000, age: 55, filingStatus: "married_joint", riskTolerance: "moderate_conservative", retirementAge: 55, employerMatch: 6, stateOfResidence: "MA" },
   },
 
   "75M": {
@@ -130,5 +138,6 @@ export const PRESETS: Record<string, SeedConfig> = {
       rental1_mortgage: 300000,
       rental2_mortgage: 200000,
     },
+    profile: { annualIncome: 2000000, age: 58, filingStatus: "married_joint", riskTolerance: "moderate", retirementAge: 55, employerMatch: 6, stateOfResidence: "NY" },
   },
 };

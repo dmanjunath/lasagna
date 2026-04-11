@@ -17,6 +17,8 @@ import { NewPlanPage } from './pages/plans/new';
 import { PlanDetailPage } from './pages/plans/[id]';
 import { Settings } from './pages/Settings';
 import { Debt } from './pages/debt';
+import { Spending } from './pages/spending';
+import { Goals } from './pages/goals';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -39,6 +41,8 @@ function AppRoutes() {
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/accounts" component={Accounts} />
+          <Route path="/spending" component={Spending} />
+          <Route path="/goals" component={Goals} />
           <Route path="/debt" component={Debt} />
           <Route path="/invest" component={PortfolioComposition} />
           <Route path="/tax" component={TaxStrategy} />
