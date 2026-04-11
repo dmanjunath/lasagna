@@ -3,14 +3,23 @@ import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxDocu
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}/api${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api${path}`, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+  } catch {
+    throw new Error("Cannot reach the server. Please check your connection.");
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error || res.statusText);
+    const message = (body as { error?: string }).error || res.statusText;
+    if (res.status === 502 || res.status === 503) {
+      throw new Error("Server is temporarily unavailable. Please try again.");
+    }
+    throw new Error(message);
   }
   return res.json() as Promise<T>;
 }
