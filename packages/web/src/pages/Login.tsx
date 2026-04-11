@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
 import { Button } from "../components/ui/button.js";
 import { Logo } from "../components/common/Logo.js";
@@ -25,7 +25,13 @@ export function Login() {
         await login(email, password);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      if (err instanceof TypeError && err.message.includes("fetch")) {
+        setError("Cannot reach the server. Please check your connection.");
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -90,13 +96,14 @@ export function Login() {
             />
 
             {error && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-danger text-sm text-center py-2"
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20"
               >
-                {error}
-              </motion.p>
+                <AlertCircle className="w-4 h-4 text-danger flex-shrink-0" />
+                <span className="text-danger text-sm">{error}</span>
+              </motion.div>
             )}
 
             <Button
