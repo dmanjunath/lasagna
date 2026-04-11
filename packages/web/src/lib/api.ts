@@ -291,6 +291,9 @@ export const api = {
   actOnInsight: (id: string) =>
     request<{ ok: boolean }>(`/insights/${id}/acted`, { method: "POST" }),
 
+  generateInsights: () =>
+    request<{ ok: boolean; generated: number }>("/insights/generate", { method: "POST" }),
+
   // Portfolio
   getPortfolioComposition: () =>
     request<{
