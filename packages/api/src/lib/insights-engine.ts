@@ -263,15 +263,30 @@ export async function generateInsights(tenantId: string): Promise<number> {
     return 0;
   }
 
-  // Clear existing non-dismissed insights for this tenant
+  // Keep critical/high insights that are still active — only clear low/medium
+  // This way important insights persist until the user dismisses them or they expire
   await db
     .delete(insights)
     .where(
       and(
         eq(insights.tenantId, tenantId),
-        sql`${insights.dismissed} IS NULL`
+        sql`${insights.dismissed} IS NULL`,
+        sql`${insights.urgency} IN ('low', 'medium')`
       )
     );
+
+  // Check which critical/high insights already exist (by title) to avoid duplicates
+  const existingHighPriority = await db
+    .select({ title: insights.title })
+    .from(insights)
+    .where(
+      and(
+        eq(insights.tenantId, tenantId),
+        sql`${insights.dismissed} IS NULL`,
+        sql`${insights.urgency} IN ('critical', 'high')`
+      )
+    );
+  const existingTitles = new Set(existingHighPriority.map((r) => r.title));
 
   // Insert new insights
   const validCategories = [
@@ -283,6 +298,8 @@ export async function generateInsights(tenantId: string): Promise<number> {
   ] as const;
   const validUrgencies = ["low", "medium", "high", "critical"] as const;
   const validColors = ["green", "amber", "red"];
+
+  const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
 
   let insertCount = 0;
   for (const ins of generated.slice(0, 6)) {
@@ -297,6 +314,14 @@ export async function generateInsights(tenantId: string): Promise<number> {
       ? ins.urgency
       : "medium";
 
+    // Skip if a critical/high insight with the same title already exists
+    if (
+      (urgency === "critical" || urgency === "high") &&
+      existingTitles.has(ins.title)
+    ) {
+      continue;
+    }
+
     await db.insert(insights).values({
       tenantId,
       category,
@@ -310,7 +335,7 @@ export async function generateInsights(tenantId: string): Promise<number> {
       chatPrompt: ins.chatPrompt || null,
       generatedBy: "ai",
       sourceData: dataJson,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      expiresAt: new Date(Date.now() + NINETY_DAYS),
     });
     insertCount++;
   }
