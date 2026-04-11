@@ -390,6 +390,72 @@ export const insights = pgTable("insights", {
     .$onUpdate(() => new Date()),
 });
 
+// ── Transactions ─────────────────────────────────────────────────────────
+
+export const transactionCategoryEnum = pgEnum("transaction_category", [
+  "income",
+  "housing",
+  "transportation",
+  "food_dining",
+  "groceries",
+  "utilities",
+  "healthcare",
+  "insurance",
+  "entertainment",
+  "shopping",
+  "personal_care",
+  "education",
+  "travel",
+  "subscriptions",
+  "savings_investment",
+  "debt_payment",
+  "gifts_donations",
+  "taxes",
+  "transfer",
+  "other",
+]);
+
+export const transactions = pgTable("transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  accountId: uuid("account_id")
+    .notNull()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  plaidTransactionId: varchar("plaid_transaction_id", { length: 255 }),
+  date: timestamp("date", { withTimezone: true }).notNull(),
+  name: varchar("name", { length: 500 }).notNull(),
+  merchantName: varchar("merchant_name", { length: 255 }),
+  amount: numeric("amount", { precision: 19, scale: 2 }).notNull(), // positive = expense, negative = income
+  category: transactionCategoryEnum("category").notNull().default("other"),
+  pending: integer("pending").notNull().default(0), // 0 = false, 1 = true
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Goals ─────────────────────────────────────────────────────────────────
+
+export const goalStatusEnum = pgEnum("goal_status", ["active", "completed", "paused"]);
+
+export const goals = pgTable("goals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 255 }).notNull(),
+  targetAmount: numeric("target_amount", { precision: 19, scale: 2 }).notNull(),
+  currentAmount: numeric("current_amount", { precision: 19, scale: 2 }).notNull().default("0"),
+  deadline: timestamp("deadline", { withTimezone: true }),
+  category: varchar("category", { length: 50 }).notNull().default("savings"),
+  status: goalStatusEnum("goal_status").notNull().default("active"),
+  icon: varchar("icon", { length: 10 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
 // ── Tax Documents ─────────────────────────────────────────────────────────
 export const taxDocuments = pgTable("tax_documents", {
   id: uuid("id").primaryKey().defaultRandom(),

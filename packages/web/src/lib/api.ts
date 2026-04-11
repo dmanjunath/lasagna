@@ -339,4 +339,53 @@ export const api = {
       };
       totalValue: number;
     }>("/portfolio/allocation"),
+
+  // Transactions
+  getTransactions: (params?: { page?: number; limit?: number; category?: string; startDate?: string; endDate?: string; accountId?: string; search?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => { if (v !== undefined) searchParams.set(k, String(v)); });
+    }
+    const qs = searchParams.toString();
+    return request<{
+      transactions: Array<{ id: string; accountId: string; date: string; name: string; merchantName: string | null; amount: string; category: string; pending: number; createdAt: string }>;
+      total: number;
+      page: number;
+      pageSize: number;
+    }>(`/transactions${qs ? `?${qs}` : ''}`);
+  },
+
+  getSpendingSummary: (params?: { startDate?: string; endDate?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
+    const qs = searchParams.toString();
+    return request<{
+      categories: Array<{ category: string; total: number; count: number; percentage: number }>;
+      totalSpending: number;
+      totalIncome: number;
+      netCashFlow: number;
+      period: { start: string; end: string };
+    }>(`/transactions/spending-summary${qs ? `?${qs}` : ''}`);
+  },
+
+  getMonthlyTrend: () =>
+    request<{
+      months: Array<{ month: string; income: number; expenses: number; net: number }>;
+    }>('/transactions/monthly-trend'),
+
+  // Goals
+  getGoals: () =>
+    request<{
+      goals: Array<{ id: string; name: string; targetAmount: string; currentAmount: string; deadline: string | null; category: string; status: string; icon: string | null; createdAt: string }>;
+    }>('/goals'),
+
+  createGoal: (data: { name: string; targetAmount: number; deadline?: string; category?: string; icon?: string }) =>
+    request<{ goal: { id: string } }>('/goals', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateGoal: (id: string, data: { currentAmount?: number; name?: string; targetAmount?: number; deadline?: string; status?: string }) =>
+    request<{ ok: boolean }>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  deleteGoal: (id: string) =>
+    request<{ ok: boolean }>(`/goals/${id}`, { method: 'DELETE' }),
 };

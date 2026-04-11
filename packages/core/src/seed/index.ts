@@ -25,6 +25,8 @@ import { generateProperty } from "./generators/property.js";
 import { generateAlternatives } from "./generators/alternatives.js";
 import { generateLoans } from "./generators/loans.js";
 import { generateHoldings } from "./generators/holdings.js";
+import { generateTransactions } from "./generators/transactions.js";
+import { generateGoals } from "./generators/goals.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -45,6 +47,7 @@ async function seedUser(
     db,
     timestamp,
     presetName,
+    config.profile,
   );
 
   let createdAccounts: { accountId: string; key: string }[] = [];
@@ -84,14 +87,48 @@ async function seedUser(
   }
 
   // Generate loans
+  let loanAccountIds: string[] = [];
   if (config.loans) {
-    await generateLoans(db, tenant.id, plaidItem.id, config.loans, timestamp);
+    loanAccountIds = await generateLoans(db, tenant.id, plaidItem.id, config.loans, timestamp);
   }
 
   // Generate holdings for investment accounts
   if (createdAccounts.length > 0) {
     await generateHoldings(db, tenant.id, createdAccounts, timestamp);
   }
+
+  // Generate transactions for checking + credit card accounts
+  const checkingAccount = createdAccounts.find((a) => a.key === "cash");
+  // Credit card is the first loan account if credit_card is in the config
+  const creditCardAccountId = config.loans?.credit_card !== undefined && loanAccountIds.length > 0
+    ? loanAccountIds[0]
+    : undefined;
+
+  const annualIncome = config.profile?.annualIncome ?? 85000;
+
+  if (checkingAccount) {
+    // If no credit card account, use checking for all transactions
+    const creditId = creditCardAccountId ?? checkingAccount.accountId;
+    await generateTransactions(db, tenant.id, checkingAccount.accountId, creditId, annualIncome / 12);
+  }
+
+  // Generate goals
+  const totalSavings = (config.assets?.savings ?? 0) + (config.assets?.cash ?? 0);
+  const totalInvestments =
+    (config.assets?.trad_401k ?? 0) +
+    (config.assets?.roth_401k ?? 0) +
+    (config.assets?.trad_ira ?? 0) +
+    (config.assets?.roth_ira ?? 0) +
+    (config.assets?.brokerage ?? 0) +
+    (config.assets?.hsa ?? 0);
+  const hasDebt = !!config.loans && Object.keys(config.loans).length > 0;
+  const totalDebt = config.loans
+    ? Object.values(config.loans).reduce((sum, v) => {
+        const amount = typeof v === "number" ? v : parseFloat(String(v).split("@")[0]) || 0;
+        return sum + amount;
+      }, 0)
+    : 0;
+  await generateGoals(db, tenant.id, annualIncome, totalSavings, totalInvestments, hasDebt, totalDebt);
 
   return {
     email: user.email,
@@ -147,6 +184,7 @@ function mergeConfigs(base: SeedConfig, override: SeedConfig): SeedConfig {
     property: { ...base.property, ...override.property },
     alternatives: { ...base.alternatives, ...override.alternatives },
     loans: { ...base.loans, ...override.loans },
+    profile: { ...base.profile, ...override.profile },
   };
 }
 
