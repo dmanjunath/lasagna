@@ -28,22 +28,20 @@ export function GlobalChatSidebar() {
     : ['What is my net worth?', 'How are my investments doing?', 'Help me save more'];
 
   // Handle pending message from "Walk me through this", peek bar, etc.
-  // This component may mount AFTER pendingMessage is set (sidebar was closed),
-  // so we check on mount and on pendingMessage changes.
-  const pendingHandled = useRef(false);
+  // This component mounts AFTER pendingMessage is set (sidebar was closed).
+  const pendingHandled = useRef('');
   useEffect(() => {
-    if (pendingMessage && !pendingHandled.current && !loading) {
-      pendingHandled.current = true;
+    if (pendingMessage && pendingMessage !== pendingHandled.current && !loading) {
+      pendingHandled.current = pendingMessage;
       const msg = pendingMessage;
-      clearPendingMessage();
-      // Delay to ensure component is fully mounted and ready
+      // Send the message, then clear the pending state
       const timer = setTimeout(() => {
         handleNewMessage(msg);
-        pendingHandled.current = false;
-      }, 300);
-      return () => { clearTimeout(timer); pendingHandled.current = false; };
+        clearPendingMessage();
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [pendingMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendingMessage, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendToApi = useCallback(async (content: string, existingThreadId: string | null): Promise<{ response: string; threadId: string }> => {
     try {
