@@ -400,9 +400,9 @@ export function Priorities() {
           className="text-center py-16"
         >
           <Rocket className="w-12 h-12 text-text-muted mx-auto mb-4" />
-          <h2 className="font-display text-2xl font-medium mb-2">Let&apos;s build your financial plan</h2>
+          <h2 className="font-display text-2xl font-medium mb-2">Let&apos;s layer your lasagna</h2>
           <p className="text-text-muted text-sm max-w-md mx-auto mb-6">
-            To create your personalized priority list, we need to know about your income, accounts, and financial profile. This takes about 2 minutes.
+            To build your personalized financial layers, we need to know about your income, accounts, and profile. This takes about 2 minutes.
           </p>
           <div className="flex gap-3 justify-center">
             <a href="/onboarding" className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
@@ -426,10 +426,10 @@ export function Priorities() {
         className="mb-6"
       >
         <h1 className="text-2xl md:text-3xl font-bold text-text-primary">
-          Financial Priority Waterfall
+          Layer Your Lasagna
         </h1>
         <p className="text-text-secondary mt-1">
-          What to do next with your money, in the right order.
+          Build your financial foundation one layer at a time.
         </p>
       </motion.div>
 

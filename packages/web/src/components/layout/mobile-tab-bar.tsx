@@ -17,7 +17,7 @@ interface TabItem {
 
 const tabs: TabItem[] = [
   { name: 'Home', icon: LayoutDashboard, path: '/' },
-  { name: 'Next Steps', icon: Compass, path: '/priorities' },
+  { name: 'Layers', icon: Compass, path: '/priorities' },
   { name: 'Portfolio', icon: PieChart, path: '/invest' },
   { name: 'Retire', icon: Target, path: '/retirement' },
   { name: 'Accounts', icon: Building2, path: '/accounts' },

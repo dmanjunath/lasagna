@@ -35,7 +35,7 @@ interface NavItem {
 
 const fixedTabs: NavItem[] = [
   { id: 'home', name: 'Home', icon: LayoutDashboard, path: '/' },
-  { id: 'priorities', name: 'Next Steps', icon: Compass, path: '/priorities' },
+  { id: 'priorities', name: 'Your Layers', icon: Compass, path: '/priorities' },
   { id: 'accounts', name: 'Accounts', icon: Building2, path: '/accounts' },
   { id: 'debt', name: 'Debt', icon: CreditCard, path: '/debt' },
   { id: 'invest', name: 'Portfolio', icon: PieChart, path: '/invest' },
