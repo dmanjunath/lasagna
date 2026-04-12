@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePageContext } from '../../lib/page-context';
 import { api, API_BASE } from '../../lib/api';
 import { ChatThreadList } from './chat-thread-list';
@@ -27,17 +27,23 @@ export function GlobalChatSidebar() {
       ]
     : ['What is my net worth?', 'How are my investments doing?', 'Help me save more'];
 
-  // Handle pending message from peek bar / floating input / "Walk me through this"
+  // Handle pending message from "Walk me through this", peek bar, etc.
+  // This component may mount AFTER pendingMessage is set (sidebar was closed),
+  // so we check on mount and on pendingMessage changes.
+  const pendingHandled = useRef(false);
   useEffect(() => {
-    if (pendingMessage && chatOpen) {
-      // Clear first to prevent double-send on re-mount
+    if (pendingMessage && !pendingHandled.current && !loading) {
+      pendingHandled.current = true;
       const msg = pendingMessage;
       clearPendingMessage();
-      // Small delay to ensure component is fully mounted
-      const timer = setTimeout(() => handleNewMessage(msg), 100);
-      return () => clearTimeout(timer);
+      // Delay to ensure component is fully mounted and ready
+      const timer = setTimeout(() => {
+        handleNewMessage(msg);
+        pendingHandled.current = false;
+      }, 300);
+      return () => { clearTimeout(timer); pendingHandled.current = false; };
     }
-  }, [pendingMessage, chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendingMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendToApi = useCallback(async (content: string, existingThreadId: string | null): Promise<{ response: string; threadId: string }> => {
     try {
