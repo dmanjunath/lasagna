@@ -1,10 +1,10 @@
 import { useLocation } from 'wouter';
 import {
   LayoutDashboard,
-  Wallet,
-  Flag,
-  CreditCard,
+  Compass,
   PieChart,
+  Target,
+  Building2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { LucideIcon } from 'lucide-react';
@@ -17,10 +17,10 @@ interface TabItem {
 
 const tabs: TabItem[] = [
   { name: 'Home', icon: LayoutDashboard, path: '/' },
-  { name: 'Spending', icon: Wallet, path: '/spending' },
-  { name: 'Goals', icon: Flag, path: '/goals' },
-  { name: 'Debt', icon: CreditCard, path: '/debt' },
-  { name: 'Invest', icon: PieChart, path: '/invest' },
+  { name: 'Next Steps', icon: Compass, path: '/priorities' },
+  { name: 'Portfolio', icon: PieChart, path: '/invest' },
+  { name: 'Retire', icon: Target, path: '/retirement' },
+  { name: 'Accounts', icon: Building2, path: '/accounts' },
 ];
 
 export function MobileTabBar() {

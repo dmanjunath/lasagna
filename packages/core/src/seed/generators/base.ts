@@ -16,7 +16,12 @@ export async function createBaseEntities(
   profileConfig?: ProfileConfig,
 ): Promise<BaseEntities> {
   const suffix = presetName ? `-${presetName}` : "";
-  const tenantName = `Seed ${timestamp}${suffix}`;
+  // Use a friendly name for demo purposes
+  const DEMO_NAMES: Record<string, string> = {
+    negative: "Jordan", "100k": "Alex", "750k": "Sam", "1.8M": "Taylor",
+    "4M": "Morgan", "7M": "Casey", "12M": "Riley", "25M": "Quinn", "75M": "Blake",
+  };
+  const tenantName = presetName && DEMO_NAMES[presetName] ? DEMO_NAMES[presetName] : `User ${timestamp}`;
   const userEmail = `seed-${timestamp}${suffix}@lasagna.local`;
   const userPassword = "password123";
 

@@ -337,7 +337,9 @@ export function Dashboard() {
     }
   }, [loading, netWorth, netWorthChange, accountCount, institutionCount, monthlySpend, runwayMonths, totalDebt, emergencyFund, debtFreeDate, employerMatch, setPageContext]);
 
-  const firstName = tenant?.name?.split(' ')[0] || 'there';
+  // Use first word of tenant name, but skip "Seed" prefix from seed data
+  const rawName = tenant?.name || '';
+  const firstName = rawName.startsWith('Seed ') ? 'there' : (rawName.split(' ')[0] || 'there');
   const completedSteps = setupSteps.filter(s => s.completed).length;
   const allSetupComplete = completedSteps === setupSteps.length;
 
