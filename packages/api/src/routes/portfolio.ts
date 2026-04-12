@@ -68,6 +68,86 @@ async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]> {
   return holdingsInput;
 }
 
+// Exposure analysis — aggregate by subcategory across all accounts
+// Shows "Total S&P 500 exposure" etc. with blended historical return
+portfolioRoutes.get("/exposure", async (c) => {
+  const session = c.get("session");
+
+  const holdingsInput = await getHoldingsInput(session.tenantId);
+  const composition = aggregatePortfolio(holdingsInput);
+
+  // Historical average annual returns by subcategory
+  const SUBCATEGORY_RETURNS: Record<string, number> = {
+    "S&P 500": 10.2,
+    "Total Market": 10.0,
+    "Total World": 9.5,
+    Growth: 11.5,
+    Nasdaq: 12.0,
+    Value: 9.5,
+    "Small Cap": 10.5,
+    "Mid Cap": 10.0,
+    Dividend: 9.0,
+    Developed: 7.5,
+    Emerging: 8.0,
+    "Total International": 7.5,
+    "Total Bond": 5.0,
+    Corporate: 5.5,
+    Government: 4.5,
+    TIPS: 4.0,
+    Municipal: 4.0,
+    "US REITs": 9.5,
+    "International REITs": 7.0,
+    "Money Market": 2.0,
+    "Short-Term": 2.5,
+    "Large Cap": 10.5,
+    Unknown: 7.0,
+  };
+
+  // Build exposure groups: subcategory across all accounts
+  const exposures: Array<{
+    name: string;
+    assetClass: string;
+    value: number;
+    percentage: number;
+    historicalReturn: number;
+    holdings: Array<{ ticker: string; name: string; value: number; account: string; shares: number }>;
+  }> = [];
+
+  for (const ac of composition.assetClasses) {
+    for (const sc of ac.subCategories) {
+      exposures.push({
+        name: sc.name,
+        assetClass: ac.name,
+        value: sc.value,
+        percentage: sc.percentage,
+        historicalReturn: SUBCATEGORY_RETURNS[sc.name] ?? 7.0,
+        holdings: sc.holdings.map((h) => ({
+          ticker: h.ticker,
+          name: h.name,
+          value: h.value,
+          account: h.account,
+          shares: h.shares,
+        })),
+      });
+    }
+  }
+
+  // Sort by value descending
+  exposures.sort((a, b) => b.value - a.value);
+
+  // Calculate blended historical return
+  let weightedReturn = 0;
+  for (const e of exposures) {
+    weightedReturn += (e.percentage / 100) * e.historicalReturn;
+  }
+
+  return c.json({
+    totalValue: composition.totalValue,
+    blendedReturn: Math.round(weightedReturn * 100) / 100,
+    exposures,
+  });
+});
+
 portfolioRoutes.get("/allocation", async (c) => {
   const session = c.get("session");
 
