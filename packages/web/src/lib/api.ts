@@ -434,4 +434,14 @@ export const api = {
         filingStatus: string | null;
       };
     }>('/priorities'),
+
+  // Manual Accounts
+  createManualAccount: (data: { name: string; type: string; subtype?: string; balance?: number; metadata?: Record<string, unknown> }) =>
+    request<{ account: { id: string; name: string; type: string } }>('/manual-accounts', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateManualAccount: (id: string, data: { name?: string; balance?: number; metadata?: Record<string, unknown> }) =>
+    request<{ ok: boolean }>(`/manual-accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  deleteManualAccount: (id: string) =>
+    request<{ ok: boolean }>(`/manual-accounts/${id}`, { method: 'DELETE' }),
 };

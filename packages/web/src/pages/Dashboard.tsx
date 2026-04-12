@@ -160,6 +160,13 @@ export function Dashboard() {
       api.getSpendingSummary().catch(() => ({ categories: [], totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
       api.getGoals().catch(() => ({ goals: [] })),
     ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, insightsData, spendingData, goalsData]) => {
+      // If user has no accounts and no financial profile, redirect to onboarding
+      const hasNoData = balanceData.balances.length === 0 && !profileData.financialProfile;
+      if (hasNoData) {
+        navigate('/onboarding');
+        return;
+      }
+
       const balances = balanceData.balances;
 
       let totalAssets = 0;

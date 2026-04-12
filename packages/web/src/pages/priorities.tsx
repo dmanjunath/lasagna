@@ -388,6 +388,35 @@ export function Priorities() {
 
   const { steps, currentStepId, summary } = data;
 
+  // Check if user has any meaningful data
+  const hasNoData = summary.monthlyIncome === 0 && summary.totalCash === 0 && summary.totalInvested === 0;
+
+  if (hasNoData) {
+    return (
+      <div className="flex-1 p-4 md:p-8 max-w-3xl mx-auto w-full">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center py-16"
+        >
+          <Rocket className="w-12 h-12 text-text-muted mx-auto mb-4" />
+          <h2 className="font-display text-2xl font-medium mb-2">Let&apos;s build your financial plan</h2>
+          <p className="text-text-muted text-sm max-w-md mx-auto mb-6">
+            To create your personalized priority list, we need to know about your income, accounts, and financial profile. This takes about 2 minutes.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <a href="/onboarding" className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
+              Get Started
+            </a>
+            <a href="/accounts" className="inline-flex items-center gap-2 px-4 py-2.5 border border-border text-text-secondary text-sm rounded-xl hover:bg-bg-elevated transition-colors">
+              Link Bank Account
+            </a>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 p-4 md:p-8 max-w-3xl mx-auto w-full">
       <motion.div

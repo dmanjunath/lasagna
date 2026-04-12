@@ -20,6 +20,7 @@ import { Debt } from './pages/debt';
 import { Spending } from './pages/spending';
 import { Goals } from './pages/goals';
 import { Priorities } from './pages/priorities';
+import { Onboarding } from './pages/onboarding';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -37,42 +38,49 @@ function AppRoutes() {
   }
 
   return (
-    <PageContextProvider>
-      <Shell>
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/accounts" component={Accounts} />
-          <Route path="/spending" component={Spending} />
-          <Route path="/goals" component={Goals} />
-          <Route path="/debt" component={Debt} />
-          <Route path="/invest" component={PortfolioComposition} />
-          <Route path="/tax" component={TaxStrategy} />
-          <Route path="/profile" component={Settings} />
-          <Route path="/plans" component={PlansPage} />
-          <Route path="/plans/new" component={NewPlanPage} />
-          <Route path="/plans/:id" component={PlanDetailPage} />
-          <Route path="/plans/retirement" component={Retirement} />
-          <Route path="/plans/savings/:id" component={SavingsGoal} />
-          <Route path="/plans/debt-payoff" component={DebtPayoff} />
-          <Route path="/priorities" component={Priorities} />
-          <Route path="/retirement" component={Retirement} />
-          <Route path="/probability" component={ProbabilityOfSuccess} />
+    <Switch>
+      <Route path="/onboarding" component={Onboarding} />
+      <Route>
+        {() => (
+          <PageContextProvider>
+            <Shell>
+              <Switch>
+                <Route path="/" component={Dashboard} />
+                <Route path="/accounts" component={Accounts} />
+                <Route path="/spending" component={Spending} />
+                <Route path="/goals" component={Goals} />
+                <Route path="/debt" component={Debt} />
+                <Route path="/invest" component={PortfolioComposition} />
+                <Route path="/tax" component={TaxStrategy} />
+                <Route path="/profile" component={Settings} />
+                <Route path="/plans" component={PlansPage} />
+                <Route path="/plans/new" component={NewPlanPage} />
+                <Route path="/plans/:id" component={PlanDetailPage} />
+                <Route path="/plans/retirement" component={Retirement} />
+                <Route path="/plans/savings/:id" component={SavingsGoal} />
+                <Route path="/plans/debt-payoff" component={DebtPayoff} />
+                <Route path="/priorities" component={Priorities} />
+                <Route path="/retirement" component={Retirement} />
+                <Route path="/probability" component={ProbabilityOfSuccess} />
 
-          <Route path="/net-worth" component={NetWorth} />
+                <Route path="/net-worth" component={NetWorth} />
 
-          {/* Redirects from old paths */}
-          <Route path="/portfolio"><Redirect to="/invest" /></Route>
-          <Route path="/tax-history"><Redirect to="/tax" /></Route>
-          <Route path="/settings"><Redirect to="/profile" /></Route>
+                {/* Redirects from old paths */}
+                <Route path="/portfolio"><Redirect to="/invest" /></Route>
+                <Route path="/tax-history"><Redirect to="/tax" /></Route>
+                <Route path="/settings"><Redirect to="/profile" /></Route>
 
-          <Route>
-            <div className="flex-1 flex items-center justify-center text-text-muted">
-              Page not found
-            </div>
-          </Route>
-        </Switch>
-      </Shell>
-    </PageContextProvider>
+                <Route>
+                  <div className="flex-1 flex items-center justify-center text-text-muted">
+                    Page not found
+                  </div>
+                </Route>
+              </Switch>
+            </Shell>
+          </PageContextProvider>
+        )}
+      </Route>
+    </Switch>
   );
 }
 

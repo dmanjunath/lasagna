@@ -56,12 +56,16 @@ export function Debt() {
   const [loading, setLoading] = useState(true);
   const [debts, setDebts] = useState<DebtAccount[]>([]);
   const [totalDebt, setTotalDebt] = useState(0);
+  const [hasAccounts, setHasAccounts] = useState(false);
 
   useEffect(() => {
-    api
-      .getDebts()
-      .catch(() => ({ debts: [] as Array<{ name: string; type: string; balance: number; interestRate: number | null; minimumPayment: number }>, totalDebt: 0, monthlyInterest: 0 }))
-      .then(({ debts: apiDebts, totalDebt: apiTotal }) => {
+    Promise.all([
+      api.getDebts().catch(() => ({ debts: [] as Array<{ name: string; type: string; balance: number; interestRate: number | null; minimumPayment: number }>, totalDebt: 0, monthlyInterest: 0 })),
+      api.getBalances().catch(() => ({ balances: [] })),
+    ]).then(([debtResult, balanceData]) => {
+      setHasAccounts(balanceData.balances.length > 0);
+      const apiDebts = debtResult.debts;
+      const apiTotal = debtResult.totalDebt;
         const mapped: DebtAccount[] = apiDebts.map((d) => {
           const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : 6.5);
           const minPay = d.minimumPayment;
@@ -137,6 +141,17 @@ export function Debt() {
           <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Loading...</span>
         </div>
+      ) : !hasAccounts ? (
+        <motion.div {...fadeUp(0)} className="text-center py-16">
+          <CreditCard className="w-12 h-12 text-text-muted mx-auto mb-4" />
+          <h2 className="font-display text-2xl font-medium mb-2">No Accounts Linked</h2>
+          <p className="text-text-muted text-sm max-w-md mx-auto mb-6">
+            Add your credit cards and loans to see your debt breakdown, payoff timeline, and optimization strategy.
+          </p>
+          <a href="/accounts" className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
+            Add Accounts
+          </a>
+        </motion.div>
       ) : hasDebt ? (
         <HasDebtView
           debts={debts}
