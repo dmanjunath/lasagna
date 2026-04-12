@@ -147,6 +147,7 @@ export function Dashboard() {
   const [totalIncome, setTotalIncome] = useState(0);
   const [goals, setGoals] = useState<Array<{ id: string; name: string; targetAmount: string; currentAmount: string; deadline: string | null; category: string; status: string; icon: string | null }>>([]);
   const [healthScore, setHealthScore] = useState<{ score: number; grade: string; color: string } | null>(null);
+  const [hasPlaidAccounts, setHasPlaidAccounts] = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -160,10 +161,10 @@ export function Dashboard() {
       api.getSpendingSummary().catch(() => ({ categories: [], totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
       api.getGoals().catch(() => ({ goals: [] })),
     ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, insightsData, spendingData, goalsData]) => {
-      // If user has no accounts and no financial profile, redirect to onboarding
-      const hasNoData = balanceData.balances.length === 0 && !profileData.financialProfile;
-      if (hasNoData) {
-        navigate('/onboarding');
+      // Redirect to onboarding if user has no data at all (and hasn't completed it)
+      const onboardingDone = localStorage.getItem('lasagna_onboarding_done');
+      if (balanceData.balances.length === 0 && !profileData.financialProfile && !onboardingDone) {
+        navigate('/onboarding', { replace: true });
         return;
       }
 
@@ -201,6 +202,8 @@ export function Dashboard() {
         }
       }
 
+      const realPlaidItems = itemData.items.filter((item: { institutionId: string | null }) => item.institutionId && item.institutionId !== 'manual');
+      setHasPlaidAccounts(realPlaidItems.length > 0);
       setInstitutionCount(itemData.items.length);
 
       // Net worth history
@@ -374,6 +377,27 @@ export function Dashboard() {
           {/* Setup Progress - only show if incomplete */}
           {!allSetupComplete && (
             <SetupProgress steps={setupSteps} />
+          )}
+
+          {/* Link accounts nudge */}
+          {!hasPlaidAccounts && accountCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05, duration: 0.4 }}
+              className="mb-4 bg-accent/5 border border-accent/20 rounded-xl px-4 py-3 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🔗</span>
+                <div>
+                  <p className="text-sm font-medium">Link your bank for automatic updates</p>
+                  <p className="text-xs text-text-muted">Your balances are manual snapshots. Connect via Plaid for real-time tracking.</p>
+                </div>
+              </div>
+              <a href="/accounts" className="flex-shrink-0 px-3 py-1.5 bg-accent text-bg text-xs font-semibold rounded-lg hover:bg-accent/90 transition-colors">
+                Link Account
+              </a>
+            </motion.div>
           )}
 
           {/* Financial Health Score + Net Worth Hero */}
