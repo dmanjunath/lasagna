@@ -103,7 +103,12 @@ export function Debt() {
         pageId: 'debt',
         pageTitle: 'Debt Command Center',
         description: `Debt overview: ${debts.length} accounts, ${formatCurrency(totalDebt)} total.`,
-        data: { totalDebt, debtCount: debts.length },
+        data: {
+          totalDebt,
+          debtCount: debts.length,
+          debts: debts.map(d => ({ name: d.name, balance: d.balance, apr: d.apr, minPayment: d.minPayment, type: d.type })),
+          totalMonthlyPayment: debts.reduce((s, d) => s + d.minPayment, 0),
+        },
       });
     }
   }, [loading, totalDebt, debts.length, setPageContext]);

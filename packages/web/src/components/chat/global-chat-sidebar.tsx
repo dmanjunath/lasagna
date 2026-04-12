@@ -47,9 +47,28 @@ export function GlobalChatSidebar() {
         threadId = thread.id;
       }
 
-      const contextMessage = currentPage
-        ? `[Context: User is on the "${currentPage.pageTitle}" page. ${currentPage.description || ''} Page data: ${JSON.stringify(currentPage.data || {})}]\n\nUser question: ${content}`
-        : content;
+      // Build rich context from current page data — include financial details but never personal info
+      let context = '';
+      if (currentPage) {
+        const d = currentPage.data || {};
+        context = `[Context: User is viewing "${currentPage.pageTitle}". ${currentPage.description || ''}`;
+        // Format financial data readably instead of raw JSON
+        const entries = Object.entries(d).filter(([k]) => !['name', 'email', 'dateOfBirth', 'dob'].includes(k));
+        if (entries.length > 0) {
+          context += '\n\nFinancial data on this page:';
+          for (const [key, val] of entries) {
+            if (val === null || val === undefined) continue;
+            if (Array.isArray(val)) {
+              // Format arrays (e.g., debts list) as readable items
+              context += `\n- ${key}: ${JSON.stringify(val)}`;
+            } else {
+              context += `\n- ${key}: ${typeof val === 'number' && Math.abs(val as number) > 100 ? `$${(val as number).toLocaleString()}` : val}`;
+            }
+          }
+        }
+        context += ']\n\n';
+      }
+      const contextMessage = context + content;
 
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',

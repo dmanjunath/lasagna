@@ -120,6 +120,7 @@ export default function PortfolioComposition() {
         description: 'Shows portfolio allocation across asset classes, sub-categories, and individual holdings.',
         data: {
           totalValue,
+          blendedHistoricalReturn: blendedReturn,
           assetClasses: assetClasses.map(ac => ({
             name: ac.name,
             value: ac.value,
