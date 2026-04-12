@@ -97,55 +97,79 @@ function FieldHint({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-text-muted mt-1">{children}</p>;
 }
 
-// ─── Persistence ──────────────────────────────────────────
-const OB_KEY = 'lasagna_onboarding';
-function loadDraft(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(OB_KEY) || '{}'); } catch { return {}; }
-}
-function saveDraft(d: Record<string, string>) {
-  localStorage.setItem(OB_KEY, JSON.stringify({ ...loadDraft(), ...d }));
-}
-
 export function Onboarding() {
   const [, navigate] = useLocation();
-  const draft = loadDraft();
-  const [step, setStep] = useState(() => Math.min(parseInt(draft._step || '0', 10), 3));
+  const [initializing, setInitializing] = useState(true);
+  const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [saving, setSaving] = useState(false);
 
-  // Step 1 — restore from draft
-  const [name, setName] = useState(draft.name || '');
-  const [dob, setDob] = useState(draft.dob || '');
-  const [filingStatus, setFilingStatus] = useState(draft.filingStatus || '');
-  const [stateOfResidence, setStateOfResidence] = useState(draft.stateOfResidence || '');
+  // Step 1
+  const [name, setName] = useState('');
+  const [dob, setDob] = useState('');
+  const [filingStatus, setFilingStatus] = useState('');
+  const [stateOfResidence, setStateOfResidence] = useState('');
 
   // Step 2
-  const [annualIncome, setAnnualIncome] = useState(draft.annualIncome || '');
-  const [has401k, setHas401k] = useState(draft.has401k !== 'false');
-  const [matchPercent, setMatchPercent] = useState(draft.matchPercent || '');
-  const [riskTolerance, setRiskTolerance] = useState(draft.riskTolerance || '');
-  const [retirementAge, setRetirementAge] = useState(draft.retirementAge || '65');
+  const [annualIncome, setAnnualIncome] = useState('');
+  const [has401k, setHas401k] = useState(true);
+  const [matchPercent, setMatchPercent] = useState('');
+  const [riskTolerance, setRiskTolerance] = useState('');
+  const [retirementAge, setRetirementAge] = useState('65');
 
   // Step 3
   const [showManualEntry, setShowManualEntry] = useState(false);
-  const [addedAccounts, setAddedAccounts] = useState<AddedAccount[]>(() => {
-    try { return JSON.parse(draft.addedAccounts || '[]'); } catch { return []; }
-  });
+  const [addedAccounts, setAddedAccounts] = useState<AddedAccount[]>([]);
   const [activeType, setActiveType] = useState<AccountTypeDef | null>(null);
   const [acctName, setAcctName] = useState('');
   const [acctBalance, setAcctBalance] = useState('');
   const [acctRate, setAcctRate] = useState('');
   const [addingAccount, setAddingAccount] = useState(false);
-  const [linkedViaPlaid, setLinkedViaPlaid] = useState(draft.linkedViaPlaid === 'true');
+  const [linkedViaPlaid, setLinkedViaPlaid] = useState(false);
 
-  // Auto-save form state
+  // ─── Restore from DB on mount ───────────────────────────
   useEffect(() => {
-    saveDraft({
-      _step: String(step), name, dob, filingStatus, stateOfResidence,
-      annualIncome, has401k: String(has401k), matchPercent, riskTolerance, retirementAge,
-      addedAccounts: JSON.stringify(addedAccounts), linkedViaPlaid: String(linkedViaPlaid),
-    });
-  }, [step, name, dob, filingStatus, stateOfResidence, annualIncome, has401k, matchPercent, riskTolerance, retirementAge, addedAccounts, linkedViaPlaid]);
+    Promise.all([
+      api.getProfile().catch(() => null),
+      api.getFinancialProfile().catch(() => ({ financialProfile: null })),
+      api.getBalances().catch(() => ({ balances: [] })),
+      api.getItems().catch(() => ({ items: [] })),
+    ]).then(([profileData, fpData, balanceData, itemData]) => {
+      const fp = fpData?.financialProfile;
+      let startStep = 0;
+
+      // Restore step 1 fields from DB
+      if (profileData?.profile?.name) setName(profileData.profile.name);
+      if (fp) {
+        if (fp.dateOfBirth) setDob(fp.dateOfBirth.split('T')[0]);
+        if (fp.filingStatus) setFilingStatus(fp.filingStatus);
+        if (fp.stateOfResidence) setStateOfResidence(fp.stateOfResidence);
+
+        // If profile basics exist, user completed step 1
+        if (fp.filingStatus || fp.dateOfBirth) startStep = 1;
+
+        // Restore step 2 fields
+        if (fp.annualIncome) {
+          setAnnualIncome(String(fp.annualIncome));
+          if (fp.riskTolerance) setRiskTolerance(fp.riskTolerance);
+          if (fp.retirementAge) setRetirementAge(String(fp.retirementAge));
+          if (fp.employerMatchPercent !== null && fp.employerMatchPercent !== undefined) {
+            setMatchPercent(String(fp.employerMatchPercent));
+          }
+          // If income + risk are set, user completed step 2
+          if (fp.riskTolerance) startStep = 2;
+        }
+      }
+
+      // Check if accounts already exist (step 3)
+      const hasAccounts = balanceData.balances.length > 0;
+      const hasPlaid = itemData.items.some((i: { institutionId: string | null }) => i.institutionId && i.institutionId !== 'manual');
+      if (hasPlaid) setLinkedViaPlaid(true);
+      if (hasAccounts && startStep >= 2) startStep = 3; // go straight to completion
+
+      setStep(startStep);
+    }).finally(() => setInitializing(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalSteps = 4;
   const step1Valid = name.trim().length > 0;
@@ -176,7 +200,6 @@ export function Onboarding() {
     }
     if (step === 2) {
       localStorage.setItem('lasagna_onboarding_done', '1');
-      localStorage.removeItem(OB_KEY);
     }
     setDirection(1);
     setStep((s) => Math.min(s + 1, totalSteps - 1));
@@ -505,7 +528,7 @@ export function Onboarding() {
             </div>
 
             <div className="space-y-3 pt-2">
-              <button onClick={() => { localStorage.setItem('lasagna_onboarding_done', '1'); localStorage.removeItem(OB_KEY); navigate('/', { replace: true }); }}
+              <button onClick={() => { localStorage.setItem('lasagna_onboarding_done', '1'); navigate('/', { replace: true }); }}
                 className="w-full max-w-sm mx-auto flex items-center justify-center gap-2 px-6 py-3 bg-accent text-bg rounded-lg font-medium hover:bg-accent/90 transition-colors">
                 Go to Dashboard
                 <ChevronRight className="w-4 h-4" />
@@ -532,6 +555,14 @@ export function Onboarding() {
     if (step === 2) return true;
     return false;
   })();
+
+  if (initializing) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
