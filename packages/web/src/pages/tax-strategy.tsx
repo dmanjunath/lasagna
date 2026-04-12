@@ -22,8 +22,9 @@ export function TaxStrategy() {
     try {
       const { documents } = await api.getTaxDocuments();
       setDocuments(documents);
-    } catch (err) {
-      console.error("Failed to load documents:", err);
+    } catch {
+      // Tax documents API may fail if GCS/DocumentAI isn't configured — silently ignore
+      setDocuments([]);
     }
   };
 

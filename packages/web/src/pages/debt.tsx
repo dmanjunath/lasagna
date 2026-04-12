@@ -299,7 +299,7 @@ function HasDebtView({
           <div className="space-y-3">
             {debts.map((d, i) => (
               <div
-                key={d.name}
+                key={`${d.name}-${i}`}
                 className={`glass-card p-4 flex items-center gap-3.5 ${i === 0 ? 'border-danger/25' : ''}`}
               >
                 {/* Numbered badge */}

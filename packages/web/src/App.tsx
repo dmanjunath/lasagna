@@ -65,7 +65,8 @@ function AppRoutes() {
 
                 <Route path="/net-worth" component={NetWorth} />
 
-                {/* Redirects from old paths */}
+                {/* Redirects */}
+                <Route path="/login"><Redirect to="/" /></Route>
                 <Route path="/portfolio"><Redirect to="/invest" /></Route>
                 <Route path="/tax-history"><Redirect to="/tax" /></Route>
                 <Route path="/settings"><Redirect to="/profile" /></Route>

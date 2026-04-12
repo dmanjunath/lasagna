@@ -587,7 +587,7 @@ export function Retirement() {
 
           {/* Run Full Simulation Button */}
           <Button
-            onClick={() => navigate("/probability-of-success")}
+            onClick={() => navigate("/probability")}
             className="w-full sm:w-auto"
           >
             Run Full Simulation
