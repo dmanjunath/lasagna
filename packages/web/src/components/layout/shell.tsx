@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X } from 'lucide-react';
@@ -23,6 +23,13 @@ export function Shell({ children }: ShellProps) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const { chatOpen, closeChat } = usePageContext();
+
+  // Sync context chatOpen → desktop sidebar
+  useEffect(() => {
+    if (chatOpen && !isMobile) {
+      setDesktopChatOpen(true);
+    }
+  }, [chatOpen, isMobile]);
 
   const isAdmin = user?.role === 'owner';
 
