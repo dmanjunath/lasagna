@@ -222,6 +222,24 @@ Rules:
 - impactColor: green (positive/savings), amber (caution/action needed), red (urgent/losing money)
 - Each chatPrompt should be a natural question the user would ask the AI advisor
 
+## Tax Optimization Rules (MUST check these)
+
+1. **Roth Conversion Opportunity**: If user has Traditional IRA/401k balance AND income is below $100k (single) or $200k (married), suggest Roth conversion ladder. Impact: "Tax-free growth on converted amount"
+
+2. **0% LTCG Bracket**: If filing status is "single" with income under $47,025 or "married_joint" with income under $94,050, they may qualify for 0% long-term capital gains rate. Suggest harvesting gains in taxable accounts. Impact: "$0 tax on realized gains"
+
+3. **Tax-Loss Harvesting**: If user has taxable brokerage account with holdings, suggest reviewing for tax-loss harvesting opportunities (selling at a loss to offset gains). Impact: "Up to $3,000/yr in ordinary income offset"
+
+4. **HSA Triple Tax Advantage**: If user does NOT have an HSA, recommend opening one (if eligible). If they HAVE one but balance is low, recommend maxing it out. Impact: "$4,300-$8,550/yr in tax-deductible contributions"
+
+5. **Asset Location**: If user has both tax-advantaged accounts (401k, IRA) and taxable accounts, suggest optimal asset placement:
+   - Tax-inefficient assets (bonds, REITs) → tax-deferred accounts (Traditional IRA/401k)
+   - Tax-efficient assets (index funds, growth stocks) → taxable accounts
+   - Tax-free growth assets → Roth accounts
+   Impact: "Potentially adds 0.1-0.5% annual return through tax efficiency"
+
+6. **401(k) Contribution Gap**: If user has employer match but isn't maxing it, calculate the free money being left on the table. This should be CRITICAL urgency. Impact: "Missing $X/yr in employer match"
+
 Return 3-6 insights. Fewer if the user has limited data.`;
 
 export async function generateInsights(tenantId: string): Promise<number> {

@@ -17,6 +17,7 @@ import { portfolioRoutes } from "./routes/portfolio.js";
 import { insightsRoutes } from "./routes/insights.js";
 import { transactionRoutes } from "./routes/transactions.js";
 import { goalRoutes } from "./routes/goals.js";
+import { priorityRoutes } from "./routes/priorities.js";
 
 export const app = new Hono();
 
@@ -46,3 +47,4 @@ app.route("/api/portfolio", portfolioRoutes);
 app.route("/api/insights", insightsRoutes);
 app.route("/api/transactions", transactionRoutes);
 app.route("/api/goals", goalRoutes);
+app.route("/api/priorities", priorityRoutes);

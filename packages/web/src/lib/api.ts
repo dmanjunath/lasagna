@@ -340,6 +340,20 @@ export const api = {
       totalValue: number;
     }>("/portfolio/allocation"),
 
+  getPortfolioExposure: () =>
+    request<{
+      totalValue: number;
+      blendedReturn: number;
+      exposures: Array<{
+        name: string;
+        assetClass: string;
+        value: number;
+        percentage: number;
+        historicalReturn: number;
+        holdings: Array<{ ticker: string; name: string; value: number; account: string; shares: number }>;
+      }>;
+    }>("/portfolio/exposure"),
+
   // Transactions
   getTransactions: (params?: { page?: number; limit?: number; category?: string; startDate?: string; endDate?: string; accountId?: string; search?: string }) => {
     const searchParams = new URLSearchParams();
@@ -388,4 +402,36 @@ export const api = {
 
   deleteGoal: (id: string) =>
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'DELETE' }),
+
+  // Priorities
+  getPriorities: () =>
+    request<{
+      steps: Array<{
+        id: string;
+        order: number;
+        title: string;
+        subtitle: string;
+        icon: string;
+        status: string;
+        current: number | null;
+        target: number | null;
+        progress: number;
+        action: string;
+        detail: string;
+        priority: string;
+      }>;
+      currentStepId: string;
+      summary: {
+        monthlyIncome: number;
+        monthlyExpenses: number;
+        monthlySurplus: number;
+        totalCash: number;
+        totalInvested: number;
+        totalHighInterestDebt: number;
+        totalMediumInterestDebt: number;
+        age: number | null;
+        retirementAge: number;
+        filingStatus: string | null;
+      };
+    }>('/priorities'),
 };

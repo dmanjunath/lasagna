@@ -9,6 +9,7 @@ import {
   Target,
   CreditCard,
   Wallet,
+  Compass,
   Flag,
   Plus,
   ChevronDown,
@@ -36,6 +37,7 @@ interface NavItem {
 
 const fixedTabs: NavItem[] = [
   { id: 'home', name: 'Home', icon: LayoutDashboard, path: '/' },
+  { id: 'priorities', name: 'Next Steps', icon: Compass, path: '/priorities' },
   { id: 'accounts', name: 'Accounts', icon: Building2, path: '/accounts' },
   { id: 'spending', name: 'Spending', icon: Wallet, path: '/spending' },
   { id: 'goals', name: 'Goals', icon: Flag, path: '/goals' },
@@ -43,7 +45,7 @@ const fixedTabs: NavItem[] = [
   { id: 'invest', name: 'Invest', icon: PieChart, path: '/invest' },
   { id: 'tax', name: 'Tax', icon: Receipt, path: '/tax' },
   { id: 'portfolio', name: 'Portfolio', icon: TrendingUp, path: '/net-worth' },
-  { id: 'probability', name: 'Projections', icon: Target, path: '/probability' },
+  { id: 'retirement', name: 'Retirement', icon: Target, path: '/retirement' },
 ];
 
 const planTypeIcons: Record<PlanType, LucideIcon> = {

@@ -19,6 +19,7 @@ import { Settings } from './pages/Settings';
 import { Debt } from './pages/debt';
 import { Spending } from './pages/spending';
 import { Goals } from './pages/goals';
+import { Priorities } from './pages/priorities';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -53,6 +54,8 @@ function AppRoutes() {
           <Route path="/plans/retirement" component={Retirement} />
           <Route path="/plans/savings/:id" component={SavingsGoal} />
           <Route path="/plans/debt-payoff" component={DebtPayoff} />
+          <Route path="/priorities" component={Priorities} />
+          <Route path="/retirement" component={Retirement} />
           <Route path="/probability" component={ProbabilityOfSuccess} />
 
           <Route path="/net-worth" component={NetWorth} />
