@@ -69,7 +69,11 @@ export function Debt() {
         const mapped: DebtAccount[] = apiDebts.map((d) => {
           const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : 6.5);
           const minPay = d.minimumPayment;
-          const suggestedPay = Math.round(minPay * 1.8);
+          // Only suggest accelerated payments for high-interest debt (APR >= 7%)
+          // Mortgages and low-interest loans: just pay the minimum
+          const isMortgage = d.name?.toLowerCase().includes('mortgage');
+          const isHighInterest = apr >= 7 && !isMortgage;
+          const suggestedPay = isHighInterest ? Math.round(minPay * 1.8) : minPay;
           const minMonths = monthsToPayoff(d.balance, apr, minPay);
           const sugMonths = monthsToPayoff(d.balance, apr, suggestedPay);
           return {

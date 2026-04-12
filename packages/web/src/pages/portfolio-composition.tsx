@@ -62,13 +62,17 @@ export default function PortfolioComposition() {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [blendedReturn, setBlendedReturn] = useState<number | null>(null);
   const [exposures, setExposures] = useState<Array<{ name: string; assetClass: string; value: number; percentage: number; historicalReturn: number }>>([]);
+  // Fallback: account-level allocation when no holdings exist
+  const [accountAllocation, setAccountAllocation] = useState<Array<{ name: string; value: number; percentage: number; color: string }>>([]);
+  const [accountTotal, setAccountTotal] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [compData, expData] = await Promise.all([
+        const [compData, expData, balanceData] = await Promise.all([
           api.getPortfolioComposition(),
           api.getPortfolioExposure().catch(() => null),
+          api.getBalances().catch(() => ({ balances: [] })),
         ]);
         setTotalValue(compData.totalValue);
         setAssetClasses(compData.assetClasses);
@@ -78,6 +82,24 @@ export default function PortfolioComposition() {
         if (expData) {
           setBlendedReturn(expData.blendedReturn);
           setExposures(expData.exposures);
+        }
+
+        // Build account-level allocation as fallback
+        if (compData.assetClasses.length === 0 && balanceData.balances.length > 0) {
+          const ACCT_COLORS: Record<string, string> = {
+            depository: '#4ade80', investment: '#60a5fa', credit: '#f43f5e',
+            loan: '#f59e0b', real_estate: '#8b5cf6', alternative: '#ec4899',
+          };
+          const accts = balanceData.balances
+            .map((b) => ({ name: b.name, value: Math.abs(parseFloat(b.balance || '0')), type: b.type }))
+            .filter((a) => a.value > 0)
+            .sort((a, b) => b.value - a.value);
+          const total = accts.reduce((s, a) => s + a.value, 0);
+          setAccountTotal(total);
+          setAccountAllocation(accts.map((a) => ({
+            name: a.name, value: a.value, percentage: total > 0 ? (a.value / total) * 100 : 0,
+            color: ACCT_COLORS[a.type] || '#a8a29e',
+          })));
         }
       } catch (error) {
         console.error('Failed to fetch portfolio composition:', error);
@@ -279,6 +301,72 @@ export default function PortfolioComposition() {
   }
 
   if (assetClasses.length === 0) {
+    // Fallback: show account-level allocation when accounts exist but no holdings
+    if (accountAllocation.length > 0) {
+      return (
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
+          {/* Header with total value */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card rounded-2xl p-4 md:p-8 mb-6 md:mb-8"
+          >
+            <p className="text-text-muted text-sm mb-2">Portfolio Overview</p>
+            <div className="font-display text-4xl md:text-5xl font-semibold tracking-tight tabular-nums">
+              {formatMoney(accountTotal)}
+            </div>
+          </motion.div>
+
+          {/* Donut chart + account list */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="glass-card rounded-2xl p-4 md:p-8 mb-6"
+          >
+            <div className="flex flex-col md:flex-row items-center gap-6 md:gap-8 w-full">
+              <DonutChart data={accountAllocation} size={280} />
+              <div className="flex-1 w-full space-y-2">
+                {accountAllocation.map((acct) => (
+                  <div
+                    key={acct.name}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-hover transition-colors"
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: acct.color }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{acct.name}</div>
+                      <div className="text-xs text-text-muted tabular-nums">
+                        {acct.percentage.toFixed(1)}% · {formatMoney(acct.value, true)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Note about linking investment accounts */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="glass-card rounded-2xl p-5 text-center"
+          >
+            <p className="text-sm text-text-muted">
+              Link investment accounts via Plaid to see individual holdings and ticker-level analysis.
+            </p>
+            <Button className="mt-4" onClick={() => setLocation('/accounts')}>
+              <Plus className="w-4 h-4 mr-2" />
+              Link Investment Account
+            </Button>
+          </motion.div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
         <motion.div

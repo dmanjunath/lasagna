@@ -284,8 +284,8 @@ export function Accounts() {
                         key={account.id}
                         className="p-4 md:p-5 flex items-center justify-between hover:bg-surface-hover transition-colors"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-sm font-medium text-text truncate">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <span className="text-sm font-medium text-text truncate max-w-[200px] md:max-w-[300px]" title={account.name}>
                             {account.name}
                           </span>
                           {account.mask && (
@@ -294,7 +294,7 @@ export function Accounts() {
                             </span>
                           )}
                         </div>
-                        <span className="text-sm font-semibold text-text tabular-nums">
+                        <span className="text-sm font-semibold text-text tabular-nums flex-shrink-0 ml-4">
                           {account.balance !== null
                             ? formatCurrency(account.balance, account.currency)
                             : "—"}

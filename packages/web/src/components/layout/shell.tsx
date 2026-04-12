@@ -17,7 +17,7 @@ interface ShellProps {
 
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [desktopChatOpen, setDesktopChatOpen] = useState(true);
+  const [desktopChatOpen, setDesktopChatOpen] = useState(false);
   const [, setLocation] = useLocation();
   const [location] = useLocation();
   const isMobile = useIsMobile();
@@ -50,7 +50,7 @@ export function Shell({ children }: ShellProps) {
       <div className="flex-1 flex overflow-hidden">
         {/* Desktop sidebar */}
         {!isMobile && (
-          <aside className="w-[200px] flex-shrink-0 border-r border-border overflow-y-auto">
+          <aside className="w-[220px] flex-shrink-0 border-r border-border overflow-y-auto">
             <Sidebar onNewPlan={handleNewPlan} />
           </aside>
         )}

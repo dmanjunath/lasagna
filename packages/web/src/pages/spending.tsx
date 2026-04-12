@@ -180,6 +180,10 @@ export function Spending() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
+  // Linked account detection
+  const [hasLinkedAccounts, setHasLinkedAccounts] = useState(false);
+  const [creditCardTotal, setCreditCardTotal] = useState(0);
+
   // Loading
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingTrend, setLoadingTrend] = useState(true);
@@ -190,6 +194,19 @@ export function Spending() {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Detect linked accounts and credit card balances (for empty state)
+  useEffect(() => {
+    api.getBalances()
+      .then((data) => {
+        setHasLinkedAccounts(data.balances.length > 0);
+        const ccTotal = data.balances
+          .filter((b: { type: string }) => b.type === 'credit')
+          .reduce((sum: number, b: { balance: string | null }) => sum + Math.abs(parseFloat(b.balance || '0')), 0);
+        setCreditCardTotal(ccTotal);
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch spending summary
   useEffect(() => {
@@ -328,7 +345,8 @@ export function Spending() {
         </button>
       </motion.div>
 
-      {/* Quick Stats */}
+      {/* Quick Stats — hidden when no data and user has linked accounts */}
+      {(!hasLinkedAccounts || !loadingSummary && (totalSpending > 0 || totalIncome > 0)) && (
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -375,6 +393,35 @@ export function Spending() {
           </p>
         </div>
       </motion.div>
+      )}
+
+      {/* Linked accounts with no transaction data — show estimated spend */}
+      {!loadingSummary && totalSpending === 0 && totalIncome === 0 && hasLinkedAccounts && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="bg-bg-elevated border border-border rounded-xl p-6 mb-8 text-center"
+        >
+          <h3 className="text-lg font-semibold text-text-primary mb-2">
+            Transaction sync coming soon
+          </h3>
+          <p className="text-sm text-text-muted mb-4">
+            For now, your monthly expenses are estimated from your credit card balances.
+          </p>
+          {creditCardTotal > 0 && (
+            <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-danger/10 border border-danger/20 rounded-xl">
+              <ArrowDownRight className="w-4 h-4 text-danger" />
+              <span className="text-xs uppercase tracking-wider text-text-muted font-semibold mr-2">
+                Est. Monthly Spend
+              </span>
+              <span className="text-xl font-bold text-danger">
+                {formatCurrency(creditCardTotal)}
+              </span>
+            </div>
+          )}
+        </motion.div>
+      )}
 
       {/* Spending by Category + Monthly Trend — side by side on large screens */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

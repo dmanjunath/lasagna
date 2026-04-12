@@ -400,91 +400,52 @@ export function Dashboard() {
             </motion.div>
           )}
 
-          {/* Financial Health Score + Net Worth Hero */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {/* Health Score */}
-            {healthScore && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05, duration: 0.4 }}
-                className="bg-bg-elevated border border-border rounded-xl p-5 flex items-center gap-4"
-              >
-                <div className="relative w-16 h-16 flex-shrink-0">
-                  <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="3" className="text-border" />
-                    <circle
-                      cx="18" cy="18" r="15.5" fill="none"
-                      stroke={healthScore.color}
-                      strokeWidth="3"
-                      strokeDasharray={`${healthScore.score * 0.9741} 97.41`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold" style={{ color: healthScore.color }}>
-                    {healthScore.score}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-1">Financial Health</p>
-                  <p className="text-base font-semibold" style={{ color: healthScore.color }}>{healthScore.grade}</p>
-                  <p className="text-xs text-text-muted mt-0.5">Based on your full picture</p>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Net Worth with Sparkline */}
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.4 }}
-              className="bg-bg-elevated border border-border rounded-xl p-5 md:col-span-2 cursor-pointer hover:border-accent/30 transition-colors"
-              onClick={() => navigate('/net-worth')}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-1">Net Worth</p>
-                  <p className="text-2xl font-bold tabular-nums">
-                    {netWorth !== null ? formatCurrency(netWorth) : '—'}
-                  </p>
-                  {netWorthChange !== null && (
-                    <div className={cn('flex items-center gap-1 mt-1 text-sm font-medium', netWorthChange >= 0 ? 'text-success' : 'text-danger')}>
-                      {netWorthChange >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                      <span>{netWorthChange >= 0 ? '+' : ''}{formatCurrency(netWorthChange)} this month</span>
-                    </div>
-                  )}
-                </div>
-                <ChevronRight className="w-4 h-4 text-text-muted" />
-              </div>
-              {nwHistory.length > 1 && (
-                <div className="h-16 mt-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={nwHistory}>
-                      <defs>
-                        <linearGradient id="nwGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
-                          <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Area type="monotone" dataKey="value" stroke="#22c55e" strokeWidth={2} fill="url(#nwGradient)" dot={false} />
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            return (
-                              <div className="bg-bg-elevated border border-border rounded-lg px-3 py-1.5 text-xs shadow-lg">
-                                <span className="font-semibold">{formatCurrency(payload[0].value as number)}</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+          {/* Net Worth Hero */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05, duration: 0.4 }}
+            className="mb-8"
+          >
+            <p className="text-sm text-text-muted mb-1">Net Worth</p>
+            <div className="flex items-baseline gap-3">
+              <p className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold tabular-nums tracking-tight">
+                {netWorth !== null ? formatCurrency(netWorth) : '—'}
+              </p>
+              {netWorthChange !== null && (
+                <span className={cn('text-sm font-medium', netWorthChange >= 0 ? 'text-success' : 'text-danger')}>
+                  {netWorthChange >= 0 ? '+' : ''}{formatCurrency(netWorthChange)}
+                </span>
               )}
-            </motion.div>
-          </div>
+            </div>
+            {nwHistory.length > 1 && (
+              <div className="h-16 mt-3 max-w-lg">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={nwHistory}>
+                    <defs>
+                      <linearGradient id="nwGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#34c759" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="#34c759" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="value" stroke="#34c759" strokeWidth={1.5} fill="url(#nwGradient)" dot={false} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="bg-bg-elevated border border-border rounded-lg px-3 py-1.5 text-xs shadow-lg">
+                              <span className="font-semibold">{formatCurrency(payload[0].value as number)}</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </motion.div>
 
           {/* Key Metrics Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -498,7 +459,7 @@ export function Dashboard() {
               />
             )}
             <MetricTile
-              label="EMERGENCY FUND"
+              label="CASH & SAVINGS"
               value={emergencyFund > 0 ? formatCurrency(emergencyFund) : '—'}
               subtitle={
                 emergencyFund > 0 && monthlySpend
@@ -649,30 +610,7 @@ export function Dashboard() {
             </motion.div>
           </div>
 
-          {/* Additional Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-            <MetricTile
-              label="LINKED ACCOUNTS"
-              value={String(institutionCount)}
-              subtitle={institutionCount > 0 ? `${accountCount} account${accountCount !== 1 ? 's' : ''} total` : 'No accounts linked'}
-              status={institutionCount > 0 ? 'success' : 'warning'}
-              delay={0.2}
-            />
-            <MetricTile
-              label="RUNWAY"
-              value={runwayMonths !== null ? `${runwayMonths} mo` : '—'}
-              subtitle={runwayMonths !== null ? 'Months of expenses covered' : 'Based on cash & spending'}
-              status={runwayMonths !== null && runwayMonths >= 6 ? 'success' : runwayMonths !== null ? 'warning' : 'default'}
-              delay={0.24}
-            />
-            <MetricTile
-              label="401(K) MATCH"
-              value={employerMatch !== null ? `${employerMatch}%` : '—'}
-              subtitle={employerMatch !== null ? `${employerMatch}% available` : 'Not set'}
-              status={employerMatch !== null && employerMatch > 0 ? 'success' : 'default'}
-              delay={0.28}
-            />
-          </div>
+          {/* empty - removed low-value metrics */}
 
           {/* Insights / Action Items */}
           {actionItems.length > 0 && (
