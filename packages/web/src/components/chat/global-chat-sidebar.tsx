@@ -27,13 +27,17 @@ export function GlobalChatSidebar() {
       ]
     : ['What is my net worth?', 'How are my investments doing?', 'Help me save more'];
 
-  // Handle pending message from peek bar / floating input
+  // Handle pending message from peek bar / floating input / "Walk me through this"
   useEffect(() => {
     if (pendingMessage && chatOpen) {
-      handleNewMessage(pendingMessage);
+      // Clear first to prevent double-send on re-mount
+      const msg = pendingMessage;
       clearPendingMessage();
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => handleNewMessage(msg), 100);
+      return () => clearTimeout(timer);
     }
-  }, [pendingMessage, chatOpen]);
+  }, [pendingMessage, chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendToApi = useCallback(async (content: string, existingThreadId: string | null): Promise<{ response: string; threadId: string }> => {
     try {

@@ -345,7 +345,7 @@ function HasDebtView({
               description="Call the number on the back of your card and ask for a hardship rate reduction or balance transfer offer. Average reduction: 5-7%."
               impact="Saves ~$50/mo interest"
               impactColor="red"
-              chatPrompt="How can I negotiate lower interest rates on my debt?"
+              chatPrompt="Walk me through exactly what to say when I call my credit card company to negotiate a lower interest rate. What scripts work best?"
               defaultOpen
             />
             <ActionItem
@@ -354,7 +354,7 @@ function HasDebtView({
               description="Never miss a payment and protect your credit score. Some lenders give a 0.25% rate discount for autopay."
               impact="Protects credit score"
               impactColor="green"
-              chatPrompt="What is the fastest way to pay off my debt?"
+              chatPrompt="How do I set up autopay on my credit cards and loans? Any tips to avoid overdraft issues?"
             />
             <ActionItem
               title="Increase monthly payment"
@@ -362,7 +362,7 @@ function HasDebtView({
               description="Even an extra $70/mo shaves months off payoff and saves hundreds in interest."
               impact="Debt-free sooner"
               impactColor="amber"
-              chatPrompt="How fast can I pay off all my debt?"
+              chatPrompt="If I increase my monthly debt payment by $200, how much faster will I be debt-free and how much interest will I save?"
             />
             <ActionItem
               title="Check balance transfer card offers"
@@ -370,7 +370,7 @@ function HasDebtView({
               description="A 0% APR balance transfer card could eliminate interest on your highest-rate card for 15-18 months."
               impact="$924/yr saved"
               impactColor="amber"
-              chatPrompt="How can I free up more money to pay off debt?"
+              chatPrompt="What are the best 0% APR balance transfer cards right now? How does the transfer process work and what are the fees?"
             />
           </div>
         </Section>
