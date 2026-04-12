@@ -50,6 +50,18 @@ export function Accounts() {
 
   useEffect(() => loadItems(), []);
 
+  // Auto-open Plaid Link if navigated with ?autoLink=true (from onboarding)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autoLink') === 'true') {
+      // Clean up the URL
+      window.history.replaceState({}, '', '/accounts');
+      // Small delay to let the page render first
+      const timer = setTimeout(() => handleLink(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleLink = async () => {
     setLinking(true);
     setError("");
@@ -73,10 +85,31 @@ export function Accounts() {
               institutionId: metadata.institution?.institution_id,
               institutionName: metadata.institution?.name,
             });
-            loadItems(false);
+            // Sync runs async on the server — poll until accounts appear
+            setSyncing(true);
+            let attempts = 0;
+            const poll = setInterval(async () => {
+              attempts++;
+              try {
+                const data = await api.getItems();
+                // Check if the new institution has accounts yet
+                const newInst = data.items.find(
+                  (i) => i.institutionName === metadata.institution?.name
+                );
+                if ((newInst && newInst.accounts.length > 0) || attempts >= 10) {
+                  clearInterval(poll);
+                  setItems(data.items);
+                  setSyncing(false);
+                  setLinking(false);
+                }
+              } catch {
+                clearInterval(poll);
+                setSyncing(false);
+                setLinking(false);
+              }
+            }, 2000);
           } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to link account");
-          } finally {
             setLinking(false);
           }
         },
@@ -233,6 +266,17 @@ export function Accounts() {
                   </div>
                 </div>
 
+                {item.accounts.length === 0 && syncing && (
+                  <div className="p-4 md:p-5 flex items-center gap-3 text-text-muted">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Syncing accounts...</span>
+                  </div>
+                )}
+                {item.accounts.length === 0 && !syncing && (
+                  <div className="p-4 md:p-5 text-sm text-text-muted">
+                    No accounts found for this institution.
+                  </div>
+                )}
                 {item.accounts.length > 0 && (
                   <div className="divide-y divide-border">
                     {item.accounts.map((account) => (

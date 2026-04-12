@@ -236,7 +236,7 @@ export function Onboarding() {
     // Navigate to accounts page which has the Plaid Link integration
     // Mark that user chose to link so we can show the completion step
     setLinkedViaPlaid(true);
-    navigate('/accounts');
+    navigate('/accounts?autoLink=true');
   };
 
   const renderStep = () => {
