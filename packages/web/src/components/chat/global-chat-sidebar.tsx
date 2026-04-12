@@ -31,17 +31,44 @@ export function GlobalChatSidebar() {
   // This component mounts AFTER pendingMessage is set (sidebar was closed).
   const pendingHandled = useRef('');
   useEffect(() => {
-    if (pendingMessage && pendingMessage !== pendingHandled.current && !loading) {
-      pendingHandled.current = pendingMessage;
-      const msg = pendingMessage;
-      // Send the message, then clear the pending state
-      const timer = setTimeout(() => {
-        handleNewMessage(msg);
-        clearPendingMessage();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [pendingMessage, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!pendingMessage || pendingMessage === pendingHandled.current) return;
+    pendingHandled.current = pendingMessage;
+    const msg = pendingMessage;
+    clearPendingMessage();
+
+    // Directly execute message send (don't go through handleNewMessage which has stale closure)
+    const doSend = async () => {
+      const userMsg = {
+        id: `user-${Date.now()}`, threadId: '', role: 'user' as const,
+        content: msg, toolCalls: null, uiPayload: null, createdAt: new Date().toISOString(),
+      };
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const newThread = {
+        thread: { id: `thread-${Date.now()}`, question: msg, answerPreview: '', timestamp },
+        messages: [userMsg], apiThreadId: null as string | null,
+      };
+      setThreads(prev => [...prev, newThread]);
+      setActiveThreadIndex(threads.length);
+      setLoading(true);
+      const { response, threadId } = await sendToApi(msg, null);
+      const assistantMsg = {
+        id: `assistant-${Date.now()}`, threadId: threadId || '', role: 'assistant' as const,
+        content: response, toolCalls: null, uiPayload: null, createdAt: new Date().toISOString(),
+      };
+      setThreads(prev => {
+        const updated = [...prev];
+        const idx = updated.length - 1;
+        if (updated[idx]) {
+          updated[idx] = { ...updated[idx], thread: { ...updated[idx].thread, answerPreview: response.slice(0, 120) }, messages: [...updated[idx].messages, assistantMsg], apiThreadId: threadId };
+        }
+        return updated;
+      });
+      setLoading(false);
+    };
+
+    setTimeout(doSend, 200);
+  }, [pendingMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendToApi = useCallback(async (content: string, existingThreadId: string | null): Promise<{ response: string; threadId: string }> => {
     try {
