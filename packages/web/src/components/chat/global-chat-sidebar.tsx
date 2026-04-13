@@ -51,7 +51,16 @@ export function GlobalChatSidebar() {
       setThreads(prev => [...prev, newThread]);
       setActiveThreadIndex(threads.length);
       setLoading(true);
-      const { response, threadId } = await sendToApi(msg, null);
+      const { response, threadId, contextMeta: cm } = await sendToApi(msg, null);
+      // Attach context to user message retroactively
+      if (cm) {
+        setThreads(prev => {
+          const updated = [...prev];
+          const t = updated[updated.length - 1];
+          if (t && t.messages[0]) t.messages[0] = { ...t.messages[0], uiPayload: { context: cm } as unknown as Message['uiPayload'] };
+          return updated;
+        });
+      }
       const assistantMsg = {
         id: `assistant-${Date.now()}`, threadId: threadId || '', role: 'assistant' as const,
         content: response, toolCalls: null, uiPayload: null, createdAt: new Date().toISOString(),
@@ -80,26 +89,32 @@ export function GlobalChatSidebar() {
 
       // Build rich context from current page data — include financial details but never personal info
       let context = '';
+      const contextItems: Array<{ label: string; value: string }> = [];
+      let contextPage = '';
       if (currentPage) {
+        contextPage = currentPage.pageTitle;
         const d = currentPage.data || {};
         context = `[Context: User is viewing "${currentPage.pageTitle}". ${currentPage.description || ''}`;
-        // Format financial data readably instead of raw JSON
         const entries = Object.entries(d).filter(([k]) => !['name', 'email', 'dateOfBirth', 'dob'].includes(k));
         if (entries.length > 0) {
           context += '\n\nFinancial data on this page:';
           for (const [key, val] of entries) {
             if (val === null || val === undefined) continue;
-            if (Array.isArray(val)) {
-              // Format arrays (e.g., debts list) as readable items
-              context += `\n- ${key}: ${JSON.stringify(val)}`;
-            } else {
-              context += `\n- ${key}: ${typeof val === 'number' && Math.abs(val as number) > 100 ? `$${(val as number).toLocaleString()}` : val}`;
+            const formatted = Array.isArray(val) ? JSON.stringify(val) :
+              (typeof val === 'number' && Math.abs(val as number) > 100 ? `$${(val as number).toLocaleString()}` : String(val));
+            context += `\n- ${key}: ${formatted}`;
+            // Build human-readable context items for display (skip large arrays)
+            if (!Array.isArray(val)) {
+              const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+              contextItems.push({ label, value: formatted });
             }
           }
         }
         context += ']\n\n';
       }
       const contextMessage = context + content;
+      // Store context metadata for display in the message bubble
+      const contextMeta = contextItems.length > 0 ? { page: contextPage, items: contextItems } : null;
 
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
@@ -142,9 +157,9 @@ export function GlobalChatSidebar() {
         response = data.response?.chat || data.response?.content || 'I apologize, but I could not process your request.';
       }
 
-      return { response: response.trim(), threadId };
+      return { response: response.trim(), threadId, contextMeta };
     } catch {
-      return { response: 'Sorry, I encountered an error. Please try again.', threadId: existingThreadId || '' };
+      return { response: 'Sorry, I encountered an error. Please try again.', threadId: existingThreadId || '', contextMeta: null };
     }
   }, [currentPage]);
 
@@ -180,7 +195,19 @@ export function GlobalChatSidebar() {
     setActiveThreadIndex(newIndex);
     setLoading(true);
 
-    const { response, threadId } = await sendToApi(text.trim(), null);
+    const { response, threadId, contextMeta: ctxMeta } = await sendToApi(text.trim(), null);
+
+    // Retroactively attach context to user message for display
+    if (ctxMeta) {
+      setThreads(prev => {
+        const updated = [...prev];
+        const target = updated[newIndex];
+        if (target && target.messages[0]) {
+          target.messages[0] = { ...target.messages[0], uiPayload: { context: ctxMeta } as unknown as Message['uiPayload'] };
+        }
+        return updated;
+      });
+    }
 
     const assistantMsg: Message = {
       id: `assistant-${Date.now()}`,
