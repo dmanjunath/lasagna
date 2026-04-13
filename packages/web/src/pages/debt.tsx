@@ -36,6 +36,7 @@ function monthsToPayoff(balance: number, apr: number, payment: number): number {
 }
 
 function addMonths(months: number): string {
+  if (months >= 999) return 'Never (at minimum)';
   const d = new Date();
   d.setMonth(d.getMonth() + months);
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });

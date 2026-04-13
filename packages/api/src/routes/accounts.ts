@@ -129,7 +129,9 @@ accountRoutes.get("/debts", async (c) => {
       // Estimate minimum payment
       let minimumPayment: number;
       if (acct.type === "credit") {
-        minimumPayment = Math.max(balance * 0.02, 25);
+        // Minimum must cover at least the monthly interest + 1% of principal
+        const monthlyInterest = interestRate ? balance * (interestRate / 100 / 12) : 0;
+        minimumPayment = Math.max(balance * 0.02, monthlyInterest + balance * 0.01, 25);
       } else if (termMonths && originationDate) {
         const originated = new Date(originationDate);
         const monthsElapsed =

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { Loader2, TrendingUp, TrendingDown, ArrowRight, Plus, Target, ChevronRight } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
@@ -430,6 +430,7 @@ export function Dashboard() {
                         <stop offset="100%" stopColor="#34c759" stopOpacity={0} />
                       </linearGradient>
                     </defs>
+                    <YAxis domain={['dataMin - 1000', 'dataMax + 1000']} hide />
                     <Area type="monotone" dataKey="value" stroke="#34c759" strokeWidth={1.5} fill="url(#nwGradient)" dot={false} />
                     <Tooltip
                       content={({ active, payload }) => {
