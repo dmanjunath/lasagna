@@ -59,8 +59,8 @@ interface PriorityStep {
 
 interface PrioritySummary {
   monthlyIncome: number;
-  monthlyExpenses: number;
-  monthlySurplus: number;
+  monthlyExpenses: number | null;
+  monthlySurplus: number | null;
   totalCash: number;
   totalInvested: number;
   totalHighInterestDebt: number;
@@ -124,7 +124,7 @@ function SummaryCard({ summary }: { summary: PrioritySummary }) {
           <div>
             <div className="text-sm text-text-muted">Expenses</div>
             <div className="text-lg font-semibold text-text-primary">
-              {formatCurrency(summary.monthlyExpenses)}
+              {summary.monthlyExpenses !== null ? formatCurrency(summary.monthlyExpenses) : '—'}
             </div>
           </div>
         </div>
@@ -137,11 +137,11 @@ function SummaryCard({ summary }: { summary: PrioritySummary }) {
             <div
               className={cn(
                 'text-lg font-semibold',
-                summary.monthlySurplus >= 0 ? 'text-accent' : 'text-danger'
+                summary.monthlySurplus !== null && summary.monthlySurplus >= 0 ? 'text-accent' : 'text-danger'
               )}
             >
-              {formatCurrency(summary.monthlySurplus)}
-              <span className="text-sm text-text-muted font-normal">/mo</span>
+              {summary.monthlySurplus !== null ? formatCurrency(summary.monthlySurplus) : '—'}
+              {summary.monthlySurplus !== null && <span className="text-sm text-text-muted font-normal">/mo</span>}
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, desc, accounts, balanceSnapshots, financialProfiles } from "@lasagna/core";
+import { eq, desc, and, sql, accounts, balanceSnapshots, financialProfiles, transactions } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 
@@ -104,12 +104,21 @@ priorityRoutes.get("/", async (c) => {
     }
   }
 
-  // Estimate monthly expenses (use 60% of income as rough estimate, or credit card balance)
-  const creditSpend = accts
-    .filter((a) => a.type === "credit")
-    .reduce((sum, a) => sum + Math.abs(a.balance), 0);
-  const monthlyExpenses =
-    creditSpend > 0 ? creditSpend : monthlyIncome * 0.6;
+  // Get monthly expenses from real transaction data (last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const [txnResult] = await db
+    .select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
+    .from(transactions)
+    .where(and(
+      eq(transactions.tenantId, session.tenantId),
+      sql`${transactions.amount} > 0`,
+      sql`${transactions.date} >= ${thirtyDaysAgo.toISOString().split('T')[0]}`,
+    ));
+  const realMonthlyExpenses = parseFloat(txnResult?.total ?? "0");
+  const hasTransactionData = realMonthlyExpenses > 0;
+  // Use real data if available, otherwise 0 (don't fabricate)
+  const monthlyExpenses = hasTransactionData ? realMonthlyExpenses : 0;
 
   const isOver50 = age !== null && age >= 50;
   const isMarried = filingStatus === "married_joint";
@@ -321,8 +330,8 @@ priorityRoutes.get("/", async (c) => {
     currentStepId,
     summary: {
       monthlyIncome: Math.round(monthlyIncome),
-      monthlyExpenses: Math.round(monthlyExpenses),
-      monthlySurplus: Math.round(monthlyIncome - monthlyExpenses),
+      monthlyExpenses: hasTransactionData ? Math.round(monthlyExpenses) : null,
+      monthlySurplus: hasTransactionData ? Math.round(monthlyIncome - monthlyExpenses) : null,
       totalCash: Math.round(cashTotal),
       totalInvested: Math.round(investmentTotal),
       totalHighInterestDebt: Math.round(totalHighDebt),

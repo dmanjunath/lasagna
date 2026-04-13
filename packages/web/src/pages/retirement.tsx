@@ -140,13 +140,12 @@ export function Retirement() {
         setAllocation(portfolioData.allocation);
       }
 
-      // Spending
+      // Spending — summary returns current month data by default
       if (spendingData.totalSpending > 0) {
-        // spending summary is for the date range, assume monthly
-        const monthlySpend = Math.round(spendingData.totalSpending / 3); // ~3 months default
+        const monthlySpend = Math.round(spendingData.totalSpending);
         if (monthlySpend > 0) {
           setMonthlyExpenses(monthlySpend);
-          setMonthlyRetirementSpend(Math.round(monthlySpend * 0.8 / 100) * 100); // 80% of current
+          setMonthlyRetirementSpend(monthlySpend);
         }
       }
     }).finally(() => setLoading(false));

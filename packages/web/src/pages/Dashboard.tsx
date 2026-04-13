@@ -197,12 +197,8 @@ export function Dashboard() {
       setEmergencyFund(depositoryTotal);
       setAccountCount(balances.length);
 
-      if (creditTotal > 0) {
-        setMonthlySpend(creditTotal);
-        if (depositoryTotal > 0) {
-          setRunwayMonths(Math.floor(depositoryTotal / creditTotal));
-        }
-      }
+      // Only set monthlySpend from real transaction data, not credit card balances
+      // Credit card balance != monthly spend (it's outstanding debt)
 
       const realPlaidItems = itemData.items.filter((item: { institutionId: string | null }) => item.institutionId && item.institutionId !== 'manual');
       setHasPlaidAccounts(realPlaidItems.length > 0);
@@ -479,12 +475,12 @@ export function Dashboard() {
               label="CASH & SAVINGS"
               value={emergencyFund > 0 ? formatCurrency(emergencyFund) : '—'}
               subtitle={
-                emergencyFund > 0 && monthlySpend
-                  ? `${Math.round((emergencyFund / monthlySpend) * 10) / 10} months saved`
+                emergencyFund > 0 && totalSpending > 0
+                  ? `${Math.round((emergencyFund / totalSpending) * 10) / 10} months saved`
                   : 'Cash in depository accounts'
               }
               status={
-                emergencyFund > 0 && monthlySpend && emergencyFund / monthlySpend >= 6
+                emergencyFund > 0 && totalSpending > 0 && emergencyFund / totalSpending >= 6
                   ? 'success'
                   : emergencyFund > 0
                     ? 'warning'
@@ -501,7 +497,7 @@ export function Dashboard() {
             />
             <MetricTile
               label="MONTHLY SPEND"
-              value={totalSpending > 0 ? formatCurrency(totalSpending) : (monthlySpend !== null ? formatCurrency(monthlySpend) : '—')}
+              value={totalSpending > 0 ? formatCurrency(totalSpending) : '—'}
               subtitle={totalSpending > 0 ? `Across ${spendingCategories.length} categories` : 'Link accounts to track'}
               delay={0.16}
             />
