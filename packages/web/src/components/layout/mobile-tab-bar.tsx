@@ -2,6 +2,7 @@ import { useLocation } from 'wouter';
 import {
   LayoutDashboard,
   MessageSquare,
+  Lightbulb,
   User,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -18,6 +19,7 @@ interface TabItem {
 const tabs: TabItem[] = [
   { name: 'Home', icon: LayoutDashboard, path: '/' },
   { name: 'Chat', icon: MessageSquare, action: 'chat' },
+  { name: 'Insights', icon: Lightbulb, path: '/insights' },
   { name: 'Profile', icon: User, path: '/profile' },
 ];
 

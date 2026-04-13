@@ -18,6 +18,7 @@ import {
   ChevronUp,
   PieChart,
   User,
+  Lightbulb,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../lib/api';
@@ -35,6 +36,7 @@ interface NavItem {
 
 const fixedTabs: NavItem[] = [
   { id: 'home', name: 'Home', icon: LayoutDashboard, path: '/' },
+  { id: 'insights', name: 'Insights', icon: Lightbulb, path: '/insights' },
   { id: 'priorities', name: 'Your Layers', icon: Compass, path: '/priorities' },
   { id: 'accounts', name: 'Accounts', icon: Building2, path: '/accounts' },
   { id: 'debt', name: 'Debt', icon: CreditCard, path: '/debt' },
