@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, desc, inArray, holdings, securities, accounts } from "@lasagna/core";
+import { eq, desc, inArray, and, sql, holdings, securities, accounts, balanceSnapshots } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { aggregatePortfolio, extractAllocation, type HoldingInput } from "../services/portfolio-aggregator.js";
@@ -61,6 +61,33 @@ async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]> {
         account: acct.name,
         costBasis: h.costBasis ? parseFloat(h.costBasis) : null,
         securityType: sec.type || undefined,
+      });
+    }
+  }
+
+  // Include depository account balances (savings, checking, cash management) as cash
+  const depositoryAccts = await db.query.accounts.findMany({
+    where: and(
+      eq(accounts.tenantId, tenantId),
+      sql`${accounts.type} = 'depository'`,
+    ),
+  });
+
+  for (const acct of depositoryAccts) {
+    const latest = await db.query.balanceSnapshots.findFirst({
+      where: eq(balanceSnapshots.accountId, acct.id),
+      orderBy: desc(balanceSnapshots.snapshotAt),
+    });
+    const balance = parseFloat(latest?.balance ?? "0");
+    if (balance > 0) {
+      holdingsInput.push({
+        ticker: 'CASH',
+        value: balance,
+        shares: balance,
+        name: `${acct.name} (Cash)`,
+        account: acct.name,
+        costBasis: balance,
+        securityType: 'cash',
       });
     }
   }

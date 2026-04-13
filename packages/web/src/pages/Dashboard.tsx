@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { Loader2, TrendingUp, TrendingDown, ArrowRight, Plus, Target, ChevronRight } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
@@ -421,22 +421,36 @@ export function Dashboard() {
               )}
             </div>
             {nwHistory.length > 1 && (
-              <div className="h-16 mt-3 max-w-lg">
+              <div className="h-28 mt-3 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={nwHistory}>
+                  <AreaChart data={nwHistory} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
                     <defs>
                       <linearGradient id="nwGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#34c759" stopOpacity={0.25} />
                         <stop offset="100%" stopColor="#34c759" stopOpacity={0} />
                       </linearGradient>
                     </defs>
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 10, fill: '#666' }}
+                      tickFormatter={(d: string) => {
+                        const date = new Date(d + 'T00:00:00');
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      }}
+                      interval="preserveStartEnd"
+                      minTickGap={40}
+                    />
                     <YAxis domain={['dataMin - 1000', 'dataMax + 1000']} hide />
                     <Area type="monotone" dataKey="value" stroke="#34c759" strokeWidth={1.5} fill="url(#nwGradient)" dot={false} />
                     <Tooltip
-                      content={({ active, payload }) => {
+                      content={({ active, payload, label }) => {
                         if (active && payload && payload.length) {
+                          const date = new Date(label + 'T00:00:00');
                           return (
                             <div className="bg-bg-elevated border border-border rounded-lg px-3 py-1.5 text-xs shadow-lg">
+                              <div className="text-text-muted mb-0.5">{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                               <span className="font-semibold">{formatCurrency(payload[0].value as number)}</span>
                             </div>
                           );

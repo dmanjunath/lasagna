@@ -197,6 +197,7 @@ const TICKER_MAP: Record<string, [AssetClass, SubCategory]> = {
   QAJDS: ['Cash', 'Money Market'],
   SPRXX: ['Cash', 'Money Market'],
   VMMXX: ['Cash', 'Money Market'],
+  CASH: ['Cash', 'Savings & Checking'],
 
   // Cash - Short Term
   VGSH: ['Cash', 'Short-Term'],
