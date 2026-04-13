@@ -111,8 +111,38 @@ export function GlobalChatSidebar() {
       if (!res.ok) throw new Error('Chat request failed');
 
       const data = await res.json();
-      const response = data.response?.chat || data.response?.content || 'I apologize, but I could not process your request.';
-      return { response, threadId };
+
+      // Build full response from uiPayload blocks (rich content) rather than truncated chat summary
+      let response = '';
+      const blocks = data.uiPayload?.blocks || [];
+      if (blocks.length > 0) {
+        for (const block of blocks) {
+          if (block.type === 'text' && block.content) {
+            response += block.content + '\n\n';
+          } else if (block.type === 'stat') {
+            response += `**${block.label}:** ${block.value}${block.description ? ` — ${block.description}` : ''}\n\n`;
+          } else if (block.type === 'section_card') {
+            const prefix = block.variant === 'highlight' ? '> **' : '> ';
+            const suffix = block.variant === 'highlight' ? '**' : '';
+            if (block.label) response += `**${block.label}**\n\n`;
+            response += `${prefix}${block.content}${suffix}\n\n`;
+          } else if (block.type === 'action' && block.actions) {
+            response += `### ${block.title || 'Next Steps'}\n\n`;
+            for (const action of block.actions) {
+              response += `- ${action}\n`;
+            }
+            response += '\n';
+          } else if (block.type === 'collapsible_details') {
+            response += `### ${block.summary || 'Details'}\n\n${block.content}\n\n`;
+          }
+        }
+      }
+      // Fall back to chat summary if no blocks
+      if (!response.trim()) {
+        response = data.response?.chat || data.response?.content || 'I apologize, but I could not process your request.';
+      }
+
+      return { response: response.trim(), threadId };
     } catch {
       return { response: 'Sorry, I encountered an error. Please try again.', threadId: existingThreadId || '' };
     }
