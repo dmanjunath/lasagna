@@ -1,4 +1,4 @@
-import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult } from "./types.js";
+import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, ExtractionResult } from "./types.js";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -185,10 +185,10 @@ export const api = {
   getThread: (id: string) =>
     request<{ thread: ChatThread; messages: Message[] }>(`/threads/${id}`),
 
-  createThread: (planId?: string) =>
+  createThread: (planId?: string, title?: string, tags?: string[]) =>
     request<{ thread: ChatThread }>("/threads", {
       method: "POST",
-      body: JSON.stringify({ planId }),
+      body: JSON.stringify({ planId, title, tags }),
     }),
 
   // Tax Documents
@@ -198,10 +198,31 @@ export const api = {
   getTaxDocument: (id: string) =>
     request<{ document: TaxDocument }>(`/tax/documents/${id}`),
 
+  extractTaxDocument: async (file: File): Promise<ExtractionResult> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/api/tax/documents/extract`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Extraction failed" }));
+      throw new Error(err.error || "Extraction failed");
+    }
+    return res.json();
+  },
+
+  confirmTaxDocument: (extraction: ExtractionResult): Promise<UploadResult> =>
+    request<UploadResult>("/tax/documents/confirm", {
+      method: "POST",
+      body: JSON.stringify(extraction),
+    }),
+
   uploadTaxDocument: async (file: File): Promise<UploadResult> => {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch(`${API_BASE}/tax/documents/upload`, {
+    const res = await fetch(`${API_BASE}/api/tax/documents/upload`, {
       method: "POST",
       credentials: "include",
       body: formData,

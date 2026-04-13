@@ -299,6 +299,7 @@ export const chatThreads = pgTable("chat_threads", {
     .references(() => tenants.id, { onDelete: "cascade" }),
   planId: uuid("plan_id").references(() => plans.id, { onDelete: "cascade" }),
   title: text("title"),
+  tags: text("tags").array().default([]),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

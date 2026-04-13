@@ -13,6 +13,7 @@ const uuidSchema = z.string().uuid();
 const createThreadSchema = z.object({
   planId: z.string().uuid().optional(),
   title: z.string().max(255).optional(),
+  tags: z.array(z.string().max(50)).max(10).optional(),
 });
 
 // Safe JSON parse helper
@@ -42,6 +43,7 @@ threadsRouter.get("/", async (c) => {
     id: chatThreads.id,
     planId: chatThreads.planId,
     title: chatThreads.title,
+    tags: chatThreads.tags,
     createdAt: chatThreads.createdAt,
     updatedAt: chatThreads.updatedAt,
   };
@@ -120,6 +122,7 @@ threadsRouter.post("/", async (c) => {
       tenantId,
       planId: body.planId ?? null,
       title: body.title ?? null,
+      tags: body.tags ?? [],
     })
     .returning();
 

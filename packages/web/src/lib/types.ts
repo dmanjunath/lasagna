@@ -453,6 +453,7 @@ export type ChatThread = {
   id: string;
   planId: string | null;
   title: string | null;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -496,4 +497,14 @@ export interface UploadResult {
   llmFields: Record<string, unknown>;
   llmSummary: string;
   taxYear: number | null;
+}
+
+export interface ExtractionResult {
+  extractionId: string;
+  fileName: string;
+  fileType: string;
+  gcsPath: string;
+  redactedFields: { key: string; value: string }[];
+  rawFieldCount: number;
+  redactedFieldCount: number;
 }
