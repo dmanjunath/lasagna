@@ -302,10 +302,9 @@ export function Dashboard() {
 
       const apiInsights = insightsData.insights;
       if (apiInsights.length > 0) {
-        const categoryToTag: Record<string, string> = { portfolio: 'INVEST', debt: 'DEBT', tax: 'TAX', savings: 'SAVINGS', general: 'SETUP' };
         setActionItems(apiInsights.map((ins) => ({
           title: ins.title,
-          tag: categoryToTag[ins.category] || ins.category.toUpperCase(),
+          tag: (ins.type || ins.category || 'general').toUpperCase(),
           description: ins.description,
           impact: ins.impact || '',
           impactColor: (ins.impactColor as 'green' | 'amber' | 'red') || 'green',
@@ -630,24 +629,33 @@ export function Dashboard() {
             <Section
               title="Insights"
               actions={
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await api.generateInsights();
-                    const { insights: fresh } = await api.getInsights();
-                    if (fresh.length > 0) {
-                      const categoryToTag: Record<string, string> = { portfolio: 'INVEST', debt: 'DEBT', tax: 'TAX', savings: 'SAVINGS', general: 'SETUP' };
-                      setActionItems(fresh.map((ins) => ({
-                        title: ins.title, tag: categoryToTag[ins.category] || ins.category.toUpperCase(),
-                        description: ins.description, impact: ins.impact || '', impactColor: (ins.impactColor as 'green' | 'amber' | 'red') || 'green',
-                        chatPrompt: ins.chatPrompt || ins.title, insightId: ins.id,
-                      })));
-                    }
-                  }}
-                  className="text-xs text-text-muted hover:text-accent transition-colors"
-                >
-                  ↻ Refresh
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/insights')}
+                    className="text-xs text-accent hover:text-accent/80 transition-colors"
+                  >
+                    View all →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await api.generateInsights();
+                      const { insights: fresh } = await api.getInsights();
+                      if (fresh.length > 0) {
+                        const categoryToTag: Record<string, string> = { portfolio: 'INVEST', debt: 'DEBT', tax: 'TAX', savings: 'SAVINGS', general: 'SETUP' };
+                        setActionItems(fresh.map((ins) => ({
+                          title: ins.title, tag: (ins.type || ins.category || 'general').toUpperCase(),
+                          description: ins.description, impact: ins.impact || '', impactColor: (ins.impactColor as 'green' | 'amber' | 'red') || 'green',
+                          chatPrompt: ins.chatPrompt || ins.title, insightId: ins.id,
+                        })));
+                      }
+                    }}
+                    className="text-xs text-text-muted hover:text-accent transition-colors"
+                  >
+                    ↻ Refresh
+                  </button>
+                </div>
               }
             >
               <div className="bg-bg-elevated border border-border rounded-xl px-4">

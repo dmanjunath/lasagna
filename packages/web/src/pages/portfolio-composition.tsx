@@ -10,6 +10,7 @@ import { TreemapChart } from '../components/charts/treemap-chart';
 import { Button } from '../components/ui/button';
 import { Section } from '../components/common/section';
 import { useLocation } from 'wouter';
+import { ContextualInsights } from '../components/common/contextual-insights';
 
 type ChartType = 'donut' | 'bar' | 'treemap';
 type GroupingLevel = 'assetClass' | 'subCategory' | 'holding';
@@ -396,6 +397,7 @@ export default function PortfolioComposition() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
+      <ContextualInsights types="portfolio" />
       {/* Header Card with Total Value */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}

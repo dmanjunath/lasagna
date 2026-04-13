@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Target, Trash2, Check, X, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
+import { ContextualInsights } from '../components/common/contextual-insights';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -128,6 +129,7 @@ export function Goals() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
+      <ContextualInsights types="savings" />
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}

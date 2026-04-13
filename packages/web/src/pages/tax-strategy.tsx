@@ -9,6 +9,7 @@ import { RedactionReview } from "../components/tax/RedactionReview.js";
 import type { TaxDocumentSummary, ExtractionResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
 import { useChatStore } from "../lib/chat-store.js";
+import { ContextualInsights } from '../components/common/contextual-insights';
 
 const FILING_LABELS: Record<string, string> = {
   single: "Single",
@@ -178,6 +179,7 @@ export function TaxStrategy() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
+      <ContextualInsights types="tax" />
       {/* Tax Optimization Playbook Hero */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}

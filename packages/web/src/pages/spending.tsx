@@ -25,6 +25,7 @@ import {
 } from 'recharts';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
+import { ContextualInsights } from '../components/common/contextual-insights';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -331,6 +332,8 @@ export function Spending() {
           Track where your money goes each month
         </p>
       </motion.div>
+
+      <ContextualInsights types={["spending", "behavioral"]} />
 
       {/* Month Selector */}
       <motion.div

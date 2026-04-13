@@ -32,6 +32,7 @@ import { usePageContext } from "../lib/page-context";
 import { Section } from "../components/common/section";
 import { StatCard } from "../components/common/stat-card";
 import { Button } from "../components/ui/button";
+import { ContextualInsights } from "../components/common/contextual-insights";
 
 // Historical average annual returns by asset class
 const HISTORICAL_RETURNS: Record<string, number> = {
@@ -294,6 +295,7 @@ export function Retirement() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
+      <ContextualInsights types={["savings", "portfolio"]} />
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
