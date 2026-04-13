@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -63,17 +64,26 @@ export function MobileNav({ isOpen, onClose, onNewPlan }: MobileNavProps) {
     onClose();
   };
 
+  // Lock body scroll when menu is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [isOpen]);
+
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — 110% height to cover any iOS bounce */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            className="fixed z-40 md:hidden bg-black/50"
+            style={{ top: '-5%', left: 0, right: 0, height: '110%' }}
           />
 
           {/* Drawer */}

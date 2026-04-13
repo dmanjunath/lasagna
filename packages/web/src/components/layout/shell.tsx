@@ -62,7 +62,7 @@ export function Shell({ children }: ShellProps) {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-bg flex flex-col">
+    <div className="h-dvh w-screen overflow-hidden bg-bg flex flex-col">
       {/* Mobile: hamburger (hidden when chat is open) */}
       {isMobile && !chatOpen && (
         <>

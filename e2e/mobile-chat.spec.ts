@@ -61,9 +61,9 @@ test.describe("Mobile Chat", () => {
     await page.getByLabel("Close chat").click();
     await expect(page.getByTestId("chat-panel")).not.toBeInViewport();
 
-    // Navigate to accounts via tab bar
-    await page.getByRole("button", { name: "Accounts" }).click();
-    await page.waitForURL("/accounts");
+    // Navigate to profile via tab bar
+    await page.getByRole("button", { name: "Profile", exact: true }).click();
+    await page.waitForURL("/profile");
 
     // Open chat again — panel should work
     await page.getByTestId("chat-pill").click();

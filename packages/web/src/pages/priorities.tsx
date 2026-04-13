@@ -393,7 +393,7 @@ export function Priorities() {
 
   if (hasNoData) {
     return (
-      <div className="flex-1 p-4 md:p-8 max-w-3xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8 max-w-3xl mx-auto w-full">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -418,7 +418,7 @@ export function Priorities() {
   }
 
   return (
-    <div className="flex-1 p-4 md:p-8 max-w-3xl mx-auto w-full">
+    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8 max-w-3xl mx-auto w-full">
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
