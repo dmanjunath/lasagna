@@ -35,8 +35,8 @@ export function Shell({ children }: ShellProps) {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg flex flex-col">
-      {/* Mobile: hamburger */}
-      {isMobile && (
+      {/* Mobile: hamburger (hidden when chat is open) */}
+      {isMobile && !chatOpen && (
         <>
           <MobileMenuButton onClick={() => setMobileMenuOpen(true)} />
           <MobileNav
@@ -53,7 +53,7 @@ export function Shell({ children }: ShellProps) {
         <div className="flex-1 flex overflow-hidden relative">
           <motion.div
             className="flex w-full h-full"
-            animate={{ x: chatOpen ? '-85vw' : 0 }}
+            animate={{ x: chatOpen ? '-100vw' : 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 35 }}
           >
             {/* Main content — full width */}
@@ -63,10 +63,9 @@ export function Shell({ children }: ShellProps) {
               </div>
             </main>
 
-            {/* Chat panel — sits to the right of main content */}
+            {/* Chat panel — full screen, sits to the right of main content */}
             <div
-              className="flex-shrink-0 flex flex-col bg-bg border-l border-border"
-              style={{ width: '85vw' }}
+              className="w-screen h-full flex-shrink-0 flex flex-col bg-bg"
               data-testid="chat-panel"
             >
               {/* Header */}
