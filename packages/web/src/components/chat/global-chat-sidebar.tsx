@@ -36,11 +36,13 @@ export function GlobalChatSidebar() {
     const msg = pendingMessage;
     clearPendingMessage();
 
-    // Directly execute message send (don't go through handleNewMessage which has stale closure)
     const doSend = async () => {
+      const ctx = buildContext();
       const userMsg = {
         id: `user-${Date.now()}`, threadId: '', role: 'user' as const,
-        content: msg, toolCalls: null, uiPayload: null, createdAt: new Date().toISOString(),
+        content: msg, toolCalls: null,
+        uiPayload: ctx.contextMeta ? { context: ctx.contextMeta } as unknown as Message['uiPayload'] : null,
+        createdAt: new Date().toISOString(),
       };
       const now = new Date();
       const timestamp = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -51,16 +53,7 @@ export function GlobalChatSidebar() {
       setThreads(prev => [...prev, newThread]);
       setActiveThreadIndex(threads.length);
       setLoading(true);
-      const { response, threadId, contextMeta: cm } = await sendToApi(msg, null);
-      // Attach context to user message retroactively
-      if (cm) {
-        setThreads(prev => {
-          const updated = [...prev];
-          const t = updated[updated.length - 1];
-          if (t && t.messages[0]) t.messages[0] = { ...t.messages[0], uiPayload: { context: cm } as unknown as Message['uiPayload'] };
-          return updated;
-        });
-      }
+      const { response, threadId } = await sendToApi(msg, null, ctx);
       const assistantMsg = {
         id: `assistant-${Date.now()}`, threadId: threadId || '', role: 'assistant' as const,
         content: response, toolCalls: null, uiPayload: null, createdAt: new Date().toISOString(),
@@ -79,7 +72,51 @@ export function GlobalChatSidebar() {
     setTimeout(doSend, 200);
   }, [pendingMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sendToApi = useCallback(async (content: string, existingThreadId: string | null): Promise<{ response: string; threadId: string }> => {
+  // Build context from current page — extracted so we can call it before sending
+  const buildContext = useCallback(() => {
+    if (!currentPage) return { contextString: '', contextMeta: null };
+    const d = currentPage.data || {};
+    const items: Array<{ label: string; value: string }> = [];
+    let str = `[Context: User is viewing "${currentPage.pageTitle}". ${currentPage.description || ''}`;
+    const entries = Object.entries(d).filter(([k]) => !['name', 'email', 'dateOfBirth', 'dob'].includes(k));
+
+    if (entries.length > 0) {
+      str += '\n\nFinancial data on this page:';
+      for (const [key, val] of entries) {
+        if (val === null || val === undefined) continue;
+        if (Array.isArray(val)) {
+          // Format arrays as human-readable items (e.g., debts list)
+          str += `\n- ${key}: ${JSON.stringify(val)}`;
+          for (const item of val) {
+            if (typeof item === 'object' && item !== null) {
+              const name = item.name || item.ticker || item.category || 'Item';
+              const parts: string[] = [];
+              if (item.balance !== undefined) parts.push(`$${Math.abs(item.balance).toLocaleString()}`);
+              if (item.apr !== undefined) parts.push(`${item.apr}% APR`);
+              if (item.interestRate !== undefined) parts.push(`${item.interestRate}% rate`);
+              if (item.minPayment !== undefined) parts.push(`$${item.minPayment.toLocaleString()}/mo min`);
+              if (item.value !== undefined) parts.push(`$${item.value.toLocaleString()}`);
+              if (item.percentage !== undefined) parts.push(`${item.percentage.toFixed(1)}%`);
+              items.push({ label: String(name), value: parts.join(' · ') });
+            }
+          }
+        } else {
+          const formatted = typeof val === 'number' && Math.abs(val as number) > 100
+            ? `$${(val as number).toLocaleString()}` : String(val);
+          str += `\n- ${key}: ${formatted}`;
+          const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+          items.push({ label, value: formatted });
+        }
+      }
+    }
+    str += ']\n\n';
+    return {
+      contextString: str,
+      contextMeta: items.length > 0 ? { page: currentPage.pageTitle, items } : null,
+    };
+  }, [currentPage]);
+
+  const sendToApi = useCallback(async (content: string, existingThreadId: string | null, prebuiltContext?: { contextString: string; contextMeta: unknown }): Promise<{ response: string; threadId: string; contextMeta: unknown }> => {
     try {
       let threadId = existingThreadId;
       if (!threadId) {
@@ -87,34 +124,8 @@ export function GlobalChatSidebar() {
         threadId = thread.id;
       }
 
-      // Build rich context from current page data — include financial details but never personal info
-      let context = '';
-      const contextItems: Array<{ label: string; value: string }> = [];
-      let contextPage = '';
-      if (currentPage) {
-        contextPage = currentPage.pageTitle;
-        const d = currentPage.data || {};
-        context = `[Context: User is viewing "${currentPage.pageTitle}". ${currentPage.description || ''}`;
-        const entries = Object.entries(d).filter(([k]) => !['name', 'email', 'dateOfBirth', 'dob'].includes(k));
-        if (entries.length > 0) {
-          context += '\n\nFinancial data on this page:';
-          for (const [key, val] of entries) {
-            if (val === null || val === undefined) continue;
-            const formatted = Array.isArray(val) ? JSON.stringify(val) :
-              (typeof val === 'number' && Math.abs(val as number) > 100 ? `$${(val as number).toLocaleString()}` : String(val));
-            context += `\n- ${key}: ${formatted}`;
-            // Build human-readable context items for display (skip large arrays)
-            if (!Array.isArray(val)) {
-              const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
-              contextItems.push({ label, value: formatted });
-            }
-          }
-        }
-        context += ']\n\n';
-      }
-      const contextMessage = context + content;
-      // Store context metadata for display in the message bubble
-      const contextMeta = contextItems.length > 0 ? { page: contextPage, items: contextItems } : null;
+      const { contextString, contextMeta } = prebuiltContext || buildContext();
+      const contextMessage = contextString + content;
 
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
@@ -161,10 +172,13 @@ export function GlobalChatSidebar() {
     } catch {
       return { response: 'Sorry, I encountered an error. Please try again.', threadId: existingThreadId || '', contextMeta: null };
     }
-  }, [currentPage]);
+  }, [buildContext]);
 
   const handleNewMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
+
+    // Build context NOW so it's available for the user message immediately
+    const ctx = buildContext();
 
     const userMsg: Message = {
       id: `user-${Date.now()}`,
@@ -172,7 +186,7 @@ export function GlobalChatSidebar() {
       role: 'user',
       content: text.trim(),
       toolCalls: null,
-      uiPayload: null,
+      uiPayload: ctx.contextMeta ? { context: ctx.contextMeta } as unknown as Message['uiPayload'] : null,
       createdAt: new Date().toISOString(),
     };
 
@@ -195,19 +209,7 @@ export function GlobalChatSidebar() {
     setActiveThreadIndex(newIndex);
     setLoading(true);
 
-    const { response, threadId, contextMeta: ctxMeta } = await sendToApi(text.trim(), null);
-
-    // Retroactively attach context to user message for display
-    if (ctxMeta) {
-      setThreads(prev => {
-        const updated = [...prev];
-        const target = updated[newIndex];
-        if (target && target.messages[0]) {
-          target.messages[0] = { ...target.messages[0], uiPayload: { context: ctxMeta } as unknown as Message['uiPayload'] };
-        }
-        return updated;
-      });
-    }
+    const { response, threadId } = await sendToApi(text.trim(), null, ctx);
 
     const assistantMsg: Message = {
       id: `assistant-${Date.now()}`,
@@ -236,7 +238,7 @@ export function GlobalChatSidebar() {
       return updated;
     });
     setLoading(false);
-  }, [threads, loading, sendToApi]);
+  }, [threads, loading, sendToApi, buildContext]);
 
   const handleFollowUp = useCallback(async (text: string) => {
     if (!text.trim() || loading || activeThreadIndex === null) return;
