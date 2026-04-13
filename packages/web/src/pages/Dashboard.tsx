@@ -159,7 +159,7 @@ export function Dashboard() {
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
       api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
       api.getPlans().catch(() => ({ plans: [] as Array<{ id: string }> })),
-      api.getInsights().catch(() => ({ insights: [] as Array<{ id: string; category: string; urgency: string; title: string; description: string; impact: string | null; impactColor: string | null; chatPrompt: string | null; generatedBy: string; createdAt: string }> })),
+      api.getInsights().catch(() => ({ insights: [] as Array<{ id: string; category: string; urgency: string; type: string | null; title: string; description: string; impact: string | null; impactColor: string | null; chatPrompt: string | null; generatedBy: string; createdAt: string }> })),
       api.getSpendingSummary().catch(() => ({ categories: [], totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
       api.getGoals().catch(() => ({ goals: [] })),
     ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, insightsData, spendingData, goalsData]) => {
