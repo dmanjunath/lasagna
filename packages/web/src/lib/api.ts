@@ -305,6 +305,7 @@ export const api = {
         id: string;
         category: string;
         urgency: string;
+        type: string | null;
         title: string;
         description: string;
         impact: string | null;
