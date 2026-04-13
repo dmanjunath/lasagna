@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'wouter';
-import { motion } from 'framer-motion';
+import { motion, useAnimation, type PanInfo } from 'framer-motion';
 import { ArrowLeft, MessageSquare, X } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav, MobileMenuButton } from './mobile-nav';
@@ -15,12 +15,21 @@ interface ShellProps {
   children: React.ReactNode;
 }
 
+const SWIPE_THRESHOLD = 60;
+const VELOCITY_THRESHOLD = 400;
+
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopChatOpen, setDesktopChatOpen] = useState(false);
   const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
-  const { chatOpen, closeChat } = useChatStore();
+  const { chatOpen, openChat, closeChat } = useChatStore();
+  const controls = useAnimation();
+
+  // Sync animation state with chatOpen
+  useEffect(() => {
+    controls.start({ x: chatOpen ? '-100vw' : 0 });
+  }, [chatOpen, controls]);
 
   // Sync context chatOpen → desktop sidebar
   useEffect(() => {
@@ -28,6 +37,25 @@ export function Shell({ children }: ShellProps) {
       setDesktopChatOpen(true);
     }
   }, [chatOpen, isMobile]);
+
+  const handleDragEnd = useCallback((_: unknown, info: PanInfo) => {
+    const { offset, velocity } = info;
+    if (!chatOpen) {
+      // Swiping left to open chat
+      if (offset.x < -SWIPE_THRESHOLD || velocity.x < -VELOCITY_THRESHOLD) {
+        openChat();
+      } else {
+        controls.start({ x: 0 });
+      }
+    } else {
+      // Swiping right to close chat
+      if (offset.x > SWIPE_THRESHOLD || velocity.x > VELOCITY_THRESHOLD) {
+        closeChat();
+      } else {
+        controls.start({ x: '-100vw' });
+      }
+    }
+  }, [chatOpen, openChat, closeChat, controls]);
 
   const handleNewPlan = () => {
     setLocation('/plans/new');
@@ -53,12 +81,16 @@ export function Shell({ children }: ShellProps) {
         <div className="flex-1 flex overflow-hidden relative">
           <motion.div
             className="flex w-full h-full"
-            style={{ touchAction: 'pan-y' }}
-            animate={{ x: chatOpen ? '-100vw' : 0 }}
+            animate={controls}
             transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.15}
+            onDragEnd={handleDragEnd}
+            style={{ touchAction: 'pan-y' }}
           >
             {/* Main content — full width */}
-            <main className="w-screen flex-shrink-0 flex flex-col overflow-hidden pt-14 pb-28">
+            <main className="w-screen flex-shrink-0 flex flex-col overflow-hidden pt-14 pb-16">
               <div className="flex-1 overflow-y-auto">
                 {children}
               </div>
@@ -82,8 +114,9 @@ export function Shell({ children }: ShellProps) {
                 <span className="text-sm font-semibold text-text">Chat</span>
               </div>
 
-              {/* Content */}
-              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+              {/* Content — takes full remaining height, no bottom padding needed */}
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0"
+                   style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 <ChatTabs />
               </div>
             </div>
@@ -136,12 +169,8 @@ export function Shell({ children }: ShellProps) {
         </div>
       )}
 
-      {/* Mobile bottom area — just tab bar */}
-      {isMobile && (
-        <div className="flex-shrink-0">
-          <MobileTabBar />
-        </div>
-      )}
+      {/* Mobile tab bar — hidden when chat is open */}
+      {isMobile && !chatOpen && <MobileTabBar />}
 
       {/* Floating pill — only when chat is closed on mobile */}
       {isMobile && !chatOpen && <FloatingChatPill />}
