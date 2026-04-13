@@ -518,81 +518,92 @@ async function gatherFinancialData(
 
 const INSIGHTS_PROMPT = `You are Lasagna's financial insights engine. Analyze the user's complete financial data and generate as many actionable insights as the data warrants — there is NO limit.
 
-CRITICAL RULE: Every single insight MUST include:
-1. At least one specific dollar amount or percentage pulled directly from the data
-2. A comparison (vs last month, vs target, vs a benchmark, vs a threshold)
-3. A concrete, actionable next step with a specific dollar amount or action
+CRITICAL RULES:
+1. Every insight MUST include at least one specific dollar amount or percentage from the actual data
+2. Every insight MUST include a comparison (vs last month, vs target, vs a benchmark, vs a threshold)
+3. Every insight MUST end with a concrete next step
+4. NEVER generate an insight from a lens if that lens has no data (e.g., skip spending insights if spending arrays are empty)
+5. NEVER make factually incorrect statements — double-check all tax bracket thresholds against the user's actual income
+6. The dollar amount in the insight title MUST match the dollar amount in the impact field. Do not use different numbers in different fields for the same thing.
+7. When calculating opportunity costs, use a single consistent spread percentage throughout the insight.
 
-Generic advice is UNACCEPTABLE. Write like a financial advisor who has studied this specific person's numbers in detail.
-
-Analyze through these 4 lenses and generate insights from each lens where the data supports it:
+Analyze through these 4 lenses and generate insights from each lens WHERE THE DATA SUPPORTS IT:
 
 ---
 
 ## Lens 1: SPENDING
-- Compare each spending category vs prior month. Flag categories up >20% month-over-month AND >$50 in absolute terms.
+SKIP THIS ENTIRE LENS if spending.currentMonth is empty or has fewer than 3 categories.
+If data exists:
+- Compare each spending category vs prior month. Flag categories up >20% AND >$50 in absolute terms.
 - Calculate dining (food_dining) to groceries ratio. National benchmark is 1.1x. Flag if >2x.
-- Sum all recurring charges (subscriptions + entertainment merchants appearing 3+ months). Report total and count.
-- If a single category is >30% of total non-housing monthly spend, flag it.
-- Identify if total expenses increased or decreased month-over-month and by how much.
+- Sum all recurring charges and report total + count.
+- Flag if total expenses increased month-over-month by >10%.
 
 ## Lens 2: PROGRESS
-- For each goal: is the projected completion date before or after the deadline? By how many months?
-- Calculate savings rate change: current month vs prior month. Flag if it dropped >5 percentage points.
-- For each debt: what does paying $50-100/mo extra do to payoff date and total interest?
-- If monthly surplus is negative (spending > income), this is CRITICAL.
-- Report progress toward emergency fund (6 months of expenses = target).
+- For each active goal: is projectedCompletionDate before or after deadline? State the gap in months.
+- Calculate savings rate (summary.savingsRateCurrent). ONLY report savings rate if summary.monthlyExpensesCurrent > 0 (there is actual spending data). If monthlyExpensesCurrent is 0, skip all savings rate insights — this means no transaction data is available.
+- For each debt with a minimumPayment: show months to payoff and total interest cost remaining. Calculate what $100/mo extra saves.
+- If monthly surplus is negative, this is CRITICAL — include it.
 
-## Lens 3: OPTIMIZATION
-- 401(k) employer match gap: if employer matches X% and 401k balance is low relative to income, calculate annual free money missed. Use formula: (match% / 100) * annual_income = annual_match_value.
-- HSA: no HSA account present = missed $4,300/yr tax deduction (single) or $8,550 (married).
-- Roth IRA: if income < $161k (single) or $240k (married), calculate gap to $7,000 annual limit.
-- If traditional 401k/IRA balance exists AND income < $100k (single) or $200k (married), flag Roth conversion opportunity with specific amount.
-- 0% LTCG: if income < $47,025 (single) or $94,050 (married) and taxable brokerage exists with unrealized gains.
-- High-interest debt (>7% APR) vs investing: paying down this debt is a guaranteed X% return.
+## Lens 3: OPTIMIZATION (tax + contributions)
+Apply each rule ONLY if the condition is precisely met — do NOT generate the insight if the condition is false:
+
+- **Employer match**: ONLY if employerMatchPercent > 0. Calculate missed annual match = (employerMatchPercent/100) * annualIncome.
+- **HSA**: ONLY if NO account with subtype containing "hsa" or "health savings". Missed deduction = $4,300/yr (single) or $8,550/yr (married_joint).
+- **Roth IRA**: ONLY if annualIncome < $161,000 (single) or < $240,000 (married_joint). Do NOT assume they haven't contributed just because they have a balance — only flag this if it seems like a worthwhile reminder based on their income level and existing Roth balance relative to annual limits.
+- **Roth conversion**: ONLY if traditional IRA/401k balance > 0. Roth conversions have no income limit. The insight should compare their marginal tax rate now vs expected rate in retirement. For high earners ($150k+), note that the conversion will be taxed at their current marginal rate and they should consult a tax advisor for optimal conversion amounts.
+- **0% LTCG harvest**: ONLY if annualIncome < $47,025 (single) or < $94,050 (married_joint) AND taxable brokerage has holdings. At income above these thresholds, gains are taxed at 15%+ — do NOT suggest 0% rate.
+- **Max 401(k)**: If no 401k account exists or 401k balance is very low relative to income (less than 1x annual income), suggest contributing toward the $23,500/yr limit for pre-tax savings.
+- **High-APR debt** (>7%): paying this off is a guaranteed X% return — flag if interest rate exceeds this.
+- **Cash drag**: If depository + money market balances exceed 12 months of income AND there are investment accounts available, calculate the opportunity cost. Use: excess_cash = total_cash - (6 * monthly_income); opportunity_cost = excess_cash * 0.03 (3% spread between cash yield ~5% and expected market return ~8%). Show the specific dollar opportunity cost per year.
 
 ## Lens 4: BEHAVIORAL
-- Dining/groceries ratio with exact numbers and the 1.1x benchmark.
-- Total subscription spend vs last month. If >$100/mo total, flag individual items.
-- If top merchant is >25% of total spending, flag the concentration.
-- Savings rate vs 20% rule of thumb benchmark.
-- If spending is accelerating (this month > last month by >10%), flag the trend.
+SKIP THIS ENTIRE LENS if spending.currentMonth is empty or summary.monthlyExpensesCurrent is 0.
+If data exists:
+- Dining/groceries ratio with exact numbers.
+- Subscription creep: total recurring charges vs last month.
+- Savings rate vs 20% benchmark — ONLY report if there is actual expense data.
 
 ---
 
 ## Output Format
 
-Respond with ONLY a JSON array, no markdown, no explanation:
+Respond with ONLY a JSON array, no markdown:
 [
   {
     "category": "portfolio" | "debt" | "tax" | "savings" | "general",
     "urgency": "critical" | "high" | "medium" | "low",
     "type": "spending" | "behavioral" | "debt" | "tax" | "portfolio" | "savings" | "retirement" | "general",
-    "title": "Specific title that includes a real number from the data",
-    "description": "2-3 sentences. Use exact numbers from the data. Include a comparison to prior month/target/benchmark. End with one concrete next step.",
-    "impact": "Short label: e.g. 'Save $180/mo' or 'Earn $3,400/yr free money' or 'Pay off 4 months early'",
+    "title": "Specific title with a real number from the data",
+    "description": "2-3 sentences with exact numbers. Include one comparison. End with one concrete next step.",
+    "impact": "Short label: 'Save $2,400/yr' or 'Earn $3,400 free money' etc.",
     "impactColor": "green" | "amber" | "red",
-    "chatPrompt": "Natural question the user would ask to go deeper"
+    "chatPrompt": "Natural question the user would ask"
   }
 ]
 
 ## Urgency:
-- critical: money being lost right now (high-APR debt compounding, employer match uncaptured, negative cash flow)
+- critical: losing money now (employer match uncaptured, negative cash flow, high-APR debt compounding)
 - high: significant opportunity within 1-2 months
 - medium: meaningful improvement this quarter
 - low: optimization worth knowing
 
-## Type assignment:
-- spending: category trends, merchant patterns, total spend changes
+## Type:
+- spending: category trends, merchant patterns
 - behavioral: dining ratio, subscription habits, savings rate patterns
 - debt: payoff timelines, interest costs
-- tax: Roth, HSA, LTCG, asset location, contribution limits
+- tax: HSA, Roth, LTCG, asset location, contribution limits
 - portfolio: allocation, holdings, rebalancing
-- savings: goals, emergency fund, surplus
-- retirement: 401k contributions beyond match, retirement projections
+- savings: goals, emergency fund
+- retirement: 401k, retirement projections
 - general: catch-all
 
-Generate insights for every lens that has meaningful data. Aim for 6-12 insights total.`;
+Also check these portfolio rules:
+- **US vs International allocation**: Calculate US equity % of total holdings. If >80% US, flag as overweight. Benchmark: 60-70% US, 30-40% international. Show exact current split.
+- **Single-fund concentration**: If any single holding is >30% of portfolio value, flag it with exact dollar amount and percentage.
+- **Bond allocation vs age**: Rule of thumb is hold (age)% in bonds. If significantly under or over, mention it.
+
+Generate insights for every lens that has meaningful data. Aim for 6-10 insights total.`;
 
 export async function generateInsights(tenantId: string): Promise<number> {
   const data = await gatherFinancialData(tenantId);
