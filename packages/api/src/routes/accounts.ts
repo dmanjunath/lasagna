@@ -74,19 +74,39 @@ accountRoutes.get("/net-worth/history", async (c) => {
     .groupBy(sql`date_trunc('day', ${balanceSnapshots.snapshotAt})::date`, balanceSnapshots.accountId)
     .orderBy(sql`date_trunc('day', ${balanceSnapshots.snapshotAt})::date`);
 
-  // Aggregate per-date net worth
-  const dateMap = new Map<string, number>();
+  // Build per-account balance timeline, carrying forward last known balance
+  // This prevents false drops when an account has no snapshot on a given day
+  const allDates = [...new Set(rows.map((r) => String(r.date)))].sort();
+  const accountBalances = new Map<string, Map<string, number>>();
   for (const row of rows) {
+    const acctId = row.accountId;
     const date = String(row.date);
-    const bal = parseFloat(row.balance || "0");
-    const type = accountTypeMap.get(row.accountId);
-    const signed = type && liabilityTypes.has(type) ? -bal : bal;
-    dateMap.set(date, (dateMap.get(date) || 0) + signed);
+    if (!accountBalances.has(acctId)) accountBalances.set(acctId, new Map());
+    accountBalances.get(acctId)!.set(date, parseFloat(row.balance || "0"));
   }
 
-  const history = Array.from(dateMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, value]) => ({ date, value: Math.round(value * 100) / 100 }));
+  // Fill forward: for each account, carry the last known balance into missing days
+  for (const [, dateBalMap] of accountBalances) {
+    let lastBal = 0;
+    for (const date of allDates) {
+      if (dateBalMap.has(date)) {
+        lastBal = dateBalMap.get(date)!;
+      } else {
+        dateBalMap.set(date, lastBal);
+      }
+    }
+  }
+
+  // Aggregate per-date net worth
+  const history = allDates.map((date) => {
+    let total = 0;
+    for (const [acctId, dateBalMap] of accountBalances) {
+      const bal = dateBalMap.get(date) || 0;
+      const type = accountTypeMap.get(acctId);
+      total += type && liabilityTypes.has(type) ? -bal : bal;
+    }
+    return { date, value: Math.round(total * 100) / 100 };
+  });
 
   return c.json({ history });
 });
@@ -128,10 +148,17 @@ accountRoutes.get("/debts", async (c) => {
 
       // Estimate minimum payment
       let minimumPayment: number;
+      const isMortgage = acct.subtype === "mortgage" || acct.name?.toLowerCase().includes("mortgage");
       if (acct.type === "credit") {
         // Minimum must cover at least the monthly interest + 1% of principal
         const monthlyInterest = interestRate ? balance * (interestRate / 100 / 12) : 0;
         minimumPayment = Math.max(balance * 0.02, monthlyInterest + balance * 0.01, 25);
+      } else if (isMortgage && !termMonths) {
+        // Mortgage without term data: assume 30yr at estimated rate
+        const rate = interestRate ?? 6.5;
+        const r = rate / 100 / 12;
+        const n = 360; // 30 years
+        minimumPayment = r > 0 ? balance * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1) : balance / n;
       } else if (termMonths && originationDate) {
         const originated = new Date(originationDate);
         const monthsElapsed =

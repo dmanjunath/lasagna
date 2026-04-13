@@ -239,14 +239,14 @@ export function Dashboard() {
       if (totalDebtAmount > 0 && debtsForCalc.length > 0) {
         const totalMinPayment = debtsForCalc.reduce((sum: number, d: { minimumPayment: number }) => sum + (d.minimumPayment || 0), 0);
         let weightedAprSum = 0;
-        let balanceWithRate = 0;
+        let totalBalance = 0;
         for (const d of debtsForCalc) {
-          if (d.interestRate !== null && d.interestRate > 0) {
-            weightedAprSum += d.interestRate * d.balance;
-            balanceWithRate += d.balance;
-          }
+          const isMortgage = d.name?.toLowerCase().includes('mortgage');
+          const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
+          weightedAprSum += apr * d.balance;
+          totalBalance += d.balance;
         }
-        const avgApr = balanceWithRate > 0 ? weightedAprSum / balanceWithRate : 0;
+        const avgApr = totalBalance > 0 ? weightedAprSum / totalBalance : 0;
         const monthlyRate = avgApr / 100 / 12;
 
         if (totalMinPayment > 0) {
