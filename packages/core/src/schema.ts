@@ -137,6 +137,7 @@ export const plaidItems = pgTable("plaid_items", {
   institutionName: varchar("institution_name", { length: 255 }),
   status: varchar("status", { length: 50 }).notNull().default("active"),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  transactionCursor: text("transaction_cursor"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -416,6 +417,8 @@ export const transactionCategoryEnum = pgEnum("transaction_category", [
   "other",
 ]);
 
+export const transactionSourceEnum = pgEnum("transaction_source", ["seed", "plaid"]);
+
 export const transactions = pgTable("transactions", {
   id: uuid("id").primaryKey().defaultRandom(),
   accountId: uuid("account_id")
@@ -431,6 +434,7 @@ export const transactions = pgTable("transactions", {
   amount: numeric("amount", { precision: 19, scale: 2 }).notNull(), // positive = expense, negative = income
   category: transactionCategoryEnum("category").notNull().default("other"),
   pending: integer("pending").notNull().default(0), // 0 = false, 1 = true
+  source: transactionSourceEnum("source").notNull().default("seed"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

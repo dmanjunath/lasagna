@@ -108,6 +108,7 @@ function createTransaction(
     amount: String(amount),
     category,
     pending: 0,
+    source: 'seed' as const,
   };
 }
 
