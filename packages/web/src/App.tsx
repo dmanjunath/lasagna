@@ -1,5 +1,6 @@
 import { Route, Switch, Redirect } from 'wouter';
 import { AuthProvider, useAuth } from './lib/auth';
+import { ChatStoreProvider } from './lib/chat-store';
 import { PageContextProvider } from './lib/page-context';
 import { Shell } from './components/layout/shell';
 import { Login } from './pages/Login';
@@ -9,7 +10,6 @@ import { NetWorth } from './pages/net-worth';
 import { TaxStrategy } from './pages/tax-strategy';
 import { Retirement } from './pages/retirement';
 import { SavingsGoal } from './pages/savings-goal';
-import { DebtPayoff } from './pages/debt-payoff';
 import PortfolioComposition from './pages/portfolio-composition';
 import { ProbabilityOfSuccess } from './pages/probability-of-success';
 import { PlansPage } from './pages/plans/index';
@@ -42,6 +42,7 @@ function AppRoutes() {
       <Route path="/onboarding" component={Onboarding} />
       <Route>
         {() => (
+          <ChatStoreProvider>
           <PageContextProvider>
             <Shell>
               <Switch>
@@ -58,7 +59,6 @@ function AppRoutes() {
                 <Route path="/plans/:id" component={PlanDetailPage} />
                 <Route path="/plans/retirement" component={Retirement} />
                 <Route path="/plans/savings/:id" component={SavingsGoal} />
-                <Route path="/plans/debt-payoff" component={DebtPayoff} />
                 <Route path="/priorities" component={Priorities} />
                 <Route path="/retirement" component={Retirement} />
                 <Route path="/probability" component={ProbabilityOfSuccess} />
@@ -79,6 +79,7 @@ function AppRoutes() {
               </Switch>
             </Shell>
           </PageContextProvider>
+          </ChatStoreProvider>
         )}
       </Route>
     </Switch>
