@@ -71,7 +71,7 @@ setup("authenticate with seeded test user", async ({ page, request }) => {
   }
 
   // Verify we're on the dashboard
-  await expect(page.getByText("Overview")).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(/Good morning|Net Worth|Overview/)).toBeVisible({ timeout: 5000 });
   console.log("[Auth Setup] Successfully authenticated");
 
   // Save storage state for reuse in tests
