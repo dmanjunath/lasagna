@@ -113,6 +113,7 @@ priorityRoutes.get("/", async (c) => {
     .where(and(
       eq(transactions.tenantId, session.tenantId),
       sql`${transactions.amount} > 0`,
+      sql`${transactions.category} != 'transfer'`,
       sql`${transactions.date} >= ${thirtyDaysAgo.toISOString().split('T')[0]}`,
     ));
   const realMonthlyExpenses = parseFloat(txnResult?.total ?? "0");
