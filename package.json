@@ -28,13 +28,19 @@
   "packageManager": "pnpm@10.29.3",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
     "@playwright/test": "^1.58.2",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
+    "ai": "^6.0.134",
+    "canvas": "^3.1.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "pdfjs-dist": "^4.10.38",
     "playwright": "^1.58.2",
-    "typescript": "^5.9.3"
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3",
+    "zod": "^4.3.6"
   }
 }
