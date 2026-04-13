@@ -9,6 +9,7 @@ import {
   ArrowDownRight,
   TrendingUp,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -184,10 +185,20 @@ export function Spending() {
   const [hasLinkedAccounts, setHasLinkedAccounts] = useState(false);
   const [creditCardTotal, setCreditCardTotal] = useState(0);
 
+  // Sync
+  const [syncing, setSyncing] = useState(false);
+
   // Loading
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingTrend, setLoadingTrend] = useState(true);
   const [loadingTx, setLoadingTx] = useState(true);
+
+  // Refresh counter — incrementing this forces summary + transaction re-fetches
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const loadData = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -227,7 +238,7 @@ export function Spending() {
         setNetCashFlow(0);
       })
       .finally(() => setLoadingSummary(false));
-  }, [currentMonth]);
+  }, [currentMonth, refreshKey]);
 
   // Fetch monthly trend (only once)
   useEffect(() => {
@@ -260,7 +271,7 @@ export function Spending() {
         setTxTotal(0);
       })
       .finally(() => setLoadingTx(false));
-  }, [currentMonth, txPage, selectedCategory, debouncedSearch]);
+  }, [currentMonth, txPage, selectedCategory, debouncedSearch, refreshKey]);
 
   // Page context for chat
   useEffect(() => {
@@ -342,6 +353,22 @@ export function Spending() {
           className="p-2 rounded-lg border border-border hover:bg-bg-elevated transition-colors"
         >
           <ChevronRight className="w-4 h-4 text-text-secondary" />
+        </button>
+        <button
+          onClick={async () => {
+            setSyncing(true);
+            await api.triggerSync().catch(console.error);
+            // Wait for sync to process, then reload data
+            setTimeout(() => {
+              loadData();
+              setSyncing(false);
+            }, 3000);
+          }}
+          disabled={syncing}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-muted hover:text-accent border border-border rounded-lg hover:border-accent/30 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+          {syncing ? 'Syncing...' : 'Sync'}
         </button>
       </motion.div>
 
