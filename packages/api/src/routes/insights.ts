@@ -31,14 +31,14 @@ insightsRoutes.get("/", async (c) => {
         WHEN 'low' THEN 3
       END`,
       desc(insights.createdAt)
-    )
-    .limit(20);
+    );
 
   return c.json({
     insights: rows.map((r) => ({
       id: r.id,
       category: r.category,
       urgency: r.urgency,
+      type: r.insightType,
       title: r.title,
       description: r.description,
       impact: r.impact,
