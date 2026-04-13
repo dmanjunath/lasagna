@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Building2, Plus, Trash2, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { api } from "../lib/api.js";
@@ -39,6 +39,8 @@ export function Accounts() {
   const [linking, setLinking] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
+  const [newlyLinkedId, setNewlyLinkedId] = useState<string | null>(null);
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const loadItems = (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -101,6 +103,18 @@ export function Accounts() {
                   setItems(data.items);
                   setSyncing(false);
                   setLinking(false);
+
+                  // Highlight the new institution and scroll to it
+                  if (newInst) {
+                    setNewlyLinkedId(newInst.id);
+                    setTimeout(() => {
+                      itemRefs.current[newInst.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }, 100);
+                    setTimeout(() => setNewlyLinkedId(null), 3000);
+
+                    // Regenerate insights with the new account data
+                    api.generateInsights().catch(() => {});
+                  }
                 }
               } catch {
                 clearInterval(poll);
@@ -225,10 +239,14 @@ export function Accounts() {
             {items.map((item, i) => (
               <motion.div
                 key={item.id}
+                ref={(el) => { itemRefs.current[item.id] = el; }}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05, duration: 0.4 }}
-                className="glass-card rounded-2xl overflow-hidden"
+                className={cn(
+                  "glass-card rounded-2xl overflow-hidden transition-all duration-700",
+                  newlyLinkedId === item.id && "ring-2 ring-accent/50 shadow-[0_0_20px_rgba(52,199,89,0.25)]"
+                )}
               >
                 <div className="p-4 md:p-5 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-3">
