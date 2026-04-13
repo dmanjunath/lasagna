@@ -11,6 +11,7 @@ import {
 import { db } from "./db.js";
 import { plaidClient } from "./plaid.js";
 import { env } from "./env.js";
+import { syncTransactions } from "./transaction-sync.js";
 
 export async function syncItem(itemId: string): Promise<void> {
   const item = await db.query.plaidItems.findFirst({
@@ -118,6 +119,14 @@ export async function syncItem(itemId: string): Promise<void> {
       }
     } catch {
       // Not an investment account — skip
+    }
+
+    // Sync transactions
+    try {
+      await syncTransactions(itemId);
+    } catch (e) {
+      console.error(`Transaction sync failed for item ${itemId}:`, e);
+      // Don't fail the whole sync if transactions fail
     }
 
     // Mark sync as complete
