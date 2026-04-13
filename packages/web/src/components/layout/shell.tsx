@@ -6,9 +6,9 @@ import { Sidebar } from './sidebar';
 import { MobileNav, MobileMenuButton } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
-import { useAuth } from '../../lib/auth';
-import { usePageContext } from '../../lib/page-context';
-import { FloatingChatInput } from '../chat/floating-chat-input';
+import { useChatStore } from '../../lib/chat-store';
+import { FloatingChatPill } from '../chat/floating-chat-pill';
+import { MobileChatPanel } from '../chat/chat-panel.mobile';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
 
 interface ShellProps {
@@ -19,10 +19,8 @@ export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopChatOpen, setDesktopChatOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const [location] = useLocation();
   const isMobile = useIsMobile();
-  const { user } = useAuth();
-  const { chatOpen, closeChat } = usePageContext();
+  const { chatOpen } = useChatStore();
 
   // Sync context chatOpen → desktop sidebar
   useEffect(() => {
@@ -31,13 +29,9 @@ export function Shell({ children }: ShellProps) {
     }
   }, [chatOpen, isMobile]);
 
-  const isAdmin = user?.role === 'owner';
-
   const handleNewPlan = () => {
     setLocation('/plans/new');
   };
-
-  const isPlanPage = location.startsWith('/plans/') && location !== '/plans/new';
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg flex flex-col">
@@ -63,18 +57,26 @@ export function Shell({ children }: ShellProps) {
         )}
 
         {/* Main content area */}
-        <main
-          className={`flex-1 flex flex-col overflow-hidden ${
-            isMobile ? 'pt-14 pb-28' : ''
-          }`}
+        <motion.main
+          className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pt-14 pb-28' : ''}`}
+          animate={isMobile && chatOpen ? {
+            x: '-15vw',
+            scale: 0.95,
+            opacity: 0.6,
+          } : {
+            x: 0,
+            scale: 1,
+            opacity: 1,
+          }}
+          transition={{ type: 'spring', stiffness: 400, damping: 35 }}
         >
           <div className="flex-1 overflow-y-auto">
             {children}
           </div>
-        </main>
+        </motion.main>
 
-        {/* Desktop chat sidebar — admin only, closable */}
-        {!isMobile && isAdmin && desktopChatOpen && (
+        {/* Desktop chat sidebar — closable */}
+        {!isMobile && desktopChatOpen && (
           <aside className="w-[340px] flex-shrink-0 border-l border-border flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
               <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Chat</span>
@@ -90,8 +92,8 @@ export function Shell({ children }: ShellProps) {
             </div>
           </aside>
         )}
-        {/* Collapsed chat toggle — admin only */}
-        {!isMobile && isAdmin && !desktopChatOpen && (
+        {/* Collapsed chat toggle */}
+        {!isMobile && !desktopChatOpen && (
           <div className="flex-shrink-0 border-l border-border flex flex-col items-center pt-3 px-1.5">
             <button
               onClick={() => setDesktopChatOpen(true)}
@@ -104,49 +106,19 @@ export function Shell({ children }: ShellProps) {
         )}
       </div>
 
-      {/* Mobile bottom area */}
+      {/* Mobile bottom area — just tab bar */}
       {isMobile && (
         <div className="flex-shrink-0">
-          {/* Peek bar — admin only */}
-          {!isPlanPage && isAdmin && <FloatingChatInput />}
-          {/* Tab bar */}
           <MobileTabBar />
         </div>
       )}
 
-      {/* Mobile chat drawer — admin only */}
+      {/* Floating pill — only when chat is closed on mobile */}
+      {isMobile && !chatOpen && <FloatingChatPill />}
+
+      {/* Mobile chat panel with AnimatePresence */}
       <AnimatePresence>
-        {isMobile && isAdmin && chatOpen && (
-          <motion.div
-            className="fixed inset-0 z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="absolute inset-0 bg-black/50"
-              onClick={closeChat}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              className="absolute bottom-0 left-0 right-0 bg-bg rounded-t-xl flex flex-col shadow-[0_-4px_24px_rgba(0,0,0,0.5)]"
-              style={{ maxHeight: '88vh' }}
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-            >
-              <div className="flex justify-center py-2 flex-shrink-0">
-                <div className="w-9 h-1 rounded-full bg-white/20" />
-              </div>
-              <div className="flex-1 overflow-hidden flex flex-col">
-                <GlobalChatSidebar />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        {isMobile && chatOpen && <MobileChatPanel />}
       </AnimatePresence>
     </div>
   );

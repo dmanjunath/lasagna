@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { usePageContext } from '../../lib/page-context';
+import { useChatStore } from '../../lib/chat-store';
 
 interface ActionItemProps {
   title: string;
@@ -41,7 +41,7 @@ export function ActionItem({
 }: ActionItemProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [done, setDone] = useState(false);
-  const { openChat } = usePageContext();
+  const { openChat } = useChatStore();
 
   return (
     <div className="border-b border-border last:border-b-0">

@@ -6,6 +6,7 @@ import { AreaChart, Area, ResponsiveContainer, Tooltip, PieChart, Pie, Cell } fr
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
+import { useChatStore } from '../lib/chat-store';
 import { MetricTile } from '../components/common/metric-tile';
 import { ActionItem } from '../components/common/action-item';
 import { Section } from '../components/common/section';
@@ -126,7 +127,8 @@ function calculateHealthScore(data: {
 
 export function Dashboard() {
   const { tenant } = useAuth();
-  const { setPageContext, openChat } = usePageContext();
+  const { setPageContext } = usePageContext();
+  const { openChat } = useChatStore();
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(true);
   const [netWorth, setNetWorth] = useState<number | null>(null);

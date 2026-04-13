@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Loader2, CreditCard, Landmark } from 'lucide-react';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
+import { useChatStore } from '../lib/chat-store';
 import { Section } from '../components/common/section';
 import { ActionItem } from '../components/common/action-item';
 
@@ -52,7 +53,8 @@ const fadeUp = (delay: number) => ({
 });
 
 export function Debt() {
-  const { setPageContext, openChat } = usePageContext();
+  const { setPageContext } = usePageContext();
+  const { openChat } = useChatStore();
   const [loading, setLoading] = useState(true);
   const [debts, setDebts] = useState<DebtAccount[]>([]);
   const [totalDebt, setTotalDebt] = useState(0);
@@ -203,6 +205,17 @@ function HasDebtView({
   interestSavedVsMinimums: number;
   openChat: (prompt: string) => void;
 }) {
+  // Calculate dynamic impacts from actual debt data
+  const highestAprDebt = debts[0]; // already sorted by APR desc
+  const avgAprReduction = 6; // average negotiated reduction
+  const negotiateSavings = highestAprDebt
+    ? Math.round(highestAprDebt.balance * (avgAprReduction / 100 / 12))
+    : 50;
+
+  const balanceTransferSavings = highestAprDebt
+    ? Math.round(highestAprDebt.balance * (highestAprDebt.apr / 100))
+    : 924;
+
   const badgeColor = (i: number) => {
     if (i === 0) return 'bg-danger/20 text-danger border-danger/30';
     if (i === 1) return 'bg-warning/20 text-warning border-warning/30';
@@ -348,7 +361,7 @@ function HasDebtView({
               title="Call to negotiate lower APR"
               tag="DEBT"
               description="Call the number on the back of your card and ask for a hardship rate reduction or balance transfer offer. Average reduction: 5-7%."
-              impact="Saves ~$50/mo interest"
+              impact={`Saves ~$${negotiateSavings}/mo interest`}
               impactColor="red"
               chatPrompt="Walk me through exactly what to say when I call my credit card company to negotiate a lower interest rate. What scripts work best?"
               defaultOpen
@@ -373,7 +386,7 @@ function HasDebtView({
               title="Check balance transfer card offers"
               tag="DEBT"
               description="A 0% APR balance transfer card could eliminate interest on your highest-rate card for 15-18 months."
-              impact="$924/yr saved"
+              impact={`${formatCurrency(balanceTransferSavings)}/yr saved`}
               impactColor="amber"
               chatPrompt="What are the best 0% APR balance transfer cards right now? How does the transfer process work and what are the fees?"
             />
