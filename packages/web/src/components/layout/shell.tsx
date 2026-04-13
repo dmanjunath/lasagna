@@ -53,6 +53,7 @@ export function Shell({ children }: ShellProps) {
         <div className="flex-1 flex overflow-hidden relative">
           <motion.div
             className="flex w-full h-full"
+            style={{ touchAction: 'pan-y' }}
             animate={{ x: chatOpen ? '-100vw' : 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 35 }}
           >
@@ -65,7 +66,7 @@ export function Shell({ children }: ShellProps) {
 
             {/* Chat panel — full screen, sits to the right of main content */}
             <div
-              className="w-screen h-full flex-shrink-0 flex flex-col bg-bg"
+              className="w-screen h-full flex-shrink-0 flex flex-col bg-bg overflow-hidden"
               data-testid="chat-panel"
             >
               {/* Header */}
