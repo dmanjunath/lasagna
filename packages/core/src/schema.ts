@@ -382,6 +382,7 @@ export const insights = pgTable("insights", {
   actedOn: timestamp("acted_on_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   generatedBy: varchar("generated_by", { length: 50 }).notNull().default("system"), // system, ai, manual
+  insightType: text("type"), // page routing: spending|behavioral|debt|tax|portfolio|savings|retirement|general
   sourceData: text("source_data"), // JSON snapshot of data that triggered this insight
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
