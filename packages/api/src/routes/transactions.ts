@@ -78,10 +78,10 @@ transactionRoutes.get("/spending-summary", async (c) => {
   const now = new Date();
   const startDate = c.req.query("startDate")
     ? new Date(c.req.query("startDate")!)
-    : new Date(now.getFullYear(), now.getMonth(), 1);
+    : new Date(now.getFullYear(), now.getMonth() - 1, 1); // Previous month start
   const endDate = c.req.query("endDate")
     ? new Date(c.req.query("endDate")!)
-    : now;
+    : new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59); // Previous month end
 
   const conditions = [
     eq(transactions.tenantId, session.tenantId),
@@ -106,9 +106,10 @@ transactionRoutes.get("/spending-summary", async (c) => {
 
   const categories = rows.map((row) => {
     const total = parseFloat(row.total || "0");
-    if (total < 0) {
+    const isTransfer = row.category === "transfer";
+    if (total < 0 && !isTransfer) {
       totalIncome += Math.abs(total);
-    } else {
+    } else if (total > 0 && !isTransfer) {
       totalSpending += total;
     }
     return {
@@ -148,6 +149,7 @@ transactionRoutes.get("/monthly-trend", async (c) => {
     .select({
       month: sql<string>`to_char(${transactions.date}, 'YYYY-MM')`,
       amount: transactions.amount,
+      category: transactions.category,
     })
     .from(transactions)
     .where(
@@ -173,10 +175,12 @@ transactionRoutes.get("/monthly-trend", async (c) => {
     const amount = parseFloat(row.amount || "0");
     const entry = monthMap.get(month) ?? { income: 0, expenses: 0 };
 
-    if (amount < 0) {
-      entry.income += Math.abs(amount);
-    } else {
-      entry.expenses += amount;
+    if (row.category !== "transfer") {
+      if (amount < 0) {
+        entry.income += Math.abs(amount);
+      } else {
+        entry.expenses += amount;
+      }
     }
 
     monthMap.set(month, entry);
