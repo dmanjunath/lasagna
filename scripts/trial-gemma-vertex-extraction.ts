@@ -151,7 +151,7 @@ Return ONLY the raw JSON object, no markdown code fences.`;
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(timedOut), TIMEOUT_MS)
+      setTimeout(() => reject(timedOut), TIMEOUT_MS).unref()
     );
 
     const response = await Promise.race([generatePromise, timeoutPromise]);

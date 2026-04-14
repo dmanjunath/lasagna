@@ -12,7 +12,7 @@ const SUPPORTED_TYPES: Record<string, string> = {
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_PDF_PAGES = 10;
-const TIMEOUT_MS = 300_000;
+const TIMEOUT_MS = 600_000;
 const MODEL = process.env.OLLAMA_MODEL ?? "gemma4:31b";
 const OLLAMA_BASE_URL = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 
@@ -129,6 +129,7 @@ Return ONLY the raw JSON object, no markdown code fences.`;
         model: MODEL,
         think: false,
         stream: false,
+        options: { num_ctx: 8192 },
         messages: [{
           role: "user",
           content: prompt,
@@ -145,7 +146,7 @@ Return ONLY the raw JSON object, no markdown code fences.`;
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(timedOut), TIMEOUT_MS)
+      setTimeout(() => reject(timedOut), TIMEOUT_MS).unref()
     );
 
     const response = await Promise.race([fetchPromise, timeoutPromise]);

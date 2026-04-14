@@ -12,7 +12,7 @@ const SUPPORTED_TYPES: Record<string, string> = {
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_PDF_PAGES = 10;
-const TIMEOUT_MS = 300_000;
+const TIMEOUT_MS = 600_000;
 const MODEL = "google/gemma-4-31B-it";
 const TOGETHER_API_URL = "https://api.together.xyz/v1/chat/completions";
 
@@ -149,7 +149,7 @@ Return ONLY the raw JSON object, no markdown code fences.`;
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(timedOut), TIMEOUT_MS)
+      setTimeout(() => reject(timedOut), TIMEOUT_MS).unref()
     );
 
     const response = await Promise.race([fetchPromise, timeoutPromise]);

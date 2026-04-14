@@ -5,8 +5,8 @@ set -e
 
 PROJECT=lasagna-prod
 INSTANCE=ollama-gemma
-MACHINE_TYPE=g2-standard-4
-ACCELERATOR=type=nvidia-l4,count=1
+MACHINE_TYPE=a2-highgpu-1g
+ACCELERATOR=type=nvidia-tesla-a100,count=1
 IMAGE=common-cu129-ubuntu-2204-nvidia-580-v20260408
 IMAGE_PROJECT=deeplearning-platform-release
 SNAPSHOT=ollama-gemma-snapshot
@@ -54,11 +54,16 @@ if [[ -z "$CURRENT_ZONE" ]]; then
 
   for ZONE in "${ZONES[@]}"; do
     echo -n "  Trying $ZONE... "
+    # A2 machine types include the GPU in the machine type; only pass --accelerator for g2/n1
+    ACCEL_FLAG=""
+    if [[ "$MACHINE_TYPE" != a2-* ]]; then
+      ACCEL_FLAG="--accelerator=$ACCELERATOR"
+    fi
     if gcloud compute instances create $INSTANCE \
         --project=$PROJECT \
         --zone=$ZONE \
         --machine-type=$MACHINE_TYPE \
-        --accelerator=$ACCELERATOR \
+        $ACCEL_FLAG \
         --maintenance-policy=TERMINATE \
         --image=$IMAGE \
         --image-project=$IMAGE_PROJECT \
