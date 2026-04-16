@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Search,
   ArrowUpRight,
   ArrowDownRight,
@@ -190,9 +189,7 @@ export function Spending() {
   const [hasLinkedAccounts, setHasLinkedAccounts] = useState(false);
   const [creditCardTotal, setCreditCardTotal] = useState(0);
 
-  // Collapsible sections
-  const [categoryOpen, setCategoryOpen] = useState(true);
-  const [trendOpen, setTrendOpen] = useState(true);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   // Sync
   const [syncing, setSyncing] = useState(false);
@@ -466,106 +463,68 @@ export function Spending() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.15 }}
-          className="bg-bg-elevated border border-border rounded-xl overflow-hidden"
+          className="bg-bg-elevated border border-border rounded-xl p-5"
         >
-          <button
-            onClick={() => setCategoryOpen((o) => !o)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors"
-          >
-            <h3 className="text-sm font-semibold text-text-primary">Spending by Category</h3>
-            <motion.div animate={{ rotate: categoryOpen ? 0 : -90 }} transition={{ duration: 0.2 }}>
-              <ChevronDown className="w-4 h-4 text-text-muted" />
-            </motion.div>
-          </button>
-
-          <AnimatePresence initial={false}>
-            {categoryOpen && (
-              <motion.div
-                key="category-body"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.25 }}
-                className="overflow-hidden"
-              >
-                <div className="px-5 pb-5">
-                  {loadingSummary ? (
-                    <div className="flex items-center justify-center py-12 text-text-muted">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    </div>
-                  ) : spendingCategories.length === 0 ? (
-                    <p className="text-sm text-text-muted py-12 text-center">
-                      No spending data for this month
-                    </p>
-                  ) : (
-                    <>
-                      <div className="h-36 mb-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={donutData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={50}
-                              outerRadius={80}
-                              paddingAngle={2}
-                              dataKey="value"
-                              stroke="none"
-                            >
-                              {donutData.map((_, i) => (
-                                <Cell key={i} fill={donutColors[i]} />
-                              ))}
-                            </Pie>
-                            <Tooltip content={<PieTooltip />} />
-                          </PieChart>
-                        </ResponsiveContainer>
+          <h3 className="text-sm font-semibold text-text-primary mb-4">Spending by Category</h3>
+          {loadingSummary ? (
+            <div className="flex items-center justify-center py-8 text-text-muted">
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          ) : spendingCategories.length === 0 ? (
+            <p className="text-sm text-text-muted py-8 text-center">No spending data for this month</p>
+          ) : (
+            <>
+              <div className="h-32 mb-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={donutData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
+                      {donutData.map((_, i) => (
+                        <Cell key={i} fill={donutColors[i]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<PieTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-1">
+                {(showAllCategories ? spendingCategories : spendingCategories.slice(0, 5)).map((cat) => {
+                  const display = getCategoryDisplay(cat.category);
+                  const isSelected = selectedCategory === cat.category;
+                  return (
+                    <button
+                      key={cat.category}
+                      onClick={() => setSelectedCategory(isSelected ? null : cat.category)}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                        isSelected ? 'bg-accent/10 border border-accent/20' : 'hover:bg-bg-surface border border-transparent'
+                      }`}
+                    >
+                      <span className="text-base flex-shrink-0">{display.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-text-primary truncate">{display.label}</span>
+                          <span className="text-xs font-semibold text-text-primary ml-2 flex-shrink-0">{formatCurrency(Math.abs(cat.total))}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex-1 h-1 bg-bg-surface rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${cat.percentage}%`, backgroundColor: display.color }} />
+                          </div>
+                          <span className="text-[10px] text-text-muted flex-shrink-0 w-8 text-right">{cat.percentage.toFixed(0)}%</span>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        {spendingCategories.map((cat) => {
-                          const display = getCategoryDisplay(cat.category);
-                          const isSelected = selectedCategory === cat.category;
-                          return (
-                            <button
-                              key={cat.category}
-                              onClick={() => setSelectedCategory(isSelected ? null : cat.category)}
-                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                                isSelected
-                                  ? 'bg-accent/10 border border-accent/20'
-                                  : 'hover:bg-bg-surface border border-transparent'
-                              }`}
-                            >
-                              <span className="text-lg flex-shrink-0">{display.icon}</span>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-sm font-medium text-text-primary truncate">
-                                    {display.label}
-                                  </span>
-                                  <span className="text-sm font-semibold text-text-primary ml-2 flex-shrink-0">
-                                    {formatCurrency(Math.abs(cat.total))}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 h-1.5 bg-bg-surface rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full transition-all duration-500"
-                                      style={{ width: `${cat.percentage}%`, backgroundColor: display.color }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-text-muted flex-shrink-0 w-10 text-right">
-                                    {cat.percentage.toFixed(1)}%
-                                  </span>
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    </button>
+                  );
+                })}
+              </div>
+              {spendingCategories.length > 5 && (
+                <button
+                  onClick={() => setShowAllCategories((v) => !v)}
+                  className="mt-2 w-full text-xs text-text-muted hover:text-accent transition-colors py-1"
+                >
+                  {showAllCategories ? 'Show less' : `+${spendingCategories.length - 5} more categories`}
+                </button>
+              )}
+            </>
+          )}
         </motion.div>
 
         {/* Monthly Trend */}
@@ -573,115 +532,56 @@ export function Spending() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
-          className="bg-bg-elevated border border-border rounded-xl overflow-hidden"
+          className="bg-bg-elevated border border-border rounded-xl p-5"
         >
-          <button
-            onClick={() => setTrendOpen((o) => !o)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors"
-          >
-            <h3 className="text-sm font-semibold text-text-primary">Monthly Trend</h3>
-            <motion.div animate={{ rotate: trendOpen ? 0 : -90 }} transition={{ duration: 0.2 }}>
-              <ChevronDown className="w-4 h-4 text-text-muted" />
-            </motion.div>
-          </button>
-
-          <AnimatePresence initial={false}>
-            {trendOpen && (
-              <motion.div
-                key="trend-body"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.25 }}
-                className="overflow-hidden"
-              >
-                <div className="px-5 pb-5">
-                  {loadingTrend ? (
-                    <div className="flex items-center justify-center py-12 text-text-muted">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    </div>
-                  ) : trendData.length === 0 ? (
-                    <p className="text-sm text-text-muted py-12 text-center">
-                      No trend data available
-                    </p>
-                  ) : (
-                    <>
-                      <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={trendData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#34d399" stopOpacity={0.2} />
-                                <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
-                              </linearGradient>
-                              <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#fb923c" stopOpacity={0.2} />
-                                <stop offset="100%" stopColor="#fb923c" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                            <XAxis
-                              dataKey="month"
-                              tick={{ fontSize: 11, fill: '#6b7280' }}
-                              axisLine={false}
-                              tickLine={false}
-                            />
-                            <YAxis
-                              tick={{ fontSize: 11, fill: '#6b7280' }}
-                              axisLine={false}
-                              tickLine={false}
-                              tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-                              width={44}
-                            />
-                            <Tooltip content={<TrendTooltip />} />
-                            <Area
-                              type="monotone"
-                              dataKey="income"
-                              name="Income"
-                              stroke="#34d399"
-                              strokeWidth={2}
-                              fill="url(#incomeGrad)"
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="expenses"
-                              name="Expenses"
-                              stroke="#fb923c"
-                              strokeWidth={2}
-                              fill="url(#expenseGrad)"
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="net"
-                              name="Net"
-                              stroke="#94a3b8"
-                              strokeWidth={1.5}
-                              strokeDasharray="5 3"
-                              fill="none"
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="flex items-center gap-5 mt-3 justify-center">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-[#34d399]" />
-                          <span className="text-xs text-text-muted">Income</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-[#fb923c]" />
-                          <span className="text-xs text-text-muted">Expenses</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-0.5 border-t-2 border-dashed border-[#94a3b8]" />
-                          <span className="text-xs text-text-muted">Net</span>
-                        </div>
-                      </div>
-                    </>
-                  )}
+          <h3 className="text-sm font-semibold text-text-primary mb-4">Monthly Trend</h3>
+          {loadingTrend ? (
+            <div className="flex items-center justify-center py-8 text-text-muted">
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          ) : trendData.length === 0 ? (
+            <p className="text-sm text-text-muted py-8 text-center">No trend data available</p>
+          ) : (
+            <>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#34d399" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#fb923c" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="#fb923c" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} width={40} />
+                    <Tooltip content={<TrendTooltip />} />
+                    <Area type="monotone" dataKey="income" name="Income" stroke="#34d399" strokeWidth={2} fill="url(#incomeGrad)" />
+                    <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#fb923c" strokeWidth={2} fill="url(#expenseGrad)" />
+                    <Area type="monotone" dataKey="net" name="Net" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="5 3" fill="none" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex items-center gap-4 mt-3 justify-center">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#34d399]" />
+                  <span className="text-xs text-text-muted">Income</span>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c]" />
+                  <span className="text-xs text-text-muted">Expenses</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-0.5 border-t-2 border-dashed border-[#94a3b8]" />
+                  <span className="text-xs text-text-muted">Net</span>
+                </div>
+              </div>
+            </>
+          )}
         </motion.div>
       </div>
 
