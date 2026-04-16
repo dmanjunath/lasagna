@@ -334,6 +334,17 @@ function LoanDetailsModal({
               />
             </label>
           )}
+          {(loanType === "mortgage" || loanType === "other_loan") && (
+            <label className="block">
+              <span className="text-xs text-text-muted font-medium">Origination Date</span>
+              <input
+                type="date"
+                value={originationDate}
+                onChange={(e) => setOriginationDate(e.target.value)}
+                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          )}
           {loanType === "credit_card" && (
             <label className="block">
               <span className="text-xs text-text-muted font-medium">Purchase APR (%)</span>
