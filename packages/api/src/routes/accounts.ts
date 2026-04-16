@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { eq, desc, and, sql, accounts, balanceSnapshots } from "@lasagna/core";
+import { z } from "zod";
+import { eq, desc, and, sql, accounts, balanceSnapshots, parseLoanMetadata } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 
@@ -131,34 +132,73 @@ accountRoutes.get("/debts", async (c) => {
 
       const balance = Math.abs(parseFloat(latest?.balance ?? "0"));
 
-      // Parse metadata JSON safely
-      let interestRate: number | null = null;
+      // Parse typed liability metadata
+      const typedMeta = parseLoanMetadata(acct.metadata ?? null);
+
+      // Legacy raw fallback (for seed/legacy data without a type discriminant)
+      let legacyInterestRate: number | null = null;
       let termMonths: number | null = null;
       let originationDate: string | null = null;
-      try {
-        if (acct.metadata) {
-          const meta = JSON.parse(acct.metadata);
-          interestRate = typeof meta.interestRate === "number" ? meta.interestRate : null;
-          termMonths = typeof meta.termMonths === "number" ? meta.termMonths : null;
-          originationDate = typeof meta.originationDate === "string" ? meta.originationDate : null;
+      if (!typedMeta && acct.metadata) {
+        try {
+          const raw = JSON.parse(acct.metadata);
+          legacyInterestRate = typeof raw.interestRate === "number" ? raw.interestRate : null;
+          termMonths = typeof raw.termMonths === "number" ? raw.termMonths : null;
+          originationDate = typeof raw.originationDate === "string" ? raw.originationDate : null;
+        } catch {
+          // malformed — leave null
         }
-      } catch {
-        // malformed metadata — leave defaults
       }
 
-      // Estimate minimum payment
+      // Resolve interestRate (3-step fallback)
+      let interestRate: number | null = null;
+      if (typedMeta) {
+        if (typedMeta.type === "credit_card") {
+          const purchaseApr = typedMeta.aprs?.find((a) => a.aprType === "purchase_apr");
+          interestRate = purchaseApr?.aprPercentage ?? typedMeta.aprs?.[0]?.aprPercentage ?? null;
+        } else {
+          // MortgageMetadata | StudentLoanMetadata | OtherLoanMetadata all have interestRatePercentage
+          interestRate =
+            (typedMeta as { interestRatePercentage?: number }).interestRatePercentage ?? null;
+        }
+      } else {
+        interestRate = legacyInterestRate;
+      }
+
+      // Resolve payoffDate
+      let payoffDate: string | null = null;
+      if (typedMeta) {
+        if (typedMeta.type === "mortgage") {
+          payoffDate = typedMeta.maturityDate ?? null;
+        } else if (typedMeta.type === "student_loan") {
+          payoffDate = typedMeta.expectedPayoffDate ?? null;
+        } else if (typedMeta.type === "other_loan") {
+          payoffDate = typedMeta.maturityDate ?? null;
+        }
+        // credit_card: payoffDate stays null — calculated client-side
+      }
+
+      // Resolve minimumPayment (3-step fallback)
       let minimumPayment: number;
-      const isMortgage = acct.subtype === "mortgage" || acct.name?.toLowerCase().includes("mortgage");
-      if (acct.type === "credit") {
-        // Minimum must cover at least the monthly interest + 1% of principal
+      const isMortgage =
+        acct.subtype === "mortgage" || acct.name?.toLowerCase().includes("mortgage");
+
+      const typedMinPayment =
+        typedMeta && "minimumPaymentAmount" in typedMeta
+          ? typedMeta.minimumPaymentAmount
+          : undefined;
+
+      if (typedMinPayment != null) {
+        minimumPayment = typedMinPayment;
+      } else if (acct.type === "credit") {
         const monthlyInterest = interestRate ? balance * (interestRate / 100 / 12) : 0;
         minimumPayment = Math.max(balance * 0.02, monthlyInterest + balance * 0.01, 25);
       } else if (isMortgage && !termMonths) {
-        // Mortgage without term data: assume 30yr at estimated rate
         const rate = interestRate ?? 6.5;
         const r = rate / 100 / 12;
-        const n = 360; // 30 years
-        minimumPayment = r > 0 ? balance * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1) : balance / n;
+        const n = 360;
+        minimumPayment =
+          r > 0 ? (balance * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1) : balance / n;
       } else if (termMonths && originationDate) {
         const originated = new Date(originationDate);
         const monthsElapsed =
@@ -181,6 +221,9 @@ accountRoutes.get("/debts", async (c) => {
         termMonths,
         originationDate,
         minimumPayment,
+        payoffDate,
+        liabilitySource: typedMeta?.source ?? null,
+        liabilityLastSyncedAt: typedMeta?.lastSyncedAt ?? null,
         lastUpdated: latest?.snapshotAt ?? null,
       };
     }),
@@ -219,4 +262,79 @@ accountRoutes.get("/:id/history", async (c) => {
   });
 
   return c.json({ account: acct, snapshots });
+});
+
+// Manual loan details override
+accountRoutes.patch("/:id/loan-details", async (c) => {
+  const session = c.get("session");
+  const accountId = c.req.param("id");
+
+  // Tenant isolation — 404 (not 403) to avoid account enumeration
+  const acct = await db.query.accounts.findFirst({
+    where: eq(accounts.id, accountId),
+  });
+  if (!acct || acct.tenantId !== session.tenantId) {
+    return c.json({ error: "Account not found" }, 404);
+  }
+
+  const raw = await c.req.json();
+
+  const bodySchema = z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("mortgage"),
+      maturityDate: z.string().optional(),
+      interestRatePercentage: z.number().optional(),
+      interestRateType: z.enum(["fixed", "variable"]).optional(),
+      originationDate: z.string().optional(),
+      originationPrincipal: z.number().optional(),
+      loanTerm: z.string().optional(),
+    }),
+    z.object({
+      type: z.literal("student_loan"),
+      expectedPayoffDate: z.string().optional(),
+      interestRatePercentage: z.number().optional(),
+      minimumPaymentAmount: z.number().optional(),
+      repaymentPlanType: z.string().optional(),
+      nextPaymentDueDate: z.string().optional(),
+    }),
+    z.object({
+      type: z.literal("credit_card"),
+      minimumPaymentAmount: z.number().optional(),
+      nextPaymentDueDate: z.string().optional(),
+      aprs: z
+        .array(
+          z.object({
+            aprType: z.string(),
+            aprPercentage: z.number(),
+            balanceSubjectToApr: z.number().optional(),
+          }),
+        )
+        .optional(),
+    }),
+    z.object({
+      type: z.literal("other_loan"),
+      maturityDate: z.string().optional(),
+      interestRatePercentage: z.number().optional(),
+      minimumPaymentAmount: z.number().optional(),
+      originationDate: z.string().optional(),
+    }),
+  ]);
+
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
+  }
+
+  const metadata = {
+    ...parsed.data,
+    source: "manual" as const,
+    lastSyncedAt: new Date().toISOString(),
+  };
+
+  await db
+    .update(accounts)
+    .set({ metadata: JSON.stringify(metadata) })
+    .where(eq(accounts.id, accountId));
+
+  return c.json({ metadata });
 });
