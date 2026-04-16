@@ -299,7 +299,7 @@ export function TaxStrategy() {
 
       {/* Tax Documents */}
       <Section title="Tax Documents">
-        <div className="space-y-6 max-w-2xl">
+        <div className="space-y-6">
           <TaxInputPanel onSuccess={handleInputSuccess} />
 
           {insightStatus === "generating" && (

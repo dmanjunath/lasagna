@@ -24,6 +24,8 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // Mobile tab: "file" | "text"
+  const [mobileTab, setMobileTab] = useState<"file" | "text">("file");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasFile = file !== null;
@@ -79,6 +81,97 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
     }
   };
 
+  // ── Shared zone components ──────────────────────────────────────────
+
+  const FileZone = ({ dimmed }: { dimmed?: boolean }) => (
+    <div className={cn(
+      "flex flex-col rounded-xl border transition-all h-full",
+      dimmed
+        ? "opacity-30 pointer-events-none select-none border-border"
+        : "border-border/60 hover:border-border"
+    )}>
+      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
+        <Upload className="w-3.5 h-3.5 text-text-muted shrink-0" />
+        <span className="text-xs font-semibold text-text-secondary">Upload a file</span>
+        <span className="text-[10px] text-text-muted ml-auto">PDF · PNG · JPG</span>
+      </div>
+      <div
+        className={cn(
+          "flex-1 flex flex-col items-center justify-center gap-2.5 p-5 cursor-pointer transition-colors min-h-[140px]",
+          isDragging ? "bg-accent/5" : "hover:bg-surface-hover/30"
+        )}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+        role="button"
+        tabIndex={dimmed ? -1 : 0}
+        onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept="application/pdf,image/jpeg,image/png"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }}
+        />
+        {file ? (
+          <>
+            <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
+              <FileText className="w-4.5 h-4.5 text-accent" />
+            </div>
+            <div className="text-center">
+              <div className="text-sm font-medium truncate max-w-[200px]">{file.name}</div>
+              <div className="text-xs text-text-muted">{(file.size / 1024 / 1024).toFixed(1)} MB</div>
+            </div>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs text-text-muted hover:text-danger transition-colors"
+              onClick={(e) => { e.stopPropagation(); setFile(null); }}
+            >
+              <X className="w-3 h-3" /> Remove
+            </button>
+          </>
+        ) : (
+          <>
+            <div className={cn(
+              "w-9 h-9 rounded-lg flex items-center justify-center transition-colors",
+              isDragging ? "bg-accent/15" : "bg-surface-hover"
+            )}>
+              <Upload className={cn("w-4.5 h-4.5", isDragging ? "text-accent" : "text-text-muted")} />
+            </div>
+            <div className="text-center">
+              <div className="text-xs font-medium text-text-secondary">
+                {isDragging ? "Drop to upload" : "Drop here or click to browse"}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  const TextZone = ({ dimmed }: { dimmed?: boolean }) => (
+    <div className={cn(
+      "flex flex-col rounded-xl border transition-all h-full",
+      dimmed
+        ? "opacity-30 pointer-events-none select-none border-border"
+        : "border-border/60 hover:border-border"
+    )}>
+      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
+        <PenLine className="w-3.5 h-3.5 text-text-muted shrink-0" />
+        <span className="text-xs font-semibold text-text-secondary">Describe your taxes</span>
+      </div>
+      <textarea
+        className="flex-1 min-h-[140px] bg-transparent px-4 py-3 text-sm resize-none focus:outline-none placeholder:text-text-muted/40 text-text-secondary"
+        placeholder={"e.g. married filing jointly, 2023\nW-2 income $120k, withheld $18k\nstandard deduction, no dependents"}
+        value={text}
+        onChange={(e) => { setText(e.target.value); if (hasFile) setFile(null); }}
+        disabled={dimmed}
+      />
+    </div>
+  );
+
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
       {/* Header */}
@@ -89,109 +182,61 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
         </div>
       </div>
 
-      <div className="p-5 space-y-4">
-        {/* Dual input */}
-        <div className="flex flex-col md:flex-row gap-3">
+      <div className="p-4 sm:p-5 space-y-4">
 
-          {/* ── File zone ── */}
-          <div className={cn(
-            "flex-1 flex flex-col rounded-xl border transition-all",
-            mode === "text" ? "opacity-30 pointer-events-none select-none border-border" : "border-border/60 hover:border-border"
-          )}>
-            {/* Zone header */}
-            <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
-              <Upload className="w-3.5 h-3.5 text-text-muted" />
-              <span className="text-xs font-semibold text-text-secondary">Upload a file</span>
-              <span className="text-[10px] text-text-muted ml-auto">PDF · PNG · JPG</span>
-            </div>
-
-            {/* Drop area */}
-            <div
+        {/* ── MOBILE: tab toggle ── */}
+        <div className="sm:hidden">
+          <div className="flex rounded-lg bg-surface-hover p-1 mb-4">
+            <button
+              type="button"
+              onClick={() => { setMobileTab("file"); if (hasText) setText(""); }}
               className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-2.5 p-5 cursor-pointer transition-colors min-h-[130px]",
-                isDragging ? "bg-accent/5" : "hover:bg-surface-hover/30"
+                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-all",
+                mobileTab === "file"
+                  ? "bg-bg-elevated text-text-primary shadow-sm"
+                  : "text-text-muted hover:text-text-secondary"
               )}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              role="button"
-              tabIndex={mode === "text" ? -1 : 0}
-              onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept="application/pdf,image/jpeg,image/png"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }}
-              />
-              {file ? (
-                <>
-                  <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
-                    <FileText className="w-4.5 h-4.5 text-accent" />
-                  </div>
-                  <div className="text-center">
-                    <div className="text-sm font-medium truncate max-w-[200px]">{file.name}</div>
-                    <div className="text-xs text-text-muted">{(file.size / 1024 / 1024).toFixed(1)} MB</div>
-                  </div>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-xs text-text-muted hover:text-danger transition-colors"
-                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                  >
-                    <X className="w-3 h-3" /> Remove
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className={cn(
-                    "w-9 h-9 rounded-lg flex items-center justify-center transition-colors",
-                    isDragging ? "bg-accent/15" : "bg-surface-hover"
-                  )}>
-                    <Upload className={cn("w-4.5 h-4.5", isDragging ? "text-accent" : "text-text-muted")} />
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs font-medium text-text-secondary">
-                      {isDragging ? "Drop to upload" : "Drop here or click to browse"}
-                    </div>
-                  </div>
-                </>
+              <Upload className="w-3.5 h-3.5" />
+              Upload file
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMobileTab("text"); if (hasFile) setFile(null); }}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-all",
+                mobileTab === "text"
+                  ? "bg-bg-elevated text-text-primary shadow-sm"
+                  : "text-text-muted hover:text-text-secondary"
               )}
-            </div>
+            >
+              <PenLine className="w-3.5 h-3.5" />
+              Describe
+            </button>
           </div>
 
-          {/* ── OR divider ── */}
-          <div className="flex md:flex-col items-center justify-center gap-2 py-1">
-            <div className="flex-1 h-px md:h-auto md:w-px md:flex-1 bg-border" />
-            <span className="text-[11px] font-bold tracking-widest text-text-muted/50 uppercase shrink-0 px-1">or</span>
-            <div className="flex-1 h-px md:h-auto md:w-px md:flex-1 bg-border" />
-          </div>
-
-          {/* ── Text zone ── */}
-          <div className={cn(
-            "flex-1 flex flex-col rounded-xl border transition-all",
-            mode === "file" ? "opacity-30 pointer-events-none select-none border-border" : "border-border/60 hover:border-border"
-          )}>
-            {/* Zone header */}
-            <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
-              <PenLine className="w-3.5 h-3.5 text-text-muted" />
-              <span className="text-xs font-semibold text-text-secondary">Describe your taxes</span>
-            </div>
-
-            {/* Textarea */}
-            <textarea
-              className="flex-1 min-h-[130px] bg-transparent px-4 py-3 text-sm resize-none focus:outline-none placeholder:text-text-muted/50 text-text-secondary"
-              placeholder={"e.g. married filing jointly, 2023\nW-2 income $120k, withheld $18k\nstandard deduction, no dependents"}
-              value={text}
-              onChange={(e) => { setText(e.target.value); if (hasFile) setFile(null); }}
-              disabled={mode === "file"}
-            />
-          </div>
-
+          {mobileTab === "file" ? <FileZone /> : <TextZone />}
         </div>
 
-        {/* Extraction settings (collapsed) */}
+        {/* ── DESKTOP: side by side ── */}
+        <div className="hidden sm:flex gap-3 items-stretch">
+          <div className="flex-1">
+            <FileZone dimmed={mode === "text"} />
+          </div>
+
+          {/* OR divider */}
+          <div className="flex flex-col items-center justify-center gap-2 py-1">
+            <div className="flex-1 w-px bg-border" />
+            <span className="text-[11px] font-bold tracking-widest text-text-muted/50 uppercase shrink-0 px-1">or</span>
+            <div className="flex-1 w-px bg-border" />
+          </div>
+
+          <div className="flex-1">
+            <TextZone dimmed={mode === "file"} />
+          </div>
+        </div>
+
+        {/* Extraction settings */}
         <div className="rounded-xl border border-border overflow-hidden">
           <button
             type="button"
@@ -223,7 +268,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                   placeholder="https://openrouter.ai/api/v1/chat/completions"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-text-muted mb-1.5">Model</label>
                   <input
