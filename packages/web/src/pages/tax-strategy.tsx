@@ -4,9 +4,8 @@ import { Receipt, FileText, Trash2, Plus, RefreshCw } from "lucide-react";
 import { Section } from "../components/common/section.js";
 import { ActionItem } from "../components/common/action-item.js";
 import { Button } from "../components/ui/button.js";
-import { PdfUploader, type UploadStep } from "../components/tax/PdfUploader.js";
-import { RedactionReview } from "../components/tax/RedactionReview.js";
-import type { TaxDocumentSummary, ExtractionResult } from "../lib/types.js";
+import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
+import type { TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
 import { useChatStore } from "../lib/chat-store.js";
 import { ContextualInsights } from '../components/common/contextual-insights';
@@ -29,9 +28,6 @@ const EMPLOYMENT_LABELS: Record<string, string> = {
 
 export function TaxStrategy() {
   const [documents, setDocuments] = useState<TaxDocumentSummary[]>([]);
-  const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
-  const [pendingExtraction, setPendingExtraction] = useState<ExtractionResult | null>(null);
-  const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [insightStatus, setInsightStatus] = useState<"idle" | "generating" | "done">("idle");
   const [profileInfo, setProfileInfo] = useState<{
@@ -64,71 +60,15 @@ export function TaxStrategy() {
     }
   };
 
-  const handleFilesSelected = useCallback(async (files: File[]) => {
-    const file = files[0];
-    if (!file) return;
-    setError(null);
-    setPendingExtraction(null);
-
-    try {
-      // Step 1: Upload
-      setUploadStep("uploading");
-      // Small delay so the UI registers the first step visually
-      await new Promise((r) => setTimeout(r, 400));
-
-      // Step 2: Extract
-      setUploadStep("extracting");
-      // extractTaxDocument does upload + extraction + redaction server-side
-      // We advance to "redacting" after a short delay to show the step
-      const extractionPromise = api.extractTaxDocument(file);
-      const timer = setTimeout(() => setUploadStep("redacting"), 3000);
-      const extraction = await extractionPromise;
-      clearTimeout(timer);
-
-      // Step 3: Show review
-      setUploadStep("review");
-      setPendingExtraction(extraction);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-      setUploadStep("idle");
-    }
-  }, []);
-
-  const handleApprove = useCallback(async () => {
-    if (!pendingExtraction) return;
-    setIsConfirming(true);
-    setUploadStep("analyzing");
-    try {
-      await api.confirmTaxDocument(pendingExtraction);
-      setPendingExtraction(null);
-      setUploadStep("done");
-
-      // Refresh document list
-      const { documents } = await api.getTaxDocuments();
-      setDocuments(documents);
-
-      // Re-generate tax insights in the background
-      setInsightStatus("generating");
-      api.generateInsights()
-        .then(() => setInsightStatus("done"))
-        .catch(() => setInsightStatus("idle"));
-
-      // Reset upload state after a moment
-      setTimeout(() => setUploadStep("idle"), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Processing failed");
-      setUploadStep("review"); // Go back to review
-    } finally {
-      setIsConfirming(false);
-    }
-  }, [pendingExtraction]);
-
-  const handleReject = useCallback(() => {
-    // Discard the extraction — GCS file is orphaned but we don't clean it up here
-    // (could add a cancel endpoint if needed)
-    setPendingExtraction(null);
-    setUploadStep("idle");
-    setError(null);
+  const handleInputSuccess = useCallback(async (doc: TaxInputResult) => {
+    setDocuments((prev) => [
+      { id: doc.id, fileName: doc.fileName, llmSummary: doc.llmSummary, taxYear: doc.taxYear, createdAt: doc.createdAt },
+      ...prev,
+    ]);
+    setInsightStatus("generating");
+    api.generateInsights()
+      .then(() => setInsightStatus("done"))
+      .catch(() => setInsightStatus("idle"));
   }, []);
 
   const handleDeleteDocument = useCallback(async (id: string) => {
@@ -351,44 +291,16 @@ export function TaxStrategy() {
       {/* Tax Documents */}
       <Section title="Tax Documents">
         <div className="space-y-6 max-w-2xl">
-          {/* Upload / Progress */}
-          {uploadStep !== "review" && (
-            <PdfUploader onFileSelect={handleFilesSelected} step={uploadStep} />
-          )}
+          <TaxInputPanel onSuccess={handleInputSuccess} />
 
-          {/* Done state */}
-          {uploadStep === "done" && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 p-3 rounded-xl bg-success/10 border border-success/20 text-success text-sm font-medium"
-            >
-              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-              Document processed successfully
-              {insightStatus === "generating" && (
-                <span className="ml-auto flex items-center gap-1.5 text-text-muted text-xs font-normal">
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  Updating tax insights...
-                </span>
-              )}
-              {insightStatus === "done" && (
-                <span className="ml-auto text-xs text-success font-normal">Tax insights updated</span>
-              )}
-            </motion.div>
+          {insightStatus === "generating" && (
+            <div className="flex items-center gap-2 text-text-muted text-xs">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              Updating tax insights…
+            </div>
           )}
-
-          {/* Redaction review */}
-          {uploadStep === "review" && pendingExtraction && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <RedactionReview
-                extraction={pendingExtraction}
-                onApprove={handleApprove}
-                onReject={handleReject}
-                isConfirming={isConfirming}
-              />
-            </motion.div>
+          {insightStatus === "done" && (
+            <div className="text-xs text-success">Tax insights updated</div>
           )}
 
           {error && (
@@ -433,10 +345,10 @@ export function TaxStrategy() {
                 ))}
               </div>
             </div>
-          ) : uploadStep === "idle" && (
+          ) : (
             <div className="glass-card rounded-2xl p-8 text-center">
               <Receipt className="w-12 h-12 text-text-muted mx-auto mb-4" />
-              <p className="text-text-muted">Upload your tax documents to get started</p>
+              <p className="text-text-muted">Upload a document or describe your tax info to get started</p>
             </div>
           )}
 
