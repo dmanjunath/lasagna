@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, CreditCard, Landmark } from 'lucide-react';
+import { Loader2, CreditCard, Landmark, Pencil, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
@@ -8,14 +8,19 @@ import { Section } from '../components/common/section';
 import { ContextualInsights } from '../components/common/contextual-insights';
 
 interface DebtAccount {
+  id: string;
   name: string;
   balance: number;
   type: string;
+  subtype: string | null;
   apr: number;
   minPayment: number;
   suggestedPayment: number;
   minPayoffDate: string;
   suggestedPayoffDate: string;
+  payoffDate: string | null;
+  liabilitySource: "plaid" | "manual" | null;
+  liabilityLastSyncedAt: string | null;
 }
 
 function formatCurrency(value: number): string {
@@ -60,10 +65,19 @@ export function Debt() {
   const [debts, setDebts] = useState<DebtAccount[]>([]);
   const [totalDebt, setTotalDebt] = useState(0);
   const [hasAccounts, setHasAccounts] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [editingDebt, setEditingDebt] = useState<DebtAccount | null>(null);
+
+  const handleLoanDetailsSaved = () => {
+    setEditingDebt(null);
+    setRefreshKey((k) => k + 1);
+  };
+
+  const closeModal = () => setEditingDebt(null);
 
   useEffect(() => {
     Promise.all([
-      api.getDebts().catch(() => ({ debts: [] as Array<{ name: string; type: string; balance: number; interestRate: number | null; minimumPayment: number }>, totalDebt: 0, monthlyInterest: 0 })),
+      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
       api.getBalances().catch(() => ({ balances: [] })),
     ]).then(([debtResult, balanceData]) => {
       setHasAccounts(balanceData.balances.length > 0);
@@ -78,14 +92,19 @@ export function Debt() {
           const minMonths = monthsToPayoff(d.balance, apr, minPay);
           const sugMonths = monthsToPayoff(d.balance, apr, suggestedPay);
           return {
+            id: d.id,
             name: d.name,
             balance: d.balance,
             type: d.type,
+            subtype: d.subtype ?? null,
             apr: Math.round(apr * 100) / 100,
             minPayment: minPay,
             suggestedPayment: suggestedPay,
             minPayoffDate: addMonths(minMonths),
             suggestedPayoffDate: addMonths(sugMonths),
+            payoffDate: d.payoffDate ?? null,
+            liabilitySource: d.liabilitySource ?? null,
+            liabilityLastSyncedAt: d.liabilityLastSyncedAt ?? null,
           };
         });
 
@@ -95,7 +114,7 @@ export function Debt() {
         setTotalDebt(apiTotal);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   // Page context for chat
   useEffect(() => {
@@ -173,6 +192,10 @@ export function Debt() {
           monthsSaved={monthsSaved}
           interestSavedVsMinimums={interestSavedVsMinimums}
           openChat={openChat}
+          editingDebt={editingDebt}
+          onEditDebt={setEditingDebt}
+          onCloseModal={closeModal}
+          onLoanDetailsSaved={handleLoanDetailsSaved}
         />
       ) : (
         <DebtFreeView openChat={openChat} />
@@ -181,18 +204,209 @@ export function Debt() {
   );
 }
 
+/* ─── Loan Details Modal ─── */
+
+function LoanDetailsModal({
+  debt,
+  onClose,
+  onSaved,
+}: {
+  debt: DebtAccount;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [maturityDate, setMaturityDate] = useState("");
+  const [expectedPayoffDate, setExpectedPayoffDate] = useState("");
+  const [interestRate, setInterestRate] = useState("");
+  const [minPayment, setMinPayment] = useState("");
+  const [originationDate, setOriginationDate] = useState("");
+  const [repaymentPlanType, setRepaymentPlanType] = useState("");
+  const [purchaseApr, setPurchaseApr] = useState("");
+
+  const isMortgage =
+    debt.subtype === "mortgage" || debt.name.toLowerCase().includes("mortgage");
+  const isStudentLoan =
+    debt.subtype === "student_loan" || debt.name.toLowerCase().includes("student");
+  const isCredit = debt.type === "credit";
+  const loanType: "mortgage" | "student_loan" | "credit_card" | "other_loan" = isMortgage
+    ? "mortgage"
+    : isStudentLoan
+      ? "student_loan"
+      : isCredit
+        ? "credit_card"
+        : "other_loan";
+
+  const handleSubmit = async (e: { preventDefault(): void }) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = { type: loanType };
+      if (loanType === "mortgage") {
+        if (maturityDate) body.maturityDate = maturityDate;
+        if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
+        if (originationDate) body.originationDate = originationDate;
+      } else if (loanType === "student_loan") {
+        if (expectedPayoffDate) body.expectedPayoffDate = expectedPayoffDate;
+        if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
+        if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
+        if (repaymentPlanType) body.repaymentPlanType = repaymentPlanType;
+      } else if (loanType === "credit_card") {
+        if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
+        if (purchaseApr)
+          body.aprs = [{ aprType: "purchase_apr", aprPercentage: parseFloat(purchaseApr) }];
+      } else {
+        if (maturityDate) body.maturityDate = maturityDate;
+        if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
+        if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
+        if (originationDate) body.originationDate = originationDate;
+      }
+      await api.patchLoanDetails(debt.id, body);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm mx-4 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-semibold text-base">{debt.name}</h2>
+            <p className="text-xs text-text-muted mt-0.5">Update loan details</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-text-muted hover:text-text-primary transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {(loanType === "mortgage" || loanType === "other_loan") && (
+            <label className="block">
+              <span className="text-xs text-text-muted font-medium">
+                Maturity / Payoff Date
+              </span>
+              <input
+                type="date"
+                value={maturityDate}
+                onChange={(e) => setMaturityDate(e.target.value)}
+                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          )}
+          {loanType === "student_loan" && (
+            <label className="block">
+              <span className="text-xs text-text-muted font-medium">Expected Payoff Date</span>
+              <input
+                type="date"
+                value={expectedPayoffDate}
+                onChange={(e) => setExpectedPayoffDate(e.target.value)}
+                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          )}
+          {loanType !== "credit_card" && (
+            <label className="block">
+              <span className="text-xs text-text-muted font-medium">Interest Rate (%)</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={interestRate}
+                onChange={(e) => setInterestRate(e.target.value)}
+                placeholder={loanType === "mortgage" ? "e.g. 3.5" : "e.g. 6.5"}
+                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          )}
+          {loanType === "credit_card" && (
+            <label className="block">
+              <span className="text-xs text-text-muted font-medium">Purchase APR (%)</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={purchaseApr}
+                onChange={(e) => setPurchaseApr(e.target.value)}
+                placeholder="e.g. 21.99"
+                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          )}
+          {(loanType === "student_loan" ||
+            loanType === "credit_card" ||
+            loanType === "other_loan") && (
+            <label className="block">
+              <span className="text-xs text-text-muted font-medium">Minimum Payment ($)</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={minPayment}
+                onChange={(e) => setMinPayment(e.target.value)}
+                placeholder="e.g. 250"
+                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          )}
+          {loanType === "student_loan" && (
+            <label className="block">
+              <span className="text-xs text-text-muted font-medium">Repayment Plan</span>
+              <input
+                type="text"
+                value={repaymentPlanType}
+                onChange={(e) => setRepaymentPlanType(e.target.value)}
+                placeholder="e.g. income_driven, standard"
+                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          )}
+
+          {error && <p className="text-xs text-danger">{error}</p>}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold border border-border text-text-secondary hover:bg-surface-hover transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold bg-accent text-bg hover:bg-accent/90 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Has Debt View ─── */
 
 function HasDebtView({
-  debts,
-  totalDebt,
-  totalMonthlyPayment,
-  interestSavedVsSnowball,
-  minOnlyDate,
-  suggestedDate,
-  monthsSaved,
-  interestSavedVsMinimums,
-  openChat,
+  debts, totalDebt, totalMonthlyPayment, interestSavedVsSnowball,
+  minOnlyDate, suggestedDate, monthsSaved, interestSavedVsMinimums,
+  openChat, editingDebt, onEditDebt, onCloseModal, onLoanDetailsSaved,
 }: {
   debts: DebtAccount[];
   totalDebt: number;
@@ -203,6 +417,10 @@ function HasDebtView({
   monthsSaved: number;
   interestSavedVsMinimums: number;
   openChat: (prompt: string) => void;
+  editingDebt: DebtAccount | null;
+  onEditDebt: (debt: DebtAccount) => void;
+  onCloseModal: () => void;
+  onLoanDetailsSaved: () => void;
 }) {
   const badgeColor = (i: number) => {
     if (i === 0) return 'bg-danger/20 text-danger border-danger/30';
@@ -317,12 +535,62 @@ function HasDebtView({
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="text-[15px] font-semibold">{d.name}</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="text-[15px] font-semibold">{d.name}</div>
+                    <button
+                      type="button"
+                      onClick={() => onEditDebt(d)}
+                      className="text-text-muted hover:text-text-primary transition-colors"
+                      title="Edit loan details"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    {d.liabilitySource === "plaid" && (
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold cursor-default"
+                        title={
+                          d.liabilityLastSyncedAt
+                            ? `Synced ${new Date(d.liabilityLastSyncedAt).toLocaleDateString()}`
+                            : undefined
+                        }
+                      >
+                        Synced from Plaid
+                      </span>
+                    )}
+                    {d.liabilitySource === "manual" && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-hover text-text-muted font-semibold">
+                        Manually entered
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[13px] text-text-muted mt-0.5">
                     {d.apr}% APR &middot; Min {formatCurrency(d.minPayment)}/mo &middot; Paying{' '}
                     {formatCurrency(d.suggestedPayment)}/mo
                   </div>
                   <div className="text-[11px] text-text-muted mt-1">
+                    {d.type !== 'credit' && d.payoffDate ? (
+                      <>
+                        Payoff:{' '}
+                        <span className="text-success">
+                          {new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', {
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                        {' '}&middot;{' '}
+                      </>
+                    ) : d.type !== 'credit' && !d.payoffDate ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onEditDebt(d)}
+                          className="text-warning hover:text-warning/80 font-semibold transition-colors"
+                        >
+                          Unknown — add details
+                        </button>
+                        {' '}&middot;{' '}
+                      </>
+                    ) : null}
                     Min payoff:{' '}
                     <span className="text-danger">{d.minPayoffDate}</span> &middot; Your plan:{' '}
                     <span className="text-success">{d.suggestedPayoffDate}</span>
@@ -341,7 +609,14 @@ function HasDebtView({
         </Section>
       </motion.div>
 
-      <ContextualInsights types="debt" />
+      <ContextualInsights types={["debt", "savings", "general"]} />
+      {editingDebt && (
+        <LoanDetailsModal
+          debt={editingDebt}
+          onClose={onCloseModal}
+          onSaved={onLoanDetailsSaved}
+        />
+      )}
     </>
   );
 }
@@ -376,7 +651,7 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
       </motion.div>
 
       {/* Stay Debt-Free — dynamic actions */}
-      <ContextualInsights types="debt" />
+      <ContextualInsights types={["debt", "savings", "general"]} />
 
       {/* Interest saved */}
       <motion.div {...fadeUp(0.16)}>
