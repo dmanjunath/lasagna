@@ -227,8 +227,8 @@ export function Dashboard() {
       setTotalSpending(spendingData.totalSpending);
       setTotalIncome(spendingData.totalIncome);
       if (spendingData.period?.start) {
-        const d = new Date(spendingData.period.start);
-        setSpendingPeriodLabel(d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + ' Spending');
+        const [y, m] = spendingData.period.start.split('T')[0].split('-').map(Number);
+        setSpendingPeriodLabel(new Date(y, m - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + ' Spending');
       }
 
       // Goals
