@@ -1,4 +1,4 @@
-import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, ExtractionResult } from "./types.js";
+import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, TaxInputResult, ExtractionResult } from "./types.js";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -232,6 +232,35 @@ export const api = {
       throw new Error(err.error || "Upload failed");
     }
     return res.json();
+  },
+
+  submitTaxInput: async (params: {
+    file?: File;
+    text?: string;
+    providerUrl: string;
+    apiKey?: string;
+    model?: string;
+  }): Promise<TaxInputResult> => {
+    const formData = new FormData();
+    if (params.file) formData.append("file", params.file);
+    if (params.text) formData.append("text", params.text);
+    formData.append("providerUrl", params.providerUrl);
+    if (params.apiKey) formData.append("apiKey", params.apiKey);
+    if (params.model) formData.append("model", params.model);
+
+    const res = await fetch(`${API_BASE}/api/tax/documents`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Request failed" })) as { error: string };
+      throw new Error(err.error || "Submission failed");
+    }
+
+    const data = await res.json() as { document: TaxInputResult };
+    return data.document;
   },
 
   updateTaxDocument: (id: string, data: { taxYear?: number | null }) =>

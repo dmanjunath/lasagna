@@ -499,6 +499,16 @@ export interface UploadResult {
   taxYear: number | null;
 }
 
+export interface TaxInputResult {
+  id: string;
+  fileName: string;
+  fileType: string;
+  llmFields: Record<string, unknown>;
+  llmSummary: string;
+  taxYear: number | null;
+  createdAt: string;
+}
+
 export interface ExtractionResult {
   extractionId: string;
   fileName: string;
