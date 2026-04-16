@@ -124,57 +124,58 @@ priorityRoutes.get("/", async (c) => {
   const isOver50 = age !== null && age >= 50;
   const isMarried = filingStatus === "married_joint";
 
-  // Build priority steps
-  const steps = [];
+  // Build priority steps following   const steps = [];
+  let order = 1;
 
-  // 1. Emergency Fund
-  const emergencyTarget = monthlyExpenses * 6;
-  const emergencyPct =
-    emergencyTarget > 0 ? Math.min(1, cashTotal / emergencyTarget) : 0;
+  // Step 1 : Cover Insurance Deductibles
+  // First, build a small buffer equal to your max out-of-pocket — typically $1,500–$2,000
+  const deductibleTarget = 1500;
+  const deductiblePct = Math.min(1, cashTotal / deductibleTarget);
   steps.push({
-    id: "emergency_fund",
-    order: 1,
-    title: "Build Emergency Fund",
-    subtitle: "6 months of expenses in cash",
+    id: "cover_deductibles",
+    order: order++,
+    title: "Cover Insurance Deductibles",
+    subtitle: "Initial $1,500 emergency buffer",
     icon: "shield",
     status:
-      emergencyPct >= 1
+      deductiblePct >= 1
         ? "complete"
-        : emergencyPct > 0
+        : cashTotal > 0
           ? "in_progress"
           : "not_started",
-    current: Math.round(cashTotal),
-    target: Math.round(emergencyTarget),
-    progress: Math.round(emergencyPct * 100),
+    current: Math.round(Math.min(cashTotal, deductibleTarget)),
+    target: deductibleTarget,
+    progress: Math.round(deductiblePct * 100),
     action:
-      emergencyPct >= 1
-        ? "Your emergency fund is fully funded!"
-        : `Save $${Math.round(emergencyTarget - cashTotal).toLocaleString()} more in a high-yield savings account`,
-    detail: `Target: $${Math.round(emergencyTarget).toLocaleString()} (6 x $${Math.round(monthlyExpenses).toLocaleString()}/mo expenses)`,
+      deductiblePct >= 1
+        ? "Initial buffer is covered — keep these funds liquid!"
+        : `Save $${Math.round(deductibleTarget - Math.min(cashTotal, deductibleTarget)).toLocaleString()} more in a checking or HYSA`,
+    detail:
+      "Before anything else, have enough cash to cover your insurance deductibles so an emergency doesn't derail your finances.",
     priority: "critical",
   });
 
-  // 2. Employer Match
+  // Step 2 : Capture Employer Match — 100% guaranteed ROI
   if (employerMatch > 0) {
     const matchContribution = monthlyIncome * (employerMatch / 100);
     const annualMatch = matchContribution * 12;
     steps.push({
       id: "employer_match",
-      order: 2,
-      title: "Get Full Employer Match",
-      subtitle: `${employerMatch}% match = free money`,
+      order: order++,
+      title: "Capture Full Employer Match",
+      subtitle: `${employerMatch}% match — 100% guaranteed ROI`,
       icon: "gift",
       status: trad401kBalance > 0 ? "in_progress" : "not_started",
       current: null,
       target: Math.round(annualMatch),
       progress: trad401kBalance > 0 ? 50 : 0,
-      action: `Contribute at least ${employerMatch}% ($${Math.round(matchContribution).toLocaleString()}/mo) to your 401(k)`,
-      detail: `Your employer matches ${employerMatch}% — that's $${Math.round(annualMatch).toLocaleString()}/yr in free money`,
+      action: `Contribute at least ${employerMatch}% ($${Math.round(matchContribution).toLocaleString()}/mo) to your 401(k) to get the full match`,
+      detail: `Your employer matches ${employerMatch}% — that's $${Math.round(annualMatch).toLocaleString()}/yr in free money. No investment beats a 100% instant return.`,
       priority: "critical",
     });
   }
 
-  // 3. High-Interest Debt
+  // Step 3 : Eliminate High-Interest Debt (>6% APR)
   const totalHighDebt = highInterestDebts.reduce(
     (s, d) => s + d.balance,
     0
@@ -182,15 +183,15 @@ priorityRoutes.get("/", async (c) => {
   if (totalHighDebt > 0) {
     steps.push({
       id: "high_interest_debt",
-      order: 3,
-      title: "Pay Off High-Interest Debt",
-      subtitle: `${highInterestDebts.length} debt${highInterestDebts.length > 1 ? "s" : ""} above 7% APR`,
+      order: order++,
+      title: "Eliminate High-Interest Debt",
+      subtitle: `${highInterestDebts.length} debt${highInterestDebts.length > 1 ? "s" : ""} above 6% APR`,
       icon: "flame",
       status: "in_progress",
       current: Math.round(totalHighDebt),
       target: 0,
       progress: 0,
-      action: `Pay off $${Math.round(totalHighDebt).toLocaleString()} in high-interest debt`,
+      action: `Pay off $${Math.round(totalHighDebt).toLocaleString()} using the avalanche method (highest rate first)`,
       detail: highInterestDebts
         .map(
           (d) =>
@@ -202,11 +203,69 @@ priorityRoutes.get("/", async (c) => {
     });
   }
 
-  // 4. Max HSA
+  // Step 4 : Build Full Emergency Reserves (3–6 months)
+  const emergencyTarget = monthlyExpenses > 0 ? monthlyExpenses * 6 : monthlyIncome * 3;
+  const emergencyPct =
+    emergencyTarget > 0 ? Math.min(1, cashTotal / emergencyTarget) : 0;
+  // Only show if deductible step is done
+  if (deductiblePct >= 1 || cashTotal > deductibleTarget) {
+    steps.push({
+      id: "emergency_fund",
+      order: order++,
+      title: "Build Full Emergency Reserve",
+      subtitle: "3–6 months of expenses in a HYSA",
+      icon: "shield",
+      status:
+        emergencyPct >= 1
+          ? "complete"
+          : cashTotal > deductibleTarget
+            ? "in_progress"
+            : "not_started",
+      current: Math.round(cashTotal),
+      target: Math.round(emergencyTarget),
+      progress: Math.round(emergencyPct * 100),
+      action:
+        emergencyPct >= 1
+          ? "Emergency fund fully funded — you're protected!"
+          : `Save $${Math.round(Math.max(0, emergencyTarget - cashTotal)).toLocaleString()} more in a high-yield savings account`,
+      detail: monthlyExpenses > 0
+        ? `Target: $${Math.round(emergencyTarget).toLocaleString()} (6 × $${Math.round(monthlyExpenses).toLocaleString()}/mo expenses). Keep in a high-yield savings account.`
+        : `Target: $${Math.round(emergencyTarget).toLocaleString()} (3 × monthly income). Connect a bank account for a precise target.`,
+      priority: "critical",
+    });
+  }
+
+  // Step 5 : Max Out Roth IRA (tax-free growth)
+  const rothMax = isOver50 ? 8000 : 7000;
+  const incomeLimit = isMarried ? 240000 : 161000;
+  const overIncomeLimit = annualIncome > incomeLimit;
+  steps.push({
+    id: "max_roth_ira",
+    order: order++,
+    title: overIncomeLimit ? "Backdoor Roth IRA" : "Max Out Roth IRA",
+    subtitle: "Tax-free growth forever",
+    icon: "sprout",
+    status: rothIraBalance > 0 ? "in_progress" : "not_started",
+    current: Math.round(rothIraBalance),
+    target: rothMax,
+    progress:
+      rothMax > 0
+        ? Math.min(100, Math.round((rothIraBalance / rothMax) * 100))
+        : 0,
+    action: overIncomeLimit
+      ? `Use backdoor Roth conversion — your income ($${Math.round(annualIncome).toLocaleString()}) exceeds the $${incomeLimit.toLocaleString()} direct limit`
+      : `Contribute up to $${rothMax.toLocaleString()}/yr to a Roth IRA`,
+    detail: overIncomeLimit
+      ? "Contribute to a non-deductible Traditional IRA, then convert to Roth (pro-rata rule may apply — check with your tax advisor)."
+      : "Contributions grow 100% tax-free. Withdrawals in retirement are tax-free. Best vehicle for long-term wealth.",
+    priority: "medium",
+  });
+
+  // Step 5b : Max Out HSA (triple tax advantage)
   const hsaMax = isMarried ? 8550 : 4300;
   steps.push({
     id: "max_hsa",
-    order: 4,
+    order: order++,
     title: "Max Out HSA",
     subtitle: "Triple tax advantage",
     icon: "heart-pulse",
@@ -219,42 +278,16 @@ priorityRoutes.get("/", async (c) => {
         : 0,
     action: `Contribute up to $${hsaMax.toLocaleString()}/yr to your HSA`,
     detail:
-      "Tax-deductible contributions, tax-free growth, tax-free withdrawals for medical expenses",
+      "The only account with triple tax advantages: contributions are deductible, growth is tax-free, and withdrawals for medical costs are tax-free. Invest it for retirement.",
     priority: "high",
   });
 
-  // 5. Max Roth IRA
-  const rothMax = isOver50 ? 8000 : 7000;
-  const incomeLimit = isMarried ? 240000 : 161000;
-  const overIncomeLimit = annualIncome > incomeLimit;
-  steps.push({
-    id: "max_roth_ira",
-    order: 5,
-    title: overIncomeLimit ? "Backdoor Roth IRA" : "Max Out Roth IRA",
-    subtitle: "Tax-free growth forever",
-    icon: "sprout",
-    status: rothIraBalance > 0 ? "in_progress" : "not_started",
-    current: Math.round(rothIraBalance),
-    target: rothMax,
-    progress:
-      rothMax > 0
-        ? Math.min(100, Math.round((rothIraBalance / rothMax) * 100))
-        : 0,
-    action: overIncomeLimit
-      ? `Use backdoor Roth conversion — your income ($${Math.round(annualIncome).toLocaleString()}) exceeds the $${incomeLimit.toLocaleString()} limit`
-      : `Contribute up to $${rothMax.toLocaleString()}/yr to a Roth IRA`,
-    detail: overIncomeLimit
-      ? "Contribute to Traditional IRA then convert to Roth (check with tax advisor)"
-      : "Contributions grow tax-free and withdrawals in retirement are tax-free",
-    priority: "medium",
-  });
-
-  // 6. Max 401(k) beyond match
+  // Step 6 : Max Out 401(k) beyond match
   const max401k = isOver50 ? 31000 : 23500;
   if (employerMatch > 0 || trad401kBalance > 0) {
     steps.push({
       id: "max_401k",
-      order: 6,
+      order: order++,
       title: "Max Out 401(k)",
       subtitle: "Beyond employer match",
       icon: "trending-up",
@@ -267,13 +300,47 @@ priorityRoutes.get("/", async (c) => {
           : 0,
       action: `Increase 401(k) contributions toward the $${max401k.toLocaleString()}/yr max`,
       detail: isOver50
-        ? "Includes $7,500 catch-up contribution for age 50+"
-        : "Pre-tax or Roth 401(k) contributions reduce taxable income",
+        ? "Includes $7,500 catch-up contribution for age 50+. Pre-tax or Roth 401(k) contributions reduce taxable income now or later."
+        : "After capturing the match, continue increasing contributions to the annual limit. Every dollar reduces your tax bill today.",
       priority: "medium",
     });
   }
 
-  // 7. Medium-Interest Debt
+  // Step 7 : Hyper-accumulate — target 25% savings rate
+  const monthlySavings = hasTransactionData ? Math.max(0, monthlyIncome - realMonthlyExpenses) : null;
+  const savingsRate = monthlySavings !== null && monthlyIncome > 0
+    ? Math.round((monthlySavings / monthlyIncome) * 100)
+    : null;
+  const savingsRateTarget = 25;
+  steps.push({
+    id: "hyper_accumulate",
+    order: order++,
+    title: "Hyper-Accumulate",
+    subtitle: "Save 25% of gross income",
+    icon: "rocket",
+    status:
+      savingsRate !== null
+        ? savingsRate >= savingsRateTarget
+          ? "complete"
+          : savingsRate > 0
+            ? "in_progress"
+            : "not_started"
+        : "not_started",
+    current: savingsRate,
+    target: savingsRateTarget,
+    progress: savingsRate !== null ? Math.min(100, Math.round((savingsRate / savingsRateTarget) * 100)) : 0,
+    action:
+      savingsRate !== null
+        ? savingsRate >= savingsRateTarget
+          ? `You're saving ${savingsRate}% — outstanding! Keep maximizing tax-advantaged accounts then deploy surplus.`
+          : `Increase savings rate from ${savingsRate}% to ${savingsRateTarget}% by cutting expenses or boosting income`
+        : "Connect bank accounts and set your income in profile to track your savings rate",
+    detail:
+      "The Targeting saving 25% of gross income. At this rate, every working year finances 3+ years of retirement.",
+    priority: "low",
+  });
+
+  // Step 8 : Pay Down Medium/Low-Interest Debt
   const totalMedDebt = mediumInterestDebts.reduce(
     (s, d) => s + d.balance,
     0
@@ -281,15 +348,15 @@ priorityRoutes.get("/", async (c) => {
   if (totalMedDebt > 0) {
     steps.push({
       id: "medium_interest_debt",
-      order: 7,
-      title: "Pay Down Medium-Interest Debt",
-      subtitle: `${mediumInterestDebts.length} debt${mediumInterestDebts.length > 1 ? "s" : ""} at 4-7% APR`,
+      order: order++,
+      title: "Pay Down Lower-Interest Debt",
+      subtitle: `${mediumInterestDebts.length} debt${mediumInterestDebts.length > 1 ? "s" : ""} at 4–6% APR`,
       icon: "credit-card",
       status: "in_progress",
       current: Math.round(totalMedDebt),
       target: 0,
       progress: 0,
-      action: `Pay down $${Math.round(totalMedDebt).toLocaleString()} in medium-interest debt — or invest if expected returns exceed the rate`,
+      action: `Pay down $${Math.round(totalMedDebt).toLocaleString()} in lower-interest debt — or invest if your expected returns exceed the rate`,
       detail: mediumInterestDebts
         .map(
           (d) =>
@@ -301,23 +368,23 @@ priorityRoutes.get("/", async (c) => {
     });
   }
 
-  // 8. Taxable Investing
+  // Step 9 : Invest Surplus in Taxable Brokerage
   steps.push({
     id: "taxable_investing",
-    order: 8,
-    title: "Invest in Taxable Brokerage",
-    subtitle: "Index funds for long-term growth",
-    icon: "rocket",
+    order: order++,
+    title: "Invest Surplus in Brokerage",
+    subtitle: "Low-cost index funds",
+    icon: "trending-up",
     status: brokerageBalance > 0 ? "in_progress" : "not_started",
     current: Math.round(brokerageBalance),
     target: null,
     progress: brokerageBalance > 0 ? 100 : 0,
     action:
       brokerageBalance > 0
-        ? `You have $${Math.round(brokerageBalance).toLocaleString()} invested — keep adding surplus cash here`
-        : "Once previous steps are covered, invest surplus in a low-cost total market index fund",
+        ? `You have $${Math.round(brokerageBalance).toLocaleString()} invested — keep adding surplus here`
+        : "After maxing tax-advantaged accounts, invest remaining surplus in a taxable brokerage using low-cost total market index funds",
     detail:
-      "Consider tax-efficient funds (VTI, VXUS) and tax-loss harvesting opportunities",
+      "Use tax-efficient funds (VTI, VXUS, BND). Consider tax-loss harvesting. Any surplus beyond 25% savings rate goes here.",
     priority: "low",
   });
 

@@ -49,10 +49,10 @@ export function MessageBubble({ message }: { message: Message }) {
       {/* Message bubble */}
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-5 py-4",
+          "max-w-[85%] rounded-2xl px-4 py-3",
           isUser
             ? "bg-accent text-bg"
-            : "bg-surface border border-border text-text"
+            : "bg-surface border border-border/60 text-text"
         )}
       >
         {isUser ? (

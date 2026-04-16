@@ -21,7 +21,6 @@ import {
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import type { LucideIcon } from 'lucide-react';
-import { ContextualInsights } from '../components/common/contextual-insights';
 
 const iconMap: Record<string, LucideIcon> = {
   shield: Shield,
@@ -420,7 +419,6 @@ export function Priorities() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8 max-w-3xl mx-auto w-full">
-      <ContextualInsights urgencyFilter="critical" />
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}

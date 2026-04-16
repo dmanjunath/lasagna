@@ -61,7 +61,8 @@ function AppRoutes() {
                 <Route path="/plans/retirement" component={Retirement} />
                 <Route path="/plans/savings/:id" component={SavingsGoal} />
                 <Route path="/priorities" component={Priorities} />
-                <Route path="/insights" component={Insights} />
+                <Route path="/actions" component={Insights} />
+                <Route path="/insights"><Redirect to="/actions" /></Route>
                 <Route path="/retirement" component={Retirement} />
                 <Route path="/probability" component={ProbabilityOfSuccess} />
 

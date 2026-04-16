@@ -5,7 +5,6 @@ import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
 import { Section } from '../components/common/section';
-import { ActionItem } from '../components/common/action-item';
 import { ContextualInsights } from '../components/common/contextual-insights';
 
 interface DebtAccount {
@@ -206,17 +205,6 @@ function HasDebtView({
   interestSavedVsMinimums: number;
   openChat: (prompt: string) => void;
 }) {
-  // Calculate dynamic impacts from actual debt data
-  const highestAprDebt = debts[0]; // already sorted by APR desc
-  const avgAprReduction = 6; // average negotiated reduction
-  const negotiateSavings = highestAprDebt
-    ? Math.round(highestAprDebt.balance * (avgAprReduction / 100 / 12))
-    : 50;
-
-  const balanceTransferSavings = highestAprDebt
-    ? Math.round(highestAprDebt.balance * (highestAprDebt.apr / 100))
-    : 924;
-
   const badgeColor = (i: number) => {
     if (i === 0) return 'bg-danger/20 text-danger border-danger/30';
     if (i === 1) return 'bg-warning/20 text-warning border-warning/30';
@@ -354,46 +342,6 @@ function HasDebtView({
         </Section>
       </motion.div>
 
-      {/* Actions */}
-      <motion.div {...fadeUp(0.32)}>
-        <Section title="Actions">
-          <div className="bg-bg-elevated border border-border rounded-xl px-4">
-            <ActionItem
-              title="Call to negotiate lower APR"
-              tag="DEBT"
-              description="Call the number on the back of your card and ask for a hardship rate reduction or balance transfer offer. Average reduction: 5-7%."
-              impact={`Saves ~$${negotiateSavings}/mo interest`}
-              impactColor="red"
-              chatPrompt="Walk me through exactly what to say when I call my credit card company to negotiate a lower interest rate. What scripts work best?"
-              defaultOpen
-            />
-            <ActionItem
-              title="Set up autopay on all debts"
-              tag="DEBT"
-              description="Never miss a payment and protect your credit score. Some lenders give a 0.25% rate discount for autopay."
-              impact="Protects credit score"
-              impactColor="green"
-              chatPrompt="How do I set up autopay on my credit cards and loans? Any tips to avoid overdraft issues?"
-            />
-            <ActionItem
-              title="Increase monthly payment"
-              tag="DEBT"
-              description="Even an extra $70/mo shaves months off payoff and saves hundreds in interest."
-              impact="Debt-free sooner"
-              impactColor="amber"
-              chatPrompt="If I increase my monthly debt payment by $200, how much faster will I be debt-free and how much interest will I save?"
-            />
-            <ActionItem
-              title="Check balance transfer card offers"
-              tag="DEBT"
-              description="A 0% APR balance transfer card could eliminate interest on your highest-rate card for 15-18 months."
-              impact={`${formatCurrency(balanceTransferSavings)}/yr saved`}
-              impactColor="amber"
-              chatPrompt="What are the best 0% APR balance transfer cards right now? How does the transfer process work and what are the fees?"
-            />
-          </div>
-        </Section>
-      </motion.div>
     </>
   );
 }
@@ -427,38 +375,8 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
         </div>
       </motion.div>
 
-      {/* Stay Debt-Free */}
-      <motion.div {...fadeUp(0.08)}>
-        <Section title="Stay Debt-Free">
-          <div className="bg-bg-elevated border border-border rounded-xl px-4">
-            <ActionItem
-              title="Set credit cards to autopay full balance"
-              tag="DEBT"
-              description="Use credit cards for rewards but never carry a balance. Autopay the full statement balance, not minimum."
-              impact="$0 interest forever"
-              impactColor="green"
-              chatPrompt="How do I stay debt-free?"
-              defaultOpen
-            />
-            <ActionItem
-              title="Set up credit monitoring"
-              tag="DEBT"
-              description="Free via Credit Karma or your bank. Catches fraud early and tracks your credit score over time."
-              impact="Early fraud detection"
-              impactColor="green"
-              chatPrompt="How do I set up credit monitoring?"
-            />
-            <ActionItem
-              title="Keep emergency fund at 6 months"
-              tag="SAVINGS"
-              description="Your emergency fund is your insurance against new debt. Keep it topped up."
-              impact="Debt prevention buffer"
-              impactColor="green"
-              chatPrompt="How much should I keep in my emergency fund?"
-            />
-          </div>
-        </Section>
-      </motion.div>
+      {/* Stay Debt-Free — dynamic actions */}
+      <ContextualInsights types="debt" />
 
       {/* Interest saved */}
       <motion.div {...fadeUp(0.16)}>

@@ -72,7 +72,7 @@ export function Insights() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Lightbulb className="w-5 h-5 text-accent" />
-          <h1 className="text-lg font-semibold">All Insights</h1>
+          <h1 className="text-lg font-semibold">All Actions</h1>
           {!isLoading && (
             <span className="text-xs text-text-muted bg-surface-elevated px-1.5 py-0.5 rounded-full">
               {insights.length}
@@ -110,7 +110,7 @@ export function Insights() {
       {/* Loading */}
       {isLoading && (
         <div className="text-sm text-text-muted text-center py-12">
-          Loading insights…
+          Loading actions…
         </div>
       )}
 
@@ -118,12 +118,12 @@ export function Insights() {
       {!isLoading && insights.length === 0 && (
         <div className="text-center py-12 space-y-2">
           <Lightbulb className="w-8 h-8 text-text-muted mx-auto" />
-          <p className="text-sm text-text-muted">No insights yet.</p>
+          <p className="text-sm text-text-muted">No actions yet.</p>
           <button
             onClick={handleRefresh}
             className="text-sm text-accent hover:text-accent/80 transition-colors"
           >
-            Generate insights →
+            Generate actions →
           </button>
         </div>
       )}
