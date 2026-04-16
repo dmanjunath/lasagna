@@ -26,7 +26,7 @@ function hexToBytes(hex: string): Uint8Array {
 async function getSigningKey(): Promise<CryptoKey> {
   return globalThis.crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(env.BETTER_AUTH_SECRET),
+    new TextEncoder().encode(env.ENCRYPTION_KEY),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"],

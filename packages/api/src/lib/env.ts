@@ -28,22 +28,10 @@ export const env = {
   get PLAID_ENV() {
     return optional("PLAID_ENV", "sandbox") as "sandbox" | "development" | "production";
   },
-  get BETTER_AUTH_SECRET() {
-    return required("BETTER_AUTH_SECRET");
-  },
-  get BETTER_AUTH_URL() {
-    return optional("BETTER_AUTH_URL", "http://localhost:3000");
-  },
   get PORT() {
     return parseInt(optional("PORT", "3000"), 10);
   },
   get MULTI_TENANT() {
     return optional("MULTI_TENANT", "false") === "true";
-  },
-  get GCS_BUCKET() {
-    return optional("GCS_BUCKET", "lasagna-prod-tax-documents");
-  },
-  get GCP_CONFIGURED() {
-    return !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
   },
 };

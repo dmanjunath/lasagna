@@ -110,10 +110,10 @@ Ask anything about your finances. Powered by Claude with 12 specialized financia
 | Frontend | React 19, Vite, Tailwind CSS, Recharts, Vega-Lite, Framer Motion |
 | Backend | Hono (Node.js), TypeScript |
 | Database | PostgreSQL 16, Drizzle ORM |
-| Auth | Better Auth |
+| Auth | Custom JWT (bcrypt + sessions) |
 | AI | Claude (via OpenRouter) |
 | Banking | Plaid API |
-| Tax OCR | Google Cloud Document AI |
+| Tax OCR | Vision LLM (bring your own provider) |
 | Deployment | Docker, GCP Cloud Run, Cloudflare Pages |
 
 ---
@@ -177,14 +177,12 @@ pnpm db:seed --preset=4M         # high net worth, $4M
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `ENCRYPTION_KEY` | 32-byte hex key for encrypting Plaid tokens (`openssl rand -hex 32`) | Yes |
-| `BETTER_AUTH_SECRET` | Random secret for session signing | Yes |
 | `PLAID_CLIENT_ID` | Plaid API client ID | Optional |
 | `PLAID_SECRET` | Plaid API secret | Optional |
 | `PLAID_ENV` | `sandbox`, `development`, or `production` | Optional |
 | `OPENROUTER_API_KEY` | OpenRouter key for AI chat (Claude) | Optional |
-| `GOOGLE_CLOUD_PROJECT_ID` | GCP project for Document AI | Optional |
 
-Plaid is required only if you want live bank account syncing. Without it, you can still use the app by entering balances manually. The AI chat and tax OCR features require their respective API keys.
+Plaid is required only if you want live bank account syncing. Without it, you can still use the app by entering balances manually. The AI chat feature requires an OpenRouter key.
 
 ### Deployment
 

@@ -12,14 +12,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@google-cloud/dlp": "^6.6.0",
-    "@google-cloud/documentai": "^9.6.0",
-    "@google-cloud/storage": "^7.19.0",
     "@hono/node-server": "^1.19.11",
     "@lasagna/core": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.3.3",
     "ai": "^6.0.134",
-    "better-auth": "^1.5.5",
     "hono": "^4.12.8",
     "node-cron": "^4.2.1",
     "plaid": "^41.4.0",

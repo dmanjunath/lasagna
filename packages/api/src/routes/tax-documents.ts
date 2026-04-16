@@ -3,100 +3,11 @@ import { z } from "zod";
 import { db } from "../lib/db.js";
 import { taxDocuments, eq, and, desc } from "@lasagna/core";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
-import { extractDocument, confirmDocument } from "../lib/tax-extraction.js";
 import { extractFromVision } from "../lib/tax-vision-extraction.js";
-import { deleteFile } from "../lib/gcs.js";
-import { env } from "../lib/env.js";
 
 export const taxDocumentsRouter = new Hono<AuthEnv>();
 
 taxDocumentsRouter.use("*", requireAuth);
-
-// Phase 1: Extract + redact (nothing leaves your GCP project)
-taxDocumentsRouter.post("/extract", async (c) => {
-  if (!env.GCP_CONFIGURED) {
-    return c.json({ error: "Tax document processing is not available. GCP credentials are not configured." }, 503);
-  }
-
-  const { tenantId } = c.get("session");
-  const body = await c.req.parseBody();
-  const file = body.file;
-
-  if (!file || !(file instanceof File)) {
-    return c.json({ error: "File is required" }, 400);
-  }
-
-  try {
-    const result = await extractDocument(tenantId, file);
-    return c.json(result, 200);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Processing failed";
-    if (message.includes("Unsupported file type") || message.includes("File too large")) {
-      return c.json({ error: message }, 400);
-    }
-    console.error("Document extraction failed:", error);
-    return c.json({ error: "Document extraction failed" }, 500);
-  }
-});
-
-// Phase 2: Confirm (user-approved data sent to LLM + saved)
-const confirmSchema = z.object({
-  extractionId: z.string().uuid(),
-  fileName: z.string(),
-  fileType: z.string(),
-  gcsPath: z.string(),
-  redactedFields: z.array(z.object({ key: z.string(), value: z.string() })),
-});
-
-taxDocumentsRouter.post("/confirm", async (c) => {
-  const { tenantId } = c.get("session");
-  const body = await c.req.json();
-  const parsed = confirmSchema.safeParse(body);
-
-  if (!parsed.success) {
-    return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
-  }
-
-  try {
-    const result = await confirmDocument(tenantId, {
-      ...parsed.data,
-      rawFieldCount: parsed.data.redactedFields.length,
-      redactedFieldCount: parsed.data.redactedFields.length,
-    });
-    return c.json(result, 201);
-  } catch (error) {
-    console.error("Document confirmation failed:", error);
-    return c.json({ error: "Document processing failed" }, 500);
-  }
-});
-
-// Phase 1+2 combined (legacy, skips review)
-taxDocumentsRouter.post("/upload", async (c) => {
-  if (!env.GCP_CONFIGURED) {
-    return c.json({ error: "Tax document processing is not available. GCP credentials are not configured." }, 503);
-  }
-
-  const { tenantId } = c.get("session");
-  const body = await c.req.parseBody();
-  const file = body.file;
-
-  if (!file || !(file instanceof File)) {
-    return c.json({ error: "File is required" }, 400);
-  }
-
-  try {
-    const extraction = await extractDocument(tenantId, file);
-    const result = await confirmDocument(tenantId, extraction);
-    return c.json(result, 201);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Processing failed";
-    if (message.includes("Unsupported file type") || message.includes("File too large")) {
-      return c.json({ error: message }, 400);
-    }
-    console.error("Document processing failed:", error);
-    return c.json({ error: "Document processing failed" }, 500);
-  }
-});
 
 // Vision-based extraction (file or text input)
 taxDocumentsRouter.post("/", async (c) => {
@@ -254,7 +165,7 @@ taxDocumentsRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");
 
   const [doc] = await db
-    .select({ gcsPath: taxDocuments.gcsPath })
+    .select({ id: taxDocuments.id })
     .from(taxDocuments)
     .where(and(eq(taxDocuments.id, id), eq(taxDocuments.tenantId, tenantId)));
 
@@ -263,9 +174,6 @@ taxDocumentsRouter.delete("/:id", async (c) => {
   await db
     .delete(taxDocuments)
     .where(and(eq(taxDocuments.id, id), eq(taxDocuments.tenantId, tenantId)));
-
-  // Best-effort GCS cleanup
-  await deleteFile(doc.gcsPath);
 
   return c.json({ success: true });
 });
