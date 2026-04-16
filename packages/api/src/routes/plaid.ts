@@ -6,6 +6,7 @@ import { plaidClient } from "../lib/plaid.js";
 import { env } from "../lib/env.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { syncItem } from "../lib/sync.js";
+import { generateInsights } from "../lib/insights-engine.js";
 
 export const plaidRoutes = new Hono<AuthEnv>();
 plaidRoutes.use("*", requireAuth);
@@ -58,7 +59,9 @@ plaidRoutes.post("/exchange-token", async (c) => {
     .returning();
 
   // Sync accounts and balances immediately after linking
-  syncItem(item.id).catch(console.error);
+  syncItem(item.id)
+    .then(() => generateInsights(session.tenantId))
+    .catch(console.error);
 
   return c.json({ itemId: item.id });
 });
@@ -126,6 +129,9 @@ plaidRoutes.delete("/items/:id", async (c) => {
   if (!deleted || deleted.tenantId !== session.tenantId) {
     return c.json({ error: "Item not found" }, 404);
   }
+
+  // Regenerate insights after disconnecting an account
+  generateInsights(session.tenantId).catch(console.error);
 
   return c.json({ ok: true });
 });

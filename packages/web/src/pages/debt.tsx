@@ -146,7 +146,6 @@ export function Debt() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
-      <ContextualInsights types="debt" />
       {loading ? (
         <div className="flex items-center gap-2 text-text-muted py-4">
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -342,6 +341,7 @@ function HasDebtView({
         </Section>
       </motion.div>
 
+      <ContextualInsights types="debt" />
     </>
   );
 }

@@ -333,8 +333,6 @@ export function Spending() {
         </p>
       </motion.div>
 
-      <ContextualInsights types={["spending", "behavioral"]} />
-
       {/* Month Selector */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -652,6 +650,7 @@ export function Spending() {
         transition={{ duration: 0.4, delay: 0.25 }}
         className="bg-bg-elevated border border-border rounded-xl p-5 mb-8"
       >
+        <ContextualInsights types={["spending", "behavioral"]} />
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <h3 className="text-lg font-semibold text-text-primary">Transactions</h3>
           <div className="flex items-center gap-2 flex-wrap">

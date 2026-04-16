@@ -72,7 +72,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, loading }
             onChange={(e) => setInput(e.target.value)}
             placeholder="Follow up…"
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-2xl border border-border bg-surface-hover text-text text-sm placeholder:text-text-muted/60 focus:outline-none focus:border-accent/40 focus:bg-surface transition-all disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 rounded-2xl border border-white/10 bg-white/[0.06] text-white/90 text-sm placeholder:text-white/30 focus:outline-none focus:border-accent/40 focus:bg-white/[0.08] transition-all disabled:opacity-50"
           />
           <button
             type="submit"

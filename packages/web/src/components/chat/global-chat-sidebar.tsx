@@ -5,6 +5,7 @@ import { useChatStore } from '../../lib/chat-store';
 import { getCategoryFromRoute } from '../../lib/route-categories';
 import { ChatThreadList } from './chat-thread-list';
 import { ChatThreadView } from './chat-thread-view';
+import { api } from '../../lib/api';
 import type { Message } from '../../lib/types';
 
 export function GlobalChatSidebar() {
@@ -259,6 +260,48 @@ export function GlobalChatSidebar() {
     setTimeout(doSend, 200);
   }, [pendingMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load existing threads from API on mount
+  const threadsLoaded = useRef(false);
+  useEffect(() => {
+    if (threadsLoaded.current) return;
+    threadsLoaded.current = true;
+    api.getThreads()
+      .then(({ threads: apiThreads }) => {
+        const mapped = apiThreads.map((t) => ({
+          thread: {
+            id: t.id,
+            question: t.title || 'Conversation',
+            answerPreview: '',
+            timestamp: new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            tags: (t.tags as string[]) || [],
+          },
+          messages: [] as Message[],
+          apiThreadId: t.id,
+        }));
+        // Only set if we have no threads yet (don't overwrite in-session threads)
+        setThreads((prev) => prev.length === 0 ? mapped : prev);
+      })
+      .catch(() => {});
+  }, [setThreads]);
+
+  // Load messages for a thread when selected (lazy)
+  const handleSelectThread = useCallback(async (index: number) => {
+    const t = threads[index];
+    if (t && t.messages.length === 0 && t.apiThreadId) {
+      try {
+        const { messages: apiMessages } = await api.getThread(t.apiThreadId);
+        setThreads((prev) => {
+          const updated = [...prev];
+          if (updated[index]) {
+            updated[index] = { ...updated[index], messages: apiMessages };
+          }
+          return updated;
+        });
+      } catch { /* ignore */ }
+    }
+    setActiveThread(index);
+  }, [threads, setThreads, setActiveThread]);
+
   const activeThread = activeThreadIndex !== null ? threads[activeThreadIndex] : null;
 
   return (
@@ -274,7 +317,7 @@ export function GlobalChatSidebar() {
       ) : (
         <ChatThreadList
           threads={threads.map(t => t.thread)}
-          onSelectThread={(index) => setActiveThread(index)}
+          onSelectThread={handleSelectThread}
           onNewMessage={handleNewMessage}
           suggestions={suggestions}
         />

@@ -237,8 +237,7 @@ export function Dashboard() {
         let weightedAprSum = 0;
         let totalBalance = 0;
         for (const d of debtsForCalc) {
-          const isMortgage = d.name?.toLowerCase().includes('mortgage');
-          const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
+          const apr = d.interestRate ?? 0;
           weightedAprSum += apr * d.balance;
           totalBalance += d.balance;
         }
