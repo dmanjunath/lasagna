@@ -9,6 +9,7 @@ import {
   syncLog,
   decrypt,
   parseLoanMetadata,
+  LoanMetadata,
 } from "@lasagna/core";
 import { db } from "./db.js";
 import { plaidClient } from "./plaid.js";
@@ -105,7 +106,10 @@ export async function syncItem(itemId: string): Promise<void> {
       // Insert holdings snapshot
       for (const h of holdResp.data.holdings) {
         const acct = await db.query.accounts.findFirst({
-          where: eq(accounts.plaidAccountId, h.account_id),
+          where: and(
+            eq(accounts.plaidAccountId, h.account_id),
+            eq(accounts.plaidItemId, item.id),
+          ),
         });
         const sec = await db.query.securities.findFirst({
           where: eq(securities.plaidSecurityId, h.security_id),
@@ -133,14 +137,12 @@ export async function syncItem(itemId: string): Promise<void> {
       });
       const liabilities = liabResp.data.liabilities;
 
-      type LiabEntry = {
-        account_id: string;
-        metadata: import("@lasagna/core").LoanMetadata;
-      };
-      const entries: LiabEntry[] = [];
+      const syncedAt = new Date().toISOString();
+      const entries: Array<{ account_id: string; metadata: LoanMetadata }> = [];
 
       // Map mortgage liabilities
       for (const m of liabilities.mortgage ?? []) {
+        if (!m.account_id) continue;
         entries.push({
           account_id: m.account_id,
           metadata: {
@@ -166,7 +168,7 @@ export async function syncItem(itemId: string): Promise<void> {
             hasPmi: m.has_pmi ?? undefined,
             ytdInterestPaid: m.ytd_interest_paid ?? undefined,
             ytdPrincipalPaid: m.ytd_principal_paid ?? undefined,
-            lastSyncedAt: new Date().toISOString(),
+            lastSyncedAt: syncedAt,
           },
         });
       }
@@ -194,7 +196,7 @@ export async function syncItem(itemId: string): Promise<void> {
             outstandingInterest: s.outstanding_interest_amount ?? undefined,
             ytdInterestPaid: s.ytd_interest_paid ?? undefined,
             ytdPrincipalPaid: s.ytd_principal_paid ?? undefined,
-            lastSyncedAt: new Date().toISOString(),
+            lastSyncedAt: syncedAt,
           },
         });
       }
@@ -218,7 +220,7 @@ export async function syncItem(itemId: string): Promise<void> {
               aprPercentage: a.apr_percentage,
               balanceSubjectToApr: a.balance_subject_to_apr ?? undefined,
             })),
-            lastSyncedAt: new Date().toISOString(),
+            lastSyncedAt: syncedAt,
           },
         });
       }
@@ -235,7 +237,7 @@ export async function syncItem(itemId: string): Promise<void> {
 
         const existingMeta = parseLoanMetadata(acct.metadata ?? null);
         if (existingMeta?.source === "manual") {
-          console.debug(
+          console.info(
             `[sync] Skipping liability write for account ${acct.id} — manual override present`,
           );
           continue;
