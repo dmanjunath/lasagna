@@ -1,13 +1,9 @@
-import { readFileSync, statSync, existsSync } from "fs";
-import { resolve, extname } from "path";
+import { readFileSync, statSync, existsSync, mkdirSync, rmSync, readdirSync } from "fs";
+import { resolve, extname, join } from "path";
+import { execSync } from "child_process";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
 import { z } from "zod";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { createCanvas } from "canvas";
-
-// Disable pdfjs web worker — not available in Node.js
-GlobalWorkerOptions.workerSrc = "";
 
 const SUPPORTED_TYPES: Record<string, string> = {
   ".pdf": "application/pdf",
@@ -18,43 +14,38 @@ const SUPPORTED_TYPES: Record<string, string> = {
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_PDF_PAGES = 10;
-const RENDER_SCALE = 2.0; // 72 DPI base × 2 = 144 DPI effective
 const TIMEOUT_MS = 120_000;
 
 const resultSchema = z.object({
-  fields: z.record(z.string(), z.union([z.number(), z.string(), z.boolean(), z.null()])),
+  fields: z.record(z.string(), z.unknown()),
   summary: z.string(),
   tax_year: z.number().nullable(),
 });
 
-async function pdfToImages(buffer: Buffer): Promise<{ data: Buffer; mimeType: "image/png" }[]> {
-  const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise;
-  const totalPages = pdf.numPages;
+// Render PDF pages to PNG buffers using pdftoppm (poppler)
+function pdfToImages(pdfPath: string): { data: Buffer; mimeType: "image/png" }[] {
+  const tmpDir = `/tmp/gemma-extraction-${Date.now()}`;
+  mkdirSync(tmpDir, { recursive: true });
 
-  if (totalPages > MAX_PDF_PAGES) {
-    process.stderr.write(
-      `Warning: PDF has ${totalPages} pages. Processing first ${MAX_PDF_PAGES} only.\n`
-    );
+  try {
+    // Get page count
+    const infoOut = execSync(`pdfinfo "${pdfPath}" 2>/dev/null | grep "^Pages:" | awk '{print $2}'`, { encoding: "utf8" }).trim();
+    const totalPages = parseInt(infoOut, 10) || 1;
+
+    if (totalPages > MAX_PDF_PAGES) {
+      process.stderr.write(`Warning: PDF has ${totalPages} pages. Processing first ${MAX_PDF_PAGES} only.\n`);
+    }
+
+    const pagesToProcess = Math.min(totalPages, MAX_PDF_PAGES);
+
+    // Render pages to PNG at 150 DPI
+    execSync(`pdftoppm -png -r 150 -f 1 -l ${pagesToProcess} "${pdfPath}" "${tmpDir}/page"`, { stdio: "pipe" });
+
+    const pngFiles = readdirSync(tmpDir).filter(f => f.endsWith(".png")).sort();
+    return pngFiles.map(f => ({ data: readFileSync(join(tmpDir, f)), mimeType: "image/png" as const }));
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
   }
-
-  const pagesToProcess = Math.min(totalPages, MAX_PDF_PAGES);
-  const images: { data: Buffer; mimeType: "image/png" }[] = [];
-
-  for (let i = 1; i <= pagesToProcess; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: RENDER_SCALE });
-    const canvas = createCanvas(viewport.width, viewport.height);
-    const ctx = canvas.getContext("2d");
-
-    await page.render({
-      canvasContext: ctx as unknown as CanvasRenderingContext2D,
-      viewport,
-    }).promise;
-
-    images.push({ data: canvas.toBuffer("image/png"), mimeType: "image/png" });
-  }
-
-  return images;
 }
 
 async function main() {
@@ -94,20 +85,18 @@ async function main() {
     process.exit(1);
   }
 
-  const fileBuffer = readFileSync(absolutePath);
-
   // Build image content blocks
   let imageBlocks: { type: "image"; image: Buffer; mimeType: "image/png" | "image/jpeg" }[];
 
   if (mimeType === "application/pdf") {
-    const pages = await pdfToImages(fileBuffer);
-    imageBlocks = pages.map((p) => ({ type: "image" as const, image: p.data, mimeType: p.mimeType }));
+    const pages = pdfToImages(absolutePath);
+    imageBlocks = pages.map(p => ({ type: "image" as const, image: p.data, mimeType: p.mimeType }));
   } else {
-    imageBlocks = [{ type: "image" as const, image: fileBuffer, mimeType: mimeType as "image/png" | "image/jpeg" }];
+    imageBlocks = [{ type: "image" as const, image: readFileSync(absolutePath), mimeType: mimeType as "image/png" | "image/jpeg" }];
   }
 
   const openrouter = createOpenRouter({ apiKey });
-  const model = openrouter("google/gemma-3n-e4b-it");
+  const model = openrouter("google/gemma-4-26b-a4b-it");
 
   let llmText: string;
   try {

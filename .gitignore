@@ -16,3 +16,4 @@ docs/
 /e2e/auth-debug.png
 e2e/screenshots/*
 .worktrees/
+tax_docs/

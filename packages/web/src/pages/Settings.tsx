@@ -152,7 +152,7 @@ export function Settings() {
 
   const openEdit = (section: EditSection) => {
     setFormData({
-      dateOfBirth: profile?.dateOfBirth ?? "",
+      dateOfBirth: profile?.dateOfBirth ? profile.dateOfBirth.split("T")[0] : "",
       annualIncome: profile?.annualIncome?.toString() ?? "",
       filingStatus: profile?.filingStatus ?? "",
       stateOfResidence: profile?.stateOfResidence ?? "",

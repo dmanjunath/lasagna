@@ -24,7 +24,14 @@ export const app = new Hono();
 
 app.use("*", logger());
 app.use("*", cors({
-  origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+  origin: (origin) => {
+    const fallback = process.env.CORS_ORIGIN || "http://localhost:5173";
+    if (!origin) return fallback;
+    if (origin.endsWith(".trycloudflare.com")) return origin;
+    if (origin.startsWith("http://localhost:")) return origin;
+    if (origin === fallback) return origin;
+    return fallback;
+  },
   credentials: true,
 }));
 
