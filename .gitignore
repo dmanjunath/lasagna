@@ -4,6 +4,7 @@ dist
 *.tsbuildinfo
 gcp-service-account.json
 .superpowers/*
+!.superpowers/specs/
 docs/
 
 # Playwright
