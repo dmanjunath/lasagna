@@ -19,6 +19,7 @@ import {
   PieChart,
   User,
   Lightbulb,
+  ShoppingCart,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { api } from '../../lib/api';
@@ -39,6 +40,7 @@ const fixedTabs: NavItem[] = [
   { id: 'actions', name: 'Actions', icon: Lightbulb, path: '/actions' },
   { id: 'priorities', name: 'Your Layers', icon: Compass, path: '/priorities' },
   { id: 'accounts', name: 'Accounts', icon: Building2, path: '/accounts' },
+  { id: 'spending', name: 'Spending', icon: ShoppingCart, path: '/spending' },
   { id: 'debt', name: 'Debt', icon: CreditCard, path: '/debt' },
   { id: 'invest', name: 'Portfolio', icon: PieChart, path: '/invest' },
   { id: 'retirement', name: 'Retirement', icon: Target, path: '/retirement' },

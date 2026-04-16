@@ -147,6 +147,7 @@ export function Dashboard() {
   const [spendingCategories, setSpendingCategories] = useState<Array<{ category: string; total: number; count: number; percentage: number }>>([]);
   const [totalSpending, setTotalSpending] = useState(0);
   const [totalIncome, setTotalIncome] = useState(0);
+  const [spendingPeriodLabel, setSpendingPeriodLabel] = useState<string>('Spending');
   const [goals, setGoals] = useState<Array<{ id: string; name: string; targetAmount: string; currentAmount: string; deadline: string | null; category: string; status: string; icon: string | null }>>([]);
   const [healthScore, setHealthScore] = useState<{ score: number; grade: string; color: string } | null>(null);
   const [hasPlaidAccounts, setHasPlaidAccounts] = useState(true);
@@ -225,6 +226,10 @@ export function Dashboard() {
       setSpendingCategories(spendingData.categories.filter((c: { category: string }) => c.category !== 'income'));
       setTotalSpending(spendingData.totalSpending);
       setTotalIncome(spendingData.totalIncome);
+      if (spendingData.period?.start) {
+        const d = new Date(spendingData.period.start);
+        setSpendingPeriodLabel(d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + ' Spending');
+      }
 
       // Goals
       setGoals(goalsData.goals);
@@ -511,7 +516,7 @@ export function Dashboard() {
               className="bg-bg-elevated border border-border rounded-xl p-5"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">This Month&apos;s Spending</h3>
+                <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">{spendingPeriodLabel}</h3>
                 <button
                   onClick={() => navigate('/spending')}
                   className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1"
@@ -626,12 +631,12 @@ export function Dashboard() {
           {/* Insights / Action Items */}
           {actionItems.length > 0 && (
             <Section
-              title="Insights"
+              title="Actions"
               actions={
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => navigate('/insights')}
+                    onClick={() => navigate('/actions')}
                     className="text-xs text-accent hover:text-accent/80 transition-colors"
                   >
                     View all →

@@ -165,7 +165,10 @@ export function Spending() {
   const { setPageContext } = usePageContext();
 
   // Month navigation
-  const [currentMonth, setCurrentMonth] = useState(() => new Date());
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  });
 
   // Data state
   const [categories, setCategories] = useState<SpendingCategory[]>([]);
