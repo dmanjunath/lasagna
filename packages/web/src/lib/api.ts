@@ -123,11 +123,24 @@ export const api = {
         termMonths: number | null;
         originationDate: string | null;
         minimumPayment: number;
+        payoffDate: string | null;
+        liabilitySource: "plaid" | "manual" | null;
+        liabilityLastSyncedAt: string | null;
         lastUpdated: string | null;
       }>;
       totalDebt: number;
       monthlyInterest: number;
     }>("/accounts/debts"),
+
+  patchLoanDetails: (accountId: string, body: Record<string, unknown>) =>
+    request<{ metadata: Record<string, unknown> }>(
+      `/accounts/${accountId}/loan-details`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
 
   getNetWorthHistory: () =>
     request<{
@@ -413,7 +426,7 @@ export const api = {
     }
     const qs = searchParams.toString();
     return request<{
-      transactions: Array<{ id: string; accountId: string; date: string; name: string; merchantName: string | null; amount: string; category: string; pending: number; createdAt: string }>;
+      transactions: Array<{ id: string; accountId: string; accountName: string | null; date: string; name: string; merchantName: string | null; amount: string; category: string; pending: number; createdAt: string }>;
       total: number;
       page: number;
       pageSize: number;
@@ -464,6 +477,7 @@ export const api = {
         subtitle: string;
         icon: string;
         status: string;
+        skipped: boolean;
         current: number | null;
         target: number | null;
         progress: number;
@@ -485,6 +499,12 @@ export const api = {
         filingStatus: string | null;
       };
     }>('/priorities'),
+
+  skipPriorityStep: (stepId: string, skipped: boolean) =>
+    request<{ ok: boolean; skippedSteps: string[] }>('/priorities/skip', {
+      method: 'PATCH',
+      body: JSON.stringify({ stepId, skipped }),
+    }),
 
   // Manual Accounts
   createManualAccount: (data: { name: string; type: string; subtype?: string; balance?: number; metadata?: Record<string, unknown> }) =>
