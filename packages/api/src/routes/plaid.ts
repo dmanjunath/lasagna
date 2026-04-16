@@ -18,7 +18,7 @@ plaidRoutes.post("/link-token", async (c) => {
   const response = await plaidClient.linkTokenCreate({
     user: { client_user_id: session.userId },
     client_name: "Lasagna",
-    products: [Products.Transactions, Products.Investments],
+    products: [Products.Transactions, Products.Investments, Products.Liabilities],
     country_codes: [CountryCode.Us],
     language: "en",
   });

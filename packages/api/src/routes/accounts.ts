@@ -336,7 +336,24 @@ accountRoutes.patch("/:id/loan-details", async (c) => {
     return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
   }
 
+  // Read existing metadata to preserve Plaid-synced fields not included in this update
+  let existingFields: Record<string, unknown> = {};
+  if (acct.metadata) {
+    try {
+      const existing = JSON.parse(acct.metadata);
+      if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+        // Only carry forward fields from the same loan type to avoid type mismatch
+        if (existing.type === parsed.data.type) {
+          existingFields = existing;
+        }
+      }
+    } catch {
+      // malformed — start fresh
+    }
+  }
+
   const metadata = {
+    ...existingFields,
     ...parsed.data,
     source: "manual" as const,
     lastSyncedAt: new Date().toISOString(),
