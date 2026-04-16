@@ -1,5 +1,6 @@
 import {
   eq,
+  and,
   plaidItems,
   accounts,
   balanceSnapshots,
@@ -7,6 +8,7 @@ import {
   holdings,
   syncLog,
   decrypt,
+  parseLoanMetadata,
 } from "@lasagna/core";
 import { db } from "./db.js";
 import { plaidClient } from "./plaid.js";
@@ -39,7 +41,10 @@ export async function syncItem(itemId: string): Promise<void> {
     for (const plaidAcct of balResp.data.accounts) {
       // Upsert account
       const existing = await db.query.accounts.findFirst({
-        where: eq(accounts.plaidAccountId, plaidAcct.account_id),
+        where: and(
+          eq(accounts.plaidAccountId, plaidAcct.account_id),
+          eq(accounts.plaidItemId, item.id),
+        ),
       });
 
       let accountId: string;
@@ -119,6 +124,139 @@ export async function syncItem(itemId: string): Promise<void> {
       }
     } catch {
       // Not an investment account — skip
+    }
+
+    // Sync liability details (mortgages, student loans, credit cards)
+    try {
+      const liabResp = await plaidClient.liabilitiesGet({
+        access_token: accessToken,
+      });
+      const liabilities = liabResp.data.liabilities;
+
+      type LiabEntry = {
+        account_id: string;
+        metadata: import("@lasagna/core").LoanMetadata;
+      };
+      const entries: LiabEntry[] = [];
+
+      // Map mortgage liabilities
+      for (const m of liabilities.mortgage ?? []) {
+        entries.push({
+          account_id: m.account_id,
+          metadata: {
+            type: "mortgage",
+            source: "plaid",
+            interestRatePercentage: m.interest_rate.percentage ?? undefined,
+            interestRateType:
+              m.interest_rate.type === "fixed"
+                ? "fixed"
+                : m.interest_rate.type === "variable"
+                  ? "variable"
+                  : undefined,
+            originationDate: m.origination_date ?? undefined,
+            originationPrincipal: m.origination_principal_amount ?? undefined,
+            maturityDate: m.maturity_date ?? undefined,
+            loanTerm: m.loan_term ?? undefined,
+            loanTypeDescription: m.loan_type_description ?? undefined,
+            nextMonthlyPayment: m.next_monthly_payment ?? undefined,
+            nextPaymentDueDate: m.next_payment_due_date ?? undefined,
+            lastPaymentAmount: m.last_payment_amount ?? undefined,
+            lastPaymentDate: m.last_payment_date ?? undefined,
+            escrowBalance: m.escrow_balance ?? undefined,
+            hasPmi: m.has_pmi ?? undefined,
+            ytdInterestPaid: m.ytd_interest_paid ?? undefined,
+            ytdPrincipalPaid: m.ytd_principal_paid ?? undefined,
+            lastSyncedAt: new Date().toISOString(),
+          },
+        });
+      }
+
+      // Map student loan liabilities
+      for (const s of liabilities.student ?? []) {
+        if (!s.account_id) continue;
+        entries.push({
+          account_id: s.account_id,
+          metadata: {
+            type: "student_loan",
+            source: "plaid",
+            interestRatePercentage: s.interest_rate_percentage ?? undefined,
+            originationDate: s.origination_date ?? undefined,
+            originationPrincipal: s.origination_principal_amount ?? undefined,
+            expectedPayoffDate: s.expected_payoff_date ?? undefined,
+            minimumPaymentAmount: s.minimum_payment_amount ?? undefined,
+            nextPaymentDueDate: s.next_payment_due_date ?? undefined,
+            lastPaymentAmount: s.last_payment_amount ?? undefined,
+            lastPaymentDate: s.last_payment_date ?? undefined,
+            isOverdue: s.is_overdue ?? undefined,
+            repaymentPlanType: s.repayment_plan?.type ?? undefined,
+            repaymentPlanDescription: s.repayment_plan?.description ?? undefined,
+            guarantor: s.guarantor ?? undefined,
+            outstandingInterest: s.outstanding_interest_amount ?? undefined,
+            ytdInterestPaid: s.ytd_interest_paid ?? undefined,
+            ytdPrincipalPaid: s.ytd_principal_paid ?? undefined,
+            lastSyncedAt: new Date().toISOString(),
+          },
+        });
+      }
+
+      // Map credit card liabilities
+      for (const cc of liabilities.credit ?? []) {
+        if (!cc.account_id) continue;
+        entries.push({
+          account_id: cc.account_id,
+          metadata: {
+            type: "credit_card",
+            source: "plaid",
+            minimumPaymentAmount: cc.minimum_payment_amount ?? undefined,
+            nextPaymentDueDate: cc.next_payment_due_date ?? undefined,
+            lastPaymentAmount: cc.last_payment_amount ?? undefined,
+            lastPaymentDate: cc.last_payment_date ?? undefined,
+            lastStatementBalance: cc.last_statement_balance ?? undefined,
+            isOverdue: cc.is_overdue ?? undefined,
+            aprs: cc.aprs?.map((a) => ({
+              aprType: a.apr_type,
+              aprPercentage: a.apr_percentage,
+              balanceSubjectToApr: a.balance_subject_to_apr ?? undefined,
+            })),
+            lastSyncedAt: new Date().toISOString(),
+          },
+        });
+      }
+
+      // Write each entry — skip manual overrides
+      for (const entry of entries) {
+        const acct = await db.query.accounts.findFirst({
+          where: and(
+            eq(accounts.plaidAccountId, entry.account_id),
+            eq(accounts.plaidItemId, item.id),
+          ),
+        });
+        if (!acct) continue;
+
+        const existingMeta = parseLoanMetadata(acct.metadata ?? null);
+        if (existingMeta?.source === "manual") {
+          console.debug(
+            `[sync] Skipping liability write for account ${acct.id} — manual override present`,
+          );
+          continue;
+        }
+
+        await db
+          .update(accounts)
+          .set({ metadata: JSON.stringify(entry.metadata) })
+          .where(
+            and(
+              eq(accounts.plaidAccountId, entry.account_id),
+              eq(accounts.plaidItemId, item.id),
+            ),
+          );
+      }
+    } catch (e) {
+      console.error(
+        `[sync] liabilitiesGet failed for item ${item.id} — skipping:`,
+        e,
+      );
+      // Do not rethrow — liability sync failure must not fail the overall sync
     }
 
     // Sync transactions
