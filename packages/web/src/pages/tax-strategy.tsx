@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Receipt, FileText, Trash2, Plus, RefreshCw } from "lucide-react";
+import { FileText, Trash2, Plus, RefreshCw } from "lucide-react";
 import { Section } from "../components/common/section.js";
 import { ActionItem } from "../components/common/action-item.js";
 import { Button } from "../components/ui/button.js";
@@ -309,7 +309,7 @@ export function TaxStrategy() {
             </div>
           )}
 
-          {documents.length > 0 ? (
+          {documents.length > 0 && (
             <div>
               <h4 className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-3">Uploaded Documents</h4>
               <div className="space-y-2">
@@ -344,11 +344,6 @@ export function TaxStrategy() {
                   </motion.div>
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className="glass-card rounded-2xl p-8 text-center">
-              <Receipt className="w-12 h-12 text-text-muted mx-auto mb-4" />
-              <p className="text-text-muted">Upload a document or describe your tax info to get started</p>
             </div>
           )}
 
