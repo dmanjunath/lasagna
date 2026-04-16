@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from "react";
-import { Upload, FileText, Loader2, Settings2, ChevronDown, X, PenLine } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Upload, FileText, Loader2, Settings2, ChevronDown, X, PenLine, ShieldCheck, HelpCircle } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 import { api } from "../../lib/api.js";
 import type { TaxInputResult } from "../../lib/types.js";
@@ -24,14 +24,37 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  // Mobile tab: "file" | "text"
-  const [mobileTab, setMobileTab] = useState<"file" | "text">("file");
+  const [inputMode, setInputMode] = useState<"file" | "text">("file");
+  const [showSafety, setShowSafety] = useState(false);
+  const safetyRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasFile = file !== null;
   const hasText = text.trim().length > 0;
   const canSubmit = (hasFile || hasText) && !loading;
   const mode: "file" | "text" | null = hasFile ? "file" : hasText ? "text" : null;
+
+  // Close safety popover on outside click
+  useEffect(() => {
+    if (!showSafety) return;
+    const handler = (e: MouseEvent) => {
+      if (safetyRef.current && !safetyRef.current.contains(e.target as Node)) {
+        setShowSafety(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSafety]);
+
+  const switchToText = () => {
+    setInputMode("text");
+    setFile(null);
+  };
+
+  const switchToFile = () => {
+    setInputMode("file");
+    setText("");
+  };
 
   const handleFileChange = useCallback((incoming: File) => {
     setError(null);
@@ -44,7 +67,6 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
       return;
     }
     setFile(incoming);
-    setText("");
   }, []);
 
   const handleDrop = useCallback(
@@ -81,160 +103,166 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
     }
   };
 
-  // ── Shared zone components ──────────────────────────────────────────
-
-  const FileZone = ({ dimmed }: { dimmed?: boolean }) => (
-    <div className={cn(
-      "flex flex-col rounded-xl border transition-all h-full",
-      dimmed
-        ? "opacity-30 pointer-events-none select-none border-border"
-        : "border-border/60 hover:border-border"
-    )}>
-      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
-        <Upload className="w-3.5 h-3.5 text-text-muted shrink-0" />
-        <span className="text-xs font-semibold text-text-secondary">Upload a file</span>
-        <span className="text-[10px] text-text-muted ml-auto">PDF · PNG · JPG</span>
-      </div>
-      <div
-        className={cn(
-          "flex-1 flex flex-col items-center justify-center gap-2.5 p-5 cursor-pointer transition-colors min-h-[140px]",
-          isDragging ? "bg-accent/5" : "hover:bg-surface-hover/30"
-        )}
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        role="button"
-        tabIndex={dimmed ? -1 : 0}
-        onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept="application/pdf,image/jpeg,image/png"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }}
-        />
-        {file ? (
-          <>
-            <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
-              <FileText className="w-4.5 h-4.5 text-accent" />
-            </div>
-            <div className="text-center">
-              <div className="text-sm font-medium truncate max-w-[200px]">{file.name}</div>
-              <div className="text-xs text-text-muted">{(file.size / 1024 / 1024).toFixed(1)} MB</div>
-            </div>
-            <button
-              type="button"
-              className="flex items-center gap-1 text-xs text-text-muted hover:text-danger transition-colors"
-              onClick={(e) => { e.stopPropagation(); setFile(null); }}
-            >
-              <X className="w-3 h-3" /> Remove
-            </button>
-          </>
-        ) : (
-          <>
-            <div className={cn(
-              "w-9 h-9 rounded-lg flex items-center justify-center transition-colors",
-              isDragging ? "bg-accent/15" : "bg-surface-hover"
-            )}>
-              <Upload className={cn("w-4.5 h-4.5", isDragging ? "text-accent" : "text-text-muted")} />
-            </div>
-            <div className="text-center">
-              <div className="text-xs font-medium text-text-secondary">
-                {isDragging ? "Drop to upload" : "Drop here or click to browse"}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-
-  const TextZone = ({ dimmed }: { dimmed?: boolean }) => (
-    <div className={cn(
-      "flex flex-col rounded-xl border transition-all h-full",
-      dimmed
-        ? "opacity-30 pointer-events-none select-none border-border"
-        : "border-border/60 hover:border-border"
-    )}>
-      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
-        <PenLine className="w-3.5 h-3.5 text-text-muted shrink-0" />
-        <span className="text-xs font-semibold text-text-secondary">Describe your taxes</span>
-      </div>
-      <textarea
-        className="flex-1 min-h-[140px] bg-transparent px-4 py-3 text-sm resize-none focus:outline-none placeholder:text-text-muted/40 text-text-secondary"
-        placeholder={"e.g. married filing jointly, 2023\nW-2 income $120k, withheld $18k\nstandard deduction, no dependents"}
-        value={text}
-        onChange={(e) => { setText(e.target.value); if (hasFile) setFile(null); }}
-        disabled={dimmed}
-      />
-    </div>
-  );
-
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
       {/* Header */}
       <div className="px-5 pt-5 pb-4 border-b border-border">
-        <div className="text-sm font-semibold">Add tax information</div>
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-semibold">Add tax information</div>
+          {/* Safety popover trigger */}
+          <div className="relative" ref={safetyRef}>
+            <button
+              type="button"
+              onClick={() => setShowSafety((p) => !p)}
+              className="flex items-center justify-center w-4 h-4 rounded-full text-text-muted hover:text-text-secondary transition-colors"
+              aria-label="Privacy & safety information"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+            </button>
+
+            {showSafety && (
+              <div className="absolute left-0 top-6 z-50 w-72 rounded-xl border border-border bg-bg-elevated shadow-xl shadow-black/40 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldCheck className="w-4 h-4 text-success shrink-0" />
+                  <span className="text-xs font-semibold text-text-primary">Privacy & security</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSafety(false)}
+                    className="ml-auto text-text-muted hover:text-text-secondary transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <ul className="space-y-2">
+                  {[
+                    "Your document is sent over HTTPS and only used for field extraction.",
+                    "Only the extracted tax fields are stored — not the original file.",
+                    "Extraction uses the LLM endpoint you configure (default: OpenRouter).",
+                    "No data is shared with third parties beyond your chosen LLM provider.",
+                    "Prefer not to upload? Use the text option to describe your situation manually.",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-xs text-text-muted leading-relaxed">
+                      <span className="mt-1 w-1 h-1 rounded-full bg-text-muted/50 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="text-xs text-text-muted mt-0.5">
-          Upload a document or describe your situation — we'll extract the key details
+          {inputMode === "file"
+            ? "Upload a tax document — we'll extract the key details automatically"
+            : "Describe your tax situation — we'll save the key details"}
         </div>
       </div>
 
       <div className="p-4 sm:p-5 space-y-4">
 
-        {/* ── MOBILE: tab toggle ── */}
-        <div className="sm:hidden">
-          <div className="flex rounded-lg bg-surface-hover p-1 mb-4">
-            <button
-              type="button"
-              onClick={() => { setMobileTab("file"); if (hasText) setText(""); }}
+        {/* ── File upload zone ── */}
+        {inputMode === "file" && (
+          <>
+            <div
               className={cn(
-                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-all",
-                mobileTab === "file"
-                  ? "bg-bg-elevated text-text-primary shadow-sm"
-                  : "text-text-muted hover:text-text-secondary"
+                "flex flex-col items-center justify-center gap-3 rounded-xl border cursor-pointer transition-all min-h-[160px] p-5",
+                isDragging
+                  ? "border-accent/60 bg-accent/5"
+                  : "border-border/60 hover:border-border hover:bg-surface-hover/20"
               )}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
             >
-              <Upload className="w-3.5 h-3.5" />
-              Upload file
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMobileTab("text"); if (hasFile) setFile(null); }}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-all",
-                mobileTab === "text"
-                  ? "bg-bg-elevated text-text-primary shadow-sm"
-                  : "text-text-muted hover:text-text-secondary"
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="application/pdf,image/jpeg,image/png"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }}
+              />
+              {file ? (
+                <>
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-accent" />
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-medium truncate max-w-[240px]">{file.name}</div>
+                    <div className="text-xs text-text-muted mt-0.5">{(file.size / 1024 / 1024).toFixed(1)} MB</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 text-xs text-text-muted hover:text-danger transition-colors"
+                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                  >
+                    <X className="w-3 h-3" /> Remove
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                    isDragging ? "bg-accent/15" : "bg-surface-hover"
+                  )}>
+                    <Upload className={cn("w-5 h-5", isDragging ? "text-accent" : "text-text-muted")} />
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-medium text-text-secondary">
+                      {isDragging ? "Drop to upload" : "Drop here or click to browse"}
+                    </div>
+                    <div className="text-xs text-text-muted mt-1">PDF · PNG · JPG · up to 20 MB</div>
+                  </div>
+                </>
               )}
-            >
-              <PenLine className="w-3.5 h-3.5" />
-              Describe
-            </button>
-          </div>
+            </div>
 
-          {mobileTab === "file" ? <FileZone /> : <TextZone />}
-        </div>
+            {/* Switch to text */}
+            <div className="flex items-center justify-center">
+              <button
+                type="button"
+                onClick={switchToText}
+                className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+              >
+                Don't feel comfortable uploading tax documents?{" "}
+                <span className="text-accent hover:underline">Describe your situation instead →</span>
+              </button>
+            </div>
+          </>
+        )}
 
-        {/* ── DESKTOP: side by side ── */}
-        <div className="hidden sm:flex gap-3 items-stretch">
-          <div className="flex-1">
-            <FileZone dimmed={mode === "text"} />
-          </div>
+        {/* ── Text describe zone ── */}
+        {inputMode === "text" && (
+          <>
+            <div className="flex flex-col rounded-xl border border-border/60 hover:border-border transition-all">
+              <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
+                <PenLine className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                <span className="text-xs font-semibold text-text-secondary">Describe your taxes</span>
+              </div>
+              <textarea
+                className="min-h-[160px] bg-transparent px-4 py-3 text-sm resize-none focus:outline-none placeholder:text-text-muted/40 text-text-secondary"
+                placeholder={"e.g. married filing jointly, 2023\nW-2 income $120k, withheld $18k\nstandard deduction, no dependents"}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                autoFocus
+              />
+            </div>
 
-          {/* OR divider */}
-          <div className="flex flex-col items-center justify-center gap-2 py-1">
-            <div className="flex-1 w-px bg-border" />
-            <span className="text-[11px] font-bold tracking-widest text-text-muted/50 uppercase shrink-0 px-1">or</span>
-            <div className="flex-1 w-px bg-border" />
-          </div>
-
-          <div className="flex-1">
-            <TextZone dimmed={mode === "file"} />
-          </div>
-        </div>
+            {/* Switch back to upload */}
+            <div className="flex items-center justify-center">
+              <button
+                type="button"
+                onClick={switchToFile}
+                className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+              >
+                <span className="text-accent hover:underline">← Upload a document instead</span>
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Extraction settings */}
         <div className="rounded-xl border border-border overflow-hidden">
@@ -321,7 +349,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                 {hasFile ? "Extracting…" : "Saving…"}
               </>
             ) : (
-              mode === "file" ? "Extract & save" : mode === "text" ? "Save" : "Send"
+              mode === "file" ? "Extract & save" : mode === "text" ? "Save" : inputMode === "file" ? "Extract & save" : "Save"
             )}
           </button>
         </div>
