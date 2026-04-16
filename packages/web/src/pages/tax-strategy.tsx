@@ -152,7 +152,7 @@ export function TaxStrategy() {
               </div>
               <div>
                 <div className="text-sm font-medium mb-1">No suggestions yet</div>
-                <div className="text-xs text-text-muted">Generate personalized suggestions based on your accounts and financial profile</div>
+                <div className="text-sm text-text-secondary">Generate personalized suggestions based on your accounts and financial profile</div>
               </div>
               <button
                 type="button"
@@ -195,7 +195,7 @@ export function TaxStrategy() {
               <div className="flex items-center justify-between py-3">
                 <div>
                   <div className="text-sm font-semibold">401(k) pre-tax</div>
-                  <div className="text-xs text-text-muted">$23,500 limit</div>
+                  <div className="text-sm text-text-secondary">$23,500 limit</div>
                 </div>
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
                   Contribute more
@@ -204,7 +204,7 @@ export function TaxStrategy() {
               <div className="flex items-center justify-between py-3">
                 <div>
                   <div className="text-sm font-semibold">Roth IRA</div>
-                  <div className="text-xs text-text-muted">$7,000 limit</div>
+                  <div className="text-sm text-text-secondary">$7,000 limit</div>
                 </div>
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
                   Unfunded
@@ -213,7 +213,7 @@ export function TaxStrategy() {
               <div className="flex items-center justify-between py-3">
                 <div>
                   <div className="text-sm font-semibold">HSA</div>
-                  <div className="text-xs text-text-muted">$4,150 limit</div>
+                  <div className="text-sm text-text-secondary">$4,150 limit</div>
                 </div>
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-hover text-text-muted">
                   Check eligibility
@@ -320,7 +320,7 @@ export function TaxStrategy() {
 
           {documents.length > 0 && (
             <div>
-              <h4 className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-3">Uploaded Documents</h4>
+              <h4 className="text-xs uppercase tracking-wider text-text-secondary font-semibold mb-3">Uploaded Documents</h4>
               <div className="space-y-2">
                 {documents.map((doc, i) => (
                   <motion.div
@@ -336,10 +336,10 @@ export function TaxStrategy() {
                         <div className="min-w-0">
                           <div className="font-medium text-sm truncate">{doc.fileName}</div>
                           {doc.taxYear && (
-                            <div className="text-xs text-text-muted mt-0.5">Tax Year {doc.taxYear}</div>
+                            <div className="text-sm text-text-secondary mt-0.5">Tax Year {doc.taxYear}</div>
                           )}
                           {doc.llmSummary && (
-                            <div className="text-xs text-text-muted mt-1 line-clamp-2">{doc.llmSummary}</div>
+                            <div className="text-sm text-text-secondary mt-1 line-clamp-2">{doc.llmSummary}</div>
                           )}
                         </div>
                       </div>

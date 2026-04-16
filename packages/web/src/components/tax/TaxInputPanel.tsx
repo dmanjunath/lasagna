@@ -208,7 +208,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                     <div className="text-sm font-medium text-text-secondary">
                       {isDragging ? "Drop to upload" : "Drop here or click to browse"}
                     </div>
-                    <div className="text-xs text-text-muted mt-1">PDF · PNG · JPG · up to 20 MB</div>
+                    <div className="text-sm text-text-secondary mt-1">PDF · PNG · JPG · up to 20 MB</div>
                   </div>
                 </>
               )}

@@ -26,7 +26,7 @@ export default {
         text: {
           DEFAULT: '#e8e8ec',
           secondary: '#a1a1aa',
-          muted: '#71717a',
+          muted: '#9090a0',
         },
         accent: {
           DEFAULT: '#34c759',

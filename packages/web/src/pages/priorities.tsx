@@ -342,7 +342,7 @@ function StepCard({
                 </div>
 
                 {/* Detail */}
-                <p className="text-xs text-text-muted leading-relaxed">{step.detail}</p>
+                <p className="text-sm text-text-secondary leading-relaxed">{step.detail}</p>
               </div>
             </motion.div>
           )}

@@ -118,7 +118,7 @@ export function Sidebar({ onNewPlan, className }: SidebarProps) {
           <Logo size={36} />
           <span>Lasagna</span>
         </h1>
-        <p className="text-sm text-text-muted mt-1.5 ml-12">AI Financial Advisor</p>
+        <p className="text-sm text-text-secondary mt-1.5 ml-12">AI Financial Advisor</p>
       </div>
 
       {/* Navigation */}

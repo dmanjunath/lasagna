@@ -333,7 +333,7 @@ export function Spending() {
         <h2 className="font-display text-3xl md:text-4xl font-medium tracking-tight">
           Spending
         </h2>
-        <p className="text-text-muted text-sm mt-1">
+        <p className="text-text-secondary text-sm mt-1">
           Track where your money goes each month
         </p>
       </motion.div>
@@ -508,7 +508,7 @@ export function Spending() {
                           <div className="flex-1 h-1 bg-bg-surface rounded-full overflow-hidden">
                             <div className="h-full rounded-full" style={{ width: `${cat.percentage}%`, backgroundColor: display.color }} />
                           </div>
-                          <span className="text-[10px] text-text-muted flex-shrink-0 w-8 text-right">{cat.percentage.toFixed(0)}%</span>
+                          <span className="text-xs text-text-secondary flex-shrink-0 w-8 text-right">{cat.percentage.toFixed(0)}%</span>
                         </div>
                       </div>
                     </button>
@@ -518,7 +518,7 @@ export function Spending() {
               {spendingCategories.length > 5 && (
                 <button
                   onClick={() => setShowAllCategories((v) => !v)}
-                  className="mt-2 w-full text-xs text-text-muted hover:text-accent transition-colors py-1"
+                  className="mt-2 w-full text-xs text-text-secondary hover:text-accent transition-colors py-1"
                 >
                   {showAllCategories ? 'Show less' : `+${spendingCategories.length - 5} more categories`}
                 </button>

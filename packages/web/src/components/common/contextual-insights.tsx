@@ -28,10 +28,10 @@ export function ContextualInsights({
   return (
     <div className="mb-4">
       <div className="flex items-center gap-2 mb-2 px-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
           Actions
         </span>
-        <span className="text-xs text-text-muted/60">({shown.length})</span>
+        <span className="text-xs text-text-secondary/60">({shown.length})</span>
       </div>
       <div className="bg-bg-elevated border border-border rounded-xl px-4">
         {shown.map((insight) => (

@@ -53,7 +53,7 @@ interface StatRowProps {
 function StatRow({ label, value, valueClass }: StatRowProps) {
   return (
     <div className="flex items-center justify-between px-5 py-3.5">
-      <span className="text-sm text-text-muted">{label}</span>
+      <span className="text-sm text-text-secondary">{label}</span>
       <span className={`text-sm font-medium ${valueClass || "text-text"}`}>
         {value}
       </span>
@@ -269,7 +269,7 @@ export function Settings() {
             </h2>
 
             <label className="block">
-              <span className="text-sm text-text-muted">Date of Birth</span>
+              <span className="text-sm text-text-secondary">Date of Birth</span>
               <input
                 type="date"
                 value={formData.dateOfBirth}
@@ -281,7 +281,7 @@ export function Settings() {
             </label>
 
             <label className="block">
-              <span className="text-sm text-text-muted">Filing Status</span>
+              <span className="text-sm text-text-secondary">Filing Status</span>
               <select
                 value={formData.filingStatus}
                 onChange={(e) =>
@@ -299,7 +299,7 @@ export function Settings() {
             </label>
 
             <label className="block">
-              <span className="text-sm text-text-muted">
+              <span className="text-sm text-text-secondary">
                 State of Residence (2-letter code)
               </span>
               <input
@@ -318,7 +318,7 @@ export function Settings() {
             </label>
 
             <label className="block">
-              <span className="text-sm text-text-muted">Risk Tolerance</span>
+              <span className="text-sm text-text-secondary">Risk Tolerance</span>
               <select
                 value={formData.riskTolerance}
                 onChange={(e) =>
@@ -336,7 +336,7 @@ export function Settings() {
             </label>
 
             <label className="block">
-              <span className="text-sm text-text-muted">Retirement Age</span>
+              <span className="text-sm text-text-secondary">Retirement Age</span>
               <input
                 type="number"
                 min={30}
@@ -383,7 +383,7 @@ export function Settings() {
             </h2>
 
             <label className="block">
-              <span className="text-sm text-text-muted">
+              <span className="text-sm text-text-secondary">
                 Annual Gross Income ($)
               </span>
               <input
@@ -400,7 +400,7 @@ export function Settings() {
             </label>
 
             <label className="block">
-              <span className="text-sm text-text-muted">
+              <span className="text-sm text-text-secondary">
                 Employer Match (%)
               </span>
               <input
@@ -442,7 +442,7 @@ export function Settings() {
 
         {/* Your Profile Stats */}
         <motion.div variants={item}>
-          <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wider px-1 mb-2">
+          <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider px-1 mb-2">
             Your Profile
           </h2>
           <div className="glass-card rounded-2xl p-0 overflow-hidden divide-y divide-border">

@@ -85,7 +85,7 @@ export function ActionItem({
         {/* Tag badge */}
         <span
           className={cn(
-            'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-opacity',
+            'text-xs font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-opacity',
             tagColors[tag.toUpperCase()] || 'text-text-muted',
             done && 'opacity-40'
           )}
@@ -126,7 +126,7 @@ export function ActionItem({
             className="overflow-hidden"
           >
             <div className="pb-3 pl-8 pr-1">
-              <p className="text-xs text-text-secondary mb-2">{description}</p>
+              <p className="text-sm text-text-secondary mb-2">{description}</p>
               <div className="flex items-center gap-3">
                 <span
                   className={cn(
