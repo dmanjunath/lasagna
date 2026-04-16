@@ -135,10 +135,9 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                 </div>
                 <ul className="space-y-2">
                   {[
+                    "We use models with open source weights and zero data retention — your documents are never used for training.",
                     "Your document is sent over HTTPS and only used for field extraction.",
                     "Only the extracted tax fields are stored — not the original file.",
-                    "Extraction uses the LLM endpoint you configure (default: OpenRouter).",
-                    "No data is shared with third parties beyond your chosen LLM provider.",
                     "Prefer not to upload? Use the text option to describe your situation manually.",
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-2 text-xs text-text-muted leading-relaxed">
@@ -150,11 +149,6 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               </div>
             )}
           </div>
-        </div>
-        <div className="text-xs text-text-muted mt-0.5">
-          {inputMode === "file"
-            ? "Upload a tax document — we'll extract the key details automatically"
-            : "Describe your tax situation — we'll save the key details"}
         </div>
       </div>
 
