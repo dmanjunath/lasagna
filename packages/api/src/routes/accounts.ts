@@ -156,10 +156,12 @@ accountRoutes.get("/debts", async (c) => {
         if (typedMeta.type === "credit_card") {
           const purchaseApr = typedMeta.aprs?.find((a) => a.aprType === "purchase_apr");
           interestRate = purchaseApr?.aprPercentage ?? typedMeta.aprs?.[0]?.aprPercentage ?? null;
-        } else {
-          // MortgageMetadata | StudentLoanMetadata | OtherLoanMetadata all have interestRatePercentage
-          interestRate =
-            (typedMeta as { interestRatePercentage?: number }).interestRatePercentage ?? null;
+        } else if (
+          typedMeta.type === "mortgage" ||
+          typedMeta.type === "student_loan" ||
+          typedMeta.type === "other_loan"
+        ) {
+          interestRate = typedMeta.interestRatePercentage ?? null;
         }
       } else {
         interestRate = legacyInterestRate;
@@ -183,10 +185,14 @@ accountRoutes.get("/debts", async (c) => {
       const isMortgage =
         acct.subtype === "mortgage" || acct.name?.toLowerCase().includes("mortgage");
 
-      const typedMinPayment =
-        typedMeta && "minimumPaymentAmount" in typedMeta
-          ? typedMeta.minimumPaymentAmount
-          : undefined;
+      let typedMinPayment: number | undefined;
+      if (typedMeta) {
+        if (typedMeta.type === "mortgage" && typedMeta.nextMonthlyPayment != null) {
+          typedMinPayment = typedMeta.nextMonthlyPayment;
+        } else if ("minimumPaymentAmount" in typedMeta && typedMeta.minimumPaymentAmount != null) {
+          typedMinPayment = typedMeta.minimumPaymentAmount;
+        }
+      }
 
       if (typedMinPayment != null) {
         minimumPayment = typedMinPayment;
@@ -277,46 +283,51 @@ accountRoutes.patch("/:id/loan-details", async (c) => {
     return c.json({ error: "Account not found" }, 404);
   }
 
-  const raw = await c.req.json();
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
 
   const bodySchema = z.discriminatedUnion("type", [
     z.object({
       type: z.literal("mortgage"),
-      maturityDate: z.string().optional(),
-      interestRatePercentage: z.number().optional(),
+      maturityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      interestRatePercentage: z.number().min(0).max(100).optional(),
       interestRateType: z.enum(["fixed", "variable"]).optional(),
-      originationDate: z.string().optional(),
-      originationPrincipal: z.number().optional(),
+      originationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      originationPrincipal: z.number().min(0).optional(),
       loanTerm: z.string().optional(),
     }),
     z.object({
       type: z.literal("student_loan"),
-      expectedPayoffDate: z.string().optional(),
-      interestRatePercentage: z.number().optional(),
-      minimumPaymentAmount: z.number().optional(),
+      expectedPayoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      interestRatePercentage: z.number().min(0).max(100).optional(),
+      minimumPaymentAmount: z.number().min(0).optional(),
       repaymentPlanType: z.string().optional(),
-      nextPaymentDueDate: z.string().optional(),
+      nextPaymentDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     }),
     z.object({
       type: z.literal("credit_card"),
-      minimumPaymentAmount: z.number().optional(),
-      nextPaymentDueDate: z.string().optional(),
+      minimumPaymentAmount: z.number().min(0).optional(),
+      nextPaymentDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       aprs: z
         .array(
           z.object({
             aprType: z.string(),
-            aprPercentage: z.number(),
-            balanceSubjectToApr: z.number().optional(),
+            aprPercentage: z.number().min(0).max(100),
+            balanceSubjectToApr: z.number().min(0).optional(),
           }),
         )
         .optional(),
     }),
     z.object({
       type: z.literal("other_loan"),
-      maturityDate: z.string().optional(),
-      interestRatePercentage: z.number().optional(),
-      minimumPaymentAmount: z.number().optional(),
-      originationDate: z.string().optional(),
+      maturityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      interestRatePercentage: z.number().min(0).max(100).optional(),
+      minimumPaymentAmount: z.number().min(0).optional(),
+      originationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     }),
   ]);
 
