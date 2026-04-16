@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FileText, Trash2, Plus, RefreshCw } from "lucide-react";
+import { FileText, Trash2, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { Section } from "../components/common/section.js";
 import { ActionItem } from "../components/common/action-item.js";
 import { Button } from "../components/ui/button.js";
@@ -8,7 +8,7 @@ import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
 import type { TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
 import { useChatStore } from "../lib/chat-store.js";
-import { ContextualInsights } from '../components/common/contextual-insights';
+import { useInsights } from "../hooks/useInsights.js";
 
 const FILING_LABELS: Record<string, string> = {
   single: "Single",
@@ -60,16 +60,18 @@ export function TaxStrategy() {
     }
   };
 
+  const { insights, isLoading: insightsLoading, dismiss, refresh } = useInsights("tax");
+
   const handleInputSuccess = useCallback(async (doc: TaxInputResult) => {
     setDocuments((prev) => [
       { id: doc.id, fileName: doc.fileName, llmSummary: doc.llmSummary, taxYear: doc.taxYear, createdAt: doc.createdAt },
       ...prev,
     ]);
     setInsightStatus("generating");
-    api.generateInsights()
+    refresh()
       .then(() => setInsightStatus("done"))
       .catch(() => setInsightStatus("idle"));
-  }, []);
+  }, [refresh]);
 
   const handleDeleteDocument = useCallback(async (id: string) => {
     try {
@@ -82,44 +84,8 @@ export function TaxStrategy() {
 
   const { openChat } = useChatStore();
 
-  const taxActions = [
-    {
-      title: "Increase 401(k) pre-tax contributions",
-      tag: "TAX" as const,
-      description: "Every dollar you contribute to your 401(k) reduces your taxable income dollar-for-dollar. At your tax bracket, this could save significant money.",
-      impact: "Up to $2,800/yr saved",
-      impactColor: "green" as const,
-      chatPrompt: "How much should I increase my 401(k) contributions to save on taxes?",
-    },
-    {
-      title: "Check your W-4 withholding",
-      tag: "TAX" as const,
-      description: "If you got a big refund last year, you're over-withholding. Adjusting your W-4 puts more money in each paycheck instead of giving the IRS a free loan.",
-      impact: "More cash per paycheck",
-      impactColor: "green" as const,
-      chatPrompt: "How do I check and adjust my W-4 withholding?",
-    },
-    {
-      title: "Fund your Roth IRA $7,000",
-      tag: "TAX" as const,
-      description: "Roth contributions are made with after-tax dollars, but all future growth and withdrawals are completely tax-free. The $7,000 limit is use-it-or-lose-it each year.",
-      impact: "Tax-free growth forever",
-      impactColor: "green" as const,
-      chatPrompt: "Walk me through funding my Roth IRA for this year.",
-    },
-    {
-      title: "Check HSA eligibility",
-      tag: "TAX" as const,
-      description: "If you have a high-deductible health plan, an HSA offers triple tax advantages: tax-deductible contributions, tax-free growth, and tax-free withdrawals for medical expenses.",
-      impact: "Triple tax advantage",
-      impactColor: "green" as const,
-      chatPrompt: "Am I eligible for an HSA and how does the triple tax advantage work?",
-    },
-  ];
-
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
-      <ContextualInsights types="tax" />
       {/* Tax Optimization Playbook Hero */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -133,7 +99,7 @@ export function TaxStrategy() {
           </span>
         </div>
         <div className="font-display text-2xl md:text-3xl font-semibold tracking-tight mb-1">
-          {taxActions.length} actions to reduce taxes
+          {insightsLoading ? "—" : insights.length > 0 ? `${insights.length} suggestions for you` : "Personalized suggestions"}
         </div>
         <p className="text-sm text-text-secondary">
           Every dollar saved on taxes goes to work for you
@@ -155,22 +121,65 @@ export function TaxStrategy() {
         </div>
       </motion.div>
 
-      {/* Actions */}
+      {/* Suggestions — LLM-generated, personalized to the user's financial data */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.08 }}
       >
-        <Section title="Actions">
-          <div className="bg-bg-elevated border border-border rounded-xl px-4">
-            {taxActions.map((action, i) => (
-              <ActionItem
-                key={action.title}
-                {...action}
-                defaultOpen={i === 0}
-              />
-            ))}
-          </div>
+        <Section
+          title="Suggestions"
+          actions={
+            <button
+              type="button"
+              onClick={() => refresh()}
+              className="flex items-center gap-1.5 text-xs text-text-muted hover:text-accent transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Refresh
+            </button>
+          }
+        >
+          {insightsLoading ? (
+            <div className="flex items-center gap-2 px-1 py-4 text-sm text-text-muted">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              Loading suggestions…
+            </div>
+          ) : insights.length === 0 ? (
+            <div className="glass-card rounded-xl p-6 flex flex-col items-center gap-3 text-center">
+              <div className="w-10 h-10 rounded-xl bg-surface-hover flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-text-muted" />
+              </div>
+              <div>
+                <div className="text-sm font-medium mb-1">No suggestions yet</div>
+                <div className="text-xs text-text-muted">Generate personalized suggestions based on your accounts and financial profile</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => refresh()}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Generate suggestions
+              </button>
+            </div>
+          ) : (
+            <div className="bg-bg-elevated border border-border rounded-xl px-4">
+              {insights.map((insight, i) => (
+                <ActionItem
+                  key={insight.id}
+                  title={insight.title}
+                  tag={(insight.type ?? "tax").toUpperCase()}
+                  description={insight.description}
+                  impact={insight.impact ?? ""}
+                  impactColor={(insight.impactColor as "green" | "amber" | "red") ?? "amber"}
+                  chatPrompt={insight.chatPrompt ?? insight.title}
+                  onDismiss={() => dismiss(insight.id)}
+                  defaultOpen={i === 0}
+                />
+              ))}
+            </div>
+          )}
         </Section>
       </motion.div>
 
