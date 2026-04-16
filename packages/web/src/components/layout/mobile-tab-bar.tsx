@@ -19,7 +19,7 @@ interface TabItem {
 const tabs: TabItem[] = [
   { name: 'Home', icon: LayoutDashboard, path: '/' },
   { name: 'Chat', icon: MessageSquare, action: 'chat' },
-  { name: 'Insights', icon: Lightbulb, path: '/insights' },
+  { name: 'Actions', icon: Lightbulb, path: '/actions' },
   { name: 'Profile', icon: User, path: '/profile' },
 ];
 

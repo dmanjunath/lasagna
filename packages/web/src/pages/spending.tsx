@@ -477,7 +477,7 @@ export function Spending() {
           ) : (
             <>
               {/* Donut chart */}
-              <div className="h-48 mb-4">
+              <div className="h-36 mb-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -500,7 +500,7 @@ export function Spending() {
               </div>
 
               {/* Category list */}
-              <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin">
+              <div className="space-y-2">
                 {spendingCategories.map((cat) => {
                   const display = getCategoryDisplay(cat.category);
                   const isSelected = selectedCategory === cat.category;
@@ -536,8 +536,8 @@ export function Spending() {
                               }}
                             />
                           </div>
-                          <span className="text-xs text-text-muted flex-shrink-0 w-16 text-right">
-                            {cat.percentage.toFixed(1)}% &middot; {cat.count}
+                          <span className="text-xs text-text-muted flex-shrink-0 w-10 text-right">
+                            {cat.percentage.toFixed(1)}%
                           </span>
                         </div>
                       </div>
@@ -646,6 +646,16 @@ export function Spending() {
         </motion.div>
       </div>
 
+      {/* Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.22 }}
+        className="mb-6"
+      >
+        <ContextualInsights types={["spending", "behavioral"]} />
+      </motion.div>
+
       {/* Transaction List */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -653,7 +663,6 @@ export function Spending() {
         transition={{ duration: 0.4, delay: 0.25 }}
         className="bg-bg-elevated border border-border rounded-xl p-5 mb-8"
       >
-        <ContextualInsights types={["spending", "behavioral"]} />
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <h3 className="text-lg font-semibold text-text-primary">Transactions</h3>
           <div className="flex items-center gap-2 flex-wrap">
