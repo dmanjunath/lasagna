@@ -76,6 +76,7 @@ export function Debt() {
   const closeModal = () => setEditingDebt(null);
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
       api.getBalances().catch(() => ({ balances: [] })),
@@ -225,18 +226,19 @@ function LoanDetailsModal({
   const [repaymentPlanType, setRepaymentPlanType] = useState("");
   const [purchaseApr, setPurchaseApr] = useState("");
 
-  const isMortgage =
-    debt.subtype === "mortgage" || debt.name.toLowerCase().includes("mortgage");
-  const isStudentLoan =
-    debt.subtype === "student_loan" || debt.name.toLowerCase().includes("student");
   const isCredit = debt.type === "credit";
-  const loanType: "mortgage" | "student_loan" | "credit_card" | "other_loan" = isMortgage
-    ? "mortgage"
-    : isStudentLoan
-      ? "student_loan"
-      : isCredit
-        ? "credit_card"
-        : "other_loan";
+  // Subtype check takes priority over name heuristic
+  const loanType: "mortgage" | "student_loan" | "credit_card" | "other_loan" = isCredit
+    ? "credit_card"
+    : debt.subtype === "mortgage"
+      ? "mortgage"
+      : debt.subtype === "student_loan"
+        ? "student_loan"
+        : debt.name.toLowerCase().includes("mortgage")
+          ? "mortgage"
+          : debt.name.toLowerCase().includes("student")
+            ? "student_loan"
+            : "other_loan";
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
@@ -263,6 +265,13 @@ function LoanDetailsModal({
         if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
         if (originationDate) body.originationDate = originationDate;
       }
+      // Prevent submitting a form with no data (would overwrite existing metadata with empty record)
+      const hasData = Object.keys(body).length > 1; // more than just 'type'
+      if (!hasData) {
+        setError("Please fill in at least one field.");
+        return;
+      }
+
       await api.patchLoanDetails(debt.id, body);
       onSaved();
     } catch (err) {
@@ -534,7 +543,7 @@ function HasDebtView({
           <div className="space-y-3">
             {debts.map((d, i) => (
               <div
-                key={`${d.name}-${i}`}
+                key={d.id}
                 className={`glass-card p-4 flex items-center gap-3.5 ${i === 0 ? 'border-danger/25' : ''}`}
               >
                 {/* Numbered badge */}
