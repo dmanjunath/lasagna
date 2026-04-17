@@ -151,28 +151,20 @@ export function Insights() {
                   const insightType = insight.type ?? 'general';
                   const contextLink = PAGE_LINKS[insightType];
                   return (
-                    <div key={insight.id} className="relative group">
-                      <ActionItem
-                        title={insight.title}
-                        tag={(insight.type ?? insight.category ?? 'general').toUpperCase()}
-                        description={insight.description}
-                        impact={insight.impact ?? ''}
-                        impactColor={
-                          (insight.impactColor as 'green' | 'amber' | 'red') ??
-                          'amber'
-                        }
-                        chatPrompt={insight.chatPrompt ?? insight.title}
-                        onDismiss={() => dismiss(insight.id)}
-                      />
-                      {contextLink && (
-                        <button
-                          onClick={() => navigate(contextLink)}
-                          className="absolute bottom-3 right-10 text-[11px] text-text-muted hover:text-accent transition-colors opacity-0 group-hover:opacity-100"
-                        >
-                          See in context →
-                        </button>
-                      )}
-                    </div>
+                    <ActionItem
+                      key={insight.id}
+                      title={insight.title}
+                      tag={(insight.type ?? insight.category ?? 'general').toUpperCase()}
+                      description={insight.description}
+                      impact={insight.impact ?? ''}
+                      impactColor={
+                        (insight.impactColor as 'green' | 'amber' | 'red') ??
+                        'amber'
+                      }
+                      chatPrompt={insight.chatPrompt ?? insight.title}
+                      onDismiss={() => dismiss(insight.id)}
+                      onContextClick={contextLink ? () => navigate(contextLink) : undefined}
+                    />
                   );
                 })}
               </div>

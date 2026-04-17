@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq, desc, and, sql, accounts, balanceSnapshots, financialProfiles, transactions } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { z } from "zod";
 
 export const priorityRoutes = new Hono<AuthEnv>();
 priorityRoutes.use("*", requireAuth);
@@ -124,10 +125,10 @@ priorityRoutes.get("/", async (c) => {
   const isOver50 = age !== null && age >= 50;
   const isMarried = filingStatus === "married_joint";
 
-  // Build priority steps following   const steps = [];
+  const steps = [];
   let order = 1;
 
-  // Step 1 : Cover Insurance Deductibles
+  // Step 1: Cover Insurance Deductibles
   // First, build a small buffer equal to your max out-of-pocket — typically $1,500–$2,000
   const deductibleTarget = 1500;
   const deductiblePct = Math.min(1, cashTotal / deductibleTarget);
@@ -155,7 +156,7 @@ priorityRoutes.get("/", async (c) => {
     priority: "critical",
   });
 
-  // Step 2 : Capture Employer Match — 100% guaranteed ROI
+  // Step 2: Capture Employer Match — 100% guaranteed ROI
   if (employerMatch > 0) {
     const matchContribution = monthlyIncome * (employerMatch / 100);
     const annualMatch = matchContribution * 12;
@@ -175,7 +176,7 @@ priorityRoutes.get("/", async (c) => {
     });
   }
 
-  // Step 3 : Eliminate High-Interest Debt (>6% APR)
+  // Step 3: Eliminate High-Interest Debt (>6% APR)
   const totalHighDebt = highInterestDebts.reduce(
     (s, d) => s + d.balance,
     0
@@ -203,7 +204,7 @@ priorityRoutes.get("/", async (c) => {
     });
   }
 
-  // Step 4 : Build Full Emergency Reserves (3–6 months)
+  // Step 4: Build Full Emergency Reserves (3–6 months)
   const emergencyTarget = monthlyExpenses > 0 ? monthlyExpenses * 6 : monthlyIncome * 3;
   const emergencyPct =
     emergencyTarget > 0 ? Math.min(1, cashTotal / emergencyTarget) : 0;
@@ -235,7 +236,7 @@ priorityRoutes.get("/", async (c) => {
     });
   }
 
-  // Step 5 : Max Out Roth IRA (tax-free growth)
+  // Step 5a: Max Out Roth IRA (tax-free growth)
   const rothMax = isOver50 ? 8000 : 7000;
   const incomeLimit = isMarried ? 240000 : 161000;
   const overIncomeLimit = annualIncome > incomeLimit;
@@ -261,7 +262,7 @@ priorityRoutes.get("/", async (c) => {
     priority: "medium",
   });
 
-  // Step 5b : Max Out HSA (triple tax advantage)
+  // Step 5b: Max Out HSA (triple tax advantage)
   const hsaMax = isMarried ? 8550 : 4300;
   steps.push({
     id: "max_hsa",
@@ -282,7 +283,7 @@ priorityRoutes.get("/", async (c) => {
     priority: "high",
   });
 
-  // Step 6 : Max Out 401(k) beyond match
+  // Step 6: Max Out 401(k) beyond match
   const max401k = isOver50 ? 31000 : 23500;
   if (employerMatch > 0 || trad401kBalance > 0) {
     steps.push({
@@ -306,7 +307,7 @@ priorityRoutes.get("/", async (c) => {
     });
   }
 
-  // Step 7 : Hyper-accumulate — target 25% savings rate
+  // Step 7: Hyper-accumulate — target 25% savings rate
   const monthlySavings = hasTransactionData ? Math.max(0, monthlyIncome - realMonthlyExpenses) : null;
   const savingsRate = monthlySavings !== null && monthlyIncome > 0
     ? Math.round((monthlySavings / monthlyIncome) * 100)
@@ -336,11 +337,11 @@ priorityRoutes.get("/", async (c) => {
           : `Increase savings rate from ${savingsRate}% to ${savingsRateTarget}% by cutting expenses or boosting income`
         : "Connect bank accounts and set your income in profile to track your savings rate",
     detail:
-      "The Targeting saving 25% of gross income. At this rate, every working year finances 3+ years of retirement.",
+      "Targeting 25% of gross income as your savings rate means every working year finances 3+ years of retirement.",
     priority: "low",
   });
 
-  // Step 8 : Pay Down Medium/Low-Interest Debt
+  // Step 8: Pay Down Medium/Low-Interest Debt
   const totalMedDebt = mediumInterestDebts.reduce(
     (s, d) => s + d.balance,
     0
@@ -368,7 +369,7 @@ priorityRoutes.get("/", async (c) => {
     });
   }
 
-  // Step 9 : Invest Surplus in Taxable Brokerage
+  // Step 9: Invest Surplus in Taxable Brokerage
   steps.push({
     id: "taxable_investing",
     order: order++,
@@ -388,13 +389,22 @@ priorityRoutes.get("/", async (c) => {
     priority: "low",
   });
 
-  // Find the "current step" — the first non-complete step
+  // Load skipped steps from profile
+  const skippedSet = new Set<string>(profile?.skippedPrioritySteps ?? []);
+
+  // Mark skipped on each step (skipped overrides in_progress/not_started but not complete)
+  const stepsWithSkip = steps.map((s) => ({
+    ...s,
+    skipped: s.status !== "complete" && skippedSet.has(s.id),
+  }));
+
+  // Find the "current step" — the first non-complete, non-skipped step
   const currentStepId =
-    steps.find((s) => s.status !== "complete")?.id ||
-    steps[steps.length - 1].id;
+    stepsWithSkip.find((s) => s.status !== "complete" && !s.skipped)?.id ||
+    stepsWithSkip[stepsWithSkip.length - 1].id;
 
   return c.json({
-    steps,
+    steps: stepsWithSkip,
     currentStepId,
     summary: {
       monthlyIncome: Math.round(monthlyIncome),
@@ -409,4 +419,47 @@ priorityRoutes.get("/", async (c) => {
       filingStatus,
     },
   });
+});
+
+// PATCH /skip — toggle skipped status for a step
+const skipSchema = z.object({
+  stepId: z.string().min(1).max(100),
+  skipped: z.boolean(),
+});
+
+priorityRoutes.patch("/skip", async (c) => {
+  const session = c.get("session");
+  const raw = await c.req.json();
+  const parsed = skipSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid request" }, 400);
+  }
+  const { stepId, skipped } = parsed.data;
+
+  // Get or create profile
+  let profile = await db.query.financialProfiles.findFirst({
+    where: eq(financialProfiles.tenantId, session.tenantId),
+  });
+
+  const currentSkipped = new Set<string>(profile?.skippedPrioritySteps ?? []);
+  if (skipped) {
+    currentSkipped.add(stepId);
+  } else {
+    currentSkipped.delete(stepId);
+  }
+  const updatedArray = [...currentSkipped];
+
+  if (profile) {
+    await db
+      .update(financialProfiles)
+      .set({ skippedPrioritySteps: updatedArray })
+      .where(eq(financialProfiles.tenantId, session.tenantId));
+  } else {
+    await db.insert(financialProfiles).values({
+      tenantId: session.tenantId,
+      skippedPrioritySteps: updatedArray,
+    });
+  }
+
+  return c.json({ ok: true, skippedSteps: updatedArray });
 });

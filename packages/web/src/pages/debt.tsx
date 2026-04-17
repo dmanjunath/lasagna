@@ -629,7 +629,7 @@ function HasDebtView({
         </Section>
       </motion.div>
 
-      <ContextualInsights types={["debt", "savings", "general"]} />
+      <ContextualInsights types={["debt", "general"]} />
       {editingDebt && (
         <LoanDetailsModal
           debt={editingDebt}
@@ -671,7 +671,7 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
       </motion.div>
 
       {/* Stay Debt-Free — dynamic actions */}
-      <ContextualInsights types={["debt", "savings", "general"]} />
+      <ContextualInsights types={["debt", "general"]} />
 
       {/* Interest saved */}
       <motion.div {...fadeUp(0.16)}>

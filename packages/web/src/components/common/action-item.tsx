@@ -13,6 +13,7 @@ interface ActionItemProps {
   chatPrompt: string;
   defaultOpen?: boolean;
   onDismiss?: () => void;
+  onContextClick?: () => void;
 }
 
 const tagColors: Record<string, string> = {
@@ -38,6 +39,7 @@ export function ActionItem({
   chatPrompt,
   defaultOpen = false,
   onDismiss,
+  onContextClick,
 }: ActionItemProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [done, setDone] = useState(false);
@@ -127,7 +129,7 @@ export function ActionItem({
           >
             <div className="pb-3 pl-8 pr-1">
               <p className="text-sm text-text-secondary mb-2">{description}</p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span
                   className={cn(
                     'text-[11px] font-semibold px-2 py-0.5 rounded-full',
@@ -146,6 +148,15 @@ export function ActionItem({
                 >
                   Walk me through this &rarr;
                 </button>
+                {onContextClick && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onContextClick(); }}
+                    className="text-xs text-text-muted hover:text-accent transition-colors ml-auto"
+                  >
+                    See in context &rarr;
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>
