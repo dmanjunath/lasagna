@@ -16,26 +16,26 @@
 
 ---
 
-Lasagna is a self-hosted personal finance platform that acts as your own AI financial advisor — answering **where you stand**, **what to do next**, and **whether you're on track**. It's not a budgeting app. It's a projection and insight engine that covers the full wealth spectrum, from paying down debt to managing a multi-million dollar portfolio.
+Lasagna is a self-hosted personal finance platform that acts as your own AI financial advisor. It answers three questions: where you stand, what to do next, and whether you're on track. It's not a budgeting app — it's a projection and insight engine that covers the full wealth spectrum, from paying down debt to managing a multi-million dollar portfolio.
 
 ---
 
 ## Features
 
 ### Dashboard
-Your complete financial picture at a glance — net worth with 30-day sparkline, cash & savings, monthly income and spending, goals progress, and AI-generated action items.
+Your complete financial picture at a glance. Net worth with a 30-day sparkline, cash and savings, monthly income and spending, goals progress, and AI-generated action items.
 
 ### Actions
-AI-generated, prioritized action items across every area of your finances — spending patterns, debt, tax opportunities, portfolio imbalances, and behavioral insights. Grouped by urgency with one-tap access to relevant pages.
+AI-generated action items across every area of your finances, prioritized by urgency. Covers spending patterns, debt, tax opportunities, portfolio imbalances, and behavioral insights. Grouped by urgency with one-tap navigation to the relevant page.
 
 ### Financial Priorities (Your Layers)
-A personalized 9-step financial waterfall that tells you exactly what to focus on right now — insurance deductibles, emergency fund, employer match capture, debt elimination, HSA, Roth IRA, 401(k), hyper-accumulation, and surplus investing. Backed by rule-based logic, not generic advice.
+A personalized 9-step financial waterfall that tells you exactly what to focus on right now — insurance deductibles, emergency fund, employer match, debt, HSA, Roth IRA, 401k, hyper-accumulation, and surplus investing. Backed by rule-based logic, not generic advice.
 
 ### Retirement Planning
-Interactive retirement modeling with age/spending sliders, FIRE number calculation, portfolio projection charts, and a retirement readiness meter. Connects directly to your live account balances.
+Interactive retirement modeling with age and spending sliders, FIRE number calculation, portfolio projection charts, and a retirement readiness meter. Pulls directly from your live account balances.
 
 ### Monte Carlo Simulations
-10,000 stochastic simulations to model your probability of success across retirement. Fan charts (p5–p95), spaghetti charts, final value histograms, and historical backtesting against every market period since 1928 — including 2008, the Great Depression, and stagflation.
+10,000 stochastic simulations modeling your probability of success across retirement. Fan charts (p5–p95), spaghetti charts, final value histograms, and historical backtesting against every market period since 1928, including 2008, the Great Depression, and stagflation.
 
 ### Portfolio Analysis
 Aggregate all holdings across accounts. Drill down by asset class, sub-category, or individual ticker. Interactive donut, bar, and treemap charts. Blended historical return calculations with 175+ tickers mapped to asset categories.
@@ -44,10 +44,10 @@ Aggregate all holdings across accounts. Drill down by asset class, sub-category,
 Monthly expense breakdown by category with 6-month trend charts and full transaction history (searchable, filterable, paginated). Synced automatically via Plaid or entered manually.
 
 ### Debt Management
-Complete debt overview with APRs, avalanche vs. snowball payoff comparison, days-to-debt-free timeline, and total interest savings calculation. Syncs real payoff dates and interest rates directly from Plaid where available.
+Complete debt overview with APRs, avalanche vs. snowball payoff comparison, days-to-debt-free timeline, and total interest savings calculation. Syncs payoff dates and interest rates directly from Plaid where available.
 
 ### Tax Strategy
-AI-generated tax optimization recommendations: Roth conversion opportunities, 0% LTCG bracket harvesting, HSA optimization, asset location, and 401(k) contribution gap analysis. Upload tax documents for AI-assisted extraction.
+AI-generated tax optimization recommendations: Roth conversion opportunities, 0% LTCG bracket harvesting, HSA optimization, asset location, and 401k contribution gap analysis. Upload tax documents for AI-assisted extraction.
 
 ### Goals
 Track financial goals with progress bars, preset templates, inline editing, and completion tracking.
