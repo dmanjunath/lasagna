@@ -25,8 +25,11 @@ Lasagna is a self-hosted personal finance platform that acts as your own AI fina
 ### Dashboard
 Your complete financial picture at a glance — net worth with 30-day sparkline, cash & savings, monthly income and spending, goals progress, and AI-generated action items.
 
+### Actions
+AI-generated, prioritized action items across every area of your finances — spending patterns, debt, tax opportunities, portfolio imbalances, and behavioral insights. Grouped by urgency with one-tap access to relevant pages.
+
 ### Financial Priorities (Your Layers)
-A personalized 8-step financial waterfall that tells you exactly what to focus on right now — employer match capture, emergency fund, debt elimination, HSA, Roth IRA, and beyond. Backed by rule-based logic, not generic advice.
+A personalized 9-step financial waterfall that tells you exactly what to focus on right now — insurance deductibles, emergency fund, employer match capture, debt elimination, HSA, Roth IRA, 401(k), hyper-accumulation, and surplus investing. Backed by rule-based logic, not generic advice.
 
 ### Retirement Planning
 Interactive retirement modeling with age/spending sliders, FIRE number calculation, portfolio projection charts, and a retirement readiness meter. Connects directly to your live account balances.
@@ -41,10 +44,10 @@ Aggregate all holdings across accounts. Drill down by asset class, sub-category,
 Monthly expense breakdown by category with 6-month trend charts and full transaction history (searchable, filterable, paginated). Synced automatically via Plaid or entered manually.
 
 ### Debt Management
-Complete debt overview with APRs, avalanche vs. snowball payoff comparison, days-to-debt-free timeline, and total interest savings calculation.
+Complete debt overview with APRs, avalanche vs. snowball payoff comparison, days-to-debt-free timeline, and total interest savings calculation. Syncs real payoff dates and interest rates directly from Plaid where available.
 
 ### Tax Strategy
-AI-generated tax optimization recommendations: Roth conversion opportunities, 0% LTCG bracket harvesting, HSA optimization, asset location, and 401(k) contribution gap analysis. Upload tax documents for automated extraction via Google Document AI.
+AI-generated tax optimization recommendations: Roth conversion opportunities, 0% LTCG bracket harvesting, HSA optimization, asset location, and 401(k) contribution gap analysis. Upload tax documents for AI-assisted extraction.
 
 ### Goals
 Track financial goals with progress bars, preset templates, inline editing, and completion tracking.
@@ -59,19 +62,19 @@ Ask anything about your finances. Powered by Claude with 12 specialized financia
 <table>
   <tr>
     <td align="center"><strong>Dashboard</strong></td>
-    <td align="center"><strong>Priorities (Your Layers)</strong></td>
+    <td align="center"><strong>Actions</strong></td>
   </tr>
   <tr>
     <td><img src="screenshots/dashboard.png" alt="Dashboard" /></td>
-    <td><img src="screenshots/priorities.png" alt="Priorities" /></td>
+    <td><img src="screenshots/actions.png" alt="Actions" /></td>
   </tr>
   <tr>
+    <td align="center"><strong>Your Layers</strong></td>
     <td align="center"><strong>Retirement Plan</strong></td>
-    <td align="center"><strong>Monte Carlo Simulation</strong></td>
   </tr>
   <tr>
+    <td><img src="screenshots/priorities.png" alt="Your Layers" /></td>
     <td><img src="screenshots/retirement.png" alt="Retirement" /></td>
-    <td><img src="screenshots/probability.png" alt="Probability of Success" /></td>
   </tr>
   <tr>
     <td align="center"><strong>Portfolio Analysis</strong></td>
@@ -83,11 +86,11 @@ Ask anything about your finances. Powered by Claude with 12 specialized financia
   </tr>
   <tr>
     <td align="center"><strong>Debt Management</strong></td>
-    <td align="center"><strong>Goals</strong></td>
+    <td align="center"><strong>Tax Strategy</strong></td>
   </tr>
   <tr>
     <td><img src="screenshots/debt.png" alt="Debt" /></td>
-    <td><img src="screenshots/goals.png" alt="Goals" /></td>
+    <td><img src="screenshots/tax.png" alt="Tax Strategy" /></td>
   </tr>
 </table>
 
@@ -98,7 +101,7 @@ Ask anything about your finances. Powered by Claude with 12 specialized financia
   &nbsp;&nbsp;
   <img src="screenshots/mobile-spending.png" alt="Mobile Spending" width="280" />
   &nbsp;&nbsp;
-  <img src="screenshots/mobile-chat.png" alt="Mobile Chat" width="280" />
+  <img src="screenshots/mobile-priorities.png" alt="Mobile Layers" width="280" />
 </p>
 
 ---
@@ -113,7 +116,6 @@ Ask anything about your finances. Powered by Claude with 12 specialized financia
 | Auth | Custom JWT (bcrypt + sessions) |
 | AI | Claude (via OpenRouter) |
 | Banking | Plaid API |
-| Tax OCR | Vision LLM (bring your own provider) |
 | Deployment | Docker, GCP Cloud Run, Cloudflare Pages |
 
 ---
@@ -133,7 +135,7 @@ git clone https://github.com/dmanjunath/lasagna.git
 cd lasagna
 
 cp .env.example .env
-# Fill in: ENCRYPTION_KEY, BETTER_AUTH_SECRET, and optional Plaid credentials
+# Fill in: ENCRYPTION_KEY, and optional Plaid/OpenRouter credentials
 # (see .env.example for all variables)
 
 docker compose up
