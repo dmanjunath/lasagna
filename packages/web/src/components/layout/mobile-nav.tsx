@@ -12,7 +12,6 @@ import {
   Target,
   User,
   Sparkles,
-  Plus,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { LucideIcon } from 'lucide-react';
@@ -51,10 +50,9 @@ const navSections: NavSection[] = [
 interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
-  onNewPlan?: () => void;
 }
 
-export function MobileNav({ isOpen, onClose, onNewPlan }: MobileNavProps) {
+export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const [location, navigate] = useLocation();
 
   const isActive = (path: string) => location === path;
@@ -132,15 +130,6 @@ export function MobileNav({ isOpen, onClose, onNewPlan }: MobileNavProps) {
                         </button>
                       );
                     })}
-                    {section.label === 'Account' && onNewPlan && (
-                      <button
-                        onClick={() => { onNewPlan(); onClose(); }}
-                        className="w-full text-left px-3 py-2.5 rounded-xl text-sm flex items-center gap-3 transition-colors hover:bg-surface-hover text-text-muted hover:text-text border border-dashed border-border/50 hover:border-accent/30"
-                      >
-                        <Plus className="w-5 h-5" />
-                        <span className="font-medium">New Plan</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               ))}

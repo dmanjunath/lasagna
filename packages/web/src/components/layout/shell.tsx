@@ -57,10 +57,6 @@ export function Shell({ children }: ShellProps) {
     }
   }, [chatOpen, openChat, closeChat, controls]);
 
-  const handleNewPlan = () => {
-    setLocation('/plans/new');
-  };
-
   return (
     <div className="h-dvh w-screen overflow-hidden bg-bg flex flex-col">
       {/* Mobile: hamburger (hidden when chat is open) */}
@@ -70,7 +66,6 @@ export function Shell({ children }: ShellProps) {
           <MobileNav
             isOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
-            onNewPlan={handleNewPlan}
           />
         </>
       )}
@@ -127,7 +122,7 @@ export function Shell({ children }: ShellProps) {
         <div className="flex-1 flex overflow-hidden">
           {/* Desktop sidebar */}
           <aside className="w-[220px] flex-shrink-0 border-r border-border overflow-y-auto">
-            <Sidebar onNewPlan={handleNewPlan} />
+            <Sidebar />
           </aside>
 
           {/* Main content area */}

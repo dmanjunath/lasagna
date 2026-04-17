@@ -3,16 +3,11 @@ import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
-  TrendingUp,
   Receipt,
-  Sparkles,
   Target,
   CreditCard,
   Compass,
-  Plus,
-  ChevronDown,
   Loader2,
-  X,
   Building2,
   LogOut,
   ChevronUp,
@@ -22,10 +17,8 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Logo } from '../common/Logo';
-import type { Plan, PlanType } from '../../lib/types';
 import type { LucideIcon } from 'lucide-react';
 
 interface NavItem {
@@ -47,53 +40,16 @@ const fixedTabs: NavItem[] = [
   { id: 'tax', name: 'Tax', icon: Receipt, path: '/tax' },
 ];
 
-const planTypeIcons: Record<PlanType, LucideIcon> = {
-  net_worth: TrendingUp,
-  retirement: Target,
-  debt_payoff: CreditCard,
-  custom: Sparkles,
-};
-
 interface SidebarProps {
   onNewPlan?: () => void;
   className?: string;
 }
 
-export function Sidebar({ onNewPlan, className }: SidebarProps) {
+export function Sidebar({ className }: SidebarProps) {
   const [location, navigate] = useLocation();
   const { user, tenant, logout } = useAuth();
-  const [plansExpanded, setPlansExpanded] = useState(true);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loadingPlans, setLoadingPlans] = useState(true);
-  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    api.getPlans()
-      .then(({ plans }) => setPlans(plans))
-      .catch((err) => console.error("Failed to load plans:", err))
-      .finally(() => setLoadingPlans(false));
-  }, [location]);
-
-  const handleDeletePlan = async (planId: string, planTitle: string, e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent navigation to plan detail
-    e.stopPropagation();
-
-    const confirmed = window.confirm(`Delete '${planTitle}'? This will archive the plan.`);
-    if (!confirmed) return;
-
-    setDeletingPlanId(planId);
-    try {
-      await api.deletePlan(planId);
-      setPlans((prevPlans) => prevPlans.filter((plan) => plan.id !== planId));
-    } catch (error) {
-      console.error("Failed to delete plan:", error);
-      alert("Failed to delete plan. Please try again.");
-    } finally {
-      setDeletingPlanId(null);
-    }
-  };
 
   // Close user menu on click outside
   useEffect(() => {
@@ -152,91 +108,6 @@ export function Sidebar({ onNewPlan, className }: SidebarProps) {
           </div>
         </div>
 
-        {/* User Plans */}
-        <div>
-          <button
-            onClick={() => setPlansExpanded(!plansExpanded)}
-            className="w-full flex items-center justify-between text-xs uppercase tracking-wider text-text-secondary font-semibold mb-3 px-2 hover:text-text transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 rounded"
-          >
-            <span>Your Plans</span>
-            <motion.div
-              animate={{ rotate: plansExpanded ? 0 : -90 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ChevronDown className="w-4 h-4" />
-            </motion.div>
-          </button>
-
-          <AnimatePresence>
-            {plansExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-1 overflow-hidden"
-              >
-                {loadingPlans ? (
-                  <div className="px-3 py-2 text-sm text-text-muted flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Loading...</span>
-                  </div>
-                ) : plans.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-text-muted">Create your first plan</div>
-                ) : (
-                  plans.map((plan) => {
-                    const planPath = `/plans/${plan.id}`;
-                    const PlanIcon = planTypeIcons[plan.type];
-                    return (
-                      <motion.div
-                        key={plan.id}
-                        whileHover={{ x: 2 }}
-                        whileTap={{ scale: 0.98 }}
-                        className="relative group"
-                      >
-                        <button
-                          onClick={() => navigate(planPath)}
-                          className={cn(
-                            'w-full text-left px-3 py-3 rounded-xl text-sm flex items-center gap-3 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
-                            isActive(planPath)
-                              ? 'bg-accent/10 text-accent border border-accent/20'
-                              : 'hover:bg-surface-hover text-text-secondary hover:text-text border border-transparent'
-                          )}
-                        >
-                          <PlanIcon className={cn('w-5 h-5', isActive(planPath) ? 'text-accent' : 'text-text-muted')} />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium truncate">{plan.title}</div>
-                          </div>
-                        </button>
-                        <button
-                          onClick={(e) => handleDeletePlan(plan.id, plan.title, e)}
-                          disabled={deletingPlanId === plan.id}
-                          className="absolute top-1/2 -translate-y-1/2 right-2 p-1 rounded-md hover:bg-red-500/10 text-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                          aria-label="Delete plan"
-                        >
-                          {deletingPlanId === plan.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <X className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      </motion.div>
-                    );
-                  })
-                )}
-
-                <motion.button
-                  onClick={onNewPlan}
-                  whileHover={{ x: 2 }}
-                  className="w-full px-3 py-3 rounded-xl text-sm text-text-muted hover:text-text hover:bg-surface-hover transition-all duration-200 flex items-center gap-3 border border-dashed border-border/50 hover:border-accent/30 mt-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span className="font-medium">New Plan</span>
-                </motion.button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </nav>
 
       {/* User profile */}
