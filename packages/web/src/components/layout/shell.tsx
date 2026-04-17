@@ -7,7 +7,6 @@ import { MobileNav, MobileMenuButton } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { useChatStore } from '../../lib/chat-store';
-import { FloatingChatPill } from '../chat/floating-chat-pill';
 import { ChatTabs } from '../chat/chat-tabs';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
 
@@ -167,8 +166,6 @@ export function Shell({ children }: ShellProps) {
       {/* Mobile tab bar — hidden when chat is open */}
       {isMobile && !chatOpen && <MobileTabBar />}
 
-      {/* Floating pill — only when chat is closed on mobile */}
-      {isMobile && !chatOpen && <FloatingChatPill />}
     </div>
   );
 }
