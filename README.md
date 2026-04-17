@@ -16,7 +16,12 @@
 
 ---
 
-Lasagna is a self-hosted personal finance platform that acts as your own AI financial advisor. It answers three questions: where you stand, what to do next, and whether you're on track. It's not a budgeting app — it's a projection and insight engine that covers the full wealth spectrum, from paying down debt to managing a multi-million dollar portfolio.
+Lasagna is a self-hosted personal finance platform that helps you manage your financial life. While not a replacement for a real financial advisor, Lasagna can help you get most of the way there on your own and it answers three questions
+1. Where do I get started managing my fnances?
+2. What to do next?
+3. Am I on track for retirement?
+
+While there are some budgeting features, it's not a budgeting app, it's much more. It gives you insights about how to best pay off your debts, runs projections about your investment portfolio and gives you insights about your entire financial picture. Doesn't matter if you have 200k in student loans or a $50 million dollar portfolio.
 
 ---
 
@@ -28,8 +33,8 @@ Your complete financial picture at a glance. Net worth with a 30-day sparkline, 
 ### Actions
 AI-generated action items across every area of your finances, prioritized by urgency. Covers spending patterns, debt, tax opportunities, portfolio imbalances, and behavioral insights. Grouped by urgency with one-tap navigation to the relevant page.
 
-### Financial Priorities (Your Layers)
-A personalized 9-step financial waterfall that tells you exactly what to focus on right now — insurance deductibles, emergency fund, employer match, debt, HSA, Roth IRA, 401k, hyper-accumulation, and surplus investing. Backed by rule-based logic, not generic advice.
+### Financial Priorities (Your Lasagna Layers)
+A personalized financial plan that tells you exactly what to focus on right now — insurance deductibles, emergency fund, employer match, debt, HSA, Roth IRA, 401k, accumulation, and surplus investing. Backed by rule-based logic, not generic advice.
 
 ### Retirement Planning
 Interactive retirement modeling with age and spending sliders, FIRE number calculation, portfolio projection charts, and a retirement readiness meter. Pulls directly from your live account balances.
