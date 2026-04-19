@@ -13,7 +13,6 @@ import {
   Calendar,
   Wallet,
   TrendingUp,
-  Target,
   Flame,
   Clock,
   ArrowRight,
@@ -21,10 +20,6 @@ import {
   RefreshCw,
   Building2,
   Plus,
-  MessageCircle,
-  ChevronRight,
-  DollarSign,
-  Shield,
 } from "lucide-react";
 import { cn, formatMoney } from "../lib/utils";
 import { api } from "../lib/api";
@@ -32,7 +27,7 @@ import { usePageContext } from "../lib/page-context";
 import { Section } from "../components/common/section";
 import { StatCard } from "../components/common/stat-card";
 import { Button } from "../components/ui/button";
-import { ContextualInsights } from "../components/common/contextual-insights";
+import { PageActions } from "../components/common/page-actions";
 
 // Historical average annual returns by asset class
 const HISTORICAL_RETURNS: Record<string, number> = {
@@ -95,6 +90,7 @@ export function Retirement() {
   const [employerMatchPct, setEmployerMatchPct] = useState(0);
   const [allocation, setAllocation] = useState<Record<string, number>>({});
   const [riskTolerance, setRiskTolerance] = useState<string | null>(null);
+  const [filingStatus, setFilingStatus] = useState<string | null>(null);
 
   // Interactive controls
   const [retirementAge, setRetirementAge] = useState(65);
@@ -134,6 +130,7 @@ export function Retirement() {
         if (profile.retirementAge) setRetirementAge(profile.retirementAge);
         if (profile.employerMatchPercent) setEmployerMatchPct(profile.employerMatchPercent);
         if (profile.riskTolerance) setRiskTolerance(profile.riskTolerance);
+        if (profile.filingStatus) setFilingStatus(profile.filingStatus);
       }
 
       // Allocation
@@ -165,10 +162,12 @@ export function Retirement() {
           portfolioValue,
           monthlyRetirementSpend,
           annualIncome,
+          filingStatus,
+          riskTolerance,
         },
       });
     }
-  }, [loading, hasAccounts, currentAge, retirementAge, portfolioValue, monthlyRetirementSpend, annualIncome, setPageContext]);
+  }, [loading, hasAccounts, currentAge, retirementAge, portfolioValue, monthlyRetirementSpend, annualIncome, filingStatus, riskTolerance, setPageContext]);
 
   // Computed values
   const yearsUntilRetirement = Math.max(0, retirementAge - currentAge);
@@ -219,36 +218,6 @@ export function Retirement() {
     expectedReturn
   );
 
-  // Action items
-  const actionItems: Array<{ icon: typeof Target; title: string; description: string; chatPrompt: string }> = [];
-  if (employerMatchPct > 0) {
-    actionItems.push({
-      icon: DollarSign,
-      title: "Maximize 401(k) employer match",
-      description: `Your employer matches ${employerMatchPct}%. Make sure you're contributing enough to get the full match.`,
-      chatPrompt: "Am I contributing enough to get my full employer 401(k) match?",
-    });
-  }
-  if (annualExpenses > 0) {
-    const reducedExpenses = annualExpenses * 0.9;
-    const reducedFire = reducedExpenses * 25;
-    const yearsSaved = fireNumber > 0 && reducedFire < fireNumber ? Math.round((fireNumber - reducedFire) / annualSavings) : 0;
-    if (yearsSaved > 0) {
-      actionItems.push({
-        icon: PiggyBank,
-        title: `Cut expenses by 10% to retire ~${yearsSaved} years earlier`,
-        description: `Reducing monthly spending by ${formatMoney(monthlyRetirementSpend * 0.1)} lowers your FIRE number by ${formatMoney(fireNumber - reducedFire)}.`,
-        chatPrompt: "What expenses should I cut to retire earlier?",
-      });
-    }
-  }
-  actionItems.push({
-    icon: Shield,
-    title: "Review tax-advantaged accounts",
-    description: "Ensure you're maxing out Roth IRA, HSA, and other tax-advantaged accounts for optimal growth.",
-    chatPrompt: "Which tax-advantaged accounts should I prioritize?",
-  });
-
   const strategies = [
     { id: "constant_dollar", label: "Constant Dollar" },
     { id: "percent_portfolio", label: "% of Portfolio" },
@@ -262,7 +231,7 @@ export function Retirement() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-accent" />
-          <p className="text-text-muted">Loading your financial data...</p>
+          <p className="text-text-secondary">Loading your financial data...</p>
         </div>
       </div>
     );
@@ -277,11 +246,11 @@ export function Retirement() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center"
         >
-          <Building2 className="w-16 h-16 text-text-muted mb-6" />
+          <Building2 className="w-16 h-16 text-text-secondary mb-6" />
           <h2 className="font-display text-2xl md:text-3xl font-medium mb-3">
             No Accounts Linked
           </h2>
-          <p className="text-text-muted max-w-md mb-8">
+          <p className="text-text-secondary max-w-md mb-8">
             Connect your bank and investment accounts to see your retirement projections based on real data.
           </p>
           <Button onClick={() => navigate("/accounts")}>
@@ -295,7 +264,6 @@ export function Retirement() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
-      <ContextualInsights types={["savings", "portfolio"]} />
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -303,7 +271,7 @@ export function Retirement() {
         className="mb-6 md:mb-8"
       >
         <h1 className="font-display text-2xl md:text-3xl font-medium">Retirement Plan</h1>
-        <p className="text-text-muted mt-2">Your path to financial independence</p>
+        <p className="text-text-secondary mt-2">Your path to financial independence</p>
       </motion.div>
 
       {/* Overview Cards */}
@@ -347,13 +315,13 @@ export function Retirement() {
             className="glass-card rounded-2xl p-5"
           >
             <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-5 h-5 text-text-muted" />
+              <TrendingUp className="w-5 h-5 text-text-secondary" />
               <span className="text-sm text-text-secondary font-medium">Portfolio at Retirement</span>
             </div>
             <div className="font-display text-2xl font-semibold tabular-nums text-success">
               {formatMoney(portfolioAtRetirement, true)}
             </div>
-            <p className="text-text-muted text-xs mt-2">
+            <p className="text-text-secondary text-xs mt-2">
               At {expectedReturn.toFixed(1)}% avg return
             </p>
           </motion.div>
@@ -365,7 +333,7 @@ export function Retirement() {
             className="glass-card rounded-2xl p-5"
           >
             <div className="flex items-center gap-2 mb-3">
-              <Clock className="w-5 h-5 text-text-muted" />
+              <Clock className="w-5 h-5 text-text-secondary" />
               <span className="text-sm text-text-secondary font-medium">Years Money Lasts</span>
             </div>
             <div className={cn(
@@ -374,7 +342,7 @@ export function Retirement() {
             )}>
               {yearsMoneyLasts >= 60 ? "60+" : yearsMoneyLasts} years
             </div>
-            <p className="text-text-muted text-xs mt-2">
+            <p className="text-text-secondary text-xs mt-2">
               Until age {retirementAge + yearsMoneyLasts}
             </p>
           </motion.div>
@@ -386,13 +354,13 @@ export function Retirement() {
             className="glass-card rounded-2xl p-5"
           >
             <div className="flex items-center gap-2 mb-3">
-              <Wallet className="w-5 h-5 text-text-muted" />
+              <Wallet className="w-5 h-5 text-text-secondary" />
               <span className="text-sm text-text-secondary font-medium">Monthly Income</span>
             </div>
             <div className="font-display text-2xl font-semibold tabular-nums">
               {formatMoney(monthlyRetirementIncome)}
             </div>
-            <p className="text-text-muted text-xs mt-2">
+            <p className="text-text-secondary text-xs mt-2">
               Sustainable (4% rule)
             </p>
           </motion.div>
@@ -404,18 +372,20 @@ export function Retirement() {
             className="glass-card rounded-2xl p-5"
           >
             <div className="flex items-center gap-2 mb-3">
-              <Flame className="w-5 h-5 text-text-muted" />
+              <Flame className="w-5 h-5 text-text-secondary" />
               <span className="text-sm text-text-secondary font-medium">FIRE Number</span>
             </div>
             <div className="font-display text-2xl font-semibold tabular-nums">
               {formatMoney(fireNumber, true)}
             </div>
-            <p className="text-text-muted text-xs mt-2">
+            <p className="text-text-secondary text-xs mt-2">
               25x annual expenses
             </p>
           </motion.div>
         </div>
       </Section>
+
+      <PageActions types={["retirement", "savings", "portfolio"]} />
 
       {/* Retirement Readiness + Projection Chart */}
       <Section title="Retirement Readiness">
@@ -449,10 +419,10 @@ export function Retirement() {
                 <span className={cn("font-display text-3xl font-semibold tabular-nums", readinessColor)}>
                   {readiness.toFixed(0)}%
                 </span>
-                <span className="text-text-muted text-xs">ready</span>
+                <span className="text-text-secondary text-xs">ready</span>
               </div>
             </div>
-            <p className="text-text-muted text-sm text-center">
+            <p className="text-text-secondary text-sm text-center">
               {readiness >= 80 ? "You're on track for retirement!" :
                readiness >= 50 ? "Getting there — keep saving." :
                "More savings needed to reach your goal."}
@@ -537,7 +507,7 @@ export function Retirement() {
                 onChange={(e) => setRetirementAge(parseInt(e.target.value))}
                 className="w-full accent-accent h-1.5"
               />
-              <div className="flex justify-between text-xs text-text-muted">
+              <div className="flex justify-between text-xs text-text-secondary">
                 <span>50</span>
                 <span>75</span>
               </div>
@@ -558,7 +528,7 @@ export function Retirement() {
                 onChange={(e) => setMonthlyRetirementSpend(parseInt(e.target.value))}
                 className="w-full accent-accent h-1.5"
               />
-              <div className="flex justify-between text-xs text-text-muted">
+              <div className="flex justify-between text-xs text-text-secondary">
                 <span>$2k</span>
                 <span>$20k</span>
               </div>
@@ -597,40 +567,6 @@ export function Retirement() {
         </motion.div>
       </Section>
 
-      {/* Action Items */}
-      <Section title="Action Items">
-        <div className="space-y-3">
-          {actionItems.map((item, i) => {
-            const Icon = item.icon;
-            return (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + i * 0.05 }}
-                className="glass-card glass-card-hover rounded-2xl p-4 flex items-center gap-4 cursor-pointer group"
-                onClick={() => {
-                  // Navigate to chat with the prompt
-                  const encoded = encodeURIComponent(item.chatPrompt);
-                  navigate(`/chat?q=${encoded}`);
-                }}
-              >
-                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-5 h-5 text-accent" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text">{item.title}</p>
-                  <p className="text-xs text-text-muted mt-0.5 truncate">{item.description}</p>
-                </div>
-                <div className="flex items-center gap-1 text-text-muted group-hover:text-accent transition-colors flex-shrink-0">
-                  <MessageCircle className="w-4 h-4" />
-                  <ChevronRight className="w-4 h-4" />
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      </Section>
     </div>
   );
 }

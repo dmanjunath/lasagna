@@ -28,7 +28,7 @@ export function EditableStatCard({
   return (
     <div className="glass-card rounded-2xl p-5">
       <div className="flex items-center gap-2 mb-3">
-        {Icon && <Icon className="w-5 h-5 text-text-muted" />}
+        {Icon && <Icon className="w-5 h-5 text-text-secondary" />}
         <span className="text-sm text-text-secondary font-medium">{label}</span>
       </div>
       <input

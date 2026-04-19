@@ -49,13 +49,13 @@ export function ActionCard({ action, context, priority = 'medium', onClick }: Ac
         </div>
         <div className="flex-1 min-w-0">
           <p className={cn(
-            'text-[15px] text-[#f5f5f5]',
+            'text-[15px] text-text',
             completed && 'line-through'
           )}>
             {action}
           </p>
           {context && (
-            <p className="text-[13px] text-[#6b6b6b] mt-1">{context}</p>
+            <p className="text-[13px] text-text-secondary mt-1">{context}</p>
           )}
         </div>
       </div>

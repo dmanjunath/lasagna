@@ -31,7 +31,7 @@ export function ContextualInsights({
         <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
           Actions
         </span>
-        <span className="text-xs text-text-secondary/60">({shown.length})</span>
+        <span className="text-xs text-text-muted">({shown.length})</span>
       </div>
       <div className="bg-bg-elevated border border-border rounded-xl px-4">
         {shown.map((insight) => (

@@ -1,10 +1,9 @@
 import { Hono } from "hono";
 import { eq, and, desc, accounts, balanceSnapshots, plaidItems } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const manualAccountRoutes = new Hono<AuthEnv>();
-manualAccountRoutes.use("*", requireAuth);
 
 // Helper: get or create the "Manual Entry" plaid item for this tenant
 async function getOrCreateManualItem(tenantId: string): Promise<string> {

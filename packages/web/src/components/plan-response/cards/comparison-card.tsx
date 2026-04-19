@@ -34,21 +34,21 @@ export function ComparisonCard({ options, onSelect, selectedIndex }: ComparisonC
         >
           <div className="space-y-4">
             <div>
-              <h4 className="text-[16px] font-semibold text-[#f5f5f5]">{option.title}</h4>
-              <p className="text-[13px] text-[#6b6b6b] mt-1">{option.summary}</p>
+              <h4 className="text-[16px] font-semibold text-text">{option.title}</h4>
+              <p className="text-[13px] text-text-secondary mt-1">{option.summary}</p>
             </div>
 
             <div className="space-y-2">
               {option.pros.map((pro, j) => (
                 <div key={`pro-${j}`} className="flex items-start gap-2 text-[13px]">
                   <Check className="w-3.5 h-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <span className="text-[#a3a3a3]">{pro}</span>
+                  <span className="text-text-secondary">{pro}</span>
                 </div>
               ))}
               {option.cons.map((con, j) => (
                 <div key={`con-${j}`} className="flex items-start gap-2 text-[13px]">
                   <X className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
-                  <span className="text-[#a3a3a3]">{con}</span>
+                  <span className="text-text-secondary">{con}</span>
                 </div>
               ))}
             </div>

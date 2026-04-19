@@ -18,7 +18,7 @@ export function IncomeBreakdownRenderer({ block }: { block: IncomeBreakdownBlock
             <div>
               <span className="text-text">{source.name}</span>
               {source.startAge && (
-                <span className="text-xs text-text-muted ml-2">(from age {source.startAge})</span>
+                <span className="text-xs text-text-secondary ml-2">(from age {source.startAge})</span>
               )}
             </div>
             <span className="font-medium text-text tabular-nums">
@@ -32,7 +32,7 @@ export function IncomeBreakdownRenderer({ block }: { block: IncomeBreakdownBlock
           <span className="text-text">Total</span>
           <div className="text-right">
             <div className="text-accent">{formatCurrency(block.totalAnnual)}/yr</div>
-            <div className="text-sm text-text-muted">{formatCurrency(block.totalMonthly)}/mo</div>
+            <div className="text-sm text-text-secondary">{formatCurrency(block.totalMonthly)}/mo</div>
           </div>
         </div>
       </div>

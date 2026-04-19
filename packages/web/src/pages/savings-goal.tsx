@@ -49,14 +49,14 @@ export function SavingsGoal() {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-5 h-5 animate-spin text-text-muted" />
+        <Loader2 className="w-5 h-5 animate-spin text-text-secondary" />
       </div>
     );
   }
 
   if (notFound || !goal) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-muted">
+      <div className="flex-1 flex items-center justify-center text-text-secondary">
         Goal not found
       </div>
     );
@@ -76,7 +76,7 @@ export function SavingsGoal() {
       >
         <h1 className="font-display text-2xl md:text-3xl font-medium">{goal.name}</h1>
         {deadlineLabel && (
-          <p className="text-text-muted mt-2">Target: {deadlineLabel}</p>
+          <p className="text-text-secondary mt-2">Target: {deadlineLabel}</p>
         )}
       </motion.div>
 
@@ -88,10 +88,10 @@ export function SavingsGoal() {
       >
         <div className="flex items-end justify-between mb-6">
           <div>
-            <p className="text-text-muted text-sm mb-2">Current Progress</p>
+            <p className="text-text-secondary text-sm mb-2">Current Progress</p>
             <div className="font-display text-4xl md:text-5xl font-semibold tabular-nums">
               {formatCurrency(goal.current)}
-              <span className="text-xl md:text-2xl text-text-muted"> / {formatCurrency(goal.target)}</span>
+              <span className="text-xl md:text-2xl text-text-secondary"> / {formatCurrency(goal.target)}</span>
             </div>
           </div>
           <div className="text-lg md:text-xl font-semibold text-success">

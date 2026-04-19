@@ -14,6 +14,11 @@ export function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const autofillDemo = () => {
+    setEmail("demo@lasagnafi.com");
+    setPassword("lasagna123");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -55,11 +60,29 @@ export function Login() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center mb-4">
-              <Logo size={64} />
+              <Logo width={64} />
             </div>
             <h1 className="text-3xl font-display font-semibold text-text">Lasagna</h1>
-            <p className="text-text-muted mt-1">Personal finance platform</p>
+            <p className="text-text-secondary mt-1">Personal finance platform</p>
           </div>
+
+          {import.meta.env.VITE_DEMO_MODE === "true" && (
+            <div className="mb-4 rounded-lg border border-[rgba(0,229,160,0.25)] bg-[rgba(0,229,160,0.08)] p-3 text-sm">
+              <p className="font-semibold text-[rgb(var(--color-accent))] mb-1">
+                Demo account
+              </p>
+              <p className="text-[rgb(var(--color-text-secondary))]">
+                Email: demo@lasagnafi.com &nbsp;|&nbsp; Password: lasagna123
+              </p>
+              <button
+                type="button"
+                onClick={autofillDemo}
+                className="mt-2 text-xs text-[rgb(var(--color-accent))] underline"
+              >
+                Auto-fill credentials
+              </button>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignup && (
@@ -120,20 +143,45 @@ export function Login() {
             </Button>
           </form>
 
-          <p className="text-center text-text-muted mt-6">
-            {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignup(!isSignup);
-                setError("");
-              }}
-              className="text-accent hover:text-accent-dim transition-colors font-medium"
-            >
-              {isSignup ? "Sign in" : "Sign up"}
-            </button>
-          </p>
+          {/* Sign-up toggle button — hide in demo mode */}
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+            <p className="text-center text-text-secondary mt-6">
+              {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignup(!isSignup);
+                  setError("");
+                }}
+                className="text-accent hover:text-accent-dim transition-colors font-medium"
+              >
+                {isSignup ? "Sign in" : "Sign up"}
+              </button>
+            </p>
+          )}
+
+          {/* If in demo mode, redirect to app.lasagnafi.com instead */}
+          {import.meta.env.VITE_DEMO_MODE === "true" && (
+            <p className="text-center text-sm text-[rgb(var(--color-text-secondary))] mt-6">
+              <a href="https://app.lasagnafi.com/login" className="text-[rgb(var(--color-accent))] underline">
+                Create an account at app.lasagnafi.com →
+              </a>
+            </p>
+          )}
         </div>
+
+        {/* Try the demo link — shown only when not in demo mode */}
+        {import.meta.env.VITE_DEMO_MODE !== "true" && (
+          <p className="text-center text-xs text-[rgb(var(--color-text-muted))] mt-3">
+            Want to explore first?{" "}
+            <a
+              href="https://demo.lasagnafi.com"
+              className="text-[rgb(var(--color-text-secondary))] underline"
+            >
+              Try the demo →
+            </a>
+          </p>
+        )}
 
         {/* Decorative border glow */}
         <div className="absolute -inset-px rounded-2xl bg-gradient-to-br from-accent/20 via-transparent to-accent/10 -z-10 blur-sm" />

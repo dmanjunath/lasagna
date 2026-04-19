@@ -1,0 +1,30 @@
+---
+import "../styles/global.css";
+
+export interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Lasagna — Private AI-Powered Personal Finance",
+  description = "Lasagna connects your accounts, runs retirement simulations, and answers financial questions with AI. Your data stays private — use our hosted product or self-host on your own infrastructure.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body class="bg-canvas">
+    <slot />
+  </body>
+</html>

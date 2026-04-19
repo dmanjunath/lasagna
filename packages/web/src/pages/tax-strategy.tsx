@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FileText, Trash2, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { FileText, Trash2, Plus, RefreshCw } from "lucide-react";
 import { Section } from "../components/common/section.js";
-import { ActionItem } from "../components/common/action-item.js";
+import { PageActions } from "../components/common/page-actions";
 import { Button } from "../components/ui/button.js";
 import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
 import type { TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
 import { useChatStore } from "../lib/chat-store.js";
 import { useInsights } from "../hooks/useInsights.js";
+import { usePageContext } from "../lib/page-context.js";
 
 const FILING_LABELS: Record<string, string> = {
   single: "Single",
@@ -83,6 +84,23 @@ export function TaxStrategy() {
   }, []);
 
   const { openChat } = useChatStore();
+  const { setPageContext } = usePageContext();
+
+  useEffect(() => {
+    if (profileInfo) {
+      setPageContext({
+        pageId: "tax",
+        pageTitle: "Tax Strategy",
+        description: "Tax optimization suggestions and document management.",
+        data: {
+          filingStatus: profileInfo.filingStatus,
+          employmentType: profileInfo.employmentType,
+          stateOfResidence: profileInfo.stateOfResidence,
+          documentCount: documents.length,
+        },
+      });
+    }
+  }, [profileInfo, documents.length, setPageContext]);
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
@@ -121,67 +139,7 @@ export function TaxStrategy() {
         </div>
       </motion.div>
 
-      {/* Suggestions — LLM-generated, personalized to the user's financial data */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08 }}
-      >
-        <Section
-          title="Suggestions"
-          actions={
-            <button
-              type="button"
-              onClick={() => refresh()}
-              className="flex items-center gap-1.5 text-xs text-text-muted hover:text-accent transition-colors"
-            >
-              <RefreshCw className="w-3 h-3" />
-              Refresh
-            </button>
-          }
-        >
-          {insightsLoading ? (
-            <div className="flex items-center gap-2 px-1 py-4 text-sm text-text-muted">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              Loading suggestions…
-            </div>
-          ) : insights.length === 0 ? (
-            <div className="glass-card rounded-xl p-6 flex flex-col items-center gap-3 text-center">
-              <div className="w-10 h-10 rounded-xl bg-surface-hover flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-text-muted" />
-              </div>
-              <div>
-                <div className="text-sm font-medium mb-1">No suggestions yet</div>
-                <div className="text-sm text-text-secondary">Generate personalized suggestions based on your accounts and financial profile</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => refresh()}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Generate suggestions
-              </button>
-            </div>
-          ) : (
-            <div className="bg-bg-elevated border border-border rounded-xl px-4">
-              {insights.map((insight, i) => (
-                <ActionItem
-                  key={insight.id}
-                  title={insight.title}
-                  tag={(insight.type ?? "tax").toUpperCase()}
-                  description={insight.description}
-                  impact={insight.impact ?? ""}
-                  impactColor={(insight.impactColor as "green" | "amber" | "red") ?? "amber"}
-                  chatPrompt={insight.chatPrompt ?? insight.title}
-                  onDismiss={() => dismiss(insight.id)}
-                  defaultOpen={i === 0}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
-      </motion.div>
+      <PageActions types="tax" />
 
       {/* Tax-Advantaged Account Stack */}
       <motion.div
@@ -215,7 +173,7 @@ export function TaxStrategy() {
                   <div className="text-sm font-semibold">HSA</div>
                   <div className="text-sm text-text-secondary">$4,150 limit</div>
                 </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-hover text-text-muted">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-hover text-text-secondary">
                   Check eligibility
                 </span>
               </div>
@@ -282,13 +240,13 @@ export function TaxStrategy() {
               </div>
               <div className="flex items-center gap-4 py-3">
                 <div className="w-14 text-center flex-shrink-0">
-                  <div className="text-xs font-bold uppercase text-text-muted">Dec 31</div>
+                  <div className="text-xs font-bold uppercase text-text-secondary">Dec 31</div>
                 </div>
                 <div className="text-sm text-text-secondary">401(k) contribution deadline</div>
               </div>
               <div className="flex items-center gap-4 py-3">
                 <div className="w-14 text-center flex-shrink-0">
-                  <div className="text-xs font-bold uppercase text-text-muted">Nov</div>
+                  <div className="text-xs font-bold uppercase text-text-secondary">Nov</div>
                 </div>
                 <div className="text-sm text-text-secondary">Open enrollment (HSA check)</div>
               </div>
@@ -300,10 +258,12 @@ export function TaxStrategy() {
       {/* Tax Documents */}
       <Section title="Tax Documents">
         <div className="space-y-6">
-          <TaxInputPanel onSuccess={handleInputSuccess} />
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+            <TaxInputPanel onSuccess={handleInputSuccess} />
+          )}
 
           {insightStatus === "generating" && (
-            <div className="flex items-center gap-2 text-text-muted text-xs">
+            <div className="flex items-center gap-2 text-text-secondary text-xs">
               <RefreshCw className="w-3 h-3 animate-spin" />
               Updating tax insights…
             </div>
@@ -332,7 +292,7 @@ export function TaxStrategy() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0">
-                        <FileText className="w-5 h-5 text-text-muted shrink-0 mt-0.5" />
+                        <FileText className="w-5 h-5 text-text-secondary shrink-0 mt-0.5" />
                         <div className="min-w-0">
                           <div className="font-medium text-sm truncate">{doc.fileName}</div>
                           {doc.taxYear && (
@@ -343,12 +303,14 @@ export function TaxStrategy() {
                           )}
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                        <button
+                          onClick={() => handleDeleteDocument(doc.id)}
+                          className="p-1.5 rounded-lg text-text-secondary hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 ))}
@@ -356,7 +318,7 @@ export function TaxStrategy() {
             </div>
           )}
 
-          {documents.length > 0 && (
+          {documents.length > 0 && import.meta.env.VITE_DEMO_MODE !== "true" && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <Button className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
@@ -366,6 +328,7 @@ export function TaxStrategy() {
           )}
         </div>
       </Section>
+
     </div>
   );
 }

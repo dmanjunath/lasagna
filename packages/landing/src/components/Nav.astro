@@ -1,0 +1,39 @@
+---
+import { APP_URL, GITHUB_URL } from "../config";
+---
+
+<header class="sticky top-0 z-50 border-b border-white/[0.06] bg-[rgb(8,8,12)]/90 backdrop-blur-sm">
+  <nav class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+    <a href="/" class="flex items-center gap-2.5">
+      <svg width="22" height="16" viewBox="0 0 36 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="nav-g" x1="0" y1="0" x2="36" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#00e5a0"/>
+            <stop offset="100%" stop-color="#00e5a0" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0"  width="13" height="6" rx="3" fill="url(#nav-g)"/>
+        <rect x="0" y="10" width="24" height="6" rx="3" fill="url(#nav-g)"/>
+        <rect x="0" y="20" width="36" height="6" rx="3" fill="url(#nav-g)"/>
+      </svg>
+      <span class="text-sm font-semibold tracking-tight text-[rgb(228,228,240)]">Lasagna</span>
+    </a>
+
+    <div class="flex items-center gap-5">
+      <a
+        href={GITHUB_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="text-xs font-medium text-[rgb(90,96,112)] transition-colors hover:text-[rgb(148,160,176)]"
+      >
+        GitHub
+      </a>
+      <a
+        href={`${APP_URL}/login`}
+        class="rounded bg-[rgb(0,229,160)] px-3 py-1.5 text-xs font-semibold text-[rgb(8,8,12)] transition-opacity hover:opacity-90"
+      >
+        Sign in
+      </a>
+    </div>
+  </nav>
+</header>

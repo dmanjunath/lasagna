@@ -329,7 +329,7 @@ export function NetWorth() {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-text-muted">Loading portfolio...</div>
+        <div className="text-text-secondary">Loading portfolio...</div>
       </div>
     );
   }
@@ -343,11 +343,11 @@ export function NetWorth() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center"
         >
-          <Building2 className="w-16 h-16 text-text-muted mb-6" />
+          <Building2 className="w-16 h-16 text-text-secondary mb-6" />
           <h2 className="font-display text-2xl md:text-3xl font-medium mb-3">
             Link Your First Account
           </h2>
-          <p className="text-text-muted max-w-md mb-8">
+          <p className="text-text-secondary max-w-md mb-8">
             Connect your bank and investment accounts to see your portfolio composition and asset allocation.
           </p>
 
@@ -358,19 +358,21 @@ export function NetWorth() {
             </div>
           )}
 
-          <Button onClick={handleLink} disabled={linking}>
-            {linking ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Linking...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Link Your First Account
-              </span>
-            )}
-          </Button>
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+            <Button onClick={handleLink} disabled={linking}>
+              {linking ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Linking...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Link Your First Account
+                </span>
+              )}
+            </Button>
+          )}
         </motion.div>
       </div>
     );
@@ -402,7 +404,7 @@ export function NetWorth() {
       >
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-4">
           <div>
-            <p className="text-text-muted text-sm mb-2">Total Portfolio Value</p>
+            <p className="text-text-secondary text-sm mb-2">Total Portfolio Value</p>
             <div className="font-display text-4xl md:text-5xl font-semibold tracking-tight tabular-nums">
               {formatMoney(totalValue)}
             </div>
@@ -410,7 +412,7 @@ export function NetWorth() {
           <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
             {/* Grouping Level Selector */}
             <div className="flex items-center gap-2 bg-surface-solid rounded-lg p-1">
-              <Layers className="h-4 w-4 text-text-muted ml-2" />
+              <Layers className="h-4 w-4 text-text-secondary ml-2" />
               <select
                 value={groupingLevel}
                 onChange={(e) => {
@@ -455,14 +457,14 @@ export function NetWorth() {
         <div className="flex items-center gap-2 mb-6 text-sm">
           {breadcrumbs.map((crumb, index) => (
             <div key={index} className="flex items-center gap-2">
-              {index > 0 && <ChevronRight className="h-4 w-4 text-text-muted" />}
+              {index > 0 && <ChevronRight className="h-4 w-4 text-text-secondary" />}
               <button
                 onClick={() => handleBreadcrumbClick(index)}
                 className={cn(
                   'transition-colors',
                   index === breadcrumbs.length - 1
                     ? 'text-text font-medium'
-                    : 'text-text-muted hover:text-text'
+                    : 'text-text-secondary hover:text-text'
                 )}
                 disabled={index === breadcrumbs.length - 1}
               >
@@ -498,7 +500,7 @@ export function NetWorth() {
                       />
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate">{item.name}</div>
-                        <div className="text-xs text-text-muted tabular-nums">
+                        <div className="text-xs text-text-secondary tabular-nums">
                           {item.percentage.toFixed(1)}% · {formatMoney(item.value, true)}
                         </div>
                       </div>
@@ -526,7 +528,7 @@ export function NetWorth() {
                         style={{ backgroundColor: item.color }}
                       />
                       <span className="text-text-secondary">{item.name}</span>
-                      <span className="text-text-muted tabular-nums">{item.percentage.toFixed(1)}%</span>
+                      <span className="text-text-secondary tabular-nums">{item.percentage.toFixed(1)}%</span>
                     </button>
                   ))}
                 </div>
@@ -546,34 +548,36 @@ export function NetWorth() {
       </motion.div>
 
       {/* Action Buttons: Add Account + Sync */}
-      <div className="flex items-center gap-3 mb-6 md:mb-8">
-        <Button onClick={handleLink} disabled={linking}>
-          {linking ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Linking...
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Add Account
-            </span>
-          )}
-        </Button>
-        <Button variant="secondary" onClick={handleSyncAll} disabled={syncing}>
-          {syncing ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Syncing...
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <RefreshCw className="w-4 h-4" />
-              Sync All Accounts
-            </span>
-          )}
-        </Button>
-      </div>
+      {import.meta.env.VITE_DEMO_MODE !== "true" && (
+        <div className="flex items-center gap-3 mb-6 md:mb-8">
+          <Button onClick={handleLink} disabled={linking}>
+            {linking ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Linking...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Add Account
+              </span>
+            )}
+          </Button>
+          <Button variant="secondary" onClick={handleSyncAll} disabled={syncing}>
+            {syncing ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Syncing...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Sync All Accounts
+              </span>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Breakdown Table - responds to grouping level */}
       <Section title={GROUPING_LABELS[groupingLevel]}>
@@ -597,7 +601,7 @@ export function NetWorth() {
                       style={{ backgroundColor: assetClass.color }}
                     />
                     <span className="font-medium">{assetClass.name}</span>
-                    <span className="text-sm text-text-muted px-2 py-0.5 rounded-full bg-surface-solid">
+                    <span className="text-sm text-text-secondary px-2 py-0.5 rounded-full bg-surface-solid">
                       {assetClass.subCategories.length}
                     </span>
                   </div>
@@ -606,13 +610,13 @@ export function NetWorth() {
                       <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
                         {formatMoney(assetClass.value)}
                       </span>
-                      <span className="text-text-muted text-sm ml-2">
+                      <span className="text-text-secondary text-sm ml-2">
                         {assetClass.percentage.toFixed(1)}%
                       </span>
                     </div>
                     <motion.span
                       animate={{ rotate: expandedCategories[assetClass.name] ? 180 : 0 }}
-                      className="text-text-muted"
+                      className="text-text-secondary"
                     >
                       ▾
                     </motion.span>
@@ -641,7 +645,7 @@ export function NetWorth() {
                           <span className="font-medium text-sm">{subCategory.name}</span>
                           <div className="flex items-center gap-3">
                             <span className="text-sm tabular-nums">{formatMoney(subCategory.value)}</span>
-                            <span className="text-xs text-text-muted tabular-nums w-12 text-right">
+                            <span className="text-xs text-text-secondary tabular-nums w-12 text-right">
                               {subCategory.percentage.toFixed(1)}%
                             </span>
                           </div>
@@ -654,17 +658,17 @@ export function NetWorth() {
                               className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-surface-hover transition-colors"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                                <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-secondary">
                                   {holding.ticker.slice(0, 3)}
                                 </div>
                                 <div>
                                   <div className="font-medium text-text-secondary">{holding.ticker}</div>
-                                  <div className="text-xs text-text-muted">{holding.account}</div>
+                                  <div className="text-xs text-text-secondary">{holding.account}</div>
                                 </div>
                               </div>
                               <div className="text-right">
                                 <div className="tabular-nums">{formatMoney(holding.value)}</div>
-                                <div className="text-xs text-text-muted tabular-nums">
+                                <div className="text-xs text-text-secondary tabular-nums">
                                   {holding.shares.toFixed(2)} shares
                                 </div>
                               </div>
@@ -713,7 +717,7 @@ export function NetWorth() {
                         style={{ backgroundColor: subCategory.color }}
                       />
                       <span className="font-medium">{subCategory.name}</span>
-                      <span className="text-sm text-text-muted px-2 py-0.5 rounded-full bg-surface-solid">
+                      <span className="text-sm text-text-secondary px-2 py-0.5 rounded-full bg-surface-solid">
                         {subCategory.holdings.length}
                       </span>
                     </div>
@@ -722,13 +726,13 @@ export function NetWorth() {
                         <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
                           {formatMoney(subCategory.value)}
                         </span>
-                        <span className="text-text-muted text-sm ml-2">
+                        <span className="text-text-secondary text-sm ml-2">
                           {subCategory.percentage.toFixed(1)}%
                         </span>
                       </div>
                       <motion.span
                         animate={{ rotate: expandedCategories[subCategory.name] ? 180 : 0 }}
-                        className="text-text-muted"
+                        className="text-text-secondary"
                       >
                         ▾
                       </motion.span>
@@ -752,17 +756,17 @@ export function NetWorth() {
                             className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-surface-hover transition-colors"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                              <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-secondary">
                                 {holding.ticker.slice(0, 3)}
                               </div>
                               <div>
                                 <div className="font-medium text-text-secondary">{holding.ticker}</div>
-                                <div className="text-xs text-text-muted">{holding.account}</div>
+                                <div className="text-xs text-text-secondary">{holding.account}</div>
                               </div>
                             </div>
                             <div className="text-right">
                               <div className="tabular-nums">{formatMoney(holding.value)}</div>
-                              <div className="text-xs text-text-muted tabular-nums">
+                              <div className="text-xs text-text-secondary tabular-nums">
                                 {holding.shares.toFixed(2)} shares
                               </div>
                             </div>
@@ -824,12 +828,12 @@ export function NetWorth() {
                         className="w-3 h-3 rounded-full flex-shrink-0"
                         style={{ backgroundColor: group.color }}
                       />
-                      <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                      <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-secondary">
                         {group.ticker.slice(0, 3)}
                       </div>
                       <div>
                         <div className="font-medium">{group.ticker}</div>
-                        <div className="text-xs text-text-muted">
+                        <div className="text-xs text-text-secondary">
                           {group.totalShares.toFixed(2)} shares
                           {group.holdings.length > 1 && ` · ${group.holdings.length} accounts`}
                         </div>
@@ -840,14 +844,14 @@ export function NetWorth() {
                         <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
                           {formatMoney(group.totalValue)}
                         </span>
-                        <span className="text-text-muted text-sm ml-2">
+                        <span className="text-text-secondary text-sm ml-2">
                           {group.percentage.toFixed(1)}%
                         </span>
                       </div>
                       {group.holdings.length > 1 && (
                         <motion.span
                           animate={{ rotate: expandedCategories[`holding-${group.ticker}`] ? 180 : 0 }}
-                          className="text-text-muted"
+                          className="text-text-secondary"
                         >
                           ▾
                         </motion.span>
@@ -877,7 +881,7 @@ export function NetWorth() {
                                 <div className="text-right">
                                   <div className="tabular-nums">{formatMoney(holding.value)}</div>
                                 </div>
-                                <div className="text-right text-text-muted w-24">
+                                <div className="text-right text-text-secondary w-24">
                                   <div className="tabular-nums">{holding.shares.toFixed(2)} shares</div>
                                 </div>
                               </div>

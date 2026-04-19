@@ -166,16 +166,48 @@ export function Accounts() {
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
+        className="mb-8 flex items-start justify-between gap-4"
       >
         <div>
           <h1 className="font-display text-2xl md:text-3xl lg:text-4xl font-medium">
             Linked Accounts
           </h1>
-          <p className="text-text-muted mt-2">
+          <p className="text-text-secondary mt-2">
             Connect your bank accounts for real-time financial tracking
           </p>
         </div>
+        {import.meta.env.VITE_DEMO_MODE !== "true" && (
+          <div className="flex items-center gap-3 flex-shrink-0 pt-1">
+            <Button onClick={handleLink} disabled={linking}>
+              {linking ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Linking...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Link Account
+                </span>
+              )}
+            </Button>
+            {items.length > 0 && (
+              <Button variant="secondary" onClick={handleSyncAll} disabled={syncing}>
+                {syncing ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Syncing...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    Sync All
+                  </span>
+                )}
+              </Button>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {error && (
@@ -189,49 +221,18 @@ export function Accounts() {
         </motion.div>
       )}
 
-      <div className="mb-8 flex items-center gap-3">
-        <Button onClick={handleLink} disabled={linking}>
-          {linking ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Linking...
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Link Bank Account
-            </span>
-          )}
-        </Button>
-        {items.length > 0 && (
-          <Button variant="secondary" onClick={handleSyncAll} disabled={syncing}>
-            {syncing ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Syncing...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" />
-                Sync All Accounts
-              </span>
-            )}
-          </Button>
-        )}
-      </div>
-
       <Section title="Your Institutions">
         {loading ? (
           <div className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center">
-            <Loader2 className="w-8 h-8 text-text-muted animate-spin mb-4" />
-            <p className="text-text-muted">Loading accounts...</p>
+            <Loader2 className="w-8 h-8 text-text-secondary animate-spin mb-4" />
+            <p className="text-text-secondary">Loading accounts...</p>
           </div>
         ) : items.length === 0 ? (
           <div className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center">
-            <Building2 className="w-12 h-12 text-text-muted mb-4" />
-            <p className="text-text-muted">No bank accounts linked yet.</p>
-            <p className="text-sm text-text-muted mt-2">
-              Click "Link Bank Account" to get started.
+            <Building2 className="w-12 h-12 text-text-secondary mb-4" />
+            <p className="text-text-secondary">No bank accounts linked yet.</p>
+            <p className="text-sm text-text-secondary mt-2">
+              Click "Link Account" to get started.
             </p>
           </div>
         ) : (
@@ -258,7 +259,7 @@ export function Accounts() {
                         {item.institutionName ?? "Unknown Bank"}
                       </h3>
                       {item.lastSyncedAt && (
-                        <p className="text-sm text-text-muted flex items-center gap-1.5">
+                        <p className="text-sm text-text-secondary flex items-center gap-1.5">
                           <RefreshCw className="w-3 h-3" />
                           Last synced: {new Date(item.lastSyncedAt).toLocaleDateString()}
                         </p>
@@ -269,29 +270,31 @@ export function Accounts() {
                     <span
                       className={cn(
                         "px-2.5 py-1 rounded-full text-xs font-medium capitalize",
-                        statusColors[item.status] || "bg-surface text-text-muted"
+                        statusColors[item.status] || "bg-surface text-text-secondary"
                       )}
                     >
                       {item.status}
                     </span>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="p-2 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-                      title="Remove institution"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="p-2 rounded-lg text-text-secondary hover:text-danger hover:bg-danger/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                        title="Remove institution"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 {item.accounts.length === 0 && syncing && (
-                  <div className="p-4 md:p-5 flex items-center gap-3 text-text-muted">
+                  <div className="p-4 md:p-5 flex items-center gap-3 text-text-secondary">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span className="text-sm">Syncing accounts...</span>
                   </div>
                 )}
                 {item.accounts.length === 0 && !syncing && (
-                  <div className="p-4 md:p-5 text-sm text-text-muted">
+                  <div className="p-4 md:p-5 text-sm text-text-secondary">
                     No accounts found for this institution.
                   </div>
                 )}
@@ -307,7 +310,7 @@ export function Accounts() {
                             {account.name}
                           </span>
                           {account.mask && (
-                            <span className="text-sm text-text-muted flex-shrink-0">
+                            <span className="text-sm text-text-secondary flex-shrink-0">
                               ••{account.mask}
                             </span>
                           )}

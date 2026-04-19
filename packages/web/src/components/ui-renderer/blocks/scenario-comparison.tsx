@@ -32,11 +32,11 @@ export function ScenarioComparisonRenderer({ block }: { block: ScenarioCompariso
               )}
             </div>
             {scenario.description && (
-              <p className="text-sm text-text-muted mt-1">{scenario.description}</p>
+              <p className="text-sm text-text-secondary mt-1">{scenario.description}</p>
             )}
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-text-muted">Success Rate</span>
+                <span className="text-text-secondary">Success Rate</span>
                 <span className={`font-medium ${
                   scenario.successRate >= 0.9 ? "text-success" :
                   scenario.successRate >= 0.8 ? "text-warning" : "text-danger"
@@ -45,7 +45,7 @@ export function ScenarioComparisonRenderer({ block }: { block: ScenarioCompariso
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-text-muted">End Balance</span>
+                <span className="text-text-secondary">End Balance</span>
                 <span className="font-medium text-text">
                   {formatCurrency(scenario.endBalance)}
                 </span>

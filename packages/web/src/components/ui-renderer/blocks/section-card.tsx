@@ -7,7 +7,7 @@ const variantStyles = {
     border: "border-border/50",
     bg: "bg-surface/30",
     labelBg: "bg-text-muted/10",
-    label: "text-text-muted",
+    label: "text-text-secondary",
     icon: "◆",
   },
   highlight: {
@@ -43,7 +43,7 @@ export function SectionCardRenderer({ block }: { block: SectionCardBlock }) {
         styles.border,
         styles.labelBg
       )}>
-        <span className={cn("text-[10px] opacity-60", styles.label)}>
+        <span className={cn("text-[10px]", styles.label)}>
           {styles.icon}
         </span>
         <span className={cn(

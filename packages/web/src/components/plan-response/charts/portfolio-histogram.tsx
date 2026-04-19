@@ -104,7 +104,7 @@ export function PortfolioHistogram({
   }, [data, bucketCount, successThreshold]);
 
   if (!stats) {
-    return <div className="text-text-muted p-4">No simulation data available</div>;
+    return <div className="text-text-secondary p-4">No simulation data available</div>;
   }
 
   return (
@@ -113,7 +113,7 @@ export function PortfolioHistogram({
       <div className="flex items-center justify-between p-5 border-b border-border/50">
         <div>
           <h3 className="text-base font-semibold text-text">{title}</h3>
-          <p className="text-sm text-text-muted mt-1">
+          <p className="text-sm text-text-secondary mt-1">
             Based on {data.length} historical simulations
           </p>
         </div>
@@ -126,7 +126,7 @@ export function PortfolioHistogram({
           )}>
             {stats.successRate.toFixed(1)}%
           </div>
-          <div className="text-xs text-text-muted uppercase tracking-wide">
+          <div className="text-xs text-text-secondary uppercase tracking-wide">
             Success Rate
           </div>
         </div>
@@ -135,19 +135,19 @@ export function PortfolioHistogram({
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-4 p-5 border-b border-border/50 bg-[#0f0f11]">
         <div>
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">10th Percentile</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">10th Percentile</div>
           <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(stats.p10)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">Median</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Median</div>
           <div className="text-sm font-semibold text-accent tabular-nums">{formatCurrency(stats.median)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">90th Percentile</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">90th Percentile</div>
           <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(stats.p90)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">Best Case</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Best Case</div>
           <div className="text-sm font-semibold text-green-400 tabular-nums">{formatCurrency(stats.max)}</div>
         </div>
       </div>
@@ -233,7 +233,7 @@ export function PortfolioHistogram({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 mt-4 text-xs text-text-muted">
+        <div className="flex items-center justify-center gap-6 mt-4 text-xs text-text-secondary">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-[#6366f1]" />
             <span>Successful ({data.filter(v => v > successThreshold).length})</span>

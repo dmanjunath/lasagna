@@ -2,10 +2,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { eq, desc, and, sql, accounts, balanceSnapshots, parseLoanMetadata } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const accountRoutes = new Hono<AuthEnv>();
-accountRoutes.use("*", requireAuth);
 
 // List all accounts for the tenant
 accountRoutes.get("/", async (c) => {

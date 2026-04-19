@@ -39,7 +39,7 @@ function SettingsRow({ icon, label, danger, onClick }: SettingsRowProps) {
           {label}
         </span>
       </div>
-      <span className="text-sm text-text-muted">›</span>
+      <span className="text-sm text-text-secondary">›</span>
     </button>
   );
 }
@@ -104,7 +104,7 @@ function formatRiskTolerance(risk: string | null): string {
 }
 
 function riskToleranceColor(risk: string | null): string {
-  if (!risk) return "text-text-muted";
+  if (!risk) return "text-text-secondary";
   if (risk.includes("aggressive")) return "text-green-400";
   if (risk === "moderate") return "text-yellow-400";
   return "text-blue-400";
@@ -230,7 +230,7 @@ export function Settings() {
           <h1 className="font-display text-2xl font-semibold text-text">
             {displayName}
           </h1>
-          <p className="text-sm text-text-muted">{email}</p>
+          <p className="text-sm text-text-secondary">{email}</p>
         </motion.div>
 
         {/* Navigation Card */}
@@ -241,12 +241,12 @@ export function Settings() {
           <SettingsRow
             icon="👤"
             label="Personal Info"
-            onClick={() => openEdit("personal")}
+            onClick={import.meta.env.VITE_DEMO_MODE !== "true" ? () => openEdit("personal") : undefined}
           />
           <SettingsRow
             icon="💼"
             label="Income & Employment"
-            onClick={() => openEdit("income")}
+            onClick={import.meta.env.VITE_DEMO_MODE !== "true" ? () => openEdit("income") : undefined}
           />
           <SettingsRow
             icon="🏦"
@@ -257,7 +257,7 @@ export function Settings() {
         </motion.div>
 
         {/* Edit Modal - Personal Info */}
-        {editSection === "personal" && (
+        {editSection === "personal" && import.meta.env.VITE_DEMO_MODE !== "true" && (
           <motion.div
             variants={item}
             initial="hidden"
@@ -371,7 +371,7 @@ export function Settings() {
         )}
 
         {/* Edit Modal - Income & Employment */}
-        {editSection === "income" && (
+        {editSection === "income" && import.meta.env.VITE_DEMO_MODE !== "true" && (
           <motion.div
             variants={item}
             initial="hidden"
@@ -447,7 +447,7 @@ export function Settings() {
           </h2>
           <div className="glass-card rounded-2xl p-0 overflow-hidden divide-y divide-border">
             {loading ? (
-              <div className="px-5 py-8 text-center text-sm text-text-muted">
+              <div className="px-5 py-8 text-center text-sm text-text-secondary">
                 Loading...
               </div>
             ) : (
@@ -491,7 +491,7 @@ export function Settings() {
         {/* Footer */}
         <motion.p
           variants={item}
-          className="text-xs text-text-muted text-center pt-2"
+          className="text-xs text-text-secondary text-center pt-2"
         >
           Lasagna v0.1.0 · Built in the open
         </motion.p>

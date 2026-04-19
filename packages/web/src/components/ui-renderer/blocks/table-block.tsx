@@ -18,7 +18,7 @@ export function TableBlockRenderer({ block }: { block: TableBlockType }) {
             {headers.map((header, idx) => (
               <th
                 key={idx}
-                className="text-left py-3 px-4 text-text-muted font-medium"
+                className="text-left py-3 px-4 text-text-secondary font-medium"
               >
                 {header}
               </th>

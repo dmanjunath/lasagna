@@ -1,0 +1,86 @@
+---
+import { APP_URL, GITHUB_URL } from "../config";
+---
+
+<section class="relative border-t border-white/[0.06] px-6 py-24" style="background: linear-gradient(to bottom, rgb(8,8,12) 0%, rgb(11,11,17) 50%, rgb(8,8,12) 100%);">
+  <div class="mx-auto max-w-5xl">
+    <p class="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[rgb(0,229,160)]">
+      Deployment
+    </p>
+    <h2 class="mb-16 text-2xl font-bold tracking-[-0.02em] text-[rgb(228,228,240)] sm:text-3xl">
+      Two ways to use Lasagna
+    </h2>
+
+    <div class="grid gap-6 sm:grid-cols-2">
+      <!-- Hosted -->
+      <div class="rounded-lg border border-white/[0.1] bg-[rgb(16,16,24)] p-8">
+        <div class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[rgb(90,96,112)]">
+          Hosted
+        </div>
+        <h3 class="mb-2 text-lg font-semibold text-[rgb(228,228,240)]">
+          We manage the infrastructure
+        </h3>
+        <p class="mb-8 text-sm leading-relaxed text-[rgb(90,96,112)]">
+          Sign up and start in seconds. We handle hosting, updates, and reliability.
+          Your data stays private — we never sell or share it.
+        </p>
+        <ul class="mb-8 space-y-2.5">
+          {[
+            "Sign up in seconds",
+            "Always up to date",
+            "Private by design",
+          ].map((item) => (
+            <li class="flex items-center gap-2.5 text-sm text-[rgb(148,160,176)]">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="shrink-0 text-[rgb(0,229,160)]">
+                <path d="M2.5 7l3 3 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              {item}
+            </li>
+          ))}
+        </ul>
+        <a
+          href={`${APP_URL}/login`}
+          class="block w-full rounded bg-[rgb(0,229,160)] py-2.5 text-center text-sm font-semibold text-[rgb(8,8,12)] transition-opacity hover:opacity-90"
+        >
+          Get started free
+        </a>
+      </div>
+
+      <!-- Self-hosted -->
+      <div class="rounded-lg border border-white/[0.06] p-8">
+        <div class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[rgb(90,96,112)]">
+          Self-hosted
+        </div>
+        <h3 class="mb-2 text-lg font-semibold text-[rgb(228,228,240)]">
+          Run it on your own server
+        </h3>
+        <p class="mb-8 text-sm leading-relaxed text-[rgb(90,96,112)]">
+          Open source and free forever. Deploy on your own infrastructure
+          and maintain complete ownership of your financial data.
+        </p>
+        <ul class="mb-8 space-y-2.5">
+          {[
+            "Open source, MIT licensed",
+            "Full data ownership",
+            "Deploy anywhere",
+          ].map((item) => (
+            <li class="flex items-center gap-2.5 text-sm text-[rgb(148,160,176)]">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="shrink-0 text-[rgb(148,160,176)]">
+                <path d="M2.5 7l3 3 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              {item}
+            </li>
+          ))}
+        </ul>
+        <a
+          href={GITHUB_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="block w-full rounded border border-white/[0.1] py-2.5 text-center text-sm font-medium text-[rgb(148,160,176)] transition-colors hover:border-white/[0.2] hover:text-[rgb(228,228,240)]"
+        >
+          View on GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+</section>

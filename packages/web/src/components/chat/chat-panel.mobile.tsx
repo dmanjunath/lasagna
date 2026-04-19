@@ -49,7 +49,7 @@ export function MobileChatPanel() {
             className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors"
             aria-label="Close chat"
           >
-            <ArrowLeft className="w-4 h-4 text-text-muted" />
+            <ArrowLeft className="w-4 h-4 text-text-secondary" />
           </button>
           <span className="text-sm font-semibold text-text">Chat</span>
         </div>

@@ -114,7 +114,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
             <button
               type="button"
               onClick={() => setShowSafety((p) => !p)}
-              className="flex items-center justify-center w-4 h-4 rounded-full text-text-muted hover:text-text-secondary transition-colors"
+              className="flex items-center justify-center w-4 h-4 rounded-full text-text-secondary hover:text-text-secondary transition-colors"
               aria-label="Privacy & safety information"
             >
               <HelpCircle className="w-3.5 h-3.5" />
@@ -128,7 +128,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                   <button
                     type="button"
                     onClick={() => setShowSafety(false)}
-                    className="ml-auto text-text-muted hover:text-text-secondary transition-colors"
+                    className="ml-auto text-text-secondary hover:text-text-secondary transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -140,7 +140,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                     "Only the extracted tax fields are stored — not the original file.",
                     "Prefer not to upload? Use the text option to describe your situation manually.",
                   ].map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-xs text-text-muted leading-relaxed">
+                    <li key={item} className="flex items-start gap-2 text-xs text-text-secondary leading-relaxed">
                       <span className="mt-1 w-1 h-1 rounded-full bg-text-muted/50 shrink-0" />
                       {item}
                     </li>
@@ -186,11 +186,11 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                   </div>
                   <div className="text-center">
                     <div className="text-sm font-medium truncate max-w-[240px]">{file.name}</div>
-                    <div className="text-xs text-text-muted mt-0.5">{(file.size / 1024 / 1024).toFixed(1)} MB</div>
+                    <div className="text-xs text-text-secondary mt-0.5">{(file.size / 1024 / 1024).toFixed(1)} MB</div>
                   </div>
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 text-xs text-text-muted hover:text-danger transition-colors"
+                    className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-danger transition-colors"
                     onClick={(e) => { e.stopPropagation(); setFile(null); }}
                   >
                     <X className="w-3 h-3" /> Remove
@@ -202,7 +202,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                     "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
                     isDragging ? "bg-accent/15" : "bg-surface-hover"
                   )}>
-                    <Upload className={cn("w-5 h-5", isDragging ? "text-accent" : "text-text-muted")} />
+                    <Upload className={cn("w-5 h-5", isDragging ? "text-accent" : "text-text-secondary")} />
                   </div>
                   <div className="text-center">
                     <div className="text-sm font-medium text-text-secondary">
@@ -219,7 +219,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               <button
                 type="button"
                 onClick={switchToText}
-                className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+                className="text-xs text-text-secondary hover:text-text-secondary transition-colors"
               >
                 Don't feel comfortable uploading tax documents?{" "}
                 <span className="text-accent hover:underline">Describe your situation instead →</span>
@@ -233,11 +233,11 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
           <>
             <div className="flex flex-col rounded-xl border border-border/60 hover:border-border transition-all">
               <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
-                <PenLine className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                <PenLine className="w-3.5 h-3.5 text-text-secondary shrink-0" />
                 <span className="text-xs font-semibold text-text-secondary">Describe your taxes</span>
               </div>
               <textarea
-                className="min-h-[160px] bg-transparent px-4 py-3 text-sm resize-none focus:outline-none placeholder:text-text-muted/40 text-text-secondary"
+                className="min-h-[160px] bg-transparent px-4 py-3 text-sm resize-none focus:outline-none placeholder:text-text-muted text-text-secondary"
                 placeholder={"e.g. married filing jointly, 2023\nW-2 income $120k, withheld $18k\nstandard deduction, no dependents"}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -250,7 +250,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               <button
                 type="button"
                 onClick={switchToFile}
-                className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+                className="text-xs text-text-secondary hover:text-text-secondary transition-colors"
               >
                 <span className="text-accent hover:underline">← Upload a document instead</span>
               </button>
@@ -266,14 +266,14 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
             className="w-full flex items-center justify-between px-4 py-2.5 bg-surface-elevated hover:bg-surface-hover transition-colors text-left"
           >
             <div className="flex items-center gap-2">
-              <Settings2 className="w-3.5 h-3.5 text-text-muted" />
+              <Settings2 className="w-3.5 h-3.5 text-text-secondary" />
               <span className="text-xs font-medium text-text-secondary">Extraction settings</span>
               {providerUrl !== OPENROUTER_URL && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent font-semibold">custom</span>
               )}
             </div>
             <ChevronDown className={cn(
-              "w-3.5 h-3.5 text-text-muted transition-transform duration-150",
+              "w-3.5 h-3.5 text-text-secondary transition-transform duration-150",
               showSettings && "rotate-180"
             )} />
           </button>
@@ -281,7 +281,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
           {showSettings && (
             <div className="px-4 py-4 border-t border-border bg-bg-elevated space-y-3">
               <div>
-                <label className="block text-xs text-text-muted mb-1.5">LLM endpoint</label>
+                <label className="block text-xs text-text-secondary mb-1.5">LLM endpoint</label>
                 <input
                   type="url"
                   className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent"
@@ -292,7 +292,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-text-muted mb-1.5">Model</label>
+                  <label className="block text-xs text-text-secondary mb-1.5">Model</label>
                   <input
                     type="text"
                     className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent"
@@ -302,7 +302,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-muted mb-1.5">API key <span className="opacity-50">(optional)</span></label>
+                  <label className="block text-xs text-text-secondary mb-1.5">API key <span className="opacity-50">(optional)</span></label>
                   <input
                     type="password"
                     className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent"
@@ -334,7 +334,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all",
               canSubmit
                 ? "bg-accent text-white hover:bg-accent/90 shadow-sm shadow-accent/20"
-                : "bg-surface-hover text-text-muted cursor-not-allowed"
+                : "bg-surface-hover text-text-secondary cursor-not-allowed"
             )}
           >
             {loading ? (

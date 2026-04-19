@@ -3,25 +3,39 @@
 </p>
 
 <h1 align="center">Lasagna</h1>
-<p align="center"><strong>Self-hosted AI financial advisor. Build your financial foundation one layer at a time.</strong></p>
 
 <p align="center">
+  <a href="#how-it-works">How it works</a> ·
   <a href="#features">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#tech-stack">Tech Stack</a> ·
   <a href="#quick-start">Quick Start</a> ·
-  <a href="#self-hosting">Self-Hosting</a> ·
-  <a href="#contributing">Contributing</a>
+  <a href="#self-hosting">Self-Hosting</a>
 </p>
 
 ---
 
-Lasagna is a self-hosted personal finance platform that helps you manage your financial life. While not a replacement for a real financial advisor, Lasagna can help you get most of the way there on your own and it answers three questions
-1. Where do I get started managing my fnances?
-2. What to do next?
-3. Am I on track for retirement?
+Most financial apps want your data so they can sell it, train on it, or monetize it. Lasagna inverts that model: your financial data lives in your own database, and the AI gets anonymous context — numbers and patterns, never your name, account numbers, or institution details.
 
-While there are some budgeting features, it's not a budgeting app, it's much more. It gives you insights about how to best pay off your debts, runs projections about your investment portfolio and gives you insights about your entire financial picture. Doesn't matter if you have 200k in student loans or a $50 million dollar portfolio.
+This means you can get genuinely personalized AI financial advice without giving a model provider a map of your financial life.
+
+---
+
+## How it works
+
+**1. Your data stays in your vault**
+Connect bank accounts via Plaid or enter balances manually. All accounts, holdings, and transactions live in your private PostgreSQL database — self-hosted on your own server, or on Lasagna's hosted infrastructure. Nothing leaves without your intent.
+
+**2. You ask a question**
+Ask anything in plain English: "Am I saving enough for retirement?" or "Should I pay down debt or invest?" Lasagna pulls the relevant numbers from your database and assembles context for the AI.
+
+**3. The AI gets anonymous context**
+Before anything reaches the model, identifying information is stripped. The AI sees balances, allocations, and spending patterns — never your name, which bank you use, or account numbers.
+
+**4. You get a real answer**
+AI responds with personalized, actionable advice based on your actual numbers. You can drill down, follow up, and ask anything. The model never retains your data between sessions.
+
+**Your data, your rules.** Lasagna runs self hosted or you can use the hosted version.
 
 ---
 
@@ -57,8 +71,8 @@ AI-generated tax optimization recommendations: Roth conversion opportunities, 0%
 ### Goals
 Track financial goals with progress bars, preset templates, inline editing, and completion tracking.
 
-### AI Chat Agent
-Ask anything about your finances. Powered by Claude with 12 specialized financial tools — it can read your accounts, run projections, and give personalized recommendations, all in a persistent conversation thread.
+### AI Chat
+Ask anything about your finances in natural language. Powered by Claude (via your own API key) with 12 specialized financial tools. The model reads your accounts, runs projections, and gives personalized recommendations — all using anonymous context. Your conversation history stays in your own database, not the model provider's.
 
 ---
 
@@ -119,7 +133,7 @@ Ask anything about your finances. Powered by Claude with 12 specialized financia
 | Backend | Hono (Node.js), TypeScript |
 | Database | PostgreSQL 16, Drizzle ORM |
 | Auth | Custom JWT (bcrypt + sessions) |
-| AI | Claude (via OpenRouter) |
+| AI | Claude (via OpenRouter or direct Anthropic API) |
 | Banking | Plaid API |
 | Deployment | Docker, GCP Cloud Run, Cloudflare Pages |
 
@@ -163,10 +177,7 @@ pnpm dev:web      # Web on :5173 (separate terminal)
 
 ### Seed Sample Data
 
-The seed script creates realistic demo users across different wealth levels:
-
 ```bash
-# Pick a preset that matches your financial situation for testing
 pnpm db:seed --preset=negative   # debt climber, $-60k net worth
 pnpm db:seed --preset=100k       # early builder, $100k
 pnpm db:seed --preset=750k       # accumulator, $750k
@@ -189,11 +200,9 @@ pnpm db:seed --preset=4M         # high net worth, $4M
 | `PLAID_ENV` | `sandbox`, `development`, or `production` | Optional |
 | `OPENROUTER_API_KEY` | OpenRouter key for AI chat (Claude) | Optional |
 
-Plaid is required only if you want live bank account syncing. Without it, you can still use the app by entering balances manually. The AI chat feature requires an OpenRouter key.
+Plaid is required only if you want live bank account syncing. Without it, you can still use the app by entering balances manually. The AI chat feature requires an OpenRouter or Anthropic API key.
 
 ### Deployment
-
-The API is a standard Node.js/Hono server and can be deployed anywhere. The web app is a static Vite build. A `Dockerfile` is included for container-based deployments.
 
 ```bash
 pnpm build           # builds all packages
@@ -201,6 +210,31 @@ pnpm typecheck       # type-check everything
 pnpm lint            # lint
 pnpm --filter @lasagna/core test   # unit tests
 ```
+
+---
+
+## Deployments
+
+This repo powers three separate deployments:
+
+| URL | Package | Description |
+|-----|---------|-------------|
+| `lasagnafi.com` | `packages/landing` | Marketing landing page (Astro) |
+| `app.lasagnafi.com` | `packages/web` | Hosted app |
+| `demo.lasagnafi.com` | `packages/web` | Read-only demo (set `VITE_DEMO_MODE=true`) |
+
+**Cloudflare Pages configuration:**
+Each deployment is a separate Cloudflare Pages project pointing to the same GitHub repo, with different build settings:
+
+| Deployment | Build command | Output dir | Env vars |
+|---|---|---|---|
+| `lasagnafi.com` | `pnpm --filter @lasagna/landing build` | `packages/landing/dist` | `PUBLIC_VIDEO_URL` (optional) |
+| `app.lasagnafi.com` | `pnpm --filter @lasagna/web build` | `packages/web/dist` | standard |
+| `demo.lasagnafi.com` | `pnpm --filter @lasagna/web build` | `packages/web/dist` | `VITE_DEMO_MODE=true` |
+
+**Demo user:** Run `pnpm db:seed-demo` to create `demo@lasagnafi.com` / `lasagna123`.
+
+**Production API CORS:** Set `CORS_ORIGIN=https://app.lasagnafi.com,https://demo.lasagnafi.com`.
 
 ---
 

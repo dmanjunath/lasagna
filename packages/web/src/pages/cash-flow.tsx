@@ -12,7 +12,7 @@ export function CashFlow() {
         className="mb-8"
       >
         <h1 className="font-display text-2xl md:text-3xl lg:text-4xl font-medium">Cash Flow</h1>
-        <p className="text-text-muted mt-2">Income, expenses, and savings analysis</p>
+        <p className="text-text-secondary mt-2">Income, expenses, and savings analysis</p>
       </motion.div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 mb-8">
@@ -24,8 +24,8 @@ export function CashFlow() {
 
       <Section title="Expense Breakdown">
         <div className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center">
-          <BarChart3 className="w-12 h-12 text-text-muted mb-4" />
-          <p className="text-text-muted">Expense visualization coming soon...</p>
+          <BarChart3 className="w-12 h-12 text-text-secondary mb-4" />
+          <p className="text-text-secondary">Expense visualization coming soon...</p>
         </div>
       </Section>
     </div>

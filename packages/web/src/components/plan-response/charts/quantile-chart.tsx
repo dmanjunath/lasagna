@@ -64,28 +64,28 @@ function CustomTooltip({
 
   return (
     <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl min-w-[200px]">
-      <div className="text-[#f5f5f5] font-semibold mb-3 pb-2 border-b border-[#27272a]">
+      <div className="text-text font-semibold mb-3 pb-2 border-b border-[#27272a]">
         Year {label}
       </div>
       <div className="space-y-2 text-[13px]">
         <div className="flex justify-between">
-          <span className="text-[#a8a29e]">95th Percentile (Best)</span>
+          <span className="text-text-secondary">95th Percentile (Best)</span>
           <span className="text-green-400 font-medium tabular-nums">{formatFullCurrency(dataPoint.p95)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-[#a8a29e]">75th Percentile</span>
-          <span className="text-[#f5f5f5] font-medium tabular-nums">{formatFullCurrency(dataPoint.p75)}</span>
+          <span className="text-text-secondary">75th Percentile</span>
+          <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.p75)}</span>
         </div>
         <div className="flex justify-between bg-accent/10 -mx-2 px-2 py-1 rounded">
           <span className="text-accent font-medium">Median</span>
           <span className="text-accent font-semibold tabular-nums">{formatFullCurrency(dataPoint.p50)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-[#a8a29e]">25th Percentile</span>
-          <span className="text-[#f5f5f5] font-medium tabular-nums">{formatFullCurrency(dataPoint.p25)}</span>
+          <span className="text-text-secondary">25th Percentile</span>
+          <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.p25)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-[#a8a29e]">5th Percentile (Worst)</span>
+          <span className="text-text-secondary">5th Percentile (Worst)</span>
           <span className="text-red-400 font-medium tabular-nums">{formatFullCurrency(dataPoint.p5)}</span>
         </div>
       </div>
@@ -119,7 +119,7 @@ export function QuantileChart({
   }, [data]);
 
   if (!finalStats) {
-    return <div className="text-text-muted p-4">No projection data available</div>;
+    return <div className="text-text-secondary p-4">No projection data available</div>;
   }
 
   return (
@@ -128,7 +128,7 @@ export function QuantileChart({
       <div className="flex items-center justify-between p-5 border-b border-border/50">
         <div>
           <h3 className="text-base font-semibold text-text">{title}</h3>
-          <p className="text-sm text-text-muted mt-1">
+          <p className="text-sm text-text-secondary mt-1">
             Portfolio value range over {yearsShown} years
           </p>
         </div>
@@ -137,7 +137,7 @@ export function QuantileChart({
       {/* Final year stats */}
       <div className="grid grid-cols-5 gap-4 p-5 border-b border-border/50 bg-[#0f0f11]">
         <div className="text-center">
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">Worst 5%</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Worst 5%</div>
           <div className={cn(
             "text-sm font-semibold tabular-nums",
             finalStats.p5 <= 0 ? "text-red-400" : "text-text"
@@ -146,7 +146,7 @@ export function QuantileChart({
           </div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">25th %ile</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">25th %ile</div>
           <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(finalStats.p25)}</div>
         </div>
         <div className="text-center">
@@ -154,11 +154,11 @@ export function QuantileChart({
           <div className="text-lg font-bold text-accent tabular-nums">{formatCurrency(finalStats.p50)}</div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">75th %ile</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">75th %ile</div>
           <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(finalStats.p75)}</div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">Best 5%</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Best 5%</div>
           <div className="text-sm font-semibold text-green-400 tabular-nums">{formatCurrency(finalStats.p95)}</div>
         </div>
       </div>
@@ -291,7 +291,7 @@ export function QuantileChart({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 mt-4 text-xs text-text-muted">
+        <div className="flex items-center justify-center gap-6 mt-4 text-xs text-text-secondary">
           <div className="flex items-center gap-2">
             <div className="w-6 h-0.5 bg-[#6366f1]" />
             <span>Median (50th)</span>

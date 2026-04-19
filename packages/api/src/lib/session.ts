@@ -4,6 +4,7 @@ interface SessionPayload {
   userId: string;
   tenantId: string;
   role: string;
+  isDemo: boolean;
 }
 
 const COOKIE_NAME = "lasagna_session";
@@ -74,6 +75,7 @@ export async function verifySessionToken(
       userId: parsed.userId,
       tenantId: parsed.tenantId,
       role: parsed.role,
+      isDemo: parsed.isDemo ?? false,
     };
   } catch {
     return null;

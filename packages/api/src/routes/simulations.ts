@@ -1,11 +1,10 @@
 import { Hono } from "hono";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 import { getMonteCarloEngine, type AssetAllocation } from "../services/monte-carlo.js";
 import { getBacktester } from "../services/backtester.js";
 import type { StrategyType, StrategyParams } from "../services/withdrawal-strategies.js";
 
 export const simulationsRouter = new Hono<AuthEnv>();
-simulationsRouter.use("*", requireAuth);
 
 // Normalize allocation to fractions summing to 1.0
 // Input may be percentages (0-100) or fractions (0-1)

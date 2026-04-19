@@ -121,7 +121,7 @@ export function SimulationTable({
   const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
     <button
       onClick={() => handleSort(field)}
-      className="flex items-center gap-1 text-xs text-text-muted hover:text-text transition-colors"
+      className="flex items-center gap-1 text-xs text-text-secondary hover:text-text transition-colors"
     >
       {label}
       {sortField === field && (
@@ -136,7 +136,7 @@ export function SimulationTable({
       <div className="flex items-center justify-between p-5 border-b border-border/50">
         <div>
           <h3 className="text-base font-semibold text-text">{title}</h3>
-          <p className="text-sm text-text-muted mt-1">
+          <p className="text-sm text-text-secondary mt-1">
             {stats.total} historical periods analyzed
           </p>
         </div>
@@ -149,7 +149,7 @@ export function SimulationTable({
           )}>
             {((stats.success / stats.total) * 100).toFixed(1)}%
           </div>
-          <div className="text-xs text-text-muted">Success Rate</div>
+          <div className="text-xs text-text-secondary">Success Rate</div>
         </div>
       </div>
 
@@ -163,7 +163,7 @@ export function SimulationTable({
           )}
         >
           <div className="text-lg font-semibold text-text tabular-nums">{stats.total}</div>
-          <div className="text-xs text-text-muted">Total</div>
+          <div className="text-xs text-text-secondary">Total</div>
         </button>
         <button
           onClick={() => setFilter('success')}
@@ -173,7 +173,7 @@ export function SimulationTable({
           )}
         >
           <div className="text-lg font-semibold text-green-400 tabular-nums">{stats.success}</div>
-          <div className="text-xs text-text-muted">Success</div>
+          <div className="text-xs text-text-secondary">Success</div>
         </button>
         <button
           onClick={() => setFilter('close')}
@@ -183,7 +183,7 @@ export function SimulationTable({
           )}
         >
           <div className="text-lg font-semibold text-yellow-400 tabular-nums">{stats.close}</div>
-          <div className="text-xs text-text-muted">Close</div>
+          <div className="text-xs text-text-secondary">Close</div>
         </button>
         <button
           onClick={() => setFilter('failed')}
@@ -193,7 +193,7 @@ export function SimulationTable({
           )}
         >
           <div className="text-lg font-semibold text-red-400 tabular-nums">{stats.failed}</div>
-          <div className="text-xs text-text-muted">Failed</div>
+          <div className="text-xs text-text-secondary">Failed</div>
         </button>
       </div>
 
@@ -206,7 +206,7 @@ export function SimulationTable({
                 <SortHeader field="startYear" label="Period" />
               </th>
               <th className="text-left p-3">
-                <span className="text-xs text-text-muted">Status</span>
+                <span className="text-xs text-text-secondary">Status</span>
               </th>
               <th className="text-right p-3">
                 <SortHeader field="yearsLasted" label="Years" />
@@ -257,7 +257,7 @@ export function SimulationTable({
                   </td>
                   <td className="p-3 text-right">
                     {sim.maxDrawdown !== undefined && (
-                      <span className="text-sm text-text-muted tabular-nums">
+                      <span className="text-sm text-text-secondary tabular-nums">
                         {(sim.maxDrawdown * 100).toFixed(1)}%
                       </span>
                     )}
@@ -288,7 +288,7 @@ export function SimulationTable({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             {selectedSim.worstYear && (
               <div>
-                <div className="text-xs text-text-muted mb-1">Worst Year</div>
+                <div className="text-xs text-text-secondary mb-1">Worst Year</div>
                 <div className="text-red-400 font-medium">
                   {selectedSim.worstYear.year}: {(selectedSim.worstYear.return * 100).toFixed(1)}%
                 </div>
@@ -296,7 +296,7 @@ export function SimulationTable({
             )}
             {selectedSim.bestYear && (
               <div>
-                <div className="text-xs text-text-muted mb-1">Best Year</div>
+                <div className="text-xs text-text-secondary mb-1">Best Year</div>
                 <div className="text-green-400 font-medium">
                   {selectedSim.bestYear.year}: +{(selectedSim.bestYear.return * 100).toFixed(1)}%
                 </div>
@@ -304,7 +304,7 @@ export function SimulationTable({
             )}
             {selectedSim.inflationAdjustedEnd !== undefined && (
               <div>
-                <div className="text-xs text-text-muted mb-1">Real Value (Today's $)</div>
+                <div className="text-xs text-text-secondary mb-1">Real Value (Today's $)</div>
                 <div className="text-text font-medium">
                   {formatCurrency(selectedSim.inflationAdjustedEnd)}
                 </div>

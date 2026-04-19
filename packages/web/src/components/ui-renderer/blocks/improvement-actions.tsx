@@ -23,7 +23,7 @@ export function ImprovementActionsRenderer({ block }: { block: ImprovementAction
                 </span>
               </div>
               {action.tradeoff && (
-                <p className="text-xs text-text-muted mt-1">{action.tradeoff}</p>
+                <p className="text-xs text-text-secondary mt-1">{action.tradeoff}</p>
               )}
             </div>
             <button className="flex items-center gap-1 px-3 py-1.5 bg-accent text-bg rounded-lg text-sm font-medium hover:bg-accent-dim transition-colors">

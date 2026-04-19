@@ -52,12 +52,13 @@ authRoutes.post("/signup", async (c) => {
     userId: user.id,
     tenantId: tenant.id,
     role: user.role,
+    isDemo: false,
   });
 
   setCookie(c, COOKIE_NAME, token, {
     httpOnly: true,
-    secure: false,
-    sameSite: "Lax",
+    secure: true,
+    sameSite: "None",
     maxAge: MAX_AGE,
     path: "/",
   });
@@ -91,12 +92,13 @@ authRoutes.post("/login", async (c) => {
     userId: user.id,
     tenantId: user.tenantId,
     role: user.role,
+    isDemo: user.isDemo,
   });
 
   setCookie(c, COOKIE_NAME, token, {
     httpOnly: true,
-    secure: false,
-    sameSite: "Lax",
+    secure: true,
+    sameSite: "None",
     maxAge: MAX_AGE,
     path: "/",
   });
@@ -115,7 +117,7 @@ authRoutes.post("/login", async (c) => {
 
 // Logout
 authRoutes.post("/logout", (c) => {
-  deleteCookie(c, COOKIE_NAME, { path: "/" });
+  deleteCookie(c, COOKIE_NAME, { path: "/", secure: true, sameSite: "None" });
   return c.json({ ok: true });
 });
 

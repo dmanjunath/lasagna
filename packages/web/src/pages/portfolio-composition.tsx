@@ -10,7 +10,7 @@ import { TreemapChart } from '../components/charts/treemap-chart';
 import { Button } from '../components/ui/button';
 import { Section } from '../components/common/section';
 import { useLocation } from 'wouter';
-import { ContextualInsights } from '../components/common/contextual-insights';
+import { PageActions } from '../components/common/page-actions';
 
 type ChartType = 'donut' | 'bar' | 'treemap';
 type GroupingLevel = 'assetClass' | 'subCategory' | 'holding';
@@ -66,15 +66,20 @@ export default function PortfolioComposition() {
   // Fallback: account-level allocation when no holdings exist
   const [accountAllocation, setAccountAllocation] = useState<Array<{ name: string; value: number; percentage: number; color: string }>>([]);
   const [accountTotal, setAccountTotal] = useState(0);
+  const [filingStatus, setFilingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [compData, expData, balanceData] = await Promise.all([
+        const [compData, expData, balanceData, profileData] = await Promise.all([
           api.getPortfolioComposition(),
           api.getPortfolioExposure().catch(() => null),
           api.getBalances().catch(() => ({ balances: [] })),
+          api.getFinancialProfile().catch(() => ({ financialProfile: null })),
         ]);
+        if (profileData.financialProfile?.filingStatus) {
+          setFilingStatus(profileData.financialProfile.filingStatus);
+        }
         setTotalValue(compData.totalValue);
         setAssetClasses(compData.assetClasses);
         if (compData.assetClasses.length > 0) {
@@ -122,6 +127,7 @@ export default function PortfolioComposition() {
         data: {
           totalValue,
           blendedHistoricalReturn: blendedReturn,
+          filingStatus,
           assetClasses: assetClasses.map(ac => ({
             name: ac.name,
             value: ac.value,
@@ -135,7 +141,7 @@ export default function PortfolioComposition() {
         },
       });
     }
-  }, [loading, totalValue, assetClasses, setPageContext]);
+  }, [loading, totalValue, assetClasses, filingStatus, setPageContext]);
 
   const toggleCategory = (name: string) => {
     setExpandedCategories(prev => ({ ...prev, [name]: !prev[name] }));
@@ -297,7 +303,7 @@ export default function PortfolioComposition() {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-text-muted">Loading portfolio...</div>
+        <div className="text-text-secondary">Loading portfolio...</div>
       </div>
     );
   }
@@ -313,7 +319,7 @@ export default function PortfolioComposition() {
             animate={{ opacity: 1, y: 0 }}
             className="glass-card rounded-2xl p-4 md:p-8 mb-6 md:mb-8"
           >
-            <p className="text-text-muted text-sm mb-2">Portfolio Overview</p>
+            <p className="text-text-secondary text-sm mb-2">Portfolio Overview</p>
             <div className="font-display text-4xl md:text-5xl font-semibold tracking-tight tabular-nums">
               {formatMoney(accountTotal)}
             </div>
@@ -340,7 +346,7 @@ export default function PortfolioComposition() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{acct.name}</div>
-                      <div className="text-xs text-text-muted tabular-nums">
+                      <div className="text-xs text-text-secondary tabular-nums">
                         {acct.percentage.toFixed(1)}% · {formatMoney(acct.value, true)}
                       </div>
                     </div>
@@ -357,7 +363,7 @@ export default function PortfolioComposition() {
             transition={{ delay: 0.1 }}
             className="glass-card rounded-2xl p-5 text-center"
           >
-            <p className="text-sm text-text-muted">
+            <p className="text-sm text-text-secondary">
               Link investment accounts via Plaid to see individual holdings and ticker-level analysis.
             </p>
             <Button className="mt-4" onClick={() => setLocation('/accounts')}>
@@ -376,11 +382,11 @@ export default function PortfolioComposition() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center"
         >
-          <Building2 className="w-16 h-16 text-text-muted mb-6" />
+          <Building2 className="w-16 h-16 text-text-secondary mb-6" />
           <h2 className="font-display text-2xl md:text-3xl font-medium mb-3">
             No Holdings Found
           </h2>
-          <p className="text-text-muted max-w-md mb-8">
+          <p className="text-text-secondary max-w-md mb-8">
             Connect your investment accounts to see your portfolio composition and asset allocation.
           </p>
           <Button onClick={() => setLocation('/accounts')}>
@@ -397,7 +403,6 @@ export default function PortfolioComposition() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
-      <ContextualInsights types="portfolio" />
       {/* Header Card with Total Value */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -406,13 +411,13 @@ export default function PortfolioComposition() {
       >
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-4">
           <div>
-            <p className="text-text-muted text-sm mb-2">Total Portfolio Value</p>
+            <p className="text-text-secondary text-sm mb-2">Total Portfolio Value</p>
             <div className="font-display text-4xl md:text-5xl font-semibold tracking-tight tabular-nums">
               {formatMoney(totalValue)}
             </div>
             {blendedReturn !== null && (
               <div className="flex items-center gap-3 mt-2">
-                <span className="text-sm text-text-muted">
+                <span className="text-sm text-text-secondary">
                   Blended historical return: <span className="font-semibold text-success">{blendedReturn}%/yr</span>
                 </span>
                 <button
@@ -427,7 +432,7 @@ export default function PortfolioComposition() {
           <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
             {/* Grouping Level Selector */}
             <div className="flex items-center gap-2 bg-surface-solid rounded-lg p-1">
-              <Layers className="h-4 w-4 text-text-muted ml-2" />
+              <Layers className="h-4 w-4 text-text-secondary ml-2" />
               <select
                 value={groupingLevel}
                 onChange={(e) => {
@@ -472,14 +477,14 @@ export default function PortfolioComposition() {
         <div className="flex items-center gap-2 mb-6 text-sm">
           {breadcrumbs.map((crumb, index) => (
             <div key={index} className="flex items-center gap-2">
-              {index > 0 && <ChevronRight className="h-4 w-4 text-text-muted" />}
+              {index > 0 && <ChevronRight className="h-4 w-4 text-text-secondary" />}
               <button
                 onClick={() => handleBreadcrumbClick(index)}
                 className={cn(
                   'transition-colors',
                   index === breadcrumbs.length - 1
                     ? 'text-text font-medium'
-                    : 'text-text-muted hover:text-text'
+                    : 'text-text-secondary hover:text-text'
                 )}
                 disabled={index === breadcrumbs.length - 1}
               >
@@ -515,7 +520,7 @@ export default function PortfolioComposition() {
                       />
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate">{item.name}</div>
-                        <div className="text-xs text-text-muted tabular-nums">
+                        <div className="text-xs text-text-secondary tabular-nums">
                           {item.percentage.toFixed(1)}% · {formatMoney(item.value, true)}
                         </div>
                       </div>
@@ -543,7 +548,7 @@ export default function PortfolioComposition() {
                         style={{ backgroundColor: item.color }}
                       />
                       <span className="text-text-secondary">{item.name}</span>
-                      <span className="text-text-muted tabular-nums">{item.percentage.toFixed(1)}%</span>
+                      <span className="text-text-secondary tabular-nums">{item.percentage.toFixed(1)}%</span>
                     </button>
                   ))}
                 </div>
@@ -561,6 +566,8 @@ export default function PortfolioComposition() {
           </motion.div>
         </AnimatePresence>
       </motion.div>
+
+      <PageActions types="portfolio" />
 
       {/* Breakdown Table - responds to grouping level */}
       <Section title={GROUPING_LABELS[groupingLevel]}>
@@ -584,7 +591,7 @@ export default function PortfolioComposition() {
                       style={{ backgroundColor: assetClass.color }}
                     />
                     <span className="font-medium">{assetClass.name}</span>
-                    <span className="text-sm text-text-muted px-2 py-0.5 rounded-full bg-surface-solid">
+                    <span className="text-sm text-text-secondary px-2 py-0.5 rounded-full bg-surface-solid">
                       {assetClass.subCategories.length}
                     </span>
                   </div>
@@ -593,13 +600,13 @@ export default function PortfolioComposition() {
                       <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
                         {formatMoney(assetClass.value)}
                       </span>
-                      <span className="text-text-muted text-sm ml-2">
+                      <span className="text-text-secondary text-sm ml-2">
                         {assetClass.percentage.toFixed(1)}%
                       </span>
                     </div>
                     <motion.span
                       animate={{ rotate: expandedCategories[assetClass.name] ? 180 : 0 }}
-                      className="text-text-muted"
+                      className="text-text-secondary"
                     >
                       ▾
                     </motion.span>
@@ -628,7 +635,7 @@ export default function PortfolioComposition() {
                           <span className="font-medium text-sm">{subCategory.name}</span>
                           <div className="flex items-center gap-3">
                             <span className="text-sm tabular-nums">{formatMoney(subCategory.value)}</span>
-                            <span className="text-xs text-text-muted tabular-nums w-12 text-right">
+                            <span className="text-xs text-text-secondary tabular-nums w-12 text-right">
                               {subCategory.percentage.toFixed(1)}%
                             </span>
                           </div>
@@ -641,17 +648,17 @@ export default function PortfolioComposition() {
                               className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-surface-hover transition-colors"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                                <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-secondary">
                                   {holding.ticker.slice(0, 3)}
                                 </div>
                                 <div>
                                   <div className="font-medium text-text-secondary">{holding.ticker}</div>
-                                  <div className="text-xs text-text-muted">{holding.account}</div>
+                                  <div className="text-xs text-text-secondary">{holding.account}</div>
                                 </div>
                               </div>
                               <div className="text-right">
                                 <div className="tabular-nums">{formatMoney(holding.value)}</div>
-                                <div className="text-xs text-text-muted tabular-nums">
+                                <div className="text-xs text-text-secondary tabular-nums">
                                   {holding.shares.toFixed(2)} shares
                                 </div>
                               </div>
@@ -700,7 +707,7 @@ export default function PortfolioComposition() {
                         style={{ backgroundColor: subCategory.color }}
                       />
                       <span className="font-medium">{subCategory.name}</span>
-                      <span className="text-sm text-text-muted px-2 py-0.5 rounded-full bg-surface-solid">
+                      <span className="text-sm text-text-secondary px-2 py-0.5 rounded-full bg-surface-solid">
                         {subCategory.holdings.length}
                       </span>
                     </div>
@@ -709,13 +716,13 @@ export default function PortfolioComposition() {
                         <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
                           {formatMoney(subCategory.value)}
                         </span>
-                        <span className="text-text-muted text-sm ml-2">
+                        <span className="text-text-secondary text-sm ml-2">
                           {subCategory.percentage.toFixed(1)}%
                         </span>
                       </div>
                       <motion.span
                         animate={{ rotate: expandedCategories[subCategory.name] ? 180 : 0 }}
-                        className="text-text-muted"
+                        className="text-text-secondary"
                       >
                         ▾
                       </motion.span>
@@ -739,17 +746,17 @@ export default function PortfolioComposition() {
                             className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-surface-hover transition-colors"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                              <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-secondary">
                                 {holding.ticker.slice(0, 3)}
                               </div>
                               <div>
                                 <div className="font-medium text-text-secondary">{holding.ticker}</div>
-                                <div className="text-xs text-text-muted">{holding.account}</div>
+                                <div className="text-xs text-text-secondary">{holding.account}</div>
                               </div>
                             </div>
                             <div className="text-right">
                               <div className="tabular-nums">{formatMoney(holding.value)}</div>
-                              <div className="text-xs text-text-muted tabular-nums">
+                              <div className="text-xs text-text-secondary tabular-nums">
                                 {holding.shares.toFixed(2)} shares
                               </div>
                             </div>
@@ -812,12 +819,12 @@ export default function PortfolioComposition() {
                         className="w-3 h-3 rounded-full flex-shrink-0"
                         style={{ backgroundColor: group.color }}
                       />
-                      <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-muted">
+                      <div className="w-8 h-8 rounded-lg bg-surface-solid flex items-center justify-center text-xs font-medium text-text-secondary">
                         {group.ticker.slice(0, 3)}
                       </div>
                       <div>
                         <div className="font-medium">{group.ticker}</div>
-                        <div className="text-xs text-text-muted">
+                        <div className="text-xs text-text-secondary">
                           {group.totalShares.toFixed(2)} shares
                           {group.holdings.length > 1 && ` · ${group.holdings.length} accounts`}
                         </div>
@@ -828,14 +835,14 @@ export default function PortfolioComposition() {
                         <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
                           {formatMoney(group.totalValue)}
                         </span>
-                        <span className="text-text-muted text-sm ml-2">
+                        <span className="text-text-secondary text-sm ml-2">
                           {group.percentage.toFixed(1)}%
                         </span>
                       </div>
                       {group.holdings.length > 1 && (
                         <motion.span
                           animate={{ rotate: expandedCategories[`holding-${group.ticker}`] ? 180 : 0 }}
-                          className="text-text-muted"
+                          className="text-text-secondary"
                         >
                           ▾
                         </motion.span>
@@ -865,7 +872,7 @@ export default function PortfolioComposition() {
                                 <div className="text-right">
                                   <div className="tabular-nums">{formatMoney(holding.value)}</div>
                                 </div>
-                                <div className="text-right text-text-muted w-24">
+                                <div className="text-right text-text-secondary w-24">
                                   <div className="tabular-nums">{holding.shares.toFixed(2)} shares</div>
                                 </div>
                               </div>

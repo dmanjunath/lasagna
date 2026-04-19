@@ -1,11 +1,10 @@
 import { Hono } from "hono";
 import { eq, desc, and, sql, accounts, balanceSnapshots, financialProfiles, transactions } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 import { z } from "zod";
 
 export const priorityRoutes = new Hono<AuthEnv>();
-priorityRoutes.use("*", requireAuth);
 
 // GET / - Calculate personalized financial priorities
 priorityRoutes.get("/", async (c) => {

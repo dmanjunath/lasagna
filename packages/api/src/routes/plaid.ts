@@ -4,12 +4,11 @@ import { eq, desc, plaidItems, accounts, balanceSnapshots, encrypt } from "@lasa
 import { db } from "../lib/db.js";
 import { plaidClient } from "../lib/plaid.js";
 import { env } from "../lib/env.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 import { syncItem } from "../lib/sync.js";
 import { generateInsights } from "../lib/insights-engine.js";
 
 export const plaidRoutes = new Hono<AuthEnv>();
-plaidRoutes.use("*", requireAuth);
 
 // Create a link token for Plaid Link
 plaidRoutes.post("/link-token", async (c) => {

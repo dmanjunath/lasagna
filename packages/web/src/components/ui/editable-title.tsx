@@ -152,7 +152,7 @@ export const EditableTitle = React.forwardRef<
       ) : (
         <Pencil
           className={cn(
-            'h-4 w-4 text-text-muted transition-opacity duration-200',
+            'h-4 w-4 text-text-secondary transition-opacity duration-200',
             isHovered ? 'opacity-100' : 'opacity-0'
           )}
         />

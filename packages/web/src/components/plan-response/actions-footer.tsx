@@ -16,7 +16,7 @@ export function ActionsFooter({ actions }: ActionsFooterProps) {
         {actions.map((action, i) => (
           <li key={i} className="flex items-start gap-3">
             <ArrowRight className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
-            <span className="text-[#c5c5c5]">{action}</span>
+            <span className="text-text-secondary">{action}</span>
           </li>
         ))}
       </ul>

@@ -2,10 +2,9 @@ import { Hono } from "hono";
 import { eq, desc, syncLog } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { syncItem, syncAllForTenant } from "../lib/sync.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const syncRoutes = new Hono<AuthEnv>();
-syncRoutes.use("*", requireAuth);
 
 // Trigger sync for all items
 syncRoutes.post("/", async (c) => {

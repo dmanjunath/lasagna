@@ -20,7 +20,7 @@ export function TextBlockRenderer({ block }: { block: TextBlockType }) {
         <div className={cn(
           "prose prose-invert max-w-none",
           // Base typography - editorial quality
-          "prose-p:text-[#c5c5c5] prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4 prose-p:text-justify",
+          "prose-p:text-text-secondary prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4 prose-p:text-justify",
           // H2 - Large with accent underline
           "prose-h2:text-[22px] prose-h2:font-semibold prose-h2:text-white prose-h2:tracking-[-0.03em] prose-h2:mb-4 prose-h2:mt-0",
           "[&_h2]:after:content-[''] [&_h2]:after:block [&_h2]:after:w-10 [&_h2]:after:h-[3px] [&_h2]:after:bg-accent [&_h2]:after:mt-3 [&_h2]:after:mb-4 [&_h2]:after:rounded-sm",
@@ -31,13 +31,13 @@ export function TextBlockRenderer({ block }: { block: TextBlockType }) {
           // Emphasis - white text, not italic
           "prose-em:text-white prose-em:not-italic prose-em:font-medium",
           // Lists - clean spacing
-          "prose-li:text-[#c5c5c5] prose-li:leading-relaxed prose-li:mb-1.5",
+          "prose-li:text-text-secondary prose-li:leading-relaxed prose-li:mb-1.5",
           "prose-ul:my-4 prose-ol:my-4",
           "prose-ul:pl-5 prose-ol:pl-5",
           // Links
           "prose-a:text-accent prose-a:no-underline hover:prose-a:underline",
           // Blockquotes - accent border
-          "prose-blockquote:border-l-2 prose-blockquote:border-accent prose-blockquote:pl-4 prose-blockquote:py-1 prose-blockquote:my-5 prose-blockquote:bg-accent/5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-blockquote:text-[#a0a0a0]",
+          "prose-blockquote:border-l-2 prose-blockquote:border-accent prose-blockquote:pl-4 prose-blockquote:py-1 prose-blockquote:my-5 prose-blockquote:bg-accent/5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-blockquote:text-text-secondary",
           // Code
           "prose-code:text-accent prose-code:bg-black/30 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none",
           // HR - subtle divider

@@ -43,7 +43,7 @@ export function FanChart({
 }: FanChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div style={{ height }} className="flex items-center justify-center text-text-muted">
+      <div style={{ height }} className="flex items-center justify-center text-text-secondary">
         No data available
       </div>
     );

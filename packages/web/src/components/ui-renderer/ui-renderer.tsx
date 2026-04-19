@@ -42,7 +42,7 @@ function ProjectionBlockRenderer({ block }: { block: UIBlock & { type: "projecti
         </h3>
       )}
       {block.description && (
-        <p className="text-text-muted text-sm mb-4">{block.description}</p>
+        <p className="text-text-secondary text-sm mb-4">{block.description}</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {block.scenarios.map((scenario, idx) => (
@@ -57,7 +57,7 @@ function ProjectionBlockRenderer({ block }: { block: UIBlock & { type: "projecti
               </div>
             )}
             {scenario.description && (
-              <p className="text-text-muted text-sm mt-2">
+              <p className="text-text-secondary text-sm mt-2">
                 {scenario.description}
               </p>
             )}
@@ -81,7 +81,7 @@ function ActionBlockRenderer({ block }: { block: UIBlock & { type: "action" } })
         </h3>
       )}
       {block.description && (
-        <p className="text-text-muted text-sm mb-4">{block.description}</p>
+        <p className="text-text-secondary text-sm mb-4">{block.description}</p>
       )}
       {items.length > 0 && (
         <ul className="space-y-2">

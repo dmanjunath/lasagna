@@ -47,7 +47,7 @@ export function MobileTabBar() {
               }}
               className={cn(
                 'flex flex-col items-center justify-center flex-1 h-full gap-0.5 transition-colors relative',
-                active ? 'text-accent' : 'text-text-muted'
+                active ? 'text-accent' : 'text-text-secondary'
               )}
             >
               <Icon className="w-5 h-5" />

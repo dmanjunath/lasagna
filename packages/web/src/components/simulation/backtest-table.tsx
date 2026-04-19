@@ -129,7 +129,7 @@ export function BacktestTable({
             filter === "success" && "border-success/50 bg-success/5"
           )}
         >
-          <div className="text-xs uppercase tracking-wider text-text-muted font-semibold">
+          <div className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
             Succeeded
           </div>
           <div className="text-2xl font-bold text-success">{successCount}</div>
@@ -142,7 +142,7 @@ export function BacktestTable({
             filter === "close" && "border-warning/50 bg-warning/5"
           )}
         >
-          <div className="text-xs uppercase tracking-wider text-text-muted font-semibold">
+          <div className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
             Close Call
           </div>
           <div className="text-2xl font-bold text-warning">{closeCount}</div>
@@ -155,7 +155,7 @@ export function BacktestTable({
             filter === "failed" && "border-danger/50 bg-danger/5"
           )}
         >
-          <div className="text-xs uppercase tracking-wider text-text-muted font-semibold">
+          <div className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
             Ran Out
           </div>
           <div className="text-2xl font-bold text-danger">{failedCount}</div>
@@ -179,7 +179,7 @@ export function BacktestTable({
                 <th
                   key={key}
                   onClick={() => handleSort(key)}
-                  className="text-xs uppercase tracking-wider text-text-muted font-semibold px-3 py-2 text-left cursor-pointer select-none hover:text-text-primary"
+                  className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2 text-left cursor-pointer select-none hover:text-text-primary"
                 >
                   {label}
                   <SortIcon column={key} />

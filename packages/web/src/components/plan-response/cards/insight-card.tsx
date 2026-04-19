@@ -40,7 +40,7 @@ export function InsightCard({ headline, details, variant = 'default' }: InsightC
       <div className="flex items-start gap-3">
         <Lightbulb className={cn('w-4 h-4 mt-0.5 flex-shrink-0', styles.icon)} />
         <div className="flex-1 min-w-0">
-          <p className="text-[15px] text-[#f5f5f5] leading-relaxed">{headline}</p>
+          <p className="text-[15px] text-text leading-relaxed">{headline}</p>
 
           {details && (
             <>

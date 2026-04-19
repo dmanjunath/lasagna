@@ -8,7 +8,7 @@ export function ChartError({ message, data }: ChartErrorProps) {
     <div className="glass-card p-4 border border-warning/30">
       <div className="text-warning text-sm mb-2">Chart Error: {message}</div>
       {data && data.length > 0 && (
-        <details className="text-xs text-text-muted">
+        <details className="text-xs text-text-secondary">
           <summary className="cursor-pointer hover:text-text-secondary">
             View raw data ({data.length} rows)
           </summary>

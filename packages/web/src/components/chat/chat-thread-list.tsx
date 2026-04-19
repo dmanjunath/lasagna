@@ -40,8 +40,8 @@ export function ChatThreadList({ threads, onSelectThread, onNewMessage, suggesti
         {threads.length === 0 ? (
           <div className="p-4 space-y-3">
             <div className="flex items-center gap-2 px-1 mb-1">
-              <MessageSquare className="w-3.5 h-3.5 text-white/40" />
-              <span className="text-xs font-medium text-white/40">Suggested</span>
+              <MessageSquare className="w-3.5 h-3.5 text-text-secondary" />
+              <span className="text-xs font-medium text-text-secondary">Suggested</span>
             </div>
             {DEFAULT_PROMPTS.map((prompt) => (
               <button
@@ -65,11 +65,11 @@ export function ChatThreadList({ threads, onSelectThread, onNewMessage, suggesti
                   {thread.question}
                 </span>
                 {thread.answerPreview && (
-                  <span className="text-xs text-white/45 leading-snug line-clamp-2">
+                  <span className="text-xs text-text-secondary leading-snug line-clamp-2">
                     {thread.answerPreview}
                   </span>
                 )}
-                <span className="text-[11px] text-white/30 mt-0.5">
+                <span className="text-[11px] text-text-muted mt-0.5">
                   {thread.timestamp}
                 </span>
               </button>
@@ -85,7 +85,7 @@ export function ChatThreadList({ threads, onSelectThread, onNewMessage, suggesti
             <button
               key={i}
               onClick={() => onNewMessage(s)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-white/[0.04] border border-white/10 text-white/50 hover:bg-white/[0.07] hover:text-white/80 hover:border-accent/30 transition-all"
+              className="px-3 py-1.5 rounded-full text-xs font-medium bg-white/[0.04] border border-white/10 text-text-secondary hover:bg-white/[0.07] hover:text-text hover:border-accent/30 transition-all"
             >
               {s}
             </button>
@@ -102,7 +102,7 @@ export function ChatThreadList({ threads, onSelectThread, onNewMessage, suggesti
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask anything…"
-            className="flex-1 px-4 py-2.5 rounded-2xl border border-white/10 bg-white/[0.06] text-white/90 text-sm placeholder:text-white/30 focus:outline-none focus:border-accent/40 focus:bg-white/[0.08] transition-all"
+            className="flex-1 px-4 py-2.5 rounded-2xl border border-white/10 bg-white/[0.06] text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-white/[0.08] transition-all"
           />
           <button
             type="submit"

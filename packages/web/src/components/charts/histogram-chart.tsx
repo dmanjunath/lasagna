@@ -177,15 +177,15 @@ export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
         </BarChart>
       </ResponsiveContainer>
       <div className="flex items-center justify-center gap-6 mt-3">
-        <div className="flex items-center gap-1.5 text-xs text-text-muted">
+        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
           <span className="w-2.5 h-2.5 rounded-sm" style={{ background: STATUS_COLORS.success }} />
           Succeeded
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-text-muted">
+        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
           <span className="w-2.5 h-2.5 rounded-sm" style={{ background: STATUS_COLORS.close }} />
           Close call
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-text-muted">
+        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
           <span className="w-2.5 h-2.5 rounded-sm" style={{ background: STATUS_COLORS.failure }} />
           Ran out
         </div>

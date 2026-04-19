@@ -8,6 +8,7 @@ import {
   pgEnum,
   integer,
   jsonb,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: roleEnum("role").notNull().default("owner"),
+  isDemo: boolean("is_demo").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

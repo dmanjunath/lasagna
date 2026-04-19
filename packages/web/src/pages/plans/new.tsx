@@ -54,42 +54,46 @@ export function NewPlanPage() {
       <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text mb-2">
         Create a Plan
       </h1>
-      <p className="text-text-muted mb-8">
+      <p className="text-text-secondary mb-8">
         Choose a plan type to get started.
       </p>
 
-      <div className="space-y-4">
-        {planTypes.map((pt, i) => (
-          <motion.button
-            key={pt.type}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.1 }}
-            onClick={() => handleSelectType(pt.type)}
-            disabled={creating}
-            className={cn(
-              "w-full p-4 rounded-xl border text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
-              creating
-                ? "opacity-50 cursor-not-allowed"
-                : "border-border bg-surface hover:border-accent/50"
-            )}
-          >
-            <div className="flex items-start gap-4">
-              <div className="p-2 rounded-lg bg-bg-elevated">
-                {creating ? (
-                  <Loader2 className="w-5 h-5 text-accent animate-spin" />
-                ) : (
-                  <pt.icon className="w-5 h-5 text-accent" />
-                )}
+      {import.meta.env.VITE_DEMO_MODE !== "true" ? (
+        <div className="space-y-4">
+          {planTypes.map((pt, i) => (
+            <motion.button
+              key={pt.type}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.1 }}
+              onClick={() => handleSelectType(pt.type)}
+              disabled={creating}
+              className={cn(
+                "w-full p-4 rounded-xl border text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
+                creating
+                  ? "opacity-50 cursor-not-allowed"
+                  : "border-border bg-surface hover:border-accent/50"
+              )}
+            >
+              <div className="flex items-start gap-4">
+                <div className="p-2 rounded-lg bg-bg-elevated">
+                  {creating ? (
+                    <Loader2 className="w-5 h-5 text-accent animate-spin" />
+                  ) : (
+                    <pt.icon className="w-5 h-5 text-accent" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-medium text-text">{pt.label}</h3>
+                  <p className="text-sm text-text-secondary mt-1">{pt.description}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-medium text-text">{pt.label}</h3>
-                <p className="text-sm text-text-muted mt-1">{pt.description}</p>
-              </div>
-            </div>
-          </motion.button>
-        ))}
-      </div>
+            </motion.button>
+          ))}
+        </div>
+      ) : (
+        <p className="text-text-secondary text-sm">Plan creation is disabled in demo mode.</p>
+      )}
     </div>
   );
 }

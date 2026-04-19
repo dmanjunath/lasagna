@@ -25,7 +25,7 @@ import {
 } from 'recharts';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
-import { ContextualInsights } from '../components/common/contextual-insights';
+import { PageActions } from '../components/common/page-actions';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -130,7 +130,7 @@ function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: 
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-bg-elevated border border-border rounded-lg px-3 py-2 shadow-lg">
-      <p className="text-xs text-text-muted mb-1">{label}</p>
+      <p className="text-xs text-text-secondary mb-1">{label}</p>
       {payload.map((entry: { name: string; value: number; color: string }) => (
         <p key={entry.name} className="text-sm font-medium" style={{ color: entry.color }}>
           {entry.name}: {formatCurrency(entry.value)}
@@ -338,6 +338,7 @@ export function Spending() {
         </p>
       </motion.div>
 
+
       {/* Month Selector */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -360,22 +361,24 @@ export function Spending() {
         >
           <ChevronRight className="w-4 h-4 text-text-secondary" />
         </button>
-        <button
-          onClick={async () => {
-            setSyncing(true);
-            await api.triggerSync().catch(console.error);
-            // Wait for sync to process, then reload data
-            setTimeout(() => {
-              loadData();
-              setSyncing(false);
-            }, 3000);
-          }}
-          disabled={syncing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-muted hover:text-accent border border-border rounded-lg hover:border-accent/30 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing...' : 'Sync'}
-        </button>
+        {import.meta.env.VITE_DEMO_MODE !== "true" && (
+          <button
+            onClick={async () => {
+              setSyncing(true);
+              await api.triggerSync().catch(console.error);
+              // Wait for sync to process, then reload data
+              setTimeout(() => {
+                loadData();
+                setSyncing(false);
+              }, 3000);
+            }}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-accent border border-border rounded-lg hover:border-accent/30 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync'}
+          </button>
+        )}
       </motion.div>
 
       {/* Quick Stats — hidden when no data and user has linked accounts */}
@@ -389,7 +392,7 @@ export function Spending() {
         <div className="bg-bg-elevated border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
             <ArrowDownRight className="w-4 h-4 text-danger" />
-            <span className="text-xs uppercase tracking-wider text-text-muted font-semibold">
+            <span className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
               Total Spent
             </span>
           </div>
@@ -400,7 +403,7 @@ export function Spending() {
         <div className="bg-bg-elevated border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
             <ArrowUpRight className="w-4 h-4 text-success" />
-            <span className="text-xs uppercase tracking-wider text-text-muted font-semibold">
+            <span className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
               Total Income
             </span>
           </div>
@@ -411,7 +414,7 @@ export function Spending() {
         <div className="bg-bg-elevated border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="w-4 h-4 text-text-secondary" />
-            <span className="text-xs uppercase tracking-wider text-text-muted font-semibold">
+            <span className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
               Net Cash Flow
             </span>
           </div>
@@ -439,13 +442,13 @@ export function Spending() {
           <h3 className="text-lg font-semibold text-text-primary mb-2">
             Transaction sync coming soon
           </h3>
-          <p className="text-sm text-text-muted mb-4">
+          <p className="text-sm text-text-secondary mb-4">
             For now, your monthly expenses are estimated from your credit card balances.
           </p>
           {creditCardTotal > 0 && (
             <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-danger/10 border border-danger/20 rounded-xl">
               <ArrowDownRight className="w-4 h-4 text-danger" />
-              <span className="text-xs uppercase tracking-wider text-text-muted font-semibold mr-2">
+              <span className="text-xs uppercase tracking-wider text-text-secondary font-semibold mr-2">
                 Est. Monthly Spend
               </span>
               <span className="text-xl font-bold text-danger">
@@ -467,11 +470,11 @@ export function Spending() {
         >
           <h3 className="text-sm font-semibold text-text-primary mb-4">Spending by Category</h3>
           {loadingSummary ? (
-            <div className="flex items-center justify-center py-8 text-text-muted">
+            <div className="flex items-center justify-center py-8 text-text-secondary">
               <Loader2 className="w-5 h-5 animate-spin" />
             </div>
           ) : spendingCategories.length === 0 ? (
-            <p className="text-sm text-text-muted py-8 text-center">No spending data for this month</p>
+            <p className="text-sm text-text-secondary py-8 text-center">No spending data for this month</p>
           ) : (
             <>
               <div className="h-32 mb-3">
@@ -536,11 +539,11 @@ export function Spending() {
         >
           <h3 className="text-sm font-semibold text-text-primary mb-4">Monthly Trend</h3>
           {loadingTrend ? (
-            <div className="flex items-center justify-center py-8 text-text-muted">
+            <div className="flex items-center justify-center py-8 text-text-secondary">
               <Loader2 className="w-5 h-5 animate-spin" />
             </div>
           ) : trendData.length === 0 ? (
-            <p className="text-sm text-text-muted py-8 text-center">No trend data available</p>
+            <p className="text-sm text-text-secondary py-8 text-center">No trend data available</p>
           ) : (
             <>
               <div className="h-48">
@@ -569,15 +572,15 @@ export function Spending() {
               <div className="flex items-center gap-4 mt-3 justify-center">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-[#34d399]" />
-                  <span className="text-xs text-text-muted">Income</span>
+                  <span className="text-xs text-text-secondary">Income</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c]" />
-                  <span className="text-xs text-text-muted">Expenses</span>
+                  <span className="text-xs text-text-secondary">Expenses</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-0.5 border-t-2 border-dashed border-[#94a3b8]" />
-                  <span className="text-xs text-text-muted">Net</span>
+                  <span className="text-xs text-text-secondary">Net</span>
                 </div>
               </div>
             </>
@@ -585,15 +588,7 @@ export function Spending() {
         </motion.div>
       </div>
 
-      {/* Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.22 }}
-        className="mb-6"
-      >
-        <ContextualInsights types={["spending", "behavioral"]} />
-      </motion.div>
+      <PageActions types={["spending", "behavioral"]} />
 
       {/* Transaction List */}
       <motion.div
@@ -621,7 +616,7 @@ export function Spending() {
 
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
               <input
                 type="text"
                 placeholder="Search merchants..."
@@ -632,7 +627,7 @@ export function Spending() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -672,12 +667,12 @@ export function Spending() {
 
         {/* Transaction rows */}
         {loadingTx ? (
-          <div className="flex items-center justify-center py-12 text-text-muted">
+          <div className="flex items-center justify-center py-12 text-text-secondary">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
             <span className="text-sm">Loading transactions...</span>
           </div>
         ) : transactions.length === 0 ? (
-          <p className="text-sm text-text-muted py-12 text-center">
+          <p className="text-sm text-text-secondary py-12 text-center">
             No transactions found
           </p>
         ) : (
@@ -706,7 +701,7 @@ export function Spending() {
                     <p className="text-sm font-medium text-text-primary truncate">
                       {tx.merchantName || tx.name}
                     </p>
-                    <p className="text-xs text-text-muted truncate">
+                    <p className="text-xs text-text-secondary truncate">
                       {dateStr}
                     </p>
                   </div>
@@ -740,7 +735,7 @@ export function Spending() {
         {/* Pagination */}
         {txTotal > PAGE_SIZE && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-            <p className="text-xs text-text-muted">
+            <p className="text-xs text-text-secondary">
               Showing {(txPage - 1) * PAGE_SIZE + 1}&ndash;
               {Math.min(txPage * PAGE_SIZE, txTotal)} of {txTotal}
             </p>

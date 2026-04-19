@@ -1,10 +1,9 @@
 import { Hono } from "hono";
 import { eq, and, sql, goals } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const goalRoutes = new Hono<AuthEnv>();
-goalRoutes.use("*", requireAuth);
 
 // GET / - List all active goals
 goalRoutes.get("/", async (c) => {

@@ -316,7 +316,7 @@ export function ProbabilityOfSuccess() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-accent" />
-          <p className="text-text-muted">Loading your financial data...</p>
+          <p className="text-text-secondary">Loading your financial data...</p>
         </div>
       </div>
     );
@@ -331,11 +331,11 @@ export function ProbabilityOfSuccess() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center"
         >
-          <Building2 className="w-16 h-16 text-text-muted mb-6" />
+          <Building2 className="w-16 h-16 text-text-secondary mb-6" />
           <h2 className="font-display text-2xl md:text-3xl font-medium mb-3">
             No Accounts Linked
           </h2>
-          <p className="text-text-muted max-w-md mb-8">
+          <p className="text-text-secondary max-w-md mb-8">
             Connect your bank and investment accounts to run retirement probability simulations based on your real portfolio.
           </p>
           <Button onClick={() => navigate("/accounts")}>
@@ -438,7 +438,7 @@ export function ProbabilityOfSuccess() {
                 </button>
               ))}
               {activePreset === "custom" && (
-                <span className="px-3 py-1.5 rounded-lg text-sm font-medium bg-surface text-text-muted border border-border">
+                <span className="px-3 py-1.5 rounded-lg text-sm font-medium bg-surface text-text-secondary border border-border">
                   Custom
                 </span>
               )}
@@ -455,9 +455,9 @@ export function ProbabilityOfSuccess() {
               ] as const).map(([key, label, feeKey]) => (
                 <div key={key} className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-text-muted">
+                    <label className="text-xs text-text-secondary">
                       {label}
-                      <span className="ml-1.5 text-text-muted/60">
+                      <span className="ml-1.5 text-text-muted">
                         ({key === "cash" ? `${cashGrowthRate}% growth` : `${HISTORICAL_RETURNS[key]}% avg`})
                       </span>
                     </label>
@@ -468,7 +468,7 @@ export function ProbabilityOfSuccess() {
                     onChange={(e) => updateAllocation(key, parseInt(e.target.value))}
                     className="w-full accent-accent h-1.5" />
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-text-muted/60">Fee:</span>
+                    <span className="text-[10px] text-text-muted">Fee:</span>
                     {key === "cash" ? (
                       <div className="flex items-center gap-1">
                         <input
@@ -481,9 +481,9 @@ export function ProbabilityOfSuccess() {
                           step="0.1"
                           min="0"
                           max="10"
-                          className="w-14 bg-surface rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-14 bg-surface rounded border border-border px-1.5 py-0.5 text-[10px] text-text-secondary tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
-                        <span className="text-[10px] text-text-muted/60">% growth</span>
+                        <span className="text-[10px] text-text-muted">% growth</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1">
@@ -497,9 +497,9 @@ export function ProbabilityOfSuccess() {
                           step="0.01"
                           min="0"
                           max="5"
-                          className="w-14 bg-surface rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-14 bg-surface rounded border border-border px-1.5 py-0.5 text-[10px] text-text-secondary tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
-                        <span className="text-[10px] text-text-muted/60">%/yr</span>
+                        <span className="text-[10px] text-text-muted">%/yr</span>
                       </div>
                     )}
                   </div>
@@ -510,7 +510,7 @@ export function ProbabilityOfSuccess() {
             {/* Expected Return & Validation */}
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-text-muted" />
+                <TrendingUp className="w-4 h-4 text-text-secondary" />
                 <span className="text-sm text-text-secondary">
                   Expected return: <span className="font-semibold text-text">{getExpectedReturn(allocation).toFixed(1)}%</span>
                 </span>
@@ -525,7 +525,7 @@ export function ProbabilityOfSuccess() {
 
           {/* Auto-run indicator */}
           {simulating && (
-            <div className="border-t border-border pt-4 flex items-center gap-2 text-text-muted text-sm">
+            <div className="border-t border-border pt-4 flex items-center gap-2 text-text-secondary text-sm">
               <RefreshCw className="w-4 h-4 animate-spin text-accent" />
               Recalculating...
             </div>
@@ -536,22 +536,22 @@ export function ProbabilityOfSuccess() {
       {/* Dollar Toggle */}
       {(backtestPeriods.length > 0 || percentiles.length > 0) && !simulating && (
         <div className="flex items-center gap-2 mb-6">
-          <span className="text-sm text-text-muted">Values in:</span>
+          <span className="text-sm text-text-secondary">Values in:</span>
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
-              className={cn("px-3 py-1.5 text-sm", useRealDollars ? "bg-accent/10 text-accent" : "text-text-muted")}
+              className={cn("px-3 py-1.5 text-sm", useRealDollars ? "bg-accent/10 text-accent" : "text-text-secondary")}
               onClick={() => setUseRealDollars(true)}
             >
               Real $
             </button>
             <button
-              className={cn("px-3 py-1.5 text-sm", !useRealDollars ? "bg-accent/10 text-accent" : "text-text-muted")}
+              className={cn("px-3 py-1.5 text-sm", !useRealDollars ? "bg-accent/10 text-accent" : "text-text-secondary")}
               onClick={() => setUseRealDollars(false)}
             >
               Nominal $
             </button>
           </div>
-          <span className="text-xs text-text-muted">(backtest only)</span>
+          <span className="text-xs text-text-secondary">(backtest only)</span>
         </div>
       )}
 
@@ -566,8 +566,8 @@ export function ProbabilityOfSuccess() {
             <div className="flex items-center gap-4 py-4">
               <RefreshCw className="w-8 h-8 animate-spin text-accent" />
               <div>
-                <p className="text-text-muted text-sm">Running simulations...</p>
-                <p className="text-xs text-text-muted mt-1">5,000 Monte Carlo + historical backtest</p>
+                <p className="text-text-secondary text-sm">Running simulations...</p>
+                <p className="text-xs text-text-secondary mt-1">5,000 Monte Carlo + historical backtest</p>
               </div>
             </div>
           ) : error ? (
@@ -575,7 +575,7 @@ export function ProbabilityOfSuccess() {
               <AlertTriangle className="w-10 h-10 text-danger flex-shrink-0" />
               <div className="flex-1">
                 <p className="font-medium text-danger">Simulation Error</p>
-                <p className="text-text-muted text-sm mt-1">{error}</p>
+                <p className="text-text-secondary text-sm mt-1">{error}</p>
               </div>
               <Button variant="secondary" onClick={runSimulations}>
                 <RefreshCw className="w-4 h-4 mr-2" />
@@ -599,7 +599,7 @@ export function ProbabilityOfSuccess() {
                   )} />
                 </div>
                 <div>
-                  <p className="text-text-muted text-sm mb-1">Probability of Success</p>
+                  <p className="text-text-secondary text-sm mb-1">Probability of Success</p>
                   <div className={cn(
                     "font-display text-4xl md:text-5xl font-semibold tabular-nums",
                     status === 'success' && "text-success",
@@ -610,7 +610,7 @@ export function ProbabilityOfSuccess() {
                   </div>
                 </div>
               </div>
-              <div className="text-text-muted text-sm md:text-right">
+              <div className="text-text-secondary text-sm md:text-right">
                 Based on {lifeExpectancy - retirementAge} year projection
                 <br />
                 <span className="text-text-secondary">Starting balance: {formatMoney(totalValue)}</span>
@@ -629,7 +629,7 @@ export function ProbabilityOfSuccess() {
         >
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-warning mt-0.5 flex-shrink-0" />
-            <p className="text-text-muted text-sm">{warning}</p>
+            <p className="text-text-secondary text-sm">{warning}</p>
           </div>
         </motion.div>
       )}
@@ -667,7 +667,7 @@ export function ProbabilityOfSuccess() {
       {backtestPeriods.length > 0 && !simulating && (
         <Section title="Historical Backtest">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card rounded-2xl p-4 md:p-6">
-            <p className="text-xs text-text-muted mb-4">
+            <p className="text-xs text-text-secondary mb-4">
               Tests your plan against every historical period since 1928. Results may differ from Monte Carlo because MC generates random scenarios including ones that never actually occurred.
             </p>
             <BacktestTable

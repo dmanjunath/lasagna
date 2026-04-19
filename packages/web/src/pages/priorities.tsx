@@ -1,461 +1,564 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation } from 'wouter';
 import {
-  Shield,
-  Gift,
-  Flame,
-  HeartPulse,
-  Sprout,
-  TrendingUp,
-  CreditCard,
-  Rocket,
-  Check,
-  ChevronDown,
-  Loader2,
-  AlertCircle,
-  ArrowRight,
-  DollarSign,
-  Wallet,
-  PiggyBank,
+  Shield, Gift, Flame, HeartPulse, Sprout,
+  TrendingUp, CreditCard, Rocket,
+  Loader2, AlertCircle, Lock, RefreshCw, Check, SkipForward, ChevronDown,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
+import { useInsights } from '../hooks/useInsights';
+import { useChatStore } from '../lib/chat-store';
+import { ActionItem } from '../components/common/action-item';
 import type { LucideIcon } from 'lucide-react';
 
+// ── constants ────────────────────────────────────────────────────────────────
+
 const iconMap: Record<string, LucideIcon> = {
-  shield: Shield,
-  gift: Gift,
-  flame: Flame,
-  'heart-pulse': HeartPulse,
-  sprout: Sprout,
-  'trending-up': TrendingUp,
-  'credit-card': CreditCard,
-  rocket: Rocket,
+  shield: Shield, gift: Gift, flame: Flame, 'heart-pulse': HeartPulse,
+  sprout: Sprout, 'trending-up': TrendingUp, 'credit-card': CreditCard, rocket: Rocket,
 };
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+const TYPE_FILTERS = [
+  { label: 'All', value: null },
+  { label: 'Spending', value: 'spending' },
+  { label: 'Behavioral', value: 'behavioral' },
+  { label: 'Debt', value: 'debt' },
+  { label: 'Tax', value: 'tax' },
+  { label: 'Portfolio', value: 'portfolio' },
+  { label: 'Savings', value: 'savings' },
+  { label: 'Retirement', value: 'retirement' },
+];
+
+const URGENCY_ORDER = ['critical', 'high', 'medium', 'low'];
+const URGENCY_LABELS: Record<string, string> = {
+  critical: 'Critical', high: 'High Priority', medium: 'Medium', low: 'Low',
+};
+const URGENCY_COLORS: Record<string, string> = {
+  critical: 'text-danger', high: 'text-warning', medium: 'text-accent', low: 'text-text-secondary',
+};
+const PAGE_LINKS: Record<string, string> = {
+  spending: '/spending', behavioral: '/spending', debt: '/debt',
+  tax: '/tax', portfolio: '/invest', savings: '/goals',
+  retirement: '/retirement', general: '/',
+};
+
+// ── types ────────────────────────────────────────────────────────────────────
 
 interface PriorityStep {
-  id: string;
-  order: number;
-  title: string;
-  subtitle: string;
-  icon: string;
-  status: string;
-  current: number | null;
-  target: number | null;
-  progress: number;
-  action: string;
-  detail: string;
-  priority: string;
+  id: string; order: number; title: string; subtitle: string;
+  icon: string; status: string; current: number | null;
+  target: number | null; progress: number;
+  action: string; detail: string; priority: string;
+  skipped: boolean;
 }
 
 interface PrioritySummary {
-  monthlyIncome: number;
-  monthlyExpenses: number | null;
-  monthlySurplus: number | null;
-  totalCash: number;
-  totalInvested: number;
-  totalHighInterestDebt: number;
-  totalMediumInterestDebt: number;
-  age: number | null;
-  retirementAge: number;
-  filingStatus: string | null;
+  monthlyIncome: number; monthlyExpenses: number | null;
+  monthlySurplus: number | null; totalCash: number;
+  totalInvested: number; totalHighInterestDebt: number;
+  totalMediumInterestDebt: number; age: number | null;
+  retirementAge: number; filingStatus: string | null;
 }
 
 interface PriorityData {
-  steps: PriorityStep[];
-  currentStepId: string;
-  summary: PrioritySummary;
+  steps: PriorityStep[]; currentStepId: string; summary: PrioritySummary;
 }
 
-function ProgressBar({ progress, priority }: { progress: number; priority: string }) {
-  const colorClass =
-    priority === 'critical'
-      ? 'bg-accent'
-      : priority === 'high'
-        ? 'bg-warning'
-        : 'bg-blue-500';
+// ── helpers ──────────────────────────────────────────────────────────────────
 
-  return (
-    <div className="h-2 bg-border rounded-full overflow-hidden">
-      <motion.div
-        className={cn('h-full rounded-full', colorClass)}
-        initial={{ width: 0 }}
-        animate={{ width: `${Math.min(progress, 100)}%` }}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-      />
-    </div>
-  );
+function fmt(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: 'USD',
+    minimumFractionDigits: 0, maximumFractionDigits: 0,
+  }).format(value);
 }
 
-function SummaryCard({ summary }: { summary: PrioritySummary }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="bg-bg-elevated border border-border rounded-xl p-6 mb-8"
-    >
-      <h2 className="text-lg font-semibold text-text-primary mb-4">Monthly Cash Flow</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-            <DollarSign className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <div className="text-sm text-text-muted">Income</div>
-            <div className="text-lg font-semibold text-text-primary">
-              {formatCurrency(summary.monthlyIncome)}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-danger/10 flex items-center justify-center">
-            <Wallet className="w-5 h-5 text-danger" />
-          </div>
-          <div>
-            <div className="text-sm text-text-muted">Expenses</div>
-            <div className="text-lg font-semibold text-text-primary">
-              {summary.monthlyExpenses !== null ? formatCurrency(summary.monthlyExpenses) : '—'}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-            <PiggyBank className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <div className="text-sm text-text-muted">Surplus to Deploy</div>
-            <div
-              className={cn(
-                'text-lg font-semibold',
-                summary.monthlySurplus !== null && summary.monthlySurplus >= 0 ? 'text-accent' : 'text-danger'
-              )}
-            >
-              {summary.monthlySurplus !== null ? formatCurrency(summary.monthlySurplus) : '—'}
-              {summary.monthlySurplus !== null && <span className="text-sm text-text-muted font-normal">/mo</span>}
-            </div>
-          </div>
-        </div>
-      </div>
-      {(summary.totalCash > 0 || summary.totalInvested > 0) && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-wrap gap-6 text-sm">
-          <div>
-            <span className="text-text-muted">Total Cash: </span>
-            <span className="text-text-primary font-medium">{formatCurrency(summary.totalCash)}</span>
-          </div>
-          <div>
-            <span className="text-text-muted">Total Invested: </span>
-            <span className="text-text-primary font-medium">{formatCurrency(summary.totalInvested)}</span>
-          </div>
-          {summary.totalHighInterestDebt > 0 && (
-            <div>
-              <span className="text-text-muted">High-Interest Debt: </span>
-              <span className="text-danger font-medium">
-                {formatCurrency(summary.totalHighInterestDebt)}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-    </motion.div>
-  );
-}
+// ── LayerRow ─────────────────────────────────────────────────────────────────
 
-function StepCard({
-  step,
-  isCurrent,
-  isLast,
-  index,
-}: {
-  step: PriorityStep;
-  isCurrent: boolean;
-  isLast: boolean;
-  index: number;
+function LayerRow({ step, isCurrent, index, isSkipped, onSkip, onAsk }: {
+  step: PriorityStep; isCurrent: boolean; index: number;
+  isSkipped: boolean; onSkip: () => void; onAsk: () => void;
 }) {
-  const isComplete = step.status === 'complete';
-  const isFuture = !isComplete && !isCurrent;
   const [expanded, setExpanded] = useState(isCurrent);
+  const isComplete = step.status === 'complete';
+  const isFuture   = !isComplete && !isCurrent && !isSkipped;
+
+  const accent = (isComplete && step.order % 2 === 0) ? '#fbbf24' : '#00e5a0';
+  const fill   = isComplete ? 100 : isFuture ? 0 : Math.min(step.progress, 100);
+
+  let progressDetail = '';
+  if (!isFuture && step.target !== null && step.current !== null) {
+    if (step.target === 0)               progressDetail = 'Goal: $0';
+    else if (isComplete)                 progressDetail = fmt(step.current) + (step.icon === 'credit-card' ? ' paid' : ' saved');
+    else if (step.target > step.current) progressDetail = fmt(step.target - step.current) + ' to go';
+    else                                 progressDetail = fmt(step.current) + ' saved';
+  } else if (!isFuture && step.current !== null) {
+    progressDetail = fmt(step.current);
+  }
 
   const Icon = iconMap[step.icon] || Shield;
 
-  const circleColor = isComplete
-    ? 'bg-accent text-white'
-    : isCurrent
-      ? 'bg-accent/20 text-accent border-2 border-accent'
-      : 'bg-border text-text-muted';
-
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.06 }}
-      className="relative flex gap-4"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: index * 0.04, ease: [0.16, 1, 0.3, 1] }}
+      className={cn(
+        'relative overflow-hidden border-b border-border last:border-b-0',
+        isCurrent && 'bg-accent/[0.04]',
+        isSkipped && 'bg-surface-elevated/20',
+      )}
     >
-      {/* Timeline */}
-      <div className="flex flex-col items-center">
-        <div
-          className={cn(
-            'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 z-10',
-            circleColor
-          )}
-        >
-          {isComplete ? (
-            <Check className="w-5 h-5" />
-          ) : (
-            <span className="text-sm font-bold">{step.order}</span>
-          )}
-        </div>
-        {!isLast && (
-          <div
-            className={cn(
-              'w-0.5 flex-1 mt-0',
-              isComplete ? 'bg-accent/40' : 'bg-border'
-            )}
-          />
-        )}
-      </div>
+      {/* Progress fill — active & complete only */}
+      {(isCurrent || isComplete) && fill > 0 && (
+        <motion.div
+          className="absolute inset-y-0 left-0 pointer-events-none"
+          style={{
+            background: isComplete
+              ? `linear-gradient(90deg, ${accent}20, ${accent}04)`
+              : `linear-gradient(90deg, ${accent}12, ${accent}02)`,
+          }}
+          initial={{ width: 0 }}
+          animate={{ width: `${fill}%` }}
+          transition={{ duration: 0.8, delay: index * 0.04 + 0.1, ease: [0.16, 1, 0.3, 1] }}
+        />
+      )}
 
-      {/* Card */}
+      {/* Left accent bar */}
       <div
-        className={cn(
-          'flex-1 mb-4 rounded-xl border transition-all duration-200',
-          isCurrent
-            ? 'bg-bg-elevated border-accent/30 shadow-[0_0_20px_rgba(34,197,94,0.05)]'
-            : isComplete
-              ? 'bg-bg-elevated/60 border-border'
-              : 'bg-bg-elevated/40 border-border/60'
-        )}
+        className="absolute left-0 inset-y-0 w-[3px] rounded-r-full"
+        style={{
+          background: isSkipped
+            ? '#2a2a40'
+            : isFuture
+            ? 'repeating-linear-gradient(to bottom, #2a2a40 0px, #2a2a40 3px, transparent 3px, transparent 7px)'
+            : isComplete ? accent : `${accent}70`,
+        }}
+      />
+
+      {/* Clickable header */}
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="relative w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-white/[0.015] transition-colors"
       >
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full p-4 flex items-start gap-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 rounded-xl"
+        {/* Step number */}
+        <span className={cn(
+          'w-5 text-right text-xs font-mono flex-shrink-0 hidden sm:block',
+          isCurrent ? 'text-accent/50' : 'text-text-muted',
+        )}>
+          {String(step.order).padStart(2, '0')}
+        </span>
+
+        {/* Icon */}
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: (isFuture || isSkipped) ? 'rgba(255,255,255,0.04)' : `${accent}18` }}
         >
-          <div
-            className={cn(
-              'w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0',
-              isComplete
-                ? 'bg-accent/10'
-                : isCurrent
-                  ? 'bg-accent/10'
-                  : 'bg-border/30'
-            )}
-          >
-            <Icon
-              className={cn(
-                'w-5 h-5',
-                isComplete
-                  ? 'text-accent'
-                  : isCurrent
-                    ? 'text-accent'
-                    : 'text-text-muted'
-              )}
-            />
-          </div>
+          {isComplete
+            ? <Check className="w-3.5 h-3.5" style={{ color: accent }} />
+            : isSkipped
+            ? <SkipForward className="w-3.5 h-3.5 text-text-muted" />
+            : isFuture
+            ? <Lock className="w-3.5 h-3.5 text-text-muted" />
+            : <Icon className="w-4 h-4" style={{ color: accent }} />}
+        </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3
-                className={cn(
-                  'font-semibold',
-                  isFuture ? 'text-text-muted' : 'text-text-primary'
-                )}
-              >
-                {step.title}
-              </h3>
-              {isComplete && (
-                <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full font-medium">
-                  Done
-                </span>
-              )}
-              {isCurrent && (
-                <span className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                  <ArrowRight className="w-3 h-3" />
-                  Current
-                </span>
-              )}
-            </div>
-            <p className={cn('text-sm mt-0.5', isFuture ? 'text-text-muted/60' : 'text-text-secondary')}>
-              {step.subtitle}
-            </p>
-          </div>
+        {/* Title + subtitle */}
+        <div className="flex-1 min-w-0">
+          <p className={cn(
+            'text-sm truncate',
+            isCurrent  ? 'font-semibold text-text' : '',
+            isComplete ? 'font-medium text-text' : '',
+            isFuture   ? 'font-medium text-text-secondary' : '',
+            isSkipped  ? 'font-medium text-text-muted line-through' : '',
+          )}>
+            {step.title}
+          </p>
+          <p className={cn(
+            'text-xs mt-0.5 truncate',
+            isCurrent || isComplete ? 'text-text-secondary' : 'text-text-muted',
+          )}>
+            {step.subtitle}
+            {progressDetail && !expanded ? ` · ${progressDetail}` : ''}
+          </p>
+        </div>
 
-          <motion.div
-            animate={{ rotate: expanded ? 180 : 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex-shrink-0 mt-1"
-          >
-            <ChevronDown className="w-4 h-4 text-text-muted" />
-          </motion.div>
-        </button>
-
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="px-4 pb-4 space-y-3">
-                {/* Progress */}
-                {step.target !== null && step.current !== null && (
-                  <div>
-                    <div className="flex justify-between text-sm mb-1.5">
-                      <span className="text-text-secondary">
-                        {formatCurrency(step.current)}
-                      </span>
-                      <span className="text-text-muted">
-                        {step.target === 0
-                          ? 'Goal: $0'
-                          : `of ${formatCurrency(step.target)}`}
-                      </span>
-                    </div>
-                    <ProgressBar progress={step.progress} priority={step.priority} />
-                  </div>
-                )}
-
-                {/* Action */}
-                <div
-                  className={cn(
-                    'flex items-start gap-2 p-3 rounded-lg text-sm',
-                    isComplete
-                      ? 'bg-accent/5 text-accent'
-                      : 'bg-surface-hover text-text-primary'
-                  )}
-                >
-                  {isComplete ? (
-                    <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  ) : (
-                    <ArrowRight className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent" />
-                  )}
-                  <span>{step.action}</span>
-                </div>
-
-                {/* Detail */}
-                <p className="text-sm text-text-secondary leading-relaxed">{step.detail}</p>
-              </div>
-            </motion.div>
+        {/* Right */}
+        <div className="flex-shrink-0 flex items-center gap-2">
+          {isSkipped && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted bg-surface-elevated px-2 py-0.5 rounded-full">
+              Skipped
+            </span>
           )}
-        </AnimatePresence>
-      </div>
+          {!isSkipped && isComplete && !expanded && (
+            <span className="text-xs font-semibold tabular-nums" style={{ color: accent }}>100%</span>
+          )}
+          {isCurrent && !expanded && (
+            <span className="text-xs font-semibold tabular-nums text-accent">{fill}%</span>
+          )}
+          <ChevronDown className={cn(
+            'w-4 h-4 text-text-muted flex-shrink-0 transition-transform duration-200',
+            expanded && 'rotate-180',
+          )} />
+        </div>
+      </button>
+
+      {/* Expanded body */}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pb-4 sm:pl-[4.25rem]">
+              {/* Progress bar for active step */}
+              {isCurrent && (
+                <div className="mb-3">
+                  <div className="flex justify-between text-xs text-text-secondary mb-1.5">
+                    <span>Progress</span>
+                    <span className="font-semibold tabular-nums text-accent">{fill}%{progressDetail ? ` · ${progressDetail}` : ''}</span>
+                  </div>
+                  <div className="h-1.5 bg-surface-elevated rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ background: accent }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${fill}%` }}
+                      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  </div>
+                </div>
+              )}
+              {isComplete && progressDetail && (
+                <p className="text-xs text-text-secondary mb-2">{progressDetail}</p>
+              )}
+              {step.detail && (
+                <p className="text-sm text-text-secondary mb-3 leading-relaxed">{step.detail}</p>
+              )}
+              <div className="flex items-center gap-4 flex-wrap">
+                <button
+                  type="button"
+                  onClick={onAsk}
+                  className="text-sm text-accent hover:text-accent/80 font-medium transition-colors"
+                >
+                  Walk me through this →
+                </button>
+                {!isComplete && (
+                  <button
+                    type="button"
+                    onClick={onSkip}
+                    className="text-sm text-text-muted hover:text-text-secondary transition-colors"
+                  >
+                    {isSkipped ? 'Unskip' : 'Skip this step'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
+// ── SectionLabel ─────────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-semibold uppercase tracking-widest text-text-secondary mb-3">
+      {children}
+    </p>
+  );
+}
+
+// ── Priorities ────────────────────────────────────────────────────────────────
+
 export function Priorities() {
-  const [data, setData] = useState<PriorityData | null>(null);
+  const [data, setData]       = useState<PriorityData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [skippedStepIds, setSkippedStepIds] = useState<Set<string>>(new Set());
+  const [, navigate] = useLocation();
+  const { openChat } = useChatStore();
+
+  const handleSkipStep = async (stepId: string) => {
+    const isCurrentlySkipped = skippedStepIds.has(stepId);
+    // Optimistic update
+    setSkippedStepIds(prev => {
+      const next = new Set(prev);
+      isCurrentlySkipped ? next.delete(stepId) : next.add(stepId);
+      return next;
+    });
+    try {
+      await api.skipPriorityStep(stepId, !isCurrentlySkipped);
+      // Keep optimistic update — don't replace with server response
+      // (server may return cascaded skips for intermediate steps)
+    } catch {
+      // Revert on failure
+      setSkippedStepIds(prev => {
+        const next = new Set(prev);
+        isCurrentlySkipped ? next.add(stepId) : next.delete(stepId);
+        return next;
+      });
+    }
+  };
+
+  const actionsRef = useRef<HTMLDivElement>(null);
+
+  const { insights, isLoading: insightsLoading, dismiss, refresh } =
+    useInsights(activeFilter ?? undefined);
+
+  // Scroll to Actions section when linked with #actions
+  useEffect(() => {
+    if (window.location.hash === '#actions' && actionsRef.current) {
+      setTimeout(() => actionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }
+  }, []);
+
+  const grouped = URGENCY_ORDER.reduce<Record<string, typeof insights>>((acc, u) => {
+    acc[u] = insights.filter(i => i.urgency === u);
+    return acc;
+  }, {});
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  };
 
   useEffect(() => {
-    api
-      .getPriorities()
-      .then(setData)
-      .catch((err) => setError(err.message))
+    api.getPriorities()
+      .then(d => {
+        setData(d);
+        // Initialise skipped steps from server state (server returns skipped: boolean, not status: 'skipped')
+        const serverSkipped = d.steps.filter(s => s.skipped).map(s => s.id);
+        if (serverSkipped.length) setSkippedStepIds(new Set(serverSkipped));
+      })
+      .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex-1 flex items-center justify-center">
+      <Loader2 className="w-5 h-5 animate-spin text-text-secondary" />
+    </div>
+  );
 
-  if (error) {
-    return (
-      <div className="flex-1 flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <AlertCircle className="w-8 h-8 text-danger mx-auto mb-2" />
-          <p className="text-text-secondary">{error}</p>
-        </div>
+  if (error) return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="text-center space-y-2">
+        <AlertCircle className="w-7 h-7 text-danger mx-auto" />
+        <p className="text-sm text-text-secondary">{error}</p>
       </div>
-    );
-  }
+    </div>
+  );
 
   if (!data) return null;
 
   const { steps, currentStepId, summary } = data;
 
-  // Check if user has any meaningful data
   const hasNoData = summary.monthlyIncome === 0 && summary.totalCash === 0 && summary.totalInvested === 0;
-
-  if (hasNoData) {
-    return (
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8 max-w-3xl mx-auto w-full">
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center py-16"
-        >
-          <Rocket className="w-12 h-12 text-text-muted mx-auto mb-4" />
-          <h2 className="font-display text-2xl font-medium mb-2">Let&apos;s layer your lasagna</h2>
-          <p className="text-text-muted text-sm max-w-md mx-auto mb-6">
-            To build your personalized financial layers, we need to know about your income, accounts, and profile. This takes about 2 minutes.
+  if (hasNoData) return (
+    <div className="flex-1 flex items-center justify-center p-4 md:p-6 lg:p-8">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        className="text-center space-y-4 max-w-sm"
+      >
+        <Rocket className="w-10 h-10 text-text-secondary mx-auto" />
+        <div>
+          <h2 className="text-lg font-semibold mb-1">Let's build your plan</h2>
+          <p className="text-sm text-text-secondary">
+            Add your income and accounts to see your personalized priority layers.
           </p>
-          <div className="flex gap-3 justify-center">
-            <a href="/onboarding" className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
-              Get Started
-            </a>
-            <a href="/accounts" className="inline-flex items-center gap-2 px-4 py-2.5 border border-border text-text-secondary text-sm rounded-xl hover:bg-bg-elevated transition-colors">
-              Link Bank Account
-            </a>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
+        </div>
+        <div className="flex gap-3 justify-center pt-1">
+          <a href="/onboarding" className="px-4 py-2 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
+            Get Started
+          </a>
+          <a href="/accounts" className="px-4 py-2 border border-border text-text-secondary text-sm rounded-xl hover:bg-bg-elevated transition-colors">
+            Link Account
+          </a>
+        </div>
+      </motion.div>
+    </div>
+  );
+
+  const completeCount = steps.filter(s => s.status === 'complete').length;
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8 max-w-3xl mx-auto w-full">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="mb-6"
-      >
-        <h1 className="text-2xl md:text-3xl font-bold text-text-primary">
-          Layer Your Lasagna
-        </h1>
-        <p className="text-text-secondary mt-1">
-          Build your financial foundation one layer at a time.
-        </p>
-      </motion.div>
+    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
+      <div className="space-y-8">
 
-      <SummaryCard summary={summary} />
+        {/* ── Header ── */}
+        <motion.div
+          initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="space-y-4"
+        >
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-text">Focus</h1>
+            <p className="text-sm text-text-secondary mt-1">
+              {completeCount} of {steps.length} complete · FI target age {summary.retirementAge}
+            </p>
+          </div>
 
-      <div className="relative">
-        {steps.map((step, i) => (
-          <StepCard
-            key={step.id}
-            step={step}
-            isCurrent={step.id === currentStepId}
-            isLast={i === steps.length - 1}
-            index={i}
-          />
-        ))}
+          {/* Cash flow */}
+          {summary.monthlyIncome > 0 && (
+            <div className="flex flex-wrap gap-x-8 gap-y-3 pt-4 border-t border-border">
+              <Stat label="Income" value={`${fmt(summary.monthlyIncome)}/mo`} />
+              {summary.monthlyExpenses !== null && (
+                <Stat label="Expenses" value={`${fmt(summary.monthlyExpenses)}/mo`} />
+              )}
+              {summary.monthlySurplus !== null && (
+                <Stat
+                  label="Surplus"
+                  value={`${fmt(summary.monthlySurplus)}/mo`}
+                  color={summary.monthlySurplus >= 0 ? 'text-accent' : 'text-danger'}
+                />
+              )}
+              {summary.totalCash > 0 && (
+                <Stat label="Cash" value={fmt(summary.totalCash)} className="hidden sm:block" />
+              )}
+              {summary.totalInvested > 0 && (
+                <Stat label="Invested" value={fmt(summary.totalInvested)} className="hidden sm:block" />
+              )}
+              {summary.totalHighInterestDebt > 0 && (
+                <Stat label="High-rate debt" value={fmt(summary.totalHighInterestDebt)} color="text-danger" className="hidden sm:block" />
+              )}
+            </div>
+          )}
+        </motion.div>
+
+        {/* ── Layers ── */}
+        <div>
+          <SectionLabel>Layers</SectionLabel>
+          <div className="rounded-xl border border-border overflow-hidden">
+            {steps.map((step, i) => (
+              <LayerRow
+                key={step.id}
+                step={step}
+                isCurrent={step.id === currentStepId}
+                index={i}
+                isSkipped={skippedStepIds.has(step.id)}
+                onSkip={() => handleSkipStep(step.id)}
+                onAsk={() => openChat(`Tell me about this financial step: "${step.title}". ${step.subtitle}`)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* ── Actions ── */}
+        <div ref={actionsRef} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <SectionLabel>Actions</SectionLabel>
+              {!insightsLoading && insights.length > 0 && (
+                <span className="text-xs text-text-secondary -mt-3 tabular-nums">
+                  {insights.length}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="-mt-3 flex items-center gap-1.5 text-xs text-text-secondary hover:text-text transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={cn('w-3 h-3', refreshing && 'animate-spin')} />
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
+
+          {/* Filter pills */}
+          <div className="flex gap-1.5 flex-wrap">
+            {TYPE_FILTERS.map(f => (
+              <button
+                key={f.label}
+                onClick={() => setActiveFilter(f.value)}
+                className={cn(
+                  'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                  activeFilter === f.value
+                    ? 'bg-accent text-bg'
+                    : 'bg-surface-elevated text-text-secondary hover:text-text hover:bg-surface-hover'
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* States */}
+          {insightsLoading && (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-text-secondary" />
+            </div>
+          )}
+
+          {!insightsLoading && insights.length === 0 && (
+            <div className="text-center py-8 space-y-2">
+              <p className="text-sm text-text-secondary">No actions yet.</p>
+              <button onClick={handleRefresh} className="text-sm text-accent hover:text-accent/80 transition-colors">
+                Generate actions →
+              </button>
+            </div>
+          )}
+
+          {/* Urgency groups */}
+          {!insightsLoading && URGENCY_ORDER.map(urgency => {
+            const items = grouped[urgency];
+            if (!items?.length) return null;
+            return (
+              <section key={urgency} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className={cn('text-xs font-bold uppercase tracking-wider', URGENCY_COLORS[urgency])}>
+                    {URGENCY_LABELS[urgency]}
+                  </span>
+                  <span className="text-xs text-text-secondary">({items.length})</span>
+                </div>
+                <div className="rounded-xl border border-border overflow-hidden">
+                  {items.map(insight => (
+                    <ActionItem
+                      key={insight.id}
+                      title={insight.title}
+                      tag={(insight.type ?? insight.category ?? 'general').toUpperCase()}
+                      description={insight.description}
+                      impact={insight.impact ?? ''}
+                      impactColor={(insight.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
+                      chatPrompt={insight.chatPrompt ?? insight.title}
+                      onDismiss={() => dismiss(insight.id)}
+                      onContextClick={PAGE_LINKS[insight.type ?? 'general']
+                        ? () => navigate(PAGE_LINKS[insight.type ?? 'general'])
+                        : undefined}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+
       </div>
+    </div>
+  );
+}
 
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="text-xs text-text-muted text-center mt-8 mb-4 leading-relaxed"
-      >
-        This is educational guidance, not financial advice. Consult a qualified
-        financial professional for personalized recommendations.
-      </motion.p>
+// ── Stat ──────────────────────────────────────────────────────────────────────
+
+function Stat({ label, value, color, className }: {
+  label: string; value: string; color?: string; className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="text-xs text-text-secondary">{label}</p>
+      <p className={cn('text-sm font-semibold text-text mt-0.5', color)}>{value}</p>
     </div>
   );
 }

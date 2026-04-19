@@ -19,7 +19,7 @@ export function CollapseDirective({ title, content }: CollapseDirectiveProps) {
       >
         <span className="text-sm font-medium text-text">{title}</span>
         <ChevronDown
-          className={cn('w-4 h-4 text-text-muted transition-transform', isOpen && 'rotate-180')}
+          className={cn('w-4 h-4 text-text-secondary transition-transform', isOpen && 'rotate-180')}
         />
       </button>
       {isOpen && (

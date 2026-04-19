@@ -2,11 +2,9 @@ import { Hono } from "hono";
 import { eq, users, tenants, financialProfiles } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const settingsRoutes = new Hono<AuthEnv>();
-
-settingsRoutes.use("*", requireAuth);
 
 // Get profile
 settingsRoutes.get("/profile", async (c) => {

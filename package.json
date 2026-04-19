@@ -19,7 +19,8 @@
     "db:migrate": "docker compose exec api pnpm --filter @lasagna/core db:migrate",
     "db:push": "docker compose exec api pnpm --filter @lasagna/core db:push",
     "db:seed": "docker compose exec api pnpm --filter @lasagna/core db:seed",
-    "db:reset": "docker compose exec api pnpm --filter @lasagna/core db:reset"
+    "db:reset": "docker compose exec api pnpm --filter @lasagna/core db:reset",
+    "db:seed-demo": "docker compose exec api pnpm --filter @lasagna/core db:seed-demo"
   },
   "engines": {
     "node": ">=20",

@@ -103,7 +103,7 @@ export function Shell({ children }: ShellProps) {
                   className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors"
                   aria-label="Close chat"
                 >
-                  <ArrowLeft className="w-4 h-4 text-text-muted" />
+                  <ArrowLeft className="w-4 h-4 text-text-secondary" />
                 </button>
                 <span className="text-sm font-semibold text-text">Chat</span>
               </div>
@@ -135,10 +135,10 @@ export function Shell({ children }: ShellProps) {
           {desktopChatOpen && (
             <aside className="w-[340px] flex-shrink-0 border-l border-border flex flex-col overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
-                <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Chat</span>
+                <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Chat</span>
                 <button
                   onClick={() => setDesktopChatOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted hover:text-text"
+                  className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-secondary hover:text-text"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -153,7 +153,7 @@ export function Shell({ children }: ShellProps) {
             <div className="flex-shrink-0 border-l border-border flex flex-col items-center pt-3 px-1.5">
               <button
                 onClick={() => setDesktopChatOpen(true)}
-                className="p-2.5 rounded-lg bg-surface hover:bg-surface-hover border border-border transition-colors text-text-muted hover:text-accent"
+                className="p-2.5 rounded-lg bg-surface hover:bg-surface-hover border border-border transition-colors text-text-secondary hover:text-accent"
                 title="Open chat"
               >
                 <MessageSquare className="w-4 h-4" />

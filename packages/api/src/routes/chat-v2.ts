@@ -6,10 +6,9 @@ import { chatThreads, messages, plans, planEdits, eq, and } from "@lasagna/core"
 import { getModel, createAgentTools } from "../agent/index.js";
 import { systemPromptV2 } from "../agent/prompt-v2.js";
 import { responseSchemaV2 } from "../agent/types-v2.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const chatRouterV2 = new Hono<AuthEnv>();
-chatRouterV2.use("*", requireAuth);
 
 // Validation schemas
 const chatRequestSchema = z.object({
@@ -18,7 +17,7 @@ const chatRequestSchema = z.object({
 });
 
 chatRouterV2.post("/", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, isDemo } = c.get("session");
   const rawBody = await c.req.json();
 
   const parseResult = chatRequestSchema.safeParse(rawBody);
@@ -56,12 +55,14 @@ chatRouterV2.post("/", async (c) => {
   }
 
   // Save user message
-  await db.insert(messages).values({
-    threadId: body.threadId,
-    tenantId,
-    role: "user",
-    content: body.message,
-  });
+  if (!isDemo) {
+    await db.insert(messages).values({
+      threadId: body.threadId,
+      tenantId,
+      role: "user",
+      content: body.message,
+    });
+  }
 
   // Get conversation history
   const history = await db
@@ -71,7 +72,7 @@ chatRouterV2.post("/", async (c) => {
     .orderBy(messages.createdAt);
 
   // Create tools with tenant context
-  const tools = createAgentTools(tenantId);
+  const tools = createAgentTools(tenantId, { isDemo });
 
   // Capture for onFinish closure
   const threadId = body.threadId;
@@ -251,17 +252,19 @@ chatRouterV2.post("/", async (c) => {
   }
 
   // Save assistant message
-  await db.insert(messages).values({
-    threadId,
-    tenantId,
-    role: "assistant",
-    content: text,
-    toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
-    uiPayload: response ? JSON.stringify(response) : null,
-  });
+  if (!isDemo) {
+    await db.insert(messages).values({
+      threadId,
+      tenantId,
+      role: "assistant",
+      content: text,
+      toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
+      uiPayload: response ? JSON.stringify(response) : null,
+    });
+  }
 
   // Update plan content if we have response and plan is attached
-  if (response && planId) {
+  if (!isDemo && response && planId) {
     const [plan] = await db
       .select({ content: plans.content })
       .from(plans)

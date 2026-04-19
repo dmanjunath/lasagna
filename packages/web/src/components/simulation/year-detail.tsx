@@ -38,7 +38,7 @@ function ReturnTooltipContent({ year }: { year: YearDetailData }) {
 
   return (
     <>
-      <div className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Return Breakdown</div>
+      <div className="text-[10px] text-text-secondary uppercase tracking-wider mb-2">Return Breakdown</div>
       <div className="space-y-1.5">
         {entries.map(([key, ret]) => {
           const weight = year.assetWeights?.[key] ?? 0;
@@ -46,7 +46,7 @@ function ReturnTooltipContent({ year }: { year: YearDetailData }) {
             <div key={key} className="flex items-center justify-between text-xs gap-4">
               <span className="text-text-secondary">{ASSET_LABELS[key] ?? key}</span>
               <div className="flex items-center gap-2 tabular-nums">
-                <span className="text-text-muted">{(weight * 100).toFixed(0)}%</span>
+                <span className="text-text-secondary">{(weight * 100).toFixed(0)}%</span>
                 <span className={cn('font-medium', ret >= 0 ? 'text-success' : 'text-danger')}>
                   {ret >= 0 ? '+' : ''}{(ret * 100).toFixed(1)}%
                 </span>
@@ -88,14 +88,14 @@ export function YearDetail({ yearByYear, useRealDollars, showWithdrawalSource }:
       <table className="w-full text-left">
         <thead className="sticky top-0 bg-bg z-10">
           <tr className="border-b border-border">
-            <th className="text-xs uppercase tracking-wider text-text-muted font-semibold px-3 py-2">Year</th>
-            <th className="text-xs uppercase tracking-wider text-text-muted font-semibold px-3 py-2">Portfolio Value</th>
-            <th className="text-xs uppercase tracking-wider text-text-muted font-semibold px-3 py-2">Return</th>
-            <th className="text-xs uppercase tracking-wider text-text-muted font-semibold px-3 py-2">Withdrawal</th>
+            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Year</th>
+            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Portfolio Value</th>
+            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Return</th>
+            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Withdrawal</th>
             {showWithdrawalSource && (
-              <th className="text-xs uppercase tracking-wider text-text-muted font-semibold px-3 py-2">Source</th>
+              <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Source</th>
             )}
-            <th className="text-xs uppercase tracking-wider text-text-muted font-semibold px-3 py-2">Notes</th>
+            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Notes</th>
           </tr>
         </thead>
         <tbody>
@@ -127,11 +127,11 @@ export function YearDetail({ yearByYear, useRealDollars, showWithdrawalSource }:
                 {formatMoney(useRealDollars ? y.withdrawalAmountReal : y.withdrawalAmount)}
               </td>
               {showWithdrawalSource && (
-                <td className="text-sm text-text-muted px-3 py-2 max-w-[200px] truncate">
+                <td className="text-sm text-text-secondary px-3 py-2 max-w-[200px] truncate">
                   {y.withdrawalSource || '—'}
                 </td>
               )}
-              <td className="text-sm text-text-muted px-3 py-2 max-w-[250px]">
+              <td className="text-sm text-text-secondary px-3 py-2 max-w-[250px]">
                 {y.notes.length > 0 ? y.notes.join(', ') : '—'}
               </td>
             </tr>

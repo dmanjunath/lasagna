@@ -44,7 +44,7 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
           <h3 className="text-lg font-display font-semibold text-text">{title}</h3>
         )}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-text-muted">Success Rate:</span>
+          <span className="text-sm text-text-secondary">Success Rate:</span>
           <span className={`text-lg font-semibold ${
             data.successRate >= 0.9 ? "text-success" :
             data.successRate >= 0.8 ? "text-warning" : "text-danger"
@@ -137,7 +137,7 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
         </ResponsiveContainer>
       </div>
 
-      <div className="flex justify-center gap-6 mt-4 text-xs text-text-muted">
+      <div className="flex justify-center gap-6 mt-4 text-xs text-text-secondary">
         <span className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full" style={{ background: colors.accent.DEFAULT, opacity: 0.4 }} />
           Median
@@ -185,7 +185,7 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
           <h3 className="text-lg font-display font-semibold text-text">{title}</h3>
         )}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-text-muted">Success Rate:</span>
+          <span className="text-sm text-text-secondary">Success Rate:</span>
           <span className={`text-lg font-semibold ${
             data.successRate >= 0.9 ? "text-success" :
             data.successRate >= 0.8 ? "text-warning" : "text-danger"
@@ -232,15 +232,15 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
       <div className="flex justify-center gap-4 mt-4 text-xs">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-danger" />
-          <span className="text-text-muted">Depleted</span>
+          <span className="text-text-secondary">Depleted</span>
         </span>
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-warning" />
-          <span className="text-text-muted">Struggling</span>
+          <span className="text-text-secondary">Struggling</span>
         </span>
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-text-muted">Comfortable</span>
+          <span className="text-text-secondary">Comfortable</span>
         </span>
       </div>
     </div>

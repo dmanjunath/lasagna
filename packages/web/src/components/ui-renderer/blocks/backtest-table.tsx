@@ -94,12 +94,12 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
       )}
 
       <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-text-muted">
+        <div className="text-sm text-text-secondary">
           {block.data.successfulPeriods} of {block.data.totalPeriods} periods successful ({formatPercent(block.data.successRate)})
         </div>
 
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-text-muted" />
+          <Filter className="w-4 h-4 text-text-secondary" />
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as FilterStatus)}
@@ -118,7 +118,7 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
           <thead>
             <tr className="border-b border-border">
               <th
-                className="text-left py-3 px-2 text-sm text-text-muted font-medium cursor-pointer hover:text-text"
+                className="text-left py-3 px-2 text-sm text-text-secondary font-medium cursor-pointer hover:text-text"
                 onClick={() => handleSort("startYear")}
               >
                 <span className="flex items-center gap-1">
@@ -126,7 +126,7 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
                 </span>
               </th>
               <th
-                className="text-right py-3 px-2 text-sm text-text-muted font-medium cursor-pointer hover:text-text"
+                className="text-right py-3 px-2 text-sm text-text-secondary font-medium cursor-pointer hover:text-text"
                 onClick={() => handleSort("endBalance")}
               >
                 <span className="flex items-center justify-end gap-1">
@@ -134,18 +134,18 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
                 </span>
               </th>
               <th
-                className="text-right py-3 px-2 text-sm text-text-muted font-medium cursor-pointer hover:text-text"
+                className="text-right py-3 px-2 text-sm text-text-secondary font-medium cursor-pointer hover:text-text"
                 onClick={() => handleSort("worstDrawdown")}
               >
                 <span className="flex items-center justify-end gap-1">
                   Worst Drawdown <SortIcon field="worstDrawdown" />
                 </span>
               </th>
-              <th className="text-right py-3 px-2 text-sm text-text-muted font-medium">
+              <th className="text-right py-3 px-2 text-sm text-text-secondary font-medium">
                 Best Year
               </th>
               <th
-                className="text-center py-3 px-2 text-sm text-text-muted font-medium cursor-pointer hover:text-text"
+                className="text-center py-3 px-2 text-sm text-text-secondary font-medium cursor-pointer hover:text-text"
                 onClick={() => handleSort("status")}
               >
                 <span className="flex items-center justify-center gap-1">

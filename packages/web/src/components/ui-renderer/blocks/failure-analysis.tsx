@@ -16,7 +16,7 @@ export function FailureAnalysisRenderer({ block }: { block: FailureAnalysisBlock
           <div key={idx} className="p-4 bg-danger/10 rounded-xl border border-danger/20">
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-text">Started {period.startYear}</span>
-              <span className="text-xs text-text-muted">{period.pattern}</span>
+              <span className="text-xs text-text-secondary">{period.pattern}</span>
             </div>
             <div className="flex gap-2">
               {period.earlyReturns.map((ret, i) => (

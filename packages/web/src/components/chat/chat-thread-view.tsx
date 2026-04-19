@@ -38,7 +38,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, loading }
           className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors flex-shrink-0"
           aria-label="Back to conversations"
         >
-          <ArrowLeft className="w-4 h-4 text-text-muted" />
+          <ArrowLeft className="w-4 h-4 text-text-secondary" />
         </button>
         <span className="text-sm font-medium text-text truncate leading-snug">
           {thread.question}
@@ -72,7 +72,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, loading }
             onChange={(e) => setInput(e.target.value)}
             placeholder="Follow up…"
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-2xl border border-white/10 bg-white/[0.06] text-white/90 text-sm placeholder:text-white/30 focus:outline-none focus:border-accent/40 focus:bg-white/[0.08] transition-all disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 rounded-2xl border border-white/10 bg-white/[0.06] text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-white/[0.08] transition-all disabled:opacity-50"
           />
           <button
             type="submit"

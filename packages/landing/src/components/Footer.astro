@@ -1,0 +1,34 @@
+---
+import { GITHUB_URL } from "../config";
+---
+
+<footer class="border-t border-white/[0.06] px-6 py-8">
+  <div class="mx-auto flex max-w-5xl flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex items-center gap-2.5">
+      <svg width="18" height="13" viewBox="0 0 36 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="footer-g" x1="0" y1="0" x2="36" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#00e5a0"/>
+            <stop offset="100%" stop-color="#00e5a0" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0"  width="13" height="6" rx="3" fill="url(#footer-g)"/>
+        <rect x="0" y="10" width="24" height="6" rx="3" fill="url(#footer-g)"/>
+        <rect x="0" y="20" width="36" height="6" rx="3" fill="url(#footer-g)"/>
+      </svg>
+      <span class="text-xs font-medium text-[rgb(148,160,176)]">Lasagna</span>
+    </div>
+
+    <div class="flex items-center gap-5 text-xs text-[rgb(90,96,112)]">
+      <a
+        href={GITHUB_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="transition-colors hover:text-[rgb(148,160,176)]"
+      >
+        GitHub
+      </a>
+      <span>© {new Date().getFullYear()} lasagnafi.com</span>
+    </div>
+  </div>
+</footer>

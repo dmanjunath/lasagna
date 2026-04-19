@@ -95,21 +95,23 @@ export function PlansPage() {
           <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text">
             Financial Plans
           </h1>
-          <p className="text-text-muted mt-1">
+          <p className="text-text-secondary mt-1">
             AI-powered plans tailored to your goals
           </p>
         </div>
-        <Link href="/plans/new">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            New Plan
-          </Button>
-        </Link>
+        {import.meta.env.VITE_DEMO_MODE !== "true" && (
+          <Link href="/plans/new">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              New Plan
+            </Button>
+          </Link>
+        )}
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-text-muted">
+          <div className="flex items-center gap-3 text-text-secondary">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span>Loading plans...</span>
           </div>
@@ -119,10 +121,11 @@ export function PlansPage() {
           <h2 className="text-2xl font-display font-semibold text-text mb-2">
             Create Your First Plan
           </h2>
-          <p className="text-text-muted mb-8 max-w-2xl mx-auto">
+          <p className="text-text-secondary mb-8 max-w-2xl mx-auto">
             Choose a plan type to get started with AI-powered financial guidance
           </p>
 
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
             {planTypes.map((planType, i) => (
               <motion.button
@@ -146,14 +149,14 @@ export function PlansPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="font-medium text-text">{planType.title}</h3>
                       <div className="group/tooltip relative">
-                        <Info className="w-4 h-4 text-text-muted hover:text-text cursor-help" />
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 rounded-lg bg-bg-elevated border border-border shadow-lg text-sm text-text-muted opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none z-10">
+                        <Info className="w-4 h-4 text-text-secondary hover:text-text cursor-help" />
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 rounded-lg bg-bg-elevated border border-border shadow-lg text-sm text-text-secondary opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none z-10">
                           {planType.tooltip}
                           <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-border"></div>
                         </div>
                       </div>
                     </div>
-                    <p className="text-sm text-text-muted">
+                    <p className="text-sm text-text-secondary">
                       {planType.description}
                     </p>
                   </div>
@@ -161,6 +164,7 @@ export function PlansPage() {
               </motion.button>
             ))}
           </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -172,28 +176,30 @@ export function PlansPage() {
                 transition={{ delay: i * 0.05 }}
                 className="glass-card glass-card-hover p-6 cursor-pointer relative group"
               >
-                <button
-                  onClick={(e) => handleDeletePlan(plan.id, plan.title, e)}
-                  disabled={deletingPlanId === plan.id}
-                  className="absolute top-4 right-4 p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Delete plan"
-                >
-                  {deletingPlanId === plan.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                </button>
+                {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                  <button
+                    onClick={(e) => handleDeletePlan(plan.id, plan.title, e)}
+                    disabled={deletingPlanId === plan.id}
+                    className="absolute top-4 right-4 p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Delete plan"
+                  >
+                    {deletingPlanId === plan.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
                 <div className="flex items-start justify-between mb-3">
                   <span className="text-xs px-2 py-1 rounded-full bg-accent/10 text-accent">
                     {planTypeLabels[plan.type]}
                   </span>
-                  <span className="text-xs text-text-muted capitalize">
+                  <span className="text-xs text-text-secondary capitalize">
                     {plan.status}
                   </span>
                 </div>
                 <h3 className="font-medium text-text mb-2">{plan.title}</h3>
-                <p className="text-sm text-text-muted">
+                <p className="text-sm text-text-secondary">
                   Updated {new Date(plan.updatedAt).toLocaleDateString()}
                 </p>
               </motion.div>

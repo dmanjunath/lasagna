@@ -29,7 +29,7 @@ const URGENCY_COLORS: Record<string, string> = {
   critical: 'text-danger',
   high: 'text-warning',
   medium: 'text-accent',
-  low: 'text-text-muted',
+  low: 'text-text-secondary',
 };
 
 const PAGE_LINKS: Record<string, string> = {
@@ -74,7 +74,7 @@ export function Insights() {
           <Lightbulb className="w-5 h-5 text-accent" />
           <h1 className="text-lg font-semibold">All Actions</h1>
           {!isLoading && (
-            <span className="text-xs text-text-muted bg-surface-elevated px-1.5 py-0.5 rounded-full">
+            <span className="text-xs text-text-secondary bg-surface-elevated px-1.5 py-0.5 rounded-full">
               {insights.length}
             </span>
           )}
@@ -82,7 +82,7 @@ export function Insights() {
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-secondary transition-colors disabled:opacity-50"
         >
           <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
           {refreshing ? 'Refreshing…' : 'Refresh'}
@@ -109,7 +109,7 @@ export function Insights() {
 
       {/* Loading */}
       {isLoading && (
-        <div className="text-sm text-text-muted text-center py-12">
+        <div className="text-sm text-text-secondary text-center py-12">
           Loading actions…
         </div>
       )}
@@ -117,8 +117,8 @@ export function Insights() {
       {/* Empty */}
       {!isLoading && insights.length === 0 && (
         <div className="text-center py-12 space-y-2">
-          <Lightbulb className="w-8 h-8 text-text-muted mx-auto" />
-          <p className="text-sm text-text-muted">No actions yet.</p>
+          <Lightbulb className="w-8 h-8 text-text-secondary mx-auto" />
+          <p className="text-sm text-text-secondary">No actions yet.</p>
           <button
             onClick={handleRefresh}
             className="text-sm text-accent hover:text-accent/80 transition-colors"
@@ -144,7 +144,7 @@ export function Insights() {
                 >
                   {URGENCY_LABELS[urgency]}
                 </span>
-                <span className="text-xs text-text-muted">({items.length})</span>
+                <span className="text-xs text-text-secondary">({items.length})</span>
               </div>
               <div className="border border-border rounded-lg overflow-hidden">
                 {items.map((insight) => {

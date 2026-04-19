@@ -11,7 +11,7 @@ const VegaLiteChart = lazy(() =>
 function ChartLoadingFallback() {
   return (
     <div className="glass-card p-4 min-h-[200px] flex items-center justify-center">
-      <div className="text-text-muted text-sm">Loading chart...</div>
+      <div className="text-text-secondary text-sm">Loading chart...</div>
     </div>
   );
 }

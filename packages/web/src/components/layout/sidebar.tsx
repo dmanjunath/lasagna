@@ -7,13 +7,11 @@ import {
   Target,
   CreditCard,
   Compass,
-  Loader2,
   Building2,
   LogOut,
   ChevronUp,
   PieChart,
   User,
-  Lightbulb,
   ShoppingCart,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -30,9 +28,7 @@ interface NavItem {
 
 const fixedTabs: NavItem[] = [
   { id: 'home', name: 'Home', icon: LayoutDashboard, path: '/' },
-  { id: 'actions', name: 'Actions', icon: Lightbulb, path: '/actions' },
-  { id: 'priorities', name: 'Your Layers', icon: Compass, path: '/priorities' },
-  { id: 'accounts', name: 'Accounts', icon: Building2, path: '/accounts' },
+  { id: 'priorities', name: 'Focus', icon: Compass, path: '/priorities' },
   { id: 'spending', name: 'Spending', icon: ShoppingCart, path: '/spending' },
   { id: 'debt', name: 'Debt', icon: CreditCard, path: '/debt' },
   { id: 'invest', name: 'Portfolio', icon: PieChart, path: '/invest' },
@@ -71,7 +67,7 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Logo */}
       <div className="p-5 border-b border-border">
         <h1 className="font-display text-xl font-medium tracking-tight flex items-center gap-3">
-          <Logo size={36} />
+          <Logo width={30} />
           <span>Lasagna</span>
         </h1>
         <p className="text-sm text-text-secondary mt-1.5 ml-12">AI Financial Advisor</p>
@@ -96,11 +92,11 @@ export function Sidebar({ className }: SidebarProps) {
                   className={cn(
                     'w-full text-left px-3 py-3 rounded-xl text-sm flex items-center gap-3 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
                     isActive(tab.path)
-                      ? 'bg-accent/10 text-accent border border-accent/20'
-                      : 'hover:bg-surface-hover text-text-secondary hover:text-text border border-transparent'
+                      ? 'bg-white/[0.07] text-accent'
+                      : 'hover:bg-surface-hover text-text-secondary hover:text-text'
                   )}
                 >
-                  <Icon className={cn('w-5 h-5', isActive(tab.path) ? 'text-accent' : 'text-text-muted')} />
+                  <Icon className={cn('w-5 h-5', isActive(tab.path) ? 'text-accent' : 'text-text-secondary')} />
                   <span className="flex-1 font-medium">{tab.name}</span>
                 </motion.button>
               );
@@ -121,6 +117,14 @@ export function Sidebar({ className }: SidebarProps) {
               transition={{ duration: 0.15 }}
               className="absolute bottom-full left-2 right-2 mb-1 bg-surface-solid border border-border rounded-xl shadow-lg overflow-hidden z-50"
             >
+              <button
+                onClick={() => { setUserMenuOpen(false); navigate('/accounts'); }}
+                className="w-full px-3 py-2.5 text-sm text-text-secondary hover:text-text hover:bg-surface-hover flex items-center gap-2.5 transition-colors"
+              >
+                <Building2 className="w-4 h-4" />
+                Accounts
+              </button>
+              <div className="border-t border-border" />
               <button
                 onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
                 className="w-full px-3 py-2.5 text-sm text-text-secondary hover:text-text hover:bg-surface-hover flex items-center gap-2.5 transition-colors"
@@ -149,9 +153,9 @@ export function Sidebar({ className }: SidebarProps) {
           </div>
           <div className="flex-1 min-w-0 text-left">
             <div className="text-sm font-semibold truncate">{tenant?.name || 'User'}</div>
-            <div className="text-sm text-text-muted truncate capitalize">{tenant?.plan || 'free'} plan</div>
+            <div className="text-sm text-text-secondary truncate capitalize">{tenant?.plan || 'free'} plan</div>
           </div>
-          <ChevronUp className={cn('w-4 h-4 text-text-muted transition-transform', userMenuOpen ? '' : 'rotate-180')} />
+          <ChevronUp className={cn('w-4 h-4 text-text-secondary transition-transform', userMenuOpen ? '' : 'rotate-180')} />
         </button>
       </div>
     </aside>

@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
 import { Section } from '../components/common/section';
-import { ContextualInsights } from '../components/common/contextual-insights';
+import { PageActions } from '../components/common/page-actions';
 
 interface DebtAccount {
   id: string;
@@ -167,20 +167,22 @@ export function Debt() {
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
       {loading ? (
-        <div className="flex items-center gap-2 text-text-muted py-4">
+        <div className="flex items-center gap-2 text-text-secondary py-4">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Loading...</span>
         </div>
       ) : !hasAccounts ? (
         <motion.div {...fadeUp(0)} className="text-center py-16">
-          <CreditCard className="w-12 h-12 text-text-muted mx-auto mb-4" />
+          <CreditCard className="w-12 h-12 text-text-secondary mx-auto mb-4" />
           <h2 className="font-display text-2xl font-medium mb-2">No Accounts Linked</h2>
-          <p className="text-text-muted text-sm max-w-md mx-auto mb-6">
+          <p className="text-text-secondary text-sm max-w-md mx-auto mb-6">
             Add your credit cards and loans to see your debt breakdown, payoff timeline, and optimization strategy.
           </p>
-          <a href="/accounts" className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
-            Add Accounts
-          </a>
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+            <a href="/accounts" className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
+              Add Accounts
+            </a>
+          )}
         </motion.div>
       ) : hasDebt ? (
         <HasDebtView
@@ -293,12 +295,12 @@ function LoanDetailsModal({
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="font-semibold text-base">{debt.name}</h2>
-            <p className="text-xs text-text-muted mt-0.5">Update loan details</p>
+            <p className="text-sm text-text-secondary mt-0.5">Update loan details</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-text-muted hover:text-text-primary transition-colors"
+            className="text-text-secondary hover:text-text-primary transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -307,7 +309,7 @@ function LoanDetailsModal({
         <form onSubmit={handleSubmit} className="space-y-3">
           {(loanType === "mortgage" || loanType === "other_loan") && (
             <label className="block">
-              <span className="text-xs text-text-muted font-medium">
+              <span className="text-sm text-text-secondary font-medium">
                 Maturity / Payoff Date
               </span>
               <input
@@ -320,7 +322,7 @@ function LoanDetailsModal({
           )}
           {loanType === "student_loan" && (
             <label className="block">
-              <span className="text-xs text-text-muted font-medium">Expected Payoff Date</span>
+              <span className="text-sm text-text-secondary font-medium">Expected Payoff Date</span>
               <input
                 type="date"
                 value={expectedPayoffDate}
@@ -331,7 +333,7 @@ function LoanDetailsModal({
           )}
           {loanType !== "credit_card" && (
             <label className="block">
-              <span className="text-xs text-text-muted font-medium">Interest Rate (%)</span>
+              <span className="text-sm text-text-secondary font-medium">Interest Rate (%)</span>
               <input
                 type="number"
                 step="0.01"
@@ -345,7 +347,7 @@ function LoanDetailsModal({
           )}
           {(loanType === "mortgage" || loanType === "other_loan") && (
             <label className="block">
-              <span className="text-xs text-text-muted font-medium">Origination Date</span>
+              <span className="text-sm text-text-secondary font-medium">Origination Date</span>
               <input
                 type="date"
                 value={originationDate}
@@ -356,7 +358,7 @@ function LoanDetailsModal({
           )}
           {loanType === "credit_card" && (
             <label className="block">
-              <span className="text-xs text-text-muted font-medium">Purchase APR (%)</span>
+              <span className="text-sm text-text-secondary font-medium">Purchase APR (%)</span>
               <input
                 type="number"
                 step="0.01"
@@ -372,7 +374,7 @@ function LoanDetailsModal({
             loanType === "credit_card" ||
             loanType === "other_loan") && (
             <label className="block">
-              <span className="text-xs text-text-muted font-medium">Minimum Payment ($)</span>
+              <span className="text-sm text-text-secondary font-medium">Minimum Payment ($)</span>
               <input
                 type="number"
                 step="1"
@@ -386,7 +388,7 @@ function LoanDetailsModal({
           )}
           {loanType === "student_loan" && (
             <label className="block">
-              <span className="text-xs text-text-muted font-medium">Repayment Plan</span>
+              <span className="text-sm text-text-secondary font-medium">Repayment Plan</span>
               <input
                 type="text"
                 value={repaymentPlanType}
@@ -445,7 +447,7 @@ function HasDebtView({
   const badgeColor = (i: number) => {
     if (i === 0) return 'bg-danger/20 text-danger border-danger/30';
     if (i === 1) return 'bg-warning/20 text-warning border-warning/30';
-    return 'bg-surface-hover text-text-muted border-border';
+    return 'bg-surface-hover text-text-secondary border-border';
   };
 
   return (
@@ -492,7 +494,7 @@ function HasDebtView({
 
             <div className="divide-y divide-border">
               <StatRow label="Your strategy" value="Avalanche (highest APR first)" valueClass="text-success" />
-              <StatRow label="Alternative" value="Snowball (smallest balance first)" valueClass="text-text-muted" />
+              <StatRow label="Alternative" value="Snowball (smallest balance first)" valueClass="text-text-secondary" />
               <StatRow
                 label="Interest saved vs snowball"
                 value={formatCurrency(interestSavedVsSnowball)}
@@ -557,14 +559,16 @@ function HasDebtView({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <div className="text-[15px] font-semibold">{d.name}</div>
-                    <button
-                      type="button"
-                      onClick={() => onEditDebt(d)}
-                      className="text-text-muted hover:text-text-primary transition-colors"
-                      title="Edit loan details"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
+                    {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                      <button
+                        type="button"
+                        onClick={() => onEditDebt(d)}
+                        className="text-text-secondary hover:text-text-primary transition-colors"
+                        title="Edit loan details"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    )}
                     {d.liabilitySource === "plaid" && (
                       <span
                         className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold cursor-default"
@@ -578,16 +582,16 @@ function HasDebtView({
                       </span>
                     )}
                     {d.liabilitySource === "manual" && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-hover text-text-muted font-semibold">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-hover text-text-secondary font-semibold">
                         Manually entered
                       </span>
                     )}
                   </div>
-                  <div className="text-[13px] text-text-muted mt-0.5">
+                  <div className="text-[13px] text-text-secondary mt-0.5">
                     {d.apr}% APR &middot; Min {formatCurrency(d.minPayment)}/mo &middot; Paying{' '}
                     {formatCurrency(d.suggestedPayment)}/mo
                   </div>
-                  <div className="text-[11px] text-text-muted mt-1">
+                  <div className="text-[11px] text-text-secondary mt-1">
                     {d.type !== 'credit' && d.payoffDate ? (
                       <>
                         Payoff:{' '}
@@ -601,13 +605,17 @@ function HasDebtView({
                       </>
                     ) : d.type !== 'credit' && !d.payoffDate ? (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => onEditDebt(d)}
-                          className="text-warning hover:text-warning/80 font-semibold transition-colors"
-                        >
-                          Unknown — add details
-                        </button>
+                        {import.meta.env.VITE_DEMO_MODE !== "true" ? (
+                          <button
+                            type="button"
+                            onClick={() => onEditDebt(d)}
+                            className="text-warning hover:text-warning/80 font-semibold transition-colors"
+                          >
+                            Unknown — add details
+                          </button>
+                        ) : (
+                          <span className="text-warning font-semibold">Unknown</span>
+                        )}
                         {' '}&middot;{' '}
                       </>
                     ) : null}
@@ -629,7 +637,7 @@ function HasDebtView({
         </Section>
       </motion.div>
 
-      <ContextualInsights types={["debt", "general"]} />
+      <PageActions types="debt" />
       {editingDebt && (
         <LoanDetailsModal
           debt={editingDebt}
@@ -650,7 +658,7 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
       <motion.div {...fadeUp(0)} className="glass-card p-6 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">
             Debt Status
           </span>
         </div>
@@ -671,7 +679,7 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
       </motion.div>
 
       {/* Stay Debt-Free — dynamic actions */}
-      <ContextualInsights types={["debt", "general"]} />
+      <PageActions types="debt" />
 
       {/* Interest saved */}
       <motion.div {...fadeUp(0.16)}>

@@ -1,11 +1,10 @@
 import { Hono } from "hono";
 import { eq, desc, inArray, and, sql, holdings, securities, accounts, balanceSnapshots } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 import { aggregatePortfolio, extractAllocation, type HoldingInput } from "../services/portfolio-aggregator.js";
 
 export const portfolioRoutes = new Hono<AuthEnv>();
-portfolioRoutes.use("*", requireAuth);
 
 portfolioRoutes.get("/composition", async (c) => {
   const session = c.get("session");

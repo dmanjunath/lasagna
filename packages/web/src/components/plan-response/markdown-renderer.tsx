@@ -34,7 +34,7 @@ export function MarkdownRenderer({ content, toolResults }: MarkdownRendererProps
                   className={cn(
                     'prose prose-invert max-w-none',
                     // Paragraphs - editorial quality with proper spacing
-                    'prose-p:text-[#c5c5c5] prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4',
+                    'prose-p:text-text-secondary prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4',
                     // H2 - Section headers with accent underline
                     'prose-h2:text-[22px] prose-h2:font-semibold prose-h2:text-white prose-h2:mt-8 prose-h2:mb-4 prose-h2:tracking-tight',
                     '[&_h2]:after:content-[""] [&_h2]:after:block [&_h2]:after:w-10 [&_h2]:after:h-[3px] [&_h2]:after:bg-accent [&_h2]:after:mt-3 [&_h2]:after:rounded-sm',
@@ -44,7 +44,7 @@ export function MarkdownRenderer({ content, toolResults }: MarkdownRendererProps
                     'prose-strong:text-accent prose-strong:font-semibold',
                     // Lists - proper spacing
                     'prose-ul:my-4 prose-ul:space-y-2 prose-ol:my-4 prose-ol:space-y-2',
-                    'prose-li:text-[#c5c5c5] prose-li:leading-relaxed prose-li:mb-1',
+                    'prose-li:text-text-secondary prose-li:leading-relaxed prose-li:mb-1',
                     // Links
                     'prose-a:text-accent prose-a:no-underline hover:prose-a:underline',
                     // Code
@@ -117,7 +117,7 @@ export function MarkdownRenderer({ content, toolResults }: MarkdownRendererProps
           }
           case 'unknown':
             return (
-              <pre key={i} className="p-4 bg-surface rounded-xl text-xs text-text-muted overflow-x-auto">
+              <pre key={i} className="p-4 bg-surface rounded-xl text-xs text-text-secondary overflow-x-auto">
                 {segment.raw}
               </pre>
             );

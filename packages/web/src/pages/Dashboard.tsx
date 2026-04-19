@@ -8,10 +8,9 @@ import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
 import { MetricTile } from '../components/common/metric-tile';
-import { ActionItem } from '../components/common/action-item';
 import { Section } from '../components/common/section';
 import { SetupProgress, type SetupStep } from '../components/common/setup-progress';
-import { generateActionItems, type ActionItemData, type FinancialState } from '../lib/action-generator';
+import { PageActions } from '../components/common/page-actions';
 import { cn } from '../lib/utils';
 
 function formatCurrency(value: number): string {
@@ -141,7 +140,6 @@ export function Dashboard() {
   const [institutionCount, setInstitutionCount] = useState(0);
   const [debtFreeDate, setDebtFreeDate] = useState<string | null>(null);
   const [employerMatch, setEmployerMatch] = useState<number | null>(null);
-  const [actionItems, setActionItems] = useState<ActionItemData[]>([]);
   const [setupSteps, setSetupSteps] = useState<SetupStep[]>([]);
   const [nwHistory, setNwHistory] = useState<Array<{ date: string; value: number }>>([]);
   const [spendingCategories, setSpendingCategories] = useState<Array<{ category: string; total: number; count: number; percentage: number }>>([]);
@@ -160,10 +158,9 @@ export function Dashboard() {
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
       api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
       api.getPlans().catch(() => ({ plans: [] as Array<{ id: string }> })),
-      api.getInsights().catch(() => ({ insights: [] as Array<{ id: string; category: string; urgency: string; type: string | null; title: string; description: string; impact: string | null; impactColor: string | null; chatPrompt: string | null; generatedBy: string; createdAt: string }> })),
       api.getSpendingSummary().catch(() => ({ categories: [], totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
       api.getGoals().catch(() => ({ goals: [] })),
-    ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, insightsData, spendingData, goalsData]) => {
+    ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, spendingData, goalsData]) => {
       // Redirect to onboarding if user has no data at all (and hasn't completed it)
       const onboardingDone = localStorage.getItem('lasagna_onboarding_done');
       if (balanceData.balances.length === 0 && !profileData.financialProfile && !onboardingDone) {
@@ -290,35 +287,6 @@ export function Dashboard() {
         }
       }
 
-      const financialState: FinancialState = {
-        totalDebt: debtData.totalDebt || totalLiabilities,
-        totalDepository: depositoryTotal,
-        totalInvestment: investmentTotal,
-        monthlyExpenses: creditTotal,
-        hasLinkedAccounts: itemData.items.length > 0,
-        employerMatchPercent: profile?.employerMatchPercent ?? null,
-        annualIncome: profile?.annualIncome ?? null,
-        riskTolerance: profile?.riskTolerance ?? null,
-        debtCount: debts.length,
-        highestApr,
-        highestAprCreditor,
-      };
-
-      const apiInsights = insightsData.insights;
-      if (apiInsights.length > 0) {
-        setActionItems(apiInsights.map((ins) => ({
-          title: ins.title,
-          tag: (ins.type || ins.category || 'general').toUpperCase(),
-          description: ins.description,
-          impact: ins.impact || '',
-          impactColor: (ins.impactColor as 'green' | 'amber' | 'red') || 'green',
-          chatPrompt: ins.chatPrompt || ins.title,
-          insightId: ins.id,
-        })));
-      } else {
-        setActionItems(generateActionItems(financialState));
-      }
-
       // Setup steps
       const hasLinked = itemData.items.length > 0;
       const hasProfileBasics = profileExists && profile.age !== null && profile.annualIncome !== null;
@@ -369,7 +337,7 @@ export function Dashboard() {
       </motion.div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-text-muted py-4">
+        <div className="flex items-center gap-2 text-text-secondary py-4">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Loading...</span>
         </div>
@@ -392,7 +360,7 @@ export function Dashboard() {
                 <span className="text-lg">🔗</span>
                 <div>
                   <p className="text-sm font-medium">Link your bank for automatic updates</p>
-                  <p className="text-xs text-text-muted">Your balances are manual snapshots. Connect via Plaid for real-time tracking.</p>
+                  <p className="text-sm text-text-secondary">Your balances are manual snapshots. Connect via Plaid for real-time tracking.</p>
                 </div>
               </div>
               <a href="/accounts" className="flex-shrink-0 px-3 py-1.5 bg-accent text-bg text-xs font-semibold rounded-lg hover:bg-accent/90 transition-colors">
@@ -408,7 +376,7 @@ export function Dashboard() {
             transition={{ delay: 0.05, duration: 0.4 }}
             className="mb-8"
           >
-            <p className="text-sm text-text-muted mb-1">Net Worth</p>
+            <p className="text-sm text-text-secondary mb-1">Net Worth</p>
             <div className="flex items-baseline gap-3">
               <p className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold tabular-nums tracking-tight">
                 {netWorth !== null ? formatCurrency(netWorth) : '—'}
@@ -449,7 +417,7 @@ export function Dashboard() {
                           const date = new Date(label + 'T00:00:00');
                           return (
                             <div className="bg-bg-elevated border border-border rounded-lg px-3 py-1.5 text-xs shadow-lg">
-                              <div className="text-text-muted mb-0.5">{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                              <div className="text-text-secondary mb-0.5">{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                               <span className="font-semibold">{formatCurrency(payload[0].value as number)}</span>
                             </div>
                           );
@@ -519,7 +487,7 @@ export function Dashboard() {
                 <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">{spendingPeriodLabel}</h3>
                 <button
                   onClick={() => navigate('/spending')}
-                  className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1"
+                  className="text-xs text-text-secondary hover:text-accent transition-colors flex items-center gap-1"
                 >
                   Details <ArrowRight className="w-3 h-3" />
                 </button>
@@ -558,7 +526,7 @@ export function Dashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="text-sm text-text-muted py-4 text-center">
+                <div className="text-sm text-text-secondary py-4 text-center">
                   No spending data yet. Link accounts to track spending.
                 </div>
               )}
@@ -575,7 +543,7 @@ export function Dashboard() {
                 <h3 className="text-sm uppercase tracking-wider text-text-secondary font-semibold">Goals</h3>
                 <button
                   onClick={() => navigate('/goals')}
-                  className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1"
+                  className="text-xs text-text-secondary hover:text-accent transition-colors flex items-center gap-1"
                 >
                   {goals.length > 0 ? 'View all' : 'Set goals'} <ArrowRight className="w-3 h-3" />
                 </button>
@@ -592,7 +560,7 @@ export function Dashboard() {
                           <span className="text-sm font-medium flex items-center gap-1.5">
                             {goal.icon || '🎯'} {goal.name}
                           </span>
-                          <span className="text-xs text-text-muted tabular-nums">{Math.round(pct)}%</span>
+                          <span className="text-xs text-text-secondary tabular-nums">{Math.round(pct)}%</span>
                         </div>
                         <div className="h-2 bg-border rounded-full overflow-hidden">
                           <div
@@ -604,8 +572,8 @@ export function Dashboard() {
                           />
                         </div>
                         <div className="flex justify-between mt-0.5">
-                          <span className="text-xs text-text-muted">{formatCompact(current)}</span>
-                          <span className="text-xs text-text-muted">{formatCompact(target)}</span>
+                          <span className="text-xs text-text-secondary">{formatCompact(current)}</span>
+                          <span className="text-xs text-text-secondary">{formatCompact(target)}</span>
                         </div>
                       </div>
                     );
@@ -613,8 +581,8 @@ export function Dashboard() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <Target className="w-8 h-8 text-text-muted mx-auto mb-2" />
-                  <p className="text-sm text-text-muted mb-3">Set financial goals to track your progress</p>
+                  <Target className="w-8 h-8 text-text-secondary mx-auto mb-2" />
+                  <p className="text-sm text-text-secondary mb-3">Set financial goals to track your progress</p>
                   <button
                     onClick={() => navigate('/goals')}
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent/80 transition-colors"
@@ -626,62 +594,7 @@ export function Dashboard() {
             </motion.div>
           </div>
 
-          {/* empty - removed low-value metrics */}
-
-          {/* Insights / Action Items */}
-          {actionItems.length > 0 && (
-            <Section
-              title="Actions"
-              actions={
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/actions')}
-                    className="text-xs text-accent hover:text-accent/80 transition-colors"
-                  >
-                    View all →
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await api.generateInsights();
-                      const { insights: fresh } = await api.getInsights();
-                      if (fresh.length > 0) {
-                        const categoryToTag: Record<string, string> = { portfolio: 'INVEST', debt: 'DEBT', tax: 'TAX', savings: 'SAVINGS', general: 'SETUP' };
-                        setActionItems(fresh.map((ins) => ({
-                          title: ins.title, tag: (ins.type || ins.category || 'general').toUpperCase(),
-                          description: ins.description, impact: ins.impact || '', impactColor: (ins.impactColor as 'green' | 'amber' | 'red') || 'green',
-                          chatPrompt: ins.chatPrompt || ins.title, insightId: ins.id,
-                        })));
-                      }
-                    }}
-                    className="text-xs text-text-muted hover:text-accent transition-colors"
-                  >
-                    ↻ Refresh
-                  </button>
-                </div>
-              }
-            >
-              <div className="bg-bg-elevated border border-border rounded-xl px-4">
-                {actionItems.map((item, i) => (
-                  <ActionItem
-                    key={item.insightId || item.title}
-                    title={item.title}
-                    tag={item.tag}
-                    description={item.description}
-                    impact={item.impact}
-                    impactColor={item.impactColor}
-                    chatPrompt={item.chatPrompt}
-                    defaultOpen={i === 0}
-                    onDismiss={item.insightId ? async () => {
-                      await api.dismissInsight(item.insightId!);
-                      setActionItems(prev => prev.filter(a => a.insightId !== item.insightId));
-                    } : undefined}
-                  />
-                ))}
-              </div>
-            </Section>
-          )}
+          <PageActions viewAllHref="/priorities#actions" />
 
           {/* Ask Lasagna — mobile only */}
           <Section title="Ask Lasagna" className="md:hidden">

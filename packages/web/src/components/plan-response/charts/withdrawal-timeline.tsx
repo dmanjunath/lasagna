@@ -72,7 +72,7 @@ function CustomTooltip({
 
   return (
     <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl min-w-[220px]">
-      <div className="text-[#f5f5f5] font-semibold mb-3 pb-2 border-b border-[#27272a]">
+      <div className="text-text font-semibold mb-3 pb-2 border-b border-[#27272a]">
         {dataPoint.age ? `Age ${dataPoint.age}` : `Year ${dataPoint.year}`}
       </div>
 
@@ -81,18 +81,18 @@ function CustomTooltip({
         <div className="flex justify-between">
           <span className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-sm bg-[#6366f1]" />
-            <span className="text-[#a8a29e]">Portfolio Withdrawal</span>
+            <span className="text-text-secondary">Portfolio Withdrawal</span>
           </span>
-          <span className="text-[#f5f5f5] font-medium tabular-nums">{formatFullCurrency(dataPoint.withdrawal)}</span>
+          <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.withdrawal)}</span>
         </div>
 
         {showSources && dataPoint.socialSecurity > 0 && (
           <div className="flex justify-between">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-sm bg-[#22c55e]" />
-              <span className="text-[#a8a29e]">Social Security</span>
+              <span className="text-text-secondary">Social Security</span>
             </span>
-            <span className="text-[#f5f5f5] font-medium tabular-nums">{formatFullCurrency(dataPoint.socialSecurity)}</span>
+            <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.socialSecurity)}</span>
           </div>
         )}
 
@@ -100,9 +100,9 @@ function CustomTooltip({
           <div className="flex justify-between">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-sm bg-[#f97316]" />
-              <span className="text-[#a8a29e]">Pension</span>
+              <span className="text-text-secondary">Pension</span>
             </span>
-            <span className="text-[#f5f5f5] font-medium tabular-nums">{formatFullCurrency(dataPoint.pension)}</span>
+            <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.pension)}</span>
           </div>
         )}
 
@@ -110,9 +110,9 @@ function CustomTooltip({
           <div className="flex justify-between">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-sm bg-[#a855f7]" />
-              <span className="text-[#a8a29e]">Other Income</span>
+              <span className="text-text-secondary">Other Income</span>
             </span>
-            <span className="text-[#f5f5f5] font-medium tabular-nums">{formatFullCurrency(dataPoint.otherIncome)}</span>
+            <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.otherIncome)}</span>
           </div>
         )}
 
@@ -124,8 +124,8 @@ function CustomTooltip({
 
         {/* Portfolio value */}
         <div className="flex justify-between pt-2 mt-2 border-t border-[#27272a]">
-          <span className="text-[#6b6b6b]">Remaining Portfolio</span>
-          <span className="text-[#a8a29e] font-medium tabular-nums">{formatFullCurrency(dataPoint.portfolioValue)}</span>
+          <span className="text-text-secondary">Remaining Portfolio</span>
+          <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.portfolioValue)}</span>
         </div>
       </div>
     </div>
@@ -170,7 +170,7 @@ export function WithdrawalTimeline({
   }, [data]);
 
   if (!stats) {
-    return <div className="text-text-muted p-4">No withdrawal data available</div>;
+    return <div className="text-text-secondary p-4">No withdrawal data available</div>;
   }
 
   return (
@@ -179,7 +179,7 @@ export function WithdrawalTimeline({
       <div className="flex items-center justify-between p-5 border-b border-border/50">
         <div>
           <h3 className="text-base font-semibold text-text">{title}</h3>
-          <p className="text-sm text-text-muted mt-1">
+          <p className="text-sm text-text-secondary mt-1">
             {stats.years}-year withdrawal plan
           </p>
         </div>
@@ -190,7 +190,7 @@ export function WithdrawalTimeline({
               'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
               view === 'withdrawal'
                 ? 'bg-accent text-white'
-                : 'bg-surface text-text-muted hover:bg-surface-elevated'
+                : 'bg-surface text-text-secondary hover:bg-surface-elevated'
             )}
           >
             Withdrawals
@@ -201,7 +201,7 @@ export function WithdrawalTimeline({
               'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
               view === 'portfolio'
                 ? 'bg-accent text-white'
-                : 'bg-surface text-text-muted hover:bg-surface-elevated'
+                : 'bg-surface text-text-secondary hover:bg-surface-elevated'
             )}
           >
             Portfolio
@@ -212,19 +212,19 @@ export function WithdrawalTimeline({
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 p-5 border-b border-border/50 bg-[#0f0f11]">
         <div>
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">Avg Annual</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Avg Annual</div>
           <div className="text-sm font-semibold text-accent tabular-nums">{formatCurrency(stats.avgWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">Minimum</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Minimum</div>
           <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(stats.minWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">Maximum</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Maximum</div>
           <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(stats.maxWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-1">End Portfolio</div>
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">End Portfolio</div>
           <div className={cn(
             "text-sm font-semibold tabular-nums",
             stats.finalPortfolio > 0 ? "text-green-400" : "text-red-400"
@@ -323,7 +323,7 @@ export function WithdrawalTimeline({
 
         {/* Legend */}
         {view === 'withdrawal' && hasMultipleSources && showSources && (
-          <div className="flex items-center justify-center gap-4 mt-4 text-xs text-text-muted">
+          <div className="flex items-center justify-center gap-4 mt-4 text-xs text-text-secondary">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-sm bg-[#6366f1]" />
               <span>Portfolio</span>

@@ -21,12 +21,21 @@ export function getModel(): LanguageModel {
   return _model;
 }
 
-export function createAgentTools(tenantId: string) {
-  return {
+export function createAgentTools(
+  tenantId: string,
+  options?: { isDemo?: boolean }
+) {
+  const allTools = {
     ...createFinancialTools(tenantId),
     ...createPlanTools(tenantId),
     ...createSimulationTools(tenantId),
   };
+
+  if (!options?.isDemo) return allTools;
+
+  // Exclude plan mutation tools for demo users so the AI can't modify plans
+  const { update_plan_content, create_plan, ...readOnlyTools } = allTools;
+  return readOnlyTools;
 }
 
 export const systemPrompt = `You are a financial planning assistant for Lasagna, creating personalized research reports with embedded data visualizations.

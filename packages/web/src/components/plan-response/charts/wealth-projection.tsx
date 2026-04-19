@@ -67,7 +67,7 @@ function CustomTooltip({
 
   return (
     <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl min-w-[200px]">
-      <div className="text-[#f5f5f5] font-semibold mb-3 pb-2 border-b border-[#27272a]">
+      <div className="text-text font-semibold mb-3 pb-2 border-b border-[#27272a]">
         Year {label}
       </div>
       <div className="space-y-2">
@@ -81,15 +81,15 @@ function CustomTooltip({
                   className="w-3 h-3 rounded-sm"
                   style={{ backgroundColor: entry.fill }}
                 />
-                <span className="text-[13px] text-[#a8a29e]">
+                <span className="text-[13px] text-text-secondary">
                   {category?.label || entry.dataKey}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[13px] text-[#f5f5f5] font-medium tabular-nums">
+                <span className="text-[13px] text-text font-medium tabular-nums">
                   {formatFullCurrency(entry.value)}
                 </span>
-                <span className="text-[11px] text-[#6b6b6b] ml-2">
+                <span className="text-[11px] text-text-secondary ml-2">
                   ({percentage}%)
                 </span>
               </div>
@@ -98,7 +98,7 @@ function CustomTooltip({
         })}
       </div>
       <div className="mt-3 pt-2 border-t border-[#27272a] flex justify-between">
-        <span className="text-[13px] text-[#a8a29e]">Total</span>
+        <span className="text-[13px] text-text-secondary">Total</span>
         <span className="text-[15px] text-accent font-semibold tabular-nums">
           {formatFullCurrency(total)}
         </span>
@@ -153,7 +153,7 @@ export function WealthProjection({
                   'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
                   activeScenario === scenario.id
                     ? 'bg-accent text-white'
-                    : 'bg-surface text-text-muted hover:bg-surface-elevated'
+                    : 'bg-surface text-text-secondary hover:bg-surface-elevated'
                 )}
               >
                 {scenario.label}
@@ -169,7 +169,7 @@ export function WealthProjection({
           {/* Year summary above chart */}
           {selectedData && (
             <div className="mb-4 flex items-baseline gap-3">
-              <span className="text-text-muted text-sm">
+              <span className="text-text-secondary text-sm">
                 At age {currentAge + (displayYear - years.start)}
               </span>
               <span className="text-2xl font-semibold text-text tabular-nums">
@@ -272,7 +272,7 @@ export function WealthProjection({
 
         {/* Legend sidebar */}
         <div className="w-48 border-l border-border/50 p-5 bg-[#0f0f11]">
-          <div className="text-xs text-text-muted uppercase tracking-wide mb-4">
+          <div className="text-xs text-text-secondary uppercase tracking-wide mb-4">
             Asset Allocation
           </div>
           <div className="space-y-3">
@@ -294,7 +294,7 @@ export function WealthProjection({
                     <span className="text-sm font-semibold text-text tabular-nums">
                       {formatCurrency(value)}
                     </span>
-                    <span className="text-[11px] text-text-muted">({percentage}%)</span>
+                    <span className="text-[11px] text-text-secondary">({percentage}%)</span>
                   </div>
                 </div>
               );
@@ -303,7 +303,7 @@ export function WealthProjection({
 
           {/* Total */}
           <div className="mt-6 pt-4 border-t border-border/50">
-            <div className="text-xs text-text-muted uppercase tracking-wide mb-2">
+            <div className="text-xs text-text-secondary uppercase tracking-wide mb-2">
               Net Worth
             </div>
             <div className="text-lg font-semibold text-accent tabular-nums">

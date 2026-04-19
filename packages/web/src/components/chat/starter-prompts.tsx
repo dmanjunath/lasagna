@@ -47,7 +47,7 @@ export function StarterPrompts({ planType, onSelectPrompt }: StarterPromptsProps
     <div className="space-y-6">
       <div className="text-center">
         <h3 className="text-lg font-medium text-text mb-2">Get started with a question</h3>
-        <p className="text-sm text-text-muted">Choose a suggestion or write your own</p>
+        <p className="text-sm text-text-secondary">Choose a suggestion or write your own</p>
       </div>
 
       <div className="grid gap-3">

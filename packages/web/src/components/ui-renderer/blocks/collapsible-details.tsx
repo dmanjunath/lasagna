@@ -23,7 +23,7 @@ export function CollapsibleDetailsRenderer({ block }: { block: CollapsibleDetail
           animate={{ rotate: isOpen ? 90 : 0 }}
           transition={{ duration: 0.15 }}
         >
-          <ChevronRight className="w-4 h-4 text-text-muted" />
+          <ChevronRight className="w-4 h-4 text-text-secondary" />
         </motion.div>
         <span className="text-text-secondary font-medium">{block.summary}</span>
       </button>

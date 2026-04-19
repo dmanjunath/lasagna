@@ -80,7 +80,7 @@ function CurrencyInput({ value, onChange, placeholder = '0', className = '' }: {
 }) {
   return (
     <div className={cn('relative', className)}>
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">$</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">$</span>
       <input
         type="text"
         inputMode="decimal"
@@ -94,7 +94,7 @@ function CurrencyInput({ value, onChange, placeholder = '0', className = '' }: {
 }
 
 function FieldHint({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-text-muted mt-1">{children}</p>;
+  return <p className="text-xs text-text-secondary mt-1">{children}</p>;
 }
 
 export function Onboarding() {
@@ -324,7 +324,7 @@ export function Onboarding() {
                       <input type="number" min={0} max={10} step={0.5} value={matchPercent} onChange={(e) => setMatchPercent(e.target.value)}
                         placeholder="3"
                         className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2.5 text-text outline-none focus:border-accent transition-colors" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted">%</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary">%</span>
                     </div>
                     <FieldHint>Not maxing your employer match is leaving free money on the table — we&apos;ll flag this.</FieldHint>
                   </>
@@ -343,7 +343,7 @@ export function Onboarding() {
                           : 'border-border bg-bg-elevated text-text-secondary hover:border-border-light hover:text-text'
                       )}>
                       <span className="font-medium text-sm">{r.label}</span>
-                      <span className="text-xs text-text-muted">{r.desc}</span>
+                      <span className="text-xs text-text-secondary">{r.desc}</span>
                     </button>
                   ))}
                 </div>
@@ -376,7 +376,7 @@ export function Onboarding() {
             <div className="bg-bg-elevated border border-accent/20 rounded-xl p-6 text-center">
               <Link2 className="w-10 h-10 text-accent mx-auto mb-3" />
               <h3 className="font-semibold text-lg mb-1">Link your accounts</h3>
-              <p className="text-text-muted text-sm mb-4 max-w-sm mx-auto">
+              <p className="text-text-secondary text-sm mb-4 max-w-sm mx-auto">
                 Securely connect via Plaid. Your balances and holdings update automatically so your projections stay current.
               </p>
               <button
@@ -386,7 +386,7 @@ export function Onboarding() {
                 <Link2 className="w-4 h-4" />
                 Link Bank Account
               </button>
-              <p className="text-xs text-text-muted mt-3">
+              <p className="text-xs text-text-secondary mt-3">
                 256-bit encryption. Read-only access. We never store your bank credentials.
               </p>
             </div>
@@ -394,7 +394,7 @@ export function Onboarding() {
             {/* Divider */}
             <div className="flex items-center gap-3">
               <div className="flex-1 border-t border-border" />
-              <span className="text-xs text-text-muted">or enter manually</span>
+              <span className="text-xs text-text-secondary">or enter manually</span>
               <div className="flex-1 border-t border-border" />
             </div>
 
@@ -402,7 +402,7 @@ export function Onboarding() {
             {!showManualEntry ? (
               <button
                 onClick={() => setShowManualEntry(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-border text-text-muted text-sm hover:text-text hover:border-border-light transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-border text-text-secondary text-sm hover:text-text hover:border-border-light transition-colors"
               >
                 <PencilLine className="w-4 h-4" />
                 Add accounts manually instead
@@ -412,7 +412,7 @@ export function Onboarding() {
                 {/* Added accounts */}
                 {addedAccounts.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs text-text-muted uppercase tracking-wider">Added accounts</p>
+                    <p className="text-xs text-text-secondary uppercase tracking-wider">Added accounts</p>
                     {addedAccounts.map((acct) => (
                       <motion.div key={acct.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                         className="flex items-center justify-between bg-bg-elevated border border-border rounded-lg px-4 py-3">
@@ -420,12 +420,12 @@ export function Onboarding() {
                           <span className="text-lg">{acct.emoji}</span>
                           <div>
                             <p className="text-sm font-medium text-text">{acct.name}</p>
-                            <p className="text-xs text-text-muted">{acct.type}</p>
+                            <p className="text-xs text-text-secondary">{acct.type}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm text-text-secondary font-medium">${acct.balance.toLocaleString()}</span>
-                          <button onClick={() => handleRemoveAccount(acct.id)} className="text-text-muted hover:text-danger transition-colors">
+                          <button onClick={() => handleRemoveAccount(acct.id)} className="text-text-secondary hover:text-danger transition-colors">
                             <X className="w-4 h-4" />
                           </button>
                         </div>
@@ -443,22 +443,22 @@ export function Onboarding() {
                       <span className="text-sm font-medium text-text">{activeType.label}</span>
                     </div>
                     <div>
-                      <label className="block text-xs text-text-muted mb-1">Account name</label>
+                      <label className="block text-xs text-text-secondary mb-1">Account name</label>
                       <input type="text" value={acctName} onChange={(e) => setAcctName(e.target.value)} autoFocus
                         className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-accent transition-colors" />
                     </div>
                     <div>
-                      <label className="block text-xs text-text-muted mb-1">Balance</label>
+                      <label className="block text-xs text-text-secondary mb-1">Balance</label>
                       <CurrencyInput value={acctBalance} onChange={setAcctBalance} className="text-sm" />
                     </div>
                     {activeType.isDebt && (
                       <div>
-                        <label className="block text-xs text-text-muted mb-1">Interest rate</label>
+                        <label className="block text-xs text-text-secondary mb-1">Interest rate</label>
                         <div className="relative">
                           <input type="number" min={0} max={40} step={0.1} value={acctRate} onChange={(e) => setAcctRate(e.target.value)}
                             placeholder="5.5"
                             className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-accent transition-colors" />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">%</span>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">%</span>
                         </div>
                       </div>
                     )}
@@ -469,7 +469,7 @@ export function Onboarding() {
                         Add
                       </button>
                       <button onClick={() => { setActiveType(null); setAcctName(''); setAcctBalance(''); setAcctRate(''); }}
-                        className="px-4 py-2 text-text-muted hover:text-text text-sm transition-colors">Cancel</button>
+                        className="px-4 py-2 text-text-secondary hover:text-text text-sm transition-colors">Cancel</button>
                     </div>
                   </motion.div>
                 )}
@@ -488,7 +488,7 @@ export function Onboarding() {
                   </div>
                 )}
 
-                <p className="text-xs text-text-muted text-center">
+                <p className="text-xs text-text-secondary text-center">
                   Manual balances are a snapshot — consider linking accounts for automatic updates.
                 </p>
               </>
@@ -518,13 +518,13 @@ export function Onboarding() {
             </div>
 
             <div className="bg-bg-elevated border border-border rounded-lg p-5 text-left space-y-3 max-w-sm mx-auto">
-              <p className="text-xs text-text-muted uppercase tracking-wider mb-2">Summary</p>
-              {name && <div className="flex justify-between text-sm"><span className="text-text-muted">Name</span><span className="text-text font-medium">{name}</span></div>}
-              {annualIncome && <div className="flex justify-between text-sm"><span className="text-text-muted">Income</span><span className="text-text font-medium">${parseFloat(annualIncome).toLocaleString()}</span></div>}
-              {riskTolerance && <div className="flex justify-between text-sm"><span className="text-text-muted">Risk</span><span className="text-text font-medium capitalize">{riskTolerance.replace(/_/g, ' ')}</span></div>}
-              {retirementAge && <div className="flex justify-between text-sm"><span className="text-text-muted">Retire at</span><span className="text-text font-medium">{retirementAge}</span></div>}
-              {addedAccounts.length > 0 && <div className="flex justify-between text-sm"><span className="text-text-muted">Accounts</span><span className="text-text font-medium">{addedAccounts.length} added</span></div>}
-              {linkedViaPlaid && <div className="flex justify-between text-sm"><span className="text-text-muted">Bank</span><span className="text-accent font-medium">Linked via Plaid</span></div>}
+              <p className="text-xs text-text-secondary uppercase tracking-wider mb-2">Summary</p>
+              {name && <div className="flex justify-between text-sm"><span className="text-text-secondary">Name</span><span className="text-text font-medium">{name}</span></div>}
+              {annualIncome && <div className="flex justify-between text-sm"><span className="text-text-secondary">Income</span><span className="text-text font-medium">${parseFloat(annualIncome).toLocaleString()}</span></div>}
+              {riskTolerance && <div className="flex justify-between text-sm"><span className="text-text-secondary">Risk</span><span className="text-text font-medium capitalize">{riskTolerance.replace(/_/g, ' ')}</span></div>}
+              {retirementAge && <div className="flex justify-between text-sm"><span className="text-text-secondary">Retire at</span><span className="text-text font-medium">{retirementAge}</span></div>}
+              {addedAccounts.length > 0 && <div className="flex justify-between text-sm"><span className="text-text-secondary">Accounts</span><span className="text-text font-medium">{addedAccounts.length} added</span></div>}
+              {linkedViaPlaid && <div className="flex justify-between text-sm"><span className="text-text-secondary">Bank</span><span className="text-accent font-medium">Linked via Plaid</span></div>}
             </div>
 
             <div className="space-y-3 pt-2">
@@ -559,7 +559,7 @@ export function Onboarding() {
   if (initializing) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
+        <Loader2 className="w-6 h-6 animate-spin text-text-secondary" />
       </div>
     );
   }
@@ -568,10 +568,10 @@ export function Onboarding() {
     <div className="min-h-screen bg-bg flex flex-col">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
-          <Logo size={28} animate={false} />
+          <Logo width={28} animate={false} />
           <span className="font-display text-lg font-medium text-text tracking-tight">Lasagna</span>
         </div>
-        {step < 3 && <span className="text-xs text-text-muted">Step {step + 1} of 3</span>}
+        {step < 3 && <span className="text-xs text-text-secondary">Step {step + 1} of 3</span>}
       </div>
 
       {step < 3 && (
@@ -601,14 +601,14 @@ export function Onboarding() {
           <div className="w-full max-w-lg mx-auto flex items-center justify-between">
             <div>
               {step > 0 && (
-                <button onClick={goBack} className="flex items-center gap-1 text-sm text-text-muted hover:text-text transition-colors">
+                <button onClick={goBack} className="flex items-center gap-1 text-sm text-text-secondary hover:text-text transition-colors">
                   <ChevronLeft className="w-4 h-4" /> Back
                 </button>
               )}
             </div>
             <div className="flex items-center gap-3">
               {step === 2 && (
-                <button onClick={goNext} className="text-sm text-text-muted hover:text-text transition-colors">
+                <button onClick={goNext} className="text-sm text-text-secondary hover:text-text transition-colors">
                   Skip for now
                 </button>
               )}

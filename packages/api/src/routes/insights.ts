@@ -1,12 +1,10 @@
 import { Hono } from "hono";
 import { eq, and, desc, insights, sql } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 import { generateInsights } from "../lib/insights-engine.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
-
-insightsRoutes.use("*", requireAuth);
 
 // List active insights (not dismissed, not expired)
 insightsRoutes.get("/", async (c) => {

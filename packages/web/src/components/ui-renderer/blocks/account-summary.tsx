@@ -16,14 +16,14 @@ export function AccountSummaryRenderer({ block }: { block: AccountSummaryBlock }
   return (
     <div className="glass-card p-6">
       <div className="text-center mb-6">
-        <div className="text-sm text-text-muted">Total Portfolio</div>
+        <div className="text-sm text-text-secondary">Total Portfolio</div>
         <div className="text-3xl font-display font-bold text-text">
           {formatCurrency(block.totalBalance)}
         </div>
       </div>
 
       <div className="mb-4">
-        <div className="text-sm text-text-muted mb-2">Asset Allocation</div>
+        <div className="text-sm text-text-secondary mb-2">Asset Allocation</div>
         <div className="flex h-3 rounded-full overflow-hidden">
           {allocationData.map((d, idx) => (
             <div
@@ -46,7 +46,7 @@ export function AccountSummaryRenderer({ block }: { block: AccountSummaryBlock }
       <div className="space-y-2">
         {block.byType.map((account, idx) => (
           <div key={idx} className="flex justify-between text-sm py-1">
-            <span className="text-text-muted capitalize">{account.type}</span>
+            <span className="text-text-secondary capitalize">{account.type}</span>
             <span className="text-text tabular-nums">{formatCurrency(account.balance)}</span>
           </div>
         ))}

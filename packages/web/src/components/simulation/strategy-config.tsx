@@ -85,7 +85,7 @@ function SliderField({
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="w-full accent-accent"
       />
-      <div className="flex justify-between text-xs text-text-muted">
+      <div className="flex justify-between text-xs text-text-secondary">
         <span>{minLabel}</span>
         <span>{maxLabel}</span>
       </div>
@@ -113,7 +113,7 @@ function ConstantDollarControls({
           Monthly Spending
         </label>
         <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
           <input
             type="number"
             value={monthlySpend}
@@ -126,7 +126,7 @@ function ConstantDollarControls({
             className="w-full bg-surface rounded-xl border border-border pl-8 pr-4 py-3 text-text tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         </div>
-        <p className="text-xs text-text-muted">
+        <p className="text-xs text-text-secondary">
           ${(monthlySpend * 12).toLocaleString()}/yr
           {inflationAdjusted ? ", adjusted for inflation each year" : ""}
         </p>
@@ -208,7 +208,7 @@ function PercentOfPortfolioControls({
         />
       </div>
 
-      <p className="text-xs text-text-muted mt-1">
+      <p className="text-xs text-text-secondary mt-1">
         Withdraw {rate}% of your portfolio each year.
       </p>
     </div>
@@ -306,7 +306,7 @@ function RulesBasedControls({
       <div className="space-y-2">
         <label className="text-sm font-medium text-text-secondary">Monthly Spending</label>
         <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
           <input
             type="number"
             value={monthlySpend}
@@ -319,7 +319,7 @@ function RulesBasedControls({
             className="w-full bg-surface rounded-xl border border-border pl-8 pr-4 py-3 text-text tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         </div>
-        <p className="text-xs text-text-muted">${(monthlySpend * 12).toLocaleString()}/yr, adjusted for inflation</p>
+        <p className="text-xs text-text-secondary">${(monthlySpend * 12).toLocaleString()}/yr, adjusted for inflation</p>
       </div>
 
       {/* Decision rules as a visual flowchart */}
@@ -343,11 +343,11 @@ function RulesBasedControls({
                   {["Cash", "Bonds", "REITs"].map((item, i) => (
                     <span key={item} className="flex items-center gap-1">
                       <span className="bg-surface-solid rounded border border-border px-2 py-0.5 text-xs font-medium text-text">{item}</span>
-                      {i < 2 && <span className="text-text-muted text-xs">&rarr;</span>}
+                      {i < 2 && <span className="text-text-secondary text-xs">&rarr;</span>}
                     </span>
                   ))}
                 </div>
-                <p className="text-xs text-text-muted mt-1.5 ml-12">If safe assets run out, remainder comes from equities.</p>
+                <p className="text-xs text-text-secondary mt-1.5 ml-12">If safe assets run out, remainder comes from equities.</p>
               </div>
             </div>
           </div>

@@ -206,7 +206,7 @@ export function PlanDetailPage() {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
-        <div className="flex items-center gap-3 text-text-muted">
+        <div className="flex items-center gap-3 text-text-secondary">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading plan...</span>
         </div>
@@ -216,7 +216,7 @@ export function PlanDetailPage() {
 
   if (!plan) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6 text-text-muted">
+      <div className="flex-1 flex items-center justify-center p-6 text-text-secondary">
         Plan not found
       </div>
     );
@@ -230,15 +230,21 @@ export function PlanDetailPage() {
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
-              <EditableTitle
-                value={plan.title}
-                onSave={async (newTitle) => {
-                  await api.updatePlan(plan.id, { title: newTitle });
-                  setPlan({ ...plan, title: newTitle });
-                }}
-                className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold"
-              />
-              <p className="text-text-muted mt-1 capitalize">
+              {import.meta.env.VITE_DEMO_MODE !== "true" ? (
+                <EditableTitle
+                  value={plan.title}
+                  onSave={async (newTitle) => {
+                    await api.updatePlan(plan.id, { title: newTitle });
+                    setPlan({ ...plan, title: newTitle });
+                  }}
+                  className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold"
+                />
+              ) : (
+                <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text">
+                  {plan.title}
+                </h1>
+              )}
+              <p className="text-text-secondary mt-1 capitalize">
                 {plan.type.replace("_", " ")} Plan
               </p>
             </div>
@@ -246,9 +252,11 @@ export function PlanDetailPage() {
               <Button variant="ghost" size="sm" onClick={handleShowHistory}>
                 <History className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleDelete}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                <Button variant="ghost" size="sm" onClick={handleDelete}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
 
@@ -328,7 +336,7 @@ export function PlanDetailPage() {
                     <Loader2 className="w-6 h-6 animate-spin text-accent" />
                   </div>
                 ) : history.length === 0 ? (
-                  <p className="text-text-muted text-center py-8">No previous versions found.</p>
+                  <p className="text-text-secondary text-center py-8">No previous versions found.</p>
                 ) : (
                   <div className="space-y-3">
                     {history.map((edit) => (
@@ -341,17 +349,19 @@ export function PlanDetailPage() {
                             <p className="text-text font-medium">
                               {edit.changeDescription || "Plan updated"}
                             </p>
-                            <p className="text-text-muted text-sm">
+                            <p className="text-text-secondary text-sm">
                               {new Date(edit.createdAt).toLocaleString()} • by {edit.editedBy}
                             </p>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRestoreVersion(edit.id)}
-                          >
-                            Restore
-                          </Button>
+                          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRestoreVersion(edit.id)}
+                            >
+                              Restore
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

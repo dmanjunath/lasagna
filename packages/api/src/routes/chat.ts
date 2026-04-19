@@ -5,10 +5,9 @@ import { db } from "../lib/db.js";
 import { chatThreads, messages, plans, planEdits, eq, and } from "@lasagna/core";
 import { getModel, createAgentTools, systemPrompt } from "../agent/index.js";
 import { uiPayloadSchema } from "../agent/types.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const chatRouter = new Hono<AuthEnv>();
-chatRouter.use("*", requireAuth);
 
 // Validation schemas
 const chatRequestSchema = z.object({
@@ -17,7 +16,7 @@ const chatRequestSchema = z.object({
 });
 
 chatRouter.post("/", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, isDemo } = c.get("session");
   const rawBody = await c.req.json();
 
   const parseResult = chatRequestSchema.safeParse(rawBody);
@@ -55,12 +54,14 @@ chatRouter.post("/", async (c) => {
   }
 
   // Save user message
-  await db.insert(messages).values({
-    threadId: body.threadId,
-    tenantId,
-    role: "user",
-    content: body.message,
-  });
+  if (!isDemo) {
+    await db.insert(messages).values({
+      threadId: body.threadId,
+      tenantId,
+      role: "user",
+      content: body.message,
+    });
+  }
 
   // Get conversation history
   const history = await db
@@ -70,7 +71,7 @@ chatRouter.post("/", async (c) => {
     .orderBy(messages.createdAt);
 
   // Create tools with tenant context
-  const tools = createAgentTools(tenantId);
+  const tools = createAgentTools(tenantId, { isDemo });
 
   // Capture for onFinish closure
   const threadId = body.threadId;
@@ -247,17 +248,19 @@ chatRouter.post("/", async (c) => {
   }
 
   // Save assistant message with chat summary (not raw JSON)
-  await db.insert(messages).values({
-    threadId,
-    tenantId,
-    role: "assistant",
-    content: chatSummary,
-    toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
-    uiPayload: uiPayload ? JSON.stringify(uiPayload) : null,
-  });
+  if (!isDemo) {
+    await db.insert(messages).values({
+      threadId,
+      tenantId,
+      role: "assistant",
+      content: chatSummary,
+      toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
+      uiPayload: uiPayload ? JSON.stringify(uiPayload) : null,
+    });
+  }
 
   // Update plan content if we have UI payload and plan is attached
-  if (uiPayload && planId) {
+  if (!isDemo && uiPayload && planId) {
     const [plan] = await db
       .select({ content: plans.content, title: plans.title })
       .from(plans)
@@ -281,7 +284,7 @@ chatRouter.post("/", async (c) => {
       .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
 
     // Auto-generate title if user hasn't manually named the plan
-    if (plan?.title?.startsWith("Untitled")) {
+    if (!isDemo && plan?.title?.startsWith("Untitled")) {
       try {
         const titleResult = await generateText({
           model: getModel(),

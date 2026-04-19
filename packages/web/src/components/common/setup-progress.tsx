@@ -70,7 +70,7 @@ export function SetupProgress({ steps }: SetupProgressProps) {
                 transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               />
             </div>
-            <span className="text-xs text-text-muted tabular-nums whitespace-nowrap">
+            <span className="text-xs text-text-secondary tabular-nums whitespace-nowrap">
               {completedCount}/{totalCount}
             </span>
           </div>
@@ -86,7 +86,7 @@ export function SetupProgress({ steps }: SetupProgressProps) {
               >
                 <div className="w-4 h-4 rounded-full border-[1.5px] border-text-muted/40 shrink-0" />
                 <span className="flex-1 text-[13px] font-medium text-text truncate">{step.label}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                <ChevronRight className="w-3.5 h-3.5 text-text-secondary shrink-0" />
               </button>
             ))}
 
@@ -95,7 +95,7 @@ export function SetupProgress({ steps }: SetupProgressProps) {
               <button
                 type="button"
                 onClick={() => setExpanded(!expanded)}
-                className="w-full flex items-center gap-2.5 rounded-md px-2 py-1 text-left text-xs text-text-muted hover:text-text-secondary transition-colors"
+                className="w-full flex items-center gap-2.5 rounded-md px-2 py-1 text-left text-xs text-text-secondary hover:text-text-secondary transition-colors"
               >
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                 <span>{expanded ? 'Show less' : `${hiddenCount} more`}</span>
@@ -106,7 +106,7 @@ export function SetupProgress({ steps }: SetupProgressProps) {
             {completedCount > 0 && (
               <div className="flex items-center gap-2 px-2 py-1">
                 <Check className="w-3.5 h-3.5 text-success shrink-0" />
-                <span className="text-xs text-text-muted">
+                <span className="text-xs text-text-secondary">
                   {completedCount} completed
                 </span>
               </div>

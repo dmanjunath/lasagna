@@ -26,7 +26,7 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
     return (
       <div className="h-64">
         {block.title && (
-          <h4 className="text-sm font-medium text-text-muted mb-2">
+          <h4 className="text-sm font-medium text-text-secondary mb-2">
             {block.title}
           </h4>
         )}
@@ -50,7 +50,7 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
     return (
       <div className="h-64 flex items-center justify-center">
         {block.title && (
-          <h4 className="text-sm font-medium text-text-muted mb-2 absolute top-0 left-0">
+          <h4 className="text-sm font-medium text-text-secondary mb-2 absolute top-0 left-0">
             {block.title}
           </h4>
         )}
@@ -63,7 +63,7 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
     return (
       <div className="h-64">
         {block.title && (
-          <h4 className="text-sm font-medium text-text-muted mb-2">
+          <h4 className="text-sm font-medium text-text-secondary mb-2">
             {block.title}
           </h4>
         )}

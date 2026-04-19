@@ -99,7 +99,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 onClick={onClose}
                 className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-surface-hover transition-colors"
               >
-                <X className="w-5 h-5 text-text-muted" />
+                <X className="w-5 h-5 text-text-secondary" />
               </button>
             </div>
 
@@ -125,7 +125,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                               : 'hover:bg-surface-hover text-text-secondary hover:text-text border border-transparent'
                           )}
                         >
-                          <Icon className={cn('w-5 h-5', active ? 'text-accent' : 'text-text-muted')} />
+                          <Icon className={cn('w-5 h-5', active ? 'text-accent' : 'text-text-secondary')} />
                           <span className="font-medium">{item.name}</span>
                         </button>
                       );

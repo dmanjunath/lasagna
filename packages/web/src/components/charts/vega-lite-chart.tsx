@@ -67,7 +67,7 @@ export function VegaLiteChart({ spec, title }: VegaLiteChartProps) {
   return (
     <div className="glass-card p-4">
       {title && (
-        <h4 className="text-sm font-medium text-text-muted mb-3">{title}</h4>
+        <h4 className="text-sm font-medium text-text-secondary mb-3">{title}</h4>
       )}
       <div ref={containerRef} className="min-h-[200px]" />
     </div>

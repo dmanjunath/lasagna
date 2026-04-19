@@ -1,0 +1,55 @@
+---
+import { DEMO_VIDEO_URL } from "../config";
+---
+
+<section class="relative border-t border-white/[0.06] px-6 py-24" style="background: linear-gradient(to bottom, rgb(8,8,12) 0%, rgb(11,11,17) 50%, rgb(8,8,12) 100%);">
+  <div class="mx-auto max-w-5xl">
+    <p class="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[rgb(0,229,160)]">
+      Walkthrough
+    </p>
+    <h2 class="mb-12 text-2xl font-bold tracking-[-0.02em] text-[rgb(228,228,240)] sm:text-3xl">
+      See it in action
+    </h2>
+
+    <div
+      class="overflow-hidden rounded-lg border border-white/[0.08]"
+      style="box-shadow: 0 24px 64px rgba(0,0,0,0.6);"
+    >
+      <!-- Browser chrome -->
+      <div class="flex items-center gap-2 border-b border-white/[0.06] bg-[rgb(13,13,20)] px-4 py-3">
+        <div class="flex gap-1.5">
+          <div class="h-3 w-3 rounded-full bg-white/[0.08]"></div>
+          <div class="h-3 w-3 rounded-full bg-white/[0.08]"></div>
+          <div class="h-3 w-3 rounded-full bg-white/[0.08]"></div>
+        </div>
+        <div class="mx-auto flex h-6 w-64 items-center justify-center rounded bg-white/[0.05] px-3">
+          <span class="text-[11px] text-[rgb(90,96,112)]">app.lasagnafi.com</span>
+        </div>
+        <div class="w-12"></div>
+      </div>
+
+      {
+        DEMO_VIDEO_URL ? (
+          <div class="aspect-video w-full">
+            <iframe
+              src={DEMO_VIDEO_URL}
+              title="Lasagna walkthrough"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              class="h-full w-full"
+            />
+          </div>
+        ) : (
+          <video
+            src="/demo.mp4"
+            autoplay
+            muted
+            loop
+            playsinline
+            class="block w-full"
+          />
+        )
+      }
+    </div>
+  </div>
+</section>

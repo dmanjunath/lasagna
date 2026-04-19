@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Target, Trash2, Check, X, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
-import { ContextualInsights } from '../components/common/contextual-insights';
+import { PageActions } from '../components/common/page-actions';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -129,7 +129,6 @@ export function Goals() {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
-      <ContextualInsights types="savings" />
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -139,20 +138,24 @@ export function Goals() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display text-2xl md:text-3xl font-medium tracking-tight">Financial Goals</h2>
-            <p className="text-sm text-text-muted mt-1">Track progress toward what matters most</p>
+            <p className="text-sm text-text-secondary mt-1">Track progress toward what matters most</p>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            New Goal
-          </button>
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              New Goal
+            </button>
+          )}
         </div>
       </motion.div>
 
+      <PageActions types="savings" />
+
       {loading ? (
-        <div className="flex items-center gap-2 text-text-muted py-8">
+        <div className="flex items-center gap-2 text-text-secondary py-8">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Loading goals...</span>
         </div>
@@ -160,7 +163,7 @@ export function Goals() {
         <>
           {/* Create Goal Modal */}
           <AnimatePresence>
-            {showCreate && (
+            {showCreate && import.meta.env.VITE_DEMO_MODE !== "true" && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -172,7 +175,7 @@ export function Goals() {
 
                   {/* Quick presets */}
                   <div className="mb-4">
-                    <p className="text-xs text-text-muted mb-2 uppercase tracking-wider font-semibold">Quick Start</p>
+                    <p className="text-xs text-text-secondary mb-2 uppercase tracking-wider font-semibold">Quick Start</p>
                     <div className="flex flex-wrap gap-2">
                       {GOAL_PRESETS.map((preset) => (
                         <button
@@ -193,7 +196,7 @@ export function Goals() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="text-xs text-text-muted mb-1 block">Goal Name</label>
+                      <label className="text-xs text-text-secondary mb-1 block">Goal Name</label>
                       <input
                         type="text"
                         value={newName}
@@ -203,7 +206,7 @@ export function Goals() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-text-muted mb-1 block">Target Amount</label>
+                      <label className="text-xs text-text-secondary mb-1 block">Target Amount</label>
                       <input
                         type="number"
                         value={newTarget}
@@ -213,7 +216,7 @@ export function Goals() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-text-muted mb-1 block">Target Date (optional)</label>
+                      <label className="text-xs text-text-secondary mb-1 block">Target Date (optional)</label>
                       <input
                         type="date"
                         value={newDeadline}
@@ -222,7 +225,7 @@ export function Goals() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-text-muted mb-1 block">Icon</label>
+                      <label className="text-xs text-text-secondary mb-1 block">Icon</label>
                       <input
                         type="text"
                         value={newIcon}
@@ -260,18 +263,20 @@ export function Goals() {
               animate={{ opacity: 1, y: 0 }}
               className="text-center py-16"
             >
-              <Target className="w-12 h-12 text-text-muted mx-auto mb-4" />
+              <Target className="w-12 h-12 text-text-secondary mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No goals yet</h3>
-              <p className="text-text-muted text-sm mb-4 max-w-md mx-auto">
+              <p className="text-text-secondary text-sm mb-4 max-w-md mx-auto">
                 Setting financial goals is the first step toward achieving them.
                 Create a goal to start tracking your progress.
               </p>
-              <button
-                onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors"
-              >
-                <Plus className="w-4 h-4" /> Create Your First Goal
-              </button>
+              {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Create Your First Goal
+                </button>
+              )}
             </motion.div>
           ) : (
             <div className="space-y-4">
@@ -299,7 +304,7 @@ export function Goals() {
                         <span className="text-2xl">{goal.icon || '🎯'}</span>
                         <div>
                           <h3 className="font-semibold">{goal.name}</h3>
-                          <p className="text-xs text-text-muted">
+                          <p className="text-xs text-text-secondary">
                             {remaining > 0 ? `${formatCurrency(remaining)} to go` : 'Goal reached!'}
                             {daysLeft !== null && daysLeft > 0 && ` · ${daysLeft} days left`}
                             {daysLeft !== null && daysLeft <= 0 && ' · Past deadline'}
@@ -307,14 +312,16 @@ export function Goals() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        {pct >= 100 ? (
+                        {import.meta.env.VITE_DEMO_MODE !== "true" && pct >= 100 ? (
                           <button onClick={() => handleComplete(goal.id)} className="p-1.5 rounded-lg hover:bg-success/10 text-success transition-colors" title="Mark complete">
                             <Check className="w-4 h-4" />
                           </button>
                         ) : null}
-                        <button onClick={() => handleDelete(goal.id)} className="p-1.5 rounded-lg hover:bg-danger/10 text-text-muted hover:text-danger transition-colors" title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                          <button onClick={() => handleDelete(goal.id)} className="p-1.5 rounded-lg hover:bg-danger/10 text-text-secondary hover:text-danger transition-colors" title="Delete">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -335,7 +342,7 @@ export function Goals() {
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        {editingId === goal.id ? (
+                        {import.meta.env.VITE_DEMO_MODE !== "true" && editingId === goal.id ? (
                           <div className="flex items-center gap-2">
                             <input
                               type="number"
@@ -349,19 +356,23 @@ export function Goals() {
                             <button onClick={() => handleUpdateAmount(goal.id)} className="p-1 rounded hover:bg-accent/10 text-accent">
                               <Check className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => { setEditingId(null); setEditAmount(''); }} className="p-1 rounded hover:bg-danger/10 text-text-muted">
+                            <button onClick={() => { setEditingId(null); setEditAmount(''); }} className="p-1 rounded hover:bg-danger/10 text-text-secondary">
                               <X className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                        ) : (
+                        ) : import.meta.env.VITE_DEMO_MODE !== "true" ? (
                           <button
                             onClick={() => { setEditingId(goal.id); setEditAmount(String(current)); }}
                             className="text-sm font-semibold tabular-nums hover:text-accent transition-colors"
                           >
                             {formatCurrency(current)}
                           </button>
+                        ) : (
+                          <span className="text-sm font-semibold tabular-nums">
+                            {formatCurrency(current)}
+                          </span>
                         )}
-                        <span className="text-xs text-text-muted">of {formatCurrency(target)}</span>
+                        <span className="text-xs text-text-secondary">of {formatCurrency(target)}</span>
                       </div>
                       <span className="text-sm font-semibold tabular-nums" style={{ color: pct >= 100 ? '#22c55e' : undefined }}>
                         {Math.round(pct)}%
@@ -384,7 +395,7 @@ export function Goals() {
                       <span className="text-lg">{goal.icon || '🎯'}</span>
                       <div>
                         <span className="font-medium text-sm line-through">{goal.name}</span>
-                        <span className="text-xs text-text-muted ml-2">{formatCurrency(parseFloat(goal.targetAmount))}</span>
+                        <span className="text-xs text-text-secondary ml-2">{formatCurrency(parseFloat(goal.targetAmount))}</span>
                       </div>
                     </div>
                     <Check className="w-4 h-4 text-success" />

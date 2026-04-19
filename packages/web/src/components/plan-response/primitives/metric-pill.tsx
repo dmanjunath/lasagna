@@ -34,7 +34,7 @@ export function MetricPill({ value, context }: MetricPillProps) {
         )}
       </button>
       {context && (
-        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 text-xs bg-surface-elevated text-text-muted rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 text-xs bg-surface-elevated text-text-secondary rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
           {context}
         </span>
       )}

@@ -36,9 +36,9 @@ export function StatCard({ label, value, description, icon, status = 'default', 
       {icon && (
         <div className="flex items-center gap-2 mb-3">
           {typeof icon === 'string' ? (
-            <span className="text-lg text-text-muted">{icon}</span>
+            <span className="text-lg text-text-secondary">{icon}</span>
           ) : (
-            (() => { const Icon = icon; return <Icon className="w-5 h-5 text-text-muted" />; })()
+            (() => { const Icon = icon; return <Icon className="w-5 h-5 text-text-secondary" />; })()
           )}
           <span className="text-sm text-text-secondary font-medium">{label}</span>
         </div>
@@ -48,7 +48,7 @@ export function StatCard({ label, value, description, icon, status = 'default', 
         {value}
       </div>
       {description && (
-        <p className="text-text-muted text-xs mt-2">{description}</p>
+        <p className="text-text-secondary text-xs mt-2">{description}</p>
       )}
     </Wrapper>
   );

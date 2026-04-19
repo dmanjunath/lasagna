@@ -35,7 +35,7 @@ export function ChartDirective({ config, toolResults }: ChartDirectiveProps) {
 
   if (!data || !data.length) {
     return (
-      <div className="p-4 bg-surface rounded-xl border border-border text-text-muted text-center">
+      <div className="p-4 bg-surface rounded-xl border border-border text-text-secondary text-center">
         Chart data unavailable
       </div>
     );

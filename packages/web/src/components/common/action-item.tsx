@@ -78,7 +78,7 @@ export function ActionItem({
         <span
           className={cn(
             'flex-1 text-sm font-medium transition-all',
-            done && 'line-through text-text-muted'
+            done && 'line-through text-text-secondary'
           )}
         >
           {title}
@@ -88,7 +88,7 @@ export function ActionItem({
         <span
           className={cn(
             'text-xs font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-opacity',
-            tagColors[tag.toUpperCase()] || 'text-text-muted',
+            tagColors[tag.toUpperCase()] || 'text-text-secondary',
             done && 'opacity-40'
           )}
         >
@@ -100,7 +100,7 @@ export function ActionItem({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-            className="p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text-secondary transition-colors flex-shrink-0"
+            className="p-1 rounded hover:bg-surface-hover text-text-secondary hover:text-text-secondary transition-colors flex-shrink-0"
             title="Dismiss"
           >
             <X className="w-3.5 h-3.5" />
@@ -110,7 +110,7 @@ export function ActionItem({
         {/* Chevron */}
         <ChevronDown
           className={cn(
-            'w-4 h-4 text-text-muted flex-shrink-0 transition-transform duration-200',
+            'w-4 h-4 text-text-secondary flex-shrink-0 transition-transform duration-200',
             open && 'rotate-180'
           )}
         />
@@ -152,7 +152,7 @@ export function ActionItem({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onContextClick(); }}
-                    className="text-xs text-text-muted hover:text-accent transition-colors ml-auto"
+                    className="text-xs text-text-secondary hover:text-accent transition-colors ml-auto"
                   >
                     See in context &rarr;
                   </button>

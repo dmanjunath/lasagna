@@ -84,7 +84,7 @@ export function ScenarioExplorer({
         <h3 className="text-base font-semibold text-text">{title}</h3>
         {selectedValue !== undefined && (
           <div className="text-right">
-            <span className="text-xs text-text-muted uppercase tracking-wide">At {selectedYear}</span>
+            <span className="text-xs text-text-secondary uppercase tracking-wide">At {selectedYear}</span>
             <p className="text-xl font-semibold text-text tabular-nums">{formatFullCurrency(selectedValue)}</p>
           </div>
         )}

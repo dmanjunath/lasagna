@@ -8,7 +8,7 @@ const variantStyles = {
 };
 
 const labelStyles = {
-  default: 'text-text-muted',
+  default: 'text-text-secondary',
   warning: 'text-warning',
   highlight: 'text-accent',
 };

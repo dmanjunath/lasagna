@@ -1,10 +1,9 @@
 import { Hono } from "hono";
 import { eq, holdings, securities, accounts } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const holdingsRoutes = new Hono<AuthEnv>();
-holdingsRoutes.use("*", requireAuth);
 
 // List all holdings for the tenant
 holdingsRoutes.get("/", async (c) => {

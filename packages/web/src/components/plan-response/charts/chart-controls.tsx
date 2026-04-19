@@ -54,7 +54,7 @@ export function ChartControls({
                 'px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all',
                 activeScenario === scenario.id
                   ? 'bg-accent text-white'
-                  : 'bg-surface text-[#a3a3a3] hover:bg-surface-elevated'
+                  : 'bg-surface text-text-secondary hover:bg-surface-elevated'
               )}
             >
               {scenario.label}
@@ -69,8 +69,8 @@ export function ChartControls({
           {sliders.map((slider) => (
             <div key={slider.id} className="space-y-1.5">
               <div className="flex justify-between text-[13px]">
-                <span className="text-[#6b6b6b]">{slider.label}</span>
-                <span className="text-[#f5f5f5] font-medium">
+                <span className="text-text-secondary">{slider.label}</span>
+                <span className="text-text font-medium">
                   {formatValue(slider.value, slider.format)}
                 </span>
               </div>

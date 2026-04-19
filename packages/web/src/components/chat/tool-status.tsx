@@ -26,7 +26,7 @@ export function ToolStatus({ toolName }: ToolStatusProps) {
         initial={{ opacity: 0, y: 5 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -5 }}
-        className="flex items-center gap-2 text-sm text-text-muted px-4 py-2"
+        className="flex items-center gap-2 text-sm text-text-secondary px-4 py-2"
       >
         <Loader2 className="w-3 h-3 animate-spin" />
         <span>{displayText}</span>

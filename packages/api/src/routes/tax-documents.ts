@@ -2,12 +2,10 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db.js";
 import { taxDocuments, eq, and, desc } from "@lasagna/core";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 import { extractFromVision } from "../lib/tax-vision-extraction.js";
 
 export const taxDocumentsRouter = new Hono<AuthEnv>();
-
-taxDocumentsRouter.use("*", requireAuth);
 
 // Vision-based extraction (file or text input)
 taxDocumentsRouter.post("/", async (c) => {

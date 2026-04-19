@@ -1,10 +1,9 @@
 import { Hono } from "hono";
 import { eq, and, sql, desc, transactions } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { type AuthEnv } from "../middleware/auth.js";
 
 export const transactionRoutes = new Hono<AuthEnv>();
-transactionRoutes.use("*", requireAuth);
 
 // GET / - List transactions with pagination and filters
 transactionRoutes.get("/", async (c) => {

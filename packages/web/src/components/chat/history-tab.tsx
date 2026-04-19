@@ -29,7 +29,7 @@ export function HistoryTab({ onSelectThread }: HistoryTabProps) {
       {/* Search */}
       <div className="px-4 pt-3 pb-2">
         <div className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg">
-          <Search className="w-4 h-4 text-text-muted" />
+          <Search className="w-4 h-4 text-text-secondary" />
           <input
             type="text"
             value={search}
@@ -45,7 +45,7 @@ export function HistoryTab({ onSelectThread }: HistoryTabProps) {
         <button
           onClick={() => setActiveCategory(null)}
           className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-            !activeCategory ? 'bg-accent text-white' : 'bg-surface border border-border text-text-muted'
+            !activeCategory ? 'bg-accent text-white' : 'bg-surface border border-border text-text-secondary'
           }`}
         >
           All
@@ -55,7 +55,7 @@ export function HistoryTab({ onSelectThread }: HistoryTabProps) {
             key={cat}
             onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
             className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-              activeCategory === cat ? 'bg-accent text-white' : 'bg-surface border border-border text-text-muted'
+              activeCategory === cat ? 'bg-accent text-white' : 'bg-surface border border-border text-text-secondary'
             }`}
           >
             {cat}
@@ -66,7 +66,7 @@ export function HistoryTab({ onSelectThread }: HistoryTabProps) {
       {/* Thread list */}
       <div className="flex-1 overflow-y-auto px-4 space-y-2">
         {filtered.length === 0 ? (
-          <p className="text-center text-text-muted text-sm py-8">No threads found</p>
+          <p className="text-center text-text-secondary text-sm py-8">No threads found</p>
         ) : (
           filtered.map(thread => (
             <button
@@ -79,7 +79,7 @@ export function HistoryTab({ onSelectThread }: HistoryTabProps) {
                 <span className="text-sm font-medium text-text line-clamp-1">
                   {thread.title || 'Untitled thread'}
                 </span>
-                <span className="text-[10px] text-text-muted whitespace-nowrap ml-2">
+                <span className="text-[10px] text-text-secondary whitespace-nowrap ml-2">
                   {new Date(thread.createdAt).toLocaleDateString()}
                 </span>
               </div>

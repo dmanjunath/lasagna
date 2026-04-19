@@ -42,7 +42,7 @@ export function ChatTabs() {
         <button
           onClick={() => setTab('chat')}
           className={`flex-1 text-center py-2 text-xs font-semibold transition-colors ${
-            tab === 'chat' ? 'text-text border-b-2 border-accent' : 'text-text-muted'
+            tab === 'chat' ? 'text-text border-b-2 border-accent' : 'text-text-secondary'
           }`}
         >
           Chat
@@ -50,7 +50,7 @@ export function ChatTabs() {
         <button
           onClick={() => setTab('history')}
           className={`flex-1 text-center py-2 text-xs font-semibold transition-colors ${
-            tab === 'history' ? 'text-text border-b-2 border-accent' : 'text-text-muted'
+            tab === 'history' ? 'text-text border-b-2 border-accent' : 'text-text-secondary'
           }`}
           data-testid="history-tab-button"
         >

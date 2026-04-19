@@ -20,8 +20,8 @@ import { Debt } from './pages/debt';
 import { Spending } from './pages/spending';
 import { Goals } from './pages/goals';
 import { Priorities } from './pages/priorities';
-import { Insights } from './pages/insights';
 import { Onboarding } from './pages/onboarding';
+import { DemoBanner } from './components/common/DemoBanner';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -29,7 +29,7 @@ function AppRoutes() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-text-muted">Loading...</div>
+        <div className="text-text-secondary">Loading...</div>
       </div>
     );
   }
@@ -40,12 +40,17 @@ function AppRoutes() {
 
   return (
     <Switch>
-      <Route path="/onboarding" component={Onboarding} />
+      <Route path="/onboarding">
+        {import.meta.env.VITE_DEMO_MODE === "true"
+          ? <Redirect to="/" />
+          : <Onboarding />}
+      </Route>
       <Route>
         {() => (
           <ChatStoreProvider>
           <PageContextProvider>
             <Shell>
+              {import.meta.env.VITE_DEMO_MODE === "true" && <DemoBanner />}
               <Switch>
                 <Route path="/" component={Dashboard} />
                 <Route path="/accounts" component={Accounts} />
@@ -61,8 +66,8 @@ function AppRoutes() {
                 <Route path="/plans/retirement" component={Retirement} />
                 <Route path="/plans/savings/:id" component={SavingsGoal} />
                 <Route path="/priorities" component={Priorities} />
-                <Route path="/actions" component={Insights} />
-                <Route path="/insights"><Redirect to="/actions" /></Route>
+                <Route path="/actions"><Redirect to="/priorities" /></Route>
+                <Route path="/insights"><Redirect to="/priorities" /></Route>
                 <Route path="/retirement" component={Retirement} />
                 <Route path="/probability" component={ProbabilityOfSuccess} />
 
@@ -75,7 +80,7 @@ function AppRoutes() {
                 <Route path="/settings"><Redirect to="/profile" /></Route>
 
                 <Route>
-                  <div className="flex-1 flex items-center justify-center text-text-muted">
+                  <div className="flex-1 flex items-center justify-center text-text-secondary">
                     Page not found
                   </div>
                 </Route>

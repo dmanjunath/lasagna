@@ -59,7 +59,7 @@ export function SliderControlRenderer({ block }: { block: SliderControlBlock }) 
         />
       </div>
 
-      <div className="flex justify-between text-xs text-text-muted mt-2">
+      <div className="flex justify-between text-xs text-text-secondary mt-2">
         <span>{formatValue(block.min)}</span>
         <span>{formatValue(block.max)}</span>
       </div>
@@ -71,7 +71,7 @@ export function SliderControlRenderer({ block }: { block: SliderControlBlock }) 
           animate={{ opacity: 1, y: 0 }}
           className="mt-4 p-3 bg-surface rounded-lg border border-border"
         >
-          <span className="text-sm text-text-muted">{block.impactPreview.label}: </span>
+          <span className="text-sm text-text-secondary">{block.impactPreview.label}: </span>
           <span className="text-sm font-medium text-text">{getImpactForValue(value)}</span>
         </motion.div>
       )}

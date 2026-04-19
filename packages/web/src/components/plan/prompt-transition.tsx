@@ -67,7 +67,7 @@ export function PromptTransition({
           className="glass-card p-12 flex flex-col items-center justify-center gap-4"
         >
           <Loader2 className="w-8 h-8 text-accent animate-spin" />
-          <p className="text-text-muted">Generating your plan...</p>
+          <p className="text-text-secondary">Generating your plan...</p>
         </motion.div>
       )}
 
@@ -89,7 +89,7 @@ export function PromptTransition({
           key="empty"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="glass-card p-8 text-center text-text-muted"
+          className="glass-card p-8 text-center text-text-secondary"
         >
           No content generated yet.
         </motion.div>

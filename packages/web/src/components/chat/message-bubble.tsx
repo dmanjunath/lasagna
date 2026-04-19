@@ -37,7 +37,7 @@ export function MessageBubble({ message }: { message: Message }) {
             <div className="mt-1 px-3 py-2 rounded-lg bg-bg-elevated/80 border border-border text-[11px] space-y-1">
               {contextMeta.items.map((item, i) => (
                 <div key={i} className="flex justify-between gap-4">
-                  <span className="text-text-muted">{item.label}</span>
+                  <span className="text-text-secondary">{item.label}</span>
                   <span className="text-text-secondary font-medium tabular-nums">{item.value}</span>
                 </div>
               ))}
@@ -71,7 +71,7 @@ export function MessageBubble({ message }: { message: Message }) {
                 <h3 className="text-sm font-medium text-text mt-3 mb-1">{children}</h3>
               ),
               p: ({ children }) => (
-                <p className="text-text-muted leading-relaxed">{children}</p>
+                <p className="text-text-secondary leading-relaxed">{children}</p>
               ),
               strong: ({ children }) => (
                 <strong className="font-semibold text-text">{children}</strong>
@@ -88,7 +88,7 @@ export function MessageBubble({ message }: { message: Message }) {
                 <ol className="space-y-1.5 my-2 list-decimal list-inside">{children}</ol>
               ),
               li: ({ children }) => (
-                <li className="flex gap-2 text-text-muted">
+                <li className="flex gap-2 text-text-secondary">
                   <span className="text-accent mt-1.5 text-[6px]">●</span>
                   <span>{children}</span>
                 </li>
