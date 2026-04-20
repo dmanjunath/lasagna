@@ -82,13 +82,14 @@ function PortfolioDonut({
   total: number;
   onSliceClick?: (name: string) => void;
 }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const r = 78;
   const R = 116;
   const cx = 140;
   const cy = 140;
 
   let a0 = -Math.PI / 2;
-  const paths: { d: string; color: string; name: string; pct: number }[] = [];
+  const paths: { d: string; color: string; name: string; pct: number; value: number }[] = [];
 
   for (const s of slices) {
     if (s.pct <= 0) continue;
@@ -114,51 +115,50 @@ function PortfolioDonut({
       'Z',
     ].join(' ');
 
-    paths.push({ d, color: s.color, name: s.name, pct: s.pct });
+    paths.push({ d, color: s.color, name: s.name, pct: s.pct, value: s.value });
     a0 = a1;
   }
 
+  const hp = hovered !== null ? paths[hovered] : null;
+
   return (
-    <svg width={280} height={280} viewBox="0 0 280 280" style={{ flexShrink: 0 }}>
+    <svg width={280} height={280} viewBox="0 0 280 280" style={{ flexShrink: 0, cursor: 'pointer' }}>
       {paths.map((p, i) => (
         <path
           key={i}
           d={p.d}
           fill={p.color}
-          opacity={0.92}
-          style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s' }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={e => (e.currentTarget.style.opacity = '0.92')}
+          opacity={hovered === null ? 0.92 : hovered === i ? 1 : 0.5}
+          style={{ transition: 'opacity 0.15s' }}
+          onMouseEnter={() => setHovered(i)}
+          onMouseLeave={() => setHovered(null)}
+          onTouchStart={() => setHovered(hovered === i ? null : i)}
           onClick={() => onSliceClick?.(p.name)}
         />
       ))}
-      {/* Center text */}
-      <text
-        x={cx}
-        y={cy - 8}
-        textAnchor="middle"
-        style={{
-          fontFamily: "'Instrument Serif', Georgia, serif",
-          fontSize: 22,
-          fill: 'var(--lf-ink)',
-        }}
-      >
-        {formatMoney(total, true)}
-      </text>
-      <text
-        x={cx}
-        y={cy + 14}
-        textAnchor="middle"
-        style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 10,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          fill: 'var(--lf-muted)',
-        }}
-      >
-        TOTAL
-      </text>
+      {/* Center text — shows hover info or total */}
+      {hp ? (
+        <>
+          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.08em', fill: 'var(--lf-muted)' }}>
+            {hp.name.toUpperCase()}
+          </text>
+          <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 19, fill: 'var(--lf-ink)' }}>
+            {formatMoney(hp.value, true)}
+          </text>
+          <text x={cx} y={cy + 20} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fill: hp.color }}>
+            {hp.pct.toFixed(1)}%
+          </text>
+        </>
+      ) : (
+        <>
+          <text x={cx} y={cy - 8} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, fill: 'var(--lf-ink)' }}>
+            {formatMoney(total, true)}
+          </text>
+          <text x={cx} y={cy + 14} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.1em', fill: 'var(--lf-muted)' }}>
+            TOTAL
+          </text>
+        </>
+      )}
     </svg>
   );
 }
@@ -174,24 +174,27 @@ function PortfolioBar({
   slices: DonutSlice[];
   onSliceClick?: (name: string) => void;
 }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const W = 640;
   const H = 56;
   const R = 10;
 
-  let x = 0;
-  const rects: { x: number; w: number; color: string; name: string; pct: number }[] = [];
+  let xPos = 0;
+  const rects: { x: number; w: number; color: string; name: string; pct: number; value: number }[] = [];
   for (const s of slices) {
     if (s.pct <= 0) continue;
     const w = (s.pct / 100) * W;
-    rects.push({ x, w, color: s.color, name: s.name, pct: s.pct });
-    x += w;
+    rects.push({ x: xPos, w, color: s.color, name: s.name, pct: s.pct, value: s.value });
+    xPos += w;
   }
+
+  const hr = hovered !== null ? rects[hovered] : null;
 
   return (
     <svg
       width="100%"
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ borderRadius: R, overflow: 'hidden', display: 'block' }}
+      viewBox={`0 0 ${W} ${H + (hr ? 32 : 0)}`}
+      style={{ borderRadius: R, overflow: 'visible', display: 'block' }}
     >
       {rects.map((rect, i) => (
         <rect
@@ -201,13 +204,28 @@ function PortfolioBar({
           width={rect.w}
           height={H}
           fill={rect.color}
-          opacity={0.9}
+          opacity={hovered === null ? 0.9 : hovered === i ? 1 : 0.5}
           style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s' }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={e => (e.currentTarget.style.opacity = '0.9')}
+          onMouseEnter={() => setHovered(i)}
+          onMouseLeave={() => setHovered(null)}
+          onTouchStart={() => setHovered(hovered === i ? null : i)}
           onClick={() => onSliceClick?.(rect.name)}
         />
       ))}
+      {hr && (
+        <g>
+          <rect x={Math.min(hr.x + hr.w / 2 - 60, W - 130)} y={H + 6} width={128} height={22} rx={5} fill="var(--lf-ink)" />
+          <text
+            x={Math.min(hr.x + hr.w / 2 - 60, W - 130) + 8}
+            y={H + 21}
+            fontFamily="'JetBrains Mono', monospace"
+            fontSize="10"
+            fill="var(--lf-paper)"
+          >
+            {hr.name} · {hr.pct.toFixed(1)}% · {formatMoney(hr.value, true)}
+          </text>
+        </g>
+      )}
     </svg>
   );
 }
@@ -264,9 +282,11 @@ function PortfolioTreemap({
   slices: DonutSlice[];
   onSliceClick?: (name: string) => void;
 }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const W = 640;
   const H = 360;
   const cells = layoutTreemap(slices, 0, 0, W, H);
+  const hc = hovered !== null ? cells[hovered] : null;
 
   return (
     <svg
@@ -274,54 +294,93 @@ function PortfolioTreemap({
       viewBox={`0 0 ${W} ${H}`}
       style={{ display: 'block' }}
     >
-      {cells.map((cell, i) => (
-        <g key={i}>
-          <rect
-            x={cell.x}
-            y={cell.y}
-            width={cell.w}
-            height={cell.h}
-            rx={6}
-            fill={cell.color}
-            opacity={0.88}
-            style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s' }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '0.88')}
+      {cells.map((cell, i) => {
+        const isHov = hovered === i;
+        return (
+          <g key={i}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            onTouchStart={() => setHovered(hovered === i ? null : i)}
             onClick={() => onSliceClick?.(cell.name)}
-          />
-          {cell.w > 70 && cell.h > 36 && (
-            <>
-              <text
-                x={cell.x + 10}
-                y={cell.y + 22}
-                style={{
-                  fontFamily: "'Geist', system-ui, sans-serif",
-                  fontSize: Math.min(13, cell.w / 6),
-                  fontWeight: 600,
-                  fill: 'rgba(251,246,236,0.95)',
-                  pointerEvents: 'none',
-                }}
-              >
-                {cell.name.length > 14 ? cell.name.slice(0, 13) + '…' : cell.name}
-              </text>
-              {cell.h > 52 && (
+            style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
+          >
+            <rect
+              x={cell.x}
+              y={cell.y}
+              width={cell.w}
+              height={cell.h}
+              rx={6}
+              fill={cell.color}
+              opacity={hovered === null ? 0.88 : isHov ? 1 : 0.55}
+              style={{ transition: 'opacity 0.15s' }}
+            />
+            {cell.w > 70 && cell.h > 36 && (
+              <>
                 <text
                   x={cell.x + 10}
-                  y={cell.y + 38}
+                  y={cell.y + 22}
                   style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: Math.min(11, cell.w / 7),
-                    fill: 'rgba(251,246,236,0.7)',
+                    fontFamily: "'Geist', system-ui, sans-serif",
+                    fontSize: Math.min(13, cell.w / 6),
+                    fontWeight: 600,
+                    fill: 'rgba(251,246,236,0.95)',
                     pointerEvents: 'none',
                   }}
                 >
-                  {cell.pct.toFixed(1)}%
+                  {cell.name.length > 14 ? cell.name.slice(0, 13) + '…' : cell.name}
                 </text>
-              )}
-            </>
-          )}
+                {cell.h > 52 && (
+                  <text
+                    x={cell.x + 10}
+                    y={cell.y + 38}
+                    style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: Math.min(11, cell.w / 7),
+                      fill: 'rgba(251,246,236,0.7)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {cell.pct.toFixed(1)}%
+                  </text>
+                )}
+              </>
+            )}
+          </g>
+        );
+      })}
+      {/* Hover tooltip for small cells or additional detail */}
+      {hc !== null && (
+        <g style={{ pointerEvents: 'none' }}>
+          <rect
+            x={Math.min(hc.x + 4, W - 180)}
+            y={Math.max(hc.y + 4, 0)}
+            width={174}
+            height={42}
+            rx={6}
+            fill="var(--lf-ink)"
+            opacity={0.95}
+          />
+          <text
+            x={Math.min(hc.x + 12, W - 172)}
+            y={Math.max(hc.y + 20, 16)}
+            fontFamily="'Geist', system-ui, sans-serif"
+            fontSize="11"
+            fontWeight="600"
+            fill="var(--lf-paper)"
+          >
+            {hc.name}
+          </text>
+          <text
+            x={Math.min(hc.x + 12, W - 172)}
+            y={Math.max(hc.y + 35, 31)}
+            fontFamily="'JetBrains Mono', monospace"
+            fontSize="10"
+            fill="var(--lf-cheese)"
+          >
+            {formatMoney(hc.value, true)} · {hc.pct.toFixed(1)}%
+          </text>
         </g>
-      ))}
+      )}
     </svg>
   );
 }

@@ -200,24 +200,55 @@ function ReadinessRing({ pct }: { pct: number }) {
 }
 
 function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof buildBands>; retireAge: number; currentAge: number }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const W = 760; const H = 200;
   const n = bands.p50.length;
   const max = Math.max(...bands.p95) || 1;
-  const x = (i: number) => (i / (n - 1)) * W;
-  const y = (v: number) => H - (v / max) * H;
+  const xf = (i: number) => (i / (n - 1)) * W;
+  const yf = (v: number) => H - (v / max) * H;
   const path = (arr: number[], close?: number[]) => {
-    let d = `M ${x(0)},${y(arr[0])}`;
-    for (let i = 1; i < n; i++) d += ` L ${x(i)},${y(arr[i])}`;
+    let d = `M ${xf(0)},${yf(arr[0])}`;
+    for (let i = 1; i < n; i++) d += ` L ${xf(i)},${yf(arr[i])}`;
     if (close) {
-      for (let i = n - 1; i >= 0; i--) d += ` L ${x(i)},${y(close[i])}`;
+      for (let i = n - 1; i >= 0; i--) d += ` L ${xf(i)},${yf(close[i])}`;
       d += ' Z';
     }
     return d;
   };
   const retireOffset = Math.max(0, retireAge - currentAge);
-  const retirePos = retireOffset < n ? x(retireOffset) : W;
+  const retirePos = retireOffset < n ? xf(retireOffset) : W;
+
+  const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1000)}k`;
+
+  const hx = hoverIdx !== null ? xf(hoverIdx) : null;
+  const hAge = hoverIdx !== null ? currentAge + hoverIdx : null;
+  const hp50 = hoverIdx !== null ? bands.p50[hoverIdx] : null;
+  const hp25 = hoverIdx !== null ? bands.p25[hoverIdx] : null;
+  const hp75 = hoverIdx !== null ? bands.p75[hoverIdx] : null;
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+    const idx = Math.round((svgX / W) * (n - 1));
+    setHoverIdx(Math.max(0, Math.min(n - 1, idx)));
+  };
+
+  // Tooltip position
+  const ttX = hx !== null ? Math.min(hx, W - 140) : 0;
+  const ttY = 10;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H + 20}`} width="100%" style={{ display: 'block' }}>
+    <svg viewBox={`0 0 ${W} ${H + 20}`} width="100%" style={{ display: 'block', cursor: 'crosshair' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoverIdx(null)}
+      onTouchMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const svgX = ((e.touches[0].clientX - rect.left) / rect.width) * W;
+        const idx = Math.round((svgX / W) * (n - 1));
+        setHoverIdx(Math.max(0, Math.min(n - 1, idx)));
+      }}
+      onTouchEnd={() => setHoverIdx(null)}
+    >
       {[0, 1, 2, 3, 4].map(i => (
         <line key={i} x1={0} x2={W} y1={i * H / 4} y2={i * H / 4} stroke="var(--lf-rule)" strokeDasharray="2 4" />
       ))}
@@ -237,11 +268,21 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
       <text x={W} y={H + 14} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-muted)" textAnchor="end">
         age {currentAge + n - 1}
       </text>
+      {hx !== null && hAge !== null && hp50 !== null && (
+        <g>
+          <line x1={hx} x2={hx} y1={0} y2={H} stroke="var(--lf-ink)" strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+          <rect x={ttX} y={ttY} width={136} height={58} rx={6} fill="var(--lf-ink)" opacity="0.92" />
+          <text x={ttX + 8} y={ttY + 16} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-cheese)">age {hAge}</text>
+          <text x={ttX + 8} y={ttY + 30} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-paper)">p50 {fmt(hp50)}</text>
+          <text x={ttX + 8} y={ttY + 42} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="rgba(251,246,236,0.6)">p25 {hp25 ? fmt(hp25) : '—'} · p75 {hp75 ? fmt(hp75) : '—'}</text>
+        </g>
+      )}
     </svg>
   );
 }
 
 function DistributionBar({ successRate }: { successRate: number }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const histogram = [
     { b: '$0', v: Math.max(0, 100 - successRate), success: false },
     { b: '<$500k', v: Math.max(0, 5 - (successRate - 70) * 0.2), success: false },
@@ -254,15 +295,22 @@ function DistributionBar({ successRate }: { successRate: number }) {
   const W = 720; const H = 180;
   const bw = W / histogram.length - 8;
   return (
-    <svg viewBox={`0 0 ${W} ${H + 30}`} width="100%">
+    <svg viewBox={`0 0 ${W} ${H + 50}`} width="100%" style={{ cursor: 'pointer' }}>
       {histogram.map((h, i) => {
         const barH = Math.max(2, h.v * 5);
         const bx = i * (bw + 8) + 4;
+        const isHov = hovered === i;
+        const ttX = Math.min(bx, W - 120);
         return (
-          <g key={i}>
+          <g key={i}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            onTouchStart={() => setHovered(hovered === i ? null : i)}
+          >
             <rect x={bx} y={H - barH} width={bw} height={barH}
               fill={h.success ? 'var(--lf-basil)' : 'var(--lf-sauce)'}
-              opacity={0.85} rx="3" />
+              opacity={isHov ? 1 : 0.85} rx="3"
+              style={{ transition: 'opacity 0.15s' }} />
             <text x={bx + bw / 2} y={H + 14} textAnchor="middle"
               fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-muted)">
               {h.b}
@@ -271,6 +319,14 @@ function DistributionBar({ successRate }: { successRate: number }) {
               fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-ink)">
               {Math.round(h.v)}%
             </text>
+            {isHov && (
+              <g>
+                <rect x={ttX} y={H + 22} width={110} height={22} rx={5} fill="var(--lf-ink)" />
+                <text x={ttX + 8} y={H + 37} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-paper)">
+                  {Math.round(h.v)}% of runs → {h.b}
+                </text>
+              </g>
+            )}
           </g>
         );
       })}

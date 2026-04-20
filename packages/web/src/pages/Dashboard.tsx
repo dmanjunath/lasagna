@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
@@ -138,17 +138,36 @@ function Sparkline({ data, color = 'var(--lf-cheese)', height = 140, width = 520
   width?: number;
   strokeWidth?: number;
 }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const values = data.map(d => d.value);
   const max = Math.max(...values), min = Math.min(...values);
   const range = max - min || 1;
   const pts = values.map((v, i) => [
-    (i / (values.length - 1)) * width,
+    (i / Math.max(values.length - 1, 1)) * width,
     height - ((v - min) / range) * height,
   ]);
   const d = 'M ' + pts.map(p => p.join(',')).join(' L ');
   const dFill = d + ` L ${width},${height} L 0,${height} Z`;
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * width;
+    const idx = Math.round((svgX / width) * (values.length - 1));
+    setHoverIdx(Math.max(0, Math.min(values.length - 1, idx)));
+  }, [values.length, width]);
+
+  const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}k` : `$${v.toFixed(0)}`;
+
+  const hx = hoverIdx !== null ? pts[hoverIdx][0] : null;
+  const hy = hoverIdx !== null ? pts[hoverIdx][1] : null;
+  const hv = hoverIdx !== null ? values[hoverIdx] : null;
+  const ttX = hx !== null ? Math.min(hx - 44, width - 92) : 0;
+
   return (
-    <svg width={width} height={height} style={{ display: 'block' }}>
+    <svg width={width} height={height} style={{ display: 'block', cursor: 'crosshair' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoverIdx(null)}
+    >
       <defs>
         <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.2" />
@@ -157,6 +176,16 @@ function Sparkline({ data, color = 'var(--lf-cheese)', height = 140, width = 520
       </defs>
       <path d={dFill} fill="url(#sparkGrad)" />
       <path d={d} stroke={color} strokeWidth={strokeWidth} fill="none" />
+      {hx !== null && hy !== null && hv !== null && (
+        <g>
+          <line x1={hx} x2={hx} y1={0} y2={height} stroke={color} strokeWidth={1} opacity={0.4} />
+          <circle cx={hx} cy={hy} r={4} fill={color} />
+          <rect x={Math.max(0, ttX)} y={Math.max(0, hy - 26)} width={88} height={20} rx={4} fill="var(--lf-ink)" opacity={0.9} />
+          <text x={Math.max(0, ttX) + 6} y={Math.max(0, hy - 11)} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-paper)">
+            {fmt(hv)}
+          </text>
+        </g>
+      )}
     </svg>
   );
 }
@@ -191,10 +220,12 @@ function DonutMini({ cats, totalLabel }: {
   cats: Array<{ name: string; total: number; color: string }>;
   totalLabel: string;
 }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const total = cats.reduce((s, c) => s + c.total, 0) || 1;
   const r = 34, R = 52, cx = 60, cy = 60;
   let a0 = -Math.PI / 2;
-  const paths = cats.slice(0, 8).map(c => {
+  const slicedCats = cats.slice(0, 8);
+  const paths = slicedCats.map((c, idx) => {
     const frac = c.total / total;
     const a1 = a0 + frac * 2 * Math.PI;
     const large = frac > 0.5 ? 1 : 0;
@@ -204,13 +235,31 @@ function DonutMini({ cats, totalLabel }: {
     const x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
     const d = `M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 ${large} 0 ${x3} ${y3} Z`;
     a0 = a1;
-    return { d, color: c.color };
+    return { d, color: c.color, name: c.name, pct: Math.round(frac * 100), idx };
   });
+  const hp = hovered !== null ? paths[hovered] : null;
   return (
-    <svg width="120" height="120" viewBox="0 0 120 120">
-      {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} />)}
-      <text x="60" y="58" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="15" fill="var(--lf-ink)">{totalLabel}</text>
-      <text x="60" y="72" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="8" fill="var(--lf-muted)">monthly</text>
+    <svg width="120" height="120" viewBox="0 0 120 120" style={{ cursor: 'pointer' }}>
+      {paths.map((p) => (
+        <path key={p.idx} d={p.d} fill={p.color}
+          opacity={hovered === null ? 1 : hovered === p.idx ? 1 : 0.4}
+          style={{ transition: 'opacity 0.15s' }}
+          onMouseEnter={() => setHovered(p.idx)}
+          onMouseLeave={() => setHovered(null)}
+          onTouchStart={() => setHovered(hovered === p.idx ? null : p.idx)}
+        />
+      ))}
+      {hp ? (
+        <>
+          <text x="60" y="54" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="9" fill="var(--lf-muted)">{hp.name.slice(0, 10)}</text>
+          <text x="60" y="66" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="14" fill="var(--lf-ink)">{hp.pct}%</text>
+        </>
+      ) : (
+        <>
+          <text x="60" y="58" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="15" fill="var(--lf-ink)">{totalLabel}</text>
+          <text x="60" y="72" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="8" fill="var(--lf-muted)">monthly</text>
+        </>
+      )}
     </svg>
   );
 }

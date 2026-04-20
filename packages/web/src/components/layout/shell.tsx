@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { motion, useAnimation, type PanInfo } from 'framer-motion';
+import { motion, useAnimation } from 'framer-motion';
 import { ArrowLeft, MessageSquare, X } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav, MobileMenuButton } from './mobile-nav';
@@ -13,9 +13,6 @@ import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
 interface ShellProps {
   children: React.ReactNode;
 }
-
-const SWIPE_THRESHOLD = 60;
-const VELOCITY_THRESHOLD = 400;
 
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,25 +33,6 @@ export function Shell({ children }: ShellProps) {
       setDesktopChatOpen(true);
     }
   }, [chatOpen, isMobile]);
-
-  const handleDragEnd = useCallback((_: unknown, info: PanInfo) => {
-    const { offset, velocity } = info;
-    if (!chatOpen) {
-      // Swiping left to open chat
-      if (offset.x < -SWIPE_THRESHOLD || velocity.x < -VELOCITY_THRESHOLD) {
-        openChat();
-      } else {
-        controls.start({ x: 0 });
-      }
-    } else {
-      // Swiping right to close chat
-      if (offset.x > SWIPE_THRESHOLD || velocity.x > VELOCITY_THRESHOLD) {
-        closeChat();
-      } else {
-        controls.start({ x: '-100vw' });
-      }
-    }
-  }, [chatOpen, openChat, closeChat, controls]);
 
   return (
     <div className="h-dvh w-screen overflow-hidden bg-bg flex flex-col">
@@ -77,11 +55,6 @@ export function Shell({ children }: ShellProps) {
             className="flex w-full h-full"
             animate={controls}
             transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.15}
-            onDragEnd={handleDragEnd}
-            style={{ touchAction: 'pan-y' }}
           >
             {/* Main content — full width */}
             <main className="w-screen flex-shrink-0 flex flex-col overflow-hidden pt-14 pb-16">

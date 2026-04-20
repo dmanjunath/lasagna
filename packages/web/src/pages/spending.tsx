@@ -111,9 +111,10 @@ interface MonthlyTrendEntry {
 // ---------------------------------------------------------------------------
 
 function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number; color: string }>; total: number }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const r = 34, R = 52, cx = 60, cy = 60;
   let a0 = -Math.PI / 2;
-  const paths = cats.map((c) => {
+  const paths = cats.map((c, idx) => {
     const frac = total > 0 ? c.amount / total : 0;
     const a1 = a0 + frac * 2 * Math.PI;
     const large = frac > 0.5 ? 1 : 0;
@@ -123,17 +124,35 @@ function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number
     const x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
     const d = `M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 ${large} 0 ${x3} ${y3} Z`;
     a0 = a1;
-    return { d, color: c.color };
+    return { d, color: c.color, name: c.name, pct: Math.round(frac * 100), idx };
   });
+  const hp = hovered !== null ? paths[hovered] : null;
   return (
-    <svg width="120" height="120" viewBox="0 0 120 120">
-      {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} />)}
-      <text x="60" y="58" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="16" fill="var(--lf-ink)">
-        ${(total / 1000).toFixed(1)}k
-      </text>
-      <text x="60" y="72" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="9" fill="var(--lf-muted)">
-        monthly
-      </text>
+    <svg width="120" height="120" viewBox="0 0 120 120" style={{ cursor: 'pointer' }}>
+      {paths.map((p) => (
+        <path key={p.idx} d={p.d} fill={p.color}
+          opacity={hovered === null ? 1 : hovered === p.idx ? 1 : 0.4}
+          style={{ transition: 'opacity 0.15s' }}
+          onMouseEnter={() => setHovered(p.idx)}
+          onMouseLeave={() => setHovered(null)}
+          onTouchStart={() => setHovered(hovered === p.idx ? null : p.idx)}
+        />
+      ))}
+      {hp ? (
+        <>
+          <text x="60" y="54" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="9" fill="var(--lf-muted)">{hp.name.slice(0, 10)}</text>
+          <text x="60" y="66" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="14" fill="var(--lf-ink)">{hp.pct}%</text>
+        </>
+      ) : (
+        <>
+          <text x="60" y="58" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="16" fill="var(--lf-ink)">
+            ${(total / 1000).toFixed(1)}k
+          </text>
+          <text x="60" y="72" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="9" fill="var(--lf-muted)">
+            monthly
+          </text>
+        </>
+      )}
     </svg>
   );
 }
@@ -143,6 +162,7 @@ function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number
 // ---------------------------------------------------------------------------
 
 function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const slice = data.slice(-6);
   if (slice.length === 0) return null;
 
@@ -152,16 +172,25 @@ function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
   const gap = 4;
   const groupW = barW * 2 + gap + 12;
   const totalW = groupW * slice.length;
+  const fmtK = (v: number) => `$${(v / 1000).toFixed(1)}k`;
 
   return (
-    <svg width="100%" viewBox={`0 0 ${totalW} ${chartH + 24}`} style={{ overflow: 'visible' }}>
+    <svg width="100%" viewBox={`0 0 ${totalW} ${chartH + 24 + (hovered !== null ? 32 : 0)}`} style={{ overflow: 'visible' }}>
       {slice.map((d, i) => {
         const incomeH = (d.income / maxVal) * chartH;
         const expH = (d.expenses / maxVal) * chartH;
         const gx = i * groupW;
         const labelX = gx + groupW / 2 - 2;
+        const isHov = hovered === i;
         return (
-          <g key={d.month}>
+          <g key={d.month}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            onTouchStart={() => setHovered(hovered === i ? null : i)}
+            style={{ cursor: 'pointer' }}
+          >
+            {/* Hover hit area */}
+            <rect x={gx - 4} y={0} width={groupW} height={chartH + 24} fill="transparent" />
             {/* Income bar */}
             <rect
               x={gx}
@@ -170,7 +199,8 @@ function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
               height={incomeH}
               rx={3}
               fill="var(--lf-pos)"
-              opacity={0.85}
+              opacity={isHov ? 1 : 0.85}
+              style={{ transition: 'opacity 0.15s' }}
             />
             {/* Expense bar */}
             <rect
@@ -180,7 +210,8 @@ function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
               height={expH}
               rx={3}
               fill="var(--lf-sauce)"
-              opacity={0.85}
+              opacity={isHov ? 1 : 0.85}
+              style={{ transition: 'opacity 0.15s' }}
             />
             {/* Month label */}
             <text
@@ -189,10 +220,22 @@ function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
               textAnchor="middle"
               fontFamily="JetBrains Mono, monospace"
               fontSize={8}
-              fill="var(--lf-muted)"
+              fill={isHov ? 'var(--lf-ink)' : 'var(--lf-muted)'}
             >
               {d.month.slice(0, 3)}
             </text>
+            {/* Tooltip */}
+            {isHov && (
+              <g>
+                <rect x={Math.min(gx - 8, totalW - 130)} y={chartH + 22} width={128} height={28} rx={5} fill="var(--lf-ink)" />
+                <text x={Math.min(gx - 8, totalW - 130) + 8} y={chartH + 33} fontFamily="JetBrains Mono, monospace" fontSize="8" fill="var(--lf-pos)">
+                  in {fmtK(d.income)}
+                </text>
+                <text x={Math.min(gx - 8, totalW - 130) + 8} y={chartH + 44} fontFamily="JetBrains Mono, monospace" fontSize="8" fill="var(--lf-sauce)">
+                  out {fmtK(d.expenses)}  net {d.net >= 0 ? '+' : ''}{fmtK(d.net)}
+                </text>
+              </g>
+            )}
           </g>
         );
       })}
