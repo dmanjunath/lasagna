@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  LayoutDashboard, Zap, Layers, TrendingUp, PieChart,
+  CreditCard, AlertCircle, Receipt, Target, Building2,
+  User, MessageSquare, type LucideIcon,
+} from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
 import { useChatStore } from '../../lib/chat-store';
@@ -8,7 +13,7 @@ import { useChatStore } from '../../lib/chat-store';
 interface NavItem {
   id: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   path: string;
 }
 
@@ -20,19 +25,19 @@ type NavEntry = NavItem | NavSection;
 
 const NAV: NavEntry[] = [
   { section: 'OVERVIEW' },
-  { id: 'dashboard',  label: 'Dashboard',  icon: '◆', path: '/' },
-  { id: 'actions',    label: 'Actions',    icon: '→', path: '/insights' },
-  { id: 'priorities', label: 'Layers',     icon: '≡', path: '/priorities' },
+  { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
+  { id: 'actions',    label: 'Actions',    icon: Zap,             path: '/insights' },
+  { id: 'priorities', label: 'Layers',     icon: Layers,          path: '/priorities' },
   { section: 'WEALTH' },
-  { id: 'retirement', label: 'Retirement', icon: '△', path: '/retirement' },
-  { id: 'portfolio',  label: 'Portfolio',  icon: '◎', path: '/invest' },
-  { id: 'spending',   label: 'Spending',   icon: '—', path: '/spending' },
-  { id: 'debt',       label: 'Debt',       icon: '⌐', path: '/debt' },
-  { id: 'tax',        label: 'Tax',        icon: 'τ', path: '/tax' },
-  { id: 'goals',      label: 'Goals',      icon: '⊙', path: '/goals' },
+  { id: 'retirement', label: 'Retirement', icon: TrendingUp,      path: '/retirement' },
+  { id: 'portfolio',  label: 'Portfolio',  icon: PieChart,        path: '/invest' },
+  { id: 'spending',   label: 'Spending',   icon: CreditCard,      path: '/spending' },
+  { id: 'debt',       label: 'Debt',       icon: AlertCircle,     path: '/debt' },
+  { id: 'tax',        label: 'Tax',        icon: Receipt,         path: '/tax' },
+  { id: 'goals',      label: 'Goals',      icon: Target,          path: '/goals' },
   { section: 'SETUP' },
-  { id: 'accounts',   label: 'Accounts',   icon: '⊞', path: '/accounts' },
-  { id: 'profile',    label: 'Profile',    icon: '○', path: '/profile' },
+  { id: 'accounts',   label: 'Accounts',   icon: Building2,       path: '/accounts' },
+  { id: 'profile',    label: 'Profile',    icon: User,            path: '/profile' },
 ];
 
 function isSection(entry: NavEntry): entry is NavSection {
@@ -123,7 +128,7 @@ export function Sidebar({ className }: SidebarProps) {
         {/* AI Chat button */}
         <NavButton
           active={false}
-          icon="✦"
+          icon={MessageSquare}
           label="AI Chat"
           onClick={() => openChat()}
         />
@@ -210,9 +215,9 @@ export function Sidebar({ className }: SidebarProps) {
   );
 }
 
-function NavButton({ active, icon, label, onClick }: {
+function NavButton({ active, icon: Icon, label, onClick }: {
   active: boolean;
-  icon: string;
+  icon: LucideIcon;
   label: string;
   onClick: () => void;
 }) {
@@ -234,14 +239,14 @@ function NavButton({ active, icon, label, onClick }: {
         transition: 'background 0.1s',
       }}
     >
-      <span style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 11, width: 16,
-        opacity: active ? 1 : 0.7,
-        color: active ? 'var(--lf-cheese)' : undefined,
-      }}>
-        {icon}
-      </span>
+      <Icon
+        size={15}
+        style={{
+          flexShrink: 0,
+          opacity: active ? 1 : 0.65,
+          color: active ? 'var(--lf-cheese)' : 'currentColor',
+        }}
+      />
       <span style={{ flex: 1 }}>{label}</span>
     </motion.button>
   );
