@@ -385,40 +385,6 @@ function PortfolioTreemap({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Monte Carlo simulation (client-side)
-// ---------------------------------------------------------------------------
-
-function runMonteCarlo(
-  principal: number,
-  annualReturn: number,
-  horizon: number,
-  runs: number,
-): number[] {
-  const mu = annualReturn / 100;
-  const sigma = 0.12; // assumed volatility
-  const results: number[] = [];
-  for (let r = 0; r < runs; r++) {
-    let v = principal;
-    for (let y = 0; y < horizon; y++) {
-      // Box-Muller normal sample
-      const u1 = Math.random();
-      const u2 = Math.random();
-      const z = Math.sqrt(-2 * Math.log(u1 + 1e-15)) * Math.cos(2 * Math.PI * u2);
-      const yearReturn = mu + sigma * z;
-      v = v * (1 + yearReturn);
-      if (v < 0) v = 0;
-    }
-    results.push(v);
-  }
-  return results.sort((a, b) => a - b);
-}
-
-function percentile(sorted: number[], p: number): number {
-  const idx = Math.floor((p / 100) * (sorted.length - 1));
-  const clamped = Math.max(0, Math.min(idx, sorted.length - 1));
-  return sorted[clamped];
-}
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -480,10 +446,6 @@ export default function PortfolioComposition() {
   // Account filter pills: set of account names to SHOW (null = show all)
   const [activeAccounts, setActiveAccounts] = useState<Set<string> | null>(null);
 
-  // ── Monte Carlo controls ──
-  const [mcRuns, setMcRuns] = useState(500);
-  const [mcHorizon, setMcHorizon] = useState(20);
-  const [mcResults, setMcResults] = useState<number[] | null>(null);
 
   // ---------------------------------------------------------------------------
   // Data fetching (preserved from original)
@@ -745,26 +707,6 @@ export default function PortfolioComposition() {
   const portfolioBeta: number = 0;
 
   // ---------------------------------------------------------------------------
-  // Monte Carlo
-  // ---------------------------------------------------------------------------
-
-  const runMC = () => {
-    const ret = blendedReturn ?? 7;
-    const results = runMonteCarlo(filteredTotal, ret, mcHorizon, mcRuns);
-    setMcResults(results);
-  };
-
-  useEffect(() => {
-    if (filteredTotal > 0 && !mcResults) runMC();
-  }, [filteredTotal, blendedReturn]);
-
-  const mcP5    = mcResults ? percentile(mcResults, 5) : null;
-  const mcP50   = mcResults ? percentile(mcResults, 50) : null;
-  const mcP95   = mcResults ? percentile(mcResults, 95) : null;
-  const mcSuccess = mcResults
-    ? Math.round((mcResults.filter(v => v >= filteredTotal).length / mcResults.length) * 100)
-    : null;
-
   // ---------------------------------------------------------------------------
   // Interactions
   // ---------------------------------------------------------------------------
@@ -993,7 +935,7 @@ export default function PortfolioComposition() {
             {/* Portfolio beta */}
             <div style={{ flex: '0 0 auto', minWidth: 100 }}>
               <p style={{ color: 'var(--lf-muted)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-                Portfolio β
+                Beta (vs S&amp;P)
               </p>
               {/* DATA-NEEDED: portfolio beta from API */}
               <div style={{
@@ -1004,7 +946,7 @@ export default function PortfolioComposition() {
               }}>
                 {portfolioBeta === 0 ? '—' : portfolioBeta.toFixed(2)}
               </div>
-              <p style={{ fontSize: 11, color: 'var(--lf-muted)', marginTop: 2 }}>vs. S&amp;P 500</p>
+              <p style={{ fontSize: 11, color: 'var(--lf-muted)', marginTop: 2 }}>market sensitivity</p>
             </div>
           </div>
         </motion.div>
@@ -1158,82 +1100,6 @@ export default function PortfolioComposition() {
           </AnimatePresence>
         </motion.div>
 
-        {/* ── Monte Carlo card ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
-          style={{ ...card, padding: 28 }}
-        >
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
-            <div>
-              <p className="lf-eyebrow" style={{ marginBottom: 4 }}>Monte Carlo Simulation</p>
-              <p style={{ fontSize: 13, color: 'var(--lf-muted)' }}>
-                Probabilistic growth forecast based on blended historical return
-              </p>
-            </div>
-            {/* Controls */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--lf-ink)' }}>
-                <span style={{ color: 'var(--lf-muted)' }}>Runs</span>
-                <select
-                  value={mcRuns}
-                  onChange={e => setMcRuns(Number(e.target.value))}
-                  style={{ background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 8, padding: '4px 8px', fontSize: 13, color: 'var(--lf-ink)' }}
-                >
-                  <option value={200}>200</option>
-                  <option value={500}>500</option>
-                  <option value={1000}>1 000</option>
-                  <option value={2000}>2 000</option>
-                </select>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--lf-ink)' }}>
-                <span style={{ color: 'var(--lf-muted)' }}>Horizon</span>
-                <select
-                  value={mcHorizon}
-                  onChange={e => setMcHorizon(Number(e.target.value))}
-                  style={{ background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 8, padding: '4px 8px', fontSize: 13, color: 'var(--lf-ink)' }}
-                >
-                  <option value={5}>5 yr</option>
-                  <option value={10}>10 yr</option>
-                  <option value={20}>20 yr</option>
-                  <option value={30}>30 yr</option>
-                </select>
-              </label>
-              <button
-                className="lf-btn lf-btn-ghost"
-                style={{ padding: '6px 14px', fontSize: 13 }}
-                onClick={() => { setMcResults(null); setTimeout(runMC, 10); }}
-              >
-                Run
-              </button>
-            </div>
-          </div>
-
-          {/* Result boxes */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-            {[
-              { label: 'p5 (bear)', value: mcP5, color: 'var(--lf-sauce)' },
-              { label: 'Median', value: mcP50, color: 'var(--lf-ink)' },
-              { label: 'p95 (bull)', value: mcP95, color: 'var(--lf-basil)' },
-              { label: 'Success rate', value: mcSuccess !== null ? `${mcSuccess}%` : null, color: 'var(--lf-cheese)', raw: true },
-            ].map(item => (
-              <div
-                key={item.label}
-                style={{ background: 'var(--lf-cream)', borderRadius: 10, padding: '14px 18px' }}
-              >
-                <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginBottom: 6 }}>
-                  {item.label}
-                </p>
-                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 26, color: item.color, fontVariantNumeric: 'tabular-nums' }}>
-                  {item.value === null ? '—' : item.raw ? item.value : formatMoney(item.value as number, true)}
-                </div>
-              </div>
-            ))}
-          </div>
-          <p style={{ fontSize: 11, color: 'var(--lf-muted)', marginTop: 12 }}>
-            Assumes {blendedReturn?.toFixed(1) ?? 7}%/yr blended return, 12% volatility, {mcRuns} simulations over {mcHorizon} years.
-            Past performance does not guarantee future results.
-          </p>
-        </motion.div>
 
         {/* ── Page Actions (insights) ── */}
         <PageActions types="portfolio" />
