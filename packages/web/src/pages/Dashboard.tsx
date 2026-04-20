@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
@@ -15,9 +15,15 @@ function fmt(value: number): string {
 }
 
 function fmtK(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
-  if (value >= 10_000) return `$${Math.round(value / 1_000)}k`;
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}k`;
   return fmt(value);
+}
+
+function fmtNetWorth(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(2)}k`;
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
 function getGreeting(): string {
@@ -131,62 +137,101 @@ function calcHealthScore(data: {
 
 // ── sub-components ────────────────────────────────────────────────────────────
 
-function Sparkline({ data, color = 'var(--lf-cheese)', height = 140, width = 520, strokeWidth = 2 }: {
-  data: Array<{ value: number }>;
+function Sparkline({ data, color = 'var(--lf-cheese)', height = 130, strokeWidth = 2 }: {
+  data: Array<{ value: number; date?: string }>;
   color?: string;
   height?: number;
-  width?: number;
   strokeWidth?: number;
 }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [svgWidth, setSvgWidth] = useState(480);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSvgWidth(el.clientWidth || 480));
+    ro.observe(el);
+    setSvgWidth(el.clientWidth || 480);
+    return () => ro.disconnect();
+  }, []);
+
   const values = data.map(d => d.value);
+  const dates = data.map(d => (d as { value: number; date?: string }).date || '');
   const max = Math.max(...values), min = Math.min(...values);
   const range = max - min || 1;
+
+  const PL = 62, PB = 24, PT = 6, PR = 8;
+  const W = svgWidth;
+  const H = height + PT + PB;
+  const PW = W - PL - PR;
+
   const pts = values.map((v, i) => [
-    (i / Math.max(values.length - 1, 1)) * width,
-    height - ((v - min) / range) * height,
+    PL + (i / Math.max(values.length - 1, 1)) * PW,
+    PT + height - ((v - min) / range) * height,
   ]);
-  const d = 'M ' + pts.map(p => p.join(',')).join(' L ');
-  const dFill = d + ` L ${width},${height} L 0,${height} Z`;
+  const pathD = 'M ' + pts.map(p => p.join(',')).join(' L ');
+  const fillD = pathD + ` L ${PL + PW},${PT + height} L ${PL},${PT + height} Z`;
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * width;
-    const idx = Math.round((svgX / width) * (values.length - 1));
+    const svgX = e.clientX - rect.left;
+    const plotX = svgX - PL;
+    const idx = Math.round((plotX / PW) * (values.length - 1));
     setHoverIdx(Math.max(0, Math.min(values.length - 1, idx)));
-  }, [values.length, width]);
+  }, [values.length, PW]);
 
-  const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}k` : `$${v.toFixed(0)}`;
+  const fmtV = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}k` : `$${v.toFixed(0)}`;
 
   const hx = hoverIdx !== null ? pts[hoverIdx][0] : null;
   const hy = hoverIdx !== null ? pts[hoverIdx][1] : null;
   const hv = hoverIdx !== null ? values[hoverIdx] : null;
-  const ttX = hx !== null ? Math.min(hx - 44, width - 92) : 0;
+  const mid = (max + min) / 2;
+
+  const firstDateStr = dates[0] ? new Date(dates[0]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+  const lastDateStr = dates[dates.length - 1] ? new Date(dates[dates.length - 1]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+
+  const axisColor = '#D4C6B0';
 
   return (
-    <svg width={width} height={height} style={{ display: 'block', cursor: 'crosshair' }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setHoverIdx(null)}
-    >
-      <defs>
-        <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={dFill} fill="url(#sparkGrad)" />
-      <path d={d} stroke={color} strokeWidth={strokeWidth} fill="none" />
-      {hx !== null && hy !== null && hv !== null && (
-        <g>
-          <line x1={hx} x2={hx} y1={0} y2={height} stroke={color} strokeWidth={1} opacity={0.4} />
-          <circle cx={hx} cy={hy} r={4} fill={color} />
-          <rect x={Math.max(0, ttX)} y={Math.max(0, hy - 26)} width={88} height={20} rx={4} fill="var(--lf-ink)" opacity={0.9} />
-          <text x={Math.max(0, ttX) + 6} y={Math.max(0, hy - 11)} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-paper)">
-            {fmt(hv)}
-          </text>
-        </g>
-      )}
-    </svg>
+    <div ref={wrapperRef} style={{ width: '100%' }}>
+      <svg width={W} height={H} style={{ display: 'block', cursor: 'crosshair' }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
+        <defs>
+          <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* Grid lines */}
+        <line x1={PL} y1={PT} x2={PL + PW} y2={PT} stroke={axisColor} strokeWidth={0.5} opacity={0.2} />
+        <line x1={PL} y1={PT + height / 2} x2={PL + PW} y2={PT + height / 2} stroke={axisColor} strokeWidth={0.5} opacity={0.12} strokeDasharray="4 4" />
+        <line x1={PL} y1={PT + height} x2={PL + PW} y2={PT + height} stroke={axisColor} strokeWidth={0.5} opacity={0.2} />
+        {/* Y-axis labels — 13px actual pixels, matching hero sub-label color */}
+        <text x={PL - 6} y={PT + 5} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={13} fill={axisColor} opacity={0.75}>{fmtV(max)}</text>
+        <text x={PL - 6} y={PT + height / 2 + 5} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={13} fill={axisColor} opacity={0.5}>{fmtV(mid)}</text>
+        <text x={PL - 6} y={PT + height + 5} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={13} fill={axisColor} opacity={0.75}>{fmtV(min)}</text>
+        {/* Chart */}
+        <path d={fillD} fill="url(#sparkGrad)" />
+        <path d={pathD} stroke={color} strokeWidth={strokeWidth} fill="none" />
+        {/* Hover */}
+        {hx !== null && hy !== null && hv !== null && (
+          <g>
+            <line x1={hx} x2={hx} y1={PT} y2={PT + height} stroke={color} strokeWidth={1} opacity={0.4} />
+            <circle cx={hx} cy={hy} r={4} fill={color} />
+            <rect x={Math.max(PL, Math.min(hx - 44, PL + PW - 96))} y={Math.max(PT, hy - 26)} width={92} height={22} rx={4} fill="rgba(0,0,0,0.75)" />
+            <text x={Math.max(PL, Math.min(hx - 44, PL + PW - 96)) + 7} y={Math.max(PT, hy - 26) + 15} fontFamily="'JetBrains Mono', monospace" fontSize={13} fill={axisColor}>
+              {fmtV(hv)}
+            </text>
+          </g>
+        )}
+        {/* X-axis labels */}
+        {firstDateStr && <text x={PL} y={H - 4} textAnchor="start" fontFamily="'JetBrains Mono', monospace" fontSize={13} fill={axisColor} opacity={0.6}>{firstDateStr}</text>}
+        {lastDateStr && <text x={PL + PW} y={H - 4} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={13} fill={axisColor} opacity={0.6}>{lastDateStr}</text>}
+      </svg>
+    </div>
   );
 }
 
@@ -200,7 +245,7 @@ function MiniCard({ label, value, sub, accent }: {
     <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: '18px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {accent && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accent, display: 'inline-block', flexShrink: 0 }} />}
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
           {label}
         </div>
       </div>
@@ -208,7 +253,7 @@ function MiniCard({ label, value, sub, accent }: {
         {value}
       </div>
       {sub && (
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--lf-muted)', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--lf-rule)' }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--lf-rule)' }}>
           {sub}
         </div>
       )}
@@ -299,12 +344,12 @@ function LayersCompact({ steps }: { steps: PriorityStep[] }) {
             opacity: step.status === 'queued' || step.skipped ? 0.5 : 1,
           }}>
             <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, opacity: 0.7 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, opacity: 0.7 }}>
                 {String(i + 1).padStart(2, '0')}
               </span>
               <span style={{ fontWeight: 500 }}>{step.title}</span>
             </span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
               {step.progress}%
             </span>
           </div>
@@ -330,7 +375,7 @@ function ActionsCard({ insights, totalCount, navigate }: {
     <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
         <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
             Today's actions · AI-generated
           </div>
           <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, marginTop: 4 }}>
@@ -339,7 +384,7 @@ function ActionsCard({ insights, totalCount, navigate }: {
         </div>
         <button
           onClick={() => navigate('/insights')}
-          style={{ fontSize: 12, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}
+          style={{ fontSize: 13, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}
         >
           all {totalCount} →
         </button>
@@ -366,7 +411,7 @@ function ActionsCard({ insights, totalCount, navigate }: {
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: urgColor(a.urgency) }} />
             <div style={{ fontSize: 14, fontWeight: 500 }}>{a.title}</div>
             <div style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 13,
               padding: '3px 8px', borderRadius: 999,
               background: 'var(--lf-cream)', color: 'var(--lf-ink-soft)',
               textTransform: 'capitalize' as const, whiteSpace: 'nowrap' as const,
@@ -395,7 +440,6 @@ export function Dashboard() {
   const [totalLiabilities, setTotalLiabilities] = useState(0);
   const [totalDebt, setTotalDebt] = useState(0);
   const [emergencyFund, setEmergencyFund] = useState(0);
-  const [monthlySpend, _setMonthlySpend] = useState<number | null>(null);
   const [runwayMonths, setRunwayMonths] = useState<number | null>(null);
   const [accountCount, setAccountCount] = useState(0);
   const [institutionCount, setInstitutionCount] = useState(0);
@@ -465,7 +509,7 @@ export function Dashboard() {
       const profileExists = profile !== null && profile !== undefined;
       const hasProfile = profileExists && profile.annualIncome !== null;
 
-      const spendCats = spendingData.categories.filter((c: { category: string }) => c.category !== 'income');
+      const spendCats = spendingData.categories.filter((c: { category: string }) => c.category !== 'income' && c.category !== 'transfer');
       setSpendingCategories(spendCats);
       setTotalSpending(spendingData.totalSpending);
       setTotalIncome(spendingData.totalIncome);
@@ -587,9 +631,9 @@ export function Dashboard() {
       <style>{`
         @media (max-width: 640px) {
           .dash-hero-grid { grid-template-columns: 1fr !important; }
-          .dash-mini-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; }
-          .dash-layers-grid { grid-template-columns: 1fr !important; }
+          .dash-mini-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .dash-bottom-grid { grid-template-columns: 1fr !important; }
+          .dash-layers-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -614,7 +658,7 @@ export function Dashboard() {
           </div>
           <button
             onClick={() => navigate('/accounts')}
-            style={{ padding: '8px 16px', background: 'var(--lf-sauce)', color: 'var(--lf-paper)', border: 0, borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' as const }}
+            style={{ padding: '8px 16px', background: 'var(--lf-sauce)', color: 'var(--lf-paper)', border: 0, borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' as const }}
           >
             Link Account
           </button>
@@ -629,7 +673,7 @@ export function Dashboard() {
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 28, flexWrap: 'wrap' as const, gap: 16 }}
       >
         <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
             Good {getGreeting()}, {firstName} · {getDayLabel()}
             {urgentCount > 0 && ` · ${urgentCount} urgent`}
           </div>
@@ -666,28 +710,28 @@ export function Dashboard() {
       >
         <div className="dash-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center' }}>
           <div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-cheese)' }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-cheese)' }}>
               Net Worth · live
             </div>
             <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 88, lineHeight: 0.95, letterSpacing: '-0.03em', marginTop: 10 }}>
-              {netWorth !== null ? fmtK(netWorth) : '—'}
+              {netWorth !== null ? fmtNetWorth(netWorth) : '—'}
             </div>
             {netWorthChange !== null && (
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-cheese)', marginTop: 10 }}>
                 {netWorthChange >= 0 ? '▲' : '▼'} {fmt(Math.abs(netWorthChange))}{nwChangePct}
               </div>
             )}
-            <div style={{ display: 'flex', gap: 24, marginTop: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#D4C6B0' }}>
+            <div style={{ display: 'flex', gap: 24, marginTop: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0' }}>
               {totalAssets > 0 && <span>ASSETS · {fmtK(totalAssets)}</span>}
               {totalLiabilities > 0 && <span>LIABILITIES · {fmtK(totalLiabilities)}</span>}
               {healthScore && <span>HEALTH · {healthScore.score}/100</span>}
             </div>
           </div>
-          <div style={{ overflow: 'hidden' }}>
+          <div style={{ minWidth: 0 }}>
             {nwHistory.length > 1 ? (
-              <Sparkline data={nwHistory} color="var(--lf-cheese)" width={480} height={130} strokeWidth={2} />
+              <Sparkline data={nwHistory} color="var(--lf-cheese)" height={130} strokeWidth={2} />
             ) : (
-              <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4C6B0', fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
+              <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4C6B0', fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
                 Link accounts to see history
               </div>
             )}
@@ -700,13 +744,13 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.4 }}
-        className="dash-mini-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 16, marginBottom: 20 }}
+        className="dash-mini-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}
       >
         <MiniCard
           label="Emergency fund"
           value={emergencyFund > 0 ? fmtK(emergencyFund) : '—'}
           sub={runwayMonths !== null ? `${runwayMonths.toFixed(1)} mo runway` : 'Cash in depository'}
-          accent="var(--lf-basil)"
+          accent={runwayMonths === null ? 'var(--lf-muted)' : runwayMonths >= 6 ? 'var(--lf-basil)' : runwayMonths >= 3 ? 'var(--lf-cheese)' : 'var(--lf-sauce)'}
         />
         <MiniCard
           label="Monthly income"
@@ -728,60 +772,20 @@ export function Dashboard() {
         />
       </motion.div>
 
-      {/* Layers + Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15, duration: 0.4 }}
-        className="dash-layers-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20, marginBottom: 20 }}
-      >
-        <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
-            <div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
-                Your priorities
-              </div>
-              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, marginTop: 4 }}>
-                The lasagna, top-down.
-              </div>
-            </div>
-            <button
-              onClick={() => navigate('/priorities')}
-              style={{ fontSize: 12, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}
-            >
-              open →
-            </button>
-          </div>
-          {prioritySteps.length > 0 ? (
-            <LayersCompact steps={prioritySteps} />
-          ) : (
-            <div style={{ color: 'var(--lf-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
-              Complete your profile to see priorities.
-            </div>
-          )}
-        </div>
-
-        <ActionsCard
-          insights={insights}
-          totalCount={insights.filter(i => !i.dismissedAt).length}
-          navigate={navigate}
-        />
-      </motion.div>
-
       {/* Spend Donut + Goals + Health */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
-        className="dash-bottom-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}
+        transition={{ delay: 0.15, duration: 0.4 }}
+        className="dash-bottom-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 20 }}
       >
         {/* Spend Donut */}
         <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
               Monthly spend · by category
             </div>
-            <button onClick={() => navigate('/spending')} style={{ fontSize: 12, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}>
+            <button onClick={() => navigate('/spending')} style={{ fontSize: 13, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}>
               details →
             </button>
           </div>
@@ -790,10 +794,10 @@ export function Dashboard() {
               <DonutMini cats={spendCatsForDonut} totalLabel={totalSpending > 0 ? fmtK(totalSpending) : '$0'} />
               <div style={{ flex: 1 }}>
                 {spendCatsForDonut.slice(0, 4).map((c, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '8px 1fr auto', gap: 8, alignItems: 'center', padding: '4px 0', fontSize: 12 }}>
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '8px 1fr auto', gap: 8, alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
                     <div style={{ width: 8, height: 8, borderRadius: 2, background: c.color }} />
                     <span style={{ color: 'var(--lf-ink-soft)', textTransform: 'capitalize' as const }}>{c.name.replace('_', ' ')}</span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
                       {totalSpending > 0 ? Math.round((c.total / totalSpending) * 100) : 0}%
                     </span>
                   </div>
@@ -810,10 +814,10 @@ export function Dashboard() {
         {/* Goals */}
         <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
               Goals · top 3
             </div>
-            <button onClick={() => navigate('/goals')} style={{ fontSize: 12, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}>
+            <button onClick={() => navigate('/goals')} style={{ fontSize: 13, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}>
               {goals.length > 0 ? 'all →' : 'set goals →'}
             </button>
           </div>
@@ -823,13 +827,23 @@ export function Dashboard() {
                 const target = parseFloat(g.targetAmount);
                 const current = parseFloat(g.currentAmount);
                 const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
-                const color = pct >= 100 ? 'var(--lf-basil)' : pct >= 50 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
+                const deadlineDate = g.deadline ? new Date(g.deadline) : null;
+                const isPast = deadlineDate && deadlineDate < new Date();
+                const color = pct >= 100 ? 'var(--lf-basil)' : isPast ? 'var(--lf-sauce)' : pct >= 50 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
+                const deadlineStr = deadlineDate
+                  ? deadlineDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                  : null;
                 return (
                   <div key={g.id} style={{ padding: '8px 0', borderBottom: i < 2 ? '1px dashed var(--lf-rule)' : 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}>
                       <span>{g.icon || '⊙'} {g.name}</span>
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--lf-muted)' }}>{Math.round(pct)}%</span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)' }}>{Math.round(pct)}%</span>
                     </div>
+                    {deadlineStr && (
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: isPast ? 'var(--lf-sauce)' : 'var(--lf-muted)', marginBottom: 4 }}>
+                        {isPast ? 'overdue · ' : 'by '}{deadlineStr}
+                      </div>
+                    )}
                     <div style={{ height: 4, background: 'var(--lf-cream)', borderRadius: 2 }}>
                       <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.5s' }} />
                     </div>
@@ -846,13 +860,13 @@ export function Dashboard() {
 
         {/* Financial Health */}
         <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 20 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', marginBottom: 12 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', marginBottom: 12 }}>
             Financial health
           </div>
           {healthScore ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <HealthRing score={healthScore.score} color={healthScore.color} />
-              <div style={{ flex: 1, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-muted)', lineHeight: 1.8 }}>
+              <div style={{ flex: 1, fontSize: 13, fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-muted)', lineHeight: 1.8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Cash</span>
                   <span style={{ color: emergencyFund > 0 && runwayMonths !== null && runwayMonths >= 6 ? 'var(--lf-pos)' : 'var(--lf-cheese)' }}>
@@ -885,9 +899,49 @@ export function Dashboard() {
         </div>
       </motion.div>
 
+      {/* Layers + Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.4 }}
+        className="dash-layers-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20, marginBottom: 20 }}
+      >
+        <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
+                Your priorities
+              </div>
+              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, marginTop: 4 }}>
+                The lasagna, top-down.
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/priorities')}
+              style={{ fontSize: 13, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}
+            >
+              open →
+            </button>
+          </div>
+          {prioritySteps.length > 0 ? (
+            <LayersCompact steps={prioritySteps} />
+          ) : (
+            <div style={{ color: 'var(--lf-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
+              Complete your profile to see priorities.
+            </div>
+          )}
+        </div>
+
+        <ActionsCard
+          insights={insights}
+          totalCount={insights.filter(i => !i.dismissedAt).length}
+          navigate={navigate}
+        />
+      </motion.div>
+
       {/* Mobile ask prompts */}
       <div className="md:hidden" style={{ marginTop: 20 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', marginBottom: 12 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', marginBottom: 12 }}>
           Ask LasagnaFi
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -61,11 +61,11 @@ export function ChatThreadList({ threads, onSelectThread, onNewMessage, suggesti
                 onClick={() => onSelectThread(index)}
                 className="w-full text-left flex flex-col gap-1 px-4 py-3.5 border-b border-border/50 last:border-b-0 hover:bg-white/[0.04] transition-colors"
               >
-                <span className="text-sm font-medium text-white/90 leading-snug line-clamp-1">
+                <span className="text-sm font-medium text-white/90 leading-snug line-clamp-2">
                   {thread.question}
                 </span>
                 {thread.answerPreview && (
-                  <span className="text-xs text-text-secondary leading-snug line-clamp-2">
+                  <span className="text-xs text-text-secondary leading-snug line-clamp-3">
                     {thread.answerPreview}
                   </span>
                 )}

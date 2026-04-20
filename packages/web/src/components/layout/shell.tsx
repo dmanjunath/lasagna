@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
-import { motion, useAnimation } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, MessageSquare, X } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav, MobileMenuButton } from './mobile-nav';
@@ -17,15 +16,8 @@ interface ShellProps {
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopChatOpen, setDesktopChatOpen] = useState(false);
-  const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
-  const { chatOpen, openChat, closeChat } = useChatStore();
-  const controls = useAnimation();
-
-  // Sync animation state with chatOpen
-  useEffect(() => {
-    controls.start({ x: chatOpen ? '-100vw' : 0 });
-  }, [chatOpen, controls]);
+  const { chatOpen, closeChat } = useChatStore();
 
   // Sync context chatOpen → desktop sidebar
   useEffect(() => {
@@ -49,45 +41,48 @@ export function Shell({ children }: ShellProps) {
 
       {/* Main layout */}
       {isMobile ? (
-        /* Mobile: horizontal sliding container for push-style chat */
+        /* Mobile: main content + chat overlay */
         <div className="flex-1 flex overflow-hidden relative">
-          <motion.div
-            className="flex w-full h-full"
-            animate={controls}
-            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-          >
-            {/* Main content — full width */}
-            <main className="w-screen flex-shrink-0 flex flex-col overflow-hidden pt-14 pb-16">
-              <div className="flex-1 overflow-y-auto">
-                {children}
-              </div>
-            </main>
-
-            {/* Chat panel — full screen, sits to the right of main content */}
-            <div
-              className="w-screen h-full flex-shrink-0 flex flex-col bg-bg overflow-hidden"
-              data-testid="chat-panel"
-            >
-              {/* Header */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0"
-                   style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
-                <button
-                  onClick={() => closeChat()}
-                  className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors"
-                  aria-label="Close chat"
-                >
-                  <ArrowLeft className="w-4 h-4 text-text-secondary" />
-                </button>
-                <span className="text-sm font-semibold text-text">Chat</span>
-              </div>
-
-              {/* Content — takes full remaining height, no bottom padding needed */}
-              <div className="flex-1 flex flex-col overflow-hidden min-h-0"
-                   style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                <ChatTabs />
-              </div>
+          {/* Main content — always rendered */}
+          <main className="w-full flex flex-col overflow-hidden pt-14 pb-16">
+            <div className="flex-1 overflow-y-auto">
+              {children}
             </div>
-          </motion.div>
+          </main>
+
+          {/* Chat overlay — fades in/out like any other view */}
+          <AnimatePresence>
+            {chatOpen && (
+              <motion.div
+                key="chat-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="absolute inset-0 flex flex-col bg-bg overflow-hidden z-20"
+                data-testid="chat-panel"
+              >
+                {/* Header */}
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0"
+                     style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
+                  <button
+                    onClick={() => closeChat()}
+                    className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors"
+                    aria-label="Close chat"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-text-secondary" />
+                  </button>
+                  <span className="text-sm font-semibold text-text">Chat</span>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0"
+                     style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                  <ChatTabs />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       ) : (
         /* Desktop: standard flex layout */

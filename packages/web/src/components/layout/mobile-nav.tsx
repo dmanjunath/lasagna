@@ -35,7 +35,7 @@ const NAV_SECTIONS: NavSection[] = [
     section: 'Wealth',
     items: [
       { label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
-      { label: 'Portfolio',  icon: PieChart,    path: '/invest' },
+      { label: 'Portfolio',  icon: PieChart,    path: '/portfolio' },
       { label: 'Spending',   icon: CreditCard,  path: '/spending' },
       { label: 'Debt',       icon: AlertCircle, path: '/debt' },
       { label: 'Tax',        icon: Receipt,     path: '/tax' },
@@ -140,7 +140,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 <div key={section} style={{ marginBottom: 8 }}>
                   <div style={{
                     fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
+                    fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase',
                     color: 'var(--lf-muted)', padding: '0 8px', margin: '16px 0 6px',
                   }}>
                     {section}
@@ -210,13 +210,13 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontWeight: 500, color: 'var(--lf-ink)', fontSize: 12,
+                    fontWeight: 500, color: 'var(--lf-ink)', fontSize: 13,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     fontFamily: "'Geist', system-ui, sans-serif",
                   }}>
                     {firstName}
                   </div>
-                  <div style={{ color: 'var(--lf-muted)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div style={{ color: 'var(--lf-muted)', fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>
                     {tenant?.plan === 'pro' ? 'pro plan' : 'self-hosted'}
                   </div>
                 </div>

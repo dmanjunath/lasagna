@@ -37,7 +37,7 @@ const S = {
   } as React.CSSProperties,
   eyebrow: {
     fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: '0.14em',
     textTransform: 'uppercase' as const,
     color: 'var(--lf-muted)',
@@ -345,11 +345,6 @@ function HasDebtView({
             {formatCurrency(totalDebt)}
           </p>
 
-          {/* DATA-NEEDED: YTD change in debt balance for accurate "change this year" figure */}
-          <p style={{ fontSize: 13, color: 'rgba(251,246,236,0.45)', marginBottom: 20 }}>
-            YTD paydown data unavailable
-          </p>
-
           {/* Stats row */}
           <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
             <div>
@@ -540,6 +535,7 @@ function HasDebtView({
               isFirst={i === 0}
               isLast={i === orderedDebts.length - 1}
               onEdit={onEditDebt}
+              openChat={openChat}
             />
           ))}
         </div>
@@ -561,13 +557,14 @@ function HasDebtView({
 // ── Debt Row ──────────────────────────────────────────────────────────────────
 
 function DebtRow({
-  debt: d, rank, isFirst, isLast, onEdit,
+  debt: d, rank, isFirst, isLast, onEdit, openChat,
 }: {
   debt: DebtAccount;
   rank: number;
   isFirst: boolean;
   isLast: boolean;
   onEdit: (d: DebtAccount) => void;
+  openChat: (prompt: string) => void;
 }) {
   const highApr = d.apr > 20;
 
@@ -631,6 +628,7 @@ function DebtRow({
               type="button"
               onClick={() => onEdit(d)}
               title="Edit loan details"
+              aria-label="Edit loan details"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: 'var(--lf-muted)', padding: 2, lineHeight: 0,
@@ -667,7 +665,7 @@ function DebtRow({
         </div>
         {/* Payoff date note */}
         {d.type !== 'credit' && (
-          <p style={{ fontSize: 12, color: 'var(--lf-muted)', marginTop: 3 }}>
+          <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 3 }}>
             {d.payoffDate ? (
               <>
                 Payoff:{' '}
@@ -679,7 +677,7 @@ function DebtRow({
               <button
                 type="button"
                 onClick={() => onEdit(d)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--lf-cheese)', fontWeight: 600, fontSize: 12 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--lf-cheese)', fontWeight: 600, fontSize: 13 }}
               >
                 Unknown — add details
               </button>
@@ -696,7 +694,7 @@ function DebtRow({
       {/* CTA */}
       <button
         type="button"
-        onClick={() => {}}
+        onClick={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, $${d.balance.toLocaleString()} balance).`)}
         style={{
           flexShrink: 0,
           padding: '7px 14px',
@@ -916,7 +914,7 @@ function LoanDetailsModal({
             </label>
           )}
 
-          {error && <p style={{ fontSize: 12, color: 'var(--lf-sauce)' }}>{error}</p>}
+          {error && <p style={{ fontSize: 13, color: 'var(--lf-sauce)' }}>{error}</p>}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button

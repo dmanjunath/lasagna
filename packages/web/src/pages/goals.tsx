@@ -86,7 +86,7 @@ const card: React.CSSProperties = {
 
 const eyebrow: React.CSSProperties = {
   fontFamily: "'JetBrains Mono', monospace",
-  fontSize: 11,
+  fontSize: 13,
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
   color: 'var(--lf-muted)',
@@ -291,7 +291,7 @@ export function Goals() {
 
                   {/* Quick presets */}
                   <div style={{ marginBottom: 20 }}>
-                    <div style={{ ...eyebrow, marginBottom: 10, fontSize: 10 }}>Quick start</div>
+                    <div style={{ ...eyebrow, marginBottom: 10, fontSize: 13 }}>Quick start</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {GOAL_PRESETS.map((preset) => (
                         <button
@@ -303,7 +303,7 @@ export function Goals() {
                             border: `1px solid ${newCategory === preset.category ? goalColor(preset.category) : 'var(--lf-rule)'}`,
                             background: newCategory === preset.category ? goalColor(preset.category) + '18' : 'transparent',
                             color: newCategory === preset.category ? goalColor(preset.category) : 'var(--lf-muted)',
-                            fontSize: 12,
+                            fontSize: 13,
                             cursor: 'pointer',
                             fontWeight: 500,
                             transition: 'all 0.15s',
@@ -325,7 +325,7 @@ export function Goals() {
                     }}
                   >
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <span style={{ ...eyebrow, fontSize: 10 }}>Goal name</span>
+                      <span style={{ ...eyebrow, fontSize: 13 }}>Goal name</span>
                       <input
                         type="text"
                         value={newName}
@@ -335,7 +335,7 @@ export function Goals() {
                       />
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <span style={{ ...eyebrow, fontSize: 10 }}>Target amount</span>
+                      <span style={{ ...eyebrow, fontSize: 13 }}>Target amount</span>
                       <input
                         type="number"
                         value={newTarget}
@@ -345,7 +345,7 @@ export function Goals() {
                       />
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <span style={{ ...eyebrow, fontSize: 10 }}>Target date (optional)</span>
+                      <span style={{ ...eyebrow, fontSize: 13 }}>Target date (optional)</span>
                       <input
                         type="date"
                         value={newDeadline}
@@ -354,7 +354,7 @@ export function Goals() {
                       />
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <span style={{ ...eyebrow, fontSize: 10 }}>Icon</span>
+                      <span style={{ ...eyebrow, fontSize: 13 }}>Icon</span>
                       <input
                         type="text"
                         value={newIcon}
@@ -581,7 +581,7 @@ export function Goals() {
                         <div style={{ ...serif, fontSize: 26, color: 'var(--lf-ink)', lineHeight: 1 }}>
                           {formatCurrency(current)}
                         </div>
-                        <div style={{ ...eyebrow, fontSize: 10, marginTop: 3 }}>
+                        <div style={{ ...eyebrow, fontSize: 13, marginTop: 3 }}>
                           of {formatCurrency(target)}
                         </div>
                       </button>
@@ -621,13 +621,13 @@ export function Goals() {
                       <span
                         style={{
                           ...eyebrow,
-                          fontSize: 11,
+                          fontSize: 13,
                           color: pct >= 100 ? 'var(--lf-basil)' : color,
                         }}
                       >
                         {Math.round(pct)}%
                       </span>
-                      <span style={{ ...eyebrow, fontSize: 11 }}>
+                      <span style={{ ...eyebrow, fontSize: 13 }}>
                         {remaining > 0
                           ? `${formatCurrency(remaining)} to go`
                           : 'Goal reached!'}
@@ -687,7 +687,7 @@ export function Goals() {
                         >
                           {goal.name}
                         </span>
-                        <span style={{ ...eyebrow, fontSize: 10, marginLeft: 8 }}>
+                        <span style={{ ...eyebrow, fontSize: 13, marginLeft: 8 }}>
                           {formatCurrency(parseFloat(goal.targetAmount))}
                         </span>
                       </div>

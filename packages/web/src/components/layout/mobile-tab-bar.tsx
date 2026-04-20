@@ -43,6 +43,7 @@ export function MobileTabBar() {
         return (
           <button
             key={tab.name}
+            aria-current={active ? 'page' : undefined}
             onClick={() => {
               if (tab.action === 'chat') openChat();
               else if (tab.path) navigate(tab.path);
@@ -59,7 +60,7 @@ export function MobileTabBar() {
             <Icon size={20} strokeWidth={active ? 2 : 1.5} />
             <span style={{
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 9, letterSpacing: '0.06em',
+              fontSize: 13, letterSpacing: '0.06em',
               textTransform: 'uppercase',
               color: 'inherit',
             }}>

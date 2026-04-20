@@ -23,13 +23,13 @@ const GROUP_META: Record<
   { label: string; hint: string; color: string }
 > = {
   do_now: {
-    label: 'Do now',
-    hint: 'Tackle these first — time-sensitive or high-impact',
+    label: 'High priority',
+    hint: 'Critical or high-impact actions — address these first',
     color: 'var(--lf-sauce)',
   },
   this_week: {
-    label: 'This week',
-    hint: 'Important actions to complete within the next 7 days',
+    label: 'Important',
+    hint: 'Meaningful improvements worth acting on soon',
     color: 'var(--lf-cheese)',
   },
   watch: {
@@ -46,8 +46,8 @@ type FilterValue = null | 'do_now' | 'this_week' | 'watch' | 'completed';
 
 const FILTER_PILLS: { label: string; value: FilterValue }[] = [
   { label: 'All', value: null },
-  { label: 'Do now', value: 'do_now' },
-  { label: 'This week', value: 'this_week' },
+  { label: 'High priority', value: 'do_now' },
+  { label: 'Important', value: 'this_week' },
   { label: 'Watch', value: 'watch' },
   { label: 'Completed', value: 'completed' },
 ];
@@ -69,8 +69,7 @@ function areaChipStyle(type: string | null): React.CSSProperties {
   } else if (t === 'tax' || t === 'portfolio') {
     bg = 'var(--lf-basil)';
   } else if (t === 'savings' || t === 'retirement') {
-    // DATA-NEEDED: no --lf-noodle var confirmed; using cream-deep as fallback
-    bg = 'var(--lf-cream-deep)';
+    bg = 'var(--lf-noodle)';
     color = 'var(--lf-ink)';
   }
 
@@ -79,7 +78,7 @@ function areaChipStyle(type: string | null): React.CSSProperties {
     background: bg,
     color,
     fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: '0.1em',
     textTransform: 'uppercase' as const,
     padding: '2px 8px',
@@ -94,7 +93,7 @@ const PAGE_LINKS: Record<string, string> = {
   behavioral: '/spending',
   debt: '/debt',
   tax: '/tax',
-  portfolio: '/invest',
+  portfolio: '/portfolio',
   savings: '/goals',
   retirement: '/retirement',
   general: '/',
@@ -226,7 +225,7 @@ function ActionCard({
                 <p
                   style={{
                     fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 10,
+                    fontSize: 13,
                     letterSpacing: '0.14em',
                     textTransform: 'uppercase',
                     color: 'var(--lf-muted)',
@@ -353,7 +352,7 @@ function UrgencyHeader({
       <span
         style={{
           fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
+          fontSize: 13,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           color: 'var(--lf-ink)',
@@ -365,7 +364,7 @@ function UrgencyHeader({
       <span
         style={{
           fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
+          fontSize: 13,
           color: 'var(--lf-muted)',
         }}
       >
@@ -373,7 +372,7 @@ function UrgencyHeader({
       </span>
       <span
         style={{
-          fontSize: 12,
+          fontSize: 13,
           color: 'var(--lf-muted)',
           marginLeft: 2,
         }}
@@ -460,7 +459,7 @@ export function Insights() {
         <p
           style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 11,
+            fontSize: 13,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
             color: 'var(--lf-muted)',
@@ -502,7 +501,7 @@ export function Insights() {
             }
             style={{
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 11,
+              fontSize: 13,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
               color: 'var(--lf-muted)',
@@ -552,7 +551,7 @@ export function Insights() {
             <p
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 10,
+                fontSize: 13,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 color: 'rgba(255,255,255,0.45)',
@@ -586,7 +585,7 @@ export function Insights() {
             <p
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 10,
+                fontSize: 13,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 color: 'rgba(255,255,255,0.45)',
@@ -620,7 +619,7 @@ export function Insights() {
             <p
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 10,
+                fontSize: 13,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 color: 'rgba(255,255,255,0.45)',
@@ -654,7 +653,7 @@ export function Insights() {
             <p
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 10,
+                fontSize: 13,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 color: 'rgba(255,255,255,0.45)',
@@ -697,7 +696,7 @@ export function Insights() {
                 background: active ? 'var(--lf-ink)' : 'var(--lf-paper)',
                 color: active ? 'var(--lf-paper)' : 'var(--lf-muted)',
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 11,
+                fontSize: 13,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
@@ -725,7 +724,7 @@ export function Insights() {
               background: 'none',
               color: 'var(--lf-muted)',
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 11,
+              fontSize: 13,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
               cursor: refreshing ? 'not-allowed' : 'pointer',
@@ -753,7 +752,7 @@ export function Insights() {
             padding: '64px 0',
             color: 'var(--lf-muted)',
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 12,
+            fontSize: 13,
           }}
         >
           Loading actions…
@@ -889,7 +888,7 @@ export function Insights() {
             <span
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 11,
+                fontSize: 13,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
                 color: 'var(--lf-muted)',
@@ -901,7 +900,7 @@ export function Insights() {
             <span
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 11,
+                fontSize: 13,
                 color: 'var(--lf-muted)',
               }}
             >

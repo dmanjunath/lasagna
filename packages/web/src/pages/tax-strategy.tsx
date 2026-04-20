@@ -61,7 +61,7 @@ const CARD: React.CSSProperties = {
 
 const EYEBROW: React.CSSProperties = {
   fontFamily: "'JetBrains Mono', monospace",
-  fontSize: 11,
+  fontSize: 13,
   letterSpacing: "0.14em",
   textTransform: "uppercase" as const,
   color: "var(--lf-muted)",
@@ -422,7 +422,7 @@ export function TaxStrategy() {
                         style={{
                           ...EYEBROW,
                           color: "var(--lf-basil)",
-                          fontSize: 10,
+                          fontSize: 13,
                         }}
                       >
                         {insight.impact}
@@ -435,7 +435,7 @@ export function TaxStrategy() {
                     onClick={() => openChat(prompt)}
                     style={{
                       ...EYEBROW,
-                      fontSize: 10,
+                      fontSize: 13,
                       background: "transparent",
                       border: "1px solid var(--lf-rule)",
                       borderRadius: 6,
@@ -556,14 +556,14 @@ export function TaxStrategy() {
                         {doc.fileName}
                       </div>
                       {doc.taxYear && (
-                        <div style={{ fontSize: 11, color: "var(--lf-muted)", marginTop: 2 }}>
+                        <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 2 }}>
                           Tax Year {doc.taxYear}
                         </div>
                       )}
                       {doc.llmSummary && (
                         <div
                           style={{
-                            fontSize: 12,
+                            fontSize: 13,
                             color: "var(--lf-muted)",
                             marginTop: 4,
                             lineHeight: 1.4,
@@ -678,7 +678,7 @@ export function TaxStrategy() {
               }
               style={{
                 ...EYEBROW,
-                fontSize: 10,
+                fontSize: 13,
                 background: "transparent",
                 border: "1px solid var(--lf-rule)",
                 borderRadius: 6,
@@ -735,7 +735,7 @@ function MiniCard({
         padding: "14px 16px",
       }}
     >
-      <div style={{ ...EYEBROW, fontSize: 10, marginBottom: 8 }}>{label}</div>
+      <div style={{ ...EYEBROW, fontSize: 13, marginBottom: 8 }}>{label}</div>
       <div
         style={{
           ...SERIF,
@@ -748,7 +748,7 @@ function MiniCard({
         {value}
       </div>
       {sub && (
-        <div style={{ fontSize: 11, color: "var(--lf-muted)", marginTop: 4 }}>{sub}</div>
+        <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 4 }}>{sub}</div>
       )}
     </div>
   );
@@ -772,9 +772,9 @@ function ContributionRow({
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--lf-ink)" }}>{label}</div>
-          <div style={{ fontSize: 11, color: "var(--lf-muted)", marginTop: 1 }}>{sublabel}</div>
+          <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 1 }}>{sublabel}</div>
         </div>
-        <div style={{ ...EYEBROW, fontSize: 10 }}>{limit}</div>
+        <div style={{ ...EYEBROW, fontSize: 13 }}>{limit}</div>
       </div>
       {/* Progress bar */}
       <div
@@ -801,7 +801,7 @@ function ContributionRow({
         )}
       </div>
       {pct === null && (
-        <div style={{ fontSize: 10, color: "var(--lf-muted)", marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 4 }}>
           Connect accounts to track contributions
         </div>
       )}

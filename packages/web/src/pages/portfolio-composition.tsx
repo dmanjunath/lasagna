@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useIsMobile } from '../lib/hooks/use-mobile';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Building2 } from 'lucide-react';
 import { formatMoney } from '../lib/utils';
@@ -12,17 +13,17 @@ import { PageActions } from '../components/common/page-actions';
 // ---------------------------------------------------------------------------
 
 type ChartType = 'donut' | 'bar' | 'treemap';
-type GroupBy = 'assetClass' | 'subCategory' | 'holding' | 'account';
+type GroupBy = 'assetClass' | 'category' | 'holding' | 'account';
 
 interface AssetClass {
   name: string;
   value: number;
   percentage: number;
   color: string;
-  subCategories: SubCategory[];
+  categories: Category[];
 }
 
-interface SubCategory {
+interface Category {
   name: string;
   value: number;
   percentage: number;
@@ -139,13 +140,13 @@ function PortfolioDonut({
       {/* Center text — shows hover info or total */}
       {hp ? (
         <>
-          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: '0.08em', fill: 'var(--lf-muted)' }}>
+          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.08em', fill: 'var(--lf-muted)' }}>
             {hp.name.toUpperCase()}
           </text>
           <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 19, fill: 'var(--lf-ink)' }}>
             {formatMoney(hp.value, true)}
           </text>
-          <text x={cx} y={cy + 20} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fill: hp.color }}>
+          <text x={cx} y={cy + 20} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fill: hp.color }}>
             {hp.pct.toFixed(1)}%
           </text>
         </>
@@ -154,7 +155,7 @@ function PortfolioDonut({
           <text x={cx} y={cy - 8} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, fill: 'var(--lf-ink)' }}>
             {formatMoney(total, true)}
           </text>
-          <text x={cx} y={cy + 14} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.1em', fill: 'var(--lf-muted)' }}>
+          <text x={cx} y={cy + 14} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.1em', fill: 'var(--lf-muted)' }}>
             TOTAL
           </text>
         </>
@@ -417,12 +418,184 @@ const pill = (active: boolean): React.CSSProperties => ({
 });
 
 // ---------------------------------------------------------------------------
+// Account filter dropdown
+// ---------------------------------------------------------------------------
+
+const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  depository: 'Bank',
+  investment: 'Investment',
+  brokerage: 'Brokerage',
+  credit: 'Credit',
+  loan: 'Loan',
+  real_estate: 'Real Estate',
+  alternative: 'Alternative',
+  other: 'Other',
+};
+
+function FilterDropdown({
+  label: triggerLabel,
+  allLabel,
+  options,
+  activeSet,
+  onToggle,
+  onSelectAll,
+  renderOption,
+}: {
+  label: string;
+  allLabel: string;
+  options: string[];
+  activeSet: Set<string> | null;
+  onToggle: (value: string) => void;
+  onSelectAll: () => void;
+  renderOption?: (value: string) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const allActive = activeSet === null;
+  const activeCount = allActive ? options.length : activeSet.size;
+  const displayLabel = allActive ? triggerLabel : `${triggerLabel}: ${activeCount}`;
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 500,
+          border: allActive ? '1px solid var(--lf-rule)' : '1px solid var(--lf-ink)',
+          background: allActive ? 'transparent' : 'var(--lf-ink)',
+          color: allActive ? 'var(--lf-muted)' : 'var(--lf-paper)',
+          cursor: 'pointer', transition: 'all 0.15s',
+        }}
+      >
+        {displayLabel}
+        <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+          background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)',
+          borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          zIndex: 50, minWidth: 200, maxHeight: 320, overflowY: 'auto',
+          padding: '6px 0',
+        }}>
+          <button
+            onClick={() => { onSelectAll(); setOpen(false); }}
+            style={{
+              width: '100%', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
+              background: 'none', border: 'none', cursor: 'pointer', fontSize: 13,
+              color: 'var(--lf-ink)', textAlign: 'left',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <Checkbox checked={allActive} />
+            <span style={{ fontWeight: 600 }}>{allLabel}</span>
+          </button>
+          <div style={{ height: 1, background: 'var(--lf-rule)', margin: '4px 0' }} />
+          {options.map(value => {
+            const checked = activeSet === null || activeSet.has(value);
+            return (
+              <button
+                key={value}
+                onClick={() => onToggle(value)}
+                style={{
+                  width: '100%', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 13,
+                  color: 'var(--lf-ink)', textAlign: 'left',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <Checkbox checked={checked} />
+                {renderOption ? renderOption(value) : (
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccountFilterDropdown({
+  accounts,
+  activeAccounts,
+  accountTypeMap,
+  onToggle,
+  onSelectAll,
+}: {
+  accounts: string[];
+  activeAccounts: Set<string> | null;
+  accountTypeMap: Map<string, string>;
+  onToggle: (name: string) => void;
+  onSelectAll: () => void;
+}) {
+  return (
+    <FilterDropdown
+      label="Accounts"
+      allLabel="All accounts"
+      options={accounts}
+      activeSet={activeAccounts}
+      onToggle={onToggle}
+      onSelectAll={onSelectAll}
+      renderOption={name => (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{name}</span>
+          {accountTypeMap.has(name) && (
+            <span style={{
+              fontSize: 11, padding: '1px 6px', borderRadius: 4,
+              background: 'var(--lf-cream)', color: 'var(--lf-muted)',
+              border: '1px solid var(--lf-rule)', flexShrink: 0,
+            }}>
+              {ACCOUNT_TYPE_LABELS[accountTypeMap.get(name)!] ?? accountTypeMap.get(name)}
+            </span>
+          )}
+        </span>
+      )}
+    />
+  );
+}
+
+function Checkbox({ checked }: { checked: boolean }) {
+  return (
+    <span style={{
+      width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+      border: `2px solid ${checked ? 'var(--lf-sauce)' : 'var(--lf-rule)'}`,
+      background: checked ? 'var(--lf-sauce)' : 'transparent',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      transition: 'all 0.12s',
+    }}>
+      {checked && (
+        <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+          <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export default function PortfolioComposition() {
   const [, setLocation] = useLocation();
   const { setPageContext } = usePageContext();
+  const isMobile = useIsMobile();
 
   // ── API state (preserved from original) ──
   const [loading, setLoading] = useState(true);
@@ -431,19 +604,21 @@ export default function PortfolioComposition() {
   const [blendedReturn, setBlendedReturn] = useState<number | null>(null);
   const [exposures, setExposures] = useState<Array<{
     name: string; assetClass: string; value: number; percentage: number; historicalReturn: number;
+    holdings: Array<{ ticker: string; name: string; value: number; account: string; shares: number }>;
   }>>([]);
   const [accountAllocation, setAccountAllocation] = useState<Array<{
     name: string; value: number; percentage: number; color: string;
   }>>([]);
   const [accountTotal, setAccountTotal] = useState(0);
   const [filingStatus, setFilingStatus] = useState<string | null>(null);
+  const [accountTypeMap, setAccountTypeMap] = useState<Map<string, string>>(new Map());
 
   // ── UI state ──
   const [chartType, setChartType] = useState<ChartType>('donut');
   const [groupBy, setGroupBy] = useState<GroupBy>('assetClass');
   const [drillLevel1, setDrillLevel1] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  // Account filter pills: set of account names to SHOW (null = show all)
+  // Account filter: set of account names to SHOW (null = show all)
   const [activeAccounts, setActiveAccounts] = useState<Set<string> | null>(null);
 
 
@@ -475,6 +650,13 @@ export default function PortfolioComposition() {
           setBlendedReturn(expData.blendedReturn);
           setExposures(expData.exposures);
         }
+
+        // Build account name → type map
+        const typeMap = new Map<string, string>();
+        for (const b of balanceData.balances) {
+          if (b.name && b.type) typeMap.set(b.name, b.type);
+        }
+        setAccountTypeMap(typeMap);
 
         // Build account-level allocation as fallback
         if (compData.assetClasses.length === 0 && balanceData.balances.length > 0) {
@@ -523,7 +705,7 @@ export default function PortfolioComposition() {
             name: ac.name,
             value: ac.value,
             percentage: ac.percentage,
-            subCategories: ac.subCategories.map(sc => ({
+            categories: ac.categories.map(sc => ({
               name: sc.name,
               value: sc.value,
               percentage: sc.percentage,
@@ -542,7 +724,7 @@ export default function PortfolioComposition() {
   const allAccounts = useMemo(() => {
     const names = new Set<string>();
     for (const ac of assetClasses) {
-      for (const sc of ac.subCategories) {
+      for (const sc of ac.categories) {
         for (const h of sc.holdings) {
           names.add(h.account);
         }
@@ -556,11 +738,11 @@ export default function PortfolioComposition() {
     if (!activeAccounts) return assetClasses;
     return assetClasses.map(ac => ({
       ...ac,
-      subCategories: ac.subCategories.map(sc => ({
+      categories: ac.categories.map(sc => ({
         ...sc,
         holdings: sc.holdings.filter(h => activeAccounts.has(h.account)),
       })).filter(sc => sc.holdings.length > 0),
-    })).filter(ac => ac.subCategories.length > 0);
+    })).filter(ac => ac.categories.length > 0);
   }, [assetClasses, activeAccounts]);
 
   const filteredTotal = useMemo(
@@ -570,10 +752,10 @@ export default function PortfolioComposition() {
 
   // Holdings grouped by ticker
   const holdingsByTicker = useMemo(() => {
-    const tickerMap = new Map<string, { holdings: Holding[]; totalValue: number; totalShares: number; assetClass: string; subCategory: string }>();
+    const tickerMap = new Map<string, { holdings: Holding[]; totalValue: number; totalShares: number; assetClass: string; category: string }>();
     let idx = 0;
     for (const ac of filteredAssetClasses) {
-      for (const sc of ac.subCategories) {
+      for (const sc of ac.categories) {
         for (const h of sc.holdings) {
           const existing = tickerMap.get(h.ticker);
           if (existing) {
@@ -586,7 +768,7 @@ export default function PortfolioComposition() {
               totalValue: h.value,
               totalShares: h.shares,
               assetClass: ac.name,
-              subCategory: sc.name,
+              category: sc.name,
             });
             idx++;
           }
@@ -604,11 +786,11 @@ export default function PortfolioComposition() {
   }, [filteredAssetClasses, filteredTotal]);
 
   // All sub-categories flat list
-  const allSubCategories = useMemo(() => {
+  const allCategories = useMemo(() => {
     const result: { name: string; value: number; percentage: number; color: string; holdings: Holding[] }[] = [];
     let ci = 0;
     for (const ac of filteredAssetClasses) {
-      for (const sc of ac.subCategories) {
+      for (const sc of ac.categories) {
         result.push({
           name: sc.name,
           value: sc.value,
@@ -628,7 +810,7 @@ export default function PortfolioComposition() {
       if (drillLevel1) {
         const ac = filteredAssetClasses.find(a => a.name === drillLevel1);
         const acTotal = ac?.value || 0;
-        const holdings: Holding[] = ac?.subCategories.flatMap(sc => sc.holdings) ?? [];
+        const holdings: Holding[] = ac?.categories.flatMap(sc => sc.holdings) ?? [];
         return holdings
           .map((h, i) => ({
             name: h.ticker,
@@ -646,9 +828,9 @@ export default function PortfolioComposition() {
       }));
     }
 
-    if (groupBy === 'subCategory') {
+    if (groupBy === 'category') {
       if (drillLevel1) {
-        const sc = allSubCategories.find(s => s.name === drillLevel1);
+        const sc = allCategories.find(s => s.name === drillLevel1);
         const scTotal = sc?.holdings.reduce((s, h) => s + h.value, 0) || 0;
         return (sc?.holdings ?? []).map((h, i) => ({
           name: h.ticker,
@@ -657,7 +839,7 @@ export default function PortfolioComposition() {
           color: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
         }));
       }
-      return allSubCategories.map(sc => ({
+      return allCategories.map(sc => ({
         name: sc.name,
         value: sc.value,
         pct: sc.percentage,
@@ -686,7 +868,7 @@ export default function PortfolioComposition() {
     // account grouping
     const acctMap = new Map<string, number>();
     for (const ac of filteredAssetClasses) {
-      for (const sc of ac.subCategories) {
+      for (const sc of ac.categories) {
         for (const h of sc.holdings) {
           acctMap.set(h.account, (acctMap.get(h.account) ?? 0) + h.value);
         }
@@ -700,11 +882,8 @@ export default function PortfolioComposition() {
         color: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
       }))
       .sort((a, b) => b.value - a.value);
-  }, [groupBy, drillLevel1, filteredAssetClasses, allSubCategories, holdingsByTicker, filteredTotal]);
+  }, [groupBy, drillLevel1, filteredAssetClasses, allCategories, holdingsByTicker, filteredTotal]);
 
-  // Portfolio beta — DATA-NEEDED: no beta field from API
-  // DATA-NEEDED: portfolioBeta from getPortfolioExposure or separate endpoint
-  const portfolioBeta: number = 0;
 
   // ---------------------------------------------------------------------------
   // ---------------------------------------------------------------------------
@@ -731,6 +910,8 @@ export default function PortfolioComposition() {
   };
 
   const isAccountActive = (name: string) => activeAccounts === null || activeAccounts.has(name);
+  const selectAllAccounts = () => setActiveAccounts(null);
+
 
   const handleSliceClick = (name: string) => {
     if (!drillLevel1) setDrillLevel1(name);
@@ -748,7 +929,7 @@ export default function PortfolioComposition() {
   const breadcrumbs = useMemo(() => {
     const root =
       groupBy === 'assetClass' ? 'Asset Class'
-      : groupBy === 'subCategory' ? 'Sub-Category'
+      : groupBy === 'category' ? 'Category'
       : groupBy === 'holding' ? 'Holdings'
       : 'Account';
     return drillLevel1 ? [root, drillLevel1] : [root];
@@ -815,7 +996,7 @@ export default function PortfolioComposition() {
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: acct.color, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--lf-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
                       {acct.percentage.toFixed(1)}% · {formatMoney(acct.value, true)}
                     </div>
                   </div>
@@ -902,7 +1083,7 @@ export default function PortfolioComposition() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 32, alignItems: 'flex-start' }}>
             {/* Total value */}
             <div style={{ flex: '1 1 180px' }}>
-              <p style={{ color: 'var(--lf-muted)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+              <p style={{ color: 'var(--lf-muted)', fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
                 Total Portfolio Value
               </p>
               <div style={{
@@ -918,7 +1099,7 @@ export default function PortfolioComposition() {
 
             {/* Blended return */}
             <div style={{ flex: '0 0 auto', minWidth: 120 }}>
-              <p style={{ color: 'var(--lf-muted)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+              <p style={{ color: 'var(--lf-muted)', fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
                 Blended Hist. Return
               </p>
               <div style={{
@@ -929,97 +1110,80 @@ export default function PortfolioComposition() {
               }}>
                 {blendedReturn !== null ? `${blendedReturn.toFixed(1)}%` : '—'}
               </div>
-              <p style={{ fontSize: 11, color: 'var(--lf-muted)', marginTop: 2 }}>per year</p>
+              <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2 }}>per year</p>
             </div>
 
-            {/* Portfolio beta */}
+            {/* Position count */}
             <div style={{ flex: '0 0 auto', minWidth: 100 }}>
-              <p style={{ color: 'var(--lf-muted)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-                Beta (vs S&amp;P)
+              <p style={{ color: 'var(--lf-muted)', fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+                Positions
               </p>
-              {/* DATA-NEEDED: portfolio beta from API */}
               <div style={{
                 fontFamily: "'Instrument Serif', Georgia, serif",
                 fontSize: 32,
-                color: portfolioBeta === 0 ? 'var(--lf-muted)' : 'var(--lf-paper)',
+                color: 'var(--lf-paper)',
                 fontVariantNumeric: 'tabular-nums',
               }}>
-                {portfolioBeta === 0 ? '—' : portfolioBeta.toFixed(2)}
+                {positionCount}
               </div>
-              <p style={{ fontSize: 11, color: 'var(--lf-muted)', marginTop: 2 }}>market sensitivity</p>
+              <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2 }}>holdings tracked</p>
             </div>
           </div>
         </motion.div>
 
-        {/* ── Account filter pills ── */}
-        {allAccounts.length > 1 && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 }}
-            style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}
-          >
-            <span style={{ fontSize: 11, color: 'var(--lf-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginRight: 4 }}>
-              Accounts
-            </span>
-            {allAccounts.map(name => (
-              <button
-                key={name}
-                onClick={() => toggleAccount(name)}
-                style={pill(isAccountActive(name))}
-              >
-                {name}
+        {/* ── Unified filter row ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 }}
+          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}
+        >
+          {/* Account filter */}
+          {allAccounts.length > 1 && (
+            <>
+              <span style={{ fontSize: 12, color: 'var(--lf-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Account</span>
+              <AccountFilterDropdown
+                accounts={allAccounts}
+                activeAccounts={activeAccounts}
+                accountTypeMap={accountTypeMap}
+                onToggle={toggleAccount}
+                onSelectAll={selectAllAccounts}
+              />
+              <span style={{ width: 1, height: 20, background: 'var(--lf-rule)', margin: '0 4px' }} />
+            </>
+          )}
+
+          {/* Group by */}
+          <span style={{ fontSize: 12, color: 'var(--lf-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Group by</span>
+          {(['assetClass', 'category', 'holding', 'account'] as GroupBy[]).map(g => {
+            const labels: Record<GroupBy, string> = {
+              assetClass: 'Asset Class', category: 'Category', holding: 'Holdings', account: 'Account',
+            };
+            return (
+              <button key={g} onClick={() => handleGroupByChange(g)} style={pill(groupBy === g)}>
+                {labels[g]}
               </button>
-            ))}
-          </motion.div>
-        )}
+            );
+          })}
+
+          {/* Separator */}
+          <span style={{ width: 1, height: 20, background: 'var(--lf-rule)', margin: '0 4px' }} />
+
+          {/* Chart type */}
+          <span style={{ fontSize: 12, color: 'var(--lf-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>View</span>
+          {(['donut', 'bar', 'treemap'] as ChartType[]).map(ct => {
+            const icons: Record<ChartType, string> = { donut: 'Donut', bar: 'Bar', treemap: 'Map' };
+            return (
+              <button key={ct} onClick={() => setChartType(ct)} style={pill(chartType === ct)}>
+                {icons[ct]}
+              </button>
+            );
+          })}
+        </motion.div>
 
         {/* ── Chart card ── */}
         <motion.div
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
           style={{ ...card, padding: 28 }}
         >
-          {/* Controls row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 20 }}>
-            {/* Group by pills */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {(['assetClass', 'subCategory', 'holding', 'account'] as GroupBy[]).map(g => {
-                const labels: Record<GroupBy, string> = {
-                  assetClass: 'Asset Class',
-                  subCategory: 'Sub-Category',
-                  holding: 'Holdings',
-                  account: 'Account',
-                };
-                return (
-                  <button
-                    key={g}
-                    onClick={() => handleGroupByChange(g)}
-                    style={pill(groupBy === g)}
-                  >
-                    {labels[g]}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Spacer */}
-            <div style={{ flex: 1 }} />
-
-            {/* Chart type */}
-            <div style={{ display: 'flex', gap: 6 }}>
-              {(['donut', 'bar', 'treemap'] as ChartType[]).map(ct => {
-                const icons: Record<ChartType, string> = { donut: 'Donut', bar: 'Bar', treemap: 'Map' };
-                return (
-                  <button
-                    key={ct}
-                    onClick={() => setChartType(ct)}
-                    style={pill(chartType === ct)}
-                  >
-                    {icons[ct]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Breadcrumb */}
           {breadcrumbs.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: 13 }}>
@@ -1064,7 +1228,7 @@ export default function PortfolioComposition() {
                         <span style={{ width: 10, height: 10, borderRadius: '50%', background: sl.color, flexShrink: 0 }} />
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sl.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                          <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
                             {sl.pct.toFixed(1)}% · {formatMoney(sl.value, true)}
                           </div>
                         </div>
@@ -1113,109 +1277,124 @@ export default function PortfolioComposition() {
             <p className="lf-eyebrow" style={{ marginBottom: 12 }}>Holdings</p>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-          {/* Table header */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '80px 1fr 120px 140px 100px 60px 90px',
-            minWidth: 680,
-            columnGap: 12,
-            padding: '10px 24px',
-            background: 'var(--lf-cream)',
-            borderBottom: '1px solid var(--lf-rule)',
-          }}>
-            {['Ticker', 'Name', 'Class', 'Sub-cat', 'Value', '%', 'Hist. Ret.'].map(h => (
-              <div key={h} style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--lf-muted)' }}>
-                {h}
-              </div>
-            ))}
-          </div>
-
-          {/* Rows */}
-          {holdingsByTicker.map((t, i) => {
-            // Find asset class + sub-category for this ticker
-            let acName = '—';
-            let scName = '—';
-            let histReturn: number | null = null;
-            for (const ac of filteredAssetClasses) {
-              for (const sc of ac.subCategories) {
-                if (sc.holdings.some(h => h.ticker === t.ticker)) {
-                  acName = ac.name;
-                  scName = sc.name;
+          {isMobile ? (
+            /* ── Mobile: card list ── */
+            <div>
+              {holdingsByTicker.map((t, i) => {
+                let acName = '—';
+                let histReturn: number | null = null;
+                for (const ac of filteredAssetClasses) {
+                  for (const sc of ac.categories) {
+                    if (sc.holdings.some(h => h.ticker === t.ticker)) acName = ac.name;
+                  }
                 }
-              }
-            }
-            // Try to find hist return from exposures
-            const exp = exposures.find(e => e.name === t.ticker || e.name === t.ticker);
-            if (exp) histReturn = exp.historicalReturn;
-            // DATA-NEEDED: 1M sparkline per ticker from price history endpoint
+                const exp = exposures.find(e => e.holdings.some(h => h.ticker === t.ticker));
+                if (exp && !acName.toLowerCase().includes('cash')) histReturn = exp.historicalReturn;
+                const accountLabel = t.holdings.length > 1 ? `${t.holdings.length} accounts` : (t.holdings[0]?.account ?? '—');
+                const histColor = histReturn !== null ? (histReturn >= 0 ? 'var(--lf-pos)' : 'var(--lf-neg)') : 'var(--lf-muted)';
 
-            return (
-              <div
-                key={t.ticker}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '80px 1fr 120px 140px 100px 80px 110px',
-                  minWidth: 640,
-                  gap: 0,
-                  padding: '12px 24px',
-                  borderBottom: i < holdingsByTicker.length - 1 ? '1px solid var(--lf-rule)' : 'none',
-                  background: i % 2 === 0 ? 'transparent' : 'var(--lf-cream-deep)',
-                  alignItems: 'center',
-                  transition: 'background 0.12s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
-                onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--lf-cream-deep)')}
-              >
-                {/* Ticker */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>
-                    {t.ticker}
-                  </span>
-                </div>
-
-                {/* Name — use account as fallback since Holding has no name field */}
-                <div style={{ fontSize: 13, color: 'var(--lf-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>
-                  {t.holdings.length > 1 ? `${t.holdings.length} accounts` : t.holdings[0]?.account ?? '—'}
-                </div>
-
-                {/* Asset class */}
-                <div style={{ fontSize: 12, color: colorForAssetClass(acName, i), fontWeight: 500 }}>
-                  {acName}
-                </div>
-
-                {/* Sub-category */}
-                <div style={{ fontSize: 12, color: 'var(--lf-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>
-                  {scName}
-                </div>
-
-                {/* Value */}
-                <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
-                  {formatMoney(t.totalValue, true)}
-                </div>
-
-                {/* % */}
-                <div style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-muted)' }}>
-                  {t.percentage.toFixed(1)}%
-                </div>
-
-                {/* Hist return */}
-                <div style={{
-                  fontSize: 13,
-                  fontVariantNumeric: 'tabular-nums',
-                  color: histReturn !== null
-                    ? histReturn >= 0 ? 'var(--lf-pos)' : 'var(--lf-neg)'
-                    : 'var(--lf-muted)',
-                  fontWeight: histReturn !== null ? 600 : 400,
-                }}>
-                  {histReturn !== null ? `${histReturn.toFixed(1)}%` : '—'}
-                  {/* DATA-NEEDED: 1M sparkline per ticker */}
-                </div>
+                return (
+                  <div key={t.ticker} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    borderBottom: i < holdingsByTicker.length - 1 ? '1px solid var(--lf-rule)' : 'none',
+                    gap: 12,
+                  }}>
+                    {/* Color dot */}
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0, marginTop: 2 }} />
+                    {/* Left: ticker + account */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: 'var(--lf-ink)' }}>
+                        {t.ticker}
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {accountLabel}{acName !== '—' ? ` · ${acName}` : ''}
+                      </div>
+                    </div>
+                    {/* Right: value + pct/hist */}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 600, color: 'var(--lf-ink)', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatMoney(t.totalValue, true)}
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                        {t.percentage.toFixed(1)}%
+                        {histReturn !== null && (
+                          <span style={{ color: histColor, marginLeft: 4 }}>· {histReturn.toFixed(1)}% hist</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* ── Desktop: full grid table ── */
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '80px 1fr 120px 140px 100px 80px 110px',
+                minWidth: 680,
+                columnGap: 12,
+                padding: '10px 24px',
+                background: 'var(--lf-cream)',
+                borderBottom: '1px solid var(--lf-rule)',
+              }}>
+                {['Ticker', 'Account', 'Class', 'Sub-cat', 'Value', '%', 'Hist. Ret.'].map(h => (
+                  <div key={h} style={{ fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--lf-muted)' }}>
+                    {h}
+                  </div>
+                ))}
               </div>
-            );
-          })}
-          </div>
+              {holdingsByTicker.map((t, i) => {
+                let acName = '—';
+                let scName = '—';
+                let histReturn: number | null = null;
+                for (const ac of filteredAssetClasses) {
+                  for (const sc of ac.categories) {
+                    if (sc.holdings.some(h => h.ticker === t.ticker)) {
+                      acName = ac.name;
+                      scName = sc.name;
+                    }
+                  }
+                }
+                const exp = exposures.find(e => e.holdings.some(h => h.ticker === t.ticker));
+                if (exp && !acName.toLowerCase().includes('cash')) histReturn = exp.historicalReturn;
+                const accountLabel = t.holdings.length > 1 ? `${t.holdings.length} accounts` : (t.holdings[0]?.account ?? '—');
+                const histColor = histReturn !== null ? (histReturn >= 0 ? 'var(--lf-pos)' : 'var(--lf-neg)') : 'var(--lf-muted)';
+
+                return (
+                  <div key={t.ticker} style={{
+                    display: 'grid',
+                    gridTemplateColumns: '80px 1fr 120px 140px 100px 80px 110px',
+                    minWidth: 680,
+                    columnGap: 12,
+                    padding: '12px 24px',
+                    borderBottom: i < holdingsByTicker.length - 1 ? '1px solid var(--lf-rule)' : 'none',
+                    background: i % 2 === 0 ? 'transparent' : 'var(--lf-cream-deep)',
+                    alignItems: 'center',
+                    transition: 'background 0.12s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--lf-cream-deep)')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>{t.ticker}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--lf-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{accountLabel}</div>
+                    <div style={{ fontSize: 13, color: colorForAssetClass(acName, i), fontWeight: 500 }}>{acName}</div>
+                    <div style={{ fontSize: 13, color: 'var(--lf-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{scName}</div>
+                    <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>{formatMoney(t.totalValue, true)}</div>
+                    <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-muted)' }}>{t.percentage.toFixed(1)}%</div>
+                    <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: histColor, fontWeight: histReturn !== null ? 600 : 400 }}>
+                      {histReturn !== null ? `${histReturn.toFixed(1)}%` : '—'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </motion.div>
 
         {/* ── Breakdown accordion (grouped by current groupBy) ── */}
@@ -1224,7 +1403,7 @@ export default function PortfolioComposition() {
         >
           <p className="lf-eyebrow" style={{ marginBottom: 12 }}>
             {groupBy === 'assetClass' ? 'Asset Classes'
-              : groupBy === 'subCategory' ? 'Sub-Categories'
+              : groupBy === 'category' ? 'Sub-Categories'
               : groupBy === 'holding' ? 'By Ticker'
               : 'By Account'}
           </p>
@@ -1246,8 +1425,8 @@ export default function PortfolioComposition() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorForAssetClass(ac.name, i), flexShrink: 0 }} />
                     <span style={{ fontWeight: 600, color: 'var(--lf-ink)', fontSize: 15 }}>{ac.name}</span>
-                    <span style={{ fontSize: 11, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
-                      {ac.subCategories.length}
+                    <span style={{ fontSize: 13, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
+                      {ac.categories.length}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -1272,7 +1451,7 @@ export default function PortfolioComposition() {
                       exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
                       style={{ borderTop: '1px solid var(--lf-rule)', background: 'var(--lf-cream)', overflow: 'hidden' }}
                     >
-                      {ac.subCategories.map((sc, j) => (
+                      {ac.categories.map((sc, j) => (
                         <div key={sc.name} style={{ padding: '12px 20px 0 36px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>{sc.name}</span>
@@ -1286,22 +1465,22 @@ export default function PortfolioComposition() {
                               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--lf-paper)' }}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
+                                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
                                   {h.ticker}
                                 </span>
-                                <span style={{ fontSize: 12, color: 'var(--lf-muted)' }}>{h.account}</span>
+                                <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>{h.account}</span>
                               </div>
                               <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
                                   {formatMoney(h.value)}
                                 </div>
-                                <div style={{ fontSize: 11, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                                <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
                                   {h.shares.toFixed(2)} sh
                                 </div>
                               </div>
                             </div>
                           ))}
-                          {j < ac.subCategories.length - 1 && (
+                          {j < ac.categories.length - 1 && (
                             <div style={{ height: 1, background: 'var(--lf-rule)', margin: '12px 0' }} />
                           )}
                         </div>
@@ -1313,8 +1492,8 @@ export default function PortfolioComposition() {
               </motion.div>
             ))}
 
-            {/* Sub-Category view */}
-            {groupBy === 'subCategory' && allSubCategories.map((sc, i) => (
+            {/* Category view */}
+            {groupBy === 'category' && allCategories.map((sc, i) => (
               <motion.div
                 key={sc.name}
                 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i }}
@@ -1329,7 +1508,7 @@ export default function PortfolioComposition() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ width: 10, height: 10, borderRadius: '50%', background: sc.color, flexShrink: 0 }} />
                     <span style={{ fontWeight: 600, color: 'var(--lf-ink)', fontSize: 15 }}>{sc.name}</span>
-                    <span style={{ fontSize: 11, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
+                    <span style={{ fontSize: 13, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
                       {sc.holdings.length}
                     </span>
                   </div>
@@ -1361,16 +1540,16 @@ export default function PortfolioComposition() {
                           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--lf-paper)' }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
+                            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
                               {h.ticker}
                             </span>
-                            <span style={{ fontSize: 12, color: 'var(--lf-muted)' }}>{h.account}</span>
+                            <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>{h.account}</span>
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
                               {formatMoney(h.value)}
                             </div>
-                            <div style={{ fontSize: 11, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                            <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
                               {h.shares.toFixed(2)} sh
                             </div>
                           </div>
@@ -1401,7 +1580,7 @@ export default function PortfolioComposition() {
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: 'var(--lf-ink)' }}>
                         {t.ticker}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--lf-muted)', marginTop: 1 }}>
+                      <div style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 1 }}>
                         {t.totalShares.toFixed(2)} sh
                         {t.holdings.length > 1 && ` · ${t.holdings.length} accounts`}
                       </div>
@@ -1442,7 +1621,7 @@ export default function PortfolioComposition() {
                               <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
                                 {formatMoney(h.value)}
                               </span>
-                              <span style={{ fontSize: 12, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 80 }}>
+                              <span style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 80 }}>
                                 {h.shares.toFixed(2)} sh
                               </span>
                             </div>
@@ -1459,7 +1638,7 @@ export default function PortfolioComposition() {
             {groupBy === 'account' && (() => {
               const acctMap = new Map<string, { value: number; holdings: Holding[] }>();
               for (const ac of filteredAssetClasses) {
-                for (const sc of ac.subCategories) {
+                for (const sc of ac.categories) {
                   for (const h of sc.holdings) {
                     const existing = acctMap.get(h.account);
                     if (existing) {
@@ -1495,7 +1674,7 @@ export default function PortfolioComposition() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{ width: 10, height: 10, borderRadius: '50%', background: acct.color, flexShrink: 0 }} />
                       <span style={{ fontWeight: 600, color: 'var(--lf-ink)', fontSize: 15 }}>{acct.name}</span>
-                      <span style={{ fontSize: 11, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
+                      <span style={{ fontSize: 13, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
                         {acct.holdings.length}
                       </span>
                     </div>
@@ -1527,7 +1706,7 @@ export default function PortfolioComposition() {
                             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--lf-paper)' }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
+                              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
                                 {h.ticker}
                               </span>
                             </div>
@@ -1535,7 +1714,7 @@ export default function PortfolioComposition() {
                               <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
                                 {formatMoney(h.value)}
                               </span>
-                              <span style={{ fontSize: 12, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 80 }}>
+                              <span style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 80 }}>
                                 {h.shares.toFixed(2)} sh
                               </span>
                             </div>

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, desc, syncLog } from "@lasagna/core";
+import { eq, desc, syncLog, plaidItems } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { syncItem, syncAllForTenant } from "../lib/sync.js";
 import { type AuthEnv } from "../middleware/auth.js";
@@ -12,6 +12,17 @@ syncRoutes.post("/", async (c) => {
   // Run sync in background, return immediately
   syncAllForTenant(session.tenantId).catch(console.error);
   return c.json({ ok: true, message: "Sync started" });
+});
+
+// Full resync — resets all cursors so Plaid re-sends all historical transactions,
+// allowing updated categorization logic to be applied retroactively
+syncRoutes.post("/resync", async (c) => {
+  const session = c.get("session");
+  await db.update(plaidItems)
+    .set({ transactionCursor: null })
+    .where(eq(plaidItems.tenantId, session.tenantId));
+  syncAllForTenant(session.tenantId).catch(console.error);
+  return c.json({ ok: true, message: "Full resync started" });
 });
 
 // Trigger sync for a single item

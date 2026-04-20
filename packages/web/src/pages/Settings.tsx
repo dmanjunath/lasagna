@@ -150,7 +150,7 @@ const inputStyle: React.CSSProperties = {
 
 const labelTextStyle: React.CSSProperties = {
   display: 'block',
-  fontSize: 12,
+  fontSize: 13,
   color: 'var(--lf-muted)',
   marginBottom: 6,
   fontFamily: "'Geist', system-ui, sans-serif",
@@ -269,7 +269,7 @@ export function Settings() {
 
   const sectionLabelStyle: React.CSSProperties = {
     fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: 'var(--lf-muted)',
@@ -630,7 +630,7 @@ export function Settings() {
         <motion.p
           variants={item}
           style={{
-            fontSize: 11,
+            fontSize: 13,
             color: 'var(--lf-muted)',
             textAlign: 'center',
             paddingTop: 8,

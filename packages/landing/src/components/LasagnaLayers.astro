@@ -1,0 +1,166 @@
+---
+import { APP_URL } from "../config";
+
+const layers = [
+  { color: "var(--sauce)",    name: "Insurance deductibles covered",  status: "complete", done: true  },
+  { color: "var(--cheese)",   name: "Emergency fund · 3–6 months",    status: "complete", done: true  },
+  { color: "var(--noodle)",   name: "Full employer match",            status: "focus now", now: true   },
+  { color: "var(--basil)",    name: "High-interest debt payoff",      status: "next"                   },
+  { color: "var(--crust)",    name: "HSA max contribution",           status: "queued"                 },
+  { color: "var(--burgundy)", name: "Roth IRA max",                   status: "queued"                 },
+  { color: "#A68965",         name: "401(k) beyond match",            status: "queued"                 },
+  { color: "#7A5C3F",         name: "Surplus taxable investing",      status: "queued"                 },
+];
+---
+
+<div class="layers-section-wrap">
+  <section id="layers">
+    <div class="section-head">
+      <h2 class="serif">The <em>Lasagna Layers</em><br />— your priority stack.</h2>
+      <p>A rule-based plan that tells you exactly what to focus on, layer by layer. Not generic advice — logic grounded in your actual accounts.</p>
+    </div>
+
+    <div class="layers-detail">
+      <div class="layers-copy">
+        <div class="eyebrow" style="margin-bottom: 18px;">CURRENT LAYER — 03</div>
+        <h3 class="serif">Capture your full 401(k) match before anything else.</h3>
+        <p>
+          Your employer matches 5% of salary. You're currently contributing 3%. Increasing to 5% captures $2,400/yr in free money before tax — the highest-ROI move in your plan right now.
+        </p>
+        <a href={`${APP_URL}/login`} class="btn btn-primary" style="margin-top: 24px;">Open your plan →</a>
+      </div>
+
+      <div class="layers-list">
+        {layers.map((l) => (
+          <div class:list={["layer-row", { "layer-row--now": l.now }]}>
+            <div class="chip" style={`background: ${l.color};`}></div>
+            <div class:list={["layer-name", { "layer-name--bold": l.now }]}>{l.name}</div>
+            <div class:list={["status", { "status--done": l.done, "status--now": l.now }]}>
+              {l.status}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+  .layers-section-wrap {
+    background: var(--cream);
+    border-radius: 28px;
+    margin: 0 20px;
+  }
+
+  section {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 80px 40px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 56px;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  h2 em { font-style: italic; color: var(--sauce); }
+
+  .section-head p {
+    max-width: 360px;
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+    padding-top: 8px;
+  }
+
+  .layers-detail {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 56px;
+    align-items: start;
+  }
+
+  .layers-copy h3 {
+    font-family: var(--serif);
+    font-size: 36px;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    font-weight: 400;
+    margin-bottom: 16px;
+  }
+
+  .layers-copy p {
+    color: var(--ink-soft);
+    line-height: 1.65;
+    font-size: 15px;
+    max-width: 400px;
+    margin: 0;
+  }
+
+  /* Layer rows */
+  .layer-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .layer-row--now {
+    background: color-mix(in oklab, var(--sauce) 8%, transparent);
+    margin: 0 -12px;
+    padding: 16px 12px;
+    border-radius: 8px;
+    border-bottom-color: var(--rule);
+  }
+
+  .chip {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .layer-name { font-size: 15px; color: var(--ink); }
+  .layer-name--bold { font-weight: 500; }
+
+  .status {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: var(--cream-deep);
+    color: var(--ink-soft);
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+  }
+
+  .status--done {
+    background: color-mix(in oklab, var(--basil) 15%, transparent);
+    color: var(--basil);
+  }
+
+  .status--now {
+    background: var(--sauce);
+    color: var(--paper);
+  }
+
+  @media (max-width: 860px) {
+    .layers-detail { grid-template-columns: 1fr; gap: 40px; }
+    section { padding: 64px 24px; }
+    .layers-section-wrap { margin: 0 12px; }
+  }
+</style>

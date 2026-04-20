@@ -44,7 +44,7 @@ function startOfMonth(d: Date): string {
 
 function endOfMonth(d: Date): string {
   const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
+  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}T23:59:59`;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: stri
   housing:            { label: 'Housing',              icon: '\uD83C\uDFE0', color: 'var(--lf-sauce)' },
   transportation:     { label: 'Transportation',       icon: '\uD83D\uDE97', color: 'var(--lf-basil)' },
   food_dining:        { label: 'Dining Out',           icon: '\uD83C\uDF7D\uFE0F', color: 'var(--lf-cheese)' },
-  groceries:          { label: 'Groceries',            icon: '\uD83D\uDED2', color: 'var(--lf-cheese)' },
+  groceries:          { label: 'Groceries',            icon: '\uD83D\uDED2', color: 'var(--lf-noodle)' },
   utilities:          { label: 'Utilities',            icon: '\u26A1', color: 'var(--lf-burgundy)' },
   healthcare:         { label: 'Healthcare',           icon: '\uD83C\uDFE5', color: '#A68965' },
   insurance:          { label: 'Insurance',            icon: '\uD83D\uDEE1\uFE0F', color: '#7A5C3F' },
@@ -161,6 +161,16 @@ function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number
 // TrendBarChart — inline SVG 6-month bar chart (income vs expenses)
 // ---------------------------------------------------------------------------
 
+const MONTH_ABBREVS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function monthAbbrev(m: string): string {
+  const parts = m.split('-');
+  if (parts.length === 2) {
+    const idx = parseInt(parts[1], 10) - 1;
+    return MONTH_ABBREVS[idx] ?? m.slice(0, 3);
+  }
+  return m.slice(0, 3);
+}
+
 function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const slice = data.slice(-6);
@@ -170,16 +180,29 @@ function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
   const chartH = 120;
   const barW = 10;
   const gap = 4;
-  const groupW = barW * 2 + gap + 12;
-  const totalW = groupW * slice.length;
+  const groupW = barW * 2 + gap + 40;
+  const yAxisW = 36;
+  const totalW = groupW * slice.length + yAxisW;
   const fmtK = (v: number) => `$${(v / 1000).toFixed(1)}k`;
 
+  // Y-axis ticks: 0, 50%, 100% of max
+  const yTicks = [0, 0.5, 1].map(pct => ({ pct, val: maxVal * pct, y: chartH - pct * chartH }));
+
   return (
-    <svg width="100%" viewBox={`0 0 ${totalW} ${chartH + 24 + (hovered !== null ? 32 : 0)}`} style={{ overflow: 'visible' }}>
+    <svg width="100%" viewBox={`0 0 ${totalW} ${chartH + 24 + (hovered !== null ? 38 : 0)}`} style={{ overflow: 'visible' }}>
+      {/* Y-axis labels */}
+      {yTicks.map(({ pct, val, y }) => (
+        <g key={pct}>
+          <line x1={yAxisW - 4} y1={y} x2={totalW} y2={y} stroke="var(--lf-rule)" strokeWidth={0.5} strokeDasharray="3 3" />
+          <text x={yAxisW - 6} y={y + 3} textAnchor="end" fontFamily="JetBrains Mono, monospace" fontSize={9} fill="var(--lf-muted)">
+            {fmtK(val)}
+          </text>
+        </g>
+      ))}
       {slice.map((d, i) => {
         const incomeH = (d.income / maxVal) * chartH;
         const expH = (d.expenses / maxVal) * chartH;
-        const gx = i * groupW;
+        const gx = i * groupW + yAxisW;
         const labelX = gx + groupW / 2 - 2;
         const isHov = hovered === i;
         return (
@@ -216,22 +239,22 @@ function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
             {/* Month label */}
             <text
               x={labelX}
-              y={chartH + 16}
+              y={chartH + 17}
               textAnchor="middle"
               fontFamily="JetBrains Mono, monospace"
-              fontSize={8}
+              fontSize={10}
               fill={isHov ? 'var(--lf-ink)' : 'var(--lf-muted)'}
             >
-              {d.month.slice(0, 3)}
+              {monthAbbrev(d.month)}
             </text>
             {/* Tooltip */}
             {isHov && (
               <g>
-                <rect x={Math.min(gx - 8, totalW - 130)} y={chartH + 22} width={128} height={28} rx={5} fill="var(--lf-ink)" />
-                <text x={Math.min(gx - 8, totalW - 130) + 8} y={chartH + 33} fontFamily="JetBrains Mono, monospace" fontSize="8" fill="var(--lf-pos)">
+                <rect x={Math.min(gx - 8, totalW - 140)} y={chartH + 24} width={138} height={32} rx={5} fill="var(--lf-ink)" />
+                <text x={Math.min(gx - 8, totalW - 140) + 10} y={chartH + 37} fontFamily="JetBrains Mono, monospace" fontSize="10" fill="var(--lf-pos)">
                   in {fmtK(d.income)}
                 </text>
-                <text x={Math.min(gx - 8, totalW - 130) + 8} y={chartH + 44} fontFamily="JetBrains Mono, monospace" fontSize="8" fill="var(--lf-sauce)">
+                <text x={Math.min(gx - 8, totalW - 140) + 10} y={chartH + 50} fontFamily="JetBrains Mono, monospace" fontSize="10" fill="var(--lf-sauce)">
                   out {fmtK(d.expenses)}  net {d.net >= 0 ? '+' : ''}{fmtK(d.net)}
                 </text>
               </g>
@@ -250,7 +273,7 @@ function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
 const S = {
   eyebrow: {
     fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: '0.14em',
     textTransform: 'uppercase' as const,
     color: 'var(--lf-muted)',
@@ -320,6 +343,9 @@ export function Spending() {
 
   // Refresh counter
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Inline category editing
+  const [editingTxId, setEditingTxId] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -411,7 +437,6 @@ export function Spending() {
   // Derived
   const totalPages = Math.max(1, Math.ceil(txTotal / PAGE_SIZE));
 
-  // DATA-NEEDED: savings rate — not returned by getSpendingSummary; compute from income/spending
   const savingsRate = totalIncome > 0 ? Math.max(0, ((totalIncome - totalSpending) / totalIncome) * 100) : null;
 
   const prevMonth = useCallback(() => {
@@ -424,7 +449,7 @@ export function Spending() {
   }, []);
 
   const spendingCategories = useMemo(
-    () => categories.filter((c) => c.category !== 'income'),
+    () => categories.filter((c) => c.category !== 'income' && c.category !== 'transfer'),
     [categories],
   );
 
@@ -445,8 +470,12 @@ export function Spending() {
 
   return (
     <div
-      style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 32px)', paddingBottom: 'clamp(80px, 12vw, 48px)', background: 'var(--lf-cream)', minHeight: '100%' }}
+      style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 32px)', paddingBottom: 'clamp(80px, 12vw, 48px)', background: 'var(--lf-paper)', minHeight: '100%' }}
     >
+      <style>{`
+        @media (max-width: 600px) { .spend-hero-grid { grid-template-columns: 1fr 1fr !important; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
       {/* ------------------------------------------------------------------ */}
       {/* Page Header                                                          */}
       {/* ------------------------------------------------------------------ */}
@@ -492,92 +521,102 @@ export function Spending() {
               <ChevronRight size={14} />
             </button>
 
-            {/* Sync button */}
+            {/* Sync buttons */}
             {import.meta.env.VITE_DEMO_MODE !== 'true' && (
-              <button
-                onClick={async () => {
-                  setSyncing(true);
-                  await api.triggerSync().catch(console.error);
-                  setTimeout(() => { loadData(); setSyncing(false); }, 3000);
-                }}
-                disabled={syncing}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  height: 32, padding: '0 12px', borderRadius: 8,
-                  border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
-                  color: 'var(--lf-muted)', fontSize: 12,
-                  fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.04em',
-                  cursor: syncing ? 'not-allowed' : 'pointer', opacity: syncing ? 0.5 : 1,
-                }}
-              >
-                <RefreshCw size={12} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
-                {syncing ? 'Syncing...' : 'Sync'}
-              </button>
+              <>
+                <button
+                  onClick={async () => {
+                    setSyncing(true);
+                    await api.triggerSync().catch(console.error);
+                    setTimeout(() => { loadData(); setSyncing(false); }, 3000);
+                  }}
+                  disabled={syncing}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    height: 32, padding: '0 12px', borderRadius: 8,
+                    border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                    color: 'var(--lf-muted)', fontSize: 13,
+                    fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.04em',
+                    cursor: syncing ? 'not-allowed' : 'pointer', opacity: syncing ? 0.5 : 1,
+                  }}
+                >
+                  <RefreshCw size={12} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
+                  {syncing ? 'Syncing...' : 'Sync'}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm('This will re-fetch all historical transactions from Plaid and re-apply categorization rules. Continue?')) return;
+                    setSyncing(true);
+                    await api.triggerResync().catch(console.error);
+                    setTimeout(() => { loadData(); setSyncing(false); }, 8000);
+                  }}
+                  disabled={syncing}
+                  title="Re-fetch all transactions and re-apply categorization rules"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    height: 32, padding: '0 12px', borderRadius: 8,
+                    border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                    color: 'var(--lf-muted)', fontSize: 13,
+                    fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.04em',
+                    cursor: syncing ? 'not-allowed' : 'pointer', opacity: syncing ? 0.5 : 1,
+                  }}
+                >
+                  <RefreshCw size={12} />
+                  Resync all
+                </button>
+              </>
             )}
           </div>
         </div>
       </motion.div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* 4 Mini Stat Cards                                                    */}
+      {/* Dark Hero — Spending KPIs                                            */}
       {/* ------------------------------------------------------------------ */}
-      {(!hasLinkedAccounts || (!loadingSummary && (totalSpending > 0 || totalIncome > 0))) && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.07 }}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: 12,
-            marginBottom: 28,
-          }}
-        >
-          {/* Total Spent */}
-          <div style={{ ...S.card, padding: '16px 18px' }}>
-            <div style={{ ...S.eyebrow, marginBottom: 6 }}>Total spent</div>
-            <div style={{ ...S.serif, fontSize: 26, color: 'var(--lf-sauce)', lineHeight: 1 }}>
-              {loadingSummary ? <Loader2 size={16} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} /> : formatCurrency(totalSpending)}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05, duration: 0.4 }}
+        style={{
+          background: 'var(--lf-ink)', color: 'var(--lf-paper)',
+          borderRadius: 14, padding: 'clamp(20px, 4vw, 32px)', marginBottom: 20,
+        }}
+      >
+        <div className="spend-hero-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1.6fr) repeat(3, minmax(80px, 1fr))', gap: 24, alignItems: 'end' }}>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>
+              Total spent · {monthLabel(currentMonth)}
+            </div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 64, letterSpacing: '-0.03em', lineHeight: 1, color: 'var(--lf-paper)' }}>
+              {loadingSummary ? '—' : formatCurrency(totalSpending)}
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-cheese)', marginTop: 10 }}>
+              {spendingCategories.length > 0 ? `${spendingCategories.length} categories tracked` : 'no transactions yet'}
             </div>
           </div>
-
-          {/* Total Income */}
-          <div style={{ ...S.card, padding: '16px 18px' }}>
-            <div style={{ ...S.eyebrow, marginBottom: 6 }}>Total income</div>
-            <div style={{ ...S.serif, fontSize: 26, color: 'var(--lf-pos)', lineHeight: 1 }}>
-              {loadingSummary ? <Loader2 size={16} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} /> : formatCurrency(totalIncome)}
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>Income</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, letterSpacing: '-0.02em', color: 'var(--lf-paper)' }}>
+              {loadingSummary ? '—' : formatCurrency(totalIncome)}
             </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 6 }}>this month</div>
           </div>
-
-          {/* Net Cash Flow */}
-          <div style={{ ...S.card, padding: '16px 18px' }}>
-            <div style={{ ...S.eyebrow, marginBottom: 6 }}>Net cash flow</div>
-            <div style={{
-              ...S.serif, fontSize: 26, lineHeight: 1,
-              color: netCashFlow >= 0 ? 'var(--lf-pos)' : 'var(--lf-sauce)',
-            }}>
-              {loadingSummary
-                ? <Loader2 size={16} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} />
-                : `${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>Net flow</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, letterSpacing: '-0.02em', color: netCashFlow >= 0 ? '#9FD18E' : '#E89070' }}>
+              {loadingSummary ? '—' : `${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
             </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 6 }}>{netCashFlow >= 0 ? 'surplus' : 'deficit'}</div>
           </div>
-
-          {/* Savings Rate */}
-          <div style={{ ...S.card, padding: '16px 18px' }}>
-            <div style={{ ...S.eyebrow, marginBottom: 6 }}>Savings rate</div>
-            <div style={{
-              ...S.serif, fontSize: 26, lineHeight: 1,
-              color: savingsRate !== null && savingsRate > 0 ? 'var(--lf-pos)' : 'var(--lf-muted)',
-            }}>
-              {loadingSummary
-                ? <Loader2 size={16} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} />
-                : savingsRate !== null
-                  ? `${savingsRate.toFixed(0)}%`
-                  : 'No data yet'}
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>Savings rate</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, letterSpacing: '-0.02em', color: savingsRate !== null && savingsRate >= 20 ? '#9FD18E' : savingsRate !== null && savingsRate > 0 ? 'var(--lf-cheese)' : '#D4C6B0' }}>
+              {loadingSummary ? '—' : savingsRate !== null ? `${savingsRate.toFixed(0)}%` : '—'}
             </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 6 }}>of income</div>
           </div>
-        </motion.div>
-      )}
+        </div>
+      </motion.div>
 
       {/* No-data state for users who have linked accounts but no transactions */}
       {!loadingSummary && totalSpending === 0 && totalIncome === 0 && hasLinkedAccounts && (
@@ -663,13 +702,13 @@ export function Spending() {
                         width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
                         background: display.color,
                       }} />
-                      <span style={{ flex: 1, fontSize: 12, color: 'var(--lf-ink)', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ flex: 1, fontSize: 13, color: 'var(--lf-ink)', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {display.label}
                       </span>
-                      <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink-soft)', flexShrink: 0 }}>
+                      <span style={{ fontSize: 13, fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink-soft)', flexShrink: 0 }}>
                         {formatCurrency(Math.abs(cat.total))}
                       </span>
-                      <span style={{ fontSize: 11, color: 'var(--lf-muted)', flexShrink: 0, marginLeft: 4, fontFamily: "'JetBrains Mono', monospace" }}>
+                      <span style={{ fontSize: 13, color: 'var(--lf-muted)', flexShrink: 0, marginLeft: 4, fontFamily: "'JetBrains Mono', monospace" }}>
                         {cat.percentage.toFixed(0)}%
                       </span>
                     </button>
@@ -680,7 +719,7 @@ export function Spending() {
                     onClick={() => setShowAllCategories((v) => !v)}
                     style={{
                       width: '100%', padding: '4px 8px', marginTop: 2,
-                      fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 13, fontFamily: "'JetBrains Mono', monospace",
                       color: 'var(--lf-muted)', background: 'none', border: 'none',
                       cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
                     }}
@@ -700,11 +739,11 @@ export function Spending() {
           <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--lf-pos)', display: 'inline-block' }} />
-              <span style={{ ...S.eyebrow, fontSize: 10 }}>Income</span>
+              <span style={{ ...S.eyebrow, fontSize: 13 }}>Income</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--lf-sauce)', display: 'inline-block' }} />
-              <span style={{ ...S.eyebrow, fontSize: 10 }}>Expenses</span>
+              <span style={{ ...S.eyebrow, fontSize: 13 }}>Expenses</span>
             </div>
           </div>
 
@@ -750,7 +789,7 @@ export function Spending() {
               style={{
                 height: 34, padding: '0 10px', borderRadius: 8,
                 border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
-                color: 'var(--lf-ink)', fontSize: 12,
+                color: 'var(--lf-ink)', fontSize: 13,
                 fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
                 appearance: 'none',
               }}
@@ -775,7 +814,7 @@ export function Spending() {
                 style={{
                   height: 34, padding: '0 32px 0 30px', borderRadius: 8,
                   border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
-                  color: 'var(--lf-ink)', fontSize: 12, width: 200,
+                  color: 'var(--lf-ink)', fontSize: 13, width: 200,
                   fontFamily: "'JetBrains Mono', monospace",
                   outline: 'none',
                 }}
@@ -804,7 +843,7 @@ export function Spending() {
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '3px 10px', borderRadius: 20,
                 background: 'var(--lf-cream-deep)', border: '1px solid var(--lf-rule)',
-                fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 13, fontFamily: "'JetBrains Mono', monospace",
                 color: 'var(--lf-ink-soft)', letterSpacing: '0.06em',
               }}>
                 {getCategoryDisplay(selectedCategory).label}
@@ -818,7 +857,7 @@ export function Spending() {
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '3px 10px', borderRadius: 20,
                 background: 'var(--lf-cream-deep)', border: '1px solid var(--lf-rule)',
-                fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 13, fontFamily: "'JetBrains Mono', monospace",
                 color: 'var(--lf-ink-soft)',
               }}>
                 &ldquo;{debouncedSearch}&rdquo;
@@ -844,9 +883,10 @@ export function Spending() {
           <div>
             {transactions.map((tx, idx) => {
               const amount = parseFloat(tx.amount);
-              const isIncome = amount > 0;
+              const isIncome = amount < 0;
               const display = getCategoryDisplay(tx.category);
               const dateStr = new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const isEditing = editingTxId === tx.id;
 
               return (
                 <div
@@ -868,22 +908,52 @@ export function Spending() {
                     <div style={{ fontSize: 13, color: 'var(--lf-ink)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {tx.merchantName || tx.name}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--lf-muted)', fontFamily: "'JetBrains Mono', monospace", marginTop: 1 }}>
+                    <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontFamily: "'JetBrains Mono', monospace", marginTop: 1 }}>
                       {dateStr}
                     </div>
                   </div>
 
-                  {/* Category badge */}
-                  <span style={{
-                    display: 'none',
-                    fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
-                    padding: '2px 8px', borderRadius: 20, flexShrink: 0,
-                    background: 'var(--lf-cream-deep)', color: 'var(--lf-muted)',
-                    letterSpacing: '0.06em', textTransform: 'uppercase',
-                    // shown on sm+ via media query not possible in inline styles, so we conditionally render it
-                  } as React.CSSProperties}>
-                    {display.label}
-                  </span>
+                  {/* Category badge / editor */}
+                  {isEditing ? (
+                    <select
+                      autoFocus
+                      value={tx.category}
+                      onBlur={() => setEditingTxId(null)}
+                      onChange={async (e) => {
+                        const newCat = e.target.value;
+                        setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, category: newCat } : t));
+                        setEditingTxId(null);
+                        await api.updateTransactionCategory(tx.id, newCat).catch(console.error);
+                        setRefreshKey(k => k + 1);
+                      }}
+                      style={{
+                        height: 28, padding: '0 6px', borderRadius: 6,
+                        border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                        color: 'var(--lf-ink)', fontSize: 12,
+                        fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+                        <option key={key} value={key}>{cfg.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <button
+                      onClick={() => setEditingTxId(tx.id)}
+                      title="Click to recategorize"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '3px 8px', borderRadius: 6, flexShrink: 0,
+                        border: '1px solid var(--lf-rule)', background: 'var(--lf-cream)',
+                        color: 'var(--lf-ink-soft)', fontSize: 12,
+                        fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      {display.icon} {display.label}
+                    </button>
+                  )}
 
                   {/* Amount */}
                   <span style={{
@@ -892,7 +962,7 @@ export function Spending() {
                     color: isIncome ? 'var(--lf-pos)' : 'var(--lf-sauce)',
                     fontWeight: 600,
                   }}>
-                    {isIncome ? '+' : ''}{formatCurrencyExact(amount)}
+                    {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
                   </span>
                 </div>
               );
@@ -906,7 +976,7 @@ export function Spending() {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--lf-rule)',
           }}>
-            <span style={{ ...S.eyebrow, fontSize: 10 }}>
+            <span style={{ ...S.eyebrow, fontSize: 13 }}>
               {(txPage - 1) * PAGE_SIZE + 1}&ndash;{Math.min(txPage * PAGE_SIZE, txTotal)} of {txTotal}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -923,7 +993,7 @@ export function Spending() {
               >
                 <ChevronLeft size={13} />
               </button>
-              <span style={{ ...S.eyebrow, fontSize: 10, minWidth: 60, textAlign: 'center' }}>
+              <span style={{ ...S.eyebrow, fontSize: 13, minWidth: 60, textAlign: 'center' }}>
                 {txPage} / {totalPages}
               </span>
               <button

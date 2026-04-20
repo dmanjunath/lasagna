@@ -1,78 +1,128 @@
 ---
 const steps = [
   {
-    number: "01",
-    title: "Your data stays in your vault",
-    description:
-      "Connect bank accounts via Plaid or enter balances manually. All your financial data — accounts, holdings, transactions — lives in your private database. Self-hosted on your own server, or on our infrastructure. Nothing leaves without your intent.",
-    svg: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="8" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
-      <path d="M7 8V6a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      <circle cx="10" cy="13" r="1.5" fill="currentColor"/>
-    </svg>`,
+    num: "01",
+    title: "Your data in your vault",
+    desc: "Connect via Plaid or enter balances manually. Accounts, holdings, and transactions live in your private Postgres — on your server or ours.",
   },
   {
-    number: "02",
-    title: "You ask a question",
-    description:
-      "Ask anything in plain English — \"Am I saving enough for retirement?\" or \"Should I pay down debt or invest?\" Lasagna pulls the relevant numbers from your database and assembles context for the AI.",
-    svg: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H7l-4 3V5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-    </svg>`,
+    num: "02",
+    title: "Ask a plain question",
+    desc: '"Am I saving enough?" or "Pay down debt or invest?" LasagnaFi assembles the relevant context from your database.',
   },
   {
-    number: "03",
-    title: "The AI gets anonymous context",
-    description:
-      "Before anything reaches the model, identifying information is stripped. The AI sees numbers, allocations, and patterns — never your name, account numbers, or which bank you use. Your data is not used for training.",
-    svg: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/>
-      <path d="M7 10c0-1.7 1.3-3 3-3s3 1.3 3 3-1.3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      <line x1="4" y1="4" x2="16" y2="16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>`,
+    num: "03",
+    title: "Context is anonymized",
+    desc: "Identifying fields are stripped before the request leaves your machine. The model sees balances, allocations, and spending patterns.",
   },
   {
-    number: "04",
-    title: "You get a real answer",
-    description:
-      "Claude — powered by your own API key — responds with personalized, actionable advice based on your actual numbers. You can drill down, follow up, and ask anything. The model never retains your data between sessions.",
-    svg: `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M10 3l1.8 5.5H17l-4.6 3.4 1.8 5.5L10 14l-4.2 3.4 1.8-5.5L3 8.5h5.2L10 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-    </svg>`,
+    num: "04",
+    title: "Advice from real numbers",
+    desc: "Get personalized, actionable answers — drill down, follow up, run projections. Nothing is retained between sessions.",
   },
 ];
 ---
 
-<section class="relative border-t border-white/[0.06] px-6 pb-24 pt-20" style="background: linear-gradient(to bottom, rgb(12,12,18) 0%, rgb(8,8,12) 100%);">
-  <div class="mx-auto max-w-5xl">
-    <p class="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[rgb(0,229,160)]">
-      How it works
-    </p>
-    <h2 class="mb-16 text-2xl font-bold tracking-[-0.02em] text-[rgb(228,228,240)] sm:text-3xl">
-      Financial AI without the privacy trade-off.
-    </h2>
+<section id="how">
+  <div class="inner">
+    <div class="section-head">
+      <h2 class="serif">Four steps. <em>Nothing hidden.</em></h2>
+      <p>A simple loop: connect accounts, ask a question, see the scrubbed context, get an answer built from your real numbers.</p>
+    </div>
 
-    <div class="grid gap-px border border-white/[0.06] sm:grid-cols-2" style="background: rgba(255,255,255,0.04);">
-      {steps.map((step, i) => (
-        <div class={`bg-[rgb(11,11,17)] p-8 ${i % 2 === 0 ? "sm:border-r border-white/[0.06]" : ""} ${i < 2 ? "border-b border-white/[0.06]" : ""}`}>
-          <div class="mb-5 flex items-center gap-3">
-            <span class="text-[11px] font-semibold tabular-nums text-[rgb(0,229,160)]">{step.number}</span>
-            <div class="text-[rgb(148,160,176)]" set:html={step.svg} />
-          </div>
-          <h3 class="mb-3 text-[15px] font-semibold text-[rgb(228,228,240)]">{step.title}</h3>
-          <p class="text-sm leading-relaxed text-[rgb(90,96,112)]">{step.description}</p>
+    <div class="steps">
+      {steps.map((s) => (
+        <div class="step">
+          <div class="num">{s.num}</div>
+          <h3 class="serif">{s.title}</h3>
+          <p>{s.desc}</p>
         </div>
       ))}
     </div>
-
-    <!-- Key callout -->
-    <div class="mt-8 rounded-lg border border-white/[0.06] bg-[rgb(11,11,17)] px-6 py-5">
-      <p class="text-sm leading-relaxed text-[rgb(90,96,112)]">
-        <span class="font-semibold text-[rgb(148,160,176)]">Your API key, your pipeline.</span>
-        {" "}Lasagna routes AI requests through your own OpenRouter or Anthropic key.
-        Anthropic may see your queries under their standard API terms — but Lasagna never does.
-        No intermediary sees both your identity and your financial data at the same time.
-      </p>
-    </div>
   </div>
 </section>
+
+<style>
+  section {
+    border-top: 1px solid var(--rule);
+  }
+
+  .inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 96px 32px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 48px;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  h2 em { font-style: italic; color: var(--sauce); }
+
+  .section-head p {
+    max-width: 360px;
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--rule);
+  }
+
+  .step {
+    padding: 32px 24px 32px 0;
+    border-right: 1px solid var(--rule);
+  }
+
+  .step:last-child { border-right: 0; }
+
+  .num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--sauce);
+    letter-spacing: 0.14em;
+    margin-bottom: 14px;
+  }
+
+  h3 {
+    font-size: 24px;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+    font-weight: 400;
+  }
+
+  p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  @media (max-width: 860px) {
+    .steps { grid-template-columns: 1fr 1fr; }
+    .step { border-right: 0; border-bottom: 1px solid var(--rule); padding: 24px 0; }
+    .step:nth-child(odd) { padding-right: 16px; }
+    .inner { padding: 64px 20px; }
+  }
+
+  @media (max-width: 540px) {
+    .steps { grid-template-columns: 1fr; }
+  }
+</style>

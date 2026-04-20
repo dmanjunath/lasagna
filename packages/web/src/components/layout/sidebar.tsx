@@ -30,7 +30,7 @@ const NAV: NavEntry[] = [
   { id: 'priorities', label: 'Layers',     icon: Layers,          path: '/priorities' },
   { section: 'WEALTH' },
   { id: 'retirement', label: 'Retirement', icon: TrendingUp,      path: '/retirement' },
-  { id: 'portfolio',  label: 'Portfolio',  icon: PieChart,        path: '/invest' },
+  { id: 'portfolio',  label: 'Portfolio',  icon: PieChart,        path: '/portfolio' },
   { id: 'spending',   label: 'Spending',   icon: CreditCard,      path: '/spending' },
   { id: 'debt',       label: 'Debt',       icon: AlertCircle,     path: '/debt' },
   { id: 'tax',        label: 'Tax',        icon: Receipt,         path: '/tax' },
@@ -104,7 +104,7 @@ export function Sidebar({ className }: SidebarProps) {
             return (
               <div key={i} style={{
                 fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 10, letterSpacing: '0.14em',
+                fontSize: 13, letterSpacing: '0.14em',
                 textTransform: 'uppercase', color: 'var(--lf-muted)',
                 padding: '0 8px', margin: '20px 0 8px',
               }}>
@@ -175,6 +175,8 @@ export function Sidebar({ className }: SidebarProps) {
 
         <button
           onClick={() => setUserMenuOpen(!userMenuOpen)}
+          aria-haspopup="menu"
+          aria-expanded={userMenuOpen}
           style={{
             width: '100%', background: 'var(--lf-paper)',
             border: '1px solid var(--lf-rule)', borderRadius: 10,
@@ -193,18 +195,18 @@ export function Sidebar({ className }: SidebarProps) {
           </div>
           <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
             <div style={{
-              fontWeight: 500, color: 'var(--lf-ink)', fontSize: 12,
+              fontWeight: 500, color: 'var(--lf-ink)', fontSize: 13,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               fontFamily: "'Geist', system-ui, sans-serif",
             }}>
               {firstName}
             </div>
-            <div style={{ color: 'var(--lf-muted)', fontSize: 11, marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
+            <div style={{ color: 'var(--lf-muted)', fontSize: 13, marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
               {tenant?.plan === 'pro' ? 'pro plan' : 'self-hosted'} · sync ✓
             </div>
           </div>
           <span style={{
-            color: 'var(--lf-muted)', fontSize: 11,
+            color: 'var(--lf-muted)', fontSize: 13,
             transform: userMenuOpen ? 'rotate(180deg)' : 'none',
             transition: 'transform 0.15s',
             display: 'inline-block',

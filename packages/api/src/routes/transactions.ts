@@ -71,6 +71,31 @@ transactionRoutes.get("/", async (c) => {
   });
 });
 
+// PATCH /:id - Update a transaction's category
+transactionRoutes.patch("/:id", async (c) => {
+  const session = c.get("session");
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const { category } = body;
+
+  const valid = [
+    "income", "housing", "transportation", "food_dining", "groceries",
+    "utilities", "healthcare", "insurance", "entertainment", "shopping",
+    "personal_care", "education", "travel", "subscriptions",
+    "savings_investment", "debt_payment", "gifts_donations", "taxes",
+    "transfer", "other",
+  ];
+  if (!valid.includes(category)) {
+    return c.json({ error: "Invalid category" }, 400);
+  }
+
+  await db.update(transactions)
+    .set({ category })
+    .where(and(eq(transactions.id, id), eq(transactions.tenantId, session.tenantId)));
+
+  return c.json({ success: true });
+});
+
 // GET /spending-summary - Spending by category for a date range
 transactionRoutes.get("/spending-summary", async (c) => {
   const session = c.get("session");

@@ -58,7 +58,7 @@ function AppRoutes() {
                 <Route path="/spending" component={Spending} />
                 <Route path="/goals" component={Goals} />
                 <Route path="/debt" component={Debt} />
-                <Route path="/invest" component={PortfolioComposition} />
+                <Route path="/portfolio" component={PortfolioComposition} />
                 <Route path="/tax" component={TaxStrategy} />
                 <Route path="/profile" component={Settings} />
                 <Route path="/plans" component={PlansPage} />
@@ -76,7 +76,7 @@ function AppRoutes() {
 
                 {/* Redirects */}
                 <Route path="/login"><Redirect to="/" /></Route>
-                <Route path="/portfolio"><Redirect to="/invest" /></Route>
+
                 <Route path="/tax-history"><Redirect to="/tax" /></Route>
                 <Route path="/settings"><Redirect to="/profile" /></Route>
 

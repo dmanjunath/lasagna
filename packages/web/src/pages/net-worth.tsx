@@ -14,17 +14,17 @@ import { Button } from '../components/ui/button';
 import { Section } from '../components/common/section';
 
 type ChartType = 'donut' | 'bar' | 'treemap';
-type GroupingLevel = 'assetClass' | 'subCategory' | 'holding';
+type GroupingLevel = 'assetClass' | 'category' | 'holding';
 
 interface AssetClass {
   name: string;
   value: number;
   percentage: number;
   color: string;
-  subCategories: SubCategory[];
+  categories: Category[];
 }
 
-interface SubCategory {
+interface Category {
   name: string;
   value: number;
   percentage: number;
@@ -64,7 +64,7 @@ const COLORS = [
 
 const GROUPING_LABELS: Record<GroupingLevel, string> = {
   assetClass: 'Asset Class',
-  subCategory: 'Sub-Category',
+  category: 'Category',
   holding: 'Individual Holdings',
 };
 
@@ -118,7 +118,7 @@ export function NetWorth() {
             name: ac.name,
             value: ac.value,
             percentage: ac.percentage,
-            subCategories: ac.subCategories.map(sc => ({
+            categories: ac.categories.map(sc => ({
               name: sc.name,
               value: sc.value,
               percentage: sc.percentage,
@@ -189,7 +189,7 @@ export function NetWorth() {
   const holdingsByTicker = useMemo(() => {
     const tickerMap = new Map<string, { holdings: Holding[]; totalValue: number; totalShares: number }>();
     for (const ac of assetClasses) {
-      for (const sc of ac.subCategories) {
+      for (const sc of ac.categories) {
         for (const h of sc.holdings) {
           const existing = tickerMap.get(h.ticker);
           if (existing) {
@@ -216,11 +216,11 @@ export function NetWorth() {
       .sort((a, b) => b.totalValue - a.totalValue);
   }, [assetClasses, totalValue]);
 
-  const allSubCategories = useMemo(() => {
+  const allCategories = useMemo(() => {
     const result: { name: string; value: number; percentage: number; color: string; holdings: Holding[] }[] = [];
     let colorIndex = 0;
     for (const ac of assetClasses) {
-      for (const sc of ac.subCategories) {
+      for (const sc of ac.categories) {
         result.push({
           name: sc.name,
           value: sc.value,
@@ -242,7 +242,7 @@ export function NetWorth() {
         const allHoldings: { name: string; value: number; percentage: number; color: string }[] = [];
         const acTotal = assetClass?.value || 0;
         let colorIndex = 0;
-        for (const sc of assetClass?.subCategories || []) {
+        for (const sc of assetClass?.categories || []) {
           for (const h of sc.holdings) {
             allHoldings.push({
               name: h.ticker,
@@ -263,18 +263,18 @@ export function NetWorth() {
       }));
     }
 
-    if (groupingLevel === 'subCategory') {
+    if (groupingLevel === 'category') {
       if (drillLevel1) {
-        const subCategory = allSubCategories.find(sc => sc.name === drillLevel1);
-        const subTotal = subCategory?.holdings.reduce((sum, h) => sum + h.value, 0) || 0;
-        return subCategory?.holdings.map((h, i) => ({
+        const cat = allCategories.find(sc => sc.name === drillLevel1);
+        const subTotal = cat?.holdings.reduce((sum, h) => sum + h.value, 0) || 0;
+        return cat?.holdings.map((h, i) => ({
           name: h.ticker,
           value: h.value,
           percentage: subTotal > 0 ? (h.value / subTotal) * 100 : 0,
           color: COLORS[i % COLORS.length],
         })) || [];
       }
-      return allSubCategories.map(sc => ({
+      return allCategories.map(sc => ({
         name: sc.name,
         value: sc.value,
         percentage: sc.percentage,
@@ -317,7 +317,7 @@ export function NetWorth() {
 
   const getBreadcrumbs = () => {
     const rootLabel = groupingLevel === 'assetClass' ? 'Asset Class'
-      : groupingLevel === 'subCategory' ? 'Sub-Category'
+      : groupingLevel === 'category' ? 'Category'
       : 'Holdings';
     return [
       { label: rootLabel },
@@ -422,7 +422,7 @@ export function NetWorth() {
                 className="bg-transparent text-sm font-medium pr-2 py-1.5 focus:outline-none cursor-pointer"
               >
                 <option value="assetClass">Asset Class</option>
-                <option value="subCategory">Sub-Category</option>
+                <option value="category">Category</option>
                 <option value="holding">Holdings</option>
               </select>
             </div>
@@ -602,7 +602,7 @@ export function NetWorth() {
                     />
                     <span className="font-medium">{assetClass.name}</span>
                     <span className="text-sm text-text-secondary px-2 py-0.5 rounded-full bg-surface-solid">
-                      {assetClass.subCategories.length}
+                      {assetClass.categories.length}
                     </span>
                   </div>
                   <div className="flex items-center gap-4">
@@ -633,26 +633,26 @@ export function NetWorth() {
                     transition={{ duration: 0.2 }}
                     className="border-t border-border bg-bg/30 overflow-hidden"
                   >
-                    {assetClass.subCategories.map((subCategory, j) => (
+                    {assetClass.categories.map((cat, j) => (
                       <motion.div
-                        key={subCategory.name}
+                        key={cat.name}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: j * 0.03 }}
                         className="px-4 md:px-5 py-3 md:py-4"
                       >
                         <div className="flex items-center justify-between mb-2 pl-4 md:pl-6">
-                          <span className="font-medium text-sm">{subCategory.name}</span>
+                          <span className="font-medium text-sm">{cat.name}</span>
                           <div className="flex items-center gap-3">
-                            <span className="text-sm tabular-nums">{formatMoney(subCategory.value)}</span>
+                            <span className="text-sm tabular-nums">{formatMoney(cat.value)}</span>
                             <span className="text-xs text-text-secondary tabular-nums w-12 text-right">
-                              {subCategory.percentage.toFixed(1)}%
+                              {cat.percentage.toFixed(1)}%
                             </span>
                           </div>
                         </div>
                         {/* Holdings */}
                         <div className="pl-4 md:pl-6 space-y-1">
-                          {subCategory.holdings.map((holding) => (
+                          {cat.holdings.map((holding) => (
                             <div
                               key={`${holding.ticker}-${holding.account}`}
                               className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-surface-hover transition-colors"
@@ -683,12 +683,12 @@ export function NetWorth() {
             </motion.div>
           ))}
 
-          {groupingLevel === 'subCategory' && (() => {
-            const subCategories: { name: string; value: number; percentage: number; color: string; holdings: Holding[] }[] = [];
+          {groupingLevel === 'category' && (() => {
+            const categories: { name: string; value: number; percentage: number; color: string; holdings: Holding[] }[] = [];
             let colorIndex = 0;
             for (const ac of assetClasses) {
-              for (const sc of ac.subCategories) {
-                subCategories.push({
+              for (const sc of ac.categories) {
+                categories.push({
                   name: sc.name,
                   value: sc.value,
                   percentage: (sc.value / totalValue) * 100,
@@ -698,40 +698,40 @@ export function NetWorth() {
                 colorIndex++;
               }
             }
-            return subCategories.sort((a, b) => b.value - a.value).map((subCategory, i) => (
+            return categories.sort((a, b) => b.value - a.value).map((cat, i) => (
               <motion.div
-                key={subCategory.name}
+                key={cat.name}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05 * i }}
                 className="glass-card rounded-2xl overflow-hidden"
               >
                 <button
-                  onClick={() => toggleCategory(subCategory.name)}
+                  onClick={() => toggleCategory(cat.name)}
                   className="w-full p-4 md:p-5 text-left hover:bg-surface-hover transition-all duration-200"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span
                         className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: subCategory.color }}
+                        style={{ backgroundColor: cat.color }}
                       />
-                      <span className="font-medium">{subCategory.name}</span>
+                      <span className="font-medium">{cat.name}</span>
                       <span className="text-sm text-text-secondary px-2 py-0.5 rounded-full bg-surface-solid">
-                        {subCategory.holdings.length}
+                        {cat.holdings.length}
                       </span>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <span className="font-display text-lg md:text-xl font-semibold tabular-nums">
-                          {formatMoney(subCategory.value)}
+                          {formatMoney(cat.value)}
                         </span>
                         <span className="text-text-secondary text-sm ml-2">
-                          {subCategory.percentage.toFixed(1)}%
+                          {cat.percentage.toFixed(1)}%
                         </span>
                       </div>
                       <motion.span
-                        animate={{ rotate: expandedCategories[subCategory.name] ? 180 : 0 }}
+                        animate={{ rotate: expandedCategories[cat.name] ? 180 : 0 }}
                         className="text-text-secondary"
                       >
                         ▾
@@ -741,7 +741,7 @@ export function NetWorth() {
                 </button>
 
                 <AnimatePresence>
-                  {expandedCategories[subCategory.name] && (
+                  {expandedCategories[cat.name] && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
@@ -750,7 +750,7 @@ export function NetWorth() {
                       className="border-t border-border bg-bg/30 overflow-hidden px-4 md:px-5 py-3 md:py-4"
                     >
                       <div className="space-y-1">
-                        {subCategory.holdings.map((holding) => (
+                        {cat.holdings.map((holding) => (
                           <div
                             key={`${holding.ticker}-${holding.account}`}
                             className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-surface-hover transition-colors"
@@ -783,7 +783,7 @@ export function NetWorth() {
           {groupingLevel === 'holding' && (() => {
             const tickerMap = new Map<string, { holdings: Holding[]; totalValue: number; totalShares: number }>();
             for (const ac of assetClasses) {
-              for (const sc of ac.subCategories) {
+              for (const sc of ac.categories) {
                 for (const h of sc.holdings) {
                   const existing = tickerMap.get(h.ticker);
                   if (existing) {

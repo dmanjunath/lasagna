@@ -127,7 +127,7 @@ export function GlobalChatSidebar() {
           ...target,
           thread: {
             ...target.thread,
-            answerPreview: response.slice(0, 120),
+            answerPreview: response.slice(0, 300),
           },
           messages: [...target.messages, assistantMsg],
           apiThreadId: threadId,

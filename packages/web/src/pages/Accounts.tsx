@@ -90,7 +90,7 @@ function StatusBadge({ status, lastSyncedAt }: { status: string; lastSyncedAt: s
   return (
     <span style={{
       fontFamily: "'JetBrains Mono', monospace",
-      fontSize: 11, color,
+      fontSize: 13, color,
       letterSpacing: "0.02em",
     }}>
       {prefix} {label}
@@ -104,7 +104,7 @@ function TypePill({ type, subtype }: { type: string; subtype: string | null }) {
       display: "inline-block",
       padding: "2px 8px",
       borderRadius: 20,
-      fontSize: 11,
+      fontSize: 13,
       fontFamily: "'JetBrains Mono', monospace",
       letterSpacing: "0.04em",
       background: "var(--lf-cream-deep)",
@@ -398,7 +398,7 @@ export function Accounts() {
           {/* Eyebrow */}
           <div style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 11, letterSpacing: "0.14em",
+            fontSize: 13, letterSpacing: "0.14em",
             textTransform: "uppercase", color: "var(--lf-muted)",
             marginBottom: 10,
           }}>

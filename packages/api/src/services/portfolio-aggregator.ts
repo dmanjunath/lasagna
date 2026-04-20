@@ -19,7 +19,7 @@ export interface Holding {
   account: string;
 }
 
-export interface SubCategory {
+export interface Category {
   name: string;
   value: number;
   percentage: number;
@@ -31,7 +31,7 @@ export interface AssetClassGroup {
   value: number;
   percentage: number;
   color: string;
-  subCategories: SubCategory[];
+  categories: Category[];
 }
 
 export interface PortfolioComposition {
@@ -46,22 +46,22 @@ export function aggregatePortfolio(holdings: HoldingInput[]): PortfolioCompositi
     return { totalValue: 0, assetClasses: [] };
   }
 
-  // Group by asset class -> sub-category -> holdings
+  // Group by asset class -> category -> holdings
   const assetClassMap = new Map<string, Map<string, Holding[]>>();
 
   for (const holding of holdings) {
-    const category = getTickerCategory(holding.ticker);
+    const tickerCat = getTickerCategory(holding.ticker);
 
-    if (!assetClassMap.has(category.assetClass)) {
-      assetClassMap.set(category.assetClass, new Map());
+    if (!assetClassMap.has(tickerCat.assetClass)) {
+      assetClassMap.set(tickerCat.assetClass, new Map());
     }
 
-    const subCategoryMap = assetClassMap.get(category.assetClass)!;
-    if (!subCategoryMap.has(category.subCategory)) {
-      subCategoryMap.set(category.subCategory, []);
+    const categoryMap = assetClassMap.get(tickerCat.assetClass)!;
+    if (!categoryMap.has(tickerCat.category)) {
+      categoryMap.set(tickerCat.category, []);
     }
 
-    subCategoryMap.get(category.subCategory)!.push({
+    categoryMap.get(tickerCat.category)!.push({
       ticker: holding.ticker,
       name: holding.name,
       shares: holding.shares,
@@ -74,18 +74,18 @@ export function aggregatePortfolio(holdings: HoldingInput[]): PortfolioCompositi
   // Build structured result
   const assetClasses: AssetClassGroup[] = [];
 
-  for (const [assetClassName, subCategoryMap] of assetClassMap) {
-    const subCategories: SubCategory[] = [];
+  for (const [assetClassName, categoryMap] of assetClassMap) {
+    const categories: Category[] = [];
     let assetClassValue = 0;
 
-    for (const [subCategoryName, holdingsList] of subCategoryMap) {
-      const subCategoryValue = holdingsList.reduce((sum, h) => sum + h.value, 0);
-      assetClassValue += subCategoryValue;
+    for (const [categoryName, holdingsList] of categoryMap) {
+      const categoryValue = holdingsList.reduce((sum, h) => sum + h.value, 0);
+      assetClassValue += categoryValue;
 
-      subCategories.push({
-        name: subCategoryName,
-        value: subCategoryValue,
-        percentage: (subCategoryValue / totalValue) * 100,
+      categories.push({
+        name: categoryName,
+        value: categoryValue,
+        percentage: (categoryValue / totalValue) * 100,
         holdings: holdingsList.sort((a, b) => b.value - a.value),
       });
     }
@@ -95,7 +95,7 @@ export function aggregatePortfolio(holdings: HoldingInput[]): PortfolioCompositi
       value: assetClassValue,
       percentage: (assetClassValue / totalValue) * 100,
       color: ASSET_CLASS_COLORS[assetClassName as AssetClass] || ASSET_CLASS_COLORS['Other'],
-      subCategories: subCategories.sort((a, b) => b.value - a.value),
+      categories: categories.sort((a, b) => b.value - a.value),
     });
   }
 

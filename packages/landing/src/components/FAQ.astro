@@ -1,0 +1,90 @@
+---
+const faqs = [
+  {
+    q: "How can the AI give advice without seeing my data?",
+    a: "It does see your numbers — balances, rates, allocations, spending patterns. What it doesn't see is anything that identifies you: names, bank names, account numbers. Context is assembled locally and scrubbed before the request leaves your machine.",
+  },
+  {
+    q: 'What does "bring your own key" mean?',
+    a: "You pay Anthropic directly for AI usage by adding your Claude API key to LasagnaFi. We don't resell tokens. Your conversation history stays in your own database, not a model provider's logs.",
+  },
+  {
+    q: "If I cancel, what happens to my data?",
+    a: "You get a one-click Postgres dump. If you were self-hosted, nothing changes. If you were on managed hosting, we delete the vault 30 days after export — confirmable cryptographically.",
+  },
+  {
+    q: "Is this really open source?",
+    a: "The core app, scrub layer, tool definitions, and data schema are all on GitHub under a permissive license. The managed infrastructure (deployment, billing, support) is proprietary — standard open-core.",
+  },
+  {
+    q: "Who is this for?",
+    a: "People who want serious personal finance tooling and don't want their household balance sheet sitting in an ad-targeting pipeline. Developers comfortable self-hosting. Anyone who's tired of finance apps that are really data-harvesting apps.",
+  },
+];
+---
+
+<section>
+  <div class="inner">
+    <div class="section-head">
+      <h2 class="serif">Honest answers.</h2>
+    </div>
+
+    {faqs.map((faq) => (
+      <div class="faq-row">
+        <h4 class="serif">{faq.q}</h4>
+        <p>{faq.a}</p>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  section {
+    border-top: 1px solid var(--rule);
+  }
+
+  .inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 96px 32px;
+  }
+
+  .section-head {
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  .faq-row {
+    border-top: 1px solid var(--rule);
+    padding: 28px 0;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 40px;
+  }
+
+  h4 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  p {
+    margin: 0;
+    color: var(--ink-soft);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  @media (max-width: 700px) {
+    .faq-row { grid-template-columns: 1fr; gap: 12px; }
+    .inner { padding: 64px 20px; }
+  }
+</style>
