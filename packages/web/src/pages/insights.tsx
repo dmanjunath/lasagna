@@ -448,7 +448,8 @@ export function Insights() {
       style={{
         maxWidth: 720,
         margin: '0 auto',
-        padding: '24px 28px 48px',
+        padding: 'clamp(16px, 4vw, 28px)',
+        paddingBottom: 'clamp(80px, 12vw, 48px)',
       }}
     >
       {/* ------------------------------------------------------------------ */}

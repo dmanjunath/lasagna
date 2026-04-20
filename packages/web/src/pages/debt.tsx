@@ -214,7 +214,7 @@ export function Debt() {
     : 0;
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 28px)', paddingBottom: 'clamp(80px, 12vw, 48px)' }}>
       {loading ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--lf-muted)', padding: '24px 0' }}>
           <Loader2 style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} />
@@ -575,11 +575,12 @@ function DebtRow({
     <div
       style={{
         display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '16px 22px',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: 'clamp(12px, 3vw, 16px) clamp(12px, 3vw, 22px)',
         borderBottom: isLast ? 'none' : '1px solid var(--lf-rule-soft)',
         background: isFirst ? 'rgba(201,84,58,0.03)' : 'transparent',
+        flexWrap: 'wrap',
       }}
     >
       {/* Rank chip */}

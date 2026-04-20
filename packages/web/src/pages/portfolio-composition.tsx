@@ -873,7 +873,7 @@ export default function PortfolioComposition() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '32px 20px' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 32px)', paddingBottom: 'clamp(80px, 12vw, 48px)' }}>
       <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── Page Header ── */}
@@ -1188,10 +1188,12 @@ export default function PortfolioComposition() {
             <p className="lf-eyebrow" style={{ marginBottom: 12 }}>Holdings</p>
           </div>
 
+          <div style={{ overflowX: 'auto' }}>
           {/* Table header */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: '80px 1fr 120px 140px 100px 80px 110px',
+            minWidth: 640,
             gap: 0,
             padding: '10px 24px',
             background: 'var(--lf-cream)',
@@ -1229,6 +1231,7 @@ export default function PortfolioComposition() {
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '80px 1fr 120px 140px 100px 80px 110px',
+                  minWidth: 640,
                   gap: 0,
                   padding: '12px 24px',
                   borderBottom: i < holdingsByTicker.length - 1 ? '1px solid var(--lf-rule)' : 'none',
@@ -1287,6 +1290,7 @@ export default function PortfolioComposition() {
               </div>
             );
           })}
+          </div>
         </motion.div>
 
         {/* ── Breakdown accordion (grouped by current groupBy) ── */}

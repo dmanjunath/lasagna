@@ -960,12 +960,19 @@ export function Priorities() {
     <div style={{
       flex: 1,
       overflowY: 'auto',
-      padding: '28px 24px 48px',
+      padding: 'clamp(16px, 4vw, 28px)',
+      paddingBottom: 'clamp(80px, 12vw, 48px)',
       maxWidth: 1100,
       margin: '0 auto',
       width: '100%',
       boxSizing: 'border-box',
     }}>
+      <style>{`
+        @media (max-width: 640px) {
+          .prio-main-grid { grid-template-columns: 1fr !important; }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
 
       {/* ── Page Header ── */}
       <motion.div
@@ -998,7 +1005,7 @@ export function Priorities() {
       <SummaryStrip summary={summary} />
 
       {/* ── Two-column grid ── */}
-      <div style={{
+      <div className="prio-main-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)',
         gap: 20,

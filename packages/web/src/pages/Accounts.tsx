@@ -381,7 +381,8 @@ export function Accounts() {
   return (
     <div style={{
       flex: 1, overflowY: "auto",
-      padding: "40px 32px",
+      padding: "clamp(16px, 4vw, 40px)",
+      paddingBottom: "clamp(80px, 12vw, 40px)",
       background: "var(--lf-paper)",
       minHeight: "100vh",
     }}>

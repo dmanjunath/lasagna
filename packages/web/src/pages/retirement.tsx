@@ -361,7 +361,7 @@ function SimulateView({
   return (
     <>
       {/* Success overview strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div className="ret-simulate-strip" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 16, marginBottom: 20 }}>
         <Card style={{ padding: 20 }}>
           <Eyebrow>Success rate · p(not running out)</Eyebrow>
           <div style={{
@@ -411,7 +411,7 @@ function SimulateView({
             </button>
           ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
+        <div className="ret-withdrawal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28 }}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
               <label style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500, fontFamily: "'Geist', system-ui, sans-serif" }}>
@@ -466,7 +466,7 @@ function SimulateView({
             }}>Custom</span>
           )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 20 }}>
+        <div className="ret-5col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 20 }}>
           {Object.keys(MC_LABELS).map(k => (
             <div key={k}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -508,9 +508,10 @@ function SimulateView({
       {/* Hero success result */}
       <div style={{
         background: 'var(--lf-ink)', border: '1px solid var(--lf-ink)',
-        borderRadius: 14, padding: 40, marginBottom: 20,
+        borderRadius: 14, padding: 'clamp(20px, 4vw, 40px)', marginBottom: 20,
         display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 32, alignItems: 'center',
-      }}>
+      }}
+      className="ret-simulate-hero">
         <div style={{
           width: 100, height: 100, borderRadius: 22,
           background: `rgba(201,84,58,0.15)`,
@@ -524,7 +525,7 @@ function SimulateView({
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>
             Probability of success
           </div>
-          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 88, lineHeight: 1, letterSpacing: '-0.03em', color: successColor }}>
+          <div className="ret-simulate-big" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 88, lineHeight: 1, letterSpacing: '-0.03em', color: successColor }}>
             {successRate}<span style={{ fontSize: 40 }}>%</span>
           </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#D4C6B0', marginTop: 10 }}>
@@ -626,6 +627,7 @@ function SimulateView({
         <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--lf-rule)', fontSize: 12, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
           Unlike Monte Carlo, this runs your plan against <strong>actual market history</strong>. If you'd retired with these numbers in any year since 1928, here's how you'd have fared.
         </div>
+        <div className="ret-backtest-wrap">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--lf-cream)' }}>
@@ -659,6 +661,7 @@ function SimulateView({
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
     </>
   );
@@ -803,10 +806,25 @@ export function Retirement() {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)' }} className="scrollbar-thin">
-      <div style={{ padding: '24px 28px 48px', maxWidth: 1100, margin: '0 auto' }}>
+      <style>{`
+        @media (max-width: 640px) {
+          .ret-hero-grid { grid-template-columns: 1fr !important; }
+          .ret-3col { grid-template-columns: 1fr !important; }
+          .ret-readiness-grid { grid-template-columns: 1fr !important; }
+          .ret-simulate-strip { grid-template-columns: 1fr !important; }
+          .ret-5col { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important; }
+          .ret-withdrawal-grid { grid-template-columns: 1fr !important; }
+          .ret-simulate-hero { grid-template-columns: 1fr !important; }
+          .ret-backtest-wrap { overflow-x: auto; }
+          .ret-hero-big { font-size: 44px !important; }
+          .ret-simulate-big { font-size: 56px !important; }
+          .ret-page-header { flex-direction: column !important; align-items: flex-start !important; }
+        }
+      `}</style>
+      <div style={{ padding: 'clamp(16px, 4vw, 28px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto' }}>
 
         {/* Page header with Plan | Simulate toggle */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+        <div className="ret-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginBottom: 6 }}>
               Retirement · live from your accounts
@@ -837,12 +855,12 @@ export function Retirement() {
           background: 'var(--lf-ink)', border: '1px solid var(--lf-ink)',
           borderRadius: 14, padding: 32, marginBottom: 20,
         }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.6fr) repeat(3, minmax(90px, 1fr))', gap: 24, alignItems: 'end' }}>
+          <div className="ret-hero-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.6fr) repeat(3, minmax(90px, 1fr))', gap: 24, alignItems: 'end' }}>
             <div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>
                 Projected at retirement · age {retirementAge}
               </div>
-              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 64, letterSpacing: '-0.03em', lineHeight: 1, color: 'var(--lf-paper)' }}>
+              <div className="ret-hero-big" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 64, letterSpacing: '-0.03em', lineHeight: 1, color: 'var(--lf-paper)' }}>
                 {formatMoney(portfolioAtRetirement, true)}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)', marginTop: 10 }}>
@@ -895,7 +913,7 @@ export function Retirement() {
 
             {/* Retirement income row */}
             <Eyebrow>At Retirement</Eyebrow>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+            <div className="ret-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
               <Card>
                 <Eyebrow>Projected Portfolio</Eyebrow>
                 <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color: 'var(--lf-pos)', lineHeight: 1 }}>
@@ -926,7 +944,7 @@ export function Retirement() {
 
             {/* Readiness + controls */}
             <Card style={{ marginBottom: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 28, alignItems: 'center' }}>
+              <div className="ret-readiness-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 28, alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                   <ReadinessRing pct={readiness} />
                   <p style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 12, color: 'var(--lf-muted)', textAlign: 'center', lineHeight: 1.5 }}>

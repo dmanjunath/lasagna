@@ -534,7 +534,15 @@ export function Dashboard() {
   }
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 10vw, 48px)', maxWidth: 1400, margin: '0 auto' }}>
+      <style>{`
+        @media (max-width: 640px) {
+          .dash-hero-grid { grid-template-columns: 1fr !important; }
+          .dash-mini-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; }
+          .dash-layers-grid { grid-template-columns: 1fr !important; }
+          .dash-bottom-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
 
       {/* Setup progress — only if incomplete */}
       {!allSetupComplete && (
@@ -604,10 +612,10 @@ export function Dashboard() {
         transition={{ delay: 0.05, duration: 0.4 }}
         style={{
           background: 'var(--lf-ink)', color: 'var(--lf-paper)',
-          borderRadius: 14, padding: 40, marginBottom: 20,
+          borderRadius: 14, padding: 'clamp(20px, 4vw, 40px)', marginBottom: 20,
         }}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center' }}>
+        <div className="dash-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center' }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-cheese)' }}>
               Net Worth · live
@@ -643,7 +651,7 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.4 }}
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}
+        className="dash-mini-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 16, marginBottom: 20 }}
       >
         <MiniCard
           label="Emergency fund"
@@ -676,7 +684,7 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.4 }}
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 20, marginBottom: 20 }}
+        className="dash-layers-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20, marginBottom: 20 }}
       >
         <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
@@ -716,7 +724,7 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.4 }}
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}
+        className="dash-bottom-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}
       >
         {/* Spend Donut */}
         <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 20 }}>

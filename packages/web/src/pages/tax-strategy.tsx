@@ -179,7 +179,8 @@ export function TaxStrategy() {
       style={{
         flex: 1,
         overflowY: "auto",
-        padding: "32px 32px 48px",
+        padding: "clamp(16px, 4vw, 32px)",
+        paddingBottom: "clamp(80px, 12vw, 48px)",
         background: "var(--lf-cream)",
         minHeight: 0,
       }}
