@@ -20,6 +20,7 @@ import { Debt } from './pages/debt';
 import { Spending } from './pages/spending';
 import { Goals } from './pages/goals';
 import { Priorities } from './pages/priorities';
+import { Insights } from './pages/insights';
 import { Onboarding } from './pages/onboarding';
 import { DemoBanner } from './components/common/DemoBanner';
 
@@ -66,8 +67,8 @@ function AppRoutes() {
                 <Route path="/plans/retirement" component={Retirement} />
                 <Route path="/plans/savings/:id" component={SavingsGoal} />
                 <Route path="/priorities" component={Priorities} />
-                <Route path="/actions"><Redirect to="/priorities" /></Route>
-                <Route path="/insights"><Redirect to="/priorities" /></Route>
+                <Route path="/insights" component={Insights} />
+                <Route path="/actions"><Redirect to="/insights" /></Route>
                 <Route path="/retirement" component={Retirement} />
                 <Route path="/probability" component={ProbabilityOfSuccess} />
 

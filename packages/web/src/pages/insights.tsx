@@ -443,11 +443,12 @@ export function Insights() {
     activeFilter === null || activeFilter === 'completed';
 
   return (
+    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)' }} className="scrollbar-thin">
     <div
       style={{
-        maxWidth: 680,
+        maxWidth: 720,
         margin: '0 auto',
-        padding: '24px 16px 48px',
+        padding: '24px 28px 48px',
       }}
     >
       {/* ------------------------------------------------------------------ */}
@@ -948,6 +949,7 @@ export function Insights() {
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
+    </div>
     </div>
   );
 }
