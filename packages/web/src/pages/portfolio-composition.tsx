@@ -1251,9 +1251,9 @@ export default function PortfolioComposition() {
           {/* Table header */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '80px 1fr 120px 140px 100px 80px 110px',
-            minWidth: 640,
-            gap: 0,
+            gridTemplateColumns: '80px 1fr 120px 140px 100px 60px 90px',
+            minWidth: 680,
+            columnGap: 12,
             padding: '10px 24px',
             background: 'var(--lf-cream)',
             borderBottom: '1px solid var(--lf-rule)',

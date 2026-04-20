@@ -27,13 +27,81 @@ const MC_ACCENT: Record<string, string> = {
   us: '#C9543A', intl: '#E6B85C', bonds: '#5A6B3F', reit: '#E8C789', cash: '#8B7E6F',
 };
 
-const HISTORICAL_PERIODS = [
-  { period: '1929–1959', era: 'Great Depression',  result: 'survived', years: 30, final: '$1.8M', stress: '−83% peak DD' },
-  { period: '1966–1996', era: 'Stagflation',       result: 'at risk',  years: 30, final: '$240k',  stress: 'inflation spike' },
-  { period: '1970–2000', era: 'Bear + recovery',   result: 'survived', years: 30, final: '$2.4M', stress: 'stagflation + boom' },
-  { period: '1982–2012', era: 'Long bull',          result: 'survived', years: 30, final: '$6.1M', stress: 'incl. 2008 GFC' },
-  { period: '1994–2024', era: 'Modern era',         result: 'survived', years: 30, final: '$4.8M', stress: 'dotcom + COVID' },
+// Real S&P 500 annual total returns (Damodaran / Ibbotson data)
+const SP500_RETURNS: Record<number, number> = {
+  1928: 0.437, 1929: -0.084, 1930: -0.249, 1931: -0.433, 1932: -0.082, 1933: 0.534,
+  1934: -0.012, 1935: 0.477, 1936: 0.339, 1937: -0.350, 1938: 0.311, 1939: -0.004,
+  1940: -0.098, 1941: -0.116, 1942: 0.203, 1943: 0.259, 1944: 0.198, 1945: 0.364,
+  1946: -0.081, 1947: 0.057, 1948: 0.055, 1949: 0.188, 1950: 0.317, 1951: 0.240,
+  1952: 0.184, 1953: -0.010, 1954: 0.526, 1955: 0.316, 1956: 0.066, 1957: -0.108,
+  1958: 0.434, 1959: 0.120, 1960: 0.005, 1961: 0.269, 1962: -0.087, 1963: 0.228,
+  1964: 0.165, 1965: 0.125, 1966: -0.101, 1967: 0.240, 1968: 0.111, 1969: -0.085,
+  1970: 0.040, 1971: 0.143, 1972: 0.190, 1973: -0.147, 1974: -0.265, 1975: 0.372,
+  1976: 0.238, 1977: -0.072, 1978: 0.066, 1979: 0.184, 1980: 0.324, 1981: -0.049,
+  1982: 0.214, 1983: 0.225, 1984: 0.063, 1985: 0.322, 1986: 0.185, 1987: 0.052,
+  1988: 0.168, 1989: 0.315, 1990: -0.032, 1991: 0.306, 1992: 0.077, 1993: 0.101,
+  1994: 0.013, 1995: 0.376, 1996: 0.230, 1997: 0.334, 1998: 0.286, 1999: 0.210,
+  2000: -0.091, 2001: -0.119, 2002: -0.221, 2003: 0.287, 2004: 0.109, 2005: 0.049,
+  2006: 0.158, 2007: 0.055, 2008: -0.370, 2009: 0.265, 2010: 0.151, 2011: 0.021,
+  2012: 0.160, 2013: 0.324, 2014: 0.137, 2015: 0.014, 2016: 0.120, 2017: 0.218,
+  2018: -0.044, 2019: 0.315, 2020: 0.184, 2021: 0.287, 2022: -0.181, 2023: 0.263,
+  2024: 0.233,
+};
+
+const ERA_LABELS: Array<[number, number, string]> = [
+  [1928, 1932, 'Great Depression'],
+  [1933, 1945, 'WWII recovery'],
+  [1946, 1965, 'Post-war boom'],
+  [1966, 1982, 'Stagflation era'],
+  [1983, 1999, 'Long bull market'],
+  [2000, 2002, 'Dot-com bust'],
+  [2003, 2007, 'Pre-GFC expansion'],
+  [2008, 2009, 'Financial crisis'],
+  [2010, 2019, 'Recovery & bull'],
+  [2020, 2024, 'COVID & rebound'],
 ];
+
+function eraLabel(year: number): string {
+  for (const [start, end, label] of ERA_LABELS) {
+    if (year >= start && year <= end) return label;
+  }
+  return '';
+}
+
+interface BacktestRow {
+  startYear: number;
+  endYear: number;
+  era: string;
+  survived: boolean;
+  finalValue: number;
+  depletedYear?: number;
+  worstYear: number;
+  worstReturn: number;
+}
+
+function runBacktest(
+  startYear: number,
+  horizonYears: number,
+  initialValue: number,
+  annualWithdrawal: number,
+  equityFraction: number,
+): BacktestRow {
+  let value = initialValue;
+  let worstReturn = 1;
+  let worstYear = startYear;
+  for (let i = 0; i < horizonYears; i++) {
+    const yr = startYear + i;
+    const stockRet = SP500_RETURNS[yr] ?? 0.07;
+    const bondRet = yr < 1980 ? 0.035 : yr < 2000 ? 0.065 : 0.04; // rough bond proxy
+    const blended = equityFraction * stockRet + (1 - equityFraction) * bondRet;
+    if (blended < worstReturn) { worstReturn = blended; worstYear = yr; }
+    value = value * (1 + blended) - annualWithdrawal;
+    if (value <= 0) {
+      return { startYear, endYear: startYear + horizonYears - 1, era: eraLabel(startYear), survived: false, finalValue: 0, depletedYear: yr, worstYear, worstReturn };
+    }
+  }
+  return { startYear, endYear: startYear + horizonYears - 1, era: eraLabel(startYear), survived: true, finalValue: Math.round(value), worstYear, worstReturn };
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getExpectedReturn(allocation: Record<string, number>): number {
@@ -372,10 +440,12 @@ function SimulateView({
   retirementAge, setRetirementAge,
   monthlySpend, setMonthlySpend,
   portfolioValue, currentAge, annualSavings,
+  portfolioAtRetirement,
 }: {
   retirementAge: number; setRetirementAge: (v: number) => void;
   monthlySpend: number; setMonthlySpend: (v: number) => void;
   portfolioValue: number; currentAge: number; annualSavings: number;
+  portfolioAtRetirement: number;
 }) {
   const [lifeExp, setLifeExp] = useState(92);
   const [strategy, setStrategy] = useState('constant_dollar');
@@ -405,7 +475,19 @@ function SimulateView({
     [portfolioValue, annualSavings, retirementAge, currentAge, expReturn]
   );
 
-  const survived = HISTORICAL_PERIODS.filter(p => p.result === 'survived').length;
+  const lifeHorizon = Math.max(1, lifeExp - retirementAge);
+  const equityFraction = (mcAlloc.us + mcAlloc.intl + mcAlloc.reit) / Math.max(allocTotal, 1);
+  const annualWithdrawal = monthlySpend * 12;
+  // Generate year-by-year backtest rows for every start year with full data
+  const backtestRows = useMemo(() => {
+    const maxStart = 2024 - lifeHorizon;
+    const rows: BacktestRow[] = [];
+    for (let yr = 1928; yr <= Math.min(maxStart, 2024); yr++) {
+      rows.push(runBacktest(yr, lifeHorizon, portfolioAtRetirement, annualWithdrawal, equityFraction));
+    }
+    return rows;
+  }, [lifeHorizon, portfolioAtRetirement, annualWithdrawal, equityFraction]);
+  const survived = backtestRows.filter(r => r.survived).length;
 
   const strategyDescriptions: Record<string, string> = {
     constant_dollar: 'Withdraw the same real amount each year, regardless of portfolio.',
@@ -434,8 +516,8 @@ function SimulateView({
           label="Retirement age"
           value={retirementAge}
           sub="adjust to stress-test"
-          onInc={() => setRetirementAge(Math.min(75, retirementAge + 1))}
-          onDec={() => setRetirementAge(Math.max(40, retirementAge - 1))}
+          onInc={() => setRetirementAge(Math.min(100, retirementAge + 1))}
+          onDec={() => setRetirementAge(Math.max(currentAge, retirementAge - 1))}
         />
         <EditableStat
           label="Life expectancy"
@@ -672,51 +754,70 @@ function SimulateView({
         </div>
       </Card>
 
-      {/* Historical backtest */}
+      {/* Historical backtest — year by year */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <Eyebrow style={{ marginBottom: 0 }}>Historical backtest · every 30-yr period since 1928</Eyebrow>
+        <Eyebrow style={{ marginBottom: 0 }}>Historical backtest · every start year since 1928</Eyebrow>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--lf-pos)' }}>
-          {survived}/{HISTORICAL_PERIODS.length} survived
+          {survived}/{backtestRows.length} survived
         </span>
       </div>
       <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--lf-rule)', fontSize: 12, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
-          Unlike Monte Carlo, this runs your plan against <strong>actual market history</strong>. If you'd retired with these numbers in any year since 1928, here's how you'd have fared.
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--lf-rule)', fontSize: 12, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
+          Runs your exact numbers ({formatMoney(portfolioAtRetirement, true)} portfolio · {formatMoney(monthlySpend * 12, true)}/yr withdrawal) against <strong>real historical market returns</strong> starting every year since 1928. Horizon = {lifeHorizon} yrs.
         </div>
-        <div className="ret-backtest-wrap">
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: 'var(--lf-cream)' }}>
-              {['Period', 'Era', 'Duration', 'Stress event', 'Final value', 'Verdict'].map(h => (
-                <th key={h} style={{
-                  textAlign: 'left', padding: '12px 24px',
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                  color: 'var(--lf-muted)', textTransform: 'uppercase',
-                  letterSpacing: '0.1em', fontWeight: 500,
-                }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {HISTORICAL_PERIODS.map((p, i) => (
-              <tr key={i} style={{ borderTop: '1px solid var(--lf-rule)' }}>
-                <td style={{ padding: '14px 24px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink)' }}>{p.period}</td>
-                <td style={{ padding: '14px 24px', fontFamily: "'Geist', system-ui, sans-serif", color: 'var(--lf-ink-soft)' }}>{p.era}</td>
-                <td style={{ padding: '14px 24px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink)' }}>{p.years} yrs</td>
-                <td style={{ padding: '14px 24px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-muted)', fontSize: 11 }}>{p.stress}</td>
-                <td style={{ padding: '14px 24px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink)' }}>{p.final}</td>
-                <td style={{ padding: '14px 24px', fontFamily: "'JetBrains Mono', monospace" }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: p.result === 'survived' ? 'var(--lf-pos)' : 'var(--lf-sauce)' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.result === 'survived' ? 'var(--lf-pos)' : 'var(--lf-sauce)' }}></span>
-                    {p.result}
-                  </span>
-                </td>
+        <div className="ret-backtest-wrap" style={{ maxHeight: 380, overflowY: 'auto', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+              <tr style={{ background: 'var(--lf-cream)' }}>
+                {['Start', 'Through', 'Era', 'Worst year', 'Final value', 'Result'].map(h => (
+                  <th key={h} style={{
+                    textAlign: 'left', padding: '10px 16px',
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                    color: 'var(--lf-muted)', textTransform: 'uppercase',
+                    letterSpacing: '0.1em', fontWeight: 500, whiteSpace: 'nowrap',
+                    borderBottom: '1px solid var(--lf-rule)',
+                  }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {backtestRows.map((row) => (
+                <tr key={row.startYear} style={{
+                  borderTop: '1px solid var(--lf-rule)',
+                  background: row.survived ? 'transparent' : 'rgba(201,84,58,0.04)',
+                }}>
+                  <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink)', fontWeight: 600 }}>
+                    {row.startYear}
+                  </td>
+                  <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-muted)', fontSize: 11 }}>
+                    {row.endYear}
+                  </td>
+                  <td style={{ padding: '10px 16px', fontFamily: "'Geist', system-ui, sans-serif", color: 'var(--lf-ink-soft)', whiteSpace: 'nowrap' }}>
+                    {row.era}
+                  </td>
+                  <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, whiteSpace: 'nowrap' }}>
+                    <span style={{ color: row.worstReturn < -0.2 ? 'var(--lf-sauce)' : row.worstReturn < 0 ? 'var(--lf-cheese)' : 'var(--lf-muted)' }}>
+                      {row.worstYear} ({row.worstReturn >= 0 ? '+' : ''}{(row.worstReturn * 100).toFixed(1)}%)
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink)' }}>
+                    {row.survived
+                      ? formatMoney(row.finalValue, true)
+                      : <span style={{ color: 'var(--lf-sauce)' }}>depleted {row.depletedYear}</span>
+                    }
+                  </td>
+                  <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace" }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: row.survived ? 'var(--lf-pos)' : 'var(--lf-sauce)', fontSize: 11 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: row.survived ? 'var(--lf-pos)' : 'var(--lf-sauce)', flexShrink: 0 }} />
+                      {row.survived ? 'survived' : 'depleted'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
     </>
@@ -1014,11 +1115,11 @@ export function Retirement() {
                       <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)' }}>Retirement Age</label>
                       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600 }}>{retirementAge}</span>
                     </div>
-                    <input type="range" min={50} max={80} step={1} value={retirementAge}
+                    <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
                       onChange={e => setRetirementAge(parseInt(e.target.value))}
                       style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--lf-muted)', marginTop: 4 }}>
-                      <span>50</span><span>80</span>
+                      <span>{currentAge}</span><span>100</span>
                     </div>
                   </div>
                   <div>
@@ -1087,6 +1188,7 @@ export function Retirement() {
             portfolioValue={portfolioValue}
             currentAge={currentAge}
             annualSavings={annualSavings}
+            portfolioAtRetirement={portfolioAtRetirement}
           />
         )}
 
