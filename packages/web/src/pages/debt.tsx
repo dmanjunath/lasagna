@@ -4,7 +4,6 @@ import { Loader2, CreditCard, Landmark, Pencil, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
-import { Section } from '../components/common/section';
 import { PageActions } from '../components/common/page-actions';
 
 interface DebtAccount {
@@ -22,6 +21,33 @@ interface DebtAccount {
   liabilitySource: "plaid" | "manual" | null;
   liabilityLastSyncedAt: string | null;
 }
+
+// ── Styles ──────────────────────────────────────────────────────────────────
+
+const S = {
+  card: {
+    background: 'var(--lf-paper)',
+    border: '1px solid var(--lf-rule)',
+    borderRadius: 14,
+  } as React.CSSProperties,
+  darkCard: {
+    background: 'var(--lf-ink)',
+    color: 'var(--lf-paper)',
+    borderRadius: 14,
+  } as React.CSSProperties,
+  eyebrow: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase' as const,
+    color: 'var(--lf-muted)',
+  } as React.CSSProperties,
+  serif: {
+    fontFamily: "'Instrument Serif', Georgia, serif",
+  } as React.CSSProperties,
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -47,9 +73,29 @@ function addMonths(months: number): string {
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
-function debtIcon(type: string) {
-  if (type === 'credit') return <CreditCard className="w-5 h-5" />;
-  return <Landmark className="w-5 h-5" />;
+/** Calculate total interest paid (simple per-debt sum, no waterfall cascade) */
+function calcTotalInterest(debts: DebtAccount[], paymentFn: (d: DebtAccount) => number): number {
+  return debts.reduce((sum, d) => {
+    const pmt = paymentFn(d);
+    const months = monthsToPayoff(d.balance, d.apr, pmt);
+    if (months >= 999) return sum + 999_999; // treat as huge
+    return sum + Math.max(0, pmt * months - d.balance);
+  }, 0);
+}
+
+/** Blended weighted-average APR */
+function blendedApr(debts: DebtAccount[]): number {
+  const totalBal = debts.reduce((s, d) => s + d.balance, 0);
+  if (totalBal === 0) return 0;
+  const weighted = debts.reduce((s, d) => s + d.apr * d.balance, 0);
+  return Math.round((weighted / totalBal) * 10) / 10;
+}
+
+function debtTypeLabel(d: DebtAccount): string {
+  if (d.type === 'credit') return 'Credit Card';
+  if (d.subtype === 'mortgage' || d.name?.toLowerCase().includes('mortgage')) return 'Mortgage';
+  if (d.subtype === 'student_loan' || d.name?.toLowerCase().includes('student')) return 'Student Loan';
+  return 'Loan';
 }
 
 const fadeUp = (delay: number) => ({
@@ -57,6 +103,8 @@ const fadeUp = (delay: number) => ({
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.4, delay },
 });
+
+// ── Page Component ────────────────────────────────────────────────────────────
 
 export function Debt() {
   const { setPageContext } = usePageContext();
@@ -67,6 +115,7 @@ export function Debt() {
   const [hasAccounts, setHasAccounts] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingDebt, setEditingDebt] = useState<DebtAccount | null>(null);
+  const [strategy, setStrategy] = useState<'avalanche' | 'snowball'>('avalanche');
 
   const handleLoanDetailsSaved = () => {
     setEditingDebt(null);
@@ -84,37 +133,37 @@ export function Debt() {
       setHasAccounts(balanceData.balances.length > 0);
       const apiDebts = debtResult.debts;
       const apiTotal = debtResult.totalDebt;
-        const mapped: DebtAccount[] = apiDebts.map((d) => {
-          const isMortgage = d.name?.toLowerCase().includes('mortgage');
-          const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
-          const minPay = d.minimumPayment;
-          const isHighInterest = apr >= 7 && !isMortgage;
-          const suggestedPay = isHighInterest ? Math.round(minPay * 1.8) : minPay;
-          const minMonths = monthsToPayoff(d.balance, apr, minPay);
-          const sugMonths = monthsToPayoff(d.balance, apr, suggestedPay);
-          return {
-            id: d.id,
-            name: d.name,
-            balance: d.balance,
-            type: d.type,
-            subtype: d.subtype ?? null,
-            apr: Math.round(apr * 100) / 100,
-            minPayment: minPay,
-            suggestedPayment: suggestedPay,
-            minPayoffDate: addMonths(minMonths),
-            suggestedPayoffDate: addMonths(sugMonths),
-            payoffDate: d.payoffDate ?? null,
-            liabilitySource: d.liabilitySource ?? null,
-            liabilityLastSyncedAt: d.liabilityLastSyncedAt ?? null,
-          };
-        });
+      const mapped: DebtAccount[] = apiDebts.map((d) => {
+        const isMortgage = d.name?.toLowerCase().includes('mortgage');
+        const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
+        const minPay = d.minimumPayment;
+        const isHighInterest = apr >= 7 && !isMortgage;
+        const suggestedPay = isHighInterest ? Math.round(minPay * 1.8) : minPay;
+        const minMonths = monthsToPayoff(d.balance, apr, minPay);
+        const sugMonths = monthsToPayoff(d.balance, apr, suggestedPay);
+        return {
+          id: d.id,
+          name: d.name,
+          balance: d.balance,
+          type: d.type,
+          subtype: d.subtype ?? null,
+          apr: Math.round(apr * 100) / 100,
+          minPayment: minPay,
+          suggestedPayment: suggestedPay,
+          minPayoffDate: addMonths(minMonths),
+          suggestedPayoffDate: addMonths(sugMonths),
+          payoffDate: d.payoffDate ?? null,
+          liabilitySource: d.liabilitySource ?? null,
+          liabilityLastSyncedAt: d.liabilityLastSyncedAt ?? null,
+        };
+      });
 
-        // Sort by APR descending (avalanche order)
-        mapped.sort((a, b) => b.apr - a.apr);
-        setDebts(mapped);
-        setTotalDebt(apiTotal);
-      })
-      .finally(() => setLoading(false));
+      // Default sort: avalanche (highest APR first)
+      mapped.sort((a, b) => b.apr - a.apr);
+      setDebts(mapped);
+      setTotalDebt(apiTotal);
+    })
+    .finally(() => setLoading(false));
   }, [refreshKey]);
 
   // Page context for chat
@@ -135,65 +184,59 @@ export function Debt() {
   }, [loading, totalDebt, debts.length, setPageContext]);
 
   const hasDebt = totalDebt > 0;
-  const totalMonthlyPayment = debts.reduce((s, d) => s + d.suggestedPayment, 0);
 
-  const minOnlyMonths = debts.length > 0 ? Math.max(...debts.map((d) => monthsToPayoff(d.balance, d.apr, d.minPayment))) : 0;
-  const suggestedMonths = debts.length > 0 ? Math.max(...debts.map((d) => monthsToPayoff(d.balance, d.apr, d.suggestedPayment))) : 0;
-  const monthsSaved = minOnlyMonths - suggestedMonths;
-
-  // Calculate total interest paid under min-only vs suggested plan
-  const totalInterestMin = debts.reduce((sum, d) => {
-    const months = monthsToPayoff(d.balance, d.apr, d.minPayment);
-    return sum + (d.minPayment * months - d.balance);
-  }, 0);
-  const totalInterestSuggested = debts.reduce((sum, d) => {
-    const months = monthsToPayoff(d.balance, d.apr, d.suggestedPayment);
-    return sum + (d.suggestedPayment * months - d.balance);
-  }, 0);
-  const interestSavedVsMinimums = Math.round(Math.max(0, totalInterestMin - totalInterestSuggested));
-
-  // Avalanche vs snowball: estimate savings by comparing interest order vs balance order
+  // ── Strategy calculations ─────────────────────────────────────────────────
+  const avalancheOrder = [...debts].sort((a, b) => b.apr - a.apr);
   const snowballOrder = [...debts].sort((a, b) => a.balance - b.balance);
-  const avalancheInterest = debts.reduce((sum, d) => {
-    const months = monthsToPayoff(d.balance, d.apr, d.suggestedPayment);
-    return sum + (d.suggestedPayment * months - d.balance);
-  }, 0);
-  const snowballInterest = snowballOrder.reduce((sum, d) => {
-    const months = monthsToPayoff(d.balance, d.apr, d.suggestedPayment);
-    return sum + (d.suggestedPayment * months - d.balance);
-  }, 0);
+
+  const avalancheInterest = calcTotalInterest(avalancheOrder, d => d.suggestedPayment);
+  const snowballInterest = calcTotalInterest(snowballOrder, d => d.suggestedPayment);
   const interestSavedVsSnowball = Math.round(Math.max(0, snowballInterest - avalancheInterest));
 
+  // Payoff date under current strategy (max across debts at suggested payment)
+  const orderedDebts = strategy === 'avalanche' ? avalancheOrder : snowballOrder;
+  const suggestedMonths = orderedDebts.length > 0
+    ? Math.max(...orderedDebts.map(d => monthsToPayoff(d.balance, d.apr, d.suggestedPayment)))
+    : 0;
+  const minOnlyMonths = orderedDebts.length > 0
+    ? Math.max(...orderedDebts.map(d => monthsToPayoff(d.balance, d.apr, d.minPayment)))
+    : 0;
+
+  const debtFreeDate = addMonths(suggestedMonths);
+  const totalMonthlyPayment = debts.reduce((s, d) => s + d.suggestedPayment, 0);
+  const apr = blendedApr(debts);
+
+  // Progress toward debt-free: percent of max payoff months already elapsed (proxy: 0% at start)
+  // We show progress as months-elapsed / total-months — no historical data available
+  // DATA-NEEDED: historical debt balance to show YTD paydown progress
+  const progressPct = suggestedMonths > 0 && suggestedMonths < 999
+    ? Math.min(99, Math.round((1 / suggestedMonths) * 100)) // represents 1 month in
+    : 0;
+
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
+    <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
       {loading ? (
-        <div className="flex items-center gap-2 text-text-secondary py-4">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-sm">Loading...</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--lf-muted)', padding: '24px 0' }}>
+          <Loader2 style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} />
+          <span style={{ fontSize: 14 }}>Loading…</span>
         </div>
       ) : !hasAccounts ? (
-        <motion.div {...fadeUp(0)} className="text-center py-16">
-          <CreditCard className="w-12 h-12 text-text-secondary mx-auto mb-4" />
-          <h2 className="font-display text-2xl font-medium mb-2">No Accounts Linked</h2>
-          <p className="text-text-secondary text-sm max-w-md mx-auto mb-6">
-            Add your credit cards and loans to see your debt breakdown, payoff timeline, and optimization strategy.
-          </p>
-          {import.meta.env.VITE_DEMO_MODE !== "true" && (
-            <a href="/accounts" className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
-              Add Accounts
-            </a>
-          )}
-        </motion.div>
+        <NoAccountsView />
       ) : hasDebt ? (
         <HasDebtView
           debts={debts}
           totalDebt={totalDebt}
           totalMonthlyPayment={totalMonthlyPayment}
           interestSavedVsSnowball={interestSavedVsSnowball}
+          avalancheInterest={avalancheInterest}
+          snowballInterest={snowballInterest}
+          debtFreeDate={debtFreeDate}
           minOnlyDate={addMonths(minOnlyMonths)}
-          suggestedDate={addMonths(suggestedMonths)}
-          monthsSaved={monthsSaved}
-          interestSavedVsMinimums={interestSavedVsMinimums}
+          apr={apr}
+          progressPct={progressPct}
+          strategy={strategy}
+          onStrategyChange={setStrategy}
+          orderedDebts={orderedDebts}
           openChat={openChat}
           editingDebt={editingDebt}
           onEditDebt={setEditingDebt}
@@ -207,7 +250,475 @@ export function Debt() {
   );
 }
 
-/* ─── Loan Details Modal ─── */
+// ── No Accounts View ──────────────────────────────────────────────────────────
+
+function NoAccountsView() {
+  return (
+    <motion.div
+      {...fadeUp(0)}
+      style={{ textAlign: 'center', padding: '64px 0' }}
+    >
+      <CreditCard style={{ width: 48, height: 48, color: 'var(--lf-muted)', margin: '0 auto 16px' }} />
+      <h2 style={{ ...S.serif, fontSize: 28, color: 'var(--lf-ink)', marginBottom: 8 }}>
+        No Accounts Linked
+      </h2>
+      <p style={{ fontSize: 14, color: 'var(--lf-muted)', maxWidth: 380, margin: '0 auto 24px' }}>
+        Add your credit cards and loans to see your debt breakdown, payoff timeline, and optimization strategy.
+      </p>
+      {import.meta.env.VITE_DEMO_MODE !== "true" && (
+        <a
+          href="/accounts"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '10px 20px',
+            background: 'var(--lf-sauce)',
+            color: 'var(--lf-paper)',
+            fontWeight: 600, fontSize: 14,
+            borderRadius: 10,
+            textDecoration: 'none',
+          }}
+        >
+          Add Accounts
+        </a>
+      )}
+    </motion.div>
+  );
+}
+
+// ── Has Debt View ─────────────────────────────────────────────────────────────
+
+function HasDebtView({
+  debts, totalDebt, totalMonthlyPayment, interestSavedVsSnowball,
+  avalancheInterest, snowballInterest,
+  debtFreeDate, minOnlyDate, apr, progressPct,
+  strategy, onStrategyChange, orderedDebts,
+  openChat, editingDebt, onEditDebt, onCloseModal, onLoanDetailsSaved,
+}: {
+  debts: DebtAccount[];
+  totalDebt: number;
+  totalMonthlyPayment: number;
+  interestSavedVsSnowball: number;
+  avalancheInterest: number;
+  snowballInterest: number;
+  debtFreeDate: string;
+  minOnlyDate: string;
+  apr: number;
+  progressPct: number;
+  strategy: 'avalanche' | 'snowball';
+  onStrategyChange: (s: 'avalanche' | 'snowball') => void;
+  orderedDebts: DebtAccount[];
+  openChat: (prompt: string) => void;
+  editingDebt: DebtAccount | null;
+  onEditDebt: (debt: DebtAccount) => void;
+  onCloseModal: () => void;
+  onLoanDetailsSaved: () => void;
+}) {
+  return (
+    <>
+      {/* ── Page Header ── */}
+      <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
+        <p style={S.eyebrow}>
+          Debt &middot; {debts.length} account{debts.length !== 1 ? 's' : ''}
+        </p>
+        <h1 style={{ ...S.serif, fontSize: 38, color: 'var(--lf-ink)', marginTop: 4, lineHeight: 1.15 }}>
+          Debt-free by{' '}
+          <em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>{debtFreeDate}.</em>
+        </h1>
+      </motion.div>
+
+      {/* ── Two-column hero ── */}
+      <motion.div
+        {...fadeUp(0.06)}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
+        {/* LEFT: dark card — total debt overview */}
+        <div style={{ ...S.darkCard, padding: 28 }}>
+          <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.5)', marginBottom: 12 }}>
+            Total debt
+          </p>
+          <p style={{ ...S.serif, fontSize: 48, lineHeight: 1, color: 'var(--lf-paper)', marginBottom: 4 }}>
+            {formatCurrency(totalDebt)}
+          </p>
+
+          {/* DATA-NEEDED: YTD change in debt balance for accurate "change this year" figure */}
+          <p style={{ fontSize: 13, color: 'rgba(251,246,236,0.45)', marginBottom: 20 }}>
+            YTD paydown data unavailable
+          </p>
+
+          {/* Stats row */}
+          <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
+            <div>
+              <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.45)', marginBottom: 4 }}>Blended APR</p>
+              <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--lf-cheese)' }}>{apr}%</p>
+            </div>
+            <div>
+              <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.45)', marginBottom: 4 }}>Monthly payment</p>
+              <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--lf-paper)' }}>{formatCurrency(totalMonthlyPayment)}</p>
+            </div>
+          </div>
+
+          {/* Progress bar to debt-free */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.45)' }}>Progress</p>
+              <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.45)' }}>{debtFreeDate}</p>
+            </div>
+            <div style={{ height: 6, background: 'rgba(251,246,236,0.12)', borderRadius: 3 }}>
+              <div
+                style={{
+                  height: '100%',
+                  width: `${progressPct}%`,
+                  background: 'var(--lf-basil)',
+                  borderRadius: 3,
+                  transition: 'width 0.6s ease',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: strategy selector */}
+        <div style={{ ...S.card, padding: 28 }}>
+          <p style={{ ...S.eyebrow, marginBottom: 16 }}>Strategy</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Avalanche option */}
+            <button
+              type="button"
+              onClick={() => onStrategyChange('avalanche')}
+              style={{
+                display: 'block',
+                textAlign: 'left',
+                width: '100%',
+                padding: '16px 18px',
+                borderRadius: 10,
+                border: strategy === 'avalanche'
+                  ? '1.5px solid var(--lf-sauce)'
+                  : '1.5px solid var(--lf-rule)',
+                background: strategy === 'avalanche'
+                  ? 'rgba(201,84,58,0.06)'
+                  : 'transparent',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--lf-ink)', marginBottom: 2 }}>
+                    Avalanche
+                  </p>
+                  <p style={{ fontSize: 13, color: 'var(--lf-muted)', lineHeight: 1.4 }}>
+                    Highest APR first &middot; saves the most interest
+                  </p>
+                </div>
+                {strategy === 'avalanche' && (
+                  <span style={{
+                    ...S.eyebrow,
+                    color: 'var(--lf-sauce)',
+                    background: 'rgba(201,84,58,0.1)',
+                    padding: '3px 8px',
+                    borderRadius: 20,
+                    flexShrink: 0,
+                    marginLeft: 8,
+                  }}>
+                    Active
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--lf-sauce)', marginTop: 8 }}>
+                {formatCurrency(Math.round(avalancheInterest))} total interest
+              </p>
+            </button>
+
+            {/* Snowball option */}
+            <button
+              type="button"
+              onClick={() => onStrategyChange('snowball')}
+              style={{
+                display: 'block',
+                textAlign: 'left',
+                width: '100%',
+                padding: '16px 18px',
+                borderRadius: 10,
+                border: strategy === 'snowball'
+                  ? '1.5px solid var(--lf-sauce)'
+                  : '1.5px solid var(--lf-rule)',
+                background: strategy === 'snowball'
+                  ? 'rgba(201,84,58,0.06)'
+                  : 'transparent',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--lf-ink)', marginBottom: 2 }}>
+                    Snowball
+                  </p>
+                  <p style={{ fontSize: 13, color: 'var(--lf-muted)', lineHeight: 1.4 }}>
+                    Smallest balance first &middot; quick psychological wins
+                  </p>
+                </div>
+                {strategy === 'snowball' && (
+                  <span style={{
+                    ...S.eyebrow,
+                    color: 'var(--lf-sauce)',
+                    background: 'rgba(201,84,58,0.1)',
+                    padding: '3px 8px',
+                    borderRadius: 20,
+                    flexShrink: 0,
+                    marginLeft: 8,
+                  }}>
+                    Active
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--lf-muted)', marginTop: 8 }}>
+                {formatCurrency(Math.round(snowballInterest))} total interest
+              </p>
+            </button>
+
+            {/* Savings callout */}
+            {interestSavedVsSnowball > 0 && (
+              <p style={{ fontSize: 13, color: 'var(--lf-basil)', padding: '8px 12px', background: 'rgba(90,107,63,0.08)', borderRadius: 8 }}>
+                Avalanche saves you{' '}
+                <strong>{formatCurrency(interestSavedVsSnowball)}</strong> vs snowball.
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => openChat('Should I use avalanche or snowball to pay off my debt?')}
+              style={{
+                marginTop: 2,
+                fontSize: 13,
+                color: 'var(--lf-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: 0,
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
+            >
+              Ask Claude which is better for me →
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ── Debt order table ── */}
+      <motion.div {...fadeUp(0.12)}>
+        <div style={{ ...S.card, overflow: 'hidden', marginBottom: 20 }}>
+          {/* Table header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '18px 22px',
+            borderBottom: '1px solid var(--lf-rule)',
+          }}>
+            <p style={{ ...S.eyebrow }}>
+              Debt order &middot; {strategy}
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--lf-muted)' }}>
+              Minimum only: <span style={{ fontWeight: 600 }}>{minOnlyDate}</span>
+            </p>
+          </div>
+
+          {/* Debt rows */}
+          {orderedDebts.map((d, i) => (
+            <DebtRow
+              key={d.id}
+              debt={d}
+              rank={i + 1}
+              isFirst={i === 0}
+              isLast={i === orderedDebts.length - 1}
+              onEdit={onEditDebt}
+            />
+          ))}
+        </div>
+      </motion.div>
+
+      <PageActions types="debt" />
+
+      {editingDebt && (
+        <LoanDetailsModal
+          debt={editingDebt}
+          onClose={onCloseModal}
+          onSaved={onLoanDetailsSaved}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Debt Row ──────────────────────────────────────────────────────────────────
+
+function DebtRow({
+  debt: d, rank, isFirst, isLast, onEdit,
+}: {
+  debt: DebtAccount;
+  rank: number;
+  isFirst: boolean;
+  isLast: boolean;
+  onEdit: (d: DebtAccount) => void;
+}) {
+  const highApr = d.apr > 20;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: '16px 22px',
+        borderBottom: isLast ? 'none' : '1px solid var(--lf-rule-soft)',
+        background: isFirst ? 'rgba(201,84,58,0.03)' : 'transparent',
+      }}
+    >
+      {/* Rank chip */}
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 13,
+          fontWeight: 500,
+          background: isFirst ? 'rgba(201,84,58,0.12)' : 'var(--lf-cream)',
+          color: isFirst ? 'var(--lf-sauce)' : 'var(--lf-muted)',
+          border: isFirst ? '1px solid rgba(201,84,58,0.2)' : '1px solid var(--lf-rule)',
+        }}
+      >
+        {rank}
+      </div>
+
+      {/* Icon */}
+      <div style={{ flexShrink: 0, color: 'var(--lf-muted)' }}>
+        {d.type === 'credit'
+          ? <CreditCard style={{ width: 18, height: 18 }} />
+          : <Landmark style={{ width: 18, height: 18 }} />
+        }
+      </div>
+
+      {/* Name / type / badges */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--lf-ink)' }}>{d.name}</span>
+          <span style={{
+            ...S.eyebrow,
+            background: 'var(--lf-cream)',
+            color: 'var(--lf-muted)',
+            padding: '2px 7px',
+            borderRadius: 20,
+            border: '1px solid var(--lf-rule)',
+          }}>
+            {debtTypeLabel(d)}
+          </span>
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+            <button
+              type="button"
+              onClick={() => onEdit(d)}
+              title="Edit loan details"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--lf-muted)', padding: 2, lineHeight: 0,
+              }}
+            >
+              <Pencil style={{ width: 12, height: 12 }} />
+            </button>
+          )}
+          {d.liabilitySource === "plaid" && (
+            <span style={{
+              ...S.eyebrow,
+              color: 'var(--lf-basil)',
+              background: 'rgba(90,107,63,0.1)',
+              padding: '2px 7px',
+              borderRadius: 20,
+            }}
+              title={d.liabilityLastSyncedAt ? `Synced ${new Date(d.liabilityLastSyncedAt).toLocaleDateString()}` : undefined}
+            >
+              Synced
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginTop: 5, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>
+            Balance{' '}
+            <strong style={{ color: 'var(--lf-ink)' }}>{formatCurrency(d.balance)}</strong>
+          </span>
+          <span style={{ fontSize: 13, color: highApr ? 'var(--lf-sauce)' : 'var(--lf-muted)', fontWeight: highApr ? 600 : 400 }}>
+            {d.apr}% APR{highApr ? ' ⚠' : ''}
+          </span>
+          <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>
+            Min <strong style={{ color: 'var(--lf-ink)' }}>{formatCurrency(d.minPayment)}/mo</strong>
+          </span>
+        </div>
+        {/* Payoff date note */}
+        {d.type !== 'credit' && (
+          <p style={{ fontSize: 12, color: 'var(--lf-muted)', marginTop: 3 }}>
+            {d.payoffDate ? (
+              <>
+                Payoff:{' '}
+                <span style={{ color: 'var(--lf-basil)', fontWeight: 600 }}>
+                  {new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                </span>
+              </>
+            ) : import.meta.env.VITE_DEMO_MODE !== "true" ? (
+              <button
+                type="button"
+                onClick={() => onEdit(d)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--lf-cheese)', fontWeight: 600, fontSize: 12 }}
+              >
+                Unknown — add details
+              </button>
+            ) : (
+              <span style={{ color: 'var(--lf-cheese)', fontWeight: 600 }}>Unknown payoff date</span>
+            )}
+            {' '}
+            &middot; Your plan:{' '}
+            <span style={{ color: 'var(--lf-basil)', fontWeight: 600 }}>{d.suggestedPayoffDate}</span>
+          </p>
+        )}
+      </div>
+
+      {/* CTA */}
+      <button
+        type="button"
+        onClick={() => {}}
+        style={{
+          flexShrink: 0,
+          padding: '7px 14px',
+          borderRadius: 8,
+          border: '1px solid var(--lf-rule)',
+          background: 'var(--lf-cream)',
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--lf-ink)',
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+          transition: 'border-color 0.15s',
+        }}
+        onMouseEnter={e => ((e.target as HTMLButtonElement).style.borderColor = 'var(--lf-sauce)')}
+        onMouseLeave={e => ((e.target as HTMLButtonElement).style.borderColor = 'var(--lf-rule)')}
+      >
+        Payoff plan →
+      </button>
+    </div>
+  );
+}
+
+// ── Loan Details Modal ────────────────────────────────────────────────────────
 
 function LoanDetailsModal({
   debt,
@@ -229,7 +740,6 @@ function LoanDetailsModal({
   const [purchaseApr, setPurchaseApr] = useState("");
 
   const isCredit = debt.type === "credit";
-  // Subtype check takes priority over name heuristic
   const loanType: "mortgage" | "student_loan" | "credit_card" | "other_loan" = isCredit
     ? "credit_card"
     : debt.subtype === "mortgage"
@@ -267,13 +777,11 @@ function LoanDetailsModal({
         if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
         if (originationDate) body.originationDate = originationDate;
       }
-      // Prevent submitting a form with no data (would overwrite existing metadata with empty record)
-      const hasData = Object.keys(body).length > 1; // more than just 'type'
+      const hasData = Object.keys(body).length > 1;
       if (!hasData) {
         setError("Please fill in at least one field.");
         return;
       }
-
       await api.patchLoanDetails(debt.id, body);
       onSaved();
     } catch (err) {
@@ -283,136 +791,157 @@ function LoanDetailsModal({
     }
   };
 
+  const inputStyle: React.CSSProperties = {
+    marginTop: 4,
+    width: '100%',
+    background: 'var(--lf-cream)',
+    border: '1px solid var(--lf-rule)',
+    borderRadius: 8,
+    padding: '8px 12px',
+    fontSize: 14,
+    color: 'var(--lf-ink)',
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'var(--lf-muted)',
+    marginBottom: 2,
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(31,26,22,0.5)',
+        backdropFilter: 'blur(4px)',
+      }}
       onClick={onClose}
     >
       <div
-        className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm mx-4 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+        style={{
+          ...S.card,
+          padding: 24,
+          width: '100%',
+          maxWidth: 380,
+          margin: '0 16px',
+          boxShadow: '0 8px 32px rgba(31,26,22,0.18)',
+        }}
+        onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h2 className="font-semibold text-base">{debt.name}</h2>
-            <p className="text-sm text-text-secondary mt-0.5">Update loan details</p>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--lf-ink)' }}>{debt.name}</h2>
+            <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2 }}>Update loan details</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary transition-colors"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--lf-muted)', padding: 2 }}
           >
-            <X className="w-5 h-5" />
+            <X style={{ width: 18, height: 18 }} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {(loanType === "mortgage" || loanType === "other_loan") && (
-            <label className="block">
-              <span className="text-sm text-text-secondary font-medium">
-                Maturity / Payoff Date
-              </span>
-              <input
-                type="date"
-                value={maturityDate}
-                onChange={(e) => setMaturityDate(e.target.value)}
-                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              />
+            <label>
+              <span style={labelStyle}>Maturity / Payoff Date</span>
+              <input type="date" value={maturityDate} onChange={e => setMaturityDate(e.target.value)} style={inputStyle} />
             </label>
           )}
           {loanType === "student_loan" && (
-            <label className="block">
-              <span className="text-sm text-text-secondary font-medium">Expected Payoff Date</span>
-              <input
-                type="date"
-                value={expectedPayoffDate}
-                onChange={(e) => setExpectedPayoffDate(e.target.value)}
-                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              />
+            <label>
+              <span style={labelStyle}>Expected Payoff Date</span>
+              <input type="date" value={expectedPayoffDate} onChange={e => setExpectedPayoffDate(e.target.value)} style={inputStyle} />
             </label>
           )}
           {loanType !== "credit_card" && (
-            <label className="block">
-              <span className="text-sm text-text-secondary font-medium">Interest Rate (%)</span>
+            <label>
+              <span style={labelStyle}>Interest Rate (%)</span>
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="number" step="0.01" min="0"
                 value={interestRate}
-                onChange={(e) => setInterestRate(e.target.value)}
+                onChange={e => setInterestRate(e.target.value)}
                 placeholder={loanType === "mortgage" ? "e.g. 3.5" : "e.g. 6.5"}
-                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
           )}
           {(loanType === "mortgage" || loanType === "other_loan") && (
-            <label className="block">
-              <span className="text-sm text-text-secondary font-medium">Origination Date</span>
-              <input
-                type="date"
-                value={originationDate}
-                onChange={(e) => setOriginationDate(e.target.value)}
-                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-              />
+            <label>
+              <span style={labelStyle}>Origination Date</span>
+              <input type="date" value={originationDate} onChange={e => setOriginationDate(e.target.value)} style={inputStyle} />
             </label>
           )}
           {loanType === "credit_card" && (
-            <label className="block">
-              <span className="text-sm text-text-secondary font-medium">Purchase APR (%)</span>
+            <label>
+              <span style={labelStyle}>Purchase APR (%)</span>
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="number" step="0.01" min="0"
                 value={purchaseApr}
-                onChange={(e) => setPurchaseApr(e.target.value)}
+                onChange={e => setPurchaseApr(e.target.value)}
                 placeholder="e.g. 21.99"
-                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
           )}
-          {(loanType === "student_loan" ||
-            loanType === "credit_card" ||
-            loanType === "other_loan") && (
-            <label className="block">
-              <span className="text-sm text-text-secondary font-medium">Minimum Payment ($)</span>
+          {(loanType === "student_loan" || loanType === "credit_card" || loanType === "other_loan") && (
+            <label>
+              <span style={labelStyle}>Minimum Payment ($)</span>
               <input
-                type="number"
-                step="1"
-                min="0"
+                type="number" step="1" min="0"
                 value={minPayment}
-                onChange={(e) => setMinPayment(e.target.value)}
+                onChange={e => setMinPayment(e.target.value)}
                 placeholder="e.g. 250"
-                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
           )}
           {loanType === "student_loan" && (
-            <label className="block">
-              <span className="text-sm text-text-secondary font-medium">Repayment Plan</span>
+            <label>
+              <span style={labelStyle}>Repayment Plan</span>
               <input
                 type="text"
                 value={repaymentPlanType}
-                onChange={(e) => setRepaymentPlanType(e.target.value)}
+                onChange={e => setRepaymentPlanType(e.target.value)}
                 placeholder="e.g. income_driven, standard"
-                className="mt-1 w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
           )}
 
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {error && <p style={{ fontSize: 12, color: 'var(--lf-sauce)' }}>{error}</p>}
 
-          <div className="flex gap-2 pt-1">
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold border border-border text-text-secondary hover:bg-surface-hover transition-colors"
+              style={{
+                flex: 1, padding: '9px 0', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                border: '1px solid var(--lf-rule)',
+                background: 'transparent',
+                color: 'var(--lf-muted)',
+                cursor: 'pointer',
+              }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold bg-accent text-bg hover:bg-accent/90 transition-colors disabled:opacity-50"
+              style={{
+                flex: 1, padding: '9px 0', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                background: 'var(--lf-sauce)',
+                color: 'var(--lf-paper)',
+                border: 'none',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                opacity: saving ? 0.6 : 1,
+              }}
             >
               {saving ? "Saving…" : "Save"}
             </button>
@@ -423,292 +952,73 @@ function LoanDetailsModal({
   );
 }
 
-/* ─── Has Debt View ─── */
-
-function HasDebtView({
-  debts, totalDebt, totalMonthlyPayment, interestSavedVsSnowball,
-  minOnlyDate, suggestedDate, monthsSaved, interestSavedVsMinimums,
-  openChat, editingDebt, onEditDebt, onCloseModal, onLoanDetailsSaved,
-}: {
-  debts: DebtAccount[];
-  totalDebt: number;
-  totalMonthlyPayment: number;
-  interestSavedVsSnowball: number;
-  minOnlyDate: string;
-  suggestedDate: string;
-  monthsSaved: number;
-  interestSavedVsMinimums: number;
-  openChat: (prompt: string) => void;
-  editingDebt: DebtAccount | null;
-  onEditDebt: (debt: DebtAccount) => void;
-  onCloseModal: () => void;
-  onLoanDetailsSaved: () => void;
-}) {
-  const badgeColor = (i: number) => {
-    if (i === 0) return 'bg-danger/20 text-danger border-danger/30';
-    if (i === 1) return 'bg-warning/20 text-warning border-warning/30';
-    return 'bg-surface-hover text-text-secondary border-border';
-  };
-
-  return (
-    <>
-      {/* Hero Card */}
-      <motion.div {...fadeUp(0)} className="glass-card p-6 mb-6 relative overflow-hidden">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-2 rounded-full bg-danger" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-danger/70">
-            Debt Command Center
-          </span>
-        </div>
-        <div className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-1">
-          {formatCurrency(totalDebt)}
-        </div>
-        <p className="text-sm text-text-secondary">
-          Avalanche strategy active &middot; Paying highest APR first
-        </p>
-        <div className="flex gap-2 mt-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-danger/15 text-danger">
-            {debts.length} active debt{debts.length !== 1 ? 's' : ''}
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/15 text-success">
-            {formatCurrency(totalMonthlyPayment)}/mo payments
-          </span>
-        </div>
-      </motion.div>
-
-      {/* Payoff Strategy */}
-      <motion.div {...fadeUp(0.08)}>
-        <Section title="Payoff Strategy">
-          <div className="glass-card p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-success" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-success">
-                Avalanche Method — Active
-              </span>
-            </div>
-            <p className="text-sm text-text-secondary mb-4">
-              Pay minimums on everything, then throw all extra cash at the{' '}
-              <strong className="text-text-primary">highest APR</strong> debt first. This saves the
-              most money mathematically.
-            </p>
-
-            <div className="divide-y divide-border">
-              <StatRow label="Your strategy" value="Avalanche (highest APR first)" valueClass="text-success" />
-              <StatRow label="Alternative" value="Snowball (smallest balance first)" valueClass="text-text-secondary" />
-              <StatRow
-                label="Interest saved vs snowball"
-                value={formatCurrency(interestSavedVsSnowball)}
-                valueClass="text-success"
-              />
-            </div>
-
-            <div className="mt-3 p-3 rounded-lg bg-white/[0.03] text-xs text-text-secondary">
-              <strong className="text-text-primary">Snowball</strong> pays smallest balance first
-              for quicker wins.{' '}
-              <strong className="text-text-primary">Avalanche</strong> targets highest APR to
-              minimize total interest. Avalanche saves you{' '}
-              {formatCurrency(interestSavedVsSnowball)} here.
-            </div>
-
-            <button
-              type="button"
-              onClick={() => openChat('Should I switch to snowball method?')}
-              className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-lg bg-success/10 text-success text-sm font-semibold hover:bg-success/20 transition-colors"
-            >
-              Should I switch to snowball? &rarr;
-            </button>
-          </div>
-        </Section>
-      </motion.div>
-
-      {/* Payoff Timeline */}
-      <motion.div {...fadeUp(0.16)}>
-        <Section title="Payoff Timeline">
-          <div className="glass-card p-5">
-            <div className="divide-y divide-border">
-              <StatRow label="Minimum payments only" value={minOnlyDate} valueClass="text-danger" />
-              <StatRow label="Suggested plan" value={suggestedDate} valueClass="text-success" />
-              <StatRow label="Time saved" value={`${monthsSaved} months`} valueClass="text-success" />
-              <StatRow
-                label="Interest saved vs minimums"
-                value={formatCurrency(interestSavedVsMinimums)}
-                valueClass="text-success"
-              />
-            </div>
-          </div>
-        </Section>
-      </motion.div>
-
-      {/* Payoff Order */}
-      <motion.div {...fadeUp(0.24)}>
-        <Section title="Payoff Order">
-          <div className="space-y-3">
-            {debts.map((d, i) => (
-              <div
-                key={d.id}
-                className={`glass-card p-4 flex items-center gap-3.5 ${i === 0 ? 'border-danger/25' : ''}`}
-              >
-                {/* Numbered badge */}
-                <div
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0 border ${badgeColor(i)}`}
-                >
-                  {debtIcon(d.type)}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <div className="text-[15px] font-semibold">{d.name}</div>
-                    {import.meta.env.VITE_DEMO_MODE !== "true" && (
-                      <button
-                        type="button"
-                        onClick={() => onEditDebt(d)}
-                        className="text-text-secondary hover:text-text-primary transition-colors"
-                        title="Edit loan details"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                    )}
-                    {d.liabilitySource === "plaid" && (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold cursor-default"
-                        title={
-                          d.liabilityLastSyncedAt
-                            ? `Synced ${new Date(d.liabilityLastSyncedAt).toLocaleDateString()}`
-                            : undefined
-                        }
-                      >
-                        Synced from Plaid
-                      </span>
-                    )}
-                    {d.liabilitySource === "manual" && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-hover text-text-secondary font-semibold">
-                        Manually entered
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[13px] text-text-secondary mt-0.5">
-                    {d.apr}% APR &middot; Min {formatCurrency(d.minPayment)}/mo &middot; Paying{' '}
-                    {formatCurrency(d.suggestedPayment)}/mo
-                  </div>
-                  <div className="text-[11px] text-text-secondary mt-1">
-                    {d.type !== 'credit' && d.payoffDate ? (
-                      <>
-                        Payoff:{' '}
-                        <span className="text-success">
-                          {new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', {
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </span>
-                        {' '}&middot;{' '}
-                      </>
-                    ) : d.type !== 'credit' && !d.payoffDate ? (
-                      <>
-                        {import.meta.env.VITE_DEMO_MODE !== "true" ? (
-                          <button
-                            type="button"
-                            onClick={() => onEditDebt(d)}
-                            className="text-warning hover:text-warning/80 font-semibold transition-colors"
-                          >
-                            Unknown — add details
-                          </button>
-                        ) : (
-                          <span className="text-warning font-semibold">Unknown</span>
-                        )}
-                        {' '}&middot;{' '}
-                      </>
-                    ) : null}
-                    Min payoff:{' '}
-                    <span className="text-danger">{d.minPayoffDate}</span> &middot; Your plan:{' '}
-                    <span className="text-success">{d.suggestedPayoffDate}</span>
-                  </div>
-                </div>
-
-                {/* Balance */}
-                <div className="text-right flex-shrink-0">
-                  <div className={`text-base font-bold ${i === 0 ? 'text-danger' : ''}`}>
-                    {formatCurrency(d.balance)}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      </motion.div>
-
-      <PageActions types="debt" />
-      {editingDebt && (
-        <LoanDetailsModal
-          debt={editingDebt}
-          onClose={onCloseModal}
-          onSaved={onLoanDetailsSaved}
-        />
-      )}
-    </>
-  );
-}
-
-/* ─── Debt-Free View ─── */
+// ── Debt-Free View ────────────────────────────────────────────────────────────
 
 function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
-      {/* Hero Card */}
-      <motion.div {...fadeUp(0)} className="glass-card p-6 mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">
-            Debt Status
-          </span>
-        </div>
-        <div className="font-display text-3xl md:text-4xl font-semibold tracking-tight mb-1">
-          Debt-free! 🎉
-        </div>
-        <p className="text-sm text-text-secondary">
-          You have no outstanding debt. Keep building your financial safety net.
+      <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
+        <p style={S.eyebrow}>Debt &middot; 0 accounts</p>
+        <h1 style={{ ...S.serif, fontSize: 38, color: 'var(--lf-ink)', marginTop: 4, lineHeight: 1.15 }}>
+          You're{' '}
+          <em style={{ fontStyle: 'italic', color: 'var(--lf-basil)' }}>completely debt-free.</em>
+        </h1>
+      </motion.div>
+
+      <motion.div {...fadeUp(0.06)} style={{ ...S.darkCard, padding: 32, marginBottom: 20 }}>
+        <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.5)', marginBottom: 8 }}>Total debt</p>
+        <p style={{ ...S.serif, fontSize: 56, color: 'var(--lf-paper)', lineHeight: 1 }}>$0</p>
+        <p style={{ fontSize: 14, color: 'rgba(251,246,236,0.55)', marginTop: 12 }}>
+          Every dollar you earn stays in your pocket. Keep building your financial safety net.
         </p>
-        <div className="flex gap-2 mt-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/15 text-success">
-            ✓ $0 credit card debt
+        <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
+          <span style={{
+            ...S.eyebrow,
+            color: 'var(--lf-basil)',
+            background: 'rgba(90,107,63,0.18)',
+            padding: '5px 12px',
+            borderRadius: 20,
+          }}>
+            No credit card debt
           </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-success/15 text-success">
-            ✓ No active loans
+          <span style={{
+            ...S.eyebrow,
+            color: 'var(--lf-basil)',
+            background: 'rgba(90,107,63,0.18)',
+            padding: '5px 12px',
+            borderRadius: 20,
+          }}>
+            No active loans
           </span>
         </div>
       </motion.div>
 
-      {/* Stay Debt-Free — dynamic actions */}
+      <motion.div {...fadeUp(0.12)} style={{ ...S.card, padding: 24, textAlign: 'center', marginBottom: 20 }}>
+        <p style={{ ...S.serif, fontSize: 28, color: 'var(--lf-ink)', marginBottom: 8 }}>
+          What's next?
+        </p>
+        <p style={{ fontSize: 14, color: 'var(--lf-muted)', marginBottom: 16 }}>
+          Now that you're debt-free, redirect those payments into investments and savings.
+        </p>
+        <button
+          type="button"
+          onClick={() => openChat('I just paid off all my debt. What should I do with the extra cash flow?')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: 8,
+            background: 'var(--lf-sauce)',
+            color: 'var(--lf-paper)',
+            border: 'none',
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: 'pointer',
+          }}
+        >
+          Ask Claude what's next →
+        </button>
+      </motion.div>
+
       <PageActions types="debt" />
-
-      {/* Interest saved */}
-      <motion.div {...fadeUp(0.16)}>
-        <div className="glass-card p-5 text-center">
-          <div className="text-2xl font-bold text-success mb-1">$0</div>
-          <p className="text-sm text-text-secondary">
-            in interest payments — every dollar stays in your pocket.
-          </p>
-        </div>
-      </motion.div>
     </>
-  );
-}
-
-/* ─── Shared Components ─── */
-
-function StatRow({
-  label,
-  value,
-  valueClass = '',
-}: {
-  label: string;
-  value: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className="flex justify-between items-center py-3">
-      <span className="text-sm text-text-secondary">{label}</span>
-      <span className={`text-sm font-semibold ${valueClass}`}>{value}</span>
-    </div>
   );
 }

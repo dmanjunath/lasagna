@@ -57,9 +57,10 @@ export default {
 
     extend: {
       fontFamily: {
-        sans:    ['Space Grotesk', 'system-ui', 'sans-serif'],
-        mono:    ['DM Mono', 'ui-monospace', 'monospace'],
-        display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+        sans:    ['Geist', 'system-ui', 'sans-serif'],
+        mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
+        serif:   ['Instrument Serif', 'Cormorant Garamond', 'Georgia', 'serif'],
+        display: ['Instrument Serif', 'Cormorant Garamond', 'Georgia', 'serif'],
       },
 
       // ─────────────────────────────────────────────────────────
@@ -125,6 +126,25 @@ export default {
         success: v('--color-success'),
         warning: v('--color-warning'),
         danger:  v('--color-danger'),
+
+        // LasagnaFi brand palette (direct CSS vars, no alpha modifier needed)
+        lf: {
+          paper:       'var(--lf-paper)',
+          cream:       'var(--lf-cream)',
+          'cream-deep':'var(--lf-cream-deep)',
+          ink:         'var(--lf-ink)',
+          'ink-soft':  'var(--lf-ink-soft)',
+          muted:       'var(--lf-muted)',
+          rule:        'var(--lf-rule)',
+          sauce:       'var(--lf-sauce)',
+          'sauce-deep':'var(--lf-sauce-deep)',
+          cheese:      'var(--lf-cheese)',
+          basil:       'var(--lf-basil)',
+          noodle:      'var(--lf-noodle)',
+          crust:       'var(--lf-crust)',
+          burgundy:    'var(--lf-burgundy)',
+          pos:         'var(--lf-pos)',
+        },
       },
 
       animation: {

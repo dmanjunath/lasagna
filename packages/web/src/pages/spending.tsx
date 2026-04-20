@@ -5,24 +5,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  ArrowUpRight,
-  ArrowDownRight,
-  TrendingUp,
   X,
   RefreshCw,
 } from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from 'recharts';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { PageActions } from '../components/common/page-actions';
@@ -63,34 +48,34 @@ function endOfMonth(d: Date): string {
 }
 
 // ---------------------------------------------------------------------------
-// Category config
+// Category config — LasagnaFi color mapping
 // ---------------------------------------------------------------------------
 
 const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
-  income: { label: 'Income', icon: '\uD83D\uDCB0', color: '#22c55e' },
-  housing: { label: 'Housing', icon: '\uD83C\uDFE0', color: '#8b5cf6' },
-  transportation: { label: 'Transportation', icon: '\uD83D\uDE97', color: '#f59e0b' },
-  food_dining: { label: 'Dining Out', icon: '\uD83C\uDF7D\uFE0F', color: '#ef4444' },
-  groceries: { label: 'Groceries', icon: '\uD83D\uDED2', color: '#10b981' },
-  utilities: { label: 'Utilities', icon: '\u26A1', color: '#6366f1' },
-  healthcare: { label: 'Healthcare', icon: '\uD83C\uDFE5', color: '#ec4899' },
-  insurance: { label: 'Insurance', icon: '\uD83D\uDEE1\uFE0F', color: '#14b8a6' },
-  entertainment: { label: 'Entertainment', icon: '\uD83C\uDFAC', color: '#f97316' },
-  shopping: { label: 'Shopping', icon: '\uD83D\uDECD\uFE0F', color: '#a855f7' },
-  personal_care: { label: 'Personal Care', icon: '\uD83D\uDC87', color: '#06b6d4' },
-  education: { label: 'Education', icon: '\uD83D\uDCDA', color: '#84cc16' },
-  travel: { label: 'Travel', icon: '\u2708\uFE0F', color: '#0ea5e9' },
-  subscriptions: { label: 'Subscriptions', icon: '\uD83D\uDCF1', color: '#d946ef' },
-  savings_investment: { label: 'Savings & Investment', icon: '\uD83D\uDCC8', color: '#22d3ee' },
-  debt_payment: { label: 'Debt Payment', icon: '\uD83D\uDCB3', color: '#f43f5e' },
-  gifts_donations: { label: 'Gifts & Donations', icon: '\uD83C\uDF81', color: '#fb923c' },
-  taxes: { label: 'Taxes', icon: '\uD83C\uDFDB\uFE0F', color: '#64748b' },
-  transfer: { label: 'Transfers', icon: '\u2194\uFE0F', color: '#94a3b8' },
-  other: { label: 'Other', icon: '\uD83D\uDCCB', color: '#78716c' },
+  income:             { label: 'Income',              icon: '\uD83D\uDCB0', color: 'var(--lf-pos)' },
+  housing:            { label: 'Housing',              icon: '\uD83C\uDFE0', color: 'var(--lf-sauce)' },
+  transportation:     { label: 'Transportation',       icon: '\uD83D\uDE97', color: 'var(--lf-basil)' },
+  food_dining:        { label: 'Dining Out',           icon: '\uD83C\uDF7D\uFE0F', color: 'var(--lf-cheese)' },
+  groceries:          { label: 'Groceries',            icon: '\uD83D\uDED2', color: 'var(--lf-cheese)' },
+  utilities:          { label: 'Utilities',            icon: '\u26A1', color: 'var(--lf-burgundy)' },
+  healthcare:         { label: 'Healthcare',           icon: '\uD83C\uDFE5', color: '#A68965' },
+  insurance:          { label: 'Insurance',            icon: '\uD83D\uDEE1\uFE0F', color: '#7A5C3F' },
+  entertainment:      { label: 'Entertainment',        icon: '\uD83C\uDFAC', color: 'var(--lf-crust)' },
+  shopping:           { label: 'Shopping',             icon: '\uD83D\uDECD\uFE0F', color: 'var(--lf-noodle)' },
+  personal_care:      { label: 'Personal Care',        icon: '\uD83D\uDC87', color: '#B8956A' },
+  education:          { label: 'Education',            icon: '\uD83D\uDCDA', color: 'var(--lf-basil)' },
+  travel:             { label: 'Travel',               icon: '\u2708\uFE0F', color: '#5A7A8A' },
+  subscriptions:      { label: 'Subscriptions',        icon: '\uD83D\uDCF1', color: 'var(--lf-crust)' },
+  savings_investment: { label: 'Savings & Investment', icon: '\uD83D\uDCC8', color: 'var(--lf-pos)' },
+  debt_payment:       { label: 'Debt Payment',         icon: '\uD83D\uDCB3', color: 'var(--lf-sauce)' },
+  gifts_donations:    { label: 'Gifts & Donations',    icon: '\uD83C\uDF81', color: '#B86A40' },
+  taxes:              { label: 'Taxes',                icon: '\uD83C\uDFDB\uFE0F', color: 'var(--lf-muted)' },
+  transfer:           { label: 'Transfers',            icon: '\u2194\uFE0F', color: 'var(--lf-muted)' },
+  other:              { label: 'Other',                icon: '\uD83D\uDCCB', color: '#7A5C3F' },
 };
 
 function getCategoryDisplay(key: string) {
-  return CATEGORY_CONFIG[key] ?? { label: key, icon: '\uD83D\uDCCB', color: '#78716c' };
+  return CATEGORY_CONFIG[key] ?? { label: key, icon: '\uD83D\uDCCB', color: '#7A5C3F' };
 }
 
 // ---------------------------------------------------------------------------
@@ -122,44 +107,135 @@ interface MonthlyTrendEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Custom Recharts Tooltip
+// DonutMini — inline SVG, no Recharts
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: any[]; label?: string }) {
-  if (!active || !payload?.length) return null;
+function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number; color: string }>; total: number }) {
+  const r = 34, R = 52, cx = 60, cy = 60;
+  let a0 = -Math.PI / 2;
+  const paths = cats.map((c) => {
+    const frac = total > 0 ? c.amount / total : 0;
+    const a1 = a0 + frac * 2 * Math.PI;
+    const large = frac > 0.5 ? 1 : 0;
+    const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+    const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+    const x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1);
+    const x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
+    const d = `M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 ${large} 0 ${x3} ${y3} Z`;
+    a0 = a1;
+    return { d, color: c.color };
+  });
   return (
-    <div className="bg-bg-elevated border border-border rounded-lg px-3 py-2 shadow-lg">
-      <p className="text-xs text-text-secondary mb-1">{label}</p>
-      {payload.map((entry: { name: string; value: number; color: string }) => (
-        <p key={entry.name} className="text-sm font-medium" style={{ color: entry.color }}>
-          {entry.name}: {formatCurrency(entry.value)}
-        </p>
-      ))}
-    </div>
+    <svg width="120" height="120" viewBox="0 0 120 120">
+      {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} />)}
+      <text x="60" y="58" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="16" fill="var(--lf-ink)">
+        ${(total / 1000).toFixed(1)}k
+      </text>
+      <text x="60" y="72" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="9" fill="var(--lf-muted)">
+        monthly
+      </text>
+    </svg>
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function PieTooltip({ active, payload }: { active?: boolean; payload?: any[] }) {
-  if (!active || !payload?.length) return null;
-  const data = payload[0];
-  const cat = getCategoryDisplay(data.name);
+// ---------------------------------------------------------------------------
+// TrendBarChart — inline SVG 6-month bar chart (income vs expenses)
+// ---------------------------------------------------------------------------
+
+function TrendBarChart({ data }: { data: MonthlyTrendEntry[] }) {
+  const slice = data.slice(-6);
+  if (slice.length === 0) return null;
+
+  const maxVal = Math.max(...slice.flatMap((d) => [d.income, d.expenses]), 1);
+  const chartH = 120;
+  const barW = 10;
+  const gap = 4;
+  const groupW = barW * 2 + gap + 12;
+  const totalW = groupW * slice.length;
+
   return (
-    <div className="bg-bg-elevated border border-border rounded-lg px-3 py-2 shadow-lg">
-      <p className="text-sm font-medium text-text-primary">
-        {cat.icon} {cat.label}
-      </p>
-      <p className="text-sm text-text-secondary">{formatCurrency(data.value)}</p>
-    </div>
+    <svg width="100%" viewBox={`0 0 ${totalW} ${chartH + 24}`} style={{ overflow: 'visible' }}>
+      {slice.map((d, i) => {
+        const incomeH = (d.income / maxVal) * chartH;
+        const expH = (d.expenses / maxVal) * chartH;
+        const gx = i * groupW;
+        const labelX = gx + groupW / 2 - 2;
+        return (
+          <g key={d.month}>
+            {/* Income bar */}
+            <rect
+              x={gx}
+              y={chartH - incomeH}
+              width={barW}
+              height={incomeH}
+              rx={3}
+              fill="var(--lf-pos)"
+              opacity={0.85}
+            />
+            {/* Expense bar */}
+            <rect
+              x={gx + barW + gap}
+              y={chartH - expH}
+              width={barW}
+              height={expH}
+              rx={3}
+              fill="var(--lf-sauce)"
+              opacity={0.85}
+            />
+            {/* Month label */}
+            <text
+              x={labelX}
+              y={chartH + 16}
+              textAnchor="middle"
+              fontFamily="JetBrains Mono, monospace"
+              fontSize={8}
+              fill="var(--lf-muted)"
+            >
+              {d.month.slice(0, 3)}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Shared inline style tokens
+// ---------------------------------------------------------------------------
+
+const S = {
+  eyebrow: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase' as const,
+    color: 'var(--lf-muted)',
+  },
+  serif: {
+    fontFamily: "'Instrument Serif', Georgia, serif",
+  },
+  card: {
+    background: 'var(--lf-paper)',
+    border: '1px solid var(--lf-rule)',
+    borderRadius: 14,
+  },
+  darkCard: {
+    background: 'var(--lf-ink)',
+    color: 'var(--lf-paper)',
+    borderRadius: 14,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Page constant
+// ---------------------------------------------------------------------------
+
+const PAGE_SIZE = 20;
 
 // ---------------------------------------------------------------------------
 // Spending Page
 // ---------------------------------------------------------------------------
-
-const PAGE_SIZE = 20;
 
 export function Spending() {
   const { setPageContext } = usePageContext();
@@ -199,7 +275,7 @@ export function Spending() {
   const [loadingTrend, setLoadingTrend] = useState(true);
   const [loadingTx, setLoadingTx] = useState(true);
 
-  // Refresh counter — incrementing this forces summary + transaction re-fetches
+  // Refresh counter
   const [refreshKey, setRefreshKey] = useState(0);
 
   const loadData = useCallback(() => {
@@ -212,7 +288,7 @@ export function Spending() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Detect linked accounts and credit card balances (for empty state)
+  // Detect linked accounts and credit card balances
   useEffect(() => {
     api.getBalances()
       .then((data) => {
@@ -292,6 +368,9 @@ export function Spending() {
   // Derived
   const totalPages = Math.max(1, Math.ceil(txTotal / PAGE_SIZE));
 
+  // DATA-NEEDED: savings rate — not returned by getSpendingSummary; compute from income/spending
+  const savingsRate = totalIncome > 0 ? Math.max(0, ((totalIncome - totalSpending) / totalIncome) * 100) : null;
+
   const prevMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
     setTxPage(1);
@@ -306,152 +385,179 @@ export function Spending() {
     [categories],
   );
 
-  // Donut chart data
-  const donutData = useMemo(
+  // DonutMini data — LasagnaFi color mapping
+  const donutCats = useMemo(
     () =>
       spendingCategories.map((c) => ({
         name: c.category,
-        value: Math.abs(c.total),
+        amount: Math.abs(c.total),
+        color: getCategoryDisplay(c.category).color,
       })),
     [spendingCategories],
   );
-
-  const donutColors = useMemo(
-    () => spendingCategories.map((c) => getCategoryDisplay(c.category).color),
-    [spendingCategories],
+  const donutTotal = useMemo(
+    () => donutCats.reduce((s, c) => s + c.amount, 0),
+    [donutCats],
   );
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
-      {/* Header */}
+    <div
+      style={{ flex: 1, overflowY: 'auto', padding: '32px 24px', background: 'var(--lf-cream)', minHeight: '100%' }}
+    >
+      {/* ------------------------------------------------------------------ */}
+      {/* Page Header                                                          */}
+      {/* ------------------------------------------------------------------ */}
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="mb-6"
+        transition={{ duration: 0.35 }}
+        style={{ marginBottom: 28 }}
       >
-        <h2 className="font-display text-3xl md:text-4xl font-medium tracking-tight">
-          Spending
-        </h2>
-        <p className="text-text-secondary text-sm mt-1">
-          Track where your money goes each month
-        </p>
+        {/* Eyebrow */}
+        <div style={{ ...S.eyebrow, marginBottom: 6 }}>
+          Spending &middot; {monthLabel(currentMonth)}
+        </div>
+
+        {/* Title + month nav row */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
+          <h1 style={{ ...S.serif, fontSize: 'clamp(28px, 5vw, 42px)', color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
+            Where the <em style={{ color: 'var(--lf-sauce)', fontStyle: 'italic' }}>money went.</em>
+          </h1>
+
+          {/* Month navigation */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <button
+              onClick={prevMonth}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 32, height: 32, borderRadius: 8,
+                border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                color: 'var(--lf-ink-soft)', cursor: 'pointer',
+              }}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              onClick={nextMonth}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 32, height: 32, borderRadius: 8,
+                border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                color: 'var(--lf-ink-soft)', cursor: 'pointer',
+              }}
+            >
+              <ChevronRight size={14} />
+            </button>
+
+            {/* Sync button */}
+            {import.meta.env.VITE_DEMO_MODE !== 'true' && (
+              <button
+                onClick={async () => {
+                  setSyncing(true);
+                  await api.triggerSync().catch(console.error);
+                  setTimeout(() => { loadData(); setSyncing(false); }, 3000);
+                }}
+                disabled={syncing}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  height: 32, padding: '0 12px', borderRadius: 8,
+                  border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                  color: 'var(--lf-muted)', fontSize: 12,
+                  fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.04em',
+                  cursor: syncing ? 'not-allowed' : 'pointer', opacity: syncing ? 0.5 : 1,
+                }}
+              >
+                <RefreshCw size={12} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
+                {syncing ? 'Syncing...' : 'Sync'}
+              </button>
+            )}
+          </div>
+        </div>
       </motion.div>
 
-
-      {/* Month Selector */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.05 }}
-        className="flex items-center gap-3 mb-6"
-      >
-        <button
-          onClick={prevMonth}
-          className="p-2 rounded-lg border border-border hover:bg-bg-elevated transition-colors"
+      {/* ------------------------------------------------------------------ */}
+      {/* 4 Mini Stat Cards                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      {(!hasLinkedAccounts || (!loadingSummary && (totalSpending > 0 || totalIncome > 0))) && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.07 }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: 12,
+            marginBottom: 28,
+          }}
         >
-          <ChevronLeft className="w-4 h-4 text-text-secondary" />
-        </button>
-        <span className="text-lg font-semibold text-text-primary min-w-[180px] text-center">
-          {monthLabel(currentMonth)}
-        </span>
-        <button
-          onClick={nextMonth}
-          className="p-2 rounded-lg border border-border hover:bg-bg-elevated transition-colors"
-        >
-          <ChevronRight className="w-4 h-4 text-text-secondary" />
-        </button>
-        {import.meta.env.VITE_DEMO_MODE !== "true" && (
-          <button
-            onClick={async () => {
-              setSyncing(true);
-              await api.triggerSync().catch(console.error);
-              // Wait for sync to process, then reload data
-              setTimeout(() => {
-                loadData();
-                setSyncing(false);
-              }, 3000);
-            }}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-accent border border-border rounded-lg hover:border-accent/30 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync'}
-          </button>
-        )}
-      </motion.div>
+          {/* Total Spent */}
+          <div style={{ ...S.card, padding: '16px 18px' }}>
+            <div style={{ ...S.eyebrow, marginBottom: 6 }}>Total spent</div>
+            <div style={{ ...S.serif, fontSize: 26, color: 'var(--lf-sauce)', lineHeight: 1 }}>
+              {loadingSummary ? <Loader2 size={16} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} /> : formatCurrency(totalSpending)}
+            </div>
+          </div>
 
-      {/* Quick Stats — hidden when no data and user has linked accounts */}
-      {(!hasLinkedAccounts || !loadingSummary && (totalSpending > 0 || totalIncome > 0)) && (
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8"
-      >
-        <div className="bg-bg-elevated border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <ArrowDownRight className="w-4 h-4 text-danger" />
-            <span className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
-              Total Spent
-            </span>
+          {/* Total Income */}
+          <div style={{ ...S.card, padding: '16px 18px' }}>
+            <div style={{ ...S.eyebrow, marginBottom: 6 }}>Total income</div>
+            <div style={{ ...S.serif, fontSize: 26, color: 'var(--lf-pos)', lineHeight: 1 }}>
+              {loadingSummary ? <Loader2 size={16} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} /> : formatCurrency(totalIncome)}
+            </div>
           </div>
-          <p className="text-2xl font-bold text-danger">
-            {loadingSummary ? '\u2014' : formatCurrency(totalSpending)}
-          </p>
-        </div>
-        <div className="bg-bg-elevated border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <ArrowUpRight className="w-4 h-4 text-success" />
-            <span className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
-              Total Income
-            </span>
+
+          {/* Net Cash Flow */}
+          <div style={{ ...S.card, padding: '16px 18px' }}>
+            <div style={{ ...S.eyebrow, marginBottom: 6 }}>Net cash flow</div>
+            <div style={{
+              ...S.serif, fontSize: 26, lineHeight: 1,
+              color: netCashFlow >= 0 ? 'var(--lf-pos)' : 'var(--lf-sauce)',
+            }}>
+              {loadingSummary
+                ? <Loader2 size={16} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} />
+                : `${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
+            </div>
           </div>
-          <p className="text-2xl font-bold text-success">
-            {loadingSummary ? '\u2014' : formatCurrency(totalIncome)}
-          </p>
-        </div>
-        <div className="bg-bg-elevated border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="w-4 h-4 text-text-secondary" />
-            <span className="text-xs uppercase tracking-wider text-text-secondary font-semibold">
-              Net Cash Flow
-            </span>
+
+          {/* Savings Rate */}
+          <div style={{ ...S.card, padding: '16px 18px' }}>
+            <div style={{ ...S.eyebrow, marginBottom: 6 }}>Savings rate</div>
+            <div style={{
+              ...S.serif, fontSize: 26, lineHeight: 1,
+              color: savingsRate !== null && savingsRate > 0 ? 'var(--lf-pos)' : 'var(--lf-muted)',
+            }}>
+              {loadingSummary
+                ? <Loader2 size={16} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} />
+                : savingsRate !== null
+                  ? `${savingsRate.toFixed(0)}%`
+                  : 'No data yet'}
+            </div>
           </div>
-          <p
-            className={`text-2xl font-bold ${
-              netCashFlow >= 0 ? 'text-success' : 'text-danger'
-            }`}
-          >
-            {loadingSummary
-              ? '\u2014'
-              : `${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
-          </p>
-        </div>
-      </motion.div>
+        </motion.div>
       )}
 
-      {/* Linked accounts with no transaction data — show estimated spend */}
+      {/* No-data state for users who have linked accounts but no transactions */}
       {!loadingSummary && totalSpending === 0 && totalIncome === 0 && hasLinkedAccounts && (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="bg-bg-elevated border border-border rounded-xl p-6 mb-8 text-center"
+          transition={{ duration: 0.35, delay: 0.07 }}
+          style={{ ...S.card, padding: 32, marginBottom: 28, textAlign: 'center' }}
         >
-          <h3 className="text-lg font-semibold text-text-primary mb-2">
+          <div style={{ ...S.serif, fontSize: 20, color: 'var(--lf-ink)', marginBottom: 8 }}>
             Transaction sync coming soon
-          </h3>
-          <p className="text-sm text-text-secondary mb-4">
+          </div>
+          <p style={{ color: 'var(--lf-muted)', fontSize: 14, marginBottom: 16 }}>
             For now, your monthly expenses are estimated from your credit card balances.
           </p>
           {creditCardTotal > 0 && (
-            <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-danger/10 border border-danger/20 rounded-xl">
-              <ArrowDownRight className="w-4 h-4 text-danger" />
-              <span className="text-xs uppercase tracking-wider text-text-secondary font-semibold mr-2">
-                Est. Monthly Spend
-              </span>
-              <span className="text-xl font-bold text-danger">
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              padding: '10px 18px', borderRadius: 10,
+              background: 'var(--lf-cream-deep)', border: '1px solid var(--lf-rule)',
+            }}>
+              <span style={{ ...S.eyebrow }}>Est. monthly spend</span>
+              <span style={{ ...S.serif, fontSize: 22, color: 'var(--lf-sauce)' }}>
                 {formatCurrency(creditCardTotal)}
               </span>
             </div>
@@ -459,272 +565,291 @@ export function Spending() {
         </motion.div>
       )}
 
-      {/* Spending by Category + Monthly Trend — side by side on large screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Spending by Category */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
-          className="bg-bg-elevated border border-border rounded-xl p-5"
-        >
-          <h3 className="text-sm font-semibold text-text-primary mb-4">Spending by Category</h3>
+      {/* ------------------------------------------------------------------ */}
+      {/* Two-column: Donut chart | 6-month trend                             */}
+      {/* ------------------------------------------------------------------ */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.14 }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: 16,
+          marginBottom: 28,
+        }}
+      >
+        {/* --- Category Donut --- */}
+        <div style={{ ...S.card, padding: 24 }}>
+          <div style={{ ...S.eyebrow, marginBottom: 14 }}>Spending by category</div>
+
           {loadingSummary ? (
-            <div className="flex items-center justify-center py-8 text-text-secondary">
-              <Loader2 className="w-5 h-5 animate-spin" />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0', color: 'var(--lf-muted)' }}>
+              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
             </div>
           ) : spendingCategories.length === 0 ? (
-            <p className="text-sm text-text-secondary py-8 text-center">No spending data for this month</p>
+            <p style={{ color: 'var(--lf-muted)', fontSize: 14, textAlign: 'center', padding: '32px 0' }}>
+              No data yet
+            </p>
           ) : (
-            <>
-              <div className="h-32 mb-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={donutData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
-                      {donutData.map((_, i) => (
-                        <Cell key={i} fill={donutColors[i]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<PieTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
+            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {/* Donut */}
+              <div style={{ flexShrink: 0 }}>
+                <DonutMini cats={donutCats} total={donutTotal} />
               </div>
-              <div className="space-y-1">
-                {(showAllCategories ? spendingCategories : spendingCategories.slice(0, 5)).map((cat) => {
+
+              {/* Category legend list */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {(showAllCategories ? spendingCategories : spendingCategories.slice(0, 6)).map((cat) => {
                   const display = getCategoryDisplay(cat.category);
                   const isSelected = selectedCategory === cat.category;
                   return (
                     <button
                       key={cat.category}
                       onClick={() => setSelectedCategory(isSelected ? null : cat.category)}
-                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                        isSelected ? 'bg-accent/10 border border-accent/20' : 'hover:bg-bg-surface border border-transparent'
-                      }`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        width: '100%', padding: '6px 8px', marginBottom: 2,
+                        borderRadius: 8, border: isSelected ? '1px solid var(--lf-rule)' : '1px solid transparent',
+                        background: isSelected ? 'var(--lf-cream-deep)' : 'transparent',
+                        cursor: 'pointer', textAlign: 'left',
+                      }}
                     >
-                      <span className="text-base flex-shrink-0">{display.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-text-primary truncate">{display.label}</span>
-                          <span className="text-xs font-semibold text-text-primary ml-2 flex-shrink-0">{formatCurrency(Math.abs(cat.total))}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <div className="flex-1 h-1 bg-bg-surface rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${cat.percentage}%`, backgroundColor: display.color }} />
-                          </div>
-                          <span className="text-xs text-text-secondary flex-shrink-0 w-8 text-right">{cat.percentage.toFixed(0)}%</span>
-                        </div>
-                      </div>
+                      {/* Color dot */}
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                        background: display.color,
+                      }} />
+                      <span style={{ flex: 1, fontSize: 12, color: 'var(--lf-ink)', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {display.label}
+                      </span>
+                      <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink-soft)', flexShrink: 0 }}>
+                        {formatCurrency(Math.abs(cat.total))}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--lf-muted)', flexShrink: 0, marginLeft: 4, fontFamily: "'JetBrains Mono', monospace" }}>
+                        {cat.percentage.toFixed(0)}%
+                      </span>
                     </button>
                   );
                 })}
+                {spendingCategories.length > 6 && (
+                  <button
+                    onClick={() => setShowAllCategories((v) => !v)}
+                    style={{
+                      width: '100%', padding: '4px 8px', marginTop: 2,
+                      fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                      color: 'var(--lf-muted)', background: 'none', border: 'none',
+                      cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
+                    }}
+                  >
+                    {showAllCategories ? 'Show less' : `+${spendingCategories.length - 6} more`}
+                  </button>
+                )}
               </div>
-              {spendingCategories.length > 5 && (
-                <button
-                  onClick={() => setShowAllCategories((v) => !v)}
-                  className="mt-2 w-full text-xs text-text-secondary hover:text-accent transition-colors py-1"
-                >
-                  {showAllCategories ? 'Show less' : `+${spendingCategories.length - 5} more categories`}
-                </button>
-              )}
-            </>
+            </div>
           )}
-        </motion.div>
+        </div>
 
-        {/* Monthly Trend */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-          className="bg-bg-elevated border border-border rounded-xl p-5"
-        >
-          <h3 className="text-sm font-semibold text-text-primary mb-4">Monthly Trend</h3>
+        {/* --- 6-Month Trend --- */}
+        <div style={{ ...S.card, padding: 24 }}>
+          <div style={{ ...S.eyebrow, marginBottom: 4 }}>6-month trend</div>
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--lf-pos)', display: 'inline-block' }} />
+              <span style={{ ...S.eyebrow, fontSize: 10 }}>Income</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--lf-sauce)', display: 'inline-block' }} />
+              <span style={{ ...S.eyebrow, fontSize: 10 }}>Expenses</span>
+            </div>
+          </div>
+
           {loadingTrend ? (
-            <div className="flex items-center justify-center py-8 text-text-secondary">
-              <Loader2 className="w-5 h-5 animate-spin" />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0', color: 'var(--lf-muted)' }}>
+              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
             </div>
           ) : trendData.length === 0 ? (
-            <p className="text-sm text-text-secondary py-8 text-center">No trend data available</p>
+            <p style={{ color: 'var(--lf-muted)', fontSize: 14, textAlign: 'center', padding: '32px 0' }}>
+              No data yet
+            </p>
           ) : (
-            <>
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#34d399" stopOpacity={0.2} />
-                        <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#fb923c" stopOpacity={0.2} />
-                        <stop offset="100%" stopColor="#fb923c" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} width={40} />
-                    <Tooltip content={<TrendTooltip />} />
-                    <Area type="monotone" dataKey="income" name="Income" stroke="#34d399" strokeWidth={2} fill="url(#incomeGrad)" />
-                    <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#fb923c" strokeWidth={2} fill="url(#expenseGrad)" />
-                    <Area type="monotone" dataKey="net" name="Net" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="5 3" fill="none" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex items-center gap-4 mt-3 justify-center">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#34d399]" />
-                  <span className="text-xs text-text-secondary">Income</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#fb923c]" />
-                  <span className="text-xs text-text-secondary">Expenses</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-0.5 border-t-2 border-dashed border-[#94a3b8]" />
-                  <span className="text-xs text-text-secondary">Net</span>
-                </div>
-              </div>
-            </>
+            <div style={{ width: '100%' }}>
+              <TrendBarChart data={trendData} />
+            </div>
           )}
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
 
-      <PageActions types={["spending", "behavioral"]} />
+      {/* ------------------------------------------------------------------ */}
+      {/* Page Actions (behavioral / spending insights)                       */}
+      {/* ------------------------------------------------------------------ */}
+      <PageActions types={['spending', 'behavioral']} />
 
-      {/* Transaction List */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Transaction Table                                                    */}
+      {/* ------------------------------------------------------------------ */}
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.25 }}
-        className="bg-bg-elevated border border-border rounded-xl p-5 mb-8"
+        transition={{ duration: 0.35, delay: 0.21 }}
+        style={{ ...S.card, padding: 24, marginBottom: 40 }}
       >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <h3 className="text-lg font-semibold text-text-primary">Transactions</h3>
-          <div className="flex items-center gap-2 flex-wrap">
+        {/* Table header row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div style={{ ...S.eyebrow }}>Transactions</div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {/* Category filter */}
             <select
               value={selectedCategory || ''}
-              onChange={(e) => setSelectedCategory(e.target.value || null)}
-              className="bg-bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50 appearance-none cursor-pointer"
+              onChange={(e) => { setSelectedCategory(e.target.value || null); setTxPage(1); }}
+              style={{
+                height: 34, padding: '0 10px', borderRadius: 8,
+                border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                color: 'var(--lf-ink)', fontSize: 12,
+                fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+                appearance: 'none',
+              }}
             >
-              <option value="">All Categories</option>
+              <option value="">All categories</option>
               {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-                <option key={key} value={key}>
-                  {cfg.icon} {cfg.label}
-                </option>
+                <option key={key} value={key}>{cfg.label}</option>
               ))}
             </select>
 
             {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+            <div style={{ position: 'relative' }}>
+              <Search
+                size={13}
+                style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--lf-muted)', pointerEvents: 'none' }}
+              />
               <input
                 type="text"
                 placeholder="Search merchants..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-bg-surface border border-border rounded-lg pl-9 pr-8 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/50 w-52"
+                onChange={(e) => { setSearchQuery(e.target.value); setTxPage(1); }}
+                style={{
+                  height: 34, padding: '0 32px 0 30px', borderRadius: 8,
+                  border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                  color: 'var(--lf-ink)', fontSize: 12, width: 200,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  outline: 'none',
+                }}
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                  style={{
+                    position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                    color: 'var(--lf-muted)', background: 'none', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center',
+                  }}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X size={12} />
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Active filters */}
+        {/* Active filter chips */}
         {(selectedCategory || debouncedSearch) && (
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
             {selectedCategory && (
-              <span className="inline-flex items-center gap-1 bg-accent/10 text-accent text-xs font-medium px-2.5 py-1 rounded-full">
-                {getCategoryDisplay(selectedCategory).icon}{' '}
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '3px 10px', borderRadius: 20,
+                background: 'var(--lf-cream-deep)', border: '1px solid var(--lf-rule)',
+                fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                color: 'var(--lf-ink-soft)', letterSpacing: '0.06em',
+              }}>
                 {getCategoryDisplay(selectedCategory).label}
-                <button
-                  onClick={() => setSelectedCategory(null)}
-                  className="ml-0.5 hover:text-accent/70"
-                >
-                  <X className="w-3 h-3" />
+                <button onClick={() => setSelectedCategory(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--lf-muted)', display: 'flex', alignItems: 'center' }}>
+                  <X size={10} />
                 </button>
               </span>
             )}
             {debouncedSearch && (
-              <span className="inline-flex items-center gap-1 bg-bg-surface text-text-secondary text-xs font-medium px-2.5 py-1 rounded-full">
-                Search: &ldquo;{debouncedSearch}&rdquo;
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="ml-0.5 hover:text-text-primary"
-                >
-                  <X className="w-3 h-3" />
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '3px 10px', borderRadius: 20,
+                background: 'var(--lf-cream-deep)', border: '1px solid var(--lf-rule)',
+                fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                color: 'var(--lf-ink-soft)',
+              }}>
+                &ldquo;{debouncedSearch}&rdquo;
+                <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--lf-muted)', display: 'flex', alignItems: 'center' }}>
+                  <X size={10} />
                 </button>
               </span>
             )}
           </div>
         )}
 
-        {/* Transaction rows */}
+        {/* Rows */}
         {loadingTx ? (
-          <div className="flex items-center justify-center py-12 text-text-secondary">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            <span className="text-sm">Loading transactions...</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0', color: 'var(--lf-muted)' }}>
+            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>Loading transactions...</span>
           </div>
         ) : transactions.length === 0 ? (
-          <p className="text-sm text-text-secondary py-12 text-center">
+          <p style={{ textAlign: 'center', color: 'var(--lf-muted)', padding: '48px 0', fontSize: 14 }}>
             No transactions found
           </p>
         ) : (
-          <div className="divide-y divide-border">
-            {transactions.map((tx) => {
+          <div>
+            {transactions.map((tx, idx) => {
               const amount = parseFloat(tx.amount);
               const isIncome = amount > 0;
               const display = getCategoryDisplay(tx.category);
-              const dateStr = new Date(tx.date).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              });
+              const dateStr = new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
               return (
                 <div
                   key={tx.id}
-                  className="flex items-center gap-3 py-3 px-1 hover:bg-bg-surface/50 rounded-lg transition-colors"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 8px',
+                    borderTop: idx > 0 ? '1px solid var(--lf-rule-soft)' : 'none',
+                  }}
                 >
-                  {/* Icon */}
-                  <span className="text-lg flex-shrink-0 w-8 text-center">
-                    {display.icon}
-                  </span>
+                  {/* Category color bar */}
+                  <span style={{
+                    width: 4, height: 28, borderRadius: 2, flexShrink: 0,
+                    background: display.color,
+                  }} />
 
-                  {/* Name + details */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">
+                  {/* Merchant + date */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: 'var(--lf-ink)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {tx.merchantName || tx.name}
-                    </p>
-                    <p className="text-xs text-text-secondary truncate">
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--lf-muted)', fontFamily: "'JetBrains Mono', monospace", marginTop: 1 }}>
                       {dateStr}
-                    </p>
+                    </div>
                   </div>
 
                   {/* Category badge */}
-                  <span
-                    className="hidden sm:inline-flex text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
-                    style={{
-                      backgroundColor: `${display.color}15`,
-                      color: display.color,
-                    }}
-                  >
+                  <span style={{
+                    display: 'none',
+                    fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                    padding: '2px 8px', borderRadius: 20, flexShrink: 0,
+                    background: 'var(--lf-cream-deep)', color: 'var(--lf-muted)',
+                    letterSpacing: '0.06em', textTransform: 'uppercase',
+                    // shown on sm+ via media query not possible in inline styles, so we conditionally render it
+                  } as React.CSSProperties}>
                     {display.label}
                   </span>
 
                   {/* Amount */}
-                  <span
-                    className={`text-sm font-semibold flex-shrink-0 ${
-                      isIncome ? 'text-success' : 'text-danger'
-                    }`}
-                  >
-                    {isIncome ? '+' : ''}
-                    {formatCurrencyExact(amount)}
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 13, flexShrink: 0,
+                    color: isIncome ? 'var(--lf-pos)' : 'var(--lf-sauce)',
+                    fontWeight: 600,
+                  }}>
+                    {isIncome ? '+' : ''}{formatCurrencyExact(amount)}
                   </span>
                 </div>
               );
@@ -734,28 +859,42 @@ export function Spending() {
 
         {/* Pagination */}
         {txTotal > PAGE_SIZE && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-            <p className="text-xs text-text-secondary">
-              Showing {(txPage - 1) * PAGE_SIZE + 1}&ndash;
-              {Math.min(txPage * PAGE_SIZE, txTotal)} of {txTotal}
-            </p>
-            <div className="flex items-center gap-1">
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--lf-rule)',
+          }}>
+            <span style={{ ...S.eyebrow, fontSize: 10 }}>
+              {(txPage - 1) * PAGE_SIZE + 1}&ndash;{Math.min(txPage * PAGE_SIZE, txTotal)} of {txTotal}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button
                 onClick={() => setTxPage((p) => Math.max(1, p - 1))}
                 disabled={txPage <= 1}
-                className="p-2 rounded-lg border border-border text-text-secondary hover:bg-bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 30, height: 30, borderRadius: 7,
+                  border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                  color: 'var(--lf-muted)', cursor: txPage <= 1 ? 'not-allowed' : 'pointer',
+                  opacity: txPage <= 1 ? 0.4 : 1,
+                }}
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft size={13} />
               </button>
-              <span className="text-sm text-text-secondary px-3">
+              <span style={{ ...S.eyebrow, fontSize: 10, minWidth: 60, textAlign: 'center' }}>
                 {txPage} / {totalPages}
               </span>
               <button
                 onClick={() => setTxPage((p) => Math.min(totalPages, p + 1))}
                 disabled={txPage >= totalPages}
-                className="p-2 rounded-lg border border-border text-text-secondary hover:bg-bg-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 30, height: 30, borderRadius: 7,
+                  border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+                  color: 'var(--lf-muted)', cursor: txPage >= totalPages ? 'not-allowed' : 'pointer',
+                  opacity: txPage >= totalPages ? 0.4 : 1,
+                }}
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight size={13} />
               </button>
             </div>
           </div>

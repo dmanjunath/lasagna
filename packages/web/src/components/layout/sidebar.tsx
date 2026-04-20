@@ -1,40 +1,43 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  LayoutDashboard,
-  Receipt,
-  Target,
-  CreditCard,
-  Compass,
-  Building2,
-  LogOut,
-  ChevronUp,
-  PieChart,
-  User,
-  ShoppingCart,
-} from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
-import { Logo } from '../common/Logo';
-import type { LucideIcon } from 'lucide-react';
+import { useChatStore } from '../../lib/chat-store';
 
 interface NavItem {
   id: string;
-  name: string;
-  icon: LucideIcon;
+  label: string;
+  icon: string;
   path: string;
 }
 
-const fixedTabs: NavItem[] = [
-  { id: 'home', name: 'Home', icon: LayoutDashboard, path: '/' },
-  { id: 'priorities', name: 'Focus', icon: Compass, path: '/priorities' },
-  { id: 'spending', name: 'Spending', icon: ShoppingCart, path: '/spending' },
-  { id: 'debt', name: 'Debt', icon: CreditCard, path: '/debt' },
-  { id: 'invest', name: 'Portfolio', icon: PieChart, path: '/invest' },
-  { id: 'retirement', name: 'Retirement', icon: Target, path: '/retirement' },
-  { id: 'tax', name: 'Tax', icon: Receipt, path: '/tax' },
+interface NavSection {
+  section: string;
+}
+
+type NavEntry = NavItem | NavSection;
+
+const NAV: NavEntry[] = [
+  { section: 'OVERVIEW' },
+  { id: 'dashboard',  label: 'Dashboard',  icon: '◆', path: '/' },
+  { id: 'actions',    label: 'Actions',    icon: '→', path: '/insights' },
+  { id: 'priorities', label: 'Layers',     icon: '≡', path: '/priorities' },
+  { section: 'WEALTH' },
+  { id: 'retirement', label: 'Retirement', icon: '△', path: '/retirement' },
+  { id: 'portfolio',  label: 'Portfolio',  icon: '◎', path: '/invest' },
+  { id: 'spending',   label: 'Spending',   icon: '—', path: '/spending' },
+  { id: 'debt',       label: 'Debt',       icon: '⌐', path: '/debt' },
+  { id: 'tax',        label: 'Tax',        icon: 'τ', path: '/tax' },
+  { id: 'goals',      label: 'Goals',      icon: '⊙', path: '/goals' },
+  { section: 'SETUP' },
+  { id: 'accounts',   label: 'Accounts',   icon: '⊞', path: '/accounts' },
+  { id: 'profile',    label: 'Profile',    icon: '○', path: '/profile' },
 ];
+
+function isSection(entry: NavEntry): entry is NavSection {
+  return 'section' in entry;
+}
 
 interface SidebarProps {
   onNewPlan?: () => void;
@@ -43,11 +46,11 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [location, navigate] = useLocation();
-  const { user, tenant, logout } = useAuth();
+  const { tenant, logout } = useAuth();
+  const { openChat } = useChatStore();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close user menu on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
@@ -60,54 +63,74 @@ export function Sidebar({ className }: SidebarProps) {
     }
   }, [userMenuOpen]);
 
-  const isActive = (path: string) => location === path;
+  const isActive = (path: string) => {
+    if (path === '/') return location === '/';
+    return location.startsWith(path);
+  };
+
+  const rawName = tenant?.name || '';
+  const firstName = rawName.startsWith('Seed ') ? 'User' : (rawName.split(' ')[0] || 'User');
+  const initial = firstName[0]?.toUpperCase() || 'U';
 
   return (
-    <aside className={cn('w-full h-full bg-bg-elevated flex flex-col', className)}>
-      {/* Logo */}
-      <div className="p-5 border-b border-border">
-        <h1 className="font-display text-xl font-medium tracking-tight flex items-center gap-3">
-          <Logo width={30} />
-          <span>Lasagna</span>
-        </h1>
-        <p className="text-sm text-text-secondary mt-1.5 ml-12">AI Financial Advisor</p>
+    <aside
+      className={cn('w-full h-full flex flex-col', className)}
+      style={{ background: 'var(--lf-cream)', borderRight: '1px solid var(--lf-rule)' }}
+    >
+      {/* Brand */}
+      <div style={{ padding: '24px 16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px' }}>
+          <div className="lf-mark">
+            <span /><span /><span />
+          </div>
+          <span style={{
+            fontFamily: "'Instrument Serif', Georgia, serif",
+            fontSize: 20, color: 'var(--lf-ink)', letterSpacing: '-0.01em',
+          }}>
+            Lasagna<em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>Fi</em>
+          </span>
+        </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 overflow-y-auto scrollbar-thin">
-        {/* Fixed Tabs */}
-        <div className="mb-6">
-          <div className="text-xs uppercase tracking-wider text-text-secondary font-semibold mb-3 px-2">
-            Main
-          </div>
-          <div className="space-y-1">
-            {fixedTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <motion.button
-                  key={tab.id}
-                  onClick={() => navigate(tab.path)}
-                  whileHover={{ x: 2 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={cn(
-                    'w-full text-left px-3 py-3 rounded-xl text-sm flex items-center gap-3 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
-                    isActive(tab.path)
-                      ? 'bg-white/[0.07] text-accent'
-                      : 'hover:bg-surface-hover text-text-secondary hover:text-text'
-                  )}
-                >
-                  <Icon className={cn('w-5 h-5', isActive(tab.path) ? 'text-accent' : 'text-text-secondary')} />
-                  <span className="flex-1 font-medium">{tab.name}</span>
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
+      <nav style={{ flex: 1, padding: '0 12px', overflowY: 'auto' }} className="scrollbar-thin">
+        {NAV.map((entry, i) => {
+          if (isSection(entry)) {
+            return (
+              <div key={i} style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10, letterSpacing: '0.14em',
+                textTransform: 'uppercase', color: 'var(--lf-muted)',
+                padding: '0 8px', margin: '20px 0 8px',
+              }}>
+                {entry.section}
+              </div>
+            );
+          }
 
+          const active = isActive(entry.path);
+          return (
+            <NavButton
+              key={entry.id}
+              active={active}
+              icon={entry.icon}
+              label={entry.label}
+              onClick={() => navigate(entry.path)}
+            />
+          );
+        })}
+
+        {/* AI Chat button */}
+        <NavButton
+          active={false}
+          icon="✦"
+          label="AI Chat"
+          onClick={() => openChat()}
+        />
       </nav>
 
-      {/* User profile */}
-      <div className="relative border-t border-border bg-bg/50" ref={userMenuRef}>
+      {/* Account chip */}
+      <div style={{ padding: '12px 16px', position: 'relative' }} ref={userMenuRef}>
         <AnimatePresence>
           {userMenuOpen && (
             <motion.div
@@ -115,49 +138,139 @@ export function Sidebar({ className }: SidebarProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4 }}
               transition={{ duration: 0.15 }}
-              className="absolute bottom-full left-2 right-2 mb-1 bg-surface-solid border border-border rounded-xl shadow-lg overflow-hidden z-50"
+              style={{
+                position: 'absolute', bottom: '100%', left: 16, right: 16,
+                marginBottom: 6,
+                background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)',
+                borderRadius: 10, overflow: 'hidden',
+                boxShadow: '0 8px 24px rgba(31,26,22,0.12)',
+                zIndex: 50,
+              }}
             >
-              <button
-                onClick={() => { setUserMenuOpen(false); navigate('/accounts'); }}
-                className="w-full px-3 py-2.5 text-sm text-text-secondary hover:text-text hover:bg-surface-hover flex items-center gap-2.5 transition-colors"
-              >
-                <Building2 className="w-4 h-4" />
-                Accounts
-              </button>
-              <div className="border-t border-border" />
-              <button
-                onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
-                className="w-full px-3 py-2.5 text-sm text-text-secondary hover:text-text hover:bg-surface-hover flex items-center gap-2.5 transition-colors"
-              >
-                <User className="w-4 h-4" />
-                Profile
-              </button>
-              <div className="border-t border-border" />
-              <button
+              {[
+                { label: 'Accounts', path: '/accounts' },
+                { label: 'Profile', path: '/profile' },
+              ].map(({ label, path }, i) => (
+                <MenuButton
+                  key={path}
+                  label={label}
+                  borderTop={i > 0}
+                  onClick={() => { setUserMenuOpen(false); navigate(path); }}
+                />
+              ))}
+              <MenuButton
+                label="Sign out"
+                borderTop
+                danger
                 onClick={() => { setUserMenuOpen(false); logout(); }}
-                className="w-full px-3 py-2.5 text-sm text-danger/80 hover:text-danger hover:bg-danger/5 flex items-center gap-2.5 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                Log out
-              </button>
+              />
             </motion.div>
           )}
         </AnimatePresence>
 
         <button
           onClick={() => setUserMenuOpen(!userMenuOpen)}
-          className="w-full p-4 flex items-center gap-3 hover:bg-surface-hover transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          style={{
+            width: '100%', background: 'var(--lf-paper)',
+            border: '1px solid var(--lf-rule)', borderRadius: 10,
+            padding: 14, display: 'flex', alignItems: 'center',
+            gap: 10, cursor: 'pointer',
+          }}
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/20 to-accent-dim/20 border border-accent/20 flex items-center justify-center text-sm font-semibold text-accent">
-            {(tenant?.name || 'U').charAt(0).toUpperCase()}
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: 'var(--lf-sauce)', color: 'var(--lf-paper)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: "'Instrument Serif', Georgia, serif",
+            fontSize: 14, flexShrink: 0,
+          }}>
+            {initial}
           </div>
-          <div className="flex-1 min-w-0 text-left">
-            <div className="text-sm font-semibold truncate">{tenant?.name || 'User'}</div>
-            <div className="text-sm text-text-secondary truncate capitalize">{tenant?.plan || 'free'} plan</div>
+          <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+            <div style={{
+              fontWeight: 500, color: 'var(--lf-ink)', fontSize: 12,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              fontFamily: "'Geist', system-ui, sans-serif",
+            }}>
+              {firstName}
+            </div>
+            <div style={{ color: 'var(--lf-muted)', fontSize: 11, marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>
+              {tenant?.plan === 'pro' ? 'pro plan' : 'self-hosted'} · sync ✓
+            </div>
           </div>
-          <ChevronUp className={cn('w-4 h-4 text-text-secondary transition-transform', userMenuOpen ? '' : 'rotate-180')} />
+          <span style={{
+            color: 'var(--lf-muted)', fontSize: 11,
+            transform: userMenuOpen ? 'rotate(180deg)' : 'none',
+            transition: 'transform 0.15s',
+            display: 'inline-block',
+          }}>▾</span>
         </button>
       </div>
     </aside>
+  );
+}
+
+function NavButton({ active, icon, label, onClick }: {
+  active: boolean;
+  icon: string;
+  label: string;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <motion.button
+      onClick={onClick}
+      whileTap={{ scale: 0.98 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        width: '100%', textAlign: 'left',
+        padding: '9px 12px', borderRadius: 8,
+        marginBottom: 2, border: 0, cursor: 'pointer',
+        fontSize: 14, fontFamily: "'Geist', system-ui, sans-serif",
+        background: active ? 'var(--lf-ink)' : hovered ? 'var(--lf-cream-deep)' : 'transparent',
+        color: active ? 'var(--lf-paper)' : 'var(--lf-ink-soft)',
+        transition: 'background 0.1s',
+      }}
+    >
+      <span style={{
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 11, width: 16,
+        opacity: active ? 1 : 0.7,
+        color: active ? 'var(--lf-cheese)' : undefined,
+      }}>
+        {icon}
+      </span>
+      <span style={{ flex: 1 }}>{label}</span>
+    </motion.button>
+  );
+}
+
+function MenuButton({ label, onClick, borderTop, danger }: {
+  label: string;
+  onClick: () => void;
+  borderTop?: boolean;
+  danger?: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        width: '100%', textAlign: 'left', padding: '10px 14px',
+        fontSize: 13, border: 0,
+        borderTop: borderTop ? '1px solid var(--lf-rule)' : 'none',
+        background: hovered ? 'var(--lf-cream)' : 'transparent',
+        cursor: 'pointer',
+        color: danger ? 'var(--lf-sauce)' : 'var(--lf-ink-soft)',
+        fontFamily: "'Geist', system-ui, sans-serif",
+        transition: 'background 0.1s',
+      }}
+    >
+      {label}
+    </button>
   );
 }

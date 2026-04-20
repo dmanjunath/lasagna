@@ -62,22 +62,28 @@ export function Login() {
             <div className="inline-flex items-center justify-center mb-4">
               <Logo width={64} />
             </div>
-            <h1 className="text-3xl font-display font-semibold text-text">Lasagna</h1>
-            <p className="text-text-secondary mt-1">Personal finance platform</p>
+            <h1 className="text-3xl font-display font-semibold text-text">
+              Lasagna<em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>Fi</em>
+            </h1>
+            <p className="text-text-secondary mt-1">Personal finance, layered.</p>
           </div>
 
           {import.meta.env.VITE_DEMO_MODE === "true" && (
-            <div className="mb-4 rounded-lg border border-[rgba(0,229,160,0.25)] bg-[rgba(0,229,160,0.08)] p-3 text-sm">
-              <p className="font-semibold text-[rgb(var(--color-accent))] mb-1">
+            <div className="mb-4 rounded-lg p-3 text-sm" style={{
+              border: '1px solid rgba(201,84,58,0.25)',
+              background: 'rgba(201,84,58,0.06)',
+            }}>
+              <p className="font-semibold mb-1" style={{ color: 'var(--lf-sauce)' }}>
                 Demo account
               </p>
-              <p className="text-[rgb(var(--color-text-secondary))]">
+              <p style={{ color: 'var(--lf-ink-soft)' }}>
                 Email: demo@lasagnafi.com &nbsp;|&nbsp; Password: lasagna123
               </p>
               <button
                 type="button"
                 onClick={autofillDemo}
-                className="mt-2 text-xs text-[rgb(var(--color-accent))] underline"
+                className="mt-2 text-xs underline"
+                style={{ color: 'var(--lf-sauce)' }}
               >
                 Auto-fill credentials
               </button>
@@ -184,7 +190,7 @@ export function Login() {
         )}
 
         {/* Decorative border glow */}
-        <div className="absolute -inset-px rounded-2xl bg-gradient-to-br from-accent/20 via-transparent to-accent/10 -z-10 blur-sm" />
+        <div className="absolute -inset-px rounded-2xl -z-10 blur-sm" style={{ background: 'linear-gradient(135deg, rgba(201,84,58,0.15), transparent, rgba(230,184,92,0.08))' }} />
       </motion.div>
     </div>
   );

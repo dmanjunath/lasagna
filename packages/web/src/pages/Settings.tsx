@@ -22,24 +22,43 @@ interface SettingsRowProps {
   label: string;
   danger?: boolean;
   onClick?: () => void;
+  first?: boolean;
 }
 
-function SettingsRow({ icon, label, danger, onClick }: SettingsRowProps) {
+function SettingsRow({ icon, label, danger, onClick, first }: SettingsRowProps) {
+  const [hovered, setHovered] = useState(false);
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-between px-5 py-4 cursor-pointer hover:bg-surface-hover transition-colors text-left"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        width: '100%',
+        textAlign: 'left',
+        padding: '14px 18px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        border: 0,
+        borderTop: first ? 0 : '1px solid var(--lf-rule)',
+        background: hovered ? 'var(--lf-cream)' : 'transparent',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'background 0.1s',
+        fontFamily: "'Geist', system-ui, sans-serif",
+      }}
     >
-      <div className="flex items-center gap-3.5">
-        <div className="w-9 h-9 rounded-lg bg-bg-elevated flex items-center justify-center text-lg">
-          {icon}
-        </div>
-        <span className={danger ? "text-danger font-medium" : "text-text"}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 18 }}>{icon}</span>
+        <span style={{
+          fontSize: 14,
+          color: danger ? 'var(--lf-sauce)' : 'var(--lf-ink-soft)',
+          fontWeight: danger ? 500 : 400,
+        }}>
           {label}
         </span>
       </div>
-      <span className="text-sm text-text-secondary">›</span>
+      {onClick && <span style={{ color: 'var(--lf-muted)', fontSize: 16 }}>›</span>}
     </button>
   );
 }
@@ -47,16 +66,22 @@ function SettingsRow({ icon, label, danger, onClick }: SettingsRowProps) {
 interface StatRowProps {
   label: string;
   value: string;
-  valueClass?: string;
+  valueColor?: string;
+  first?: boolean;
 }
 
-function StatRow({ label, value, valueClass }: StatRowProps) {
+function StatRow({ label, value, valueColor, first }: StatRowProps) {
   return (
-    <div className="flex items-center justify-between px-5 py-3.5">
-      <span className="text-sm text-text-secondary">{label}</span>
-      <span className={`text-sm font-medium ${valueClass || "text-text"}`}>
-        {value}
-      </span>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '12px 18px',
+      borderTop: first ? 0 : '1px solid var(--lf-rule)',
+      fontFamily: "'Geist', system-ui, sans-serif",
+    }}>
+      <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>{label}</span>
+      <span style={{ fontSize: 13, color: valueColor || 'var(--lf-ink)', fontWeight: 500 }}>{value}</span>
     </div>
   );
 }
@@ -104,11 +129,32 @@ function formatRiskTolerance(risk: string | null): string {
 }
 
 function riskToleranceColor(risk: string | null): string {
-  if (!risk) return "text-text-secondary";
-  if (risk.includes("aggressive")) return "text-green-400";
-  if (risk === "moderate") return "text-yellow-400";
-  return "text-blue-400";
+  if (!risk) return 'var(--lf-muted)';
+  if (risk.includes('aggressive')) return 'var(--lf-basil)';
+  if (risk === 'moderate') return 'var(--lf-cheese)';
+  return 'var(--lf-sauce)';
 }
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  background: 'var(--lf-cream)',
+  border: '1px solid var(--lf-rule)',
+  borderRadius: 8,
+  fontSize: 13,
+  color: 'var(--lf-ink)',
+  fontFamily: "'Geist', system-ui, sans-serif",
+  outline: 'none',
+  boxSizing: 'border-box',
+};
+
+const labelTextStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  color: 'var(--lf-muted)',
+  marginBottom: 6,
+  fontFamily: "'Geist', system-ui, sans-serif",
+};
 
 export function Settings() {
   const { user, tenant, logout } = useAuth();
@@ -214,33 +260,74 @@ export function Settings() {
   const retirementAge =
     profile?.retirementAge != null ? String(profile.retirementAge) : null;
 
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--lf-paper)',
+    border: '1px solid var(--lf-rule)',
+    borderRadius: 14,
+    overflow: 'hidden',
+  };
+
+  const sectionLabelStyle: React.CSSProperties = {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 10,
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
+    color: 'var(--lf-muted)',
+    marginBottom: 8,
+    paddingLeft: 4,
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
+    <div
+      style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)', padding: '24px 20px 48px' }}
+      className="scrollbar-thin"
+    >
       <motion.div
         variants={container}
         initial="hidden"
         animate="show"
-        className="max-w-lg mx-auto space-y-6 pb-8"
+        style={{ maxWidth: 520, margin: '0 auto' }}
       >
         {/* Profile Header */}
-        <motion.div variants={item} className="flex flex-col items-center pt-4 pb-2">
-          <div className="w-[72px] h-[72px] rounded-full bg-bg-elevated border border-border flex items-center justify-center mb-3">
-            <span className="text-2xl font-bold text-text">{initial}</span>
+        <motion.div
+          variants={item}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 16, paddingBottom: 8, marginBottom: 24 }}
+        >
+          <div style={{
+            width: 64,
+            height: 64,
+            borderRadius: 16,
+            background: 'var(--lf-sauce)',
+            color: 'var(--lf-paper)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: "'Instrument Serif', Georgia, serif",
+            fontSize: 28,
+            marginBottom: 12,
+          }}>
+            {initial}
           </div>
-          <h1 className="font-display text-2xl font-semibold text-text">
+          <h1 style={{
+            fontFamily: "'Instrument Serif', Georgia, serif",
+            fontSize: 22,
+            fontWeight: 600,
+            color: 'var(--lf-ink)',
+            margin: 0,
+          }}>
             {displayName}
           </h1>
-          <p className="text-sm text-text-secondary">{email}</p>
+          <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 4, fontFamily: "'Geist', system-ui, sans-serif" }}>
+            {email}
+          </p>
         </motion.div>
 
         {/* Navigation Card */}
-        <motion.div
-          variants={item}
-          className="glass-card rounded-2xl p-0 overflow-hidden divide-y divide-border"
-        >
+        <motion.div variants={item} style={{ ...cardStyle, marginBottom: 24 }}>
           <SettingsRow
             icon="👤"
             label="Personal Info"
+            first
             onClick={import.meta.env.VITE_DEMO_MODE !== "true" ? () => openEdit("personal") : undefined}
           />
           <SettingsRow
@@ -256,38 +343,44 @@ export function Settings() {
           <SettingsRow icon="🎯" label="Financial Goals" />
         </motion.div>
 
-        {/* Edit Modal - Personal Info */}
+        {/* Edit Panel - Personal Info */}
         {editSection === "personal" && import.meta.env.VITE_DEMO_MODE !== "true" && (
           <motion.div
             variants={item}
             initial="hidden"
             animate="show"
-            className="glass-card rounded-2xl p-5 space-y-4"
+            style={{ ...cardStyle, padding: 20, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}
           >
-            <h2 className="text-base font-semibold text-text">
+            <h2 style={{
+              fontFamily: "'Geist', system-ui, sans-serif",
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--lf-ink)',
+              margin: 0,
+            }}>
               Personal Info
             </h2>
 
-            <label className="block">
-              <span className="text-sm text-text-secondary">Date of Birth</span>
+            <label style={{ display: 'block' }}>
+              <span style={labelTextStyle}>Date of Birth</span>
               <input
                 type="date"
                 value={formData.dateOfBirth}
                 onChange={(e) =>
                   setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))
                 }
-                className="mt-1 w-full rounded-lg bg-bg-elevated border border-border px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
 
-            <label className="block">
-              <span className="text-sm text-text-secondary">Filing Status</span>
+            <label style={{ display: 'block' }}>
+              <span style={labelTextStyle}>Filing Status</span>
               <select
                 value={formData.filingStatus}
                 onChange={(e) =>
                   setFormData((f) => ({ ...f, filingStatus: e.target.value }))
                 }
-                className="mt-1 w-full rounded-lg bg-bg-elevated border border-border px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               >
                 <option value="">Select...</option>
                 {FILING_STATUS_OPTIONS.map((o) => (
@@ -298,10 +391,8 @@ export function Settings() {
               </select>
             </label>
 
-            <label className="block">
-              <span className="text-sm text-text-secondary">
-                State of Residence (2-letter code)
-              </span>
+            <label style={{ display: 'block' }}>
+              <span style={labelTextStyle}>State of Residence (2-letter code)</span>
               <input
                 type="text"
                 maxLength={2}
@@ -313,18 +404,18 @@ export function Settings() {
                   }))
                 }
                 placeholder="CA"
-                className="mt-1 w-full rounded-lg bg-bg-elevated border border-border px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
 
-            <label className="block">
-              <span className="text-sm text-text-secondary">Risk Tolerance</span>
+            <label style={{ display: 'block' }}>
+              <span style={labelTextStyle}>Risk Tolerance</span>
               <select
                 value={formData.riskTolerance}
                 onChange={(e) =>
                   setFormData((f) => ({ ...f, riskTolerance: e.target.value }))
                 }
-                className="mt-1 w-full rounded-lg bg-bg-elevated border border-border px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               >
                 <option value="">Select...</option>
                 {RISK_TOLERANCE_OPTIONS.map((o) => (
@@ -335,8 +426,8 @@ export function Settings() {
               </select>
             </label>
 
-            <label className="block">
-              <span className="text-sm text-text-secondary">Retirement Age</span>
+            <label style={{ display: 'block' }}>
+              <span style={labelTextStyle}>Retirement Age</span>
               <input
                 type="number"
                 min={30}
@@ -346,23 +437,45 @@ export function Settings() {
                   setFormData((f) => ({ ...f, retirementAge: e.target.value }))
                 }
                 placeholder="65"
-                className="mt-1 w-full rounded-lg bg-bg-elevated border border-border px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
 
-            <div className="flex gap-3 pt-2">
+            <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50"
+                style={{
+                  flex: 1,
+                  padding: '10px 0',
+                  background: 'var(--lf-ink)',
+                  color: 'var(--lf-paper)',
+                  border: 0,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: "'Geist', system-ui, sans-serif",
+                  opacity: saving ? 0.6 : 1,
+                }}
               >
                 {saving ? "Saving..." : "Save"}
               </button>
               <button
                 type="button"
                 onClick={() => setEditSection(null)}
-                className="flex-1 rounded-lg bg-bg-elevated border border-border px-4 py-2.5 text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+                style={{
+                  flex: 1,
+                  padding: '10px 0',
+                  background: 'transparent',
+                  color: 'var(--lf-ink-soft)',
+                  border: '1px solid var(--lf-rule)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: "'Geist', system-ui, sans-serif",
+                }}
               >
                 Cancel
               </button>
@@ -370,22 +483,26 @@ export function Settings() {
           </motion.div>
         )}
 
-        {/* Edit Modal - Income & Employment */}
+        {/* Edit Panel - Income & Employment */}
         {editSection === "income" && import.meta.env.VITE_DEMO_MODE !== "true" && (
           <motion.div
             variants={item}
             initial="hidden"
             animate="show"
-            className="glass-card rounded-2xl p-5 space-y-4"
+            style={{ ...cardStyle, padding: 20, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}
           >
-            <h2 className="text-base font-semibold text-text">
-              Income & Employment
+            <h2 style={{
+              fontFamily: "'Geist', system-ui, sans-serif",
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--lf-ink)',
+              margin: 0,
+            }}>
+              Income &amp; Employment
             </h2>
 
-            <label className="block">
-              <span className="text-sm text-text-secondary">
-                Annual Gross Income ($)
-              </span>
+            <label style={{ display: 'block' }}>
+              <span style={labelTextStyle}>Annual Gross Income ($)</span>
               <input
                 type="number"
                 min={0}
@@ -395,14 +512,12 @@ export function Settings() {
                   setFormData((f) => ({ ...f, annualIncome: e.target.value }))
                 }
                 placeholder="72000"
-                className="mt-1 w-full rounded-lg bg-bg-elevated border border-border px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
 
-            <label className="block">
-              <span className="text-sm text-text-secondary">
-                Employer Match (%)
-              </span>
+            <label style={{ display: 'block' }}>
+              <span style={labelTextStyle}>Employer Match (%)</span>
               <input
                 type="number"
                 min={0}
@@ -416,23 +531,45 @@ export function Settings() {
                   }))
                 }
                 placeholder="4"
-                className="mt-1 w-full rounded-lg bg-bg-elevated border border-border px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                style={inputStyle}
               />
             </label>
 
-            <div className="flex gap-3 pt-2">
+            <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent/90 transition-colors disabled:opacity-50"
+                style={{
+                  flex: 1,
+                  padding: '10px 0',
+                  background: 'var(--lf-ink)',
+                  color: 'var(--lf-paper)',
+                  border: 0,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: "'Geist', system-ui, sans-serif",
+                  opacity: saving ? 0.6 : 1,
+                }}
               >
                 {saving ? "Saving..." : "Save"}
               </button>
               <button
                 type="button"
                 onClick={() => setEditSection(null)}
-                className="flex-1 rounded-lg bg-bg-elevated border border-border px-4 py-2.5 text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+                style={{
+                  flex: 1,
+                  padding: '10px 0',
+                  background: 'transparent',
+                  color: 'var(--lf-ink-soft)',
+                  border: '1px solid var(--lf-rule)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: "'Geist', system-ui, sans-serif",
+                }}
               >
                 Cancel
               </button>
@@ -441,25 +578,29 @@ export function Settings() {
         )}
 
         {/* Your Profile Stats */}
-        <motion.div variants={item}>
-          <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider px-1 mb-2">
-            Your Profile
-          </h2>
-          <div className="glass-card rounded-2xl p-0 overflow-hidden divide-y divide-border">
+        <motion.div variants={item} style={{ marginBottom: 24 }}>
+          <div style={sectionLabelStyle}>YOUR PROFILE</div>
+          <div style={cardStyle}>
             {loading ? (
-              <div className="px-5 py-8 text-center text-sm text-text-secondary">
+              <div style={{
+                padding: '32px 20px',
+                textAlign: 'center',
+                fontSize: 13,
+                color: 'var(--lf-muted)',
+                fontFamily: "'Geist', system-ui, sans-serif",
+              }}>
                 Loading...
               </div>
             ) : (
               <>
-                <StatRow label="Age" value={age} />
+                <StatRow label="Age" value={age} first />
                 <StatRow label="Gross income" value={grossIncome} />
                 <StatRow label="Filing status" value={filingStatus} />
                 <StatRow label="State" value={state} />
                 <StatRow
                   label="Risk tolerance"
                   value={riskTolerance}
-                  valueClass={riskColor}
+                  valueColor={riskColor}
                 />
                 {employerMatch && (
                   <StatRow label="Employer match" value={employerMatch} />
@@ -473,11 +614,8 @@ export function Settings() {
         </motion.div>
 
         {/* Settings Card */}
-        <motion.div
-          variants={item}
-          className="glass-card rounded-2xl p-0 overflow-hidden divide-y divide-border"
-        >
-          <SettingsRow icon="🔔" label="Notifications" />
+        <motion.div variants={item} style={{ ...cardStyle, marginBottom: 24 }}>
+          <SettingsRow icon="🔔" label="Notifications" first />
           <SettingsRow icon="🔒" label="Privacy & Security" />
           <SettingsRow icon="❓" label="Help & Support" />
           <SettingsRow
@@ -491,7 +629,14 @@ export function Settings() {
         {/* Footer */}
         <motion.p
           variants={item}
-          className="text-xs text-text-secondary text-center pt-2"
+          style={{
+            fontSize: 11,
+            color: 'var(--lf-muted)',
+            textAlign: 'center',
+            paddingTop: 8,
+            fontFamily: "'JetBrains Mono', monospace",
+            margin: 0,
+          }}
         >
           Lasagna v0.1.0 · Built in the open
         </motion.p>
