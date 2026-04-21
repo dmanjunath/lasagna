@@ -635,7 +635,7 @@ export function Priorities() {
     <div style={{
       flex: 1,
       overflowY: 'auto',
-      padding: 'clamp(16px, 4vw, 28px)',
+      padding: 'clamp(16px, 4vw, 40px)',
       paddingBottom: 'clamp(80px, 12vw, 48px)',
       maxWidth: 1100,
       margin: '0 auto',
@@ -643,8 +643,10 @@ export function Priorities() {
       boxSizing: 'border-box',
     }}>
       <style>{`
-        @media (max-width: 640px) {
+        @media (max-width: 860px) {
           .prio-main-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 640px) {
           .prio-hero-grid { grid-template-columns: 1fr 1fr !important; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -657,20 +659,17 @@ export function Priorities() {
         transition={{ duration: 0.3 }}
         style={{ marginBottom: 24 }}
       >
-        <p style={eyebrowStyle}>Financial priorities · waterfall</p>
         <h1 style={{
           ...serifStyle,
-          fontSize: 30,
+          fontSize: 36,
           fontWeight: 400,
           color: 'var(--lf-ink)',
-          margin: '6px 0 0',
-          lineHeight: 1.2,
+          margin: 0,
+          lineHeight: 1.1,
         }}>
-          Your{' '}
-          <em style={{ color: 'var(--lf-sauce)', fontStyle: 'italic' }}>
-            lasagna, layer by layer.
-          </em>
+          Priorities
         </h1>
+        <p style={{ ...eyebrowStyle, marginTop: 6 }}>{completeCount} of {steps.length} complete</p>
       </motion.div>
 
       {/* ── Dark Hero — Priority Overview ── */}

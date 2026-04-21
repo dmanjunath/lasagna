@@ -186,6 +186,7 @@ function Sparkline({ data, color = 'var(--lf-cheese)', height = 130, strokeWidth
   const hx = hoverIdx !== null ? pts[hoverIdx][0] : null;
   const hy = hoverIdx !== null ? pts[hoverIdx][1] : null;
   const hv = hoverIdx !== null ? values[hoverIdx] : null;
+  const hd = hoverIdx !== null && dates[hoverIdx] ? new Date(dates[hoverIdx]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : null;
   const mid = (max + min) / 2;
 
   const firstDateStr = dates[0] ? new Date(dates[0]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
@@ -221,8 +222,13 @@ function Sparkline({ data, color = 'var(--lf-cheese)', height = 130, strokeWidth
           <g>
             <line x1={hx} x2={hx} y1={PT} y2={PT + height} stroke={color} strokeWidth={1} opacity={0.4} />
             <circle cx={hx} cy={hy} r={4} fill={color} />
-            <rect x={Math.max(PL, Math.min(hx - 44, PL + PW - 96))} y={Math.max(PT, hy - 26)} width={92} height={22} rx={4} fill="rgba(0,0,0,0.75)" />
-            <text x={Math.max(PL, Math.min(hx - 44, PL + PW - 96)) + 7} y={Math.max(PT, hy - 26) + 15} fontFamily="'JetBrains Mono', monospace" fontSize={13} fill={axisColor}>
+            <rect x={Math.max(PL, Math.min(hx - 50, PL + PW - 108))} y={Math.max(PT, hy - 42)} width={108} height={38} rx={4} fill="rgba(0,0,0,0.8)" />
+            {hd && (
+              <text x={Math.max(PL, Math.min(hx - 50, PL + PW - 108)) + 8} y={Math.max(PT, hy - 42) + 14} fontFamily="'JetBrains Mono', monospace" fontSize={11} fill={axisColor} opacity={0.65}>
+                {hd}
+              </text>
+            )}
+            <text x={Math.max(PL, Math.min(hx - 50, PL + PW - 108)) + 8} y={Math.max(PT, hy - 42) + 30} fontFamily="'JetBrains Mono', monospace" fontSize={13} fill={axisColor}>
               {fmtV(hv)}
             </text>
           </g>
@@ -673,14 +679,13 @@ export function Dashboard() {
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 28, flexWrap: 'wrap' as const, gap: 16 }}
       >
         <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
+          <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, fontWeight: 400, margin: 0 }}>
+            Dashboard
+          </h1>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', marginTop: 6 }}>
             Good {getGreeting()}, {firstName} · {getDayLabel()}
             {urgentCount > 0 && ` · ${urgentCount} urgent`}
           </div>
-          <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 44, letterSpacing: '-0.02em', marginTop: 6, lineHeight: 1.05, fontWeight: 400 }}>
-            Your{' '}
-            <em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>layers today.</em>
-          </h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button

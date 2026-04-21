@@ -56,10 +56,18 @@ interface PlaidMetadata {
   };
 }
 
-// Color palette matching app theme
+// Color palette — LasagnaFi brand-aligned earthy tones
 const COLORS = [
-  '#4ade80', '#60a5fa', '#f59e0b', '#ec4899', '#8b5cf6',
-  '#14b8a6', '#f43f5e', '#6366f1', '#10b981', '#a855f7',
+  'var(--lf-sauce)',
+  'var(--lf-cheese)',
+  'var(--lf-basil)',
+  'var(--lf-noodle)',
+  'var(--lf-crust)',
+  'var(--lf-burgundy)',
+  '#A68965',
+  '#7A5C3F',
+  'var(--lf-muted)',
+  'var(--lf-ink-soft)',
 ];
 
 const GROUPING_LABELS: Record<GroupingLevel, string> = {
@@ -383,7 +391,7 @@ export function NetWorth() {
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-8">
+    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' }} className="scrollbar-thin">
       {/* Error banner */}
       {error && (
         <motion.div
@@ -395,6 +403,16 @@ export function NetWorth() {
           <span className="text-sm">{error}</span>
         </motion.div>
       )}
+
+      {/* Page header */}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, fontWeight: 400, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
+          Net Worth
+        </h1>
+        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: 'var(--lf-muted)', marginTop: 6, margin: '6px 0 0' }}>
+          {assetClasses.length} asset {assetClasses.length === 1 ? 'class' : 'classes'}
+        </p>
+      </div>
 
       {/* Header Card with Total Value + Charts */}
       <motion.div

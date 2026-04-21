@@ -7,7 +7,7 @@ export function FloatingChatPill() {
   return (
     <button
       onClick={() => openChat()}
-      className="fixed right-0 top-1/2 -translate-y-1/2 z-30 md:hidden bg-gradient-to-b from-accent to-purple-500 p-2 pl-2.5 rounded-l-full shadow-lg shadow-accent/30 transition-transform active:scale-95"
+      className="fixed right-0 top-1/2 -translate-y-1/2 z-30 md:hidden bg-gradient-to-b from-accent to-accent-dim p-2 pl-2.5 rounded-l-full shadow-lg shadow-accent/30 transition-transform active:scale-95"
       aria-label="Open chat"
       data-testid="chat-pill"
     >

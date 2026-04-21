@@ -162,6 +162,7 @@ function ActionCard({
             flex: 1,
             fontFamily: "'Instrument Serif', Georgia, serif",
             fontSize: 16,
+            letterSpacing: '0.04em',
             color: 'var(--lf-ink)',
             lineHeight: 1.3,
           }}
@@ -267,7 +268,7 @@ function ActionCard({
                     lineHeight: 1,
                   }}
                 >
-                  Ask LasagnaFi to explain &rarr;
+                  Ask LasagnaFi →
                 </button>
 
                 {onOpenArea && (
@@ -443,44 +444,25 @@ export function Insights() {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)' }} className="scrollbar-thin">
+    <style>{`
+      @media (max-width: 480px) {
+        .insights-hero-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 16px !important; }
+        .insights-hero-grid > div { border-left: none !important; padding: 8px !important; }
+      }
+    `}</style>
     <div
       style={{
-        maxWidth: 720,
+        maxWidth: 1100,
         margin: '0 auto',
-        padding: 'clamp(16px, 4vw, 28px)',
+        padding: 'clamp(16px, 4vw, 40px)',
         paddingBottom: 'clamp(80px, 12vw, 48px)',
       }}
     >
       {/* ------------------------------------------------------------------ */}
       {/* Page header                                                          */}
       {/* ------------------------------------------------------------------ */}
-      <div style={{ marginBottom: 24 }}>
-        {/* Eyebrow */}
-        <p
-          style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 13,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: 'var(--lf-muted)',
-            marginBottom: 6,
-          }}
-        >
-          {isLoading
-            ? 'Actions'
-            : `Actions · ${doNowCount} urgent · ${thisWeekCount} this week`}
-        </p>
-
-        {/* Title */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}
-        >
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
           <h1
             style={{
               fontFamily: "'Instrument Serif', Georgia, serif",
@@ -491,31 +473,42 @@ export function Insights() {
               lineHeight: 1.1,
             }}
           >
-            What to do <em>next.</em>
+            Actions
           </h1>
-
-          <button
-            type="button"
-            onClick={() =>
-              openChat('Can you explain my top financial actions and why they matter?')
-            }
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 13,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: 'var(--lf-muted)',
-              background: 'none',
-              border: '1px solid var(--lf-rule)',
-              borderRadius: 8,
-              padding: '6px 12px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Ask LasagnaFi to explain &rarr;
-          </button>
+          {!isLoading && (
+            <p
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 13,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: 'var(--lf-muted)',
+                margin: '6px 0 0',
+              }}
+            >
+              {doNowCount} urgent · {thisWeekCount} this week
+            </p>
+          )}
         </div>
+        <button
+          type="button"
+          onClick={() => openChat('Can you explain my top financial actions and why they matter?')}
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 13,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--lf-muted)',
+            background: 'none',
+            border: '1px solid var(--lf-rule)',
+            borderRadius: 8,
+            padding: '6px 12px',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Ask LasagnaFi →
+        </button>
       </div>
 
       {/* ------------------------------------------------------------------ */}
@@ -523,6 +516,7 @@ export function Insights() {
       {/* ------------------------------------------------------------------ */}
       {!isLoading && totalCount > 0 && (
         <div
+          className="insights-hero-grid"
           style={{
             background: 'var(--lf-ink)',
             color: 'var(--lf-paper)',
@@ -530,7 +524,7 @@ export function Insights() {
             padding: '24px',
             marginBottom: 24,
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+            gridTemplateColumns: 'repeat(4, 1fr)',
             gap: 0,
           }}
         >

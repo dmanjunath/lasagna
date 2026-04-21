@@ -2,17 +2,19 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { generateText } from "ai";
 import { db } from "../lib/db.js";
-import { chatThreads, messages, plans, planEdits, eq, and } from "@lasagna/core";
+import { chatThreads, messages, eq, and } from "@lasagna/core";
 import { getModel, createAgentTools, systemPrompt } from "../agent/index.js";
-import { uiPayloadSchema } from "../agent/types.js";
 import { type AuthEnv } from "../middleware/auth.js";
 
 export const chatRouter = new Hono<AuthEnv>();
 
-// Validation schemas
 const chatRequestSchema = z.object({
   threadId: z.string().uuid(),
   message: z.string().min(1).max(10000),
+  // Optional page context string prepended to the AI message (not stored in DB)
+  context: z.string().max(20000).optional(),
+  // Optional structured context metadata for the user message bubble (stored as ui_payload)
+  uiPayload: z.unknown().optional(),
 });
 
 chatRouter.post("/", async (c) => {
@@ -37,29 +39,14 @@ chatRouter.post("/", async (c) => {
     return c.json({ error: "Thread not found" }, 404);
   }
 
-  // Get plan context if thread is attached to a plan
-  let planContext = "";
-  if (thread.planId) {
-    const [plan] = await db
-      .select({ type: plans.type, title: plans.title, content: plans.content })
-      .from(plans)
-      .where(and(eq(plans.id, thread.planId), eq(plans.tenantId, tenantId)));
-
-    if (plan) {
-      planContext = `\n\nCurrent plan: "${plan.title}" (${plan.type})`;
-      if (plan.content) {
-        planContext += `\nCurrent content: ${plan.content}`;
-      }
-    }
-  }
-
-  // Save user message
+  // Save user message — store only the actual user text, not the context prefix
   if (!isDemo) {
     await db.insert(messages).values({
       threadId: body.threadId,
       tenantId,
       role: "user",
       content: body.message,
+      uiPayload: body.uiPayload ? JSON.stringify(body.uiPayload) : null,
     });
   }
 
@@ -70,258 +57,126 @@ chatRouter.post("/", async (c) => {
     .where(eq(messages.threadId, body.threadId))
     .orderBy(messages.createdAt);
 
-  // Create tools with tenant context
-  const tools = createAgentTools(tenantId, { isDemo });
-
-  // Capture for onFinish closure
-  const threadId = body.threadId;
-  const planId = thread.planId;
-
-  // Manual multi-step tool execution loop (OpenRouter doesn't support auto maxSteps)
-  console.log("[Chat] Starting agentic loop with", Object.keys(tools).length, "tools");
-
+  // Build conversation messages for AI
   let conversationMessages = history.map((m) => ({
     role: m.role as "user" | "assistant",
     content: m.content,
   }));
 
+  // Prepend page context to the current (last) user message so the AI has it,
+  // without persisting the raw context blob in the DB
+  if (body.context && conversationMessages.length > 0) {
+    const lastIdx = conversationMessages.length - 1;
+    conversationMessages[lastIdx] = {
+      ...conversationMessages[lastIdx],
+      content: body.context + conversationMessages[lastIdx].content,
+    };
+  }
+
+  const tools = createAgentTools(tenantId, { isDemo });
+  const threadId = body.threadId;
+
+  console.log("[Chat] Starting agentic loop with", Object.keys(tools).length, "tools");
+
   let finalText = "";
   let allToolCalls: any[] = [];
-  const MAX_TOOL_ROUNDS = 5; // Limit tool-calling rounds to prevent infinite loops
+  const MAX_TOOL_ROUNDS = 5;
 
-  // Loop up to MAX_TOOL_ROUNDS iterations for tool calls
   for (let step = 0; step < MAX_TOOL_ROUNDS; step++) {
     console.log(`[Chat] Step ${step + 1}/${MAX_TOOL_ROUNDS}...`);
 
     const stepResult = await generateText({
       model: getModel(),
-      system: systemPrompt + planContext,
+      system: systemPrompt,
       messages: conversationMessages,
       tools,
-      // Note: We handle multi-step manually with the loop above
     });
 
     const toolCallCount = stepResult.toolCalls?.length || 0;
-    console.log(`[Chat] Step ${step + 1} result: text=${stepResult.text.length} chars, toolCalls=${toolCallCount}, finishReason=${stepResult.finishReason}`);
+    console.log(`[Chat] Step ${step + 1}: text=${stepResult.text.length} chars, toolCalls=${toolCallCount}, finishReason=${stepResult.finishReason}`);
 
-    // Accumulate text
     finalText = stepResult.text;
 
-    // If no tool calls or finish reason is not tool-calls, we're done
     if (!stepResult.toolCalls?.length || stepResult.finishReason !== 'tool-calls') {
-      console.log("[Chat] Agentic loop complete, no more tool calls");
+      console.log("[Chat] Agentic loop complete");
       break;
     }
 
-    // Execute tools and add results to conversation
     const toolResults: any[] = [];
-
     for (const toolCall of stepResult.toolCalls) {
       console.log(`[Chat] Calling tool: ${toolCall.toolName}`);
       const tool = tools[toolCall.toolName as keyof typeof tools];
       if (tool && 'execute' in tool) {
         try {
-          const args = (toolCall as any).args ?? {};
-          const result = await (tool as any).execute(args);
-          toolResults.push({
-            toolCallId: toolCall.toolCallId,
-            toolName: toolCall.toolName,
-            result: JSON.stringify(result),
-          });
+          const result = await (tool as any).execute((toolCall as any).args ?? {});
+          toolResults.push({ toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, result: JSON.stringify(result) });
         } catch (e) {
-          console.error(`[Chat] Tool ${toolCall.toolName} error:`, e instanceof Error ? e.message : e);
-          toolResults.push({
-            toolCallId: toolCall.toolCallId,
-            toolName: toolCall.toolName,
-            result: JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),
-          });
+          toolResults.push({ toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, result: JSON.stringify({ error: e instanceof Error ? e.message : String(e) }) });
         }
-      } else {
-        toolResults.push({
-          toolCallId: toolCall.toolCallId,
-          toolName: toolCall.toolName,
-          result: JSON.stringify({ error: `Tool ${toolCall.toolName} not found` }),
-        });
       }
     }
 
     allToolCalls.push(...stepResult.toolCalls);
 
-    // Simpler approach: add assistant message and tool results as text for the next step
-    // This avoids complex message format issues
     const toolResultsSummary = toolResults
       .map(tr => `[Tool: ${tr.toolName}]\n${tr.result}`)
       .join("\n\n");
 
-    conversationMessages.push({
-      role: "assistant" as const,
-      content: stepResult.text,
-    });
+    conversationMessages.push({ role: "assistant" as const, content: stepResult.text });
 
-    // On the last round, tell the model to produce final output without more tool calls
     const isLastRound = step === MAX_TOOL_ROUNDS - 1;
-    const nextPrompt = isLastRound
-      ? `[System: Tool results]\n\n${toolResultsSummary}\n\nYou have all the data you need. NOW produce your FINAL response with the complete UIPayload JSON. Do NOT call any more tools.`
-      : `[System: Tool results]\n\n${toolResultsSummary}\n\nPlease continue with your analysis using this data and output the final UIPayload JSON.`;
-
     conversationMessages.push({
       role: "user" as const,
-      content: nextPrompt,
+      content: isLastRound
+        ? `[Tool results]\n\n${toolResultsSummary}\n\nYou have all the data. Write your final markdown analysis now.`
+        : `[Tool results]\n\n${toolResultsSummary}\n\nContinue your analysis.`,
     });
   }
 
-  // Check if we have a valid JSON response
-  const hasJsonPayload = finalText && (
-    finalText.includes('"layout"') && finalText.includes('"blocks"')
-  );
+  console.log(`[Chat] Final response: ${finalText.length} chars, ${allToolCalls.length} tool calls`);
 
-  // If we don't have valid JSON, request a wrap-up response with explicit JSON request
-  if (!hasJsonPayload) {
-    console.log("[Chat] No UIPayload JSON found, requesting wrap-up response...");
-
-    // Add a message requesting the final JSON
-    conversationMessages.push({
-      role: "user" as const,
-      content: "IMPORTANT: You must now produce your FINAL response. Include the complete UIPayload JSON with layout and blocks arrays. Do not call any more tools. Output the JSON now.",
-    });
-
-    const wrapUpResult = await generateText({
-      model: getModel(),
-      system: systemPrompt + planContext,
-      messages: conversationMessages,
-      tools: {}, // No tools - force text response
-    });
-    finalText = wrapUpResult.text;
-    console.log(`[Chat] Wrap-up response: ${finalText.length} chars`);
-  }
-
-  const text = finalText;
-  const toolCalls = allToolCalls;
-  console.log(`[Chat] Finished: ${text.length} chars, ${toolCalls.length} tool calls`);
-
-  // Try to extract UI payload from response
-  let uiPayload = null;
-  try {
-    // Try markdown code block first
-    let jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
-    let jsonStr = jsonMatch?.[1];
-
-    // If no code block, look for raw JSON object with layout and blocks
-    if (!jsonStr) {
-      // Find the last { that starts a layout/blocks object
-      const layoutIdx = text.lastIndexOf('"layout"');
-      if (layoutIdx !== -1) {
-        let braceIdx = text.lastIndexOf('{', layoutIdx);
-        if (braceIdx !== -1) {
-          jsonStr = text.slice(braceIdx);
-        }
-      }
-    }
-
-    if (jsonStr) {
-      const parsed = JSON.parse(jsonStr);
-      const validated = uiPayloadSchema.safeParse(parsed);
-      if (validated.success) {
-        uiPayload = validated.data;
-      } else {
-        console.error("[Chat] UIPayload validation failed:", validated.error.issues.slice(0, 3));
-      }
-    } else {
-      console.log("[Chat] No JSON found in response, text length:", text.length);
-    }
-  } catch (e) {
-    console.error("[Chat] JSON parse error:", e instanceof Error ? e.message : e);
-  }
-
-  // Extract a brief chat summary (first paragraph or sentence before JSON)
-  let chatSummary = "Here's my analysis.";
-  const jsonIdx = text.indexOf('{');
-  if (jsonIdx > 0) {
-    // Get text before JSON
-    const proseText = text.slice(0, jsonIdx).trim();
-    // Get first paragraph or first 200 chars
-    const firstPara = proseText.split('\n\n')[0];
-    if (firstPara && firstPara.length > 10) {
-      chatSummary = firstPara.slice(0, 200);
-      if (firstPara.length > 200) chatSummary += '...';
-    }
-  }
-
-  // Save assistant message with chat summary (not raw JSON)
+  // Save assistant message with full markdown response
   if (!isDemo) {
     await db.insert(messages).values({
       threadId,
       tenantId,
       role: "assistant",
-      content: chatSummary,
-      toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
-      uiPayload: uiPayload ? JSON.stringify(uiPayload) : null,
+      content: finalText || "I wasn't able to generate a response. Please try again.",
+      toolCalls: allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
     });
   }
 
-  // Update plan content if we have UI payload and plan is attached
-  if (!isDemo && uiPayload && planId) {
-    const [plan] = await db
-      .select({ content: plans.content, title: plans.title })
-      .from(plans)
-      .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
-
-    // Save edit history
-    if (plan?.content) {
-      await db.insert(planEdits).values({
-        planId,
-        tenantId,
-        editedBy: "agent",
-        previousContent: plan.content,
-        changeDescription: "Updated via chat",
+  // Auto-generate thread title on first message
+  let generatedThreadTitle: string | null = null;
+  if (!isDemo && !thread.title) {
+    try {
+      const titleResult = await generateText({
+        model: getModel(),
+        system: "Generate a short title (3-6 words) for this financial conversation. No quotes, no punctuation at the end. Just the title.",
+        messages: [{ role: "user", content: `Title for: "${body.message.slice(0, 200)}"` }],
       });
-    }
-
-    // Update plan content (with tenant isolation)
-    await db
-      .update(plans)
-      .set({ content: JSON.stringify(uiPayload) })
-      .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
-
-    // Auto-generate title if user hasn't manually named the plan
-    if (!isDemo && plan?.title?.startsWith("Untitled")) {
-      try {
-        const titleResult = await generateText({
-          model: getModel(),
-          system: "You are a helpful assistant that generates short, descriptive titles for financial plans. Generate a concise title (3-6 words) that captures the essence of what the user is planning. Do not use quotes. Do not include words like 'Plan' or 'Analysis'. Just output the title, nothing else.",
-          messages: [
-            { role: "user", content: `Generate a short title for this financial planning request: "${body.message}"` }
-          ],
-        });
-
-        const generatedTitle = titleResult.text.trim().slice(0, 100);
-        if (generatedTitle && generatedTitle.length > 2) {
-          await db
-            .update(plans)
-            .set({ title: generatedTitle })
-            .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
-          console.log(`[Chat] Auto-generated plan title: "${generatedTitle}"`);
-        }
-      } catch (err) {
-        console.error("[Chat] Failed to generate plan title:", err);
-        // Non-fatal, continue without updating title
+      generatedThreadTitle = titleResult.text.trim().slice(0, 100);
+      if (generatedThreadTitle && generatedThreadTitle.length > 2) {
+        await db
+          .update(chatThreads)
+          .set({ title: generatedThreadTitle })
+          .where(and(eq(chatThreads.id, threadId), eq(chatThreads.tenantId, tenantId)));
+      } else {
+        generatedThreadTitle = null;
       }
+    } catch {
+      // Non-fatal
     }
   }
 
-  // Return JSON response matching V2 format expected by frontend
   return c.json({
+    threadTitle: generatedThreadTitle,
     response: {
-      chat: chatSummary,
-      metrics: [],
-      content: uiPayload ? JSON.stringify(uiPayload) : null,
-      actions: [],
+      chat: finalText || "I wasn't able to generate a response. Please try again.",
     },
     toolResults: allToolCalls.map(tc => ({
       toolName: tc.toolName,
       args: tc.args,
-      result: null, // Results already processed
     })),
-    uiPayload, // Also include the parsed payload directly
   });
 });

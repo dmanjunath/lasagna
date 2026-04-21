@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, Trash2 } from 'lucide-react';
 import { MessageBubble } from './message-bubble';
 import { cn } from '../../lib/utils';
 import type { Message } from '../../lib/types';
@@ -10,10 +10,11 @@ interface ChatThreadViewProps {
   messages: Message[];
   onBack: () => void;
   onFollowUp: (text: string) => void;
+  onDelete?: () => void;
   loading?: boolean;
 }
 
-export function ChatThreadView({ thread, messages, onBack, onFollowUp, loading }: ChatThreadViewProps) {
+export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete, loading }: ChatThreadViewProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -32,7 +33,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, loading }
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Header */}
-      <div className="flex items-center gap-2.5 px-3 py-3 border-b border-border flex-shrink-0">
+      <div className="flex items-center gap-2 px-3 py-3 border-b border-border flex-shrink-0">
         <button
           onClick={onBack}
           className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors flex-shrink-0"
@@ -40,9 +41,19 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, loading }
         >
           <ArrowLeft className="w-4 h-4 text-text-secondary" />
         </button>
-        <span className="text-sm font-medium text-text truncate leading-snug">
+        <span className="flex-1 text-sm font-medium text-text truncate leading-snug">
           {thread.question}
         </span>
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            className="p-1.5 rounded-lg hover:bg-surface-hover hover:text-danger transition-colors flex-shrink-0"
+            aria-label="Delete conversation"
+            title="Delete conversation"
+          >
+            <Trash2 className="w-4 h-4 text-text-secondary hover:text-danger" />
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -72,7 +83,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, loading }
             onChange={(e) => setInput(e.target.value)}
             placeholder="Follow up…"
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-2xl border border-white/10 bg-white/[0.06] text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-white/[0.08] transition-all disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 rounded-2xl border border-border bg-bg-elevated text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-surface-hover transition-all disabled:opacity-50"
           />
           <button
             type="submit"

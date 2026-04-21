@@ -485,16 +485,16 @@ export function Spending() {
         transition={{ duration: 0.35 }}
         style={{ marginBottom: 28 }}
       >
-        {/* Eyebrow */}
-        <div style={{ ...S.eyebrow, marginBottom: 6 }}>
-          Spending &middot; {monthLabel(currentMonth)}
-        </div>
-
         {/* Title + month nav row */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
-          <h1 style={{ ...S.serif, fontSize: 'clamp(28px, 5vw, 42px)', color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
-            Where the <em style={{ color: 'var(--lf-sauce)', fontStyle: 'italic' }}>money went.</em>
-          </h1>
+          <div>
+            <h1 style={{ ...S.serif, fontSize: 36, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
+              Spending
+            </h1>
+            <div style={{ ...S.eyebrow, marginTop: 6 }}>
+              {monthLabel(currentMonth)}
+            </div>
+          </div>
 
           {/* Month navigation */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -617,6 +617,9 @@ export function Spending() {
           </div>
         </div>
       </motion.div>
+
+      {/* Page Actions (behavioral / spending insights) */}
+      <PageActions types={['spending', 'behavioral']} />
 
       {/* No-data state for users who have linked accounts but no transactions */}
       {!loadingSummary && totalSpending === 0 && totalIncome === 0 && hasLinkedAccounts && (
@@ -764,11 +767,6 @@ export function Spending() {
       </motion.div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Page Actions (behavioral / spending insights)                       */}
-      {/* ------------------------------------------------------------------ */}
-      <PageActions types={['spending', 'behavioral']} />
-
-      {/* ------------------------------------------------------------------ */}
       {/* Transaction Table                                                    */}
       {/* ------------------------------------------------------------------ */}
       <motion.div
@@ -814,7 +812,7 @@ export function Spending() {
                 style={{
                   height: 34, padding: '0 32px 0 30px', borderRadius: 8,
                   border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
-                  color: 'var(--lf-ink)', fontSize: 13, width: 200,
+                  color: 'var(--lf-ink)', fontSize: 13, width: '100%', maxWidth: 200, minWidth: 120,
                   fontFamily: "'JetBrains Mono', monospace",
                   outline: 'none',
                 }}

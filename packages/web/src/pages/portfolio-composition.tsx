@@ -976,7 +976,7 @@ export default function PortfolioComposition() {
             Portfolio · {accountAllocation.length} accounts
           </p>
           <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 38, lineHeight: 1.1, marginBottom: 4 }}>
-            Every holding, <em>classified.</em>
+            Portfolio
           </div>
           <p style={{ color: 'var(--lf-muted)', fontSize: 14, marginTop: 8 }}>
             No individual holdings found — showing account-level balances.
@@ -1055,24 +1055,24 @@ export default function PortfolioComposition() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 32px)', paddingBottom: 'clamp(80px, 12vw, 48px)' }}>
-      <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── Page Header ── */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <p className="lf-eyebrow" style={{ marginBottom: 6 }}>
-            Portfolio · {positionCount} position{positionCount !== 1 ? 's' : ''} across {accountCount} account{accountCount !== 1 ? 's' : ''}
-          </p>
           <h1 style={{
             fontFamily: "'Instrument Serif', Georgia, serif",
-            fontSize: 'clamp(32px, 5vw, 48px)',
+            fontSize: 36,
             fontWeight: 400,
             lineHeight: 1.1,
             color: 'var(--lf-ink)',
             margin: 0,
           }}>
-            Every holding, <em>classified.</em>
+            Portfolio
           </h1>
+          <p className="lf-eyebrow" style={{ marginTop: 6 }}>
+            {positionCount} position{positionCount !== 1 ? 's' : ''} across {accountCount} account{accountCount !== 1 ? 's' : ''}
+          </p>
         </motion.div>
 
         {/* ── Hero dark card: totals ── */}
@@ -1130,6 +1130,9 @@ export default function PortfolioComposition() {
             </div>
           </div>
         </motion.div>
+
+        {/* ── Page Actions (insights) ── */}
+        <PageActions types="portfolio" />
 
         {/* ── Unified filter row ── */}
         <motion.div
@@ -1264,9 +1267,6 @@ export default function PortfolioComposition() {
           </AnimatePresence>
         </motion.div>
 
-
-        {/* ── Page Actions (insights) ── */}
-        <PageActions types="portfolio" />
 
         {/* ── Holdings table ── */}
         <motion.div

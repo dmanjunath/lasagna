@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { FileText, Trash2, RefreshCw, Upload } from "lucide-react";
 import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
+import { PageActions } from "../components/common/page-actions.js";
 import type { TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
 import { useChatStore } from "../lib/chat-store.js";
@@ -179,10 +180,14 @@ export function TaxStrategy() {
       style={{
         flex: 1,
         overflowY: "auto",
-        padding: "clamp(16px, 4vw, 32px)",
+        padding: "clamp(16px, 4vw, 40px)",
         paddingBottom: "clamp(80px, 12vw, 48px)",
-        background: "var(--lf-cream)",
+        background: "var(--lf-paper)",
         minHeight: 0,
+        maxWidth: 1100,
+        margin: "0 auto",
+        width: "100%",
+        boxSizing: "border-box",
       }}
       className="scrollbar-thin"
     >
@@ -193,24 +198,23 @@ export function TaxStrategy() {
         transition={{ duration: 0.35 }}
         style={{ marginBottom: 28 }}
       >
-        <div style={{ ...EYEBROW, marginBottom: 8 }}>
-          Tax strategy · {FILING_YEAR} filing year
-        </div>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <h1
-            style={{
-              ...SERIF,
-              fontSize: "clamp(28px, 4vw, 40px)",
-              color: "var(--lf-ink)",
-              margin: 0,
-              lineHeight: 1.1,
-            }}
-          >
-            Legally owed,{" "}
-            <em style={{ color: "var(--lf-sauce)", fontStyle: "italic" }}>
-              not overpaid.
-            </em>
-          </h1>
+          <div>
+            <h1
+              style={{
+                ...SERIF,
+                fontSize: 36,
+                color: "var(--lf-ink)",
+                margin: 0,
+                lineHeight: 1.1,
+              }}
+            >
+              Tax Strategy
+            </h1>
+            <div style={{ ...EYEBROW, marginTop: 6 }}>
+              {FILING_YEAR} filing year
+            </div>
+          </div>
           {import.meta.env.VITE_DEMO_MODE !== "true" && (
             <button
               onClick={() => {
@@ -239,231 +243,43 @@ export function TaxStrategy() {
         </div>
       </motion.div>
 
-      {/* ── Mini stat cards ─────────────────────────────────────────────────── */}
+      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.06 }}
         style={{
+          background: "var(--lf-ink)", color: "var(--lf-paper)",
+          borderRadius: 14, padding: "clamp(20px, 4vw, 32px)", marginBottom: 20,
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: 12,
-          marginBottom: 24,
+          gap: 24,
         }}
       >
-        {/* Filing status */}
-        <MiniCard
-          label="Filing status"
-          value={filingLabel ?? "—"}
-          sub={profile?.stateOfResidence ?? undefined}
-        />
-        {/* Marginal bracket */}
-        <MiniCard
-          label="Marginal bracket"
-          value={bracket ?? "—"}
-          sub={profile?.annualIncome ? formatMoney(profile.annualIncome) + " income" : undefined}
-          valueColor={bracket ? "var(--lf-sauce)" : undefined}
-        />
-        {/* Est. refund — DATA-NEEDED: no refund estimate API available yet */}
-        <MiniCard
-          label="Est. refund"
-          value="—"
-          sub="Upload docs to estimate"
-        />
-        {/* Open opportunities */}
-        <MiniCard
-          label="Open opportunities"
-          value={insightsLoading ? "…" : String(insights.length)}
-          sub={insights.length === 1 ? "suggestion" : "suggestions"}
-          valueColor={insights.length > 0 ? "var(--lf-basil)" : undefined}
-        />
-      </motion.div>
-
-      {/* ── Opportunities list ───────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.12 }}
-        style={{ ...CARD, marginBottom: 24, overflow: "hidden" }}
-      >
-        {/* Card header */}
-        <div
-          style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid var(--lf-rule)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <div>
-            <span style={{ ...EYEBROW }}>Opportunities</span>
-            <span style={{ ...EYEBROW, color: "var(--lf-rule)", margin: "0 6px" }}>·</span>
-            <span style={{ ...EYEBROW, color: "var(--lf-cheese)" }}>AI-generated, reviewable</span>
-          </div>
-          {insights.length > 0 && (
-            <span
-              style={{
-                ...EYEBROW,
-                background: "var(--lf-basil)",
-                color: "var(--lf-paper)",
-                borderRadius: 20,
-                padding: "3px 10px",
-              }}
-            >
-              {insights.length} found
-            </span>
-          )}
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Filing status</div>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em" }}>{filingLabel ?? "—"}</div>
+          {profile?.stateOfResidence && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>{profile.stateOfResidence}</div>}
         </div>
-
-        {/* List body */}
-        {insightsLoading ? (
-          <div
-            style={{
-              padding: "40px 20px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              color: "var(--lf-muted)",
-            }}
-          >
-            <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
-            <span style={{ fontSize: 13 }}>Loading tax insights…</span>
-          </div>
-        ) : insights.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: "var(--lf-cream-deep)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 12px",
-                fontSize: 18,
-              }}
-            >
-              τ
-            </div>
-            <p style={{ color: "var(--lf-muted)", fontSize: 13, margin: "0 auto", maxWidth: 280 }}>
-              Generate insights to see tax opportunities — upload a document or describe your situation below.
-            </p>
-          </div>
-        ) : (
-          <div>
-            {insights.map((insight, i) => {
-              const isHigh = insight.urgency === "high";
-              const iconBg = isHigh
-                ? "var(--lf-sauce)"
-                : "var(--lf-cheese)";
-              const prompt = insight.chatPrompt ?? `Tell me more about: ${insight.title}`;
-              return (
-                <motion.div
-                  key={insight.id}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.04 * i }}
-                  style={{
-                    padding: "16px 20px",
-                    borderBottom: i < insights.length - 1 ? "1px solid var(--lf-rule)" : "none",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 14,
-                  }}
-                >
-                  {/* Icon chip */}
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 9,
-                      background: iconBg,
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      ...SERIF,
-                      fontSize: 15,
-                      color: "var(--lf-paper)",
-                      marginTop: 2,
-                    }}
-                  >
-                    τ
-                  </div>
-
-                  {/* Text */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontWeight: 600,
-                        fontSize: 14,
-                        color: "var(--lf-ink)",
-                        marginBottom: 3,
-                      }}
-                    >
-                      {insight.title}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--lf-muted)",
-                        lineHeight: 1.5,
-                        marginBottom: insight.impact ? 6 : 0,
-                      }}
-                    >
-                      {insight.description}
-                    </div>
-                    {insight.impact && (
-                      <div
-                        style={{
-                          ...EYEBROW,
-                          color: "var(--lf-basil)",
-                          fontSize: 13,
-                        }}
-                      >
-                        {insight.impact}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Ask how */}
-                  <button
-                    onClick={() => openChat(prompt)}
-                    style={{
-                      ...EYEBROW,
-                      fontSize: 13,
-                      background: "transparent",
-                      border: "1px solid var(--lf-rule)",
-                      borderRadius: 6,
-                      padding: "5px 10px",
-                      cursor: "pointer",
-                      color: "var(--lf-muted)",
-                      whiteSpace: "nowrap",
-                      flexShrink: 0,
-                      marginTop: 2,
-                      transition: "border-color 0.15s, color 0.15s",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--lf-ink)";
-                      (e.currentTarget as HTMLButtonElement).style.color = "var(--lf-ink)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--lf-rule)";
-                      (e.currentTarget as HTMLButtonElement).style.color = "var(--lf-muted)";
-                    }}
-                  >
-                    Ask how →
-                  </button>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Marginal bracket</div>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em", color: bracket ? "var(--lf-cheese)" : "var(--lf-paper)" }}>{bracket ?? "—"}</div>
+          {profile?.annualIncome && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>{formatMoney(profile.annualIncome)} income</div>}
+        </div>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Est. refund</div>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em" }}>—</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>Upload docs to estimate</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Opportunities</div>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em", color: insights.length > 0 ? "var(--lf-basil)" : "var(--lf-paper)" }}>{insightsLoading ? "…" : insights.length}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>{insights.length === 1 ? "suggestion" : "suggestions"}</div>
+        </div>
       </motion.div>
+
+      {/* ── Actions ──────────────────────────────────────────────────────────── */}
+      <PageActions types="tax" />
 
       {/* ── Two-column bottom ───────────────────────────────────────────────── */}
       <motion.div

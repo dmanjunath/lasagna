@@ -456,6 +456,8 @@ export type ChatThread = {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  firstMessage: string | null;
+  firstAssistantSnippet: string | null;
 };
 
 export type Message = {

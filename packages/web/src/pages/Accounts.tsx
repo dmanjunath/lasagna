@@ -390,40 +390,32 @@ export function Accounts() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        style={{ maxWidth: 760, margin: "0 auto" }}
+        style={{ maxWidth: 1100, margin: "0 auto" }}
       >
 
         {/* ── Page Header ── */}
-        <div style={{ marginBottom: 40 }}>
-          {/* Eyebrow */}
-          <div style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 13, letterSpacing: "0.14em",
-            textTransform: "uppercase", color: "var(--lf-muted)",
-            marginBottom: 10,
-          }}>
-            Accounts
-            {!loading && (
-              <>
-                {" · "}
-                {items.length} institution{items.length !== 1 ? "s" : ""}
-                {" · "}
-                {totalAccounts} account{totalAccounts !== 1 ? "s" : ""}
-              </>
-            )}
-          </div>
-
-          {/* Title row */}
+        <div style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
-            <h1 style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: "clamp(32px, 5vw, 48px)",
-              fontWeight: 400, lineHeight: 1.1,
-              color: "var(--lf-ink)", margin: 0,
-            }}>
-              Connected &{" "}
-              <em style={{ fontStyle: "italic", color: "var(--lf-sauce)" }}>synced.</em>
-            </h1>
+            <div>
+              <h1 style={{
+                fontFamily: "'Instrument Serif', Georgia, serif",
+                fontSize: 36,
+                fontWeight: 400, lineHeight: 1.1,
+                color: "var(--lf-ink)", margin: 0,
+              }}>
+                Accounts
+              </h1>
+              {!loading && (
+                <div style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 13, letterSpacing: "0.14em",
+                  textTransform: "uppercase", color: "var(--lf-muted)",
+                  marginTop: 6,
+                }}>
+                  {items.length} institution{items.length !== 1 ? "s" : ""} · {totalAccounts} account{totalAccounts !== 1 ? "s" : ""}
+                </div>
+              )}
+            </div>
 
             {!isDemoMode && (
               <div style={{ display: "flex", gap: 8, paddingBottom: 6 }}>

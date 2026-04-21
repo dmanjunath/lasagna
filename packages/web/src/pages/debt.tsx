@@ -214,7 +214,7 @@ export function Debt() {
     : 0;
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 28px)', paddingBottom: 'clamp(80px, 12vw, 48px)' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
       {loading ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--lf-muted)', padding: '24px 0' }}>
           <Loader2 style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} />
@@ -317,13 +317,12 @@ function HasDebtView({
     <>
       {/* ── Page Header ── */}
       <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
-        <p style={S.eyebrow}>
-          Debt &middot; {debts.length} account{debts.length !== 1 ? 's' : ''}
-        </p>
-        <h1 style={{ ...S.serif, fontSize: 38, color: 'var(--lf-ink)', marginTop: 4, lineHeight: 1.15 }}>
-          Debt-free by{' '}
-          <em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>{debtFreeDate}.</em>
+        <h1 style={{ ...S.serif, fontSize: 36, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
+          Debt
         </h1>
+        <p style={{ ...S.eyebrow, marginTop: 6 }}>
+          {debts.length} account{debts.length !== 1 ? 's' : ''}
+        </p>
       </motion.div>
 
       {/* ── Two-column hero ── */}
@@ -501,7 +500,7 @@ function HasDebtView({
                 textUnderlineOffset: 3,
               }}
             >
-              Ask Claude which is better for me →
+              Ask LasagnaFi →
             </button>
           </div>
         </div>
@@ -957,11 +956,10 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
       <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
-        <p style={S.eyebrow}>Debt &middot; 0 accounts</p>
-        <h1 style={{ ...S.serif, fontSize: 38, color: 'var(--lf-ink)', marginTop: 4, lineHeight: 1.15 }}>
-          You're{' '}
-          <em style={{ fontStyle: 'italic', color: 'var(--lf-basil)' }}>completely debt-free.</em>
+        <h1 style={{ ...S.serif, fontSize: 36, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
+          Debt
         </h1>
+        <p style={{ ...S.eyebrow, marginTop: 6 }}>0 accounts</p>
       </motion.div>
 
       <motion.div {...fadeUp(0.06)} style={{ ...S.darkCard, padding: 32, marginBottom: 20 }}>
@@ -1013,7 +1011,7 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
             cursor: 'pointer',
           }}
         >
-          Ask Claude what's next →
+          Ask LasagnaFi →
         </button>
       </motion.div>
 

@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { formatMoney } from '../lib/utils';
+import { PageActions } from '../components/common/page-actions';
 
 // ── Historical returns & MC constants ─────────────────────────────────────────
 const HISTORICAL_RETURNS: Record<string, number> = {
@@ -24,7 +25,11 @@ const MC_PRESETS = [
 const MC_RETURNS: Record<string, number> = { us: 10.0, intl: 7.5, bonds: 5.0, reit: 9.5, cash: 2.0 };
 const MC_LABELS: Record<string, string> = { us: 'US Stocks', intl: "Int'l Stocks", bonds: 'Bonds', reit: 'REITs', cash: 'Cash' };
 const MC_ACCENT: Record<string, string> = {
-  us: '#C9543A', intl: '#E6B85C', bonds: '#5A6B3F', reit: '#E8C789', cash: '#8B7E6F',
+  us: 'var(--lf-sauce)',   // terracotta
+  intl: 'var(--lf-cheese)', // ochre
+  bonds: 'var(--lf-basil)', // sage green
+  reit: 'var(--lf-noodle)', // warm yellow
+  cash: 'var(--lf-crust)',  // warm brown
 };
 
 // Real S&P 500 annual total returns (Damodaran / Ibbotson data)
@@ -138,16 +143,18 @@ function buildProjectionData(
 }
 
 // Box-Muller Monte Carlo fan bands
-function buildBands(portfolioValue: number, annualSavings: number, retirementAge: number, currentAge: number, expReturn: number) {
+function buildBands(portfolioValue: number, annualSavings: number, retirementAge: number, currentAge: number, expReturn: number, annualWithdrawal: number) {
   const N = 1000;
   const horizon = Math.max(retirementAge + 30, 90) - currentAge;
   const rate = expReturn / 100;
   const volatility = 0.15;
   const allPaths: number[][] = [];
+  let depletedCount = 0;
 
   for (let run = 0; run < N; run++) {
     const path: number[] = [];
     let v = portfolioValue;
+    let depleted = false;
     for (let yr = 0; yr <= horizon; yr++) {
       path.push(Math.max(0, Math.round(v)));
       // Box-Muller
@@ -155,10 +162,13 @@ function buildBands(portfolioValue: number, annualSavings: number, retirementAge
       const z = Math.sqrt(-2 * Math.log(u1 + 1e-10)) * Math.cos(2 * Math.PI * u2);
       const r = rate + volatility * z;
       const age = currentAge + yr;
-      v = age < retirementAge
-        ? v * (1 + r) + annualSavings
-        : v * (1 + r * 0.6) - annualSavings * 0.5; // simplified drawdown
-      if (v < 0) { v = 0; }
+      if (age < retirementAge) {
+        v = v * (1 + r) + annualSavings;
+      } else {
+        v = v * (1 + r) - annualWithdrawal;
+        if (v <= 0 && !depleted) { depleted = true; depletedCount++; }
+      }
+      if (v < 0) v = 0;
     }
     allPaths.push(path);
   }
@@ -174,7 +184,10 @@ function buildBands(portfolioValue: number, annualSavings: number, retirementAge
     bands.p75.push(p(75));
     bands.p95.push(p(95));
   }
-  return bands;
+
+  const finalValues = allPaths.map(p => p[p.length - 1]);
+  const mcSuccessRate = Math.round(((N - depletedCount) / N) * 100);
+  return { ...bands, mcSuccessRate, finalValues };
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -414,23 +427,29 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
   );
 }
 
-function DistributionBar({ successRate }: { successRate: number }) {
+function DistributionBar({ finalValues }: { finalValues: number[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
-  const histogram = [
-    { b: '$0', v: Math.max(0, 100 - successRate), success: false },
-    { b: '<$500k', v: Math.max(0, 5 - (successRate - 70) * 0.2), success: false },
-    { b: '500k–1M', v: 10, success: true },
-    { b: '1–2M', v: 18, success: true },
-    { b: '2–4M', v: 28, success: true },
-    { b: '4–8M', v: 22, success: true },
-    { b: '8M+', v: 12, success: true },
+  const BINS = [
+    { label: 'Depleted', min: -Infinity, max: 0, success: false },
+    { label: '<$500k', min: 0, max: 500_000, success: false },
+    { label: '$500k–1M', min: 500_000, max: 1_000_000, success: true },
+    { label: '$1–2M', min: 1_000_000, max: 2_000_000, success: true },
+    { label: '$2–4M', min: 2_000_000, max: 4_000_000, success: true },
+    { label: '$4–8M', min: 4_000_000, max: 8_000_000, success: true },
+    { label: '$8M+', min: 8_000_000, max: Infinity, success: true },
   ];
-  const W = 720; const H = 180;
+  const total = finalValues.length || 1;
+  const histogram = BINS.map(bin => ({
+    ...bin,
+    pct: (finalValues.filter(v => v > bin.min && v <= bin.max).length / total) * 100,
+  }));
+  const maxPct = Math.max(...histogram.map(h => h.pct), 1);
+  const W = 720; const H = 160;
   const bw = W / histogram.length - 8;
   return (
     <svg viewBox={`0 0 ${W} ${H + 50}`} width="100%" style={{ cursor: 'pointer' }}>
       {histogram.map((h, i) => {
-        const barH = Math.max(2, h.v * 5);
+        const barH = Math.max(2, (h.pct / maxPct) * H);
         const bx = i * (bw + 8) + 4;
         const isHov = hovered === i;
         const ttX = Math.min(bx, W - 120);
@@ -442,21 +461,23 @@ function DistributionBar({ successRate }: { successRate: number }) {
           >
             <rect x={bx} y={H - barH} width={bw} height={barH}
               fill={h.success ? 'var(--lf-basil)' : 'var(--lf-sauce)'}
-              opacity={isHov ? 1 : 0.85} rx="3"
+              opacity={isHov ? 1 : 0.82} rx="3"
               style={{ transition: 'opacity 0.15s' }} />
             <text x={bx + bw / 2} y={H + 14} textAnchor="middle"
               fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-muted)">
-              {h.b}
+              {h.label}
             </text>
-            <text x={bx + bw / 2} y={H - barH - 4} textAnchor="middle"
-              fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-ink)">
-              {Math.round(h.v)}%
-            </text>
+            {h.pct >= 1 && (
+              <text x={bx + bw / 2} y={H - barH - 4} textAnchor="middle"
+                fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-ink)">
+                {h.pct.toFixed(1)}%
+              </text>
+            )}
             {isHov && (
               <g>
-                <rect x={ttX} y={H + 22} width={110} height={22} rx={5} fill="var(--lf-ink)" />
+                <rect x={ttX} y={H + 22} width={120} height={22} rx={5} fill="var(--lf-ink)" />
                 <text x={ttX + 8} y={H + 37} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-paper)">
-                  {Math.round(h.v)}% of runs → {h.b}
+                  {h.pct.toFixed(1)}% → {h.label}
                 </text>
               </g>
             )}
@@ -501,23 +522,70 @@ function EditableStat({ label, value, sub, onInc, onDec }: {
 }
 
 // ── SimulateView ──────────────────────────────────────────────────────────────
+type McAlloc = { us: number; intl: number; bonds: number; reit: number; cash: number };
+
+// Map parent API allocation keys → SimulateView keys.
+// API returns decimals (0.0–1.0), SimulateView expects percentages (0–100).
+function mapAllocation(alloc: Record<string, number>): McAlloc | null {
+  const keyMap: Record<string, keyof McAlloc> = {
+    usStocks: 'us', us: 'us',
+    intlStocks: 'intl', intl: 'intl', international: 'intl',
+    bonds: 'bonds', bond: 'bonds',
+    reits: 'reit', reit: 'reit',
+    cash: 'cash',
+  };
+  const result: McAlloc = { us: 0, intl: 0, bonds: 0, reit: 0, cash: 0 };
+  let matched = false;
+  for (const [k, v] of Object.entries(alloc)) {
+    const mapped = keyMap[k];
+    if (mapped) { result[mapped] = v; matched = true; }
+  }
+  if (!matched) return null;
+  // Detect decimal format (total ≤ 1.0) and scale to percentages
+  const total = Object.values(result).reduce((s, v) => s + v, 0);
+  const scale = total <= 1.0 ? 100 : 1;
+  return {
+    us: Math.round(result.us * scale),
+    intl: Math.round(result.intl * scale),
+    bonds: Math.round(result.bonds * scale),
+    reit: Math.round(result.reit * scale),
+    cash: Math.round(result.cash * scale),
+  };
+}
+
 function SimulateView({
   retirementAge, setRetirementAge,
   monthlySpend, setMonthlySpend,
   portfolioValue, currentAge, annualSavings,
   portfolioAtRetirement,
+  portfolioAllocation,
+  actualBlendedReturn,
 }: {
   retirementAge: number; setRetirementAge: (v: number) => void;
   monthlySpend: number; setMonthlySpend: (v: number) => void;
   portfolioValue: number; currentAge: number; annualSavings: number;
   portfolioAtRetirement: number;
+  portfolioAllocation: Record<string, number>;
+  actualBlendedReturn: number | null;
 }) {
   const [lifeExp, setLifeExp] = useState(92);
+  const [simTab, setSimTab] = useState<'mc' | 'backtest'>('mc');
   const [strategy, setStrategy] = useState('constant_dollar');
-  const [mcAlloc, setMcAlloc] = useState({ us: 49, intl: 11, bonds: 20, reit: 8, cash: 12 });
-  const [preset, setPreset] = useState('current');
+  const mappedAlloc = mapAllocation(portfolioAllocation);
+  const [mcAlloc, setMcAlloc] = useState<McAlloc>(mappedAlloc ?? { us: 45, intl: 15, bonds: 30, reit: 5, cash: 5 });
+  const [preset, setPreset] = useState(mappedAlloc ? 'current' : 'balanced');
   const [inflAdj, setInflAdj] = useState(true);
   const [dollars, setDollars] = useState<'real' | 'nominal'>('real');
+
+  // Draft strings allow free typing in number inputs without immediate clamping
+  const [monthlySpendStr, setMonthlySpendStr] = useState(String(monthlySpend));
+  const [allocStrs, setAllocStrs] = useState<Record<string, string>>(
+    () => Object.fromEntries(Object.keys(MC_LABELS).map(k => [k, String(mcAlloc[k as keyof typeof mcAlloc])]))
+  );
+  useEffect(() => { setMonthlySpendStr(String(monthlySpend)); }, [monthlySpend]);
+  useEffect(() => {
+    setAllocStrs(Object.fromEntries(Object.keys(MC_LABELS).map(k => [k, String(mcAlloc[k as keyof typeof mcAlloc])])));
+  }, [mcAlloc]);
 
   const updateAlloc = (k: string, v: number) => {
     setMcAlloc(a => ({ ...a, [k]: v }));
@@ -530,18 +598,40 @@ function SimulateView({
   };
 
   const allocTotal = Object.values(mcAlloc).reduce((s, v) => s + v, 0);
-  const expReturn = Object.entries(mcAlloc).reduce((s, [k, v]) => s + v * (MC_RETURNS[k] ?? 7), 0) / (allocTotal || 1);
-  const successRate = Math.min(96, Math.max(35, Math.round(expReturn * 8 + 20 + (dollars === 'real' ? -3 : 0))));
-  const successColor = successRate >= 80 ? 'var(--lf-pos)' : successRate >= 60 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
+  const mcComputedReturn = Object.entries(mcAlloc).reduce((s, [k, v]) => s + v * (MC_RETURNS[k] ?? 7), 0) / (allocTotal || 1);
+  // When using the actual portfolio ("current" preset), use the server-computed blended return
+  // (category-level granularity) so the simulation matches the Portfolio page. On any other preset
+  // or custom edits, fall back to the MC_RETURNS computation.
+  const expReturn = (preset === 'current' && actualBlendedReturn !== null) ? actualBlendedReturn : mcComputedReturn;
+  const annualWithdrawal = monthlySpend * 12;
 
   const bands = useMemo(
-    () => buildBands(portfolioValue, annualSavings, retirementAge, currentAge, expReturn),
-    [portfolioValue, annualSavings, retirementAge, currentAge, expReturn]
+    () => buildBands(portfolioValue, annualSavings, retirementAge, currentAge, expReturn, annualWithdrawal),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [portfolioValue, annualSavings, retirementAge, currentAge, expReturn, annualWithdrawal]
   );
+
+  const mcSuccessRate = bands.mcSuccessRate;
+  const mcSuccessColor = mcSuccessRate >= 80 ? 'var(--lf-pos)' : mcSuccessRate >= 60 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
+
+  // Real vs nominal: deflate by 3% / yr from current age
+  const displayBands = useMemo(() => {
+    if (dollars === 'nominal') return bands;
+    const deflate = (v: number, t: number) => Math.round(v / Math.pow(1.03, t));
+    const horizon = bands.p50.length;
+    return {
+      ...bands,
+      p5:  bands.p5.map((v, t) => deflate(v, t)),
+      p25: bands.p25.map((v, t) => deflate(v, t)),
+      p50: bands.p50.map((v, t) => deflate(v, t)),
+      p75: bands.p75.map((v, t) => deflate(v, t)),
+      p95: bands.p95.map((v, t) => deflate(v, t)),
+      finalValues: bands.finalValues.map(v => deflate(v, horizon - 1)),
+    };
+  }, [bands, dollars]);
 
   const lifeHorizon = Math.max(1, lifeExp - retirementAge);
   const equityFraction = (mcAlloc.us + mcAlloc.intl + mcAlloc.reit) / Math.max(allocTotal, 1);
-  const annualWithdrawal = monthlySpend * 12;
   // Generate year-by-year backtest rows for every start year with full data
   const backtestRows = useMemo(() => {
     const maxStart = 2024 - lifeHorizon;
@@ -560,20 +650,29 @@ function SimulateView({
     rules_based: 'Combine bucket strategy, floors/ceilings, and tax-efficient source ordering.',
   };
 
+  const backtestSuccessRate = backtestRows.length > 0 ? Math.round((survived / backtestRows.length) * 100) : 0;
+  const btSuccessColor = backtestSuccessRate >= 80 ? 'var(--lf-pos)' : backtestSuccessRate >= 60 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
+
   return (
     <>
-      {/* Success overview strip */}
-      <div className="ret-simulate-strip" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 16, marginBottom: 20 }}>
+      {/* Success overview strip — both methods side by side */}
+      <div className="ret-simulate-strip" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16, marginBottom: 20 }}>
         <Card style={{ padding: 20 }}>
-          <Eyebrow>Success rate · p(not running out)</Eyebrow>
-          <div style={{
-            fontFamily: "'Instrument Serif', Georgia, serif",
-            fontSize: 34, letterSpacing: '-0.02em', color: successColor, marginTop: 8, lineHeight: 1,
-          }}>
-            {successRate}%
+          <Eyebrow>Monte Carlo success</Eyebrow>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 34, letterSpacing: '-0.02em', color: mcSuccessColor, marginTop: 8, lineHeight: 1 }}>
+            {mcSuccessRate}%
           </div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 6 }}>
-            10,000 runs · {Math.max(1, lifeExp - retirementAge)} yr horizon
+            1,000 runs · {lifeHorizon} yr horizon
+          </div>
+        </Card>
+        <Card style={{ padding: 20 }}>
+          <Eyebrow>Historical backtest success</Eyebrow>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 34, letterSpacing: '-0.02em', color: btSuccessColor, marginTop: 8, lineHeight: 1 }}>
+            {backtestSuccessRate}%
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 6 }}>
+            {survived}/{backtestRows.length} scenarios survived
           </div>
         </Card>
         <EditableStat
@@ -613,15 +712,27 @@ function SimulateView({
             </button>
           ))}
         </div>
-        <div className="ret-withdrawal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28 }}>
+        <div className="ret-withdrawal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28, width: '100%' }}>
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <label style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500, fontFamily: "'Geist', system-ui, sans-serif" }}>
                 Monthly spending
               </label>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600 }}>
-                ${monthlySpend.toLocaleString()}
-              </span>
+              <input
+                type="number" min={500} max={50000} step={500} value={monthlySpendStr}
+                onChange={e => {
+                  setMonthlySpendStr(e.target.value);
+                  const v = parseInt(e.target.value, 10);
+                  if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlySpend(v);
+                }}
+                onBlur={() => {
+                  const v = parseInt(monthlySpendStr, 10);
+                  const clamped = isNaN(v) ? 500 : Math.max(500, Math.min(50000, v));
+                  setMonthlySpend(clamped);
+                  setMonthlySpendStr(String(clamped));
+                }}
+                style={{ width: 80, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#C9543A', fontWeight: 600, background: 'transparent' }}
+              />
             </div>
             <input type="range" min={2000} max={20000} step={500} value={monthlySpend}
               onChange={e => setMonthlySpend(+e.target.value)}
@@ -671,16 +782,30 @@ function SimulateView({
             }}>Custom</span>
           )}
         </div>
-        <div className="ret-5col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 20 }}>
+        <div className="ret-5col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 20, width: '100%' }}>
           {Object.keys(MC_LABELS).map(k => (
             <div key={k}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <span style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
                   {MC_LABELS[k]}
                 </span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>
-                  {mcAlloc[k as keyof typeof mcAlloc]}%
-                </span>
+                <input
+                  type="number" min={0} max={100} step={5}
+                  value={allocStrs[k] ?? String(mcAlloc[k as keyof typeof mcAlloc])}
+                  onChange={e => {
+                    setAllocStrs(prev => ({ ...prev, [k]: e.target.value }));
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v) && v >= 0 && v <= 100) updateAlloc(k, v);
+                  }}
+                  onBlur={() => {
+                    const str = allocStrs[k] ?? '0';
+                    const v = parseInt(str, 10);
+                    const clamped = isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
+                    updateAlloc(k, clamped);
+                    setAllocStrs(prev => ({ ...prev, [k]: String(clamped) }));
+                  }}
+                  style={{ width: 44, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 4px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', background: 'transparent' }}
+                />
               </div>
               <input type="range" min={0} max={100} step={5}
                 value={mcAlloc[k as keyof typeof mcAlloc]}
@@ -692,119 +817,196 @@ function SimulateView({
             </div>
           ))}
         </div>
+        {/* Stacked allocation bar */}
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--lf-rule)' }}>
+          <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 1, marginBottom: 10 }}>
+            {Object.keys(MC_LABELS).map(k => {
+              const pct = allocTotal > 0 ? (mcAlloc[k as keyof McAlloc] / allocTotal) * 100 : 0;
+              return pct > 0 ? (
+                <div key={k} style={{ width: `${pct}%`, background: MC_ACCENT[k], transition: 'width 0.3s ease', minWidth: 2 }} />
+              ) : null;
+            })}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
+            {Object.keys(MC_LABELS).map(k => (
+              <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-ink-soft)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: MC_ACCENT[k], flexShrink: 0 }} />
+                {MC_LABELS[k]} {mcAlloc[k as keyof McAlloc]}%
+              </span>
+            ))}
+          </div>
+        </div>
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--lf-rule)', fontSize: 13,
+          marginTop: 12, fontSize: 13,
           fontFamily: "'Geist', system-ui, sans-serif", color: 'var(--lf-ink-soft)',
         }}>
-          <span>Expected blended return · <strong>{expReturn.toFixed(2)}%</strong></span>
-          {allocTotal !== 100 ? (
+          <span>
+            Blended return · <strong>{expReturn.toFixed(2)}%</strong>
+            {preset !== 'current' && actualBlendedReturn !== null && (
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginLeft: 8 }}>
+                (your actual portfolio: {actualBlendedReturn.toFixed(1)}%)
+              </span>
+            )}
+            {preset === 'current' && actualBlendedReturn !== null && (
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginLeft: 8 }}>
+                · from your actual holdings
+              </span>
+            )}
+          </span>
+          {allocTotal !== 100 && (
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)' }}>
               ⚠ allocation totals {allocTotal}%
-            </span>
-          ) : (
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-pos)' }}>
-              ✓ balanced · 100%
             </span>
           )}
         </div>
       </Card>
 
-      {/* Hero success result */}
-      <div style={{
-        background: 'var(--lf-ink)', border: '1px solid var(--lf-ink)',
-        borderRadius: 14, padding: 'clamp(20px, 4vw, 40px)', marginBottom: 20,
-        display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 32, alignItems: 'center',
-      }}
-      className="ret-simulate-hero">
-        <div style={{
-          width: 100, height: 100, borderRadius: 22,
-          background: `rgba(201,84,58,0.15)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 38, color: successColor }}>
-            {successRate >= 80 ? '✓' : successRate >= 60 ? '~' : '!'}
-          </span>
-        </div>
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>
-            Probability of success
-          </div>
-          <div className="ret-simulate-big" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 88, lineHeight: 1, letterSpacing: '-0.03em', color: successColor }}>
-            {successRate}<span style={{ fontSize: 40 }}>%</span>
-          </div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 10 }}>
-            10,000 runs · {lifeExp - retirementAge} yr horizon
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', alignItems: 'flex-end' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div>median @ age {lifeExp}</div>
-            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color: 'var(--lf-paper)' }}>
-              {formatMoney(bands.p50[bands.p50.length - 1] || 0, true)}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div>worst 5%</div>
-            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 20, color: 'var(--lf-sauce)' }}>
-              {bands.p5[bands.p5.length - 1] === 0 ? `depleted age ${retirementAge + 15}` : formatMoney(bands.p5[bands.p5.length - 1], true)}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Dollar toggle */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)' }}>
+      {/* ── Real / Nominal toggle — applies to both tabs ───────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)' }}>
         <span>Values in:</span>
         <div style={{ display: 'flex', border: '1px solid var(--lf-rule)', borderRadius: 8, overflow: 'hidden' }}>
-          {(['real', 'nominal'] as const).map(d => (
+          {(['real', 'nominal'] as const).map((d, i) => (
             <button key={d} onClick={() => setDollars(d)} style={{
-              padding: '6px 12px', fontSize: 13, cursor: 'pointer',
+              padding: '5px 12px', fontSize: 13, cursor: 'pointer',
               fontFamily: "'JetBrains Mono', monospace",
               background: dollars === d ? 'rgba(201,84,58,0.08)' : 'transparent',
               color: dollars === d ? 'var(--lf-sauce)' : 'var(--lf-muted)',
-              border: 0, borderRight: d === 'real' ? '1px solid var(--lf-rule)' : 'none',
+              border: 0, borderRight: i === 0 ? '1px solid var(--lf-rule)' : 'none',
+              transition: 'background 0.15s, color 0.15s',
             }}>
               {d === 'real' ? 'Real $' : 'Nominal $'}
             </button>
           ))}
         </div>
+        {dollars === 'real' && (
+          <span style={{ fontSize: 12, opacity: 0.7 }}>inflation-adjusted · 3%/yr</span>
+        )}
       </div>
 
-      {/* Monte Carlo projection chart */}
-      <Eyebrow style={{ marginBottom: 10 }}>Monte Carlo projection</Eyebrow>
-      <Card style={{ marginBottom: 20 }}>
-        <FanChart bands={bands} retireAge={retirementAge} currentAge={currentAge} />
-        <div style={{ display: 'flex', gap: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 12 }}>
-          <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-sauce)', opacity: 0.1, marginRight: 6, verticalAlign: 'middle' }}></span>p5–p95</span>
-          <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-sauce)', opacity: 0.28, marginRight: 6, verticalAlign: 'middle' }}></span>p25–p75</span>
-          <span style={{ color: 'var(--lf-sauce)' }}><span style={{ display: 'inline-block', width: 12, height: 2, background: 'var(--lf-sauce)', marginRight: 6, verticalAlign: 'middle' }}></span>median (p50)</span>
-        </div>
-      </Card>
-
-      {/* Distribution */}
-      <Eyebrow style={{ marginBottom: 10 }}>Distribution of final portfolio values</Eyebrow>
-      <Card style={{ marginBottom: 20 }}>
-        <DistributionBar successRate={successRate} />
-        <div style={{ display: 'flex', gap: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 8 }}>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--lf-basil)', borderRadius: 2, marginRight: 6, verticalAlign: 'middle' }}></span>success</span>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--lf-sauce)', borderRadius: 2, marginRight: 6, verticalAlign: 'middle' }}></span>depleted</span>
-          <span style={{ marginLeft: 'auto' }}>bin width · ~$500k · {dollars} $</span>
-        </div>
-      </Card>
-
-      {/* Historical backtest — year by year */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <Eyebrow style={{ marginBottom: 0 }}>Historical backtest · every start year since 1928</Eyebrow>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-pos)' }}>
-          {survived}/{backtestRows.length} survived
-        </span>
+      {/* ── Tab bar ────────────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, border: '1px solid var(--lf-rule)', borderRadius: 10, overflow: 'hidden', background: 'var(--lf-cream)' }}>
+        {([
+          { id: 'mc', label: 'Monte Carlo', rate: mcSuccessRate, color: mcSuccessColor },
+          { id: 'backtest', label: 'Historical Backtest', rate: backtestSuccessRate, color: btSuccessColor },
+        ] as const).map((tab, i) => {
+          const isActive = simTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setSimTab(tab.id)}
+              style={{
+                flex: 1, padding: '12px 16px', cursor: 'pointer', border: 0,
+                borderRight: i === 0 ? '1px solid var(--lf-rule)' : 'none',
+                borderBottom: isActive ? `2px solid var(--lf-sauce)` : '2px solid transparent',
+                background: isActive ? 'var(--lf-paper)' : 'transparent',
+                transition: 'background 0.15s, border-color 0.15s',
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3,
+              }}
+            >
+              <span style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--lf-ink)' : 'var(--lf-muted)' }}>
+                {tab.label}
+              </span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: tab.color }}>
+                {tab.rate}% success
+              </span>
+            </button>
+          );
+        })}
       </div>
+
+      {/* ── Monte Carlo tab ─────────────────────────────────────────────────── */}
+      {simTab === 'mc' && (
+        <>
+          <Card style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+              <Eyebrow style={{ marginBottom: 0 }}>Portfolio projection · 1,000 randomized runs</Eyebrow>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)' }}>
+                {lifeHorizon} yr horizon · age {currentAge}–{lifeExp}
+              </span>
+            </div>
+            <FanChart bands={displayBands} retireAge={retirementAge} currentAge={currentAge} />
+            <div style={{ display: 'flex', gap: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 12, flexWrap: 'wrap' }}>
+              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-sauce)', opacity: 0.1, marginRight: 6, verticalAlign: 'middle' }}></span>p5–p95</span>
+              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-sauce)', opacity: 0.28, marginRight: 6, verticalAlign: 'middle' }}></span>p25–p75</span>
+              <span style={{ color: 'var(--lf-sauce)' }}><span style={{ display: 'inline-block', width: 12, height: 2, background: 'var(--lf-sauce)', marginRight: 6, verticalAlign: 'middle' }}></span>median (p50)</span>
+              <span style={{ marginLeft: 'auto' }}>
+                median @ age {lifeExp}: <strong>{formatMoney(displayBands.p50[displayBands.p50.length - 1] || 0, true)}</strong>
+                &nbsp;·&nbsp; worst 5%: <strong style={{ color: displayBands.p5[displayBands.p5.length - 1] === 0 ? 'var(--lf-sauce)' : undefined }}>
+                  {displayBands.p5[displayBands.p5.length - 1] === 0 ? 'depleted' : formatMoney(displayBands.p5[displayBands.p5.length - 1], true)}
+                </strong>
+              </span>
+            </div>
+          </Card>
+          <Card style={{ marginBottom: 20 }}>
+            <Eyebrow style={{ marginBottom: 10 }}>Distribution of final portfolio values at age {lifeExp}</Eyebrow>
+            <DistributionBar finalValues={displayBands.finalValues} />
+            <div style={{ display: 'flex', gap: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 4, flexWrap: 'wrap' }}>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--lf-basil)', borderRadius: 2, marginRight: 6, verticalAlign: 'middle' }}></span>portfolio survived</span>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--lf-sauce)', borderRadius: 2, marginRight: 6, verticalAlign: 'middle' }}></span>depleted before end</span>
+              <span style={{ marginLeft: 'auto' }}>each bar = % of 1,000 runs</span>
+            </div>
+          </Card>
+
+          {/* MC failure commentary */}
+          {mcSuccessRate < 95 && (() => {
+            const failPct = 100 - mcSuccessRate;
+            const withdrawalRate = annualWithdrawal / Math.max(portfolioAtRetirement, 1) * 100;
+            const horizon = lifeHorizon;
+            const isHighWithdrawal = withdrawalRate > 5;
+            const isLongHorizon = horizon > 35;
+            const isLowEquity = equityFraction < 0.4;
+
+            const fixes: Array<{ label: string; detail: string }> = [];
+            if (isHighWithdrawal) fixes.push({
+              label: `Reduce withdrawal rate (currently ${withdrawalRate.toFixed(1)}%)`,
+              detail: `The 4% rule targets ≤4%. Your ${withdrawalRate.toFixed(1)}% rate means $${(annualWithdrawal / 1000).toFixed(0)}k/yr on a ${formatMoney(portfolioAtRetirement, true)} portfolio. Each extra year of work or $${Math.round(monthlySpend * 0.1 / 100) * 100}/mo in spending cuts meaningfully improves odds.`,
+            });
+            if (isLongHorizon) fixes.push({
+              label: `Long retirement horizon (${horizon} yrs)`,
+              detail: `A ${horizon}-year horizon means more years for market downturns to compound. Retiring at ${retirementAge + 2} instead would reduce the horizon to ${horizon - 2} years and let the portfolio grow longer.`,
+            });
+            if (isLowEquity) fixes.push({
+              label: `Low equity allocation (${Math.round(equityFraction * 100)}% stocks)`,
+              detail: `Portfolios with <40% in equities often can't outpace inflation and withdrawals over long periods. Consider shifting bonds to equities if your risk tolerance allows.`,
+            });
+            if (fixes.length === 0) fixes.push({
+              label: 'Sequence-of-returns risk',
+              detail: `Even with good average returns, a bad market in the first 5–10 years of retirement is the main culprit. Consider keeping 1–2 years of spending in cash to avoid selling equities at a loss during downturns (a "cash buffer" strategy).`,
+            });
+
+            return (
+              <Card style={{ marginBottom: 20, background: 'rgba(201,84,58,0.04)', border: '1px solid rgba(201,84,58,0.15)' }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--lf-sauce)', marginBottom: 12 }}>
+                  Why {failPct}% of runs fail · what to do
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {fixes.map((fix, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 12 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(201,84,58,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--lf-sauce)', fontWeight: 600 }}>{i + 1}</span>
+                      </div>
+                      <div>
+                        <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', marginBottom: 3 }}>{fix.label}</div>
+                        <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)', lineHeight: 1.6 }}>{fix.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })()}
+        </>
+      )}
+
+      {/* ── Historical backtest tab ─────────────────────────────────────────── */}
+      {simTab === 'backtest' && (
+        <>
       <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--lf-rule)', fontSize: 13, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
           Runs your exact numbers ({formatMoney(portfolioAtRetirement, true)} portfolio · {formatMoney(monthlySpend * 12, true)}/yr withdrawal) against <strong>real historical market returns</strong> starting every year since 1928. Horizon = {lifeHorizon} yrs.
         </div>
-        <div className="ret-backtest-wrap" style={{ maxHeight: 380, overflowY: 'auto', overflowX: 'auto' }}>
+        <div className="ret-backtest-wrap" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
               <tr style={{ background: 'var(--lf-cream)' }}>
@@ -859,6 +1061,8 @@ function SimulateView({
           </table>
         </div>
       </Card>
+        </>
+      )}
     </>
   );
 }
@@ -869,7 +1073,7 @@ export function Retirement() {
   const { setPageContext } = usePageContext();
   const [loading, setLoading] = useState(true);
   const [hasAccounts, setHasAccounts] = useState(false);
-  const [view, setView] = useState<'plan' | 'simulate'>('plan');
+  const [view, setView] = useState<'simple' | 'advanced'>('simple');
 
   // Data from API
   const [currentAge, setCurrentAge] = useState(30);
@@ -877,6 +1081,7 @@ export function Retirement() {
   const [portfolioValue, setPortfolioValue] = useState(0);
   const [monthlyExpenses, setMonthlyExpenses] = useState(5000);
   const [allocation, setAllocation] = useState<Record<string, number>>({});
+  const [blendedReturn, setBlendedReturn] = useState<number | null>(null);
   const [riskTolerance, setRiskTolerance] = useState<string | null>(null);
   const [filingStatus, setFilingStatus] = useState<string | null>(null);
 
@@ -885,13 +1090,21 @@ export function Retirement() {
   const [monthlyRetirementSpend, setMonthlyRetirementSpend] = useState(5000);
   const [selectedStrategy, setSelectedStrategy] = useState('constant_dollar');
 
+  const [lifeExpectancy, setLifeExpectancy] = useState(90);
+
+  // Draft strings for number inputs so typing isn't interrupted by clamping
+  const [retAgeStr, setRetAgeStr] = useState('65');
+  const [monthlySpendStr, setMonthlySpendStr] = useState('5000');
+  const [lifeExpStr, setLifeExpStr] = useState('90');
+
   useEffect(() => {
     Promise.all([
       api.getBalances().catch(() => ({ balances: [] })),
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
       api.getPortfolioAllocation().catch(() => ({ allocation: null, totalValue: 0 })),
       api.getSpendingSummary().catch(() => ({ totalSpending: 0, totalIncome: 0 })),
-    ]).then(([balanceData, profileData, portfolioData, spendingData]) => {
+      api.getPortfolioExposure().catch(() => null),
+    ]).then(([balanceData, profileData, portfolioData, spendingData, exposureData]) => {
       const balances = (balanceData as { balances: Array<{ balance?: string; type?: string }> }).balances;
       setHasAccounts(balances.length > 0);
 
@@ -916,6 +1129,11 @@ export function Retirement() {
       const pd = portfolioData as { allocation: Record<string, number> | null; totalValue: number };
       if (pd.allocation) setAllocation(pd.allocation);
 
+      if (exposureData) {
+        const ed = exposureData as { blendedReturn: number };
+        if (ed.blendedReturn) setBlendedReturn(ed.blendedReturn);
+      }
+
       const sd = spendingData as { totalSpending: number; totalIncome: number };
       if (sd.totalSpending > 0) {
         const m = Math.round(sd.totalSpending);
@@ -923,6 +1141,10 @@ export function Retirement() {
       }
     }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { setRetAgeStr(String(retirementAge)); }, [retirementAge]);
+  useEffect(() => { setMonthlySpendStr(String(monthlyRetirementSpend)); }, [monthlyRetirementSpend]);
+  useEffect(() => { setLifeExpStr(String(lifeExpectancy)); }, [lifeExpectancy]);
 
   useEffect(() => {
     if (!loading && hasAccounts) {
@@ -937,7 +1159,9 @@ export function Retirement() {
 
   // ── Computed values ──────────────────────────────────────────────────────
   const yearsUntilRetirement = Math.max(0, retirementAge - currentAge);
-  const expectedReturn = Object.keys(allocation).length > 0 ? getExpectedReturn(allocation) : 7.0;
+  // Prefer the server-computed blended return (category-level granularity) over the
+  // local coarse estimate. Falls back to local computation if exposure API is unavailable.
+  const expectedReturn = blendedReturn ?? (Object.keys(allocation).length > 0 ? getExpectedReturn(allocation) : 7.0);
   const annualExpenses = monthlyRetirementSpend * 12;
   const fireNumber = annualExpenses * 25;
   const estimatedTaxRate = 0.25;
@@ -949,8 +1173,9 @@ export function Retirement() {
     portfolioAtRetirement = portfolioAtRetirement * (1 + rate) + annualSavings;
   }
   const conservativeRate = rate * 0.6;
+  const lifeHorizon = Math.max(1, lifeExpectancy - retirementAge);
   let yearsMoneyLasts = 0; let tempValue = portfolioAtRetirement;
-  while (tempValue > 0 && yearsMoneyLasts < 60) {
+  while (tempValue > 0 && yearsMoneyLasts < lifeHorizon) {
     tempValue = tempValue * (1 + conservativeRate) - annualExpenses;
     if (tempValue > 0) yearsMoneyLasts++;
     else break;
@@ -1010,40 +1235,23 @@ export function Retirement() {
           .ret-simulate-strip { grid-template-columns: 1fr !important; }
           .ret-5col { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important; }
           .ret-withdrawal-grid { grid-template-columns: 1fr !important; }
-          .ret-simulate-hero { grid-template-columns: 1fr !important; }
+          .ret-simulate-hero { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .ret-sliders-grid { grid-template-columns: 1fr !important; }
           .ret-backtest-wrap { overflow-x: auto; }
           .ret-hero-big { font-size: 44px !important; }
           .ret-simulate-big { font-size: 56px !important; }
-          .ret-page-header { flex-direction: column !important; align-items: flex-start !important; }
         }
       `}</style>
-      <div style={{ padding: 'clamp(16px, 4vw, 28px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' as const }}>
 
-        {/* Page header with Plan | Simulate toggle */}
-        <div className="ret-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginBottom: 6 }}>
-              Retirement · live from your accounts
-            </div>
-            <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, fontWeight: 400, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.2 }}>
-              Your path to <em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>financial independence.</em>
-            </h1>
-          </div>
-          {/* Plan | Simulate toggle */}
-          <div style={{ display: 'flex', gap: 6, padding: 4, background: 'var(--lf-cream)', borderRadius: 999, border: '1px solid var(--lf-rule)', flexShrink: 0, marginTop: 4 }}>
-            {(['plan', 'simulate'] as const).map(v => (
-              <button key={v} onClick={() => setView(v)} style={{
-                padding: '8px 18px', fontSize: 13, cursor: 'pointer',
-                fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 500,
-                borderRadius: 999, border: 0,
-                background: view === v ? 'var(--lf-ink)' : 'transparent',
-                color: view === v ? 'var(--lf-paper)' : 'var(--lf-ink-soft)',
-                transition: 'background 0.15s, color 0.15s',
-              }}>
-                {v === 'plan' ? 'Plan' : 'Simulate'}
-              </button>
-            ))}
-          </div>
+        {/* Page header */}
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, fontWeight: 400, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
+            Retirement
+          </h1>
+          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--lf-muted)', marginTop: 6, marginBottom: 0 }}>
+            retire at {retirementAge} · {Math.max(0, retirementAge - currentAge)} years away
+          </p>
         </div>
 
         {/* Shared dark hero card */}
@@ -1051,7 +1259,7 @@ export function Retirement() {
           background: 'var(--lf-ink)', border: '1px solid var(--lf-ink)',
           borderRadius: 14, padding: 32, marginBottom: 20,
         }}>
-          <div className="ret-hero-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.6fr) repeat(3, minmax(90px, 1fr))', gap: 24, alignItems: 'end' }}>
+          <div className="ret-hero-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 24, alignItems: 'end' }}>
             <div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>
                 Projected at retirement · age {retirementAge}
@@ -1065,7 +1273,7 @@ export function Retirement() {
             </div>
             {[
               { label: 'FIRE number', value: formatMoney(fireNumber, true), sub: '25× annual spend' },
-              { label: 'Years money lasts', value: yearsMoneyLasts >= 60 ? '60+' : `${yearsMoneyLasts}`, sub: `through age ${Math.min(retirementAge + yearsMoneyLasts, retirementAge + 60)}` },
+              { label: 'Years money lasts', value: yearsMoneyLasts >= lifeHorizon ? 'lifetime' : `${yearsMoneyLasts}`, sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}` },
               { label: 'Readiness', value: `${readiness.toFixed(0)}%`, sub: 'of FIRE number', color: readiness >= 80 ? '#9FD18E' : readiness >= 50 ? 'var(--lf-cheese)' : '#E89070' },
             ].map(({ label, value, sub, color }) => (
               <div key={label}>
@@ -1083,28 +1291,113 @@ export function Retirement() {
           </div>
         </div>
 
-        {/* ── PLAN VIEW ──────────────────────────────────────────────────────── */}
-        {view === 'plan' && (
+        <PageActions types="retirement" />
+
+        {/* Simple | Advanced toggle — lives under hero */}
+        <div style={{ display: 'flex', gap: 6, padding: 4, background: 'var(--lf-cream)', borderRadius: 999, border: '1px solid var(--lf-rule)', width: 'fit-content', marginBottom: 20 }}>
+          {(['simple', 'advanced'] as const).map(v => (
+            <button key={v} onClick={() => setView(v)} style={{
+              padding: '8px 18px', fontSize: 13, cursor: 'pointer',
+              fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 500,
+              borderRadius: 999, border: 0,
+              background: view === v ? 'var(--lf-ink)' : 'transparent',
+              color: view === v ? 'var(--lf-paper)' : 'var(--lf-ink-soft)',
+              transition: 'background 0.15s, color 0.15s',
+            }}>
+              {v === 'simple' ? 'Simple' : 'Advanced'}
+            </button>
+          ))}
+        </div>
+
+        {/* ── SIMPLE VIEW ──────────────────────────────────────────────────────── */}
+        {view === 'simple' && (
           <>
-            {/* Projection chart */}
-            <Card style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 20px 12px' }}>
+            {/* Sliders */}
+            <Card style={{ marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, flexWrap: 'wrap' }} className="ret-sliders-grid">
                 <div>
-                  <Eyebrow>Portfolio Projection</Eyebrow>
-                  <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)' }}>
-                    At {expectedReturn.toFixed(1)}% avg return · {annualSavings > 0 ? `${formatMoney(annualSavings, true)}/yr contributions` : 'no contributions estimated'}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500 }}>Retirement Age</label>
+                    <input
+                      type="number" min={currentAge} max={100} value={retAgeStr}
+                      onChange={e => {
+                        setRetAgeStr(e.target.value);
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v) && v >= currentAge && v <= 100) setRetirementAge(v);
+                      }}
+                      onBlur={() => {
+                        const v = parseInt(retAgeStr, 10);
+                        const clamped = isNaN(v) ? currentAge : Math.max(currentAge, Math.min(100, v));
+                        setRetirementAge(clamped);
+                        setRetAgeStr(String(clamped));
+                      }}
+                      style={{ width: 52, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600, background: 'transparent' }}
+                    />
+                  </div>
+                  <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
+                    onChange={e => setRetirementAge(+e.target.value)}
+                    style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 4 }}>
+                    <span>{currentAge}</span><span>100</span>
                   </div>
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', textAlign: 'right' }}>
-                  Age {currentAge} → {Math.max(retirementAge + 20, 90)}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500 }}>Life Expectancy</label>
+                    <input
+                      type="number" min={retirementAge + 1} max={120} value={lifeExpStr}
+                      onChange={e => {
+                        setLifeExpStr(e.target.value);
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v) && v > retirementAge && v <= 120) setLifeExpectancy(v);
+                      }}
+                      onBlur={() => {
+                        const v = parseInt(lifeExpStr, 10);
+                        const clamped = isNaN(v) ? retirementAge + 1 : Math.max(retirementAge + 1, Math.min(120, v));
+                        setLifeExpectancy(clamped);
+                        setLifeExpStr(String(clamped));
+                      }}
+                      style={{ width: 52, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600, background: 'transparent' }}
+                    />
+                  </div>
+                  <input type="range" min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
+                    onChange={e => setLifeExpectancy(+e.target.value)}
+                    style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 4 }}>
+                    <span>{retirementAge + 1}</span><span>120</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500 }}>Monthly Spending</label>
+                    <input
+                      type="number" min={500} max={50000} step={500} value={monthlySpendStr}
+                      onChange={e => {
+                        setMonthlySpendStr(e.target.value);
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlyRetirementSpend(v);
+                      }}
+                      onBlur={() => {
+                        const v = parseInt(monthlySpendStr, 10);
+                        const clamped = isNaN(v) ? 500 : Math.max(500, Math.min(50000, v));
+                        setMonthlyRetirementSpend(clamped);
+                        setMonthlySpendStr(String(clamped));
+                      }}
+                      style={{ width: 80, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600, background: 'transparent' }}
+                    />
+                  </div>
+                  <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
+                    onChange={e => setMonthlyRetirementSpend(+e.target.value)}
+                    style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 4 }}>
+                    <span>$2k</span><span>$20k</span>
+                  </div>
                 </div>
               </div>
-              <ProjectionLine data={projectionData} />
             </Card>
 
-            {/* Retirement income row */}
-            <Eyebrow>At Retirement</Eyebrow>
-            <div className="ret-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
+            {/* KPI cards + readiness ring */}
+            <div className="ret-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
               <Card>
                 <Eyebrow>Projected Portfolio</Eyebrow>
                 <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color: 'var(--lf-pos)', lineHeight: 1 }}>
@@ -1124,96 +1417,41 @@ export function Retirement() {
               </Card>
               <Card>
                 <Eyebrow>Money Lasts</Eyebrow>
-                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color: yearsMoneyLasts >= 60 ? 'var(--lf-basil)' : yearsMoneyLasts >= 30 ? 'var(--lf-basil)' : yearsMoneyLasts >= 20 ? 'var(--lf-cheese)' : 'var(--lf-sauce)', lineHeight: 1 }}>
-                  {yearsMoneyLasts >= 60 ? 'Lifetime' : `${yearsMoneyLasts} yrs`}
+                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color: yearsMoneyLasts >= lifeHorizon ? 'var(--lf-basil)' : yearsMoneyLasts >= 20 ? 'var(--lf-cheese)' : 'var(--lf-sauce)', lineHeight: 1 }}>
+                  {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+` : `${yearsMoneyLasts} yrs`}
                 </div>
                 <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)', marginTop: 6 }}>
-                  {yearsMoneyLasts >= 60 ? 'Portfolio keeps growing' : `Until age ${retirementAge + yearsMoneyLasts}`}
+                  {yearsMoneyLasts >= lifeHorizon ? `through age ${lifeExpectancy}+` : `Until age ${retirementAge + yearsMoneyLasts}`}
                 </div>
+              </Card>
+              <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <ReadinessRing pct={readiness} />
+                <p style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)', textAlign: 'center', lineHeight: 1.4, margin: 0 }}>
+                  {readinessLabel}
+                </p>
               </Card>
             </div>
 
-            {/* Readiness + controls */}
-            <Card style={{ marginBottom: 20 }}>
-              <div className="ret-readiness-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 28, alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                  <ReadinessRing pct={readiness} />
-                  <p style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)', textAlign: 'center', lineHeight: 1.5 }}>
-                    {readinessLabel}
-                  </p>
-                </div>
+            {/* Projection chart */}
+            <Card style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 20px 12px' }}>
                 <div>
-                  <Eyebrow>Model Your Retirement</Eyebrow>
-                  <div style={{ marginBottom: 20 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)' }}>Retirement Age</label>
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600 }}>{retirementAge}</span>
-                    </div>
-                    <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
-                      onChange={e => setRetirementAge(parseInt(e.target.value))}
-                      style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 4 }}>
-                      <span>{currentAge}</span><span>100</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)' }}>Monthly Retirement Spending</label>
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600 }}>{formatMoney(monthlyRetirementSpend)}</span>
-                    </div>
-                    <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
-                      onChange={e => setMonthlyRetirementSpend(parseInt(e.target.value))}
-                      style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 4 }}>
-                      <span>$2k</span><span>$20k</span>
-                    </div>
+                  <Eyebrow>Portfolio Projection</Eyebrow>
+                  <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)' }}>
+                    At {expectedReturn.toFixed(1)}% avg return · {annualSavings > 0 ? `${formatMoney(annualSavings, true)}/yr contributions` : 'no contributions estimated'}
                   </div>
                 </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', textAlign: 'right' }}>
+                  Age {currentAge} → {Math.max(retirementAge + 20, 90)}
+                </div>
               </div>
-            </Card>
-
-            {/* Withdrawal strategy tabs */}
-            <Card>
-              <Eyebrow>Withdrawal Strategy</Eyebrow>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                {strategies.map(s => {
-                  const active = selectedStrategy === s.id;
-                  return (
-                    <button key={s.id} onClick={() => setSelectedStrategy(s.id)} style={{
-                      padding: '7px 16px', borderRadius: 20,
-                      border: active ? '1px solid var(--lf-sauce)' : '1px solid var(--lf-rule)',
-                      background: active ? 'rgba(201,84,58,0.08)' : 'transparent',
-                      color: active ? 'var(--lf-sauce)' : 'var(--lf-muted)',
-                      fontFamily: "'Geist', system-ui, sans-serif",
-                      fontSize: 13, fontWeight: active ? 600 : 400, cursor: 'pointer',
-                    }}>
-                      {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--lf-rule)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <p style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)', lineHeight: 1.5 }}>
-                  {selectedStrategy === 'constant_dollar' && 'Withdraw a fixed inflation-adjusted dollar amount each year.'}
-                  {selectedStrategy === 'percent_portfolio' && 'Withdraw a fixed percentage of your portfolio balance annually.'}
-                  {selectedStrategy === 'guardrails' && 'Adjust withdrawals up or down based on portfolio performance guardrails.'}
-                  {selectedStrategy === 'rules_based' && 'Follow a rules-based system that responds to market conditions.'}
-                </p>
-                <button onClick={() => setView('simulate')} style={{
-                  padding: '9px 18px', borderRadius: 8,
-                  border: '1px solid var(--lf-sauce)', background: 'var(--lf-sauce)',
-                  color: '#fff', fontFamily: "'Geist', system-ui, sans-serif",
-                  fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 16,
-                }}>
-                  Run Simulation →
-                </button>
-              </div>
+              <ProjectionLine data={projectionData} />
             </Card>
           </>
         )}
 
-        {/* ── SIMULATE VIEW ──────────────────────────────────────────────────── */}
-        {view === 'simulate' && (
+        {/* ── ADVANCED VIEW ──────────────────────────────────────────────────── */}
+        {view === 'advanced' && (
           <SimulateView
             retirementAge={retirementAge}
             setRetirementAge={setRetirementAge}
@@ -1223,6 +1461,8 @@ export function Retirement() {
             currentAge={currentAge}
             annualSavings={annualSavings}
             portfolioAtRetirement={portfolioAtRetirement}
+            portfolioAllocation={allocation}
+            actualBlendedReturn={blendedReturn}
           />
         )}
 

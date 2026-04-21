@@ -25,6 +25,11 @@ export function EditableStatCard({
 }: EditableStatCardProps) {
   const [draft, setDraft] = useState(String(value));
 
+  // Sync draft when external value changes (e.g., from slider or reset)
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
   return (
     <div className="glass-card rounded-2xl p-5">
       <div className="flex items-center gap-2 mb-3">

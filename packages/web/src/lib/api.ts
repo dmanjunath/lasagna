@@ -204,6 +204,9 @@ export const api = {
       body: JSON.stringify({ planId, title, tags }),
     }),
 
+  deleteThread: (id: string) =>
+    request<{ success: boolean }>(`/threads/${id}`, { method: "DELETE" }),
+
   // Tax Documents
   getTaxDocuments: () =>
     request<{ documents: TaxDocumentSummary[] }>("/tax/documents"),

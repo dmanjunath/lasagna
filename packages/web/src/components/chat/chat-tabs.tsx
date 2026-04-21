@@ -29,8 +29,8 @@ export function ChatTabs() {
         messages: messages as Message[],
         apiThreadId: thread.id,
       };
-      setActiveThread(prev.length);
-      return [...prev, newThread];
+      setActiveThread(0);
+      return [newThread, ...prev];
     });
     setTab('chat');
   };

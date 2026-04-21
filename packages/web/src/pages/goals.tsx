@@ -198,15 +198,23 @@ export function Goals() {
   const activeGoals = goals.filter(g => g.status === 'active');
   const completedGoals = goals.filter(g => g.status === 'completed');
 
+  const totalTarget = activeGoals.reduce((s, g) => s + parseFloat(g.targetAmount), 0);
+  const totalSaved = activeGoals.reduce((s, g) => s + parseFloat(g.currentAmount), 0);
+  const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
+
   return (
     <div
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: 'clamp(16px, 4vw, 32px)',
-        paddingBottom: 'clamp(80px, 12vw, 64px)',
-        background: 'var(--lf-cream)',
+        padding: 'clamp(16px, 4vw, 40px)',
+        paddingBottom: 'clamp(80px, 12vw, 48px)',
+        background: 'var(--lf-paper)',
         minHeight: '100%',
+        maxWidth: 1100,
+        margin: '0 auto',
+        width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       {/* ── Page header ── */}
@@ -214,51 +222,27 @@ export function Goals() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          marginBottom: 40,
-          gap: 16,
-          flexWrap: 'wrap',
-        }}
+        style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, gap: 16, flexWrap: 'wrap' }}
       >
         <div>
-          <div style={{ ...eyebrow, marginBottom: 8 }}>
+          <h1 style={{ ...serif, fontSize: 36, lineHeight: 1.1, color: 'var(--lf-ink)', margin: 0, fontWeight: 400 }}>
             Goals
-            {!loading && (
-              <>
-                {' · '}
-                <span style={{ color: 'var(--lf-ink)' }}>{activeGoals.length} active</span>
-                {' · '}
-                <span>{completedGoals.length} complete</span>
-              </>
-            )}
-          </div>
-          <h1 style={{ ...serif, fontSize: 38, lineHeight: 1.1, color: 'var(--lf-ink)', margin: 0 }}>
-            What you're{' '}
-            <em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>saving for.</em>
           </h1>
+          {!loading && (
+            <div style={{ ...eyebrow, marginTop: 6 }}>
+              {activeGoals.length} active · {completedGoals.length} complete
+            </div>
+          )}
         </div>
-
         {import.meta.env.VITE_DEMO_MODE !== 'true' && (
           <button
             onClick={() => setShowCreate(v => !v)}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 20px',
-              background: 'var(--lf-ink)',
-              color: 'var(--lf-paper)',
-              border: 'none',
-              borderRadius: 10,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: "'JetBrains Mono', monospace",
-              letterSpacing: '0.04em',
-              whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px', background: 'var(--lf-ink)', color: 'var(--lf-paper)',
+              border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: '0.04em', whiteSpace: 'nowrap',
             }}
           >
             <Plus size={14} />
@@ -266,6 +250,38 @@ export function Goals() {
           </button>
         )}
       </motion.div>
+
+      {/* ── Hero ── */}
+      {!loading && activeGoals.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+          style={{
+            background: 'var(--lf-ink)', color: 'var(--lf-paper)',
+            borderRadius: 14, padding: 'clamp(20px, 4vw, 32px)', marginBottom: 20,
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 24,
+          }}
+        >
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-cheese)', marginBottom: 6 }}>Saved so far</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 48, lineHeight: 1, letterSpacing: '-0.02em' }}>{formatCurrency(totalSaved)}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 8 }}>of {formatCurrency(totalTarget)} target</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-cheese)', marginBottom: 6 }}>Overall progress</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 48, lineHeight: 1, letterSpacing: '-0.02em' }}>{overallPct}%</div>
+            <div style={{ marginTop: 12, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2 }}>
+              <div style={{ width: `${overallPct}%`, height: '100%', background: 'var(--lf-cheese)', borderRadius: 2, transition: 'width 0.5s' }} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-cheese)', marginBottom: 6 }}>Active goals</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 48, lineHeight: 1, letterSpacing: '-0.02em' }}>{activeGoals.length}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 8 }}>{completedGoals.length} completed</div>
+          </div>
+        </motion.div>
+      )}
 
       <PageActions types="savings" />
 
@@ -336,13 +352,20 @@ export function Goals() {
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <span style={{ ...eyebrow, fontSize: 13 }}>Target amount</span>
-                      <input
-                        type="number"
-                        value={newTarget}
-                        onChange={e => setNewTarget(e.target.value)}
-                        placeholder="25000"
-                        style={inputStyle}
-                      />
+                      <div style={{ position: 'relative' }}>
+                        <span style={{
+                          position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                          color: 'var(--lf-muted)', fontSize: 13, pointerEvents: 'none',
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}>$</span>
+                        <input
+                          type="number"
+                          value={newTarget}
+                          onChange={e => setNewTarget(e.target.value)}
+                          placeholder="25000"
+                          style={{ ...inputStyle, paddingLeft: 24 }}
+                        />
+                      </div>
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <span style={{ ...eyebrow, fontSize: 13 }}>Target date (optional)</span>
@@ -658,7 +681,6 @@ export function Goals() {
                       justifyContent: 'space-between',
                       padding: '14px 20px',
                       borderBottom: i < completedGoals.length - 1 ? '1px solid var(--lf-rule)' : 'none',
-                      opacity: 0.65,
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
