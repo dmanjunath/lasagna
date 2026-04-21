@@ -49,7 +49,7 @@ export function MessageBubble({ message }: { message: Message }) {
       {/* Message bubble */}
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-3",
+          "max-w-[85%] rounded-2xl px-4 py-3 break-words",
           isUser
             ? "bg-accent text-bg"
             : "bg-surface border border-border/60 text-text"
@@ -94,6 +94,16 @@ export function MessageBubble({ message }: { message: Message }) {
                 </li>
               ),
               hr: () => <hr className="border-border my-4" />,
+              code: ({ children, className }) => {
+                const isBlock = className?.startsWith('language-');
+                return isBlock ? (
+                  <pre className="bg-bg-elevated border border-border rounded-lg px-3 py-2 my-2 overflow-x-auto text-xs font-mono">
+                    <code>{children}</code>
+                  </pre>
+                ) : (
+                  <code className="bg-bg-elevated border border-border rounded px-1 py-0.5 text-xs font-mono">{children}</code>
+                );
+              },
             }}
           >
             {message.content}

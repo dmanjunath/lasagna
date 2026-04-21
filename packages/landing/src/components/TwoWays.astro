@@ -1,86 +1,180 @@
 ---
 import { APP_URL, GITHUB_URL } from "../config";
+
+const managedFeatures = [
+  "We host your Postgres vault — encrypted at rest",
+  "Plaid connections included, unlimited accounts",
+  "Managed updates and backups",
+  "Your own Claude API key for AI (BYOK)",
+  "Export everything, any time, zero lock-in",
+  "Cancel and take your database with you",
+];
+
+const selfFeatures = [
+  "Run on your server, your NAS, or a Raspberry Pi",
+  "Docker image — one command to boot",
+  "Bring your own Plaid keys (or enter manually)",
+  "Every feature, zero gating",
+  "Optional $49/yr for priority support",
+  "Source available on GitHub",
+];
 ---
 
-<section class="relative border-t border-white/[0.06] px-6 py-24" style="background: linear-gradient(to bottom, rgb(8,8,12) 0%, rgb(11,11,17) 50%, rgb(8,8,12) 100%);">
-  <div class="mx-auto max-w-5xl">
-    <p class="mb-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-[rgb(0,229,160)]">
-      Deployment
-    </p>
-    <h2 class="mb-16 text-2xl font-bold tracking-[-0.02em] text-[rgb(228,228,240)] sm:text-3xl">
-      Two ways to use Lasagna
-    </h2>
+<section id="pricing">
+  <div class="inner">
+    <div class="section-head">
+      <h2 class="serif">Two ways to run it.<br /><em>Same privacy model.</em></h2>
+      <p>Whether we host it for you or you host it yourself, your data never leaves your vault and the AI only sees anonymized context.</p>
+    </div>
 
-    <div class="grid gap-6 sm:grid-cols-2">
-      <!-- Hosted -->
-      <div class="rounded-lg border border-white/[0.1] bg-[rgb(16,16,24)] p-8">
-        <div class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[rgb(90,96,112)]">
-          Hosted
-        </div>
-        <h3 class="mb-2 text-lg font-semibold text-[rgb(228,228,240)]">
-          We manage the infrastructure
-        </h3>
-        <p class="mb-8 text-sm leading-relaxed text-[rgb(90,96,112)]">
-          Sign up and start in seconds. We handle hosting, updates, and reliability.
-          Your data stays private — we never sell or share it.
-        </p>
-        <ul class="mb-8 space-y-2.5">
-          {[
-            "Sign up in seconds",
-            "Always up to date",
-            "Private by design",
-          ].map((item) => (
-            <li class="flex items-center gap-2.5 text-sm text-[rgb(148,160,176)]">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="shrink-0 text-[rgb(0,229,160)]">
-                <path d="M2.5 7l3 3 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              {item}
-            </li>
-          ))}
+    <div class="pricing-grid">
+      <!-- Managed / Hosted -->
+      <div class="plan plan-hosted">
+        <div class="eyebrow">Hosted</div>
+        <h3 class="serif">Managed</h3>
+        <div class="price serif">$9<small>/ month</small></div>
+        <ul>
+          {managedFeatures.map((f) => <li>{f}</li>)}
         </ul>
-        <a
-          href={`${APP_URL}/login`}
-          class="block w-full rounded bg-[rgb(0,229,160)] py-2.5 text-center text-sm font-semibold text-[rgb(8,8,12)] transition-opacity hover:opacity-90"
-        >
-          Get started free
-        </a>
+        <a href={`${APP_URL}/login`} class="btn btn-primary cta-btn">Start 30-day trial →</a>
       </div>
 
-      <!-- Self-hosted -->
-      <div class="rounded-lg border border-white/[0.06] p-8">
-        <div class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[rgb(90,96,112)]">
-          Self-hosted
-        </div>
-        <h3 class="mb-2 text-lg font-semibold text-[rgb(228,228,240)]">
-          Run it on your own server
-        </h3>
-        <p class="mb-8 text-sm leading-relaxed text-[rgb(90,96,112)]">
-          Open source and free forever. Deploy on your own infrastructure
-          and maintain complete ownership of your financial data.
-        </p>
-        <ul class="mb-8 space-y-2.5">
-          {[
-            "Open source, MIT licensed",
-            "Full data ownership",
-            "Deploy anywhere",
-          ].map((item) => (
-            <li class="flex items-center gap-2.5 text-sm text-[rgb(148,160,176)]">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="shrink-0 text-[rgb(148,160,176)]">
-                <path d="M2.5 7l3 3 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              {item}
-            </li>
-          ))}
+      <!-- Self-hosted / Sovereign -->
+      <div class="plan plan-self">
+        <div class="eyebrow" style="color: var(--cheese);">Self-hosted</div>
+        <h3 class="serif">Sovereign</h3>
+        <div class="price serif">Free<small>forever · open source</small></div>
+        <ul>
+          {selfFeatures.map((f) => <li>{f}</li>)}
         </ul>
-        <a
-          href={GITHUB_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="block w-full rounded border border-white/[0.1] py-2.5 text-center text-sm font-medium text-[rgb(148,160,176)] transition-colors hover:border-white/[0.2] hover:text-[rgb(228,228,240)]"
-        >
-          View on GitHub
-        </a>
+        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="btn btn-cheese cta-btn">View on GitHub →</a>
       </div>
     </div>
   </div>
 </section>
+
+<style>
+  section {
+    border-top: 1px solid var(--rule);
+  }
+
+  .inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 96px 32px;
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 48px;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  h2 em { font-style: italic; color: var(--sauce); }
+
+  .section-head p {
+    max-width: 360px;
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .plan {
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    padding: 36px;
+    position: relative;
+  }
+
+  .plan-hosted {
+    background: var(--cream);
+  }
+
+  .plan-self {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .plan .eyebrow {
+    margin-bottom: 8px;
+  }
+
+  h3 {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    margin-bottom: 8px;
+  }
+
+  .price {
+    font-family: var(--serif);
+    font-size: 52px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 28px;
+  }
+
+  .price small {
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--muted);
+    margin-left: 6px;
+    font-weight: 400;
+  }
+
+  .plan-self .price small { color: #9a8d77; }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 28px 0;
+  }
+
+  li {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  li::before {
+    content: "✓";
+    color: var(--sauce);
+    font-family: var(--mono);
+    flex-shrink: 0;
+  }
+
+  .plan-self li { border-bottom-color: #3A322C; color: #D4C6B0; }
+  .plan-self li::before { color: var(--cheese); }
+
+  .cta-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  @media (max-width: 700px) {
+    .pricing-grid { grid-template-columns: 1fr; }
+    .inner { padding: 64px 20px; }
+  }
+</style>

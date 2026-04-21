@@ -24,9 +24,14 @@ const CATEGORY_MAP: Record<string, string> = {
   BANK_FEES: "other",
 };
 
-function mapCategory(plaidCategory: string | undefined): string {
-  if (!plaidCategory) return "other";
-  return CATEGORY_MAP[plaidCategory] || "other";
+function mapCategory(plaidCategory: { primary?: string; detailed?: string } | null | undefined): string {
+  if (!plaidCategory?.primary) return "other";
+  // Plaid's detailed field distinguishes CC payments (which are transfers, not new debt)
+  // from actual loan payments (mortgage, car, student loan)
+  if (plaidCategory.detailed === "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT") {
+    return "transfer";
+  }
+  return CATEGORY_MAP[plaidCategory.primary] || "other";
 }
 
 export async function syncTransactions(itemId: string): Promise<{ added: number; modified: number; removed: number }> {
@@ -93,11 +98,17 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           name: txn.name || txn.merchant_name || "Unknown",
           merchantName: txn.merchant_name ?? null,
           amount: txn.amount.toString(),
-          category: mapCategory(txn.personal_finance_category?.primary) as any,
+          category: mapCategory(txn.personal_finance_category) as any,
           pending: txn.pending ? 1 : 0,
           source: "plaid" as any,
         });
         totalAdded++;
+      } else {
+        // Re-categorize existing transactions so logic changes (e.g. CC payment → transfer)
+        // are applied retroactively when a full resync is triggered
+        await db.update(transactions)
+          .set({ category: mapCategory(txn.personal_finance_category) as any })
+          .where(eq(transactions.plaidTransactionId, txn.transaction_id));
       }
     }
 
@@ -108,7 +119,7 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           name: txn.name || txn.merchant_name || "Unknown",
           merchantName: txn.merchant_name ?? null,
           amount: txn.amount.toString(),
-          category: mapCategory(txn.personal_finance_category?.primary) as any,
+          category: mapCategory(txn.personal_finance_category) as any,
           pending: txn.pending ? 1 : 0,
         })
         .where(eq(transactions.plaidTransactionId, txn.transaction_id));

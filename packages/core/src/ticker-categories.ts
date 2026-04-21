@@ -6,11 +6,11 @@ export type AssetClass =
   | 'Cash'
   | 'Other';
 
-export type SubCategory = string;
+export type Category = string;
 
 export interface TickerCategory {
   assetClass: AssetClass;
-  subCategory: SubCategory;
+  category: Category;
   color: string;
 }
 
@@ -23,8 +23,8 @@ export const ASSET_CLASS_COLORS: Record<AssetClass, string> = {
   'Other': '#a8a29e',
 };
 
-// Ticker → [AssetClass, SubCategory]
-const TICKER_MAP: Record<string, [AssetClass, SubCategory]> = {
+// Ticker → [AssetClass, Category]
+const TICKER_MAP: Record<string, [AssetClass, Category]> = {
   // US Stocks - Total Market
   VTI: ['US Stocks', 'Total Market'],
   VTSAX: ['US Stocks', 'Total Market'],
@@ -211,17 +211,17 @@ export function getTickerCategory(ticker: string): TickerCategory {
   const mapping = TICKER_MAP[upperTicker];
 
   if (mapping) {
-    const [assetClass, subCategory] = mapping;
+    const [assetClass, category] = mapping;
     return {
       assetClass,
-      subCategory,
+      category,
       color: ASSET_CLASS_COLORS[assetClass],
     };
   }
 
   return {
     assetClass: 'Other',
-    subCategory: 'Unknown',
+    category: 'Unknown',
     color: ASSET_CLASS_COLORS['Other'],
   };
 }
@@ -234,19 +234,19 @@ export function getTickerCategoryWithFallback(
   const mapping = TICKER_MAP[upperTicker];
 
   if (mapping) {
-    const [assetClass, subCategory] = mapping;
+    const [assetClass, category] = mapping;
     return {
       assetClass,
-      subCategory,
+      category,
       color: ASSET_CLASS_COLORS[assetClass],
     };
   }
 
-  // Use security type as fallback sub-category
-  const subCategory = securityType || 'Unknown';
+  // Use security type as fallback category
+  const category = securityType || 'Unknown';
   return {
     assetClass: 'Other',
-    subCategory,
+    category,
     color: ASSET_CLASS_COLORS['Other'],
   };
 }

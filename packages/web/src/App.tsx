@@ -20,6 +20,7 @@ import { Debt } from './pages/debt';
 import { Spending } from './pages/spending';
 import { Goals } from './pages/goals';
 import { Priorities } from './pages/priorities';
+import { Insights } from './pages/insights';
 import { Onboarding } from './pages/onboarding';
 import { DemoBanner } from './components/common/DemoBanner';
 
@@ -57,7 +58,7 @@ function AppRoutes() {
                 <Route path="/spending" component={Spending} />
                 <Route path="/goals" component={Goals} />
                 <Route path="/debt" component={Debt} />
-                <Route path="/invest" component={PortfolioComposition} />
+                <Route path="/portfolio" component={PortfolioComposition} />
                 <Route path="/tax" component={TaxStrategy} />
                 <Route path="/profile" component={Settings} />
                 <Route path="/plans" component={PlansPage} />
@@ -66,8 +67,8 @@ function AppRoutes() {
                 <Route path="/plans/retirement" component={Retirement} />
                 <Route path="/plans/savings/:id" component={SavingsGoal} />
                 <Route path="/priorities" component={Priorities} />
-                <Route path="/actions"><Redirect to="/priorities" /></Route>
-                <Route path="/insights"><Redirect to="/priorities" /></Route>
+                <Route path="/insights" component={Insights} />
+                <Route path="/actions"><Redirect to="/insights" /></Route>
                 <Route path="/retirement" component={Retirement} />
                 <Route path="/probability" component={ProbabilityOfSuccess} />
 
@@ -75,7 +76,7 @@ function AppRoutes() {
 
                 {/* Redirects */}
                 <Route path="/login"><Redirect to="/" /></Route>
-                <Route path="/portfolio"><Redirect to="/invest" /></Route>
+
                 <Route path="/tax-history"><Redirect to="/tax" /></Route>
                 <Route path="/settings"><Redirect to="/profile" /></Route>
 

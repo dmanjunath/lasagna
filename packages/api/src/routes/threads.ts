@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db.js";
-import { chatThreads, messages, eq, and, desc } from "@lasagna/core";
+import { chatThreads, messages, eq, and, desc, asc, inArray } from "@lasagna/core";
 import { type AuthEnv } from "../middleware/auth.js";
 
 export const threadsRouter = new Hono<AuthEnv>();
@@ -64,7 +64,31 @@ threadsRouter.get("/", async (c) => {
       .orderBy(desc(chatThreads.updatedAt));
   }
 
-  return c.json({ threads: results });
+  // Fetch first user + first assistant message per thread in one query
+  const snippets: Record<string, { firstUser: string | null; firstAssistant: string | null }> = {};
+  if (results.length > 0) {
+    const threadIds = results.map(t => t.id);
+    const rows = await db
+      .select({ threadId: messages.threadId, role: messages.role, content: messages.content })
+      .from(messages)
+      .where(and(inArray(messages.threadId, threadIds), inArray(messages.role, ['user', 'assistant'])))
+      .orderBy(asc(messages.createdAt));
+
+    for (const row of rows) {
+      if (!snippets[row.threadId]) snippets[row.threadId] = { firstUser: null, firstAssistant: null };
+      const s = snippets[row.threadId];
+      if (row.role === 'user' && s.firstUser === null) s.firstUser = row.content;
+      if (row.role === 'assistant' && s.firstAssistant === null) s.firstAssistant = row.content;
+    }
+  }
+
+  const threadsWithSnippets = results.map(t => ({
+    ...t,
+    firstMessage: snippets[t.id]?.firstUser ?? null,
+    firstAssistantSnippet: snippets[t.id]?.firstAssistant ?? null,
+  }));
+
+  return c.json({ threads: threadsWithSnippets });
 });
 
 // Get thread with messages

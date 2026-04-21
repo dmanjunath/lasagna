@@ -1,16 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'wouter';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
   TrendingUp, CreditCard, Rocket,
-  Loader2, AlertCircle, Lock, RefreshCw, Check, SkipForward, ChevronDown,
+  Loader2, AlertCircle, ChevronDown,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { cn } from '../lib/utils';
-import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
-import { ActionItem } from '../components/common/action-item';
 import type { LucideIcon } from 'lucide-react';
 
 // ── constants ────────────────────────────────────────────────────────────────
@@ -20,29 +17,20 @@ const iconMap: Record<string, LucideIcon> = {
   sprout: Sprout, 'trending-up': TrendingUp, 'credit-card': CreditCard, rocket: Rocket,
 };
 
-const TYPE_FILTERS = [
-  { label: 'All', value: null },
-  { label: 'Spending', value: 'spending' },
-  { label: 'Behavioral', value: 'behavioral' },
-  { label: 'Debt', value: 'debt' },
-  { label: 'Tax', value: 'tax' },
-  { label: 'Portfolio', value: 'portfolio' },
-  { label: 'Savings', value: 'savings' },
-  { label: 'Retirement', value: 'retirement' },
-];
+// ── layer color map ──────────────────────────────────────────────────────────
 
-const URGENCY_ORDER = ['critical', 'high', 'medium', 'low'];
-const URGENCY_LABELS: Record<string, string> = {
-  critical: 'Critical', high: 'High Priority', medium: 'Medium', low: 'Low',
-};
-const URGENCY_COLORS: Record<string, string> = {
-  critical: 'text-danger', high: 'text-warning', medium: 'text-accent', low: 'text-text-secondary',
-};
-const PAGE_LINKS: Record<string, string> = {
-  spending: '/spending', behavioral: '/spending', debt: '/debt',
-  tax: '/tax', portfolio: '/invest', savings: '/goals',
-  retirement: '/retirement', general: '/',
-};
+function layerColor(order: number): string {
+  switch (order) {
+    case 1: return 'var(--lf-sauce)';
+    case 2: return 'var(--lf-cheese)';
+    case 3: return 'var(--lf-noodle)';
+    case 4: return 'var(--lf-basil)';
+    case 5: return 'var(--lf-crust)';
+    case 6: return 'var(--lf-burgundy)';
+    case 7: return '#A68965';
+    default: return '#7A5C3F';
+  }
+}
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -75,206 +63,458 @@ function fmt(value: number) {
   }).format(value);
 }
 
-// ── LayerRow ─────────────────────────────────────────────────────────────────
+// ── styles ───────────────────────────────────────────────────────────────────
 
-function LayerRow({ step, isCurrent, index, isSkipped, onSkip, onAsk }: {
-  step: PriorityStep; isCurrent: boolean; index: number;
-  isSkipped: boolean; onSkip: () => void; onAsk: () => void;
+const eyebrowStyle: React.CSSProperties = {
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: 13,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--lf-muted)',
+};
+
+const serifStyle: React.CSSProperties = {
+  fontFamily: "'Instrument Serif', Georgia, serif",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: 'var(--lf-paper)',
+  border: '1px solid var(--lf-rule)',
+  borderRadius: 14,
+};
+
+const darkCardStyle: React.CSSProperties = {
+  background: 'var(--lf-ink)',
+  color: 'var(--lf-paper)',
+  borderRadius: 14,
+};
+
+// ── CurrentFocusCard ─────────────────────────────────────────────────────────
+
+function CurrentFocusCard({ step, onSkip, onAsk, skipped }: {
+  step: PriorityStep;
+  onSkip: () => void;
+  onAsk: () => void;
+  skipped: boolean;
 }) {
-  const [expanded, setExpanded] = useState(isCurrent);
+  const color = layerColor(step.order);
   const isComplete = step.status === 'complete';
-  const isFuture   = !isComplete && !isCurrent && !isSkipped;
-
-  const accent = (isComplete && step.order % 2 === 0) ? '#fbbf24' : '#00e5a0';
-  const fill   = isComplete ? 100 : isFuture ? 0 : Math.min(step.progress, 100);
+  const fill = isComplete ? 100 : Math.min(step.progress, 100);
 
   let progressDetail = '';
-  if (!isFuture && step.target !== null && step.current !== null) {
+  if (step.target !== null && step.current !== null) {
     if (step.target === 0)               progressDetail = 'Goal: $0';
     else if (isComplete)                 progressDetail = fmt(step.current) + (step.icon === 'credit-card' ? ' paid' : ' saved');
     else if (step.target > step.current) progressDetail = fmt(step.target - step.current) + ' to go';
     else                                 progressDetail = fmt(step.current) + ' saved';
-  } else if (!isFuture && step.current !== null) {
+  } else if (step.current !== null) {
     progressDetail = fmt(step.current);
   }
 
-  const Icon = iconMap[step.icon] || Shield;
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.04, ease: [0.16, 1, 0.3, 1] }}
-      className={cn(
-        'relative overflow-hidden border-b border-border last:border-b-0',
-        isCurrent && 'bg-accent/[0.04]',
-        isSkipped && 'bg-surface-elevated/20',
-      )}
-    >
-      {/* Progress fill — active & complete only */}
-      {(isCurrent || isComplete) && fill > 0 && (
-        <motion.div
-          className="absolute inset-y-0 left-0 pointer-events-none"
-          style={{
-            background: isComplete
-              ? `linear-gradient(90deg, ${accent}20, ${accent}04)`
-              : `linear-gradient(90deg, ${accent}12, ${accent}02)`,
-          }}
-          initial={{ width: 0 }}
-          animate={{ width: `${fill}%` }}
-          transition={{ duration: 0.8, delay: index * 0.04 + 0.1, ease: [0.16, 1, 0.3, 1] }}
-        />
-      )}
-
-      {/* Left accent bar */}
-      <div
-        className="absolute left-0 inset-y-0 w-[3px] rounded-r-full"
-        style={{
-          background: isSkipped
-            ? '#2a2a40'
-            : isFuture
-            ? 'repeating-linear-gradient(to bottom, #2a2a40 0px, #2a2a40 3px, transparent 3px, transparent 7px)'
-            : isComplete ? accent : `${accent}70`,
-        }}
-      />
-
-      {/* Clickable header */}
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        className="relative w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-white/[0.015] transition-colors"
-      >
-        {/* Step number */}
-        <span className={cn(
-          'w-5 text-right text-xs font-mono flex-shrink-0 hidden sm:block',
-          isCurrent ? 'text-accent/50' : 'text-text-muted',
-        )}>
-          {String(step.order).padStart(2, '0')}
+    <div style={{ ...cardStyle, overflow: 'hidden' }}>
+      {/* Eyebrow bar */}
+      <div style={{
+        padding: '14px 20px 0',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+      }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <span style={eyebrowStyle}>
+          Current Focus · Layer {String(step.order).padStart(2, '0')}
         </span>
+      </div>
 
-        {/* Icon */}
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: (isFuture || isSkipped) ? 'rgba(255,255,255,0.04)' : `${accent}18` }}
-        >
-          {isComplete
-            ? <Check className="w-3.5 h-3.5" style={{ color: accent }} />
-            : isSkipped
-            ? <SkipForward className="w-3.5 h-3.5 text-text-muted" />
-            : isFuture
-            ? <Lock className="w-3.5 h-3.5 text-text-muted" />
-            : <Icon className="w-4 h-4" style={{ color: accent }} />}
-        </div>
+      {/* Title */}
+      <div style={{ padding: '10px 20px 0' }}>
+        <h2 style={{
+          ...serifStyle,
+          fontSize: 22,
+          fontWeight: 400,
+          color: 'var(--lf-ink)',
+          lineHeight: 1.25,
+          margin: 0,
+        }}>
+          {step.title}
+        </h2>
+        <p style={{
+          fontSize: 13,
+          color: 'var(--lf-ink-soft)',
+          marginTop: 4,
+          lineHeight: 1.5,
+        }}>
+          {step.subtitle}
+        </p>
+      </div>
 
-        {/* Title + subtitle */}
-        <div className="flex-1 min-w-0">
-          <p className={cn(
-            'text-sm truncate',
-            isCurrent  ? 'font-semibold text-text' : '',
-            isComplete ? 'font-medium text-text' : '',
-            isFuture   ? 'font-medium text-text-secondary' : '',
-            isSkipped  ? 'font-medium text-text-muted line-through' : '',
-          )}>
-            {step.title}
-          </p>
-          <p className={cn(
-            'text-xs mt-0.5 truncate',
-            isCurrent || isComplete ? 'text-text-secondary' : 'text-text-muted',
-          )}>
-            {step.subtitle}
-            {progressDetail && !expanded ? ` · ${progressDetail}` : ''}
-          </p>
-        </div>
-
-        {/* Right */}
-        <div className="flex-shrink-0 flex items-center gap-2">
-          {isSkipped && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted bg-surface-elevated px-2 py-0.5 rounded-full">
-              Skipped
+      {/* Progress */}
+      {!isComplete && fill > 0 && (
+        <div style={{ padding: '14px 20px 0' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 6,
+          }}>
+            <span style={{ ...eyebrowStyle }}>Progress</span>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 13,
+              color,
+            }}>
+              {fill}%{progressDetail ? ` · ${progressDetail}` : ''}
             </span>
-          )}
-          {!isSkipped && isComplete && !expanded && (
-            <span className="text-xs font-semibold tabular-nums" style={{ color: accent }}>100%</span>
-          )}
-          {isCurrent && !expanded && (
-            <span className="text-xs font-semibold tabular-nums text-accent">{fill}%</span>
-          )}
-          <ChevronDown className={cn(
-            'w-4 h-4 text-text-muted flex-shrink-0 transition-transform duration-200',
-            expanded && 'rotate-180',
-          )} />
+          </div>
+          <div style={{
+            height: 4,
+            background: 'var(--lf-cream-deep)',
+            borderRadius: 4,
+            overflow: 'hidden',
+          }}>
+            <motion.div
+              style={{ height: '100%', background: color, borderRadius: 4 }}
+              initial={{ width: 0 }}
+              animate={{ width: `${fill}%` }}
+              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            />
+          </div>
         </div>
-      </button>
+      )}
 
-      {/* Expanded body */}
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            key="body"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden"
+      {/* Do this next box */}
+      {step.action && (
+        <div style={{ padding: '14px 20px 0' }}>
+          <div style={{
+            background: 'var(--lf-cream)',
+            border: '1px solid var(--lf-rule)',
+            borderRadius: 10,
+            padding: '12px 14px',
+          }}>
+            <p style={{ ...eyebrowStyle, marginBottom: 5 }}>Next step</p>
+            <p style={{ fontSize: 13, color: 'var(--lf-ink)', lineHeight: 1.5, margin: 0 }}>
+              {step.action}
+            </p>
+            {progressDetail && isComplete && (
+              <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 4, margin: '4px 0 0' }}>
+                {progressDetail}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {step.detail && (
+        <div style={{ padding: '10px 20px 0' }}>
+          <p style={{ fontSize: 13, color: 'var(--lf-ink-soft)', lineHeight: 1.55, margin: 0 }}>
+            {step.detail}
+          </p>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{
+        padding: '16px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        borderTop: '1px solid var(--lf-rule)',
+        marginTop: 16,
+      }}>
+        <button
+          type="button"
+          onClick={onAsk}
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 13,
+            letterSpacing: '0.08em',
+            color: color,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          Ask LasagnaFi how →
+        </button>
+        {!isComplete && (
+          <button
+            type="button"
+            onClick={onSkip}
+            style={{
+              fontSize: 13,
+              color: 'var(--lf-muted)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
           >
-            <div className="px-5 pb-4 sm:pl-[4.25rem]">
-              {/* Progress bar for active step */}
-              {isCurrent && (
-                <div className="mb-3">
-                  <div className="flex justify-between text-xs text-text-secondary mb-1.5">
-                    <span>Progress</span>
-                    <span className="font-semibold tabular-nums text-accent">{fill}%{progressDetail ? ` · ${progressDetail}` : ''}</span>
-                  </div>
-                  <div className="h-1.5 bg-surface-elevated rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: accent }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${fill}%` }}
-                      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                    />
-                  </div>
-                </div>
-              )}
-              {isComplete && progressDetail && (
-                <p className="text-xs text-text-secondary mb-2">{progressDetail}</p>
-              )}
-              {step.detail && (
-                <p className="text-sm text-text-secondary mb-3 leading-relaxed">{step.detail}</p>
-              )}
-              <div className="flex items-center gap-4 flex-wrap">
-                <button
-                  type="button"
-                  onClick={onAsk}
-                  className="text-sm text-accent hover:text-accent/80 font-medium transition-colors"
-                >
-                  Walk me through this →
-                </button>
-                {!isComplete && (
-                  <button
-                    type="button"
-                    onClick={onSkip}
-                    className="text-sm text-text-muted hover:text-text-secondary transition-colors"
-                  >
-                    {isSkipped ? 'Unskip' : 'Skip this step'}
-                  </button>
-                )}
-              </div>
-            </div>
-          </motion.div>
+            {skipped ? 'Unskip' : 'Skip this step'}
+          </button>
         )}
-      </AnimatePresence>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
-// ── SectionLabel ─────────────────────────────────────────────────────────────
+// ── WhyThisOrderCard ─────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function WhyThisOrderCard() {
   return (
-    <p className="text-xs font-semibold uppercase tracking-widest text-text-secondary mb-3">
-      {children}
-    </p>
+    <div style={{ ...cardStyle, padding: '18px 20px' }}>
+      <p style={{ ...eyebrowStyle, marginBottom: 8 }}>Why this order?</p>
+      <p style={{ fontSize: 13, color: 'var(--lf-ink-soft)', lineHeight: 1.6, margin: 0 }}>
+        The layers follow the proven financial waterfall: protect yourself first (insurance, emergency fund),
+        capture free money (employer match), then eliminate costly debt before investing. Each layer builds
+        the foundation for the next — like a proper lasagna.
+      </p>
+    </div>
+  );
+}
+
+// ── SummaryStrip ──────────────────────────────────────────────────────────────
+
+function SummaryStrip({ summary }: { summary: PrioritySummary }) {
+  if (summary.monthlyIncome <= 0) return null;
+
+  const items = [
+    { label: 'Income', value: `${fmt(summary.monthlyIncome)}/mo`, color: undefined },
+    summary.monthlyExpenses !== null
+      ? { label: 'Expenses', value: `${fmt(summary.monthlyExpenses)}/mo`, color: undefined }
+      : null,
+    summary.monthlySurplus !== null
+      ? {
+          label: 'Surplus',
+          value: `${fmt(summary.monthlySurplus)}/mo`,
+          color: summary.monthlySurplus >= 0 ? 'var(--lf-pos)' : 'var(--lf-sauce)',
+        }
+      : null,
+    summary.totalCash > 0 ? { label: 'Cash', value: fmt(summary.totalCash), color: undefined } : null,
+    summary.totalInvested > 0 ? { label: 'Invested', value: fmt(summary.totalInvested), color: undefined } : null,
+    summary.totalHighInterestDebt > 0
+      ? { label: 'High-rate debt', value: fmt(summary.totalHighInterestDebt), color: 'var(--lf-sauce)' }
+      : null,
+  ].filter(Boolean) as { label: string; value: string; color?: string }[];
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '12px 32px',
+      padding: '14px 0',
+      borderBottom: '1px solid var(--lf-rule)',
+      marginBottom: 24,
+    }}>
+      {items.map(item => (
+        <div key={item.label}>
+          <p style={{ ...eyebrowStyle, marginBottom: 2 }}>{item.label}</p>
+          <p style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: item.color ?? 'var(--lf-ink)',
+            fontVariantNumeric: 'tabular-nums',
+            margin: 0,
+          }}>
+            {item.value}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── AllLayersAccordion ────────────────────────────────────────────────────────
+
+function AllLayersAccordion({ steps, currentStepId, skippedStepIds, onSkip, onAsk }: {
+  steps: PriorityStep[];
+  currentStepId: string;
+  skippedStepIds: Set<string>;
+  onSkip: (id: string) => void;
+  onAsk: (step: PriorityStep) => void;
+}) {
+  const [openId, setOpenId] = useState<string | null>(currentStepId);
+
+  return (
+    <div style={{ ...cardStyle, overflow: 'hidden' }}>
+      {steps.map((step, i) => {
+        const isCurrent = step.id === currentStepId;
+        const isComplete = step.status === 'complete';
+        const isSkipped = skippedStepIds.has(step.id);
+        const isFuture = !isComplete && !isCurrent && !isSkipped;
+        const color = layerColor(step.order);
+        const isOpen = openId === step.id;
+        const fill = isComplete ? 100 : isFuture ? 0 : Math.min(step.progress, 100);
+
+        return (
+          <div
+            key={step.id}
+            style={{
+              borderBottom: i < steps.length - 1 ? '1px solid var(--lf-rule)' : 'none',
+              position: 'relative',
+              opacity: isFuture || isSkipped ? 0.6 : 1,
+            }}
+          >
+            {/* Left accent */}
+            <div style={{
+              position: 'absolute',
+              top: 0, bottom: 0, left: 0,
+              width: 3,
+              background: isSkipped ? 'var(--lf-rule)' : color,
+              borderRadius: '0 2px 2px 0',
+            }} />
+
+            <button
+              type="button"
+              onClick={() => setOpenId(isOpen ? null : step.id)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '11px 16px 11px 20px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              <span style={{
+                ...eyebrowStyle,
+                fontSize: 13,
+                color: isSkipped ? 'var(--lf-muted)' : color,
+                minWidth: 20,
+                flexShrink: 0,
+              }}>
+                {String(step.order).padStart(2, '0')}
+              </span>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{
+                  fontSize: 13,
+                  fontWeight: isCurrent ? 600 : 500,
+                  color: isSkipped ? 'var(--lf-muted)' : isFuture ? 'var(--lf-ink-soft)' : 'var(--lf-ink)',
+                  textDecoration: isSkipped ? 'line-through' : 'none',
+                  margin: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}>
+                  {step.title}
+                </p>
+                {!isOpen && (
+                  <p style={{
+                    fontSize: 13,
+                    color: 'var(--lf-muted)',
+                    margin: '1px 0 0',
+                  }}>
+                    {step.subtitle}
+                  </p>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {isSkipped && (
+                  <span style={{
+                    ...eyebrowStyle,
+                    fontSize: 13,
+                    background: 'var(--lf-cream-deep)',
+                    padding: '2px 6px',
+                    borderRadius: 20,
+                  }}>
+                    Skipped
+                  </span>
+                )}
+                {!isSkipped && (
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 13,
+                    color: isFuture ? 'var(--lf-muted)' : color,
+                  }}>
+                    {isFuture ? '—' : `${Math.round(fill)}%`}
+                  </span>
+                )}
+                <ChevronDown
+                  size={14}
+                  style={{
+                    color: 'var(--lf-muted)',
+                    transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                  }}
+                />
+              </div>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {isOpen && (
+                <motion.div
+                  key="body"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <div style={{ padding: '4px 20px 16px 44px' }}>
+                    {isCurrent && fill > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ height: 3, background: 'var(--lf-cream-deep)', borderRadius: 3, overflow: 'hidden' }}>
+                          <motion.div
+                            style={{ height: '100%', background: color, borderRadius: 3 }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${fill}%` }}
+                            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {step.detail && (
+                      <p style={{ fontSize: 13, color: 'var(--lf-ink-soft)', lineHeight: 1.55, margin: '0 0 10px' }}>
+                        {step.detail}
+                      </p>
+                    )}
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => onAsk(step)}
+                        style={{
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: 13,
+                          letterSpacing: '0.08em',
+                          color,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        Ask LasagnaFi →
+                      </button>
+                      {!isComplete && (
+                        <button
+                          type="button"
+                          onClick={() => onSkip(step.id)}
+                          style={{
+                            fontSize: 13,
+                            color: 'var(--lf-muted)',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                        >
+                          {isSkipped ? 'Unskip' : 'Skip'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -284,15 +524,11 @@ export function Priorities() {
   const [data, setData]       = useState<PriorityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [refreshing, setRefreshing]     = useState(false);
   const [skippedStepIds, setSkippedStepIds] = useState<Set<string>>(new Set());
-  const [, navigate] = useLocation();
   const { openChat } = useChatStore();
 
   const handleSkipStep = async (stepId: string) => {
     const isCurrentlySkipped = skippedStepIds.has(stepId);
-    // Optimistic update
     setSkippedStepIds(prev => {
       const next = new Set(prev);
       isCurrentlySkipped ? next.delete(stepId) : next.add(stepId);
@@ -300,10 +536,7 @@ export function Priorities() {
     });
     try {
       await api.skipPriorityStep(stepId, !isCurrentlySkipped);
-      // Keep optimistic update — don't replace with server response
-      // (server may return cascaded skips for intermediate steps)
     } catch {
-      // Revert on failure
       setSkippedStepIds(prev => {
         const next = new Set(prev);
         isCurrentlySkipped ? next.add(stepId) : next.delete(stepId);
@@ -312,34 +545,11 @@ export function Priorities() {
     }
   };
 
-  const actionsRef = useRef<HTMLDivElement>(null);
-
-  const { insights, isLoading: insightsLoading, dismiss, refresh } =
-    useInsights(activeFilter ?? undefined);
-
-  // Scroll to Actions section when linked with #actions
-  useEffect(() => {
-    if (window.location.hash === '#actions' && actionsRef.current) {
-      setTimeout(() => actionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
-    }
-  }, []);
-
-  const grouped = URGENCY_ORDER.reduce<Record<string, typeof insights>>((acc, u) => {
-    acc[u] = insights.filter(i => i.urgency === u);
-    return acc;
-  }, {});
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await refresh();
-    setRefreshing(false);
-  };
-
   useEffect(() => {
     api.getPriorities()
       .then(d => {
         setData(d);
-        // Initialise skipped steps from server state (server returns skipped: boolean, not status: 'skipped')
+        // Initialise skipped steps from server state
         const serverSkipped = d.steps.filter(s => s.skipped).map(s => s.id);
         if (serverSkipped.length) setSkippedStepIds(new Set(serverSkipped));
       })
@@ -347,17 +557,19 @@ export function Priorities() {
       .finally(() => setLoading(false));
   }, []);
 
+  // ── loading ──
   if (loading) return (
-    <div className="flex-1 flex items-center justify-center">
-      <Loader2 className="w-5 h-5 animate-spin text-text-secondary" />
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Loader2 size={20} style={{ color: 'var(--lf-muted)', animation: 'spin 1s linear infinite' }} />
     </div>
   );
 
+  // ── error ──
   if (error) return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="text-center space-y-2">
-        <AlertCircle className="w-7 h-7 text-danger mx-auto" />
-        <p className="text-sm text-text-secondary">{error}</p>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center' }}>
+        <AlertCircle size={28} style={{ color: 'var(--lf-sauce)', margin: '0 auto 8px' }} />
+        <p style={{ fontSize: 13, color: 'var(--lf-ink-soft)' }}>{error}</p>
       </div>
     </div>
   );
@@ -366,25 +578,49 @@ export function Priorities() {
 
   const { steps, currentStepId, summary } = data;
 
+  // ── no data empty state ──
   const hasNoData = summary.monthlyIncome === 0 && summary.totalCash === 0 && summary.totalInvested === 0;
   if (hasNoData) return (
-    <div className="flex-1 flex items-center justify-center p-4 md:p-6 lg:p-8">
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <motion.div
-        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-        className="text-center space-y-4 max-w-sm"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{ textAlign: 'center', maxWidth: 360 }}
       >
-        <Rocket className="w-10 h-10 text-text-secondary mx-auto" />
-        <div>
-          <h2 className="text-lg font-semibold mb-1">Let's build your plan</h2>
-          <p className="text-sm text-text-secondary">
-            Add your income and accounts to see your personalized priority layers.
-          </p>
-        </div>
-        <div className="flex gap-3 justify-center pt-1">
-          <a href="/onboarding" className="px-4 py-2 bg-accent text-bg font-semibold text-sm rounded-xl hover:bg-accent/90 transition-colors">
+        <Rocket size={36} style={{ color: 'var(--lf-muted)', margin: '0 auto 16px' }} />
+        <h2 style={{ ...serifStyle, fontSize: 24, color: 'var(--lf-ink)', marginBottom: 8 }}>
+          Let's build your plan
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--lf-ink-soft)', marginBottom: 24, lineHeight: 1.6 }}>
+          Add your income and accounts to see your personalized priority layers.
+        </p>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <a
+            href="/onboarding"
+            style={{
+              padding: '9px 18px',
+              background: 'var(--lf-ink)',
+              color: 'var(--lf-paper)',
+              fontSize: 13,
+              fontWeight: 600,
+              borderRadius: 10,
+              textDecoration: 'none',
+            }}
+          >
             Get Started
           </a>
-          <a href="/accounts" className="px-4 py-2 border border-border text-text-secondary text-sm rounded-xl hover:bg-bg-elevated transition-colors">
+          <a
+            href="/accounts"
+            style={{
+              padding: '9px 18px',
+              border: '1px solid var(--lf-rule)',
+              color: 'var(--lf-ink-soft)',
+              fontSize: 13,
+              borderRadius: 10,
+              textDecoration: 'none',
+              background: 'var(--lf-paper)',
+            }}
+          >
             Link Account
           </a>
         </div>
@@ -393,172 +629,142 @@ export function Priorities() {
   );
 
   const completeCount = steps.filter(s => s.status === 'complete').length;
+  const currentStep = steps.find(s => s.id === currentStepId) ?? steps[0];
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
-      <div className="space-y-8">
+    <div style={{
+      flex: 1,
+      overflowY: 'auto',
+      padding: 'clamp(16px, 4vw, 40px)',
+      paddingBottom: 'clamp(80px, 12vw, 48px)',
+      maxWidth: 1100,
+      margin: '0 auto',
+      width: '100%',
+      boxSizing: 'border-box',
+    }}>
+      <style>{`
+        @media (max-width: 860px) {
+          .prio-main-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 640px) {
+          .prio-hero-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
 
-        {/* ── Header ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          className="space-y-4"
-        >
+      {/* ── Page Header ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        style={{ marginBottom: 24 }}
+      >
+        <h1 style={{
+          ...serifStyle,
+          fontSize: 36,
+          fontWeight: 400,
+          color: 'var(--lf-ink)',
+          margin: 0,
+          lineHeight: 1.1,
+        }}>
+          Priorities
+        </h1>
+        <p style={{ ...eyebrowStyle, marginTop: 6 }}>{completeCount} of {steps.length} complete</p>
+      </motion.div>
+
+      {/* ── Dark Hero — Priority Overview ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05, duration: 0.4 }}
+        style={{
+          background: 'var(--lf-ink)', color: 'var(--lf-paper)',
+          borderRadius: 14, padding: 'clamp(20px, 4vw, 32px)', marginBottom: 24,
+        }}
+      >
+        <div className="prio-hero-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1.6fr) repeat(3, minmax(80px, 1fr))', gap: 24, alignItems: 'end' }}>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-text">Focus</h1>
-            <p className="text-sm text-text-secondary mt-1">
-              {completeCount} of {steps.length} complete · FI target age {summary.retirementAge}
-            </p>
-          </div>
-
-          {/* Cash flow */}
-          {summary.monthlyIncome > 0 && (
-            <div className="flex flex-wrap gap-x-8 gap-y-3 pt-4 border-t border-border">
-              <Stat label="Income" value={`${fmt(summary.monthlyIncome)}/mo`} />
-              {summary.monthlyExpenses !== null && (
-                <Stat label="Expenses" value={`${fmt(summary.monthlyExpenses)}/mo`} />
-              )}
-              {summary.monthlySurplus !== null && (
-                <Stat
-                  label="Surplus"
-                  value={`${fmt(summary.monthlySurplus)}/mo`}
-                  color={summary.monthlySurplus >= 0 ? 'text-accent' : 'text-danger'}
-                />
-              )}
-              {summary.totalCash > 0 && (
-                <Stat label="Cash" value={fmt(summary.totalCash)} className="hidden sm:block" />
-              )}
-              {summary.totalInvested > 0 && (
-                <Stat label="Invested" value={fmt(summary.totalInvested)} className="hidden sm:block" />
-              )}
-              {summary.totalHighInterestDebt > 0 && (
-                <Stat label="High-rate debt" value={fmt(summary.totalHighInterestDebt)} color="text-danger" className="hidden sm:block" />
-              )}
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>
+              Priority waterfall
             </div>
-          )}
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 64, letterSpacing: '-0.03em', lineHeight: 1, color: 'var(--lf-paper)' }}>
+              {completeCount}<span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 32, color: '#D4C6B0' }}> / {steps.length}</span>
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-cheese)', marginTop: 10 }}>
+              layers complete{summary.retirementAge ? ` · FI target age ${summary.retirementAge}` : ''}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>Monthly income</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, letterSpacing: '-0.02em', color: 'var(--lf-paper)' }}>
+              {summary.monthlyIncome > 0 ? fmt(summary.monthlyIncome) : '—'}
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 6 }}>per month</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>Surplus</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, letterSpacing: '-0.02em', color: summary.monthlySurplus !== null ? (summary.monthlySurplus >= 0 ? '#9FD18E' : '#E89070') : '#D4C6B0' }}>
+              {summary.monthlySurplus !== null ? fmt(summary.monthlySurplus) : '—'}
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 6 }}>per month</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>Invested</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, letterSpacing: '-0.02em', color: 'var(--lf-paper)' }}>
+              {summary.totalInvested > 0 ? fmt(summary.totalInvested) : summary.totalCash > 0 ? fmt(summary.totalCash) : '—'}
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 6 }}>
+              {summary.totalInvested > 0 ? 'total portfolio' : summary.totalCash > 0 ? 'cash holdings' : 'link accounts'}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ── Two-column grid ── */}
+      <div className="prio-main-grid" style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)',
+        gap: 20,
+        alignItems: 'start',
+      }}>
+
+        {/* LEFT: The stack */}
+        <motion.div
+          initial={{ opacity: 0, x: -12 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.35, delay: 0.05 }}
+        >
+          <div style={{ marginTop: 0 }}>
+            <p style={{ ...eyebrowStyle, marginBottom: 10 }}>All layers</p>
+            <AllLayersAccordion
+              steps={steps}
+              currentStepId={currentStepId}
+              skippedStepIds={skippedStepIds}
+              onSkip={handleSkipStep}
+              onAsk={(step) => openChat(`Tell me about this financial step: "${step.title}". ${step.subtitle}`)}
+            />
+          </div>
         </motion.div>
 
-        {/* ── Layers ── */}
-        <div>
-          <SectionLabel>Layers</SectionLabel>
-          <div className="rounded-xl border border-border overflow-hidden">
-            {steps.map((step, i) => (
-              <LayerRow
-                key={step.id}
-                step={step}
-                isCurrent={step.id === currentStepId}
-                index={i}
-                isSkipped={skippedStepIds.has(step.id)}
-                onSkip={() => handleSkipStep(step.id)}
-                onAsk={() => openChat(`Tell me about this financial step: "${step.title}". ${step.subtitle}`)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Actions ── */}
-        <div ref={actionsRef} className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <SectionLabel>Actions</SectionLabel>
-              {!insightsLoading && insights.length > 0 && (
-                <span className="text-xs text-text-secondary -mt-3 tabular-nums">
-                  {insights.length}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="-mt-3 flex items-center gap-1.5 text-xs text-text-secondary hover:text-text transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={cn('w-3 h-3', refreshing && 'animate-spin')} />
-              {refreshing ? 'Refreshing…' : 'Refresh'}
-            </button>
-          </div>
-
-          {/* Filter pills */}
-          <div className="flex gap-1.5 flex-wrap">
-            {TYPE_FILTERS.map(f => (
-              <button
-                key={f.label}
-                onClick={() => setActiveFilter(f.value)}
-                className={cn(
-                  'px-3 py-1 rounded-full text-xs font-medium transition-colors',
-                  activeFilter === f.value
-                    ? 'bg-accent text-bg'
-                    : 'bg-surface-elevated text-text-secondary hover:text-text hover:bg-surface-hover'
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* States */}
-          {insightsLoading && (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-text-secondary" />
-            </div>
+        {/* RIGHT: Focus + Why */}
+        <motion.div
+          initial={{ opacity: 0, x: 12 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.35, delay: 0.1 }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+        >
+          {currentStep && (
+            <CurrentFocusCard
+              step={currentStep}
+              skipped={skippedStepIds.has(currentStep.id)}
+              onSkip={() => handleSkipStep(currentStep.id)}
+              onAsk={() => openChat(`Tell me about this financial step: "${currentStep.title}". ${currentStep.subtitle}`)}
+            />
           )}
-
-          {!insightsLoading && insights.length === 0 && (
-            <div className="text-center py-8 space-y-2">
-              <p className="text-sm text-text-secondary">No actions yet.</p>
-              <button onClick={handleRefresh} className="text-sm text-accent hover:text-accent/80 transition-colors">
-                Generate actions →
-              </button>
-            </div>
-          )}
-
-          {/* Urgency groups */}
-          {!insightsLoading && URGENCY_ORDER.map(urgency => {
-            const items = grouped[urgency];
-            if (!items?.length) return null;
-            return (
-              <section key={urgency} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className={cn('text-xs font-bold uppercase tracking-wider', URGENCY_COLORS[urgency])}>
-                    {URGENCY_LABELS[urgency]}
-                  </span>
-                  <span className="text-xs text-text-secondary">({items.length})</span>
-                </div>
-                <div className="rounded-xl border border-border overflow-hidden">
-                  {items.map(insight => (
-                    <ActionItem
-                      key={insight.id}
-                      title={insight.title}
-                      tag={(insight.type ?? insight.category ?? 'general').toUpperCase()}
-                      description={insight.description}
-                      impact={insight.impact ?? ''}
-                      impactColor={(insight.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
-                      chatPrompt={insight.chatPrompt ?? insight.title}
-                      onDismiss={() => dismiss(insight.id)}
-                      onContextClick={PAGE_LINKS[insight.type ?? 'general']
-                        ? () => navigate(PAGE_LINKS[insight.type ?? 'general'])
-                        : undefined}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-
+          <WhyThisOrderCard />
+        </motion.div>
       </div>
-    </div>
-  );
-}
 
-// ── Stat ──────────────────────────────────────────────────────────────────────
-
-function Stat({ label, value, color, className }: {
-  label: string; value: string; color?: string; className?: string;
-}) {
-  return (
-    <div className={className}>
-      <p className="text-xs text-text-secondary">{label}</p>
-      <p className={cn('text-sm font-semibold text-text mt-0.5', color)}>{value}</p>
     </div>
   );
 }

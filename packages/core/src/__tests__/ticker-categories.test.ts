@@ -4,7 +4,7 @@ import {
   getTickerCategory,
   ASSET_CLASS_COLORS,
   type AssetClass,
-  type SubCategory
+  type Category
 } from '../ticker-categories.js';
 
 describe('ticker-categories', () => {
@@ -13,7 +13,7 @@ describe('ticker-categories', () => {
       const result = getTickerCategory('VTI');
       assert.deepEqual(result, {
         assetClass: 'US Stocks',
-        subCategory: 'Total Market',
+        category: 'Total Market',
         color: '#4ade80',
       });
     });
@@ -22,7 +22,7 @@ describe('ticker-categories', () => {
       const result = getTickerCategory('VOO');
       assert.deepEqual(result, {
         assetClass: 'US Stocks',
-        subCategory: 'S&P 500',
+        category: 'S&P 500',
         color: '#4ade80',
       });
     });
@@ -31,7 +31,7 @@ describe('ticker-categories', () => {
       const result = getTickerCategory('VEA');
       assert.deepEqual(result, {
         assetClass: 'International Stocks',
-        subCategory: 'Developed',
+        category: 'Developed',
         color: '#60a5fa',
       });
     });
@@ -40,7 +40,7 @@ describe('ticker-categories', () => {
       const result = getTickerCategory('BND');
       assert.deepEqual(result, {
         assetClass: 'Bonds',
-        subCategory: 'Total Bond',
+        category: 'Total Bond',
         color: '#f59e0b',
       });
     });
@@ -49,7 +49,7 @@ describe('ticker-categories', () => {
       const result = getTickerCategory('VNQ');
       assert.deepEqual(result, {
         assetClass: 'REITs',
-        subCategory: 'US REITs',
+        category: 'US REITs',
         color: '#8b5cf6',
       });
     });
@@ -58,7 +58,7 @@ describe('ticker-categories', () => {
       const result = getTickerCategory('VMFXX');
       assert.deepEqual(result, {
         assetClass: 'Cash',
-        subCategory: 'Money Market',
+        category: 'Money Market',
         color: '#ec4899',
       });
     });
@@ -67,7 +67,7 @@ describe('ticker-categories', () => {
       const result = getTickerCategory('UNKNOWN123');
       assert.deepEqual(result, {
         assetClass: 'Other',
-        subCategory: 'Unknown',
+        category: 'Unknown',
         color: '#a8a29e',
       });
     });

@@ -1,179 +1,232 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ============================================================
-   DESIGN TOKENS
-   Color variables use space-separated RGB triplets so Tailwind
-   opacity modifiers work: bg-accent/10 → rgb(0 229 160 / 0.1)
-   Border/glow vars use full rgba() since they already carry opacity.
-   Light mode: add data-theme="light" to <html> to activate.
+   LASAGNAFI BRAND TOKENS
+   Warm earthy palette — cream, ink, sauce (terracotta), cheese,
+   basil, noodle. These cascade into the Tailwind color system.
    ============================================================ */
 
 @layer base {
   :root {
-    /* ── Backgrounds ── */
-    --color-bg:          9 9 16;      /* #090910 */
-    --color-bg-elevated: 15 15 28;    /* #0f0f1c */
-    --color-bg-subtle:   20 20 42;    /* #14142a */
+    /* ── LasagnaFi raw brand tokens ── */
+    --lf-paper:      #FBF6EC;
+    --lf-cream:      #F5EDE0;
+    --lf-cream-deep: #EDE1CE;
+    --lf-ink:        #1F1A16;
+    --lf-ink-soft:   #3A322C;
+    --lf-muted:      #8B7E6F;
+    --lf-rule:       #E3D6BF;
+    --lf-rule-soft:  #EADFC9;
+    --lf-sauce:      #C9543A;
+    --lf-sauce-deep: #A23F29;
+    --lf-cheese:     #E6B85C;
+    --lf-basil:      #5A6B3F;
+    --lf-noodle:     #E8C789;
+    --lf-crust:      #8B4A2B;
+    --lf-burgundy:   #6B2420;
+    --lf-pos:        #4C7A3E;
+    --lf-neg:        #A23F29;
+
+    /* ── Backgrounds (RGB triplets for Tailwind alpha modifiers) ── */
+    --color-bg:          251 246 236;   /* paper  #FBF6EC */
+    --color-bg-elevated: 245 237 224;   /* cream  #F5EDE0 */
+    --color-bg-subtle:   237 225 206;   /* cream-deep #EDE1CE */
 
     /* ── Surfaces ── */
-    --color-surface:       15 15 28;  /* #0f0f1c */
-    --color-surface-hover: 20 20 42;  /* #14142a */
+    --color-surface:       251 246 236;
+    --color-surface-hover: 245 237 224;
 
     /* ── Text ── */
-    --color-text:           232 232 244;  /* #e8e8f4  — primary content */
-    --color-text-secondary: 168 180 196;  /* #a8b4c4  — supporting text  ~10:1 */
-    --color-text-muted:     104 104 160;  /* #6868a0  — metadata           ~4:1 */
-    --color-text-disabled:  62 62 88;     /* #3e3e58  — placeholders, decorative */
+    --color-text:           31 26 22;    /* ink      #1F1A16 */
+    --color-text-secondary: 58 50 44;    /* ink-soft #3A322C */
+    --color-text-muted:     139 126 111; /* muted    #8B7E6F */
+    --color-text-disabled:  196 182 168;
 
-    /* ── Brand ── */
-    --color-accent:     0 229 160;    /* #00e5a0 */
-    --color-accent-dim: 0 145 106;    /* #00916a */
-    --color-gold:       251 191 36;   /* #fbbf24 */
+    /* ── Brand accent = sauce / terracotta ── */
+    --color-accent:     201 84 58;   /* sauce      #C9543A */
+    --color-accent-dim: 162 63 41;   /* sauce-deep #A23F29 */
+
+    /* ── Secondary accent = cheese / ochre ── */
+    --color-gold:       230 184 92;  /* cheese #E6B85C */
 
     /* ── Feedback ── */
-    --color-success: 0 229 160;       /* #00e5a0 */
-    --color-warning: 251 191 36;      /* #fbbf24 */
-    --color-danger:  248 113 113;     /* #f87171 */
+    --color-success: 76 122 62;      /* basil/pos  #4C7A3E */
+    --color-warning: 230 184 92;     /* cheese */
+    --color-danger:  201 84 58;      /* sauce */
 
-    /* ── Borders (full rgba — opacity baked in) ── */
-    --color-border:        rgba(255, 255, 255, 0.07);
-    --color-border-light:  rgba(255, 255, 255, 0.04);
-    --color-border-strong: rgba(255, 255, 255, 0.12);
-    --color-border-accent: rgba(0, 229, 160, 0.25);
+    /* ── Borders ── */
+    --color-border:        rgba(227, 214, 191, 1);
+    --color-border-light:  rgba(234, 223, 201, 1);
+    --color-border-strong: rgba(212, 198, 169, 1);
+    --color-border-accent: rgba(201, 84, 58, 0.25);
 
-    /* ── Glows & tints (full rgba) ── */
-    --color-accent-glow: rgba(0, 229, 160, 0.12);
-    --color-gold-dim:    rgba(251, 191, 36, 0.12);
-    --card-glow:         rgba(0, 229, 160, 0.07);
+    /* ── Glows & tints ── */
+    --color-accent-glow: rgba(201, 84, 58, 0.08);
+    --color-gold-dim:    rgba(230, 184, 92, 0.15);
+    --card-glow:         rgba(201, 84, 58, 0.03);
 
     /* ── Shadows ── */
-    --shadow-card:       0 4px 24px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    --shadow-card-hover: 0 4px 32px rgba(0, 0, 0, 0.50), 0 0 0 1px rgba(0, 229, 160, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    --shadow-accent-glow: 0 0 16px rgba(0, 229, 160, 0.20);
-    --shadow-accent-glow-hover: 0 0 20px rgba(0, 229, 160, 0.30);
-  }
-
-  /* ── Light mode ── */
-  [data-theme="light"] {
-    --color-bg:          247 247 251;  /* #f7f7fb */
-    --color-bg-elevated: 255 255 255;  /* #ffffff */
-    --color-bg-subtle:   238 238 246;  /* #eeeef6 */
-
-    --color-surface:       255 255 255;  /* #ffffff */
-    --color-surface-hover: 240 240 248;  /* #f0f0f8 */
-
-    --color-text:           13 13 30;    /* #0d0d1e */
-    --color-text-secondary: 74 82 112;   /* #4a5270 */
-    --color-text-muted:     110 113 145; /* #6e7191 */
-    --color-text-disabled:  176 176 204; /* #b0b0cc */
-
-    /* Teal darkens on light bg for readable contrast */
-    --color-accent:     0 145 106;     /* #00916a */
-    --color-accent-dim: 0 93 68;       /* #005d44 */
-
-    --color-success: 0 145 106;
-    --color-warning: 202 138 4;        /* amber-600 — darker on white */
-
-    --color-border:        rgba(0, 0, 0, 0.08);
-    --color-border-light:  rgba(0, 0, 0, 0.04);
-    --color-border-strong: rgba(0, 0, 0, 0.15);
-    --color-border-accent: rgba(0, 145, 106, 0.30);
-
-    --color-accent-glow: rgba(0, 145, 106, 0.10);
-    --color-gold-dim:    rgba(251, 191, 36, 0.15);
-    --card-glow:         rgba(0, 145, 106, 0.05);
-
-    --shadow-card:       0 1px 3px rgba(0, 0, 0, 0.07), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.80);
-    --shadow-card-hover: 0 4px 24px rgba(0, 0, 0, 0.10), 0 0 0 1px var(--color-border-accent);
-    --shadow-accent-glow: 0 0 16px rgba(0, 145, 106, 0.20);
-    --shadow-accent-glow-hover: 0 0 20px rgba(0, 145, 106, 0.30);
+    --shadow-card:       0 1px 3px rgba(31, 26, 22, 0.06), 0 0 0 1px rgba(227, 214, 191, 0.9);
+    --shadow-card-hover: 0 4px 16px rgba(31, 26, 22, 0.10), 0 0 0 1px rgba(201, 84, 58, 0.20);
+    --shadow-accent-glow: 0 0 16px rgba(201, 84, 58, 0.15);
+    --shadow-accent-glow-hover: 0 0 20px rgba(201, 84, 58, 0.25);
   }
 
   * {
     @apply border-border;
+    box-sizing: border-box;
   }
 
   body {
-    @apply bg-bg text-text font-sans antialiased;
-  }
-
-  /* Subtle noise texture overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    opacity: 0.015;
-    pointer-events: none;
-    z-index: 1000;
+    @apply bg-bg text-text antialiased;
+    font-family: 'Geist', 'Söhne', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 }
 
 /* ============================================================
-   RESPONSE TYPOGRAPHY
-   Used by the chat/AI response renderer.
+   BRAND TYPOGRAPHY HELPERS
+   ============================================================ */
+.lf-serif {
+  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.lf-mono {
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  font-feature-settings: "zero", "ss01";
+}
+
+.lf-eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lf-muted);
+}
+
+.lf-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   BRAND MARK — three stacked bars (sauce/cheese/basil)
+   ============================================================ */
+.lf-mark {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 22px;
+  flex-shrink: 0;
+}
+.lf-mark span {
+  display: block;
+  height: 4px;
+  border-radius: 1px;
+}
+.lf-mark span:nth-child(1) { background: var(--lf-sauce);  width: 100%; }
+.lf-mark span:nth-child(2) { background: var(--lf-cheese); width: 78%; }
+.lf-mark span:nth-child(3) { background: var(--lf-basil);  width: 88%; }
+
+/* ============================================================
+   LASAGNAFI CARD
+   ============================================================ */
+.lf-card {
+  background: var(--lf-paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: 14px;
+}
+
+.lf-card-dark {
+  background: var(--lf-ink);
+  border: 1px solid var(--lf-ink);
+  border-radius: 14px;
+  color: var(--lf-paper);
+}
+
+/* ============================================================
+   LASAGNAFI BUTTONS
+   ============================================================ */
+.lf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+}
+.lf-btn:hover { transform: translateY(-1px); }
+
+.lf-btn-primary {
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  border-color: var(--lf-ink);
+}
+.lf-btn-primary:hover { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
+
+.lf-btn-ghost {
+  background: transparent;
+  color: var(--lf-ink);
+  border-color: var(--lf-rule);
+}
+.lf-btn-ghost:hover { background: var(--lf-cream); }
+
+/* ============================================================
+   RESPONSE TYPOGRAPHY  (unchanged — used by chat renderer)
    ============================================================ */
 @layer components {
-  /* body copy — 15px */
   .response-text {
     @apply text-base leading-[1.7] text-text-secondary;
   }
-
-  /* h1 — 24px */
   .response-heading-1 {
     @apply text-2xl font-semibold leading-[1.3] text-text;
   }
-
-  /* h2 — 18px */
   .response-heading-2 {
     @apply text-lg font-semibold leading-[1.4] text-text;
   }
-
-  /* h3 — 13px */
   .response-heading-3 {
     @apply text-sm font-medium leading-[1.4] text-text;
   }
-
-  /* eyebrow / stamp — 11px mono all-caps */
   .response-label {
     @apply font-mono text-xs font-medium uppercase tracking-wider text-text-muted;
   }
-
-  /* large metric — 28px */
   .response-metric {
     @apply text-[28px] font-semibold leading-[1.2] text-text;
   }
-
-  /* small metric — 20px */
   .response-metric-small {
     @apply text-xl font-semibold leading-[1.2] text-text;
   }
 }
 
 /* ============================================================
-   SURFACE CLASSES
-   All surfaces use CSS vars so they adapt to data-theme.
+   SURFACE CLASSES  (adapted to warm theme)
    ============================================================ */
 @layer components {
-  /* ── Primary card surface ── */
   .surface-card {
-    background: rgb(var(--color-bg-elevated));
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
+    background: var(--lf-paper);
+    border: 1px solid var(--lf-rule);
+    border-radius: 14px;
     box-shadow: var(--shadow-card);
     position: relative;
   }
+
   .surface-card::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 160px;
-    height: 110px;
+    top: 0; left: 0;
+    width: 160px; height: 110px;
     background: radial-gradient(ellipse at top left, var(--card-glow) 0%, transparent 65%);
     pointer-events: none;
     border-radius: inherit;
@@ -188,21 +241,19 @@
     transform: translateY(-1px);
   }
 
-  /* Migration alias — all existing glass-card markup works unchanged */
+  /* backward compat alias */
   .glass-card {
-    background: rgb(var(--color-bg-elevated));
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
+    background: var(--lf-paper);
+    border: 1px solid var(--lf-rule);
+    border-radius: 14px;
     box-shadow: var(--shadow-card);
     position: relative;
   }
   .glass-card::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 160px;
-    height: 110px;
+    top: 0; left: 0;
+    width: 160px; height: 110px;
     background: radial-gradient(ellipse at top left, var(--card-glow) 0%, transparent 65%);
     pointer-events: none;
     border-radius: inherit;
@@ -216,39 +267,24 @@
     transform: translateY(-1px);
   }
 
-  /* stat-card: no corner glow */
   .stat-card {
-    background: rgb(var(--color-bg-elevated));
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
+    background: var(--lf-paper);
+    border: 1px solid var(--lf-rule);
+    border-radius: 14px;
     box-shadow: var(--shadow-card);
-    position: relative;
   }
 
-  .accent-glow {
-    box-shadow: var(--shadow-accent-glow);
-  }
-
-  .progress-glow {
-    box-shadow: 0 0 12px var(--color-accent-glow);
-  }
+  .accent-glow { box-shadow: var(--shadow-accent-glow); }
+  .progress-glow { box-shadow: 0 0 12px var(--color-accent-glow); }
 }
 
 @layer utilities {
-  .tabular-nums {
-    font-variant-numeric: tabular-nums;
-  }
+  .tabular-nums { font-variant-numeric: tabular-nums; }
 
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(113, 113, 122, 0.3);
+    background: rgba(139, 126, 111, 0.25);
     border-radius: 3px;
   }
 }

@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { FileText, Trash2, Plus, RefreshCw } from "lucide-react";
-import { Section } from "../components/common/section.js";
-import { PageActions } from "../components/common/page-actions";
-import { Button } from "../components/ui/button.js";
+import { FileText, Trash2, RefreshCw, Upload } from "lucide-react";
 import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
+import { PageActions } from "../components/common/page-actions.js";
 import type { TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
 import { useChatStore } from "../lib/chat-store.js";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
+
+// ─── helpers ────────────────────────────────────────────────────────────────
 
 const FILING_LABELS: Record<string, string> = {
   single: "Single",
@@ -18,34 +18,92 @@ const FILING_LABELS: Record<string, string> = {
   head_of_household: "Head of Household",
 };
 
-const EMPLOYMENT_LABELS: Record<string, string> = {
-  w2: "W-2 employee",
-  self_employed: "Self-employed",
-  "1099": "1099 contractor",
-  business_owner: "Business owner",
-  retired: "Retired",
-  unemployed: "Unemployed",
+function formatMoney(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+/**
+ * Estimate marginal tax bracket from annual income + filing status.
+ * Brackets as of tax year 2024.
+ */
+function estimateBracket(income: number, filingStatus: string | null): string {
+  const mfj = filingStatus === "married_joint";
+  if (mfj) {
+    if (income <= 23_200) return "10%";
+    if (income <= 94_300) return "12%";
+    if (income <= 201_050) return "22%";
+    if (income <= 383_900) return "24%";
+    if (income <= 487_450) return "32%";
+    if (income <= 731_200) return "35%";
+    return "37%";
+  }
+  // single / default
+  if (income <= 11_600) return "10%";
+  if (income <= 47_150) return "12%";
+  if (income <= 100_525) return "22%";
+  if (income <= 191_950) return "24%";
+  if (income <= 243_725) return "32%";
+  if (income <= 609_350) return "35%";
+  return "37%";
+}
+
+// ─── shared inline style tokens ─────────────────────────────────────────────
+
+const CARD: React.CSSProperties = {
+  background: "var(--lf-paper)",
+  border: "1px solid var(--lf-rule)",
+  borderRadius: 14,
 };
+
+const EYEBROW: React.CSSProperties = {
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: 13,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase" as const,
+  color: "var(--lf-muted)",
+};
+
+const SERIF: React.CSSProperties = {
+  fontFamily: "'Instrument Serif', Georgia, serif",
+};
+
+const FILING_YEAR = new Date().getFullYear() - 1;
+
+// ─── types ───────────────────────────────────────────────────────────────────
+
+interface Profile {
+  filingStatus: string | null;
+  annualIncome: number | null;
+  stateOfResidence: string | null;
+}
+
+// ─── component ───────────────────────────────────────────────────────────────
 
 export function TaxStrategy() {
   const [documents, setDocuments] = useState<TaxDocumentSummary[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [insightStatus, setInsightStatus] = useState<"idle" | "generating" | "done">("idle");
-  const [profileInfo, setProfileInfo] = useState<{
-    filingStatus: string | null;
-    stateOfResidence: string | null;
-    employmentType: string | null;
-  } | null>(null);
 
+  const { insights, isLoading: insightsLoading, refresh } = useInsights("tax");
+  const { openChat } = useChatStore();
+  const { setPageContext } = usePageContext();
+
+  // ── data loading ────────────────────────────────────────────────────────────
   useEffect(() => {
     loadDocuments();
-    api.getFinancialProfile()
+    api
+      .getFinancialProfile()
       .then(({ financialProfile }) => {
         if (financialProfile) {
-          setProfileInfo({
-            filingStatus: financialProfile.filingStatus,
-            stateOfResidence: financialProfile.stateOfResidence,
-            employmentType: financialProfile.employmentType,
+          setProfile({
+            filingStatus: financialProfile.filingStatus ?? null,
+            annualIncome: financialProfile.annualIncome ?? null,
+            stateOfResidence: financialProfile.stateOfResidence ?? null,
           });
         }
       })
@@ -61,18 +119,43 @@ export function TaxStrategy() {
     }
   };
 
-  const { insights, isLoading: insightsLoading, dismiss, refresh } = useInsights("tax");
+  // ── page context for AI chat ─────────────────────────────────────────────
+  useEffect(() => {
+    if (profile) {
+      setPageContext({
+        pageId: "tax",
+        pageTitle: "Tax Strategy",
+        description: "Tax optimization suggestions and document management.",
+        data: {
+          filingStatus: profile.filingStatus,
+          stateOfResidence: profile.stateOfResidence,
+          documentCount: documents.length,
+          taxOpportunities: insights.length,
+        },
+      });
+    }
+  }, [profile, documents.length, insights.length, setPageContext]);
 
-  const handleInputSuccess = useCallback(async (doc: TaxInputResult) => {
-    setDocuments((prev) => [
-      { id: doc.id, fileName: doc.fileName, llmSummary: doc.llmSummary, taxYear: doc.taxYear, createdAt: doc.createdAt },
-      ...prev,
-    ]);
-    setInsightStatus("generating");
-    refresh()
-      .then(() => setInsightStatus("done"))
-      .catch(() => setInsightStatus("idle"));
-  }, [refresh]);
+  // ── handlers ─────────────────────────────────────────────────────────────
+  const handleInputSuccess = useCallback(
+    async (doc: TaxInputResult) => {
+      setDocuments((prev) => [
+        {
+          id: doc.id,
+          fileName: doc.fileName,
+          llmSummary: doc.llmSummary,
+          taxYear: doc.taxYear,
+          createdAt: doc.createdAt,
+        },
+        ...prev,
+      ]);
+      setInsightStatus("generating");
+      refresh()
+        .then(() => setInsightStatus("done"))
+        .catch(() => setInsightStatus("idle"));
+    },
+    [refresh]
+  );
 
   const handleDeleteDocument = useCallback(async (id: string) => {
     try {
@@ -83,252 +166,461 @@ export function TaxStrategy() {
     }
   }, []);
 
-  const { openChat } = useChatStore();
-  const { setPageContext } = usePageContext();
+  // ── derived values ────────────────────────────────────────────────────────
+  const bracket = profile?.annualIncome
+    ? estimateBracket(profile.annualIncome, profile.filingStatus)
+    : null;
 
-  useEffect(() => {
-    if (profileInfo) {
-      setPageContext({
-        pageId: "tax",
-        pageTitle: "Tax Strategy",
-        description: "Tax optimization suggestions and document management.",
-        data: {
-          filingStatus: profileInfo.filingStatus,
-          employmentType: profileInfo.employmentType,
-          stateOfResidence: profileInfo.stateOfResidence,
-          documentCount: documents.length,
-        },
-      });
-    }
-  }, [profileInfo, documents.length, setPageContext]);
+  const filingLabel = profile?.filingStatus
+    ? FILING_LABELS[profile.filingStatus] ?? profile.filingStatus
+    : null;
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 md:p-6 lg:p-8">
-      {/* Tax Optimization Playbook Hero */}
+    <div
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "clamp(16px, 4vw, 40px)",
+        paddingBottom: "clamp(80px, 12vw, 48px)",
+        background: "var(--lf-paper)",
+        minHeight: 0,
+        maxWidth: 1100,
+        margin: "0 auto",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+      className="scrollbar-thin"
+    >
+      {/* ── Page header ────────────────────────────────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-card p-6 mb-6 relative overflow-hidden"
+        transition={{ duration: 0.35 }}
+        style={{ marginBottom: 28 }}
       >
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-2 rounded-full bg-warning" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-warning/70">
-            Tax Optimization Playbook
-          </span>
-        </div>
-        <div className="font-display text-2xl md:text-3xl font-semibold tracking-tight mb-1">
-          {insightsLoading ? "—" : insights.length > 0 ? `${insights.length} suggestions for you` : "Personalized suggestions"}
-        </div>
-        <p className="text-sm text-text-secondary">
-          Every dollar saved on taxes goes to work for you
-        </p>
-        <div className="flex gap-2 mt-3 flex-wrap">
-          {profileInfo?.employmentType && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-surface-hover text-text-secondary">
-              {EMPLOYMENT_LABELS[profileInfo.employmentType] ?? profileInfo.employmentType}
-            </span>
-          )}
-          {(profileInfo?.filingStatus || profileInfo?.stateOfResidence) && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-surface-hover text-text-secondary">
-              {[
-                profileInfo.filingStatus ? FILING_LABELS[profileInfo.filingStatus] ?? profileInfo.filingStatus : null,
-                profileInfo.stateOfResidence,
-              ].filter(Boolean).join(" \u00B7 ")}
-            </span>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1
+              style={{
+                ...SERIF,
+                fontSize: 36,
+                color: "var(--lf-ink)",
+                margin: 0,
+                lineHeight: 1.1,
+              }}
+            >
+              Tax Strategy
+            </h1>
+            <div style={{ ...EYEBROW, marginTop: 6 }}>
+              {FILING_YEAR} filing year
+            </div>
+          </div>
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+            <button
+              onClick={() => {
+                const el = document.getElementById("tax-documents-section");
+                el?.scrollIntoView({ behavior: "smooth" });
+              }}
+              style={{
+                ...EYEBROW,
+                background: "var(--lf-ink)",
+                color: "var(--lf-paper)",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 16px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Upload size={12} />
+              Upload tax documents →
+            </button>
           )}
         </div>
       </motion.div>
 
+      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.06 }}
+        style={{
+          background: "var(--lf-ink)", color: "var(--lf-paper)",
+          borderRadius: 14, padding: "clamp(20px, 4vw, 32px)", marginBottom: 20,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 24,
+        }}
+      >
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Filing status</div>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em" }}>{filingLabel ?? "—"}</div>
+          {profile?.stateOfResidence && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>{profile.stateOfResidence}</div>}
+        </div>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Marginal bracket</div>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em", color: bracket ? "var(--lf-cheese)" : "var(--lf-paper)" }}>{bracket ?? "—"}</div>
+          {profile?.annualIncome && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>{formatMoney(profile.annualIncome)} income</div>}
+        </div>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Est. refund</div>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em" }}>—</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>Upload docs to estimate</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Opportunities</div>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em", color: insights.length > 0 ? "var(--lf-basil)" : "var(--lf-paper)" }}>{insightsLoading ? "…" : insights.length}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>{insights.length === 1 ? "suggestion" : "suggestions"}</div>
+        </div>
+      </motion.div>
+
+      {/* ── Actions ──────────────────────────────────────────────────────────── */}
       <PageActions types="tax" />
 
-      {/* Tax-Advantaged Account Stack */}
+      {/* ── Two-column bottom ───────────────────────────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.16 }}
+        transition={{ duration: 0.35, delay: 0.18 }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+        }}
+        className="tax-bottom-grid"
       >
-        <Section title="Tax-Advantaged Account Stack">
-          <div className="glass-card p-5">
-            <div className="divide-y divide-border">
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <div className="text-sm font-semibold">401(k) pre-tax</div>
-                  <div className="text-sm text-text-secondary">$23,500 limit</div>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
-                  Contribute more
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <div className="text-sm font-semibold">Roth IRA</div>
-                  <div className="text-sm text-text-secondary">$7,000 limit</div>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warning/10 text-warning">
-                  Unfunded
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <div className="text-sm font-semibold">HSA</div>
-                  <div className="text-sm text-text-secondary">$4,150 limit</div>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface-hover text-text-secondary">
-                  Check eligibility
-                </span>
-              </div>
-            </div>
-          </div>
-        </Section>
-      </motion.div>
-
-      {/* Roth vs Traditional */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.24 }}
-      >
-        <Section title="Roth vs Traditional">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="glass-card p-4 border border-success/25">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-success" />
-                <span className="text-xs font-bold uppercase tracking-wider text-success">
-                  Roth — Recommended
-                </span>
-              </div>
-              <p className="text-sm text-text-secondary">
-                Pay taxes now, withdraw tax-free in retirement. Best if you expect to be in a higher tax bracket later.
-              </p>
-            </div>
-            <div className="glass-card p-4 border border-warning/25">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full bg-warning" />
-                <span className="text-xs font-bold uppercase tracking-wider text-warning">
-                  Traditional
-                </span>
-              </div>
-              <p className="text-sm text-text-secondary">
-                Deduct contributions now, pay taxes on withdrawals. Best if you expect a lower tax bracket in retirement.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => openChat("Which is better for my situation — Roth or Traditional?")}
-            className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-lg bg-accent/10 text-accent text-sm font-semibold hover:bg-accent/20 transition-colors"
+        {/* LEFT: Tax documents ─────────────────────────────────────────────── */}
+        <div id="tax-documents-section" style={{ ...CARD, overflow: "hidden" }}>
+          <div
+            style={{
+              padding: "14px 18px",
+              borderBottom: "1px solid var(--lf-rule)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
           >
-            Which is better for my situation? &rarr;
-          </button>
-        </Section>
-      </motion.div>
-
-      {/* Tax Calendar */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.32 }}
-      >
-        <Section title="Tax Calendar">
-          <div className="glass-card p-5">
-            <div className="divide-y divide-border">
-              <div className="flex items-center gap-4 py-3">
-                <div className="w-14 text-center flex-shrink-0">
-                  <div className="text-xs font-bold uppercase text-warning">Apr 15</div>
-                </div>
-                <div className="text-sm text-text-secondary">Roth IRA deadline for prior year</div>
-              </div>
-              <div className="flex items-center gap-4 py-3">
-                <div className="w-14 text-center flex-shrink-0">
-                  <div className="text-xs font-bold uppercase text-text-secondary">Dec 31</div>
-                </div>
-                <div className="text-sm text-text-secondary">401(k) contribution deadline</div>
-              </div>
-              <div className="flex items-center gap-4 py-3">
-                <div className="w-14 text-center flex-shrink-0">
-                  <div className="text-xs font-bold uppercase text-text-secondary">Nov</div>
-                </div>
-                <div className="text-sm text-text-secondary">Open enrollment (HSA check)</div>
-              </div>
-            </div>
+            <span style={EYEBROW}>Tax documents</span>
+            {insightStatus === "generating" && (
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  ...EYEBROW,
+                  color: "var(--lf-cheese)",
+                }}
+              >
+                <RefreshCw size={11} style={{ animation: "spin 1s linear infinite" }} />
+                Updating insights…
+              </span>
+            )}
+            {insightStatus === "done" && (
+              <span style={{ ...EYEBROW, color: "var(--lf-basil)" }}>Insights updated ✓</span>
+            )}
           </div>
-        </Section>
-      </motion.div>
 
-      {/* Tax Documents */}
-      <Section title="Tax Documents">
-        <div className="space-y-6">
+          {/* Upload panel */}
           {import.meta.env.VITE_DEMO_MODE !== "true" && (
-            <TaxInputPanel onSuccess={handleInputSuccess} />
-          )}
-
-          {insightStatus === "generating" && (
-            <div className="flex items-center gap-2 text-text-secondary text-xs">
-              <RefreshCw className="w-3 h-3 animate-spin" />
-              Updating tax insights…
-            </div>
-          )}
-          {insightStatus === "done" && (
-            <div className="text-xs text-success">Tax insights updated</div>
-          )}
-
-          {error && (
-            <div className="p-4 rounded-xl bg-danger/10 border border-danger/20 text-danger text-sm">
-              {error}
+            <div style={{ padding: 16 }}>
+              <TaxInputPanel onSuccess={handleInputSuccess} />
             </div>
           )}
 
+          {/* Uploaded docs list */}
           {documents.length > 0 && (
-            <div>
-              <h4 className="text-xs uppercase tracking-wider text-text-secondary font-semibold mb-3">Uploaded Documents</h4>
-              <div className="space-y-2">
+            <div style={{ padding: "0 16px 16px" }}>
+              <div style={{ ...EYEBROW, marginBottom: 10, paddingTop: import.meta.env.VITE_DEMO_MODE === "true" ? 16 : 0 }}>
+                Uploaded
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {documents.map((doc, i) => (
                   <motion.div
                     key={doc.id}
-                    initial={{ opacity: 0, x: -8 }}
+                    initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="glass-card rounded-xl p-4"
+                    transition={{ delay: i * 0.04 }}
+                    style={{
+                      background: "var(--lf-cream)",
+                      border: "1px solid var(--lf-rule)",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                    }}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <FileText className="w-5 h-5 text-text-secondary shrink-0 mt-0.5" />
-                        <div className="min-w-0">
-                          <div className="font-medium text-sm truncate">{doc.fileName}</div>
-                          {doc.taxYear && (
-                            <div className="text-sm text-text-secondary mt-0.5">Tax Year {doc.taxYear}</div>
-                          )}
-                          {doc.llmSummary && (
-                            <div className="text-sm text-text-secondary mt-1 line-clamp-2">{doc.llmSummary}</div>
-                          )}
-                        </div>
+                    <FileText
+                      size={16}
+                      style={{ color: "var(--lf-muted)", flexShrink: 0, marginTop: 2 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: "var(--lf-ink)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {doc.fileName}
                       </div>
-                      {import.meta.env.VITE_DEMO_MODE !== "true" && (
-                        <button
-                          onClick={() => handleDeleteDocument(doc.id)}
-                          className="p-1.5 rounded-lg text-text-secondary hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+                      {doc.taxYear && (
+                        <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 2 }}>
+                          Tax Year {doc.taxYear}
+                        </div>
+                      )}
+                      {doc.llmSummary && (
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "var(--lf-muted)",
+                            marginTop: 4,
+                            lineHeight: 1.4,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical" as const,
+                            overflow: "hidden",
+                          }}
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          {doc.llmSummary}
+                        </div>
                       )}
                     </div>
+                    {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                      <button
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 4,
+                          borderRadius: 6,
+                          color: "var(--lf-muted)",
+                          flexShrink: 0,
+                          transition: "color 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.color = "var(--lf-sauce)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.color = "var(--lf-muted)";
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </motion.div>
                 ))}
               </div>
             </div>
           )}
 
-          {documents.length > 0 && import.meta.env.VITE_DEMO_MODE !== "true" && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <Button className="w-full sm:w-auto">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Tax Strategy Plan
-              </Button>
-            </motion.div>
+          {documents.length === 0 && import.meta.env.VITE_DEMO_MODE === "true" && (
+            <div
+              style={{
+                padding: "32px 20px",
+                textAlign: "center",
+                color: "var(--lf-muted)",
+                fontSize: 13,
+              }}
+            >
+              No documents uploaded yet.
+            </div>
           )}
         </div>
-      </Section>
 
+        {/* RIGHT: Contribution trackers ───────────────────────────────────── */}
+        <div style={{ ...CARD, overflow: "hidden" }}>
+          <div
+            style={{
+              padding: "14px 18px",
+              borderBottom: "1px solid var(--lf-rule)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <span style={EYEBROW}>Contribution trackers</span>
+            <span style={{ ...EYEBROW, color: "var(--lf-cheese)" }}>2024 limits</span>
+          </div>
+
+          <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 20 }}>
+            {/*
+              DATA-NEEDED: no contribution tracking API available yet.
+              Showing annual limit reference rows with placeholder progress.
+            */}
+            <ContributionRow
+              label="401(k) pre-tax"
+              sublabel="Employee contribution limit"
+              limit="$23,500"
+              // DATA-NEEDED: actual contributed amount not available
+              pct={null}
+              color="var(--lf-sauce)"
+            />
+            <ContributionRow
+              label="Roth IRA"
+              sublabel="Combined traditional + Roth limit"
+              limit="$7,000"
+              pct={null}
+              color="var(--lf-cheese)"
+            />
+            <ContributionRow
+              label="HSA"
+              sublabel="Individual coverage limit"
+              limit="$4,150"
+              pct={null}
+              color="var(--lf-basil)"
+            />
+          </div>
+
+          <div
+            style={{
+              padding: "12px 18px",
+              borderTop: "1px solid var(--lf-rule)",
+            }}
+          >
+            <button
+              onClick={() =>
+                openChat(
+                  "How much should I be contributing to my 401k, Roth IRA, and HSA this year?"
+                )
+              }
+              style={{
+                ...EYEBROW,
+                fontSize: 13,
+                background: "transparent",
+                border: "1px solid var(--lf-rule)",
+                borderRadius: 6,
+                padding: "6px 12px",
+                cursor: "pointer",
+                color: "var(--lf-muted)",
+                transition: "border-color 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--lf-ink)";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--lf-ink)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--lf-rule)";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--lf-muted)";
+              }}
+            >
+              How much should I contribute? →
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Responsive style override for narrow viewports */}
+      <style>{`
+        @media (max-width: 700px) {
+          .tax-bottom-grid { grid-template-columns: 1fr !important; }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── sub-components ──────────────────────────────────────────────────────────
+
+function MiniCard({
+  label,
+  value,
+  sub,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  valueColor?: string;
+}) {
+  return (
+    <div
+      style={{
+        background: "var(--lf-paper)",
+        border: "1px solid var(--lf-rule)",
+        borderRadius: 12,
+        padding: "14px 16px",
+      }}
+    >
+      <div style={{ ...EYEBROW, fontSize: 13, marginBottom: 8 }}>{label}</div>
+      <div
+        style={{
+          ...SERIF,
+          fontSize: 22,
+          color: valueColor ?? "var(--lf-ink)",
+          lineHeight: 1,
+          marginBottom: sub ? 5 : 0,
+        }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 4 }}>{sub}</div>
+      )}
+    </div>
+  );
+}
+
+function ContributionRow({
+  label,
+  sublabel,
+  limit,
+  pct,
+  color,
+}: {
+  label: string;
+  sublabel: string;
+  limit: string;
+  pct: number | null; // 0–100, or null = unknown
+  color: string;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--lf-ink)" }}>{label}</div>
+          <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 1 }}>{sublabel}</div>
+        </div>
+        <div style={{ ...EYEBROW, fontSize: 13 }}>{limit}</div>
+      </div>
+      {/* Progress bar */}
+      <div
+        style={{
+          height: 5,
+          borderRadius: 3,
+          background: "var(--lf-cream-deep)",
+          overflow: "hidden",
+        }}
+      >
+        {pct !== null ? (
+          <div
+            style={{
+              height: "100%",
+              width: `${Math.min(100, pct)}%`,
+              background: color,
+              borderRadius: 3,
+              transition: "width 0.6s ease",
+            }}
+          />
+        ) : (
+          /* DATA-NEEDED: contribution amount not yet available — show empty bar */
+          <div style={{ height: "100%", width: "0%", background: color, borderRadius: 3 }} />
+        )}
+      </div>
+      {pct === null && (
+        <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 4 }}>
+          Connect accounts to track contributions
+        </div>
+      )}
     </div>
   );
 }

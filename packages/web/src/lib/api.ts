@@ -162,6 +162,7 @@ export const api = {
 
   // Sync
   triggerSync: () => request("/sync", { method: "POST" }),
+  triggerResync: () => request("/sync/resync", { method: "POST" }),
 
   // Plans
   getPlans: () => request<{ plans: Plan[] }>("/plans"),
@@ -202,6 +203,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ planId, title, tags }),
     }),
+
+  deleteThread: (id: string) =>
+    request<{ success: boolean }>(`/threads/${id}`, { method: "DELETE" }),
 
   // Tax Documents
   getTaxDocuments: () =>
@@ -375,7 +379,7 @@ export const api = {
         value: number;
         percentage: number;
         color: string;
-        subCategories: Array<{
+        categories: Array<{
           name: string;
           value: number;
           percentage: number;
@@ -431,6 +435,12 @@ export const api = {
       pageSize: number;
     }>(`/transactions${qs ? `?${qs}` : ''}`);
   },
+
+  updateTransactionCategory: (id: string, category: string) =>
+    request<{ success: boolean }>(`/transactions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ category }),
+    }),
 
   getSpendingSummary: (params?: { startDate?: string; endDate?: string }) => {
     const searchParams = new URLSearchParams();

@@ -8,6 +8,20 @@ import { ChatThreadView } from './chat-thread-view';
 import { api } from '../../lib/api';
 import type { Message } from '../../lib/types';
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\*\*(.+?)\*\*/gs, '$1')
+    .replace(/\*(.+?)\*/gs, '$1')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/^[-*+]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^>\s*/gm, '')
+    .replace(/\n+/g, ' ')
+    .trim();
+}
+
 export function GlobalChatSidebar() {
   const { currentPage } = usePageContext();
   const {
@@ -102,12 +116,11 @@ export function GlobalChatSidebar() {
       apiThreadId: null as string | null,
     };
 
-    const newIndex = threads.length;
-    setThreads(prev => [...prev, newThread]);
-    setActiveThread(newIndex);
+    setThreads(prev => [newThread, ...prev]);
+    setActiveThread(0);
     setLoading(true);
 
-    const { response, threadId } = await sendMessage(text.trim(), null, ctx.contextString, ctx.contextMeta, tags);
+    const { response, threadId, threadTitle } = await sendMessage(text.trim(), null, ctx.contextString, ctx.contextMeta, tags);
 
     const assistantMsg: Message = {
       id: `assistant-${Date.now()}`,
@@ -121,13 +134,14 @@ export function GlobalChatSidebar() {
 
     setThreads(prev => {
       const updated = [...prev];
-      const target = updated[newIndex];
+      const target = updated[0];
       if (target) {
-        updated[newIndex] = {
+        updated[0] = {
           ...target,
           thread: {
             ...target.thread,
-            answerPreview: response.slice(0, 120),
+            question: threadTitle || target.thread.question,
+            answerPreview: stripMarkdown(response).slice(0, 200),
           },
           messages: [...target.messages, assistantMsg],
           apiThreadId: threadId,
@@ -179,22 +193,25 @@ export function GlobalChatSidebar() {
       createdAt: new Date().toISOString(),
     };
 
+    const capturedIndex = activeThreadIndex;
     setThreads(prev => {
       const updated = [...prev];
-      const target = updated[activeThreadIndex];
-      if (target) {
-        updated[activeThreadIndex] = {
-          ...target,
-          messages: [...target.messages, assistantMsg],
-          apiThreadId: threadId,
-        };
-      }
-      return updated;
+      const target = updated[capturedIndex];
+      if (!target) return updated;
+      const updatedTarget = {
+        ...target,
+        messages: [...target.messages, assistantMsg],
+        apiThreadId: threadId,
+      };
+      // Move thread to front
+      const rest = updated.filter((_, i) => i !== capturedIndex);
+      return [updatedTarget, ...rest];
     });
+    setActiveThread(0);
 
     if (!chatOpen) incrementUnread();
     setLoading(false);
-  }, [activeThreadIndex, threads, loading, sendMessage, chatOpen, setThreads, setLoading, incrementUnread]);
+  }, [activeThreadIndex, threads, loading, sendMessage, chatOpen, setThreads, setActiveThread, setLoading, incrementUnread]);
 
   // Handle pending message from "Walk me through this", peek bar, etc.
   const pendingHandled = useRef('');
@@ -224,11 +241,11 @@ export function GlobalChatSidebar() {
         messages: [userMsg],
         apiThreadId: null as string | null,
       };
-      setThreads(prev => [...prev, newThread]);
-      setActiveThread(threads.length);
+      setThreads(prev => [newThread, ...prev]);
+      setActiveThread(0);
       setLoading(true);
 
-      const { response, threadId } = await sendMessage(msg, null, ctx.contextString, ctx.contextMeta, tags);
+      const { response, threadId, threadTitle } = await sendMessage(msg, null, ctx.contextString, ctx.contextMeta, tags);
 
       const assistantMsg: Message = {
         id: `assistant-${Date.now()}`,
@@ -241,12 +258,15 @@ export function GlobalChatSidebar() {
       };
       setThreads(prev => {
         const updated = [...prev];
-        const idx = updated.length - 1;
-        if (updated[idx]) {
-          updated[idx] = {
-            ...updated[idx],
-            thread: { ...updated[idx].thread, answerPreview: response.slice(0, 120) },
-            messages: [...updated[idx].messages, assistantMsg],
+        if (updated[0]) {
+          updated[0] = {
+            ...updated[0],
+            thread: {
+              ...updated[0].thread,
+              question: threadTitle || updated[0].thread.question,
+              answerPreview: stripMarkdown(response).slice(0, 200),
+            },
+            messages: [...updated[0].messages, assistantMsg],
             apiThreadId: threadId,
           };
         }
@@ -270,8 +290,8 @@ export function GlobalChatSidebar() {
         const mapped = apiThreads.map((t) => ({
           thread: {
             id: t.id,
-            question: t.title || 'Conversation',
-            answerPreview: '',
+            question: t.title || t.firstMessage || 'Conversation',
+            answerPreview: t.firstAssistantSnippet ? stripMarkdown(t.firstAssistantSnippet).slice(0, 200) : '',
             timestamp: new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
             tags: (t.tags as string[]) || [],
           },
@@ -290,10 +310,20 @@ export function GlobalChatSidebar() {
     if (t && t.messages.length === 0 && t.apiThreadId) {
       try {
         const { messages: apiMessages } = await api.getThread(t.apiThreadId);
+        const firstUser = apiMessages.find((m: Message) => m.role === 'user');
+        const firstAssistant = apiMessages.find((m: Message) => m.role === 'assistant');
         setThreads((prev) => {
           const updated = [...prev];
           if (updated[index]) {
-            updated[index] = { ...updated[index], messages: apiMessages };
+            updated[index] = {
+              ...updated[index],
+              messages: apiMessages,
+              thread: {
+                ...updated[index].thread,
+                question: firstUser?.content || updated[index].thread.question,
+                answerPreview: firstAssistant ? stripMarkdown(firstAssistant.content).slice(0, 200) : updated[index].thread.answerPreview,
+              },
+            };
           }
           return updated;
         });
@@ -301,6 +331,17 @@ export function GlobalChatSidebar() {
     }
     setActiveThread(index);
   }, [threads, setThreads, setActiveThread]);
+
+  const handleDeleteThread = useCallback(async (indexOverride?: number) => {
+    const idx = indexOverride ?? activeThreadIndex;
+    if (idx === null || idx === undefined) return;
+    const t = threads[idx];
+    if (t?.apiThreadId) {
+      try { await api.deleteThread(t.apiThreadId); } catch { /* ignore */ }
+    }
+    setThreads(prev => prev.filter((_, i) => i !== idx));
+    if (activeThreadIndex === idx) setActiveThread(null);
+  }, [activeThreadIndex, threads, setThreads, setActiveThread]);
 
   const activeThread = activeThreadIndex !== null ? threads[activeThreadIndex] : null;
 
@@ -312,12 +353,14 @@ export function GlobalChatSidebar() {
           messages={activeThread.messages}
           onBack={() => setActiveThread(null)}
           onFollowUp={handleFollowUp}
+          onDelete={handleDeleteThread}
           loading={loading}
         />
       ) : (
         <ChatThreadList
           threads={threads.map(t => t.thread)}
           onSelectThread={handleSelectThread}
+          onDeleteThread={handleDeleteThread}
           onNewMessage={handleNewMessage}
           suggestions={suggestions}
         />

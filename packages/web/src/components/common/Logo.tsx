@@ -8,13 +8,12 @@ interface LogoProps {
 
 export function Logo({ width = 30, className = '', animate = true }: LogoProps) {
   const height = Math.round(width * 26 / 36);
-  const uid = Math.random().toString(36).slice(2, 9);
-  const gradId = `lasagna-lg-${uid}`;
 
+  // sauce / cheese / basil — matching .lf-mark pattern
   const bars = [
-    { y: 0,  w: 13 },
-    { y: 10, w: 24 },
-    { y: 20, w: 36 },
+    { y: 0,  w: 22, color: '#C9543A' },  // sauce
+    { y: 10, w: 32, color: '#E6B85C' },  // cheese
+    { y: 20, w: 36, color: '#5A6B3F' },  // basil
   ];
 
   return (
@@ -25,12 +24,6 @@ export function Logo({ width = 30, className = '', animate = true }: LogoProps) 
       fill="none"
       className={className}
     >
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="36" y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#00e5a0" />
-          <stop offset="100%" stopColor="#00e5a0" stopOpacity="0" />
-        </linearGradient>
-      </defs>
       {bars.map((bar, i) => (
         <motion.rect
           key={i}
@@ -39,7 +32,7 @@ export function Logo({ width = 30, className = '', animate = true }: LogoProps) 
           width={bar.w}
           height={6}
           rx={3}
-          fill={`url(#${gradId})`}
+          fill={bar.color}
           initial={animate ? { opacity: 0, scaleX: 0 } : false}
           animate={{ opacity: 1, scaleX: 1 }}
           transition={{

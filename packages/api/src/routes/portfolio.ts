@@ -94,7 +94,7 @@ async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]> {
   return holdingsInput;
 }
 
-// Exposure analysis — aggregate by subcategory across all accounts
+// Exposure analysis — aggregate by category across all accounts
 // Shows "Total S&P 500 exposure" etc. with blended historical return
 portfolioRoutes.get("/exposure", async (c) => {
   const session = c.get("session");
@@ -102,8 +102,8 @@ portfolioRoutes.get("/exposure", async (c) => {
   const holdingsInput = await getHoldingsInput(session.tenantId);
   const composition = aggregatePortfolio(holdingsInput);
 
-  // Historical average annual returns by subcategory
-  const SUBCATEGORY_RETURNS: Record<string, number> = {
+  // Historical average annual returns by category
+  const CATEGORY_RETURNS: Record<string, number> = {
     "S&P 500": 10.2,
     "Total Market": 10.0,
     "Total World": 9.5,
@@ -125,11 +125,12 @@ portfolioRoutes.get("/exposure", async (c) => {
     "International REITs": 7.0,
     "Money Market": 2.0,
     "Short-Term": 2.5,
+    "Savings & Checking": 1.5,
     "Large Cap": 10.5,
     Unknown: 7.0,
   };
 
-  // Build exposure groups: subcategory across all accounts
+  // Build exposure groups: category across all accounts
   const exposures: Array<{
     name: string;
     assetClass: string;
@@ -140,14 +141,14 @@ portfolioRoutes.get("/exposure", async (c) => {
   }> = [];
 
   for (const ac of composition.assetClasses) {
-    for (const sc of ac.subCategories) {
+    for (const cat of ac.categories) {
       exposures.push({
-        name: sc.name,
+        name: cat.name,
         assetClass: ac.name,
-        value: sc.value,
-        percentage: sc.percentage,
-        historicalReturn: SUBCATEGORY_RETURNS[sc.name] ?? 7.0,
-        holdings: sc.holdings.map((h) => ({
+        value: cat.value,
+        percentage: cat.percentage,
+        historicalReturn: CATEGORY_RETURNS[cat.name] ?? 7.0,
+        holdings: cat.holdings.map((h) => ({
           ticker: h.ticker,
           name: h.name,
           value: h.value,

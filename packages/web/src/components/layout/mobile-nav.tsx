@@ -2,47 +2,51 @@ import { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Menu,
-  X,
-  LayoutDashboard,
-  Building2,
-  CreditCard,
-  PieChart,
-  Receipt,
-  Target,
-  User,
-  Sparkles,
+  X, Menu,
+  LayoutDashboard, Zap, Layers,
+  TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, Target,
+  Building2, User, MessageSquare,
+  type LucideIcon,
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
-import type { LucideIcon } from 'lucide-react';
+import { useAuth } from '../../lib/auth';
+import { useChatStore } from '../../lib/chat-store';
 
-interface NavSection {
+interface NavItem {
   label: string;
-  items: { name: string; icon: LucideIcon; path: string }[];
+  icon: LucideIcon;
+  path: string;
 }
 
-const navSections: NavSection[] = [
+interface NavSection {
+  section: string;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
   {
-    label: 'Main',
+    section: 'Overview',
     items: [
-      { name: 'Home', icon: LayoutDashboard, path: '/' },
-      { name: 'Accounts', icon: Building2, path: '/accounts' },
-      { name: 'Debt', icon: CreditCard, path: '/debt' },
-      { name: 'Invest', icon: PieChart, path: '/invest' },
-      { name: 'Tax', icon: Receipt, path: '/tax' },
+      { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
+      { label: 'Actions',    icon: Zap,             path: '/insights' },
+      { label: 'Layers',     icon: Layers,          path: '/priorities' },
     ],
   },
   {
-    label: 'Analysis',
+    section: 'Wealth',
     items: [
-      { name: 'Probability', icon: Target, path: '/probability' },
+      { label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
+      { label: 'Portfolio',  icon: PieChart,    path: '/portfolio' },
+      { label: 'Spending',   icon: CreditCard,  path: '/spending' },
+      { label: 'Debt',       icon: AlertCircle, path: '/debt' },
+      { label: 'Tax',        icon: Receipt,     path: '/tax' },
+      { label: 'Goals',      icon: Target,      path: '/goals' },
     ],
   },
   {
-    label: 'Account',
+    section: 'Setup',
     items: [
-      { name: 'Profile', icon: User, path: '/profile' },
-      { name: 'Plans', icon: Sparkles, path: '/plans' },
+      { label: 'Accounts', icon: Building2,    path: '/accounts' },
+      { label: 'Profile',  icon: User,         path: '/profile' },
     ],
   },
 ];
@@ -54,15 +58,16 @@ interface MobileNavProps {
 
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const [location, navigate] = useLocation();
+  const { tenant, logout } = useAuth();
+  const { openChat } = useChatStore();
 
-  const isActive = (path: string) => location === path;
+  const isActive = (path: string) => path === '/' ? location === '/' : location.startsWith(path);
 
   const handleNavigate = (path: string) => {
     navigate(path);
     onClose();
   };
 
-  // Lock body scroll when menu is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -70,18 +75,22 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
     }
   }, [isOpen]);
 
+  const rawName = tenant?.name || '';
+  const firstName = rawName.startsWith('Seed ') ? 'User' : (rawName.split(' ')[0] || 'User');
+  const initial = firstName[0]?.toUpperCase() || 'U';
+
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop — 110% height to cover any iOS bounce */}
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed z-40 md:hidden bg-black/50"
-            style={{ top: '-5%', left: 0, right: 0, height: '110%' }}
+            style={{ position: 'fixed', inset: 0, top: '-5%', height: '110%', background: 'rgba(31,26,22,0.5)', zIndex: 40 }}
+            className="md:hidden"
           />
 
           {/* Drawer */}
@@ -89,51 +98,130 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed inset-y-0 left-0 w-72 z-50 md:hidden bg-bg-elevated border-r border-border flex flex-col"
+            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            style={{
+              position: 'fixed', top: 0, left: 0, bottom: 0, width: 280,
+              zIndex: 50, display: 'flex', flexDirection: 'column',
+              background: 'var(--lf-cream)', borderRight: '1px solid var(--lf-rule)',
+            }}
+            className="md:hidden"
           >
             {/* Header */}
-            <div className="p-4 flex items-center justify-between border-b border-border">
-              <span className="font-display text-lg font-medium">Menu</span>
+            <div style={{
+              padding: '20px 16px 16px',
+              borderBottom: '1px solid var(--lf-rule)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              paddingTop: 'max(20px, env(safe-area-inset-top))',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="lf-mark"><span /><span /><span /></div>
+                <span style={{
+                  fontFamily: "'Instrument Serif', Georgia, serif",
+                  fontSize: 18, color: 'var(--lf-ink)', letterSpacing: '-0.01em',
+                }}>
+                  Lasagna<em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>Fi</em>
+                </span>
+              </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-surface-hover transition-colors"
+                style={{
+                  width: 32, height: 32, borderRadius: 8, border: '1px solid var(--lf-rule)',
+                  background: 'var(--lf-paper)', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer',
+                }}
               >
-                <X className="w-5 h-5 text-text-secondary" />
+                <X size={16} style={{ color: 'var(--lf-muted)' }} />
               </button>
             </div>
 
-            {/* Navigation sections */}
-            <nav className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-6">
-              {navSections.map((section) => (
-                <div key={section.label}>
-                  <div className="text-xs uppercase tracking-wider text-text-secondary font-semibold mb-2 px-2">
-                    {section.label}
+            {/* Nav */}
+            <nav style={{ flex: 1, overflowY: 'auto', padding: '12px' }} className="scrollbar-thin">
+              {NAV_SECTIONS.map(({ section, items }) => (
+                <div key={section} style={{ marginBottom: 8 }}>
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase',
+                    color: 'var(--lf-muted)', padding: '0 8px', margin: '16px 0 6px',
+                  }}>
+                    {section}
                   </div>
-                  <div className="space-y-1">
-                    {section.items.map((item) => {
-                      const Icon = item.icon;
-                      const active = isActive(item.path);
-                      return (
-                        <button
-                          key={item.name}
-                          onClick={() => handleNavigate(item.path)}
-                          className={cn(
-                            'w-full text-left px-3 py-2.5 rounded-xl text-sm flex items-center gap-3 transition-colors',
-                            active
-                              ? 'bg-accent/10 text-accent border border-accent/20'
-                              : 'hover:bg-surface-hover text-text-secondary hover:text-text border border-transparent'
-                          )}
-                        >
-                          <Icon className={cn('w-5 h-5', active ? 'text-accent' : 'text-text-secondary')} />
-                          <span className="font-medium">{item.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {items.map(({ label, icon: Icon, path }) => {
+                    const active = isActive(path);
+                    return (
+                      <button
+                        key={path}
+                        onClick={() => handleNavigate(path)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          width: '100%', padding: '10px 12px', borderRadius: 8,
+                          marginBottom: 2, border: 0, cursor: 'pointer', textAlign: 'left',
+                          fontFamily: "'Geist', system-ui, sans-serif", fontSize: 14,
+                          background: active ? 'var(--lf-ink)' : 'transparent',
+                          color: active ? 'var(--lf-paper)' : 'var(--lf-ink-soft)',
+                        }}
+                      >
+                        <Icon
+                          size={16}
+                          style={{
+                            flexShrink: 0,
+                            opacity: active ? 1 : 0.65,
+                            color: active ? 'var(--lf-cheese)' : 'currentColor',
+                          }}
+                        />
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
+
+              {/* AI Chat */}
+              <div style={{ marginBottom: 8 }}>
+                <button
+                  onClick={() => { openChat(); onClose(); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', padding: '10px 12px', borderRadius: 8,
+                    marginBottom: 2, border: 0, cursor: 'pointer', textAlign: 'left',
+                    fontFamily: "'Geist', system-ui, sans-serif", fontSize: 14,
+                    background: 'transparent', color: 'var(--lf-ink-soft)',
+                  }}
+                >
+                  <MessageSquare size={16} style={{ flexShrink: 0, opacity: 0.65 }} />
+                  AI Chat
+                </button>
+              </div>
             </nav>
+
+            {/* Account chip at bottom */}
+            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--lf-rule)', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 12px', borderRadius: 10,
+                border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+              }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: 8,
+                  background: 'var(--lf-sauce)', color: 'var(--lf-paper)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 14, flexShrink: 0,
+                }}>
+                  {initial}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontWeight: 500, color: 'var(--lf-ink)', fontSize: 13,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    fontFamily: "'Geist', system-ui, sans-serif",
+                  }}>
+                    {firstName}
+                  </div>
+                  <div style={{ color: 'var(--lf-muted)', fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {tenant?.plan === 'pro' ? 'pro plan' : 'self-hosted'}
+                  </div>
+                </div>
+              </div>
+            </div>
           </motion.div>
         </>
       )}
@@ -146,10 +234,16 @@ export function MobileMenuButton({ onClick }: { onClick: () => void }) {
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.95 }}
-      className="md:hidden fixed top-4 left-4 z-30 w-10 h-10 rounded-xl bg-surface-solid border border-border flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      style={{
+        position: 'fixed', top: 14, left: 16, zIndex: 30,
+        width: 36, height: 36, borderRadius: 9,
+        background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer',
+      }}
+      className="md:hidden"
     >
-      <Menu className="w-5 h-5 text-text" />
+      <Menu size={18} style={{ color: 'var(--lf-ink)' }} />
     </motion.button>
   );
 }

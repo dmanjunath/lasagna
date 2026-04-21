@@ -76,7 +76,7 @@ export function HistoryTab({ onSelectThread }: HistoryTabProps) {
               data-testid="history-thread"
             >
               <div className="flex justify-between items-start mb-1">
-                <span className="text-sm font-medium text-text line-clamp-1">
+                <span className="text-sm font-medium text-text line-clamp-2">
                   {thread.title || 'Untitled thread'}
                 </span>
                 <span className="text-[10px] text-text-secondary whitespace-nowrap ml-2">

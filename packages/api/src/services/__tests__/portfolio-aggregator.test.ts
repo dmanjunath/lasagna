@@ -18,9 +18,9 @@ describe('portfolio-aggregator', () => {
       const usStocks = result.assetClasses.find(a => a.name === 'US Stocks');
       expect(usStocks).toBeDefined();
       expect(usStocks!.value).toBe(80000);
-      expect(usStocks!.subCategories.length).toBe(1); // Total Market
-      expect(usStocks!.subCategories[0].name).toBe('Total Market');
-      expect(usStocks!.subCategories[0].holdings.length).toBe(2);
+      expect(usStocks!.categories.length).toBe(1); // Total Market
+      expect(usStocks!.categories[0].name).toBe('Total Market');
+      expect(usStocks!.categories[0].holdings.length).toBe(2);
     });
 
     it('calculates percentages correctly', () => {
