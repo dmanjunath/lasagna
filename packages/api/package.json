@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench:llm": "dotenv -e ../../.env -- vitest run --config vitest.bench.config.ts",
+    "bench:llm:score": "dotenv -e ../../.env -- BENCH_SCORE=true vitest run --config vitest.bench.config.ts",
     "bench:llm:watch": "dotenv -e ../../.env -- vitest --config vitest.bench.config.ts",
+    "bench:baseline": "dotenv -e ../../.env -- tsx src/agent/__tests__/benchmarks/compare.ts baseline",
+    "bench:compare": "dotenv -e ../../.env -- tsx src/agent/__tests__/benchmarks/compare.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

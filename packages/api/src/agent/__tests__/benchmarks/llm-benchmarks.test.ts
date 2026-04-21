@@ -132,8 +132,10 @@ const BENCHMARK_CASES: BenchmarkCase[] = [
 
 describe('LLM Benchmarks', () => {
   // Run all cases and write results to results/latest.json
+  // Set BENCH_SCORE=true to also run LLM-as-judge scoring (slower, costs more tokens)
   it('full suite — writes results to disk', async () => {
-    const results = await runSuite(BENCHMARK_CASES, { verbose: true, writeResults: true });
+    const score = process.env.BENCH_SCORE === 'true';
+    const results = await runSuite(BENCHMARK_CASES, { verbose: true, score, writeResults: true });
 
     const failed = results.filter(r => !r.passed);
     if (failed.length > 0) {

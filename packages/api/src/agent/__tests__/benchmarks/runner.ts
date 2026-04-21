@@ -16,6 +16,7 @@ import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getModel, createAgentTools, systemPrompt } from '../../agent.js';
+import { scoreResponse, type ScoredResponse } from './scorer.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = join(__dirname, 'results');
@@ -64,13 +65,15 @@ export interface BenchmarkResult {
   error?: string;
   timestamp: string;
   model: string;
+  /** LLM-as-judge scores — only present when scoring is enabled */
+  scoring?: ScoredResponse;
 }
 
 export async function runBenchmark(
   benchCase: BenchmarkCase,
-  opts: { verbose?: boolean } = {},
+  opts: { verbose?: boolean; score?: boolean } = {},
 ): Promise<BenchmarkResult> {
-  const { verbose = false } = opts;
+  const { verbose = false, score = false } = opts;
   const startMs = Date.now();
   const tenantId = benchCase.tenantId ?? 'benchmark-seed';
 
@@ -175,11 +178,20 @@ export async function runBenchmark(
     ? `Latency ${latencyMs}ms exceeded warning threshold ${benchCase.latencyWarnMs}ms`
     : undefined;
 
+  // Optional LLM-as-judge scoring
+  let scoring: ScoredResponse | undefined;
+  if (score && response) {
+    if (verbose) process.stdout.write('  Scoring response...');
+    scoring = await scoreResponse(benchCase.message, response);
+    if (verbose) console.log(` ${scoring.total}/100`);
+  }
+
   const finalResult: BenchmarkResult = {
     ...partialResult,
     assertions: assertionResults,
     passed: !errorMsg && allAssertionsPassed,
     latencyWarning,
+    scoring,
   };
 
   if (verbose) {
@@ -188,6 +200,11 @@ export async function runBenchmark(
     console.log(`  Latency: ${latencyMs}ms${latencyWarning ? ' ⚠️' : ''}`);
     console.log(`  Tools called (${toolCallCount}): ${toolNames.join(', ') || 'none'}`);
     console.log(`  Response length: ${response.length} chars`);
+    if (scoring) {
+      const s = scoring.scores;
+      console.log(`  Score: ${scoring.total}/100  (rel:${s.relevance} act:${s.actionability} data:${s.use_of_data} clar:${s.clarity} comp:${s.completeness} overall:${s.overall})`);
+      console.log(`  Judge: "${s.reasoning}"`);
+    }
     if (errorMsg) console.log(`  Error: ${errorMsg}`);
     for (const a of assertionResults) {
       console.log(`  ${a.passed ? '✓' : '✗'} ${a.name}${a.error ? ': ' + a.error : ''}`);
@@ -200,24 +217,28 @@ export async function runBenchmark(
 
 export async function runSuite(
   cases: BenchmarkCase[],
-  opts: { verbose?: boolean; writeResults?: boolean } = {},
+  opts: { verbose?: boolean; score?: boolean; writeResults?: boolean } = {},
 ): Promise<BenchmarkResult[]> {
-  const { verbose = true, writeResults = true } = opts;
+  const { verbose = true, score = false, writeResults = true } = opts;
   const results: BenchmarkResult[] = [];
 
-  console.log(`\nRunning ${cases.length} benchmark case(s)...\n`);
+  console.log(`\nRunning ${cases.length} benchmark case(s)${score ? ' with scoring' : ''}...\n`);
 
   for (const benchCase of cases) {
-    const result = await runBenchmark(benchCase, { verbose });
+    const result = await runBenchmark(benchCase, { verbose, score });
     results.push(result);
   }
 
   const passed = results.filter(r => r.passed).length;
   const failed = results.length - passed;
   const avgLatency = Math.round(results.reduce((s, r) => s + r.latencyMs, 0) / results.length);
+  const scored = results.filter(r => r.scoring);
+  const avgScore = scored.length > 0
+    ? Math.round(scored.reduce((s, r) => s + (r.scoring?.total ?? 0), 0) / scored.length)
+    : null;
 
   console.log(`\n${'═'.repeat(60)}`);
-  console.log(`Results: ${passed} passed, ${failed} failed | avg latency: ${avgLatency}ms`);
+  console.log(`Results: ${passed} passed, ${failed} failed | avg latency: ${avgLatency}ms${avgScore !== null ? ` | avg score: ${avgScore}/100` : ''}`);
   console.log('═'.repeat(60));
 
   if (writeResults) {
