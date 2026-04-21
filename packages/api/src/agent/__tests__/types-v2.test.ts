@@ -4,30 +4,41 @@ import { responseSchemaV2 } from '../types-v2.js';
 describe('responseSchemaV2', () => {
   it('accepts valid response with all fields', () => {
     const input = {
-      metrics: [{ label: 'FIRE Number', value: '$2.5M' }],
+      chat: 'Here is my analysis.',
       content: '## Analysis\n\nSome content here.',
-      actions: ['Increase savings', 'Review allocation']
+      metrics: [{ label: 'FIRE Number', value: '$2.5M' }],
+      actions: ['Increase savings', 'Review allocation'],
     };
     const result = responseSchemaV2.safeParse(input);
     expect(result.success).toBe(true);
   });
 
-  it('accepts response with only content', () => {
-    const input = { content: 'Just prose, no metrics or actions.' };
+  it('accepts response with only required fields', () => {
+    const input = {
+      chat: 'Short reply.',
+      content: 'Just prose, no metrics or actions.',
+    };
     const result = responseSchemaV2.safeParse(input);
     expect(result.success).toBe(true);
   });
 
-  it('rejects response without content', () => {
-    const input = { metrics: [{ label: 'X', value: 'Y' }] };
+  it('rejects response missing chat', () => {
+    const input = { content: 'Some content.' };
+    const result = responseSchemaV2.safeParse(input);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects response missing content', () => {
+    const input = { chat: 'Here is a reply.' };
     const result = responseSchemaV2.safeParse(input);
     expect(result.success).toBe(false);
   });
 
   it('rejects metrics with missing label', () => {
     const input = {
-      content: 'text',
-      metrics: [{ value: '$100' }]
+      chat: 'Reply.',
+      content: 'Content.',
+      metrics: [{ value: '$100' }],
     };
     const result = responseSchemaV2.safeParse(input);
     expect(result.success).toBe(false);

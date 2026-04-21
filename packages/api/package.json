@@ -9,6 +9,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench:llm": "dotenv -e ../../.env -- vitest run --config vitest.bench.config.ts",
+    "bench:llm:watch": "dotenv -e ../../.env -- vitest --config vitest.bench.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@types/node-cron": "^3.0.11",
+    "dotenv-cli": "^11.0.0",
     "tsx": "^4.21.0",
     "vitest": "^4.1.1"
   }

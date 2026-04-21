@@ -18,3 +18,5 @@ docs/
 e2e/screenshots/*
 .worktrees/
 tax_docs/
+# LLM benchmark results (local only)
+packages/api/src/agent/__tests__/benchmarks/results/
