@@ -35,7 +35,9 @@ export function GlobalChatSidebar() {
 
   // Track active thread ID in a ref so async callbacks always see the latest value
   const activeThreadIdRef = useRef<string | null>(null);
-  activeThreadIdRef.current = activeThreadIndex !== null ? (threads[activeThreadIndex]?.thread.id ?? null) : null;
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadIndex !== null ? (threads[activeThreadIndex]?.thread.id ?? null) : null;
+  }, [activeThreadIndex, threads]);
 
   // Suggestions tailored to the current page
   const pageSuggestions: Record<string, string[]> = {
