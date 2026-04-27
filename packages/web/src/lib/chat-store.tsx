@@ -2,6 +2,22 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 import { api, API_BASE } from './api';
 import type { Message } from './types';
 
+export type ModelLevel = 'fast' | 'medium' | 'quality' | 'frontier';
+
+export const DEFAULT_MODEL_LEVEL: ModelLevel = 'medium';
+
+export function getPreferredModelLevel(): ModelLevel {
+  try {
+    const stored = localStorage.getItem('lf-chat-model');
+    if (stored && ['fast', 'medium', 'quality', 'frontier'].includes(stored)) return stored as ModelLevel;
+  } catch { /* ignore */ }
+  return DEFAULT_MODEL_LEVEL;
+}
+
+export function setPreferredModelLevel(level: ModelLevel) {
+  try { localStorage.setItem('lf-chat-model', level); } catch { /* ignore */ }
+}
+
 export interface ThreadData {
   thread: {
     id: string;
@@ -13,6 +29,8 @@ export interface ThreadData {
   messages: Message[];
   apiThreadId: string | null;
   unread?: boolean;
+  modelLevel?: ModelLevel;
+  originalModelLevel?: ModelLevel;
 }
 
 interface ChatStoreState {
@@ -31,7 +49,7 @@ interface ChatStoreState {
   pendingMessage: { text: string; nonce: number } | null;
   setPendingMessage: (msg: { text: string; nonce: number } | null) => void;
   clearPendingMessage: () => void;
-  sendMessage: (text: string, existingThreadId: string | null, contextString: string, contextMeta: unknown, tags?: string[]) => Promise<{ response: string; threadId: string; contextMeta: unknown; threadTitle: string | null }>;
+  sendMessage: (text: string, existingThreadId: string | null, contextString: string, contextMeta: unknown, tags?: string[], modelLevel?: ModelLevel) => Promise<{ response: string; threadId: string; contextMeta: unknown; threadTitle: string | null }>;
 }
 
 const ChatStoreContext = createContext<ChatStoreState | null>(null);
@@ -74,6 +92,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     contextString: string,
     contextMeta: unknown,
     tags?: string[],
+    modelLevel?: ModelLevel,
   ) => {
     try {
       let threadId = existingThreadId;
@@ -91,6 +110,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
           message: content,
           context: contextString || undefined,
           uiPayload: contextMeta ? { context: contextMeta } : undefined,
+          modelLevel: modelLevel ?? DEFAULT_MODEL_LEVEL,
         }),
       });
 

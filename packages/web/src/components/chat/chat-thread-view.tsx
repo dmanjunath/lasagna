@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Send, Trash2, Plus, Loader2 } from 'lucide-react';
 import { MessageBubble } from './message-bubble';
+import { ModelSelector } from './model-selector';
 import { cn } from '../../lib/utils';
 import type { Message } from '../../lib/types';
 import type { Thread } from './chat-thread-list';
@@ -42,13 +43,14 @@ interface ChatThreadViewProps {
   onFollowUp: (text: string) => void;
   onDelete?: () => void;
   onNewChat?: () => void;
+  onRestartWithLevel?: (level: import('../../lib/chat-store').ModelLevel) => void;
   loading?: boolean;
 }
 
-export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete, onNewChat, loading }: ChatThreadViewProps) {
+export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete, onNewChat, onRestartWithLevel, loading }: ChatThreadViewProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -59,6 +61,23 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
     if (!input.trim() || loading) return;
     onFollowUp(input.trim());
     setInput('');
+    // Reset textarea height
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    // Auto-resize up to 3 lines
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 80)}px`;
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
   };
 
   return (
@@ -107,25 +126,30 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
       </div>
 
       {/* Follow-up input */}
-      <form onSubmit={handleSubmit} className="px-3 py-3 border-t border-border flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <input
+      <form onSubmit={handleSubmit} className="px-3 pt-2 pb-3 border-t border-border flex-shrink-0">
+        <div className="flex items-center justify-start mb-1.5">
+          <ModelSelector threadLocalId={thread.id} onRestart={onRestartWithLevel} />
+        </div>
+        <div className="flex items-end gap-2">
+          <textarea
             ref={inputRef}
-            type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
             placeholder="Follow up…"
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-2xl border border-border bg-bg-elevated text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-surface-hover transition-all disabled:opacity-50"
+            rows={1}
+            className="flex-1 px-4 py-2.5 rounded-2xl border border-border bg-bg-elevated text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-surface-hover transition-all disabled:opacity-50 resize-none overflow-y-auto"
+            style={{ maxHeight: 80 }}
           />
           <button
             type="submit"
             disabled={!input.trim() || loading}
             className={cn(
-              "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all",
+              "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all mb-0.5",
               input.trim() && !loading
                 ? "bg-accent hover:bg-accent/90 shadow-sm shadow-accent/20"
-                : "bg-surface-hover opacity-40 cursor-not-allowed"
+                : "bg-border text-text-secondary cursor-not-allowed"
             )}
           >
             <Send className="w-3.5 h-3.5 text-white" />

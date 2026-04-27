@@ -16,6 +16,8 @@ const chatRequestSchema = z.object({
   context: z.string().max(20000).optional(),
   // Optional structured context metadata for the user message bubble (stored as ui_payload)
   uiPayload: z.unknown().optional(),
+  // Optional model quality level
+  modelLevel: z.enum(["fast", "medium", "quality", "frontier"]).optional(),
 });
 
 chatRouter.post("/", async (c) => {
@@ -95,7 +97,7 @@ chatRouter.post("/", async (c) => {
     }
 
     const stepResult = await generateText({
-      model: getModel("fast"),
+      model: getModel(body.modelLevel ?? "fast"),
       system: systemPrompt,
       messages: conversationMessages,
       tools,

@@ -7,10 +7,10 @@ import { createTaxTools } from "./tools/tax.js";
 import { createSpendingTools } from "./tools/spending.js";
 import { env } from "../lib/env.js";
 
-// Lazy-load model to avoid startup failure when OPENROUTER_API_KEY is not set
-let _model: LanguageModel | null = null;
+// Lazy-load models to avoid startup failure when OPENROUTER_API_KEY is not set
+const _models = new Map<ModelLevel, LanguageModel>();
 
-type ModelLevel = "fast" | "medium" | "quality" | "frontier";
+export type ModelLevel = "fast" | "medium" | "quality" | "frontier";
 
 const modelMappings: Record<ModelLevel, string> = {
   "fast": "google/gemini-3.1-flash-lite-preview",
@@ -20,17 +20,20 @@ const modelMappings: Record<ModelLevel, string> = {
 };
 
 export function getModel(level: ModelLevel = "quality"): LanguageModel {
-  if (!_model) {
-    if (!env.OPENROUTER_API_KEY) {
-      throw new Error("OPENROUTER_API_KEY is required for AI features");
-    }
-    const openrouter = createOpenRouter({
-      apiKey: env.OPENROUTER_API_KEY,
-    });
-    _model = openrouter(modelMappings[level]);
-    console.log(`Initialized OpenRouter model with ${modelMappings[level]}`);
+  console.log("Requested model level:", level);
+  const cached = _models.get(level);
+  if (cached) return cached;
+
+  if (!env.OPENROUTER_API_KEY) {
+    throw new Error("OPENROUTER_API_KEY is required for AI features");
   }
-  return _model;
+  const openrouter = createOpenRouter({
+    apiKey: env.OPENROUTER_API_KEY,
+  });
+  const model = openrouter(modelMappings[level]);
+  _models.set(level, model);
+  console.log(`Initialized OpenRouter model: ${modelMappings[level]} (${level})`);
+  return model;
 }
 
 export function createAgentTools(
