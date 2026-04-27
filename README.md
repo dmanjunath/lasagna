@@ -15,16 +15,19 @@
 
 ---
 
-Most financial apps want your data so they can sell it, train on it, or monetize it. LasagnaFi inverts that model. The AI sees numbers and patterns, never your name, account numbers, or institution details.
+You want to manage your finances and get help. You don't want companies to sell your data or use it to train AIs. Enter LasagnaFi, a tool to help you keep your finances private while sharing anonymized data to get tailored financial insights. The AI sees numbers and patterns, never your name, account numbers, or any other personally identifiable details.
 
-Ask anything about your finances and get genuinely personalized advice without handing a model provider a map of your financial life. Your data stays in a private database, not shared with anyone.
+LasagnaFi is not a budgeting app, in fact if you're just looking for budgeting this is the wrong app. Lasagna is meant to give you extremely personalized insights across Debt Payoff, Retirement, Taxes and Portfolio Composition.
 
 ---
 
 ## How it works
 
-**1. Your data stays private**
+**1. Connect your data sources**
 Connect bank accounts via Plaid or enter balances manually. All accounts, holdings, and transactions live in a private database. Never shared with AI providers.
+
+**2. The dashboard shows you personalized info**
+The dashboard show you a comprehensive financial snapshot, not just spending like most budgeting apps, but debt payoff, taxes, retirement and portfolio composition. See [Features](#Features) below for a full list of all functionality.
 
 **2. You ask a question**
 Ask anything in plain English: "Am I saving enough for retirement?" or "Should I pay down debt or invest?" Lasagna pulls the relevant numbers from your database and assembles context for the AI.
@@ -33,28 +36,26 @@ Ask anything in plain English: "Am I saving enough for retirement?" or "Should I
 Before anything reaches the AI, identifying information is stripped. It sees balances, allocations, and spending patterns, never your name, which bank you use, or account numbers.
 
 **4. You get a real answer**
-AI responds with personalized, actionable advice based on your actual numbers. You can drill down, follow up, and ask anything. The model never retains your data between sessions.
-
-**Your data, your rules.** Lasagna runs self hosted or you can use the hosted version.
+AI responds with personalized, actionable advice based on your actual numbers. You can drill down, follow up, and ask anything.
 
 ---
 
 ## Features
 
 ### Dashboard
-Your complete financial picture at a glance. Net worth with a 30-day sparkline, cash and savings, monthly income and spending, goals progress, and AI-generated action items.
+Your complete financial picture at a glance. Net worth over time, cash, investments and savings balances, monthly income and spending, goals progress, and action items.
 
 ### Actions
-AI-generated action items across every area of your finances, prioritized by urgency. Covers spending patterns, debt, tax opportunities, portfolio imbalances, and behavioral insights. Grouped by urgency with one-tap navigation to the relevant page.
+Action items generated across every area of your finances, prioritized by urgency. Covers spending patterns, debt, tax opportunities, portfolio imbalances, and behavioral insights. Grouped by urgency with one-tap navigation to the relevant page.
 
 ### Financial Priorities (Your Lasagna Layers)
-12 universal layers, from stabilizing your finances to financial independence. The AI figures out where you are and tells you what to focus on next. Backed by rule-based logic, not generic advice.
+The financial journey everyone goes through, from stabilizing your finances to financial independence. The system figures out where you are and tells you what to focus on next.
 
 ### Retirement Planning
 Interactive retirement modeling with age and spending sliders, FIRE number calculation, portfolio projection charts, and a retirement readiness meter. Pulls directly from your live account balances.
 
 ### Monte Carlo Simulations
-10,000 stochastic simulations modeling your probability of success across retirement. Fan charts (p5–p95), spaghetti charts, final value histograms, and historical backtesting against every market period since 1928, including 2008, the Great Depression, and stagflation.
+ Stochastic simulations modeling your probability of success across retirement. Fan charts (p5–p95), spaghetti charts, final value histograms, and historical backtesting against every market period since 1928, including 2008, the Great Depression, and stagflation.
 
 ### Portfolio Analysis
 Aggregate all holdings across accounts. Drill down by asset class, sub-category, or individual ticker. Interactive donut, bar, and treemap charts. Blended historical return calculations with 175+ tickers mapped to asset categories.
@@ -66,7 +67,7 @@ Monthly expense breakdown by category with 6-month trend charts and full transac
 Complete debt overview with APRs, avalanche vs. snowball payoff comparison, days-to-debt-free timeline, and total interest savings calculation. Syncs payoff dates and interest rates directly from Plaid where available.
 
 ### Tax Strategy
-AI-generated tax optimization recommendations: Roth conversion opportunities, 0% LTCG bracket harvesting, HSA optimization, asset location, and 401k contribution gap analysis. Upload tax documents for AI-assisted extraction.
+Tax optimization recommendations based on your specific situation: Roth conversion opportunities, 0% LTCG bracket harvesting, HSA optimization, asset location, and 401k contribution gap analysis. Upload tax documents for AI-assisted extraction and analysis, zero data retention.
 
 ### Goals
 Track financial goals with progress bars, preset templates, inline editing, and completion tracking.

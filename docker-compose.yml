@@ -26,7 +26,6 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://lasagna:lasagna@db:5432/lasagna
       GOOGLE_APPLICATION_CREDENTIALS: /app/gcp-service-account.json
       NO_COLOR: "1"
     volumes:

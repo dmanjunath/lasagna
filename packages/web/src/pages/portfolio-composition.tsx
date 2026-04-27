@@ -709,7 +709,7 @@ export default function PortfolioComposition() {
   const allAccounts = useMemo(() => {
     const names = new Set<string>();
     for (const ac of assetClasses) {
-      for (const sc of ac.categories) {
+      for (const sc of ac.categories ?? []) {
         for (const h of sc.holdings) {
           names.add(h.account);
         }
@@ -723,11 +723,11 @@ export default function PortfolioComposition() {
     if (!activeAccounts) return assetClasses;
     return assetClasses.map(ac => ({
       ...ac,
-      categories: ac.categories.map(sc => ({
+      categories: (ac.categories ?? []).map(sc => ({
         ...sc,
         holdings: sc.holdings.filter(h => activeAccounts.has(h.account)),
       })).filter(sc => sc.holdings.length > 0),
-    })).filter(ac => ac.categories.length > 0);
+    })).filter(ac => (ac.categories ?? []).length > 0);
   }, [assetClasses, activeAccounts]);
 
   const filteredTotal = useMemo(
@@ -740,7 +740,7 @@ export default function PortfolioComposition() {
     const tickerMap = new Map<string, { holdings: Holding[]; totalValue: number; totalShares: number; assetClass: string; category: string }>();
     let idx = 0;
     for (const ac of filteredAssetClasses) {
-      for (const sc of ac.categories) {
+      for (const sc of ac.categories ?? []) {
         for (const h of sc.holdings) {
           const existing = tickerMap.get(h.ticker);
           if (existing) {
@@ -775,7 +775,7 @@ export default function PortfolioComposition() {
     const result: { name: string; value: number; percentage: number; color: string; holdings: Holding[] }[] = [];
     let ci = 0;
     for (const ac of filteredAssetClasses) {
-      for (const sc of ac.categories) {
+      for (const sc of ac.categories ?? []) {
         result.push({
           name: sc.name,
           value: sc.value,
@@ -795,7 +795,7 @@ export default function PortfolioComposition() {
       if (drillLevel1) {
         const ac = filteredAssetClasses.find(a => a.name === drillLevel1);
         const acTotal = ac?.value || 0;
-        const holdings: Holding[] = ac?.categories.flatMap(sc => sc.holdings) ?? [];
+        const holdings: Holding[] = (ac?.categories ?? []).flatMap(sc => sc.holdings);
         return holdings
           .map((h, i) => ({
             name: h.ticker,
@@ -853,7 +853,7 @@ export default function PortfolioComposition() {
     // account grouping
     const acctMap = new Map<string, number>();
     for (const ac of filteredAssetClasses) {
-      for (const sc of ac.categories) {
+      for (const sc of ac.categories ?? []) {
         for (const h of sc.holdings) {
           acctMap.set(h.account, (acctMap.get(h.account) ?? 0) + h.value);
         }
@@ -1272,7 +1272,7 @@ export default function PortfolioComposition() {
                 let acName = '—';
                 let histReturn: number | null = null;
                 for (const ac of filteredAssetClasses) {
-                  for (const sc of ac.categories) {
+                  for (const sc of ac.categories ?? []) {
                     if (sc.holdings.some(h => h.ticker === t.ticker)) acName = ac.name;
                   }
                 }
@@ -1339,7 +1339,7 @@ export default function PortfolioComposition() {
                 let scName = '—';
                 let histReturn: number | null = null;
                 for (const ac of filteredAssetClasses) {
-                  for (const sc of ac.categories) {
+                  for (const sc of ac.categories ?? []) {
                     if (sc.holdings.some(h => h.ticker === t.ticker)) {
                       acName = ac.name;
                       scName = sc.name;
@@ -1414,7 +1414,7 @@ export default function PortfolioComposition() {
                     <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorForAssetClass(ac.name, i), flexShrink: 0 }} />
                     <span style={{ fontWeight: 600, color: 'var(--lf-ink)', fontSize: 15 }}>{ac.name}</span>
                     <span style={{ fontSize: 13, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
-                      {ac.categories.length}
+                      {(ac.categories ?? []).length}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -1439,7 +1439,7 @@ export default function PortfolioComposition() {
                       exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
                       style={{ borderTop: '1px solid var(--lf-rule)', background: 'var(--lf-cream)', overflow: 'hidden' }}
                     >
-                      {ac.categories.map((sc, j) => (
+                      {(ac.categories ?? []).map((sc, j) => (
                         <div key={sc.name} style={{ padding: '12px 20px 0 36px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>{sc.name}</span>
@@ -1468,7 +1468,7 @@ export default function PortfolioComposition() {
                               </div>
                             </div>
                           ))}
-                          {j < ac.categories.length - 1 && (
+                          {j < (ac.categories ?? []).length - 1 && (
                             <div style={{ height: 1, background: 'var(--lf-rule)', margin: '12px 0' }} />
                           )}
                         </div>
@@ -1626,7 +1626,7 @@ export default function PortfolioComposition() {
             {groupBy === 'account' && (() => {
               const acctMap = new Map<string, { value: number; holdings: Holding[] }>();
               for (const ac of filteredAssetClasses) {
-                for (const sc of ac.categories) {
+                for (const sc of ac.categories ?? []) {
                   for (const h of sc.holdings) {
                     const existing = acctMap.get(h.account);
                     if (existing) {

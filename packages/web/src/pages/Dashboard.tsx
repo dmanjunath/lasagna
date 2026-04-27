@@ -128,7 +128,7 @@ function calcHealthScore(data: {
   if (data.hasProfile) score += 7;
   if (data.savingsRate !== null && data.savingsRate > 0)
     score += Math.min(10, Math.floor(data.savingsRate * 50));
-  score = Math.min(100, score);
+  score = Math.min(100, Math.round(score));
 
   if (score >= 80) return { score, grade: 'Excellent', color: 'var(--lf-pos)' };
   if (score >= 65) return { score, grade: 'Good', color: 'var(--lf-cheese)' };
