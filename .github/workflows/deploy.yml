@@ -31,3 +31,4 @@ jobs:
           tags: |
             ${{ env.API_IMAGE }}:${{ github.sha }}
             ${{ env.API_IMAGE }}:latest
+
