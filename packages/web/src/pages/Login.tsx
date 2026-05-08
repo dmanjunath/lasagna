@@ -13,6 +13,9 @@ export function Login() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [acceptedTos, setAcceptedTos] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [acceptedNotRia, setAcceptedNotRia] = useState(false);
 
   const autofillDemo = () => {
     setEmail("demo@lasagnafi.com");
@@ -22,10 +25,14 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)) {
+      setError("Please accept all agreements before creating an account.");
+      return;
+    }
     setLoading(true);
     try {
       if (isSignup) {
-        await signup(email, password, name || undefined);
+        await signup(email, password, name || undefined, { acceptedTos, acceptedPrivacy, acceptedNotRia });
       } else {
         await login(email, password);
       }
@@ -124,6 +131,66 @@ export function Login() {
               className="w-full px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20 transition-all"
             />
 
+            {isSignup && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-3 text-sm"
+              >
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTos}
+                    onChange={(e) => setAcceptedTos(e.target.checked)}
+                    className="mt-0.5 accent-[var(--lf-sauce)]"
+                  />
+                  <span className="text-text-secondary leading-snug">
+                    I agree to the{" "}
+                    <a
+                      href="https://lasagnafi.com/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent hover:text-accent-dim underline"
+                    >
+                      Terms of Service
+                    </a>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedPrivacy}
+                    onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+                    className="mt-0.5 accent-[var(--lf-sauce)]"
+                  />
+                  <span className="text-text-secondary leading-snug">
+                    I agree to the{" "}
+                    <a
+                      href="https://lasagnafi.com/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent hover:text-accent-dim underline"
+                    >
+                      Privacy Policy
+                    </a>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedNotRia}
+                    onChange={(e) => setAcceptedNotRia(e.target.checked)}
+                    className="mt-0.5 accent-[var(--lf-sauce)]"
+                  />
+                  <span className="text-text-secondary leading-snug">
+                    I understand that LasagnaFi is <strong className="text-text">not a registered
+                    investment advisor</strong> and does not provide financial advice
+                  </span>
+                </label>
+              </motion.div>
+            )}
+
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -4 }}
@@ -137,7 +204,7 @@ export function Login() {
 
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || (isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia))}
               className="w-full"
             >
               {loading ? (
@@ -158,6 +225,9 @@ export function Login() {
                 onClick={() => {
                   setIsSignup(!isSignup);
                   setError("");
+                  setAcceptedTos(false);
+                  setAcceptedPrivacy(false);
+                  setAcceptedNotRia(false);
                 }}
                 className="text-accent hover:text-accent-dim transition-colors font-medium"
               >

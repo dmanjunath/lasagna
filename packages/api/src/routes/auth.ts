@@ -14,14 +14,21 @@ export const authRoutes = new Hono<AuthEnv>();
 
 // Sign up — creates a new tenant + user (owner)
 authRoutes.post("/signup", async (c) => {
-  const { email, password, name } = await c.req.json<{
+  const { email, password, name, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json<{
     email: string;
     password: string;
     name?: string;
+    acceptedTos?: boolean;
+    acceptedPrivacy?: boolean;
+    acceptedNotRia?: boolean;
   }>();
 
   if (!email || !password) {
     return c.json({ error: "Email and password are required" }, 400);
+  }
+
+  if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia) {
+    return c.json({ error: "You must accept the Terms of Service, Privacy Policy, and RIA acknowledgment" }, 400);
   }
 
   const existing = await db.query.users.findFirst({

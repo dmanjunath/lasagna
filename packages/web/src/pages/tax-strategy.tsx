@@ -8,6 +8,7 @@ import type { TaxDocument, TaxDocumentSummary, TaxInputResult } from "../lib/typ
 import { api } from "../lib/api.js";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
+import { LegalDisclaimer } from "../components/common/legal-disclaimer.js";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -516,6 +517,7 @@ export function TaxStrategy() {
                 onDismiss={() => dismiss(ins.id)}
               />
             ))}
+            <LegalDisclaimer variant="insights" />
           </div>
         </Section>
       )}

@@ -376,7 +376,7 @@ export function Dashboard() {
       api.getPriorities().catch(() => ({ steps: [], currentStepId: '', summary: {} })),
     ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, spendingData, goalsData, insightsData, prioritiesData]) => {
       const onboardingDone = localStorage.getItem('lasagna_onboarding_done');
-      if (balanceData.balances.length === 0 && !profileData.financialProfile && !onboardingDone) {
+      if (!profileData.financialProfile && !onboardingDone) {
         navigate('/onboarding', { replace: true });
         return;
       }

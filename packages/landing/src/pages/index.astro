@@ -2,8 +2,9 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/Nav.astro";
 import Hero from "../components/Hero.astro";
-import Marquee from "../components/Marquee.astro";
 import Privacy from "../components/Privacy.astro";
+import FeedItEverything from "../components/FeedItEverything.astro";
+import YourFullPicture from "../components/YourFullPicture.astro";
 import HowItWorks from "../components/HowItWorks.astro";
 import LasagnaLayers from "../components/LasagnaLayers.astro";
 import Features from "../components/Features.astro";
@@ -17,13 +18,12 @@ import Footer from "../components/Footer.astro";
   <Nav />
   <main>
     <Hero />
-    <Marquee />
-    <Privacy />
     <HowItWorks />
-    <div style="padding: 96px 0;">
-      <LasagnaLayers />
-    </div>
+    <FeedItEverything />
+    <LasagnaLayers />
+    <YourFullPicture />
     <Features />
+    <Privacy />
     <TwoWays />
     <FAQ />
     <FinalCTA />

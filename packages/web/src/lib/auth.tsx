@@ -25,7 +25,7 @@ interface AuthState {
   tenant: Tenant | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name?: string) => Promise<void>;
+  signup: (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => Promise<void>;
   logout: () => Promise<void>;
   updateTenant: (updates: Partial<Tenant>) => void;
 }
@@ -61,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signup = useCallback(
-    async (email: string, password: string, name?: string) => {
-      const data = (await api.signup({ email, password, name })) as {
+    async (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => {
+      const data = (await api.signup({ email, password, name, acceptedTos: agreements?.acceptedTos ?? false, acceptedPrivacy: agreements?.acceptedPrivacy ?? false, acceptedNotRia: agreements?.acceptedNotRia ?? false })) as {
         user: User;
         tenant: Tenant | null;
       };

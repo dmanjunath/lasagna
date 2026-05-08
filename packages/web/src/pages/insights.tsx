@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, RefreshCw, Zap } from 'lucide-react';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
+import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 
 // ---------------------------------------------------------------------------
 // Urgency → display group mapping
@@ -512,6 +513,8 @@ export function Insights() {
           Walk me through this →
         </button>
       </div>
+
+      <LegalDisclaimer variant="insights" />
 
       {/* ------------------------------------------------------------------ */}
       {/* Dark hero card — summary grid                                        */}

@@ -17,7 +17,7 @@ const layers = [
     detail: "Term life insurance costs $30–60/month and replaces your income for dependents. Disability insurance is even more likely to be needed. 1 in 4 workers are disabled before retirement. A will ensures your assets go where you intend." },
   { color: "#5E7A28", name: "Tax-advantaged investing",     status: "next",
     headline: "HSA, Roth IRA, 401(k). Start growing tax-free.",
-    detail: "Tax-advantaged account limits reset every year. Miss one and that space is gone forever. $7,000 in a Roth IRA at age 25 grows to roughly $105,000 by retirement, completely tax-free." },
+    detail: "Tax-advantaged account limits reset every year. Miss one and that space is gone forever. Contributions to a Roth IRA grow tax-free — and the earlier you start, the more compounding works in your favor." },
   { color: "#3D7A35", name: "Medium-rate debt",             status: "queued",
     headline: "Address debt between 8–15% APR.",
     detail: "This range is roughly break-even with stock market returns. But tax-advantaged contribution limits are use-it-or-lose-it, while debt can be paid anytime. That's why investing comes first." },
@@ -26,13 +26,13 @@ const layers = [
     detail: "401(k) at $23,500/yr, Roth IRA at $7,000/yr, HSA at $4,300/yr. Every dollar in these accounts grows with a built-in tax advantage over a regular brokerage." },
   { color: "#25664A", name: "Tax optimization",             status: "queued",
     headline: "Make your money work harder after taxes.",
-    detail: "Tax-loss harvesting, asset location, and Roth conversions can add 0.5–1.5% to your annual returns. Sounds small, but it compounds to six figures over decades." },
+    detail: "Tax-loss harvesting, asset location, and Roth conversions are strategies that may improve your after-tax returns over time. LasagnaFi helps you identify which ones apply to your situation." },
   { color: "#1E5C50", name: "Low-interest debt",            status: "queued",
     headline: "Pay off remaining debt under 7%. If you want to.",
-    detail: "The math says invest instead. Expected market returns of 7–10% typically beat a guaranteed 3–5% savings. Paying these off is a lifestyle choice, not a math one." },
+    detail: "Historically, long-term market returns have exceeded low interest rates — but past performance doesn't guarantee future results. Whether to pay off low-rate debt or invest is a personal decision." },
   { color: "#185248", name: "Financial independence",       status: "queued",
-    headline: "Your portfolio covers your lifestyle. Work is optional.",
-    detail: "Financial independence means your investments generate enough to cover living expenses indefinitely. Typically 25 times your annual spending. At this point, work becomes a choice." },
+    headline: "Your portfolio may cover your lifestyle. Work becomes a choice.",
+    detail: "Financial independence is the point where your investments may generate enough to cover living expenses. A common benchmark is 25 times your annual spending — but individual results depend on market conditions, spending, and other factors." },
   { color: "#134840", name: "Estate and legacy",            status: "queued",
     headline: "Protect what outlasts you.",
     detail: "A revocable trust avoids probate, donor-advised funds maximize charitable giving, and beneficiary designations ensure your assets go exactly where you intend." },
@@ -104,14 +104,13 @@ const defaultIdx = layers.findIndex(l => l.now);
 <style>
   .layers-section-wrap {
     background: var(--cream);
-    border-radius: 28px;
-    margin: 0 20px;
+    border-top: 1px solid var(--rule);
   }
 
   section {
     max-width: 1240px;
     margin: 0 auto;
-    padding: 80px 40px;
+    padding: 96px 32px;
   }
 
   .section-head {
@@ -220,7 +219,6 @@ const defaultIdx = layers.findIndex(l => l.now);
 
   @media (max-width: 860px) {
     .layers-detail { grid-template-columns: 1fr; gap: 40px; }
-    section { padding: 64px 24px; }
-    .layers-section-wrap { margin: 0 12px; }
+    section { padding: 64px 20px; }
   }
 </style>

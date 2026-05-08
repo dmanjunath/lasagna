@@ -28,6 +28,12 @@ const year = new Date().getFullYear();
     </div>
 
     <div>
+      <h5>Legal</h5>
+      <a href="/terms">Terms of Service</a>
+      <a href="/privacy">Privacy Policy</a>
+    </div>
+
+    <div>
       <h5>Open source</h5>
       <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
       <a href={`${GITHUB_URL}/releases`} target="_blank" rel="noopener noreferrer">Releases</a>
@@ -37,6 +43,7 @@ const year = new Date().getFullYear();
 
   <div class="foot-bottom">
     <span>© {year} LasagnaFi, Inc.</span>
+    <span class="foot-disclaimer">LasagnaFi is not a registered investment advisor and does not provide financial advice. For informational purposes only.</span>
     <span>Made with love. Made with care. Made in VA, USA ❤️</span>
   </div>
 </footer>
@@ -53,7 +60,7 @@ const year = new Date().getFullYear();
     margin: 0 auto;
     padding: 64px 32px 48px;
     display: grid;
-    grid-template-columns: 1.5fr repeat(3, 1fr);
+    grid-template-columns: 1.5fr repeat(4, 1fr);
     gap: 32px;
   }
 
@@ -117,6 +124,12 @@ const year = new Date().getFullYear();
     font-family: var(--mono);
     font-size: 11px;
     color: var(--muted);
+    gap: 16px;
+  }
+
+  .foot-disclaimer {
+    text-align: center;
+    max-width: 400px;
   }
 
   @media (max-width: 860px) {

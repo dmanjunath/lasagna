@@ -1,0 +1,120 @@
+---
+import "../styles/global.css";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+export interface Props {
+  title: string;
+  lastUpdated: string;
+}
+
+const { title, lastUpdated } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={`${title} — LasagnaFi`} />
+    <title>{title} — LasagnaFi</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <Nav />
+    <main class="legal">
+      <header class="legal-header">
+        <h1 class="serif">{title}</h1>
+        <p class="last-updated mono">Last updated: {lastUpdated}</p>
+      </header>
+      <article class="legal-body">
+        <slot />
+      </article>
+    </main>
+    <Footer />
+  </body>
+</html>
+
+<style>
+  .legal {
+    max-width: 740px;
+    margin: 0 auto;
+    padding: 120px 32px 80px;
+  }
+
+  .legal-header {
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 32px;
+  }
+
+  .legal-header h1 {
+    font-size: 42px;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+
+  .last-updated {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .legal-body {
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--ink-soft);
+  }
+
+  .legal-body :global(h2) {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 400;
+    color: var(--ink);
+    margin: 48px 0 16px;
+  }
+
+  .legal-body :global(h3) {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 32px 0 12px;
+  }
+
+  .legal-body :global(p) {
+    margin: 0 0 16px;
+  }
+
+  .legal-body :global(ul),
+  .legal-body :global(ol) {
+    padding-left: 24px;
+    margin: 0 0 16px;
+  }
+
+  .legal-body :global(li) {
+    margin-bottom: 8px;
+  }
+
+  .legal-body :global(a) {
+    color: var(--sauce);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .legal-body :global(a:hover) {
+    color: var(--sauce-deep);
+  }
+
+  .legal-body :global(strong) {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  @media (max-width: 540px) {
+    .legal { padding: 100px 20px 60px; }
+    .legal-header h1 { font-size: 32px; }
+  }
+</style>

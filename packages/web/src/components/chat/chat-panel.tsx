@@ -6,6 +6,7 @@ import { Button } from "../ui/button.js";
 import type { Message } from "../../lib/types.js";
 import type { ResponseV2, ToolResult } from "../../lib/types-v2.js";
 import { API_BASE } from "../../lib/api.js";
+import { LegalDisclaimer } from "../common/legal-disclaimer.js";
 
 type ChatPanelProps = {
   threadId: string;
@@ -140,6 +141,8 @@ export function ChatPanel({
       <MessageList messages={messages} />
 
       {isLoading && <ToolStatus toolName={currentTool || "thinking"} />}
+
+      <LegalDisclaimer variant="chat" />
 
       <form
         onSubmit={handleSubmit}

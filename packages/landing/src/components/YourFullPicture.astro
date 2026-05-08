@@ -1,0 +1,468 @@
+---
+---
+
+<section class="dark-bg chat-section" id="chat">
+  <div class="inner">
+    <div class="section-head">
+      <h2 class="serif">
+        Your full picture.<br /><em>Reasoning that shows its work.</em>
+      </h2>
+      <p>
+        When you ask a question, LasagnaFi assembles a scrubbed bundle of your finances, sends it to a frontier LLM along with your question, and streams back a grounded answer that cites the exact numbers it used.
+      </p>
+    </div>
+
+    <div class="chat-question">
+      <span class="chat-q-tag">your question</span>
+      <div class="chat-q-text">"<em>Should I bump my 401(k) contribution before year-end?</em>"</div>
+    </div>
+
+    <div class="chat-flow">
+      <!-- LEFT: context bundle -->
+      <div class="chat-pane chat-pane-context">
+        <div class="chat-bundle">
+          <div class="bundle-row"><span class="bk">user</span><span class="bv tok">user_0xA2</span></div>
+          <div class="bundle-row"><span class="bk">filing</span><span class="bv">married · CA · 2 dep</span></div>
+          <div class="bundle-row"><span class="bk">income</span><span class="bv">$214,400 · 2 streams</span></div>
+          <div class="bundle-row"><span class="bk">marginal</span><span class="bv">32% fed · 9.3% CA</span></div>
+          <div class="bundle-row"><span class="bk">accts</span><span class="bv tok">[acct_01, acct_02 …]</span></div>
+          <div class="bundle-row"><span class="bk">net_worth</span><span class="bv">$182,430</span></div>
+          <div class="bundle-row"><span class="bk">debt</span><span class="bv">$8,420 @ 22.4%</span></div>
+          <div class="bundle-row"><span class="bk">port_alloc</span><span class="bv">71/24/5</span></div>
+          <div class="bundle-row"><span class="bk">401k_ytd</span><span class="bv">$11,200 / $23k</span></div>
+          <div class="bundle-row"><span class="bk">emergency</span><span class="bv">$24,800 (4.1mo)</span></div>
+          <div class="bundle-row"><span class="bk">goal</span><span class="bv">FIRE @ 55</span></div>
+          <div class="bundle-row"><span class="bk">priority</span><span class="bv">5/12 active</span></div>
+          <div class="bundle-row dim"><span class="bk">…</span><span class="bv">+ 4 more fields</span></div>
+        </div>
+      </div>
+
+      <!-- ARROW -->
+      <div class="chat-arrow">
+        <span class="dotline"></span>
+        <span class="arrowhead">&#9654;</span>
+      </div>
+
+      <!-- CENTER: LLM reasoning -->
+      <div class="chat-pane chat-pane-llm">
+        <div class="llm-card">
+          <div class="llm-head">
+            <span class="llm-mark"><i></i><i></i><i></i><i></i><i></i></span>
+            <div>
+              <div class="llm-name">frontier LLM</div>
+              <div class="llm-sub">via OpenRouter · zero-retention</div>
+            </div>
+          </div>
+          <div class="llm-trace">
+            <div class="trace-step"><span class="ts-num">1</span><span class="ts-text">Bracket headroom: $32k of 32% room before 35% kicks in.</span></div>
+            <div class="trace-step"><span class="ts-num">2</span><span class="ts-text">Available: $11.8k pre-tax left of $23k limit.</span></div>
+            <div class="trace-step"><span class="ts-num">3</span><span class="ts-text">Tax saved: $11.8k × 32% ≈ <strong>$3,776</strong></span></div>
+            <div class="trace-step"><span class="ts-num">4</span><span class="ts-text">Cash check: $24.8k buffer covers gap. Safe.</span></div>
+            <div class="trace-step"><span class="ts-num">5</span><span class="ts-text">Compare to: paying down 22.4% card ($8.4k).</span></div>
+            <div class="trace-step trace-conclude"><span class="ts-num">→</span><span class="ts-text">Card wins on rate. 401(k) wins on tax. Split 60/40.</span></div>
+          </div>
+          <div class="llm-foot">
+            <span><span class="dot dot-basil"></span>used 9 of 12 fields</span>
+            <span><span class="dot dot-cheese"></span>0 PII sent</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARROW -->
+      <div class="chat-arrow">
+        <span class="dotline"></span>
+        <span class="arrowhead">&#9654;</span>
+      </div>
+
+      <!-- RIGHT: grounded answer -->
+      <div class="chat-pane chat-pane-answer">
+        <div class="answer-card">
+          <div class="ans-head">
+            <span class="serif">Yes — but split it.</span>
+          </div>
+          <p class="ans-body">
+            Put <strong>$4,720</strong> into your 401(k) before Dec 31 (saves <strong>$1,510</strong> in tax) and use the rest to wipe out your <strong>22.4% card</strong>. Math says the card costs you faster than the bracket saves you.
+          </p>
+          <div class="ans-cites">
+            <div class="cite"><span class="cite-k">income</span><span class="cite-v">$214,400</span></div>
+            <div class="cite"><span class="cite-k">401k room</span><span class="cite-v">$11,800</span></div>
+            <div class="cite"><span class="cite-k">card APR</span><span class="cite-v">22.4%</span></div>
+            <div class="cite"><span class="cite-k">marginal</span><span class="cite-v">32%</span></div>
+          </div>
+          <div class="ans-actions">
+            <button class="ans-btn primary">Add to plan</button>
+            <button class="ans-btn ghost">Show alternatives</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-disclaimer">
+      Illustrative example only. AI outputs are informational, not financial advice.
+    </div>
+  </div>
+</section>
+
+<style>
+  .chat-section {
+    background: var(--ink);
+    color: var(--paper);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .chat-section::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(1100px circle at 10% 0%, color-mix(in oklab, var(--cheese) 8%, transparent), transparent 55%),
+      repeating-linear-gradient(135deg, transparent 0 14px, rgba(230,184,92,0.018) 14px 15px);
+    pointer-events: none;
+  }
+
+  .inner { max-width: 1240px; margin: 0 auto; padding: 96px 32px; position: relative; }
+
+  .section-head {
+    margin-bottom: 56px;
+  }
+
+  .section-head p { max-width: 600px; color: #D4C6B0; font-size: 15px; line-height: 1.6; margin: 16px 0 0; }
+
+  h2 {
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+  }
+
+  h2 em { font-style: italic; color: var(--cheese); }
+
+  .chat-flow {
+    display: grid;
+    grid-template-columns: 1fr 36px 1.15fr 36px 1fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .chat-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chat-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cheese);
+    width: 100%;
+    padding-top: 32px;
+  }
+
+  .chat-arrow .dotline {
+    flex: 1;
+    height: 1px;
+    background: repeating-linear-gradient(90deg, var(--cheese) 0 4px, transparent 4px 8px);
+    opacity: 0.55;
+  }
+
+  .chat-arrow .arrowhead {
+    font-size: 10px;
+    margin-left: 2px;
+  }
+
+  /* Context bundle */
+  .chat-bundle {
+    background: #26201C;
+    border: 1px solid #3A322C;
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .bundle-row {
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    gap: 10px;
+    align-items: baseline;
+    padding: 4px 0;
+    border-bottom: 1px dashed #3A322C;
+  }
+
+  .bundle-row:last-child { border-bottom: 0; }
+  .bundle-row.dim { opacity: 0.55; }
+
+  .bundle-row .bk {
+    color: var(--cheese);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+
+  .bundle-row .bv {
+    color: var(--paper);
+    font-size: 11px;
+  }
+
+  .bundle-row .bv.tok {
+    color: var(--basil);
+    background: color-mix(in oklab, var(--basil) 14%, transparent);
+    padding: 1px 6px;
+    border-radius: 4px;
+    justify-self: start;
+  }
+
+  .chat-question {
+    background: linear-gradient(180deg, color-mix(in oklab, var(--sauce) 22%, var(--ink)), color-mix(in oklab, var(--sauce) 14%, var(--ink)));
+    border: 1px solid color-mix(in oklab, var(--sauce) 50%, transparent);
+    border-radius: 12px;
+    padding: 18px 24px;
+    max-width: 600px;
+    margin: 0 auto 36px;
+    text-align: center;
+  }
+
+  .chat-q-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--cheese);
+    margin-bottom: 8px;
+  }
+
+  .chat-q-text {
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.3;
+    color: var(--paper);
+  }
+
+  .chat-q-text em { color: var(--cheese); }
+
+  /* LLM reasoning */
+  .llm-card {
+    background: #26201C;
+    border: 1px solid color-mix(in oklab, var(--cheese) 28%, #3A322C);
+    border-radius: 14px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .llm-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(500px circle at 80% -20%, color-mix(in oklab, var(--cheese) 16%, transparent), transparent 55%);
+    pointer-events: none;
+  }
+
+  .llm-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    position: relative;
+  }
+
+  .llm-mark {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 28px;
+  }
+
+  .llm-mark i {
+    height: 4px;
+    border-radius: 2px;
+    display: block;
+  }
+
+  .llm-mark i:nth-child(1) { background: var(--sauce);  width: 100%; }
+  .llm-mark i:nth-child(2) { background: var(--cheese); width: 78%; }
+  .llm-mark i:nth-child(3) { background: var(--noodle); width: 92%; }
+  .llm-mark i:nth-child(4) { background: var(--cheese); width: 70%; }
+  .llm-mark i:nth-child(5) { background: var(--basil);  width: 88%; }
+
+  .llm-name { color: var(--paper); font-size: 13px; font-weight: 500; }
+  .llm-sub { font-family: var(--mono); font-size: 10px; color: #9a8d77; }
+
+  .llm-trace {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+  }
+
+  .trace-step {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 10px;
+    align-items: baseline;
+    padding: 8px 12px;
+    background: color-mix(in oklab, #000 30%, var(--ink));
+    border: 1px solid #3A322C;
+    border-radius: 8px;
+  }
+
+  .ts-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--cheese);
+    text-align: center;
+  }
+
+  .ts-text {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #D4C6B0;
+  }
+
+  .ts-text strong { color: var(--cheese); font-weight: 500; }
+
+  .trace-step.trace-conclude {
+    background: color-mix(in oklab, var(--cheese) 14%, var(--ink));
+    border-color: color-mix(in oklab, var(--cheese) 40%, transparent);
+  }
+
+  .trace-step.trace-conclude .ts-text { color: var(--paper); font-weight: 500; }
+  .trace-step.trace-conclude .ts-num { color: var(--cheese); }
+
+  .llm-foot {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #3A322C;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #9a8d77;
+    letter-spacing: 0.04em;
+    flex-wrap: wrap;
+    position: relative;
+  }
+
+  .llm-foot .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  .llm-foot .dot-basil { background: var(--basil); }
+  .llm-foot .dot-cheese { background: var(--cheese); }
+
+  /* Grounded answer */
+  .answer-card {
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 14px;
+    padding: 20px;
+    border: 1px solid color-mix(in oklab, var(--cheese) 40%, transparent);
+  }
+
+  .ans-head .serif {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 28px;
+    line-height: 1.05;
+    color: var(--ink);
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  .ans-body {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 16px;
+  }
+
+  .ans-body strong {
+    color: var(--sauce-deep);
+    font-weight: 500;
+  }
+
+  .ans-cites {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 16px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--rule);
+  }
+
+  .cite {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 8px;
+    background: var(--cream);
+    border-radius: 4px;
+  }
+
+  .cite-k { color: var(--muted); letter-spacing: 0.04em; }
+  .cite-v { color: var(--ink); font-weight: 500; }
+
+  .ans-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .ans-btn {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.12s;
+  }
+
+  .ans-btn:hover { transform: translateY(-1px); }
+  .ans-btn.primary { background: var(--ink); color: var(--paper); }
+  .ans-btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+
+  .chat-disclaimer {
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px dashed #3A322C;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #9a8d77;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  @media (max-width: 1100px) {
+    .chat-flow {
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .chat-arrow {
+      width: 60px;
+      height: 28px;
+      margin: 0 auto;
+      transform: rotate(90deg);
+      padding-top: 0;
+    }
+  }
+
+  @media (max-width: 540px) {
+    .inner { padding: 64px 20px; }
+  }
+</style>

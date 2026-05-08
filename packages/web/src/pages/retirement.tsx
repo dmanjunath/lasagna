@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { formatMoney } from '../lib/utils';
 import { PageActions } from '../components/common/page-actions';
+import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import {
   CPI_INFLATION, BOND_RETURNS, SP500_RETURNS,
   type WithdrawalStrategy, type BacktestYearData, type BacktestRow,
@@ -1393,6 +1394,8 @@ export function Retirement() {
             ))}
           </div>
         </div>
+
+        <LegalDisclaimer variant="projections" />
 
         <PageActions types="retirement" />
 

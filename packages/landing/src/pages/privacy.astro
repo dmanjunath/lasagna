@@ -1,0 +1,213 @@
+---
+import LegalLayout from "../layouts/LegalLayout.astro";
+---
+
+<LegalLayout title="Privacy Policy" lastUpdated="May 3, 2026">
+
+<h2>1. Introduction</h2>
+<p>
+  LasagnaFi, Inc. ("we," "us," or "our") operates the LasagnaFi personal finance platform.
+  This Privacy Policy explains how we collect, use, store, and protect your information when
+  you use our Service. We are committed to keeping your financial data private and secure.
+</p>
+
+<h2>2. Information We Collect</h2>
+
+<h3>Account Information</h3>
+<p>When you create an account, we collect:</p>
+<ul>
+  <li><strong>Email address</strong> — used for authentication and account recovery</li>
+  <li><strong>Password</strong> — stored as a bcrypt hash; we never store or see your plaintext password</li>
+</ul>
+
+<h3>Financial Profile</h3>
+<p>You may optionally provide financial profile details to enable personalized features:</p>
+<ul>
+  <li>Date of birth, annual income, filing status, state of residence</li>
+  <li>Employment type, risk tolerance, target retirement age</li>
+  <li>Employer 401(k) match percentage, HSA/HDHP eligibility</li>
+  <li>Dependent count, PSLF eligibility</li>
+</ul>
+
+<h3>Bank and Financial Data (via Plaid)</h3>
+<p>If you choose to connect your bank accounts, we receive the following from Plaid:</p>
+<ul>
+  <li>Account names, types, subtypes, and masked account numbers</li>
+  <li>Account balances and available funds</li>
+  <li>Transaction history (date, merchant, amount, category)</li>
+  <li>Investment holdings and securities (tickers, quantities, prices, cost basis)</li>
+</ul>
+<p>
+  We store encrypted Plaid access tokens using AES-256-GCM encryption. Plaid access tokens are
+  never stored in plaintext. We sync your bank data periodically (every 4 hours) while your
+  connection is active.
+</p>
+
+<h3>AI Conversations</h3>
+<p>
+  When you use the AI chat feature, we store your conversation history (messages, tool calls,
+  and responses) in your database. This data is used to maintain your chat threads and provide context.
+</p>
+
+<h3>Tax Documents</h3>
+<p>
+  If you upload tax documents, they are stored in your database. Extracted data is used for
+  tax optimization analysis.
+</p>
+
+<h3>Session Data</h3>
+<p>
+  We use a single session cookie (<code>lasagna_session</code>) for authentication. This cookie:
+</p>
+<ul>
+  <li>Contains a JWT token signed with HMAC-SHA256</li>
+  <li>Is httpOnly, secure, and sameSite</li>
+  <li>Expires after 7 days</li>
+  <li>Is used solely for authentication — not tracking</li>
+</ul>
+
+<h2>3. How We Use Your Information</h2>
+<p>We use your information to:</p>
+<ul>
+  <li>Authenticate you and maintain your session</li>
+  <li>Display your financial dashboard, net worth, and spending analysis</li>
+  <li>Run retirement simulations (Monte Carlo, backtesting) using your financial data</li>
+  <li>Provide debt payoff strategies and tax optimization insights</li>
+  <li>Analyze your investment portfolio against 175+ tracked securities</li>
+  <li>Power AI chat responses about your financial situation</li>
+  <li>Generate financial goals and action items</li>
+</ul>
+
+<h2>4. AI Data Anonymization</h2>
+<p>
+  <strong>Your personal identity is never sent to AI providers.</strong> Before any data reaches
+  an AI model, we apply an anonymization layer that:
+</p>
+<ul>
+  <li>Strips your name, email, and all personally identifiable information</li>
+  <li>Replaces bank and institution names with generic tokens</li>
+  <li>Removes account numbers and routing numbers</li>
+  <li>Sends only numerical data: balances, allocations, spending patterns, and percentages</li>
+</ul>
+<p>
+  AI providers (accessed through OpenRouter) see financial patterns, not your identity. Your
+  conversation history is stored in your database, not retained by AI providers beyond their
+  standard processing window.
+</p>
+
+<h2>5. Data Sharing</h2>
+<p>We do not sell, rent, or trade your personal information. We share data only with:</p>
+<ul>
+  <li>
+    <strong>Plaid Inc.</strong> — to access your bank account data. Plaid acts as an intermediary
+    between you and your financial institutions. See
+    <a href="https://plaid.com/legal/#end-user-privacy-policy" target="_blank" rel="noopener noreferrer">Plaid's Privacy Policy</a>.
+  </li>
+  <li>
+    <strong>AI model providers (via OpenRouter)</strong> — anonymized financial data only, as
+    described in Section 4. See
+    <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener noreferrer">OpenRouter's Privacy Policy</a>.
+  </li>
+</ul>
+<p>
+  We do not use analytics services, advertising networks, or tracking pixels. We do not share
+  your data with any other third parties.
+</p>
+<p>
+  <strong>Third-party data practices.</strong> Once data is shared with Plaid or AI model providers
+  in accordance with this policy, it is subject to their respective privacy policies and practices.
+  We are not responsible for and have no control over the privacy practices, data handling, or
+  security measures of any third-party service. We encourage you to review the privacy policies
+  of these third parties.
+</p>
+
+<h2>6. Data Storage and Security</h2>
+<p>Your data is protected by:</p>
+<ul>
+  <li><strong>Encryption at rest</strong> — Plaid access tokens are encrypted with AES-256-GCM</li>
+  <li><strong>Secure password storage</strong> — passwords are hashed with bcrypt</li>
+  <li><strong>Signed session tokens</strong> — JWTs signed with HMAC-SHA256</li>
+  <li><strong>Secure cookies</strong> — httpOnly, secure, sameSite attributes</li>
+  <li><strong>Infrastructure</strong> — hosted on Google Cloud Platform with standard security controls</li>
+</ul>
+<p>
+  While we implement industry-standard security measures, <strong>no method of electronic storage or
+  transmission over the Internet is 100% secure.</strong> We cannot guarantee absolute security of
+  your data. We are not liable for any unauthorized access, data breaches, or data loss caused by
+  factors beyond our reasonable control, including but not limited to attacks on third-party
+  infrastructure, compromised user credentials, or vulnerabilities in third-party services.
+</p>
+
+<h2>7. Data Retention</h2>
+<p>
+  We retain your data for as long as your account is active. Financial data (balances, transactions,
+  holdings) is retained to provide historical analysis and trend tracking.
+</p>
+<p>
+  When you delete your account, we delete all associated data including your financial profile,
+  connected accounts, transaction history, chat conversations, and uploaded documents.
+</p>
+
+<h2>8. Your Rights</h2>
+<p>You have the right to:</p>
+<ul>
+  <li><strong>Access</strong> your data — your dashboard displays all data we have about you</li>
+  <li><strong>Delete</strong> your account and all associated data</li>
+  <li><strong>Disconnect</strong> bank accounts at any time, which revokes Plaid access tokens</li>
+  <li><strong>Export</strong> your data from the Service</li>
+  <li><strong>Self-host</strong> — run LasagnaFi on your own infrastructure for complete data sovereignty</li>
+</ul>
+
+<h3>California Residents (CCPA)</h3>
+<p>
+  If you are a California resident, you have additional rights under the California Consumer
+  Privacy Act, including the right to know what personal information we collect, the right to
+  delete it, and the right to opt out of the sale of personal information. We do not sell
+  personal information.
+</p>
+
+<h3>European Residents (GDPR)</h3>
+<p>
+  If you are in the European Economic Area, you have rights under the General Data Protection
+  Regulation including access, rectification, erasure, restriction of processing, data portability,
+  and the right to object. Our legal basis for processing is your consent (which you can withdraw
+  at any time) and legitimate interest in providing the Service.
+</p>
+
+<h2>9. Cookies</h2>
+<p>
+  We use exactly one cookie: <code>lasagna_session</code>. It is a functional authentication
+  cookie required for the Service to work. We do not use analytics cookies, advertising cookies,
+  or any third-party tracking cookies.
+</p>
+
+<h2>10. Children's Privacy</h2>
+<p>
+  The Service is not intended for users under 18 years of age. We do not knowingly collect
+  information from children. If you believe a child has provided us with personal information,
+  please contact us and we will delete it.
+</p>
+
+<h2>11. Data Accuracy</h2>
+<p>
+  Financial data displayed in the Service is sourced from third parties (including Plaid and your
+  financial institutions) and may be delayed, inaccurate, or incomplete. We do not independently
+  verify the accuracy of data received from third-party providers. You are responsible for
+  verifying the accuracy of your financial data. We are not liable for any errors in data
+  provided by third-party services.
+</p>
+
+<h2>12. Changes to This Policy</h2>
+<p>
+  We may update this Privacy Policy from time to time. We will notify you of material changes
+  by posting the updated policy with a revised "last updated" date. Your continued use of the
+  Service constitutes acceptance of the updated policy.
+</p>
+
+<h2>13. Contact</h2>
+<p>
+  If you have questions about this Privacy Policy or your data, contact us at
+  <a href="mailto:privacy@lasagnafi.com">privacy@lasagnafi.com</a>.
+</p>
+
+</LegalLayout>

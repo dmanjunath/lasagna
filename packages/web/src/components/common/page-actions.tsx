@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useInsights } from '../../hooks/useInsights';
 import { ActionItem } from './action-item';
 import { Section } from './section';
+import { LegalDisclaimer } from './legal-disclaimer';
 
 interface PageActionsProps {
   /** Filter to specific insight type(s). Omit for all types (Home/Focus). */
@@ -63,6 +64,7 @@ export function PageActions({ types, viewAllHref }: PageActionsProps) {
             onDismiss={() => dismiss(insight.id)}
           />
         ))}
+        <LegalDisclaimer variant="insights" />
       </div>
     </Section>
   );

@@ -6,7 +6,7 @@ import { GITHUB_URL } from "../config";
   <div class="inner">
     <span class="mark xl" style="margin: 0 auto 32px auto;"><i></i><i></i><i></i></span>
     <h2 class="serif">
-      The last financial app you'll need to <em>actually trust.</em>
+      Your finances, your data, <em>your control.</em>
     </h2>
     <div class="cta-row">
       <a href={GITHUB_URL} class="btn btn-primary">View on GitHub →</a>
@@ -18,7 +18,9 @@ import { GITHUB_URL } from "../config";
 
 <style>
   section {
-    border-top: 1px solid var(--rule);
+    background: var(--ink);
+    color: var(--paper);
+    border-top: none;
   }
 
   .inner {
@@ -50,6 +52,20 @@ import { GITHUB_URL } from "../config";
     gap: 12px;
     justify-content: center;
     flex-wrap: wrap;
+  }
+
+  .cta-row :global(.btn-primary) {
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  .cta-row :global(.btn-ghost) {
+    border-color: rgba(255,255,255,0.2);
+    color: var(--paper);
+  }
+
+  .cta-row :global(.btn-ghost:hover) {
+    border-color: rgba(255,255,255,0.4);
   }
 
   @media (max-width: 540px) {
