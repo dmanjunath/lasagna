@@ -36,9 +36,15 @@ export const api = {
 
   me: () =>
     request<{
-      user: { id: string; email: string; role: string };
+      user: { id: string; email: string; role: string; onboardingStage: string | null };
       tenant: { id: string; name: string; plan: string } | null;
     }>("/auth/me"),
+
+  updateOnboardingStage: (stage: string | null) =>
+    request<{ onboardingStage: string | null }>("/auth/onboarding-stage", {
+      method: "PATCH",
+      body: JSON.stringify({ stage }),
+    }),
 
   // Plaid
   createLinkToken: () =>

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
-import { eq, users, tenants } from "@lasagna/core";
+import { eq, users, tenants, onboardingStageEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import {
@@ -71,7 +71,7 @@ authRoutes.post("/signup", async (c) => {
   });
 
   return c.json({
-    user: { id: user.id, email: user.email, role: user.role },
+    user: { id: user.id, email: user.email, role: user.role, onboardingStage: user.onboardingStage },
     tenant: { id: tenant.id, name: tenant.name, plan: tenant.plan },
   });
 });
@@ -115,7 +115,7 @@ authRoutes.post("/login", async (c) => {
   });
 
   return c.json({
-    user: { id: user.id, email: user.email, role: user.role },
+    user: { id: user.id, email: user.email, role: user.role, onboardingStage: user.onboardingStage },
     tenant: tenant
       ? { id: tenant.id, name: tenant.name, plan: tenant.plan }
       : null,
@@ -143,9 +143,29 @@ authRoutes.get("/me", requireAuth, async (c) => {
   });
 
   return c.json({
-    user: { id: user.id, email: user.email, role: user.role },
+    user: { id: user.id, email: user.email, role: user.role, onboardingStage: user.onboardingStage },
     tenant: tenant
       ? { id: tenant.id, name: tenant.name, plan: tenant.plan }
       : null,
   });
+});
+
+// Update onboarding stage
+const VALID_STAGES = new Set(onboardingStageEnum.enumValues);
+
+authRoutes.patch("/onboarding-stage", requireAuth, async (c) => {
+  const session = c.get("session");
+  const { stage } = await c.req.json<{ stage: string | null }>();
+
+  if (stage !== null && !VALID_STAGES.has(stage as typeof onboardingStageEnum.enumValues[number])) {
+    return c.json({ error: "Invalid onboarding stage" }, 400);
+  }
+
+  const [updated] = await db
+    .update(users)
+    .set({ onboardingStage: stage as typeof onboardingStageEnum.enumValues[number] | null })
+    .where(eq(users.id, session.userId))
+    .returning();
+
+  return c.json({ onboardingStage: updated.onboardingStage });
 });

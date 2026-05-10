@@ -13,7 +13,10 @@ import {
 } from 'lucide-react';
 import { Logo } from '../components/common/Logo';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
+
+const STEP_TO_STAGE = ['profile', 'income', 'lifestyle', 'accounts', 'complete'] as const;
 
 // ─── US States ────────────────────────────────────────────
 const US_STATES = [
@@ -99,8 +102,13 @@ function FieldHint({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-text-secondary mt-1">{children}</p>;
 }
 
+const STAGE_TO_STEP: Record<string, number> = {
+  profile: 0, income: 1, lifestyle: 2, accounts: 3, complete: 4,
+};
+
 export function Onboarding() {
   const [, navigate] = useLocation();
+  const { setOnboardingStage } = useAuth();
   const [initializing, setInitializing] = useState(true);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -138,48 +146,37 @@ export function Onboarding() {
   // ─── Restore from DB on mount ───────────────────────────
   useEffect(() => {
     Promise.all([
+      api.me(),
       api.getProfile().catch(() => null),
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
-      api.getBalances().catch(() => ({ balances: [] })),
       api.getItems().catch(() => ({ items: [] })),
-    ]).then(([profileData, fpData, balanceData, itemData]) => {
+    ]).then(([meData, profileData, fpData, itemData]) => {
       const fp = fpData?.financialProfile;
-      let startStep = 0;
 
-      // Restore step 1 fields from DB
+      // Restore form fields from existing data
       if (profileData?.profile?.name) setName(profileData.profile.name);
       if (fp) {
         if (fp.dateOfBirth) setDob(fp.dateOfBirth.split('T')[0]);
         if (fp.filingStatus) setFilingStatus(fp.filingStatus);
         if (fp.stateOfResidence) setStateOfResidence(fp.stateOfResidence);
-
-        // If profile basics exist, user completed step 1
-        if (fp.filingStatus || fp.dateOfBirth) startStep = 1;
-
-        // Restore step 2 fields
-        if (fp.annualIncome) {
-          setAnnualIncome(String(fp.annualIncome));
-          if (fp.riskTolerance) setRiskTolerance(fp.riskTolerance);
-          if (fp.retirementAge) setRetirementAge(String(fp.retirementAge));
-          if (fp.employerMatchPercent !== null && fp.employerMatchPercent !== undefined) {
-            setMatchPercent(String(fp.employerMatchPercent));
-          }
-          // If income + risk are set, user completed step 2
-          if (fp.riskTolerance) startStep = 2;
+        if (fp.annualIncome) setAnnualIncome(String(fp.annualIncome));
+        if (fp.riskTolerance) setRiskTolerance(fp.riskTolerance);
+        if (fp.retirementAge) setRetirementAge(String(fp.retirementAge));
+        if (fp.employerMatchPercent !== null && fp.employerMatchPercent !== undefined) {
+          setMatchPercent(String(fp.employerMatchPercent));
         }
-
         if (fp.employmentType) setEmploymentType(fp.employmentType);
         if (fp.dependentCount !== null && fp.dependentCount !== undefined) setDependentCount(fp.dependentCount);
         if (fp.hasHDHP) setHasHDHP(fp.hasHDHP);
         if (fp.isPSLFEligible) setIsPSLFEligible(fp.isPSLFEligible);
       }
 
-      // Check if accounts already exist (step 4)
-      const hasAccounts = balanceData.balances.length > 0;
       const hasPlaid = itemData.items.some((i: { institutionId: string | null }) => i.institutionId && i.institutionId !== 'manual');
       if (hasPlaid) setLinkedViaPlaid(true);
-      if (hasAccounts && startStep >= 3) startStep = 4; // go straight to completion
 
+      // Use server-side stage as source of truth
+      const serverStage = meData.user.onboardingStage;
+      const startStep = serverStage ? (STAGE_TO_STEP[serverStage] ?? 0) : 0;
       setStep(startStep);
     }).finally(() => setInitializing(false));
   }, []);
@@ -218,11 +215,11 @@ export function Onboarding() {
     } finally {
       setSaving(false);
     }
-    if (step === 3) {
-      localStorage.setItem('lasagna_onboarding_done', '1');
-    }
+    const nextStep = Math.min(step + 1, totalSteps - 1);
+    const nextStage = STEP_TO_STAGE[nextStep] ?? null;
+    await api.updateOnboardingStage(nextStage).catch(() => {});
     setDirection(1);
-    setStep((s) => Math.min(s + 1, totalSteps - 1));
+    setStep(nextStep);
   }, [step, name, dob, filingStatus, stateOfResidence, annualIncome, has401k, matchPercent, riskTolerance, retirementAge, employmentType, dependentCount, hasHDHP, isPSLFEligible]);
 
   const goBack = useCallback(() => {
@@ -633,7 +630,7 @@ export function Onboarding() {
             </div>
 
             <div className="space-y-3 pt-2">
-              <button onClick={() => { localStorage.setItem('lasagna_onboarding_done', '1'); navigate('/', { replace: true }); }}
+              <button onClick={async () => { await api.updateOnboardingStage(null).catch(() => {}); setOnboardingStage(null); }}
                 className="w-full max-w-sm mx-auto flex items-center justify-center gap-2 px-6 py-3 bg-accent text-bg rounded-lg font-medium hover:bg-accent/90 transition-colors">
                 Go to Dashboard
                 <ChevronRight className="w-4 h-4" />

@@ -375,12 +375,6 @@ export function Dashboard() {
       api.getInsights().catch(() => ({ insights: [] })),
       api.getPriorities().catch(() => ({ steps: [], currentStepId: '', summary: {} })),
     ]).then(([balanceData, itemData, debtData, profileData, historyData, plansData, spendingData, goalsData, insightsData, prioritiesData]) => {
-      const onboardingDone = localStorage.getItem('lasagna_onboarding_done');
-      if (!profileData.financialProfile && !onboardingDone) {
-        navigate('/onboarding', { replace: true });
-        return;
-      }
-
       const balances = balanceData.balances;
       let assets = 0, liabilities = 0, depository = 0, creditTotal = 0;
 

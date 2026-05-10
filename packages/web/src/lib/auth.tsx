@@ -12,6 +12,7 @@ interface User {
   id: string;
   email: string;
   role: string;
+  onboardingStage: string | null;
 }
 
 interface Tenant {
@@ -28,6 +29,7 @@ interface AuthState {
   signup: (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => Promise<void>;
   logout: () => Promise<void>;
   updateTenant: (updates: Partial<Tenant>) => void;
+  setOnboardingStage: (stage: string | null) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -82,8 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTenant((prev) => (prev ? { ...prev, ...updates } : prev));
   }, []);
 
+  const setOnboardingStage = useCallback((stage: string | null) => {
+    setUser((prev) => (prev ? { ...prev, onboardingStage: stage } : prev));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant, setOnboardingStage }}>
       {children}
     </AuthContext.Provider>
   );

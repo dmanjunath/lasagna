@@ -52,6 +52,14 @@ export const simulationTypeEnum = pgEnum("simulation_type", [
   "scenario",
 ]);
 
+export const onboardingStageEnum = pgEnum("onboarding_stage", [
+  "profile",
+  "income",
+  "lifestyle",
+  "accounts",
+  "complete",
+]);
+
 // ── Tenants ────────────────────────────────────────────────────────────────
 
 export const tenants = pgTable("tenants", {
@@ -78,6 +86,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: roleEnum("role").notNull().default("owner"),
   isDemo: boolean("is_demo").default(false).notNull(),
+  onboardingStage: onboardingStageEnum("onboarding_stage").default("profile"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

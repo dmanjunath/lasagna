@@ -39,12 +39,15 @@ function AppRoutes() {
     return <Login />;
   }
 
+  // Redirect to onboarding if not complete (unless demo mode)
+  if (user.onboardingStage !== null && import.meta.env.VITE_DEMO_MODE !== "true") {
+    return <Onboarding />;
+  }
+
   return (
     <Switch>
       <Route path="/onboarding">
-        {import.meta.env.VITE_DEMO_MODE === "true"
-          ? <Redirect to="/" />
-          : <Onboarding />}
+        <Redirect to="/" />
       </Route>
       <Route>
         {() => (
