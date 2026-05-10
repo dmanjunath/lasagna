@@ -5,6 +5,7 @@
   "description": "Self-hosted personal finance platform",
   "scripts": {
     "dev": "docker compose up",
+    "dev:restart": "docker compose down && pnpm dev -d",
     "dev:web": "pnpm --filter @lasagna/web dev",
     "dev:landing": "pnpm --filter @lasagna/landing dev",
     "build": "pnpm -r build",
