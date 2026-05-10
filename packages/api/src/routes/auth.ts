@@ -52,6 +52,7 @@ authRoutes.post("/signup", async (c) => {
       email,
       passwordHash,
       role: "owner",
+      onboardingStage: "profile",
     })
     .returning();
 

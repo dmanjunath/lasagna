@@ -8,6 +8,13 @@
       "when": 1777784202030,
       "tag": "0000_graceful_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778373502645,
+      "tag": "0001_daily_lake",
+      "breakpoints": true
     }
   ]
 }
