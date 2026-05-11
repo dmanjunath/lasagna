@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -287,4 +285,26 @@
     background: rgba(139, 126, 111, 0.25);
     border-radius: 3px;
   }
+}
+
+/* ============================================================
+   LOADING ANIMATIONS
+   Staggered scale + fade for the lasagna-bar loading indicator.
+   ============================================================ */
+@keyframes loading-bar {
+  0%, 100% { transform: scaleX(0.35); opacity: 0.3; }
+  50%      { transform: scaleX(1);    opacity: 1;   }
+}
+
+.animate-loading-bar-1 {
+  animation: loading-bar 1.2s ease-in-out infinite;
+  transform-origin: left center;
+}
+.animate-loading-bar-2 {
+  animation: loading-bar 1.2s ease-in-out 0.15s infinite;
+  transform-origin: left center;
+}
+.animate-loading-bar-3 {
+  animation: loading-bar 1.2s ease-in-out 0.3s infinite;
+  transform-origin: left center;
 }

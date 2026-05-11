@@ -314,11 +314,14 @@ export function Accounts() {
     setLinking(true);
     setError("");
     try {
-      const { linkToken } = await api.createLinkToken();
+      const [{ linkToken }] = await Promise.all([
+        api.createLinkToken(),
+        (await import("../lib/load-plaid.js")).loadPlaidSdk(),
+      ]);
 
       const Plaid = (window as unknown as { Plaid: PlaidLinkFactory }).Plaid;
       if (!Plaid) {
-        setError("Plaid Link script not loaded. Add it to index.html.");
+        setError("Failed to load Plaid. Please refresh and try again.");
         setLinking(false);
         return;
       }
