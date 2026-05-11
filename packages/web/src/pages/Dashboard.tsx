@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
@@ -514,14 +513,7 @@ export function Dashboard() {
 
   const urgentCount = insights.filter(i => !i.dismissedAt && (i.urgency === 'critical' || i.urgency === 'high')).length;
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '80px 40px', color: 'var(--lf-muted)' }}>
-        <Loader2 style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} />
-        <span style={{ fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>Loading…</span>
-      </div>
-    );
-  }
+  if (loading) return null;
 
   return (
     <div style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 10vw, 48px)', maxWidth: 1400, margin: '0 auto' }}>

@@ -324,13 +324,7 @@ export function NetWorth() {
   };
 
   // ── Loading state ──
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-text-secondary">Loading portfolio...</div>
-      </div>
-    );
-  }
+  if (loading) return null;
 
   // ── Empty state — no accounts linked ──
   if (assetClasses.length === 0) {

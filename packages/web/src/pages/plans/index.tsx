@@ -109,14 +109,7 @@ export function PlansPage() {
         )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-text-secondary">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span>Loading plans...</span>
-          </div>
-        </div>
-      ) : plans.length === 0 ? (
+      {loading ? null : plans.length === 0 ? (
         <div className="glass-card text-center py-12 px-6">
           <h2 className="text-2xl font-display font-semibold text-text mb-2">
             Create Your First Plan

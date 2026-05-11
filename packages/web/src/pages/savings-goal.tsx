@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRoute } from 'wouter';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
 import { Progress } from '../components/ui/progress';
 import { api } from '../lib/api';
 
@@ -46,13 +45,7 @@ export function SavingsGoal() {
       .finally(() => setLoading(false));
   }, [goalId]);
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-5 h-5 animate-spin text-text-secondary" />
-      </div>
-    );
-  }
+  if (loading) return null;
 
   if (notFound || !goal) {
     return (

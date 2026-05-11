@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, CreditCard, Landmark, Pencil, X } from 'lucide-react';
+import { CreditCard, Landmark, Pencil, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatMoney } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
@@ -210,12 +210,7 @@ export function Debt() {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-      {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--lf-muted)', padding: '24px 0' }}>
-          <Loader2 style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} />
-          <span style={{ fontSize: 14 }}>Loading…</span>
-        </div>
-      ) : !hasAccounts ? (
+      {loading ? null : !hasAccounts ? (
         <NoAccountsView />
       ) : hasDebt ? (
         <HasDebtView

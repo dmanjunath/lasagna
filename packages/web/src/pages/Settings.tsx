@@ -658,17 +658,7 @@ export function Settings() {
         <motion.div variants={item} style={{ marginBottom: 24 }}>
           <div style={sectionLabelStyle}>YOUR PROFILE</div>
           <div style={cardStyle}>
-            {loading ? (
-              <div style={{
-                padding: '32px 20px',
-                textAlign: 'center',
-                fontSize: 13,
-                color: 'var(--lf-muted)',
-                fontFamily: "'Geist', system-ui, sans-serif",
-              }}>
-                Loading...
-              </div>
-            ) : (
+            {loading ? null : (
               <>
                 <StatRow label="Age" value={age} first />
                 <StatRow label="Gross income" value={grossIncome} />

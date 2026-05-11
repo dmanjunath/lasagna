@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
   TrendingUp, CreditCard, Rocket,
-  Loader2, AlertCircle,
+  AlertCircle,
   PiggyBank, Landmark, Layers,
 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -653,11 +653,7 @@ export function FinancialLevel() {
   }, []);
 
   // ── loading ──
-  if (loading) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Loader2 size={20} style={{ color: 'var(--lf-muted)', animation: 'spin 1s linear infinite' }} />
-    </div>
-  );
+  if (loading) return null;
 
   // ── error ──
   if (error) return (

@@ -928,18 +928,7 @@ export default function PortfolioComposition() {
   // Loading
   // ---------------------------------------------------------------------------
 
-  if (loading) {
-    return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="lf-mark" style={{ margin: '0 auto 16px' }}>
-            <span /><span /><span />
-          </div>
-          <p className="lf-eyebrow">Loading portfolio…</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return null;
 
   // ---------------------------------------------------------------------------
   // Empty — no holdings, but accounts exist → account-level fallback

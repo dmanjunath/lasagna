@@ -608,13 +608,8 @@ export function Accounts() {
             border: "1px solid var(--lf-rule)",
             borderRadius: 14, overflow: "hidden",
             padding: "48px 32px",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center",
-            gap: 12, color: "var(--lf-muted)",
-            fontFamily: "'Geist', system-ui, sans-serif", fontSize: 14,
           }}>
-            <Spinner size={22} />
-            Loading accounts…
+            {null}
           </div>
         )}
 

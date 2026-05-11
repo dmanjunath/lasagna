@@ -291,6 +291,25 @@
    LOADING ANIMATIONS
    Staggered scale + fade for the lasagna-bar loading indicator.
    ============================================================ */
+@keyframes loader-reveal {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-loader-reveal {
+  opacity: 0;
+  animation: loader-reveal 0.3s ease-out 0.5s forwards;
+}
+
+@keyframes loader-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.animate-loader-fade-out {
+  animation: loader-fade-out 0.3s ease-in forwards;
+}
+
 @keyframes loading-bar {
   0%, 100% { transform: scaleX(0.35); opacity: 0.3; }
   50%      { transform: scaleX(1);    opacity: 1;   }

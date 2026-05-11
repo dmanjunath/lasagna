@@ -1266,15 +1266,7 @@ export function Retirement() {
     'More savings needed.';
   const projectionData = buildProjectionData(currentAge, retirementAge, portfolioValue, annualSavings, expectedReturn);
 
-  if (loading) {
-    return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--lf-paper)' }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-muted)' }}>
-          Loading your financial data...
-        </div>
-      </div>
-    );
-  }
+  if (loading) return null;
 
   if (!hasAccounts) {
     return (

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Loader2,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -669,11 +668,7 @@ export function Spending() {
         <div style={{ ...S.card, padding: 24 }}>
           <div style={{ ...S.eyebrow, marginBottom: 14 }}>Spending by category</div>
 
-          {loadingSummary ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0', color: 'var(--lf-muted)' }}>
-              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
-            </div>
-          ) : spendingCategories.length === 0 ? (
+          {loadingSummary ? null : spendingCategories.length === 0 ? (
             <p style={{ color: 'var(--lf-muted)', fontSize: 14, textAlign: 'center', padding: '32px 0' }}>
               No data yet
             </p>
@@ -751,11 +746,7 @@ export function Spending() {
             </div>
           </div>
 
-          {loadingTrend ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0', color: 'var(--lf-muted)' }}>
-              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
-            </div>
-          ) : trendData.length === 0 ? (
+          {loadingTrend ? null : trendData.length === 0 ? (
             <p style={{ color: 'var(--lf-muted)', fontSize: 14, textAlign: 'center', padding: '32px 0' }}>
               No data yet
             </p>
@@ -869,12 +860,7 @@ export function Spending() {
         )}
 
         {/* Rows */}
-        {loadingTx ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0', color: 'var(--lf-muted)' }}>
-            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>Loading transactions...</span>
-          </div>
-        ) : transactions.length === 0 ? (
+        {loadingTx ? null : transactions.length === 0 ? (
           <p style={{ textAlign: 'center', color: 'var(--lf-muted)', padding: '48px 0', fontSize: 14 }}>
             No transactions found
           </p>

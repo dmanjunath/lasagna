@@ -301,16 +301,7 @@ export function ProbabilityOfSuccess() {
   };
 
   // Loading state
-  if (initialLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-accent" />
-          <p className="text-text-secondary">Loading your financial data...</p>
-        </div>
-      </div>
-    );
-  }
+  if (initialLoading) return null;
 
   // Empty state - no accounts
   if (!hasAccounts) {

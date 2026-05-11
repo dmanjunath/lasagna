@@ -744,19 +744,7 @@ export function Insights() {
       {/* ------------------------------------------------------------------ */}
       {/* Loading state                                                        */}
       {/* ------------------------------------------------------------------ */}
-      {isLoading && (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '64px 0',
-            color: 'var(--lf-muted)',
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 13,
-          }}
-        >
-          Loading actions…
-        </div>
-      )}
+      {isLoading && null}
 
       {/* ------------------------------------------------------------------ */}
       {/* Empty / generate state                                               */}

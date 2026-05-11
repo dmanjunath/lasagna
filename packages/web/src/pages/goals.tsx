@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Check, X, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Check, X, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageActions } from '../components/common/page-actions';
 
@@ -295,12 +295,7 @@ export function Goals() {
       <PageActions types="savings" />
 
       {/* ── Loading state ── */}
-      {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '48px 0', color: 'var(--lf-muted)' }}>
-          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-          <span style={{ fontSize: 14 }}>Loading goals…</span>
-        </div>
-      ) : (
+      {loading ? null : (
         <>
           {/* ── Create goal panel ── */}
           <AnimatePresence>

@@ -31,8 +31,9 @@ const Onboarding = lazy(() => import('./pages/onboarding').then(m => ({ default:
 function AppRoutes() {
   const { user, loading } = useAuth();
 
+  // Still checking auth — show overlay only
   if (loading) {
-    return <LoadingScreen />;
+    return <LoadingScreen visible />;
   }
 
   if (!user) {
@@ -50,58 +51,58 @@ function AppRoutes() {
 
   return (
     <Switch>
-      <Route path="/onboarding">
-        <Redirect to="/" />
-      </Route>
-      <Route>
-        {() => (
-          <ChatStoreProvider>
-          <PageContextProvider>
-            <Shell>
-              {import.meta.env.VITE_DEMO_MODE === "true" && <DemoBanner />}
-              <Suspense fallback={<PageLoader />}>
-                <Switch>
-                  <Route path="/" component={Dashboard} />
-                  <Route path="/accounts" component={Accounts} />
-                  <Route path="/spending" component={Spending} />
-                  <Route path="/goals" component={Goals} />
-                  <Route path="/debt" component={Debt} />
-                  <Route path="/portfolio" component={PortfolioComposition} />
-                  <Route path="/tax" component={TaxStrategy} />
-                  <Route path="/profile" component={Settings} />
-                  <Route path="/plans" component={PlansPage} />
-                  <Route path="/plans/new" component={NewPlanPage} />
-                  <Route path="/plans/:id" component={PlanDetailPage} />
-                  <Route path="/plans/retirement" component={Retirement} />
-                  <Route path="/plans/savings/:id" component={SavingsGoal} />
-                  <Route path="/financial-level" component={FinancialLevel} />
-                  <Route path="/insights" component={Insights} />
-                  <Route path="/actions"><Redirect to="/insights" /></Route>
-                  <Route path="/retirement" component={Retirement} />
-                  <Route path="/probability" component={ProbabilityOfSuccess} />
+        <Route path="/onboarding">
+          <Redirect to="/" />
+        </Route>
+        <Route>
+          {() => (
+            <ChatStoreProvider>
+            <PageContextProvider>
+              <Shell>
+                {import.meta.env.VITE_DEMO_MODE === "true" && <DemoBanner />}
+                <Suspense fallback={<PageLoader />}>
+                  <Switch>
+                    <Route path="/" component={Dashboard} />
+                    <Route path="/accounts" component={Accounts} />
+                    <Route path="/spending" component={Spending} />
+                    <Route path="/goals" component={Goals} />
+                    <Route path="/debt" component={Debt} />
+                    <Route path="/portfolio" component={PortfolioComposition} />
+                    <Route path="/tax" component={TaxStrategy} />
+                    <Route path="/profile" component={Settings} />
+                    <Route path="/plans" component={PlansPage} />
+                    <Route path="/plans/new" component={NewPlanPage} />
+                    <Route path="/plans/:id" component={PlanDetailPage} />
+                    <Route path="/plans/retirement" component={Retirement} />
+                    <Route path="/plans/savings/:id" component={SavingsGoal} />
+                    <Route path="/financial-level" component={FinancialLevel} />
+                    <Route path="/insights" component={Insights} />
+                    <Route path="/actions"><Redirect to="/insights" /></Route>
+                    <Route path="/retirement" component={Retirement} />
+                    <Route path="/probability" component={ProbabilityOfSuccess} />
 
-                  <Route path="/net-worth" component={NetWorth} />
+                    <Route path="/net-worth" component={NetWorth} />
 
-                  {/* Redirects */}
-                  <Route path="/login"><Redirect to="/" /></Route>
+                    {/* Redirects */}
+                    <Route path="/login"><Redirect to="/" /></Route>
 
-                  <Route path="/priorities"><Redirect to="/financial-level" /></Route>
-                  <Route path="/tax-history"><Redirect to="/tax" /></Route>
-                  <Route path="/settings"><Redirect to="/profile" /></Route>
+                    <Route path="/priorities"><Redirect to="/financial-level" /></Route>
+                    <Route path="/tax-history"><Redirect to="/tax" /></Route>
+                    <Route path="/settings"><Redirect to="/profile" /></Route>
 
-                  <Route>
-                    <div className="flex-1 flex items-center justify-center text-text-secondary">
-                      Page not found
-                    </div>
-                  </Route>
-                </Switch>
-              </Suspense>
-            </Shell>
-          </PageContextProvider>
-          </ChatStoreProvider>
-        )}
-      </Route>
-    </Switch>
+                    <Route>
+                      <div className="flex-1 flex items-center justify-center text-text-secondary">
+                        Page not found
+                      </div>
+                    </Route>
+                  </Switch>
+                </Suspense>
+              </Shell>
+            </PageContextProvider>
+            </ChatStoreProvider>
+          )}
+        </Route>
+      </Switch>
   );
 }
 
