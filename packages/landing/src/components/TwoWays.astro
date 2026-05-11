@@ -1,13 +1,5 @@
 ---
-import { APP_URL, GITHUB_URL } from "../config";
-
-const managedFeatures = [
-  "We host your Postgres database, encrypted at rest",
-  "Plaid connections included, unlimited accounts",
-  "Managed updates and backups",
-  "AI chat included, your data is anonymized",
-  "Cancel and delete your data in one click",
-];
+import { GITHUB_URL } from "../config";
 
 const selfFeatures = [
   "Run on your own infrastructure",
@@ -21,11 +13,10 @@ const selfFeatures = [
 <section id="pricing">
   <div class="inner">
     <div class="section-head">
-      <h2 class="serif">Two ways to run it.<br /><em>Same privacy model.</em></h2>
+      <h2 class="serif">Run it yourself.<br /><em>Your data stays yours.</em></h2>
     </div>
 
     <div class="pricing-grid">
-      <!-- Self-hosted / Sovereign -->
       <div class="plan plan-self">
         <div class="eyebrow" style="color: var(--cheese);">Self-hosted</div>
         <h3 class="serif">Sovereign</h3>
@@ -34,17 +25,6 @@ const selfFeatures = [
           {selfFeatures.map((f) => <li>{f}</li>)}
         </ul>
         <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="btn btn-cheese cta-btn">View on GitHub →</a>
-      </div>
-
-      <!-- Managed / Hosted -->
-      <div class="plan plan-hosted">
-        <div class="eyebrow">Hosted</div>
-        <h3 class="serif">Managed</h3>
-        <div class="price serif" style="color: var(--muted);">Coming soon</div>
-        <ul>
-          {managedFeatures.map((f) => <li>{f}</li>)}
-        </ul>
-        <span class="btn btn-primary cta-btn" style="opacity: 0.5; cursor: default;">Coming soon</span>
       </div>
     </div>
   </div>
@@ -100,14 +80,12 @@ const selfFeatures = [
     position: relative;
   }
 
-  .plan-hosted {
-    background: var(--cream);
-  }
-
   .plan-self {
     background: var(--ink);
     color: var(--paper);
     border-color: var(--ink);
+    max-width: 480px;
+    margin: 0 auto;
   }
 
   .plan .eyebrow {
