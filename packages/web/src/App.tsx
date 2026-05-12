@@ -37,17 +37,19 @@ function AppRoutes({ onReady }: AppProps) {
   const { user, loading } = useAuth();
   const { showPrompt, handleClose } = useAddToHomeScreen();
 
+  // Call onReady when component mounts
+  useEffect(() => {
+    if (!loading) {
+      onReady?.();
+    }
+  }, [loading, onReady]);
+
   // Still checking auth — show overlay only
   if (loading) {
     return <LoadingScreen visible />;
   }
 
   if (!user) {
-    // Call onReady when login page is shown
-    useEffect(() => {
-      onReady?.();
-    }, [onReady]);
-    
     return (
       <>
         <Login />
@@ -64,11 +66,6 @@ function AppRoutes({ onReady }: AppProps) {
       </Suspense>
     );
   }
-
-  // Call onReady when authenticated routes are ready
-  useEffect(() => {
-    onReady?.();
-  }, [onReady]);
 
   return (
     <Switch>

@@ -248,20 +248,18 @@ function MiniCard({ label, value, sub, accent }: {
   accent?: string;
 }) {
   return (
-    <div className="rounded-xl p-4 sm:p-5 border border-border bg-paper">
-      <div className="flex items-center gap-2">
-        {accent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: accent }} />}
-        <div className="font-mono text-xs sm:text-sm tracking-wide uppercase text-muted truncate">
+    <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {accent && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accent, display: 'inline-block', flexShrink: 0 }} />}
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
           {label}
         </div>
       </div>
-      <div className="font-serif text-xl sm:text-2xl lg:text-3xl leading-[1.05] mt-2 sm:mt-2.5
-                     overflow-hidden text-ellipsis whitespace-nowrap">
+      <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 32, letterSpacing: '-0.025em', lineHeight: 1.05, marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {value}
       </div>
       {sub && (
-        <div className="font-mono text-xs sm:text-sm text-muted mt-2.5 pt-2.5 
-                    border-t border-dashed border-border truncate">
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--lf-rule)' }}>
           {sub}
         </div>
       )}
@@ -518,105 +516,138 @@ export function Dashboard() {
   if (loading) return null;
 
   return (
-    <div className="px-4 pb-24 md:px-6 md:pb-6 lg:px-10 max-w-7xl mx-auto w-full">
-       {/* Link accounts nudge */}
-       {!hasPlaidAccounts && accountCount > 0 && (
-         <div className="mb-5 p-4 rounded-xl flex items-center justify-between gap-4"
-              style={{
-                background: 'rgba(201,84,58,0.06)',
-                border: '1px solid rgba(201,84,58,0.2)',
-              }}>
-           <div className="flex-1 min-w-0">
-             <div className="font-medium text-sm">Link your bank for automatic updates</div>
-             <div className="text-xs text-muted mt-1">
-               Your balances are manual snapshots. Connect via Plaid for real-time tracking.
-             </div>
-           </div>
-           <button
-             onClick={() => navigate('/accounts')}
-             className="px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap"
-             style={{ background: 'var(--lf-sauce)', color: 'var(--lf-paper)', border: 0 }}
-           >
-             Link Account
-           </button>
-         </div>
-       )}
+    <div style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 10vw, 48px)', maxWidth: 1400, margin: '0 auto' }}>
+      <style>{`
+        @media (max-width: 800px) {
+          .dash-hero-grid { grid-template-columns: 1fr !important; }
+          .dash-mini-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .dash-bottom-grid { grid-template-columns: 1fr !important; }
+          .dash-layers-grid { grid-template-columns: 1fr !important; }
+          .dash-banner { flex-direction: column !important; }
+          .dash-banner > div { border-right: none !important; border-bottom: 1px solid var(--lf-rule); }
+          .dash-banner > div:last-child { border-bottom: none !important; }
+        }
+        @media (max-width: 640px) {
+          .dash-hero-grid { grid-template-columns: 1fr !important; }
+          .dash-mini-grid { grid-template-columns: 1fr !important; }
+          .dash-bottom-grid { grid-template-columns: 1fr !important; }
+          .dash-layers-grid { grid-template-columns: 1fr !important; }
+          .dash-banner-actions { flex-direction: column !important; gap: 8px !important; align-items: flex-start !important; }
+          .dash-banner-actions > div { border-left: none !important; padding-left: 0 !important; }
+        }
+      `}</style>
 
-       {/* PageHeader */}
-       <motion.div
-         initial={{ opacity: 0, y: 8 }}
-         animate={{ opacity: 1, y: 0 }}
-         transition={{ duration: 0.35 }}
-         className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6"
-       >
-         <div>
-           <h1 className="font-serif text-3xl sm:text-4xl font-normal leading-tight">
-             Dashboard
-           </h1>
-           <div className="font-mono text-xs tracking-wider uppercase text-muted mt-2">
-             Good {getGreeting()}, {firstName} · {getDayLabel()}
-             {urgentCount > 0 && ` · ${urgentCount} urgent`}
-           </div>
-         </div>
-         <div className="flex gap-2 sm:gap-3">
-           <button
-             onClick={() => navigate('/accounts')}
-             className="mobile-button"
-             style={{ background: 'var(--lf-paper)', color: 'var(--lf-ink)', border: '1px solid var(--lf-rule)' }}
-           >
-             Sync
-           </button>
-           <button
-             onClick={() => openChat('What should I focus on financially right now?')}
-             className="mobile-button"
-             style={{ background: 'var(--lf-ink)', color: 'var(--lf-paper)', border: '1px solid var(--lf-ink)' }}
-           >
-             Walk me through this →
-           </button>
-         </div>
-       </motion.div>
+      {/* Setup progress — only if incomplete */}
+      {!allSetupComplete && (
+        <div style={{ marginBottom: 24 }}>
+          <SetupProgress steps={setupSteps} />
+        </div>
+      )}
 
-       {/* Financial Level Banner */}
-       {(prioritySteps.length > 0 || insights.filter(i => !i.dismissedAt).length > 0) && (
-         <motion.div
-           initial={{ opacity: 0, y: 6 }}
-           animate={{ opacity: 1, y: 0 }}
-           transition={{ delay: 0.06, duration: 0.35 }}
-           className="flex flex-col sm:flex-row items-stretch gap-0 sm:gap-0 rounded-xl mb-5 overflow-hidden"
-           style={{
-             background: 'var(--lf-cream)',
-             border: '1px solid var(--lf-rule)',
-           }}
-         >
-           {/* Level indicator */}
-           {prioritySteps.length > 0 && (() => {
-             const currentStep = prioritySteps.find(s => s.status !== 'complete' && !s.skipped) || prioritySteps[0];
-             const currentLevel = currentStep.order;
-             return (
-               <div className="flex items-center gap-3.5 p-3.5 sm:p-4 border-b sm:border-b-0 sm:border-r border-rule flex-shrink-0">
-                 <div className="w-9 h-9 rounded-lg flex items-center justify-center font-mono text-sm font-semibold flex-shrink-0 text-paper"
-                      style={{
-                        background: LAYER_COLORS[Math.min(currentLevel - 1, LAYER_COLORS.length - 1)] || 'var(--lf-sauce)',
-                      }}>
-                   {currentLevel}
-                 </div>
-                 <div className="min-w-0 flex-1">
-                   <div className="font-mono text-xs tracking-wide uppercase text-muted">
-                     Level {currentLevel} · Current focus
-                   </div>
-                   <div className="text-sm font-medium text-ink truncate">
-                     {currentStep.title}
-                   </div>
-                   <button
-                     onClick={() => navigate('/financial-level')}
-                     className="font-mono text-xs text-sauce mt-0.5 bg-transparent border-0 cursor-pointer p-0"
-                   >
-                     View my level →
-                   </button>
-                 </div>
-               </div>
-             );
-           })()}
+      {/* Link accounts nudge */}
+      {!hasPlaidAccounts && accountCount > 0 && (
+        <div style={{
+          marginBottom: 20, background: 'rgba(201,84,58,0.06)',
+          border: '1px solid rgba(201,84,58,0.2)', borderRadius: 14,
+          padding: '14px 20px', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', gap: 16,
+        }}>
+          <div>
+            <div style={{ fontWeight: 500, fontSize: 14 }}>Link your bank for automatic updates</div>
+            <div style={{ color: 'var(--lf-muted)', fontSize: 13, marginTop: 2 }}>Your balances are manual snapshots. Connect via Plaid for real-time tracking.</div>
+          </div>
+          <button
+            onClick={() => navigate('/accounts')}
+            style={{ padding: '8px 16px', background: 'var(--lf-sauce)', color: 'var(--lf-paper)', border: 0, borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' as const }}
+          >
+            Link Account
+          </button>
+        </div>
+      )}
+
+      {/* PageHeader */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 28, flexWrap: 'wrap' as const, gap: 16 }}
+      >
+        <div>
+          <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, fontWeight: 400, margin: 0 }}>
+            Dashboard
+          </h1>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', marginTop: 6 }}>
+            Good {getGreeting()}, {firstName} · {getDayLabel()}
+            {urgentCount > 0 && ` · ${urgentCount} urgent`}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => navigate('/accounts')}
+            style={{ padding: '10px 18px', borderRadius: 999, border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)', color: 'var(--lf-ink)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+          >
+            Sync
+          </button>
+          <button
+            onClick={() => openChat('What should I focus on financially right now?')}
+            style={{ padding: '10px 18px', borderRadius: 999, border: '1px solid var(--lf-ink)', background: 'var(--lf-ink)', color: 'var(--lf-paper)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+          >
+            Walk me through this →
+          </button>
+        </div>
+      </motion.div>
+
+      {/* Financial Level Banner */}
+      {(prioritySteps.length > 0 || insights.filter(i => !i.dismissedAt).length > 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.06, duration: 0.35 }}
+          style={{
+            display: 'flex', alignItems: 'stretch', gap: 0,
+            background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)',
+            borderRadius: 14, marginBottom: 20, overflow: 'hidden',
+          }}
+          className="dash-banner"
+        >
+          {/* Level indicator */}
+          {prioritySteps.length > 0 && (() => {
+            const currentStep = prioritySteps.find(s => s.status !== 'complete' && !s.skipped) || prioritySteps[0];
+            const currentLevel = currentStep.order;
+            return (
+              <div
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px',
+                  borderRight: '1px solid var(--lf-rule)',
+                  flex: '0 0 auto',
+                }}
+              >
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: LAYER_COLORS[Math.min(currentLevel - 1, LAYER_COLORS.length - 1)] || 'var(--lf-sauce)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 15,
+                  color: 'var(--lf-paper)', fontWeight: 600, flexShrink: 0,
+                }}>
+                  {currentLevel}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
+                    Level {currentLevel} · Current focus
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--lf-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {currentStep.title}
+                  </div>
+                  <button
+                    onClick={() => navigate('/financial-level')}
+                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-sauce)', background: 'none', border: 0, cursor: 'pointer', padding: 0, marginTop: 2 }}
+                  >
+                    View my level →
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Weekly actions */}
           {(() => {
@@ -629,22 +660,28 @@ export function Dashboard() {
               .slice(0, 2);
             if (weekActions.length === 0) return null;
             return (
-              <div className="flex flex-col gap-1.5 p-3.5 sm:p-4 flex-1 min-w-0 overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                  <span className="font-mono text-xs tracking-wide uppercase text-muted flex-shrink-0">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '14px 20px', flex: 1, minWidth: 0, overflow: 'hidden' }} className="dash-banner-actions">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <span
+                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', flexShrink: 0 }}
+                  >
                     This week
                   </span>
                   {weekActions.map((a, i) => (
                     <div
                       key={a.id}
                       onClick={() => navigate('/insights')}
-                      className="flex items-center gap-2 text-sm text-ink-soft min-w-0 cursor-pointer
-                               sm:pl-4 sm:border-l border-rule"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        fontSize: 13, color: 'var(--lf-ink-soft)', minWidth: 0, cursor: 'pointer',
+                        ...(i > 0 ? { borderLeft: '1px solid var(--lf-rule)', paddingLeft: 16 } : {}),
+                      }}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0
-                        ${a.urgency === 'critical' || a.urgency === 'high' ? 'bg-sauce' : 
-                          a.urgency === 'medium' ? 'bg-cheese' : 'bg-basil'}`} />
-                      <span className="truncate">
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                        background: a.urgency === 'critical' || a.urgency === 'high' ? 'var(--lf-sauce)' : a.urgency === 'medium' ? 'var(--lf-cheese)' : 'var(--lf-basil)',
+                      }} />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {a.title}
                       </span>
                     </div>
@@ -652,7 +689,7 @@ export function Dashboard() {
                 </div>
                 <button
                   onClick={() => navigate('/insights')}
-                  className="font-mono text-xs text-sauce mt-1 bg-transparent border-0 cursor-pointer p-0 self-start"
+                  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-sauce)', background: 'none', border: 0, cursor: 'pointer', padding: 0, alignSelf: 'flex-start' }}
                 >
                   View actions →
                 </button>
@@ -667,37 +704,35 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05, duration: 0.4 }}
-        className="rounded-xl p-5 sm:p-8 lg:p-10 mb-5"
         style={{
-          background: 'var(--lf-ink)',
-          color: 'var(--lf-paper)',
+          background: 'var(--lf-ink)', color: 'var(--lf-paper)',
+          borderRadius: 14, padding: 'clamp(20px, 4vw, 40px)', marginBottom: 20,
         }}
       >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-center">
+        <div className="dash-hero-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 40, alignItems: 'center' }}>
           <div>
-            <div className="font-mono text-sm tracking-wide uppercase text-cheese mb-2.5">
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-cheese)' }}>
               Net Worth · live
             </div>
-            <div className="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[0.95] tracking-tight
-                         overflow-hidden text-ellipsis whitespace-nowrap">
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 'clamp(48px, 10vw, 88px)', lineHeight: 0.95, letterSpacing: '-0.03em', marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {netWorth !== null ? formatMoney(netWorth, true) : '—'}
             </div>
             {netWorthChange !== null && (
-              <div className="font-mono text-sm text-cheese mt-2.5">
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-cheese)', marginTop: 10 }}>
                 {netWorthChange >= 0 ? '▲' : '▼'} {fmt(Math.abs(netWorthChange))}{nwChangePct}
               </div>
             )}
-            <div className="flex flex-wrap gap-4 sm:gap-6 mt-6 font-mono text-sm" style={{ color: '#D4C6B0' }}>
+            <div style={{ display: 'flex', gap: 24, marginTop: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0' }}>
               {totalAssets > 0 && <span>ASSETS · {formatMoney(totalAssets, true)}</span>}
               {totalLiabilities > 0 && <span>LIABILITIES · {formatMoney(totalLiabilities, true)}</span>}
               {healthScore && <span>HEALTH · {healthScore.score}/100</span>}
             </div>
           </div>
-          <div className="min-w-0">
+          <div style={{ minWidth: 0 }}>
             {nwHistory.length > 1 ? (
               <Sparkline data={nwHistory} color="var(--lf-cheese)" height={130} strokeWidth={2} />
             ) : (
-              <div className="h-32 flex items-center justify-center text-xs" style={{ color: '#D4C6B0', fontFamily: "'JetBrains Mono', monospace" }}>
+              <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4C6B0', fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
                 Link accounts to see history
               </div>
             )}
@@ -710,7 +745,7 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.4 }}
-        className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5"
+        className="dash-mini-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 20 }}
       >
         <MiniCard
           label="Emergency fund"
@@ -743,27 +778,27 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.4 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-5"
+        className="dash-bottom-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 20 }}
       >
         {/* Spend Donut */}
-        <div className="rounded-xl p-5 border border-rule bg-paper">
-          <div className="flex justify-between items-baseline mb-3">
-            <div className="font-mono text-sm tracking-wide uppercase text-muted">
+        <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
               Monthly spend · by category
             </div>
-            <button onClick={() => navigate('/spending')} className="text-sm text-sauce font-mono bg-transparent border-0 cursor-pointer">
+            <button onClick={() => navigate('/spending')} style={{ fontSize: 13, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}>
               details →
             </button>
           </div>
           {spendCatsForDonut.length > 0 ? (
-            <div className="flex gap-4 items-center">
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
               <DonutMini cats={spendCatsForDonut} totalLabel={totalSpending > 0 ? fmtK(totalSpending) : '$0'} />
-              <div className="flex-1 min-w-0">
+              <div style={{ flex: 1 }}>
                 {spendCatsForDonut.slice(0, 4).map((c, i) => (
-                  <div key={i} className="grid grid-cols-[8px_1fr_auto] gap-2 items-center py-1 text-sm">
-                    <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: c.color }} />
-                    <span className="text-ink-soft capitalize truncate">{c.name.replace('_', ' ')}</span>
-                    <span className="font-mono text-sm">
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '8px 1fr auto', gap: 8, alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: c.color }} />
+                    <span style={{ color: 'var(--lf-ink-soft)', textTransform: 'capitalize' as const }}>{c.name.replace('_', ' ')}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
                       {totalSpending > 0 ? Math.round((c.total / totalSpending) * 100) : 0}%
                     </span>
                   </div>
@@ -771,19 +806,19 @@ export function Dashboard() {
               </div>
             </div>
           ) : (
-            <div className="text-muted text-sm text-center py-6">
+            <div style={{ color: 'var(--lf-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
               No spending data yet.
             </div>
           )}
         </div>
 
         {/* Goals */}
-        <div className="rounded-xl p-5 border border-rule bg-paper">
-          <div className="flex justify-between items-baseline mb-3">
-            <div className="font-mono text-sm tracking-wide uppercase text-muted">
+        <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)' }}>
               Goals · top 3
             </div>
-            <button onClick={() => navigate('/goals')} className="text-sm text-sauce font-mono bg-transparent border-0 cursor-pointer">
+            <button onClick={() => navigate('/goals')} style={{ fontSize: 13, color: 'var(--lf-sauce)', fontFamily: "'JetBrains Mono', monospace", background: 'none', border: 0, cursor: 'pointer' }}>
               {goals.length > 0 ? 'all →' : 'set goals →'}
             </button>
           </div>
@@ -800,86 +835,78 @@ export function Dashboard() {
                   ? deadlineDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
                   : null;
                 return (
-                  <div key={g.id} className={`py-2 ${i < 2 ? 'border-b border-dashed border-rule' : ''}`}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="truncate">{g.icon || '⊙'} {g.name}</span>
-                      <span className="font-mono text-sm text-muted">{Math.round(pct)}%</span>
+                  <div key={g.id} style={{ padding: '8px 0', borderBottom: i < 2 ? '1px dashed var(--lf-rule)' : 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}>
+                      <span>{g.icon || '⊙'} {g.name}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)' }}>{Math.round(pct)}%</span>
                     </div>
                     {deadlineStr && (
-                      <div className={`font-mono text-sm mb-1 ${isPast ? 'text-sauce' : 'text-muted'}`}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: isPast ? 'var(--lf-sauce)' : 'var(--lf-muted)', marginBottom: 4 }}>
                         {isPast ? 'overdue · ' : 'by '}{deadlineStr}
                       </div>
                     )}
-                    <div className="h-1 bg-cream rounded overflow-hidden">
-                      <div className="h-full rounded transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+                    <div style={{ height: 4, background: 'var(--lf-cream)', borderRadius: 2 }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.5s' }} />
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="text-muted text-sm text-center py-6">
+            <div style={{ color: 'var(--lf-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
               No goals set yet.
             </div>
           )}
         </div>
 
         {/* Financial Health */}
-        <div className="rounded-xl p-5 border border-rule bg-paper md:col-span-2 lg:col-span-1">
-          <div className="font-mono text-sm tracking-wide uppercase text-muted mb-3">
+        <div style={{ background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)', borderRadius: 14, padding: 20 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', marginBottom: 12 }}>
             Financial health
           </div>
           {healthScore ? (
-            <div className="flex items-center gap-5">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <HealthRing score={healthScore.score} color={healthScore.color} />
-              <div className="flex-1 font-mono text-sm text-muted leading-relaxed">
-                <div className="flex justify-between">
+              <div style={{ flex: 1, fontSize: 13, fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-muted)', lineHeight: 1.8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Cash</span>
-                  <span className={
-                    emergencyFund > 0 && runwayMonths !== null && runwayMonths >= 6 ? 'text-pos' :
-                    emergencyFund > 0 ? 'text-cheese' : ''
-                  }>
+                  <span style={{ color: emergencyFund > 0 && runwayMonths !== null && runwayMonths >= 6 ? 'var(--lf-pos)' : 'var(--lf-cheese)' }}>
                     {emergencyFund > 0 && runwayMonths !== null && runwayMonths >= 6 ? 'strong' : emergencyFund > 0 ? 'fair' : '—'}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Debt</span>
-                  <span className={
-                    totalDebt === 0 ? 'text-pos' :
-                    totalDebt < 5000 ? 'text-cheese' : 'text-sauce'
-                  }>
+                  <span style={{ color: totalDebt === 0 ? 'var(--lf-pos)' : totalDebt < 5000 ? 'var(--lf-cheese)' : 'var(--lf-sauce)' }}>
                     {totalDebt === 0 ? 'none' : totalDebt < 5000 ? 'fair' : 'high'}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Savings</span>
-                  <span className={
-                    savingsRate !== null && savingsRate >= 20 ? 'text-pos' :
-                    savingsRate !== null && savingsRate > 0 ? 'text-cheese' : ''
-                  }>
+                  <span style={{ color: savingsRate !== null && savingsRate >= 20 ? 'var(--lf-pos)' : savingsRate !== null && savingsRate > 0 ? 'var(--lf-cheese)' : 'var(--lf-muted)' }}>
                     {savingsRate !== null ? `${savingsRate}%` : '—'}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Grade</span>
                   <span style={{ color: healthScore.color }}>{healthScore.grade}</span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="text-muted text-sm text-center py-6">
+            <div style={{ color: 'var(--lf-muted)', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
               Add accounts to calculate score.
             </div>
           )}
         </div>
       </motion.div>
 
+
       {/* Mobile ask prompts */}
-      <div className="md:hidden mt-5">
-        <div className="font-mono text-sm tracking-wide uppercase text-muted mb-3">
+      <div className="md:hidden" style={{ marginTop: 20 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--lf-muted)', marginBottom: 12 }}>
           Walk me through
         </div>
-        <div className="flex flex-col gap-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
             'What should I focus on financially right now?',
             'Am I saving enough for my age?',
@@ -888,13 +915,11 @@ export function Dashboard() {
             <button
               key={prompt}
               onClick={() => openChat(prompt)}
-              className="mobile-button text-left text-sm text-ink-soft"
               style={{
-                background: 'var(--lf-paper)',
-                border: '1px solid var(--lf-rule)',
-                borderRadius: '12px',
-                padding: '12px 16px',
-                textAlign: 'left',
+                padding: '12px 16px', background: 'var(--lf-paper)',
+                border: '1px solid var(--lf-rule)', borderRadius: 12,
+                textAlign: 'left', cursor: 'pointer', fontSize: 13,
+                color: 'var(--lf-ink-soft)',
               }}
             >
               {prompt}
