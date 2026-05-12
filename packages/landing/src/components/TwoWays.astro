@@ -1,31 +1,81 @@
 ---
 import { GITHUB_URL } from "../config";
 
-const selfFeatures = [
-  "Run on your own infrastructure",
-  "Easy to run docker images, one command to run",
-  "Bring your own Plaid and OpenRouter keys",
-  "Every feature, zero gating",
-  "Source available on GitHub",
+const steps = [
+  {
+    number: "01",
+    title: "Prerequisites",
+    description: "You'll need Docker (recommended) or Node.js 20+ and PostgreSQL installed on your machine.",
+    command: null,
+    note: "Docker is the easiest way to get started — handles everything for you.",
+  },
+  {
+    number: "02",
+    title: "Clone the repository",
+    description: "Get the Lasagna source code from GitHub.",
+    command: "git clone https://github.com/dmanjunath/lasagna.git && cd lasagna",
+    note: null,
+  },
+  {
+    number: "03",
+    title: "Configure your environment",
+    description: "Set up your encryption key and optional API keys.",
+    command: "cp .env.example .env\n# Edit .env to add your keys",
+    note: "Minimum required: ENCRYPTION_KEY (run: openssl rand -hex 32)",
+  },
+  {
+    number: "04",
+    title: "Start the application",
+    description: "Launch Lasagna with a single command.",
+    command: "docker compose up",
+    note: "The app will be available at http://localhost:5173",
+  },
 ];
 ---
 
-<section id="pricing">
+<section id="run-it-yourself">
   <div class="inner">
     <div class="section-head">
       <h2 class="serif">Run it yourself.<br /><em>Your data stays yours.</em></h2>
+      <p class="subtitle">
+        Self-host Lasagna in minutes. Full control, complete privacy.
+      </p>
     </div>
 
-    <div class="pricing-grid">
-      <div class="plan plan-self">
-        <div class="eyebrow" style="color: var(--cheese);">Self-hosted</div>
-        <h3 class="serif">Sovereign</h3>
-        <div class="price serif">Free<small>forever · open source</small></div>
-        <ul>
-          {selfFeatures.map((f) => <li>{f}</li>)}
-        </ul>
-        <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="btn btn-cheese cta-btn">View on GitHub →</a>
-      </div>
+    <div class="steps-container">
+      {steps.map((step) => (
+        <div class="step-card">
+          <div class="step-number">{step.number}</div>
+          <div class="step-content">
+            <h3>{step.title}</h3>
+            <p class="step-description">{step.description}</p>
+            {step.command && (
+              <div class="code-block">
+                <pre>{step.command}</pre>
+              </div>
+            )}
+            {step.note && (
+              <div class="step-note">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span>{step.note}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <div class="cta-section">
+      <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="btn btn-cheese cta-btn">
+        View on GitHub →
+      </a>
+      <p class="cta-note">
+        Need help? <a href={GITHUB_URL + "/issues"} target="_blank" rel="noopener noreferrer">Check the issues</a> or <a href={GITHUB_URL + "/wiki"} target="_blank" rel="noopener noreferrer">read the wiki</a>
+      </p>
     </div>
   </div>
 </section>
@@ -42,12 +92,8 @@ const selfFeatures = [
   }
 
   .section-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    margin-bottom: 48px;
-    gap: 32px;
-    flex-wrap: wrap;
+    text-align: center;
+    margin-bottom: 64px;
   }
 
   h2 {
@@ -55,101 +101,173 @@ const selfFeatures = [
     line-height: 1.05;
     letter-spacing: -0.02em;
     font-weight: 400;
+    margin-bottom: 24px;
   }
 
-  h2 em { font-style: italic; color: var(--sauce); }
-
-  .section-head p {
-    max-width: 360px;
-    color: var(--ink-soft);
-    font-size: 15px;
-    line-height: 1.6;
-    margin: 0;
+  h2 em {
+    font-style: italic;
+    color: var(--sauce);
   }
 
-  .pricing-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
-
-  .plan {
-    border: 1px solid var(--rule);
-    border-radius: 20px;
-    padding: 36px;
-    position: relative;
-  }
-
-  .plan-self {
-    background: var(--ink);
-    color: var(--paper);
-    border-color: var(--ink);
-    max-width: 480px;
+  .subtitle {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 500px;
     margin: 0 auto;
+    line-height: 1.5;
   }
 
-  .plan .eyebrow {
-    margin-bottom: 8px;
+  .steps-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 24px;
+    margin-bottom: 48px;
+  }
+
+  .step-card {
+    display: flex;
+    gap: 24px;
+    padding: 32px;
+    background: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .step-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--sauce), var(--cheese));
+  }
+
+  .step-number {
+    font-family: var(--mono);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--cheese);
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .step-content {
+    flex: 1;
+    min-width: 0;
   }
 
   h3 {
     font-family: var(--serif);
-    font-size: 36px;
+    font-size: 24px;
     font-weight: 400;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.01em;
     margin-bottom: 8px;
+    color: var(--paper);
   }
 
-  .price {
-    font-family: var(--serif);
-    font-size: 52px;
-    letter-spacing: -0.02em;
-    line-height: 1;
-    margin-bottom: 28px;
+  .step-description {
+    font-size: 16px;
+    color: #A89D8A;
+    line-height: 1.5;
+    margin-bottom: 16px;
   }
 
-  .price small {
-    font-family: var(--sans);
-    font-size: 14px;
-    color: var(--muted);
-    margin-left: 6px;
-    font-weight: 400;
+  .code-block {
+    background: #1A1614;
+    border: 1px solid #3A322C;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    overflow-x: auto;
   }
 
-  .plan-self .price small { color: #9a8d77; }
-
-  ul {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 28px 0;
-  }
-
-  li {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--rule);
-    font-size: 14px;
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-  }
-
-  li::before {
-    content: "✓";
-    color: var(--sauce);
+  .code-block pre {
     font-family: var(--mono);
+    font-size: 13px;
+    color: #D4C6B0;
+    margin: 0;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .step-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #9A8D77;
+  }
+
+  .step-note svg {
     flex-shrink: 0;
   }
 
-  .plan-self li { border-bottom-color: #3A322C; color: #D4C6B0; }
-  .plan-self li::before { color: var(--cheese); }
+  .cta-section {
+    text-align: center;
+  }
 
   .cta-btn {
-    width: 100%;
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
+    padding: 16px 40px;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .cta-note {
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .cta-note a {
+    color: var(--sauce);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+
+  .cta-note a:hover {
+    border-bottom-color: var(--sauce);
   }
 
   @media (max-width: 700px) {
-    .pricing-grid { grid-template-columns: 1fr; }
-    .inner { padding: 64px 20px; }
+    .inner {
+      padding: 64px 20px;
+    }
+
+    .steps-container {
+      grid-template-columns: 1fr;
+    }
+
+    .subtitle {
+      font-size: 16px;
+    }
+
+    .step-card {
+      padding: 24px;
+      gap: 16px;
+    }
+
+    .step-number {
+      font-size: 20px;
+    }
+
+    h3 {
+      font-size: 20px;
+    }
+
+    .step-description {
+      font-size: 15px;
+    }
+
+    .code-block pre {
+      font-size: 12px;
+    }
   }
 </style>

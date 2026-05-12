@@ -89,8 +89,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            style={{ position: 'fixed', inset: 0, top: '-5%', height: '110%', background: 'rgba(31,26,22,0.5)', zIndex: 40 }}
-            className="md:hidden"
+            className="fixed inset-0 top-[-5%] h-[110%] bg-ink/50 z-40 md:hidden"
           />
 
           {/* Drawer */}
@@ -99,50 +98,37 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            style={{
-              position: 'fixed', top: 0, left: 0, bottom: 0, width: 280,
-              zIndex: 50, display: 'flex', flexDirection: 'column',
-              background: 'var(--lf-cream)', borderRight: '1px solid var(--lf-rule)',
-            }}
-            className="md:hidden"
+            className="fixed top-0 left-0 bottom-0 w-72 z-50 flex flex-col
+                       bg-cream border-r border-border md:hidden"
           >
             {/* Header */}
-            <div style={{
-              padding: '20px 16px 16px',
-              borderBottom: '1px solid var(--lf-rule)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              paddingTop: 'max(20px, env(safe-area-inset-top))',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div className="lf-mark"><span /><span /><span /></div>
-                <span style={{
-                  fontFamily: "'Instrument Serif', Georgia, serif",
-                  fontSize: 18, color: 'var(--lf-ink)', letterSpacing: '-0.01em',
-                }}>
-                  Lasagna<em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>Fi</em>
+            <div className="flex items-center justify-between gap-2.5 p-4 border-b border-border"
+                 style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
+              <div className="flex items-center gap-2.5">
+                <div className="lf-mark">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span className="font-serif text-lg text-ink">
+                  Lasagna<em className="text-sauce italic">Fi</em>
                 </span>
               </div>
               <button
                 onClick={onClose}
-                style={{
-                  width: 32, height: 32, borderRadius: 8, border: '1px solid var(--lf-rule)',
-                  background: 'var(--lf-paper)', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', cursor: 'pointer',
-                }}
+                className="w-8 h-8 rounded-lg bg-paper border border-border
+                           flex items-center justify-center cursor-pointer
+                           active:scale-95 transition-transform"
               >
-                <X size={16} style={{ color: 'var(--lf-muted)' }} />
+                <X size={16} className="text-muted" />
               </button>
             </div>
 
             {/* Nav */}
-            <nav style={{ flex: 1, overflowY: 'auto', padding: '12px' }} className="scrollbar-thin">
+            <nav className="flex-1 overflow-y-auto p-3 scrollbar-thin">
               {NAV_SECTIONS.map(({ section, items }) => (
-                <div key={section} style={{ marginBottom: 8 }}>
-                  <div style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase',
-                    color: 'var(--lf-muted)', padding: '0 8px', margin: '16px 0 6px',
-                  }}>
+                <div key={section} className="mb-2">
+                  <div className="font-mono text-xs tracking-widest uppercase text-muted px-2 my-4">
                     {section}
                   </div>
                   {items.map(({ label, icon: Icon, path }) => {
@@ -151,19 +137,19 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                       <button
                         key={path}
                         onClick={() => handleNavigate(path)}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg mb-0.5
+                                   border-0 cursor-pointer text-left font-sans text-sm
+                                   transition-colors active:scale-[0.98]
+                                   min-h-[44px]"
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          width: '100%', padding: '10px 12px', borderRadius: 8,
-                          marginBottom: 2, border: 0, cursor: 'pointer', textAlign: 'left',
-                          fontFamily: "'Geist', system-ui, sans-serif", fontSize: 14,
                           background: active ? 'var(--lf-ink)' : 'transparent',
                           color: active ? 'var(--lf-paper)' : 'var(--lf-ink-soft)',
                         }}
                       >
                         <Icon
                           size={16}
+                          className="flex-shrink-0"
                           style={{
-                            flexShrink: 0,
                             opacity: active ? 1 : 0.65,
                             color: active ? 'var(--lf-cheese)' : 'currentColor',
                           }}
@@ -176,47 +162,39 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
               ))}
 
               {/* AI Chat */}
-              <div style={{ marginBottom: 8 }}>
+              <div className="mb-2">
                 <button
                   onClick={() => { openChat(); onClose(); }}
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg mb-0.5
+                             border-0 cursor-pointer text-left font-sans text-sm
+                             transition-colors active:scale-[0.98]
+                             min-h-[44px]"
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '10px 12px', borderRadius: 8,
-                    marginBottom: 2, border: 0, cursor: 'pointer', textAlign: 'left',
-                    fontFamily: "'Geist', system-ui, sans-serif", fontSize: 14,
-                    background: 'transparent', color: 'var(--lf-ink-soft)',
+                    background: 'transparent',
+                    color: 'var(--lf-ink-soft)',
                   }}
                 >
-                  <MessageSquare size={16} style={{ flexShrink: 0, opacity: 0.65 }} />
+                  <MessageSquare size={16} className="flex-shrink-0 opacity-65" />
                   AI Chat
                 </button>
               </div>
             </nav>
 
             {/* Account chip at bottom */}
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--lf-rule)', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', borderRadius: 10,
-                border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
-              }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: 8,
-                  background: 'var(--lf-sauce)', color: 'var(--lf-paper)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 14, flexShrink: 0,
-                }}>
+            <div className="p-4 border-t border-border"
+                 style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl
+                           border border-border bg-paper">
+                <div className="w-7 h-7 rounded-lg bg-sauce text-paper
+                           flex items-center justify-center font-serif text-sm
+                           flex-shrink-0">
                   {initial}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontWeight: 500, color: 'var(--lf-ink)', fontSize: 13,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    fontFamily: "'Geist', system-ui, sans-serif",
-                  }}>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-ink text-sm truncate">
                     {firstName}
                   </div>
-                  <div style={{ color: 'var(--lf-muted)', fontSize: 13, fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div className="text-muted text-xs font-mono">
                     {tenant?.plan === 'pro' ? 'pro plan' : 'self-hosted'}
                   </div>
                 </div>
@@ -234,16 +212,13 @@ export function MobileMenuButton({ onClick }: { onClick: () => void }) {
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.95 }}
-      style={{
-        position: 'fixed', top: 14, left: 16, zIndex: 30,
-        width: 36, height: 36, borderRadius: 9,
-        background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer',
-      }}
-      className="md:hidden"
+      className="fixed top-3.5 left-4 z-30 w-9 h-9 rounded-lg
+                 bg-paper border border-border
+                 flex items-center justify-center cursor-pointer
+                 active:scale-95 transition-transform duration-200
+                 md:hidden min-w-[44px] min-h-[44px]"
     >
-      <Menu size={18} style={{ color: 'var(--lf-ink)' }} />
+      <Menu size={18} className="text-ink" strokeWidth={2} />
     </motion.button>
   );
 }

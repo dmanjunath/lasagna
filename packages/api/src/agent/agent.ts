@@ -29,6 +29,7 @@ export function getModel(level: ModelLevel = "quality"): LanguageModel {
   }
   const openrouter = createOpenRouter({
     apiKey: env.OPENROUTER_API_KEY,
+    appName: "LasagnaFi",
   });
   const model = openrouter(modelMappings[level]);
   _models.set(level, model);

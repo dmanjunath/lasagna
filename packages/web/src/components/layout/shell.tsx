@@ -44,7 +44,8 @@ export function Shell({ children }: ShellProps) {
         /* Mobile: main content + chat overlay */
         <div className="flex-1 flex overflow-hidden relative">
           {/* Main content — always rendered */}
-          <main className="w-full flex flex-col overflow-hidden pt-14 pb-16">
+          <main className="w-full flex flex-col overflow-hidden pt-[56px] pb-[56px]
+                          safe-top-safe-bottom">
             <div className="flex-1 overflow-y-auto">
               {children}
             </div>
@@ -63,11 +64,12 @@ export function Shell({ children }: ShellProps) {
                 data-testid="chat-panel"
               >
                 {/* Header */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0"
-                     style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0
+                               safe-top-safe-top">
                   <button
                     onClick={() => closeChat()}
-                    className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors
+                             active:scale-95 min-w-[44px] min-h-[44px]"
                     aria-label="Close chat"
                   >
                     <ArrowLeft className="w-4 h-4 text-text-secondary" />
@@ -76,8 +78,8 @@ export function Shell({ children }: ShellProps) {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0"
-                     style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0
+                                safe-bottom-safe-bottom">
                   <ChatTabs />
                 </div>
               </motion.div>

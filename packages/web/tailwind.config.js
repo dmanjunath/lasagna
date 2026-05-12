@@ -9,6 +9,17 @@ const v = (name) => `rgb(var(${name}) / <alpha-value>)`;
 
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  
+  // Improved mobile-first breakpoints
+  screens: {
+    'xs': '375px',   // Extra small phones
+    'sm': '480px',   // Small phones
+    'md': '768px',   // Tablets
+    'lg': '1024px',  // Small laptops
+    'xl': '1280px',  // Laptops
+    '2xl': '1536px', // Large screens
+  },
+  
   theme: {
     // ─────────────────────────────────────────────────────────────
     // FONT SIZE SCALE
@@ -150,6 +161,8 @@ export default {
       animation: {
         'fade-in':  'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'scale-in': 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'slide-down': 'slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
       },
       keyframes: {
         fadeIn: {
@@ -160,6 +173,36 @@ export default {
           from: { opacity: '0', transform: 'scale(0.95)' },
           to:   { opacity: '1', transform: 'scale(1)' },
         },
+        slideUp: {
+          from: { opacity: '0', transform: 'translateY(20px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideDown: {
+          from: { opacity: '0', transform: 'translateY(-20px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      
+      // Mobile-optimized spacing and sizing
+      spacing: {
+        'safe-top': 'env(safe-area-inset-top)',
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'safe-left': 'env(safe-area-inset-left)',
+        'safe-right': 'env(safe-area-inset-right)',
+      },
+      
+      // Touch-friendly sizing
+      minWidth: {
+        'touch': '44px',  // iOS touch target minimum
+      },
+      minHeight: {
+        'touch': '44px',  // iOS touch target minimum
+      },
+      
+      // Mobile-specific shadows
+      boxShadow: {
+        'mobile-nav': '0 -4px 20px rgba(0, 0, 0, 0.1)',
+        'mobile-card': '0 2px 8px rgba(0, 0, 0, 0.08)',
       },
     },
   },

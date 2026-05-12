@@ -153,14 +153,14 @@ const defaultIdx = layers.findIndex(l => l.now);
     line-height: 1.12;
     letter-spacing: -0.015em;
     font-weight: 400;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
   }
 
   .layers-copy p {
     color: var(--ink-soft);
-    line-height: 1.65;
+    line-height: 1.7;
     font-size: 15px;
-    max-width: 400px;
+    max-width: 420px;
     margin: 0;
   }
 
@@ -179,7 +179,13 @@ const defaultIdx = layers.findIndex(l => l.now);
   }
 
   .layer-row:hover {
-    background: color-mix(in oklab, var(--ink) 5%, transparent);
+    background: color-mix(in oklab, var(--ink) 8%, transparent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  .layer-row {
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   }
 
   .layer-row--active {
@@ -215,6 +221,16 @@ const defaultIdx = layers.findIndex(l => l.now);
   .status--now {
     background: var(--sauce);
     color: var(--paper);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 6px 12px;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--sauce) 20%, transparent);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--sauce) 20%, transparent); }
+    50% { box-shadow: 0 0 0 5px color-mix(in oklab, var(--sauce) 35%, transparent); }
   }
 
   @media (max-width: 860px) {

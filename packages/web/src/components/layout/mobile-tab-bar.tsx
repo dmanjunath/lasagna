@@ -29,13 +29,9 @@ export function MobileTabBar() {
 
   return (
     <nav
-      style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 30,
-        background: 'var(--lf-paper)', borderTop: '1px solid var(--lf-rule)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        display: 'flex', alignItems: 'stretch',
-      }}
-      className="md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-30 bg-paper border-t border-border md:hidden
+                 flex items-stretch pb-safe-bottom"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
@@ -48,39 +44,30 @@ export function MobileTabBar() {
               if (tab.action === 'chat') openChat();
               else if (tab.path) navigate(tab.path);
             }}
+            className="flex-1 flex flex-col items-center justify-center gap-1
+                       h-14 border-0 cursor-pointer bg-transparent relative
+                       transition-all duration-200 active:scale-95
+                       min-w-[44px] min-h-[44px]"
             style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              gap: 3, height: 56, border: 0, cursor: 'pointer',
-              background: 'transparent', position: 'relative',
               color: active ? 'var(--lf-sauce)' : 'var(--lf-muted)',
-              transition: 'color 0.15s',
             }}
           >
-            <Icon size={20} strokeWidth={active ? 2 : 1.5} />
-            <span style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 13, letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: 'inherit',
-            }}>
+            <Icon 
+              size={20} 
+              strokeWidth={active ? 2.5 : 1.5}
+              className="transition-transform duration-200 active:scale-110"
+            />
+            <span className="font-mono text-xs tracking-wide uppercase whitespace-nowrap">
               {tab.name}
             </span>
             {tab.action === 'chat' && unreadCount > 0 && (
-              <span style={{
-                position: 'absolute', top: 8, right: '50%',
-                transform: 'translateX(8px)',
-                width: 7, height: 7, borderRadius: '50%',
-                background: 'var(--lf-sauce)',
-              }} />
+              <span className="absolute top-2 right-1/2 translate-x-2
+                           w-2.5 h-2.5 rounded-full bg-sauce
+                           border-2 border-paper" />
             )}
             {active && (
-              <span style={{
-                position: 'absolute', top: 0, left: '50%',
-                transform: 'translateX(-50%)',
-                width: 20, height: 2, borderRadius: '0 0 2px 2px',
-                background: 'var(--lf-sauce)',
-              }} />
+              <span className="absolute top-0 left-1/2 -translate-x-1/2
+                           w-5 h-0.5 rounded-b-sm bg-sauce" />
             )}
           </button>
         );

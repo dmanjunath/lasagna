@@ -2,16 +2,73 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes" />
+    
+    <!-- PWA Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="LasagnaFi" />
+    <meta name="theme-color" content="#C9543A" />
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Self-hosted personal finance platform" />
+    <meta name="keywords" content="finance, personal finance, budgeting, investment" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="LasagnaFi - Personal Finance Platform" />
+    <meta property="og:description" content="Self-hosted personal finance platform" />
+    <meta property="og:type" content="website" />
+    
+    <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
     <title>LasagnaFi</title>
+    
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"></noscript>
+    
+    <!-- Mobile Optimization -->
+    <style>
+      * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+      
+      html {
+        height: 100%;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      body {
+        overscroll-behavior-y: none;
+        overscroll-behavior-x: none;
+        touch-action: pan-y;
+      }
+      
+      /* Prevent bounce scroll on iOS */
+      @supports (-webkit-overflow-scrolling: touch) {
+        body {
+          -webkit-overflow-scrolling: touch;
+        }
+      }
+      
+      /* Safe area support */
+      @supports (padding: max(0px)) {
+        .safe-top { padding-top: max(16px, env(safe-area-inset-top)); }
+        .safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+        .safe-left { padding-left: max(16px, env(safe-area-inset-left)); }
+        .safe-right { padding-right: max(16px, env(safe-area-inset-right)); }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
