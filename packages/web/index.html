@@ -27,6 +27,16 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
     
+    <!-- Apple Touch Icons for different sizes -->
+    <link rel="apple-touch-icon" sizes="152x152" href="/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icon-167x167.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon-180x180.png" />
+    
+    <!-- Startup Images for iOS -->
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" href="/startup-iphone-x.png">
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" href="/startup-iphone-xr.png">
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" href="/startup-iphone-xs-max.png">
+    
     <title>LasagnaFi</title>
     
     <!-- Fonts -->
@@ -68,9 +78,53 @@
         .safe-left { padding-left: max(16px, env(safe-area-inset-left)); }
         .safe-right { padding-right: max(16px, env(safe-area-inset-right)); }
       }
+      
+      /* PWA Splash Screen */
+      #pwa-splash {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #FBF6EC;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.3s ease;
+      }
+      
+      #pwa-splash.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      
+      #pwa-splash .logo {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #C9543A 0%, #E6B85C 100%);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Instrument Serif', Georgia, serif;
+        font-size: 32px;
+        color: #FBF6EC;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
     </style>
   </head>
   <body>
+    <!-- PWA Splash Screen -->
+    <div id="pwa-splash">
+      <div class="logo">L</div>
+    </div>
+    
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

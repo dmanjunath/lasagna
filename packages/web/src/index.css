@@ -369,6 +369,123 @@
     border-color: var(--lf-sauce);
     box-shadow: 0 0 0 3px rgba(201, 84, 58, 0.1);
   }
+
+  /* PWA Splash Screen Support */
+  .pwa-splash {
+    position: fixed;
+    inset: 0;
+    background: var(--lf-paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    transition: opacity 0.3s ease;
+  }
+  
+  .pwa-splash.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  .pwa-splash-logo {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--lf-sauce) 0%, var(--lf-cheese) 100%);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 32px;
+    color: var(--lf-paper);
+  }
+  
+  /* iOS Standalone Mode Styles */
+  @media (display-mode: standalone) {
+    body {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    .standalone-only {
+      display: block !important;
+    }
+    
+    .browser-only {
+      display: none !important;
+    }
+  }
+  
+  /* Add to Home Screen Prompt Styles */
+  .a2hs-prompt {
+    position: fixed;
+    bottom: 80px;
+    left: 16px;
+    right: 16px;
+    background: var(--lf-ink);
+    color: var(--lf-paper);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .a2hs-prompt.hidden {
+    animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideDown {
+    from {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+  
+  .a2hs-prompt h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-family: 'Instrument Serif', Georgia, serif;
+  }
+  
+  .a2hs-prompt p {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-bottom: 16px;
+  }
+  
+  .a2hs-prompt button {
+    background: var(--lf-sauce);
+    color: var(--lf-paper);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-right: 8px;
+  }
+  
+  .a2hs-prompt button.secondary {
+    background: transparent;
+    opacity: 0.8;
+  }
 }
 
 /* ============================================================
