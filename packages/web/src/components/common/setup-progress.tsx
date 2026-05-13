@@ -19,17 +19,19 @@ export function SetupProgress({ steps }: SetupProgressProps) {
   const [, navigate] = useLocation();
   const [dismissed, setDismissed] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const completedCount = steps.filter((s) => s.completed).length;
   const totalCount = steps.length;
   const allDone = completedCount === totalCount;
   const progress = totalCount > 0 ? completedCount / totalCount : 0;
 
-  // Show up to 3 incomplete steps when collapsed, all when expanded
   const incompleteSteps = steps.filter((s) => !s.completed);
   const completedSteps = steps.filter((s) => s.completed);
+
+  // Show up to 3 incomplete steps when collapsed, all when expanded
   const visibleIncomplete = expanded ? incompleteSteps : incompleteSteps.slice(0, 3);
-  const hiddenCount = incompleteSteps.length - visibleIncomplete.length;
+  const hiddenIncompleteCount = incompleteSteps.length - visibleIncomplete.length;
 
   useEffect(() => {
     if (allDone) {
@@ -90,27 +92,42 @@ export function SetupProgress({ steps }: SetupProgressProps) {
               </button>
             ))}
 
-            {/* Show more / less toggle */}
-            {incompleteSteps.length > 3 && (
+            {/* Show more / less toggle for incomplete steps */}
+            {hiddenIncompleteCount > 0 && (
               <button
                 type="button"
                 onClick={() => setExpanded(!expanded)}
                 className="w-full flex items-center gap-2.5 rounded-md px-2 py-1 text-left text-xs text-text-secondary hover:text-text-secondary transition-colors"
               >
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                <span>{expanded ? 'Show less' : `${hiddenCount} more`}</span>
+                <span>{expanded ? 'Show less' : `${hiddenIncompleteCount} more`}</span>
               </button>
             )}
 
-            {/* Completed steps — collapsed summary */}
-            {completedCount > 0 && (
-              <div className="flex items-center gap-2 px-2 py-1">
-                <Check className="w-3.5 h-3.5 text-success shrink-0" />
-                <span className="text-xs text-text-secondary">
-                  {completedCount} completed
+            {/* Completed steps toggle */}
+            {completedSteps.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowCompleted(!showCompleted)}
+                className="w-full flex items-center gap-2.5 rounded-md px-2 py-1 text-left text-xs text-text-secondary hover:text-text-secondary transition-colors"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showCompleted ? 'rotate-180' : ''}`} />
+                <span>{completedCount} completed</span>
+              </button>
+            )}
+
+            {/* Completed steps list */}
+            {showCompleted && completedSteps.map((step) => (
+              <div
+                key={step.id}
+                className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left"
+              >
+                <Check className="w-4 h-4 text-success shrink-0" />
+                <span className="flex-1 text-[13px] font-medium text-text opacity-50 line-through truncate">
+                  {step.label}
                 </span>
               </div>
-            )}
+            ))}
           </div>
         </motion.div>
       )}
