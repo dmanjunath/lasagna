@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { Route, Switch, Redirect } from 'wouter';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ChatStoreProvider } from './lib/chat-store';
@@ -6,7 +6,6 @@ import { PageContextProvider } from './lib/page-context';
 import { Shell } from './components/layout/shell';
 import { Login } from './pages/Login';
 import { DemoBanner } from './components/common/DemoBanner';
-import { LoadingScreen, PageLoader } from './components/common/LoadingScreen';
 import { AddToHomeScreen, useAddToHomeScreen } from './components/common/add-to-home-screen';
 
 // Lazy-load all authenticated pages
@@ -29,31 +28,19 @@ const FinancialLevel = lazy(() => import('./pages/financial-level').then(m => ({
 const Insights = lazy(() => import('./pages/insights').then(m => ({ default: m.Insights })));
 const Onboarding = lazy(() => import('./pages/onboarding').then(m => ({ default: m.Onboarding })));
 
-interface AppProps {
-  onReady?: () => void;
-}
-
-function AppRoutes({ onReady }: AppProps) {
+function AppRoutes() {
   const { user, loading } = useAuth();
   const { showPrompt, handleClose } = useAddToHomeScreen();
 
-  // Call onReady when component mounts
-  useEffect(() => {
-    if (!loading) {
-      onReady?.();
-    }
-  }, [loading, onReady]);
-
-  // Still checking auth — show overlay only
   if (loading) {
-    return <LoadingScreen visible />;
+    return null;
   }
 
   if (!user) {
     return (
       <>
         <Login />
-        <AddToHomeScreen onClose={handleClose} />
+        {showPrompt && <AddToHomeScreen onClose={handleClose} />}
       </>
     );
   }
@@ -61,7 +48,7 @@ function AppRoutes({ onReady }: AppProps) {
   // Redirect to onboarding if not complete (unless demo mode)
   if (user.onboardingStage !== null && import.meta.env.VITE_DEMO_MODE !== "true") {
     return (
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={null}>
         <Onboarding />
       </Suspense>
     );
@@ -78,8 +65,8 @@ function AppRoutes({ onReady }: AppProps) {
             <PageContextProvider>
               <Shell>
                 {import.meta.env.VITE_DEMO_MODE === "true" && <DemoBanner />}
-                <AddToHomeScreen onClose={handleClose} />
-                <Suspense fallback={<PageLoader />}>
+                {showPrompt && <AddToHomeScreen onClose={handleClose} />}
+                <Suspense fallback={null}>
                   <Switch>
                     <Route path="/" component={Dashboard} />
                     <Route path="/accounts" component={Accounts} />
@@ -125,10 +112,10 @@ function AppRoutes({ onReady }: AppProps) {
   );
 }
 
-export function App({ onReady }: AppProps) {
+export function App() {
   return (
     <AuthProvider>
-      <AppRoutes onReady={onReady} />
+      <AppRoutes />
     </AuthProvider>
   );
 }

@@ -29,7 +29,7 @@ export function MobileTabBar() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-30 bg-paper border-t border-border md:hidden
+      className="fixed bottom-0 left-0 right-0 z-30 bg-lf-paper border-t border-border md:hidden
                  flex items-stretch pb-safe-bottom"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
@@ -62,12 +62,12 @@ export function MobileTabBar() {
             </span>
             {tab.action === 'chat' && unreadCount > 0 && (
               <span className="absolute top-2 right-1/2 translate-x-2
-                           w-2.5 h-2.5 rounded-full bg-sauce
-                           border-2 border-paper" />
+                           w-2.5 h-2.5 rounded-full bg-lf-sauce
+                           border-2 border-lf-paper" />
             )}
             {active && (
               <span className="absolute top-0 left-1/2 -translate-x-1/2
-                           w-5 h-0.5 rounded-b-sm bg-sauce" />
+                           w-5 h-0.5 rounded-b-sm bg-lf-sauce" />
             )}
           </button>
         );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
+import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { formatMoney } from '../lib/utils';
@@ -1271,7 +1272,12 @@ export function Retirement() {
   if (!hasAccounts) {
     return (
       <div style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)', padding: '24px 28px 48px' }} className="scrollbar-thin">
-        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+          style={{ maxWidth: 960, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}
+        >
           <Card style={{ padding: '48px 40px', textAlign: 'center', maxWidth: 480 }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>&#127968;</div>
             <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 26, color: 'var(--lf-ink)', marginBottom: 12, fontWeight: 400 }}>
@@ -1284,7 +1290,7 @@ export function Retirement() {
               + Link Your First Account
             </button>
           </Card>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -1313,7 +1319,12 @@ export function Retirement() {
           .ret-header-row { flex-direction: column !important; align-items: flex-start !important; }
         }
       `}</style>
-      <div style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' as const }}>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' as const }}
+      >
 
         {/* Page header + toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, gap: 16 }} className="ret-header-row">
@@ -1557,7 +1568,7 @@ export function Retirement() {
           />
         )}
 
-      </div>
+      </motion.div>
     </div>
   );
 }

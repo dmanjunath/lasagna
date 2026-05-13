@@ -89,7 +89,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 top-[-5%] h-[110%] bg-ink/50 z-40 md:hidden"
+            className="fixed inset-0 top-[-5%] h-[110%] bg-black/50 z-40 md:hidden"
           />
 
           {/* Drawer */}
@@ -99,7 +99,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
             className="fixed top-0 left-0 bottom-0 w-72 z-50 flex flex-col
-                       bg-cream border-r border-border md:hidden"
+                       bg-lf-cream border-r border-border md:hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between gap-2.5 p-4 border-b border-border"
@@ -110,17 +110,17 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                   <span />
                   <span />
                 </div>
-                <span className="font-serif text-lg text-ink">
-                  Lasagna<em className="text-sauce italic">Fi</em>
+                <span className="font-serif text-lg text-lf-ink">
+                  Lasagna<em className="text-lf-sauce italic">Fi</em>
                 </span>
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg bg-paper border border-border
+                className="w-8 h-8 rounded-lg bg-lf-paper border border-border
                            flex items-center justify-center cursor-pointer
                            active:scale-95 transition-transform"
               >
-                <X size={16} className="text-muted" />
+                <X size={16} className="text-lf-muted" />
               </button>
             </div>
 
@@ -128,7 +128,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             <nav className="flex-1 overflow-y-auto p-3 scrollbar-thin">
               {NAV_SECTIONS.map(({ section, items }) => (
                 <div key={section} className="mb-2">
-                  <div className="font-mono text-xs tracking-widest uppercase text-muted px-2 my-4">
+                  <div className="font-mono text-xs tracking-widest uppercase text-lf-muted px-2 my-4">
                     {section}
                   </div>
                   {items.map(({ label, icon: Icon, path }) => {
@@ -184,17 +184,17 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             <div className="p-4 border-t border-border"
                  style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
               <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl
-                           border border-border bg-paper">
-                <div className="w-7 h-7 rounded-lg bg-sauce text-paper
+                           border border-border bg-lf-paper">
+                <div className="w-7 h-7 rounded-lg bg-lf-sauce text-lf-paper
                            flex items-center justify-center font-serif text-sm
                            flex-shrink-0">
                   {initial}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-ink text-sm truncate">
+                  <div className="font-medium text-lf-ink text-sm truncate">
                     {firstName}
                   </div>
-                  <div className="text-muted text-xs font-mono">
+                  <div className="text-lf-muted text-xs font-mono">
                     {tenant?.plan === 'pro' ? 'pro plan' : 'self-hosted'}
                   </div>
                 </div>
@@ -213,12 +213,12 @@ export function MobileMenuButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       whileTap={{ scale: 0.95 }}
       className="fixed top-3.5 left-4 z-30 w-9 h-9 rounded-lg
-                 bg-paper border border-border
+                 bg-lf-paper border border-border
                  flex items-center justify-center cursor-pointer
                  active:scale-95 transition-transform duration-200
                  md:hidden min-w-[44px] min-h-[44px]"
     >
-      <Menu size={18} className="text-ink" strokeWidth={2} />
+      <Menu size={18} className="text-lf-ink" strokeWidth={2} />
     </motion.button>
   );
 }
