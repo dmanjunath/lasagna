@@ -132,6 +132,7 @@ export const financialProfiles = pgTable("financial_profiles", {
   hasHDHP: boolean("has_hdhp"),
   dependentCount: integer("dependent_count"),   // null = unknown; 0 = none; 1+ = has dependents
   isPSLFEligible: boolean("is_pslf_eligible"),
+  lastActionsGeneratedAt: timestamp("last_actions_generated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

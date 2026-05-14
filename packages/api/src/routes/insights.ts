@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, desc, insights, sql } from "@lasagna/core";
+import { eq, and, desc, insights, sql, financialProfiles } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { generateInsights } from "../lib/insights-engine.js";
@@ -31,6 +31,11 @@ insightsRoutes.get("/", async (c) => {
       desc(insights.createdAt)
     );
 
+  // Get financial profile to retrieve lastActionsGeneratedAt
+  const profile = await db.query.financialProfiles.findFirst({
+    where: eq(financialProfiles.tenantId, session.tenantId),
+  });
+
   return c.json({
     insights: rows.map((r) => ({
       id: r.id,
@@ -45,6 +50,7 @@ insightsRoutes.get("/", async (c) => {
       generatedBy: r.generatedBy,
       createdAt: r.createdAt,
     })),
+    lastActionsGeneratedAt: profile?.lastActionsGeneratedAt ?? null,
   });
 });
 
@@ -114,9 +120,6 @@ insightsRoutes.post("/generate", async (c) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[Insights] Generation failed: ${msg.slice(0, 300)}`);
-    return c.json(
-      { error: "Failed to generate insights", details: msg.slice(0, 200) },
-      500
-    );
+    return c.json({ error: "generation_failed" }, 502);
   }
 });

@@ -15,6 +15,13 @@
       "when": 1778373502645,
       "tag": "0001_daily_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778709548867,
+      "tag": "0002_regular_mentor",
+      "breakpoints": true
     }
   ]
 }

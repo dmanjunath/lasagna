@@ -4,7 +4,6 @@ import { db } from "../lib/db.js";
 import { taxDocuments, eq, and, desc } from "@lasagna/core";
 import { type AuthEnv } from "../middleware/auth.js";
 import { extractFromVision } from "../lib/tax-vision-extraction.js";
-import { generateInsights } from "../lib/insights-engine.js";
 
 export const taxDocumentsRouter = new Hono<AuthEnv>();
 
@@ -57,11 +56,6 @@ taxDocumentsRouter.post("/", async (c) => {
         )
         .returning();
 
-      // Regenerate insights in background with new document data
-      generateInsights(tenantId).catch((e) =>
-        console.error("Background insights generation failed:", e)
-      );
-
       return c.json({ documents: docs }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Extraction failed";
@@ -95,11 +89,6 @@ taxDocumentsRouter.post("/", async (c) => {
           taxYear: null,
         })
         .returning();
-
-      // Regenerate insights in background with new document data
-      generateInsights(tenantId).catch((e) =>
-        console.error("Background insights generation failed:", e)
-      );
 
       return c.json({ documents: docs }, 201);
     } catch (error) {
@@ -186,11 +175,6 @@ taxDocumentsRouter.delete("/:id", async (c) => {
   await db
     .delete(taxDocuments)
     .where(and(eq(taxDocuments.id, id), eq(taxDocuments.tenantId, tenantId)));
-
-  // Regenerate insights in background after document removal
-  generateInsights(tenantId).catch((e) =>
-    console.error("Background insights generation failed:", e)
-  );
 
   return c.json({ success: true });
 });

@@ -371,6 +371,7 @@ export const api = {
         generatedBy: string;
         createdAt: string;
       }>;
+      lastActionsGeneratedAt: string | null;
     }>("/insights"),
 
   dismissInsight: (id: string) =>

@@ -318,12 +318,4 @@ export async function syncAllForTenant(tenantId: string): Promise<void> {
     where: eq(plaidItems.tenantId, tenantId),
   });
   await Promise.allSettled(items.map((item) => syncItem(item.id)));
-
-  // Generate fresh insights after sync completes
-  try {
-    const { generateInsights } = await import("./insights-engine.js");
-    await generateInsights(tenantId);
-  } catch (e) {
-    console.error("Post-sync insights generation failed:", e);
-  }
 }

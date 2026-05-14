@@ -1,0 +1,1 @@
+ALTER TABLE "financial_profiles" ADD COLUMN "last_actions_generated_at" timestamp with time zone;

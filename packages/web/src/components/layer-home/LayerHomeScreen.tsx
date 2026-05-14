@@ -6,6 +6,7 @@ import {
   Layers, ChevronDown, ChevronUp, ArrowRight, Zap,
 } from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
+import { formatRelativeTime } from '../../lib/utils';
 import type { PriorityStep, PrioritySummary, MockInsight, MockDebt } from './types';
 import {
   getPrimaryLayer,
@@ -305,6 +306,7 @@ interface LayerHomeScreenProps {
   spendingCategories?: Array<{ category: string; total: number; count: number; percentage: number }>;
   totalSpending?: number;
   totalIncome?: number;
+  lastActionsGeneratedAt?: Date | null;
   onCompleteStep?: (stepId: string, note?: string) => void;
   onSkipStep?: (stepId: string, skipped: boolean) => void;
   onNavigate?: (path: string) => void;
@@ -325,6 +327,7 @@ export function LayerHomeScreen({
   spendingCategories = [],
   totalSpending = 0,
   totalIncome = 0,
+  lastActionsGeneratedAt,
   onNavigate,
   greeting = 'Good evening',
 }: LayerHomeScreenProps) {
@@ -583,6 +586,13 @@ export function LayerHomeScreen({
               Insights & Actions
             </div>
 
+            {/* Last generated timestamp */}
+            {lastActionsGeneratedAt && (
+              <div style={{ fontSize: 11, color: 'var(--lf-muted)', marginBottom: 10 }}>
+                Last updated {formatRelativeTime(lastActionsGeneratedAt)}
+              </div>
+            )}
+
             {displayInsights.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {displayInsights.slice(0, 3).map((insight, i) => (
@@ -735,6 +745,11 @@ export function LayerHomeScreen({
                     all →
                   </button>
                 </div>
+                {lastActionsGeneratedAt && (
+                  <div style={{ fontSize: 11, color: 'var(--lf-muted)', marginBottom: 10 }}>
+                    Last updated {formatRelativeTime(lastActionsGeneratedAt)}
+                  </div>
+                )}
                 {displayInsights.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {displayInsights.slice(0, 3).map((insight, i) => (

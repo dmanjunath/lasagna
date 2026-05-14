@@ -110,6 +110,7 @@ export function Dashboard() {
   const [debts, setDebts] = useState<DebtAccount[]>([]);
   const [hasPlaidAccounts, setHasPlaidAccounts] = useState(true);
   const [accountCount, setAccountCount] = useState(0);
+  const [lastActionsGeneratedAt, setLastActionsGeneratedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -118,7 +119,7 @@ export function Dashboard() {
       api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; balance: number; interestRate: number | null; minimumPayment: number }>, totalDebt: 0, monthlyInterest: 0 })),
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
       api.getGoals().catch(() => ({ goals: [] })),
-      api.getInsights().catch(() => ({ insights: [] })),
+      api.getInsights().catch(() => ({ insights: [], lastActionsGeneratedAt: null as string | null })),
       api.getPriorities().catch(() => ({ steps: [], currentStepId: '', summary: {} })),
       api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
       api.getSpendingSummary().catch(() => ({ categories: [] as Array<{ category: string; total: number; count: number; percentage: number }>, totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
@@ -181,6 +182,9 @@ export function Dashboard() {
       ]);
 
       setInsights((insightsData.insights || []) as Insight[]);
+      setLastActionsGeneratedAt(
+        insightsData.lastActionsGeneratedAt ? new Date(insightsData.lastActionsGeneratedAt) : null
+      );
 
       // Priority steps from backend
       const apiSteps = (prioritiesData.steps || []) as PriorityStep[];
@@ -350,6 +354,7 @@ export function Dashboard() {
         spendingCategories={spendingCategories}
         totalSpending={totalSpending}
         totalIncome={totalIncome}
+        lastActionsGeneratedAt={lastActionsGeneratedAt}
         greeting={`Good ${getGreeting()}, ${firstName}`}
         onNavigate={(path) => navigate(path)}
       />

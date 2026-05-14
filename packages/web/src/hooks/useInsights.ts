@@ -21,6 +21,7 @@ export interface Insight {
  */
 export function useInsights(typeFilter?: string | string[]) {
   const [allInsights, setAllInsights] = useState<Insight[]>([]);
+  const [lastActionsGeneratedAt, setLastActionsGeneratedAt] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -28,6 +29,9 @@ export function useInsights(typeFilter?: string | string[]) {
     try {
       const data = await api.getInsights();
       setAllInsights(data.insights);
+      setLastActionsGeneratedAt(
+        data.lastActionsGeneratedAt ? new Date(data.lastActionsGeneratedAt) : null
+      );
     } catch {
       // ignore
     } finally {
@@ -67,5 +71,5 @@ export function useInsights(typeFilter?: string | string[]) {
       ? allInsights
       : allInsights.filter((i) => types.includes(i.type ?? 'general'));
 
-  return { insights: filtered, isLoading, dismiss, reload, refresh };
+  return { insights: filtered, lastActionsGeneratedAt, isLoading, dismiss, reload, refresh };
 }

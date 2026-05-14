@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, RefreshCw, Zap } from 'lucide-react';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
+import { formatRelativeTime } from '../lib/utils';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 
 // ---------------------------------------------------------------------------
@@ -395,16 +396,32 @@ export function Insights() {
   const [activeFilter, setActiveFilter] = useState<FilterValue>(null);
   const [, navigate] = useLocation();
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const { openChat } = useChatStore();
 
   // Fetch all insights unfiltered — we handle grouping locally
-  const { insights, isLoading, dismiss, refresh } = useInsights();
+  const { insights, lastActionsGeneratedAt, isLoading, dismiss, refresh } = useInsights();
+
+  // Refresh is gated to once every 3 hours. New users (no prior generation)
+  // can refresh immediately.
+  const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
+  const msSinceLastGen = lastActionsGeneratedAt
+    ? Date.now() - lastActionsGeneratedAt.getTime()
+    : Infinity;
+  const refreshReady = msSinceLastGen >= REFRESH_COOLDOWN_MS;
 
   const handleRefresh = async () => {
+    if (!refreshReady) return;
     setRefreshing(true);
-    await refresh();
-    setRefreshing(false);
+    setRefreshError(null);
+    try {
+      await refresh();
+    } catch {
+      setRefreshError("Couldn't refresh insights right now. Please try again later.");
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleDismiss = async (id: string) => {
@@ -707,12 +724,18 @@ export function Insights() {
           );
         })}
 
-        {/* Spacer + Refresh button */}
-        <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+        {/* Spacer + Last updated + Refresh button */}
+        <div style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          {lastActionsGeneratedAt && (
+            <span style={{ fontSize: 12, color: 'var(--lf-muted)', whiteSpace: 'nowrap' }}>
+              Updated {formatRelativeTime(lastActionsGeneratedAt)}
+            </span>
+          )}
           <button
             type="button"
             onClick={handleRefresh}
-            disabled={refreshing}
+            disabled={refreshing || !refreshReady}
+            title={!refreshReady ? 'Insights refresh once every 3 hours' : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -726,8 +749,8 @@ export function Insights() {
               fontSize: 13,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
-              cursor: refreshing ? 'not-allowed' : 'pointer',
-              opacity: refreshing ? 0.5 : 1,
+              cursor: refreshing || !refreshReady ? 'not-allowed' : 'pointer',
+              opacity: refreshing || !refreshReady ? 0.5 : 1,
             }}
           >
             <RefreshCw
@@ -740,6 +763,24 @@ export function Insights() {
           </button>
         </div>
       </div>
+
+      {refreshError && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 16,
+            padding: '10px 14px',
+            background: 'rgba(196, 70, 41, 0.08)',
+            border: '1px solid var(--lf-sauce)',
+            borderRadius: 10,
+            color: 'var(--lf-sauce)',
+            fontSize: 13,
+            lineHeight: 1.4,
+          }}
+        >
+          {refreshError}
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* Loading state                                                        */}
@@ -782,7 +823,8 @@ export function Insights() {
           <button
             type="button"
             onClick={handleRefresh}
-            disabled={refreshing}
+            disabled={refreshing || !refreshReady}
+            title={!refreshReady ? 'Insights refresh once every 3 hours' : undefined}
             style={{
               padding: '10px 20px',
               background: 'var(--lf-ink)',
@@ -791,8 +833,8 @@ export function Insights() {
               borderRadius: 10,
               fontSize: 14,
               fontWeight: 500,
-              cursor: refreshing ? 'not-allowed' : 'pointer',
-              opacity: refreshing ? 0.6 : 1,
+              cursor: refreshing || !refreshReady ? 'not-allowed' : 'pointer',
+              opacity: refreshing || !refreshReady ? 0.6 : 1,
             }}
           >
             {refreshing ? 'Generating…' : 'Generate insights'}

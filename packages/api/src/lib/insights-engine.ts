@@ -559,7 +559,7 @@ async function gatherFinancialData(
   };
 }
 
-const INSIGHTS_PROMPT = `You are Lasagna's financial insights engine. Analyze the user's complete financial data and generate as many actionable insights as the data warrants — there is NO limit.
+const INSIGHTS_PROMPT = `You are Lasagna's financial insights engine. Analyze the user's complete financial data and surface the most actionable, most urgent insights first. Quality over quantity: there is no minimum — do not pad with weak observations.
 
 CRITICAL RULES:
 1. Every insight MUST include at least one specific dollar amount or percentage from the actual data
@@ -677,45 +677,9 @@ Also check these portfolio rules:
 - **Single-fund concentration**: If any single holding is >30% of portfolio value, flag it with exact dollar amount and percentage.
 - **Bond allocation vs age**: Rule of thumb is hold (age)% in bonds. If significantly under or over, mention it.
 
-Generate insights for every lens that has meaningful data. Aim for 6-10 insights total.`;
+Output at most 10 insights, ordered from most urgent/actionable to least. Skip a lens entirely if its data is weak — there is no minimum count, and padding with generic observations is a failure mode.`;
 
-// ── Per-tenant debounce + lock ─────────────────────────────────────────────
-// If multiple calls arrive for the same tenant within DEBOUNCE_MS, only the
-// last one runs. If a generation is already in-flight, new callers wait for
-// that result instead of starting a parallel run.
-const DEBOUNCE_MS = 2000;
-const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const inflightRuns = new Map<string, Promise<number>>();
-
-export function generateInsights(tenantId: string): Promise<number> {
-  // If already in-flight, return the existing promise
-  const inflight = inflightRuns.get(tenantId);
-  if (inflight) {
-    console.log(`[Insights] Skipping duplicate run for tenant ${tenantId} — already in-flight`);
-    return inflight;
-  }
-
-  // Clear any pending debounce timer
-  const existing = pendingTimers.get(tenantId);
-  if (existing) clearTimeout(existing);
-
-  return new Promise<number>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingTimers.delete(tenantId);
-
-      const run = _generateInsights(tenantId).finally(() => {
-        inflightRuns.delete(tenantId);
-      });
-      inflightRuns.set(tenantId, run);
-
-      run.then(resolve, reject);
-    }, DEBOUNCE_MS);
-
-    pendingTimers.set(tenantId, timer);
-  });
-}
-
-async function _generateInsights(tenantId: string): Promise<number> {
+export async function generateInsights(tenantId: string): Promise<number> {
   console.log(`[Insights] Starting generation for tenant ${tenantId}`);
   const data = await gatherFinancialData(tenantId);
 
@@ -728,10 +692,10 @@ async function _generateInsights(tenantId: string): Promise<number> {
 
   let model: ReturnType<typeof getModel>;
   try {
-    model = getModel("frontier");
-  } catch {
+    model = getModel("fast");
+  } catch (e) {
     console.error("Insights engine: AI model not available");
-    return 0;
+    throw e instanceof Error ? e : new Error("AI model not available");
   }
 
   let result;
@@ -746,7 +710,7 @@ async function _generateInsights(tenantId: string): Promise<number> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[Insights] LLM API call failed: ${msg.slice(0, 300)}`);
-    return 0;
+    throw e instanceof Error ? e : new Error(msg);
   }
 
   let generated: GeneratedInsight[];
@@ -759,8 +723,8 @@ async function _generateInsights(tenantId: string): Promise<number> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[Insights] Failed to parse AI response: ${msg}`);
-    console.error(`[Insights] Raw response (first 500 chars): ${result.text.slice(0, 500)}`);
-    return 0;
+    console.error(`[Insights] Raw response (first 5000 chars): ${result.text.slice(0, 5000)}`);
+    throw e instanceof Error ? e : new Error(msg);
   }
 
   // Full delete of all non-dismissed insights — ensures numbers stay fresh
@@ -815,6 +779,20 @@ async function _generateInsights(tenantId: string): Promise<number> {
     });
     insertCount++;
   }
+
+  // Update lastActionsGeneratedAt timestamp in financial profile
+  await db
+    .insert(financialProfiles)
+    .values({
+      tenantId,
+      lastActionsGeneratedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: financialProfiles.tenantId,
+      set: {
+        lastActionsGeneratedAt: new Date(),
+      },
+    });
 
   return insertCount;
 }
