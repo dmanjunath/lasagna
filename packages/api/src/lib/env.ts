@@ -34,4 +34,7 @@ export const env = {
   get MULTI_TENANT() {
     return optional("MULTI_TENANT", "false") === "true";
   },
+  get APP_ENV() {
+    return optional("APP_ENV", process.env.NODE_ENV || "dev");
+  },
 };
