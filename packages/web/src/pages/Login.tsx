@@ -57,12 +57,7 @@ export function Login() {
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-accent/3 rounded-full blur-3xl" />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-md"
-      >
+      <div className="relative w-full max-w-md">
         <div className="glass-card p-8">
           {/* Logo */}
           <div className="text-center mb-8">
@@ -261,7 +256,7 @@ export function Login() {
 
         {/* Decorative border glow */}
         <div className="absolute -inset-px rounded-2xl -z-10 blur-sm" style={{ background: 'linear-gradient(135deg, rgba(201,84,58,0.15), transparent, rgba(230,184,92,0.08))' }} />
-      </motion.div>
+      </div>
     </div>
   );
 }
