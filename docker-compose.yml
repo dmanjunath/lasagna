@@ -33,5 +33,26 @@ services:
       - ./.env:/app/.env
     tty: true
 
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web.dev
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    environment:
+      VITE_API_PROXY_TARGET: http://api:3000
+    volumes:
+      - ./packages/core/src:/app/packages/core/src
+      - ./packages/web/src:/app/packages/web/src
+      - ./packages/web/public:/app/packages/web/public
+      - ./packages/web/index.html:/app/packages/web/index.html
+      - ./packages/web/vite.config.ts:/app/packages/web/vite.config.ts
+      - ./packages/web/tailwind.config.js:/app/packages/web/tailwind.config.js
+      - ./packages/web/postcss.config.js:/app/packages/web/postcss.config.js
+      - ./packages/web/tsconfig.json:/app/packages/web/tsconfig.json
+    tty: true
+
 volumes:
   pgdata:

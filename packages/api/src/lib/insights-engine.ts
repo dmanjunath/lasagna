@@ -692,7 +692,7 @@ export async function generateInsights(tenantId: string): Promise<number> {
 
   let model: ReturnType<typeof getModel>;
   try {
-    model = getModel("fast");
+    model = getModel("frontier");
   } catch (e) {
     console.error("Insights engine: AI model not available");
     throw e instanceof Error ? e : new Error("AI model not available");
