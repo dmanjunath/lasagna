@@ -9,7 +9,12 @@ export default defineConfig({
       registerType: 'autoUpdate',
       strategies: 'generateSW',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,svg,woff,woff2,ttf,eot}'],
+        // Precache only the shell — HTML, top-level CSS, manifest, favicon.
+        // The big lazy chunks (charts, page bundles, vega-lite, etc.) were
+        // pulling ~2.5MB of network in parallel with first-visit page load,
+        // which on mobile pushed time-to-content past 6s. Let them be
+        // network-fetched on demand and runtime-cached on use.
+        globPatterns: ['index.html', 'assets/index-*.css', '*.svg', 'manifest.json'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [

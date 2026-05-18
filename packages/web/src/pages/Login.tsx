@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
 import { Button } from "../components/ui/button.js";
@@ -94,11 +93,7 @@ export function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignup && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-              >
+              <div>
                 <input
                   type="text"
                   placeholder="Name (optional)"
@@ -106,7 +101,7 @@ export function Login() {
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20 transition-all"
                 />
-              </motion.div>
+              </div>
             )}
             <input
               type="email"
@@ -127,12 +122,7 @@ export function Login() {
             />
 
             {isSignup && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-3 text-sm"
-              >
+              <div className="space-y-3 text-sm">
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -183,18 +173,16 @@ export function Login() {
                     investment advisor</strong> and does not provide financial advice
                   </span>
                 </label>
-              </motion.div>
+              </div>
             )}
 
             {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
+              <div
                 className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20"
               >
                 <AlertCircle className="w-4 h-4 text-danger flex-shrink-0" />
                 <span className="text-danger text-sm">{error}</span>
-              </motion.div>
+              </div>
             )}
 
             <Button

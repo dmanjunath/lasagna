@@ -3,9 +3,13 @@ import { Route, Switch, Redirect } from 'wouter';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ChatStoreProvider } from './lib/chat-store';
 import { PageContextProvider } from './lib/page-context';
-import { Shell } from './components/layout/shell';
 import { Login } from './pages/Login';
 import { DemoBanner } from './components/common/DemoBanner';
+
+// Shell pulls framer-motion + the mobile/desktop chat panels. Lazy so the
+// initial bundle stays small for first paint; Suspense fallback is null
+// (the inline skeleton in index.html stays visible until React commits).
+const Shell = lazy(() => import('./components/layout/shell').then(m => ({ default: m.Shell })));
 
 // Lazy-load all authenticated pages
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -57,6 +61,7 @@ function AppRoutes() {
           {() => (
             <ChatStoreProvider>
             <PageContextProvider>
+              <Suspense fallback={null}>
               <Shell>
                 {import.meta.env.VITE_DEMO_MODE === "true" && <DemoBanner />}
                 <Suspense fallback={null}>
@@ -97,6 +102,7 @@ function AppRoutes() {
                   </Switch>
                 </Suspense>
               </Shell>
+              </Suspense>
             </PageContextProvider>
             </ChatStoreProvider>
           )}
