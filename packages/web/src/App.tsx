@@ -6,7 +6,6 @@ import { PageContextProvider } from './lib/page-context';
 import { Shell } from './components/layout/shell';
 import { Login } from './pages/Login';
 import { DemoBanner } from './components/common/DemoBanner';
-import { AddToHomeScreen, useAddToHomeScreen } from './components/common/add-to-home-screen';
 
 // Lazy-load all authenticated pages
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -29,20 +28,15 @@ const Insights = lazy(() => import('./pages/insights').then(m => ({ default: m.I
 const Onboarding = lazy(() => import('./pages/onboarding').then(m => ({ default: m.Onboarding })));
 
 function AppRoutes() {
-  const { user, loading } = useAuth();
-  const { showPrompt, handleClose } = useAddToHomeScreen();
+  const { user } = useAuth();
 
-  if (loading) {
-    return null;
-  }
+  // No more blank-screen gate on the /me round-trip. We render optimistically
+  // based on the localStorage auth hint hydrated in AuthProvider; if /me later
+  // 401s, the user state flips to null and Login swaps in. Worst case: a brief
+  // flash of the app shell for a logged-out user with a stale hint.
 
   if (!user) {
-    return (
-      <>
-        <Login />
-        {showPrompt && <AddToHomeScreen onClose={handleClose} />}
-      </>
-    );
+    return <Login />;
   }
 
   // Redirect to onboarding if not complete (unless demo mode)
@@ -65,7 +59,6 @@ function AppRoutes() {
             <PageContextProvider>
               <Shell>
                 {import.meta.env.VITE_DEMO_MODE === "true" && <DemoBanner />}
-                {showPrompt && <AddToHomeScreen onClose={handleClose} />}
                 <Suspense fallback={null}>
                   <Switch>
                     <Route path="/" component={Dashboard} />

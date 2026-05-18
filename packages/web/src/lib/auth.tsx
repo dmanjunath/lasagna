@@ -11,14 +11,51 @@ import { api } from "./api.js";
 interface User {
   id: string;
   email: string;
+  name: string | null;
   role: string;
   onboardingStage: string | null;
+  uiMode: "simple" | "advanced";
+  notifyDaily: boolean;
+  notifyBills: boolean;
+  notifyWeeklyEmail: boolean;
 }
 
 interface Tenant {
   id: string;
   name: string;
   plan: string;
+}
+
+// Mirror of the last-known user/tenant so we can render the app shell
+// optimistically on boot instead of a blank screen while /me is in flight.
+// The HttpOnly session cookie is still the source of truth; this is a UI hint.
+// /me corrects state if the hint is stale (logged out, role changed, etc.).
+const HINT_KEY = "lf_auth_hint";
+
+function loadAuthHint(): { user: User | null; tenant: Tenant | null } {
+  if (typeof window === "undefined") return { user: null, tenant: null };
+  try {
+    const raw = window.localStorage.getItem(HINT_KEY);
+    if (!raw) return { user: null, tenant: null };
+    const parsed = JSON.parse(raw) as { user?: User; tenant?: Tenant | null };
+    if (!parsed.user || !parsed.user.id || !parsed.user.email) {
+      return { user: null, tenant: null };
+    }
+    return { user: parsed.user, tenant: parsed.tenant ?? null };
+  } catch {
+    return { user: null, tenant: null };
+  }
+}
+
+function saveAuthHint(user: User | null, tenant: Tenant | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (user) {
+      window.localStorage.setItem(HINT_KEY, JSON.stringify({ user, tenant }));
+    } else {
+      window.localStorage.removeItem(HINT_KEY);
+    }
+  } catch {}
 }
 
 interface AuthState {
@@ -30,37 +67,40 @@ interface AuthState {
   logout: () => Promise<void>;
   updateTenant: (updates: Partial<Tenant>) => void;
   setOnboardingStage: (stage: string | null) => void;
+  setUiMode: (mode: "simple" | "advanced") => Promise<void>;
+  updateMe: (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+  // Hydrate from the localStorage hint so the very first paint is meaningful.
+  // The hint is replaced once /me confirms (or cleared if /me 401s).
+  const [{ user, tenant }, setAuth] = useState<{ user: User | null; tenant: Tenant | null }>(() =>
+    loadAuthHint(),
+  );
   const [loading, setLoading] = useState(true);
+
+  const commitAuth = useCallback((next: { user: User | null; tenant: Tenant | null }) => {
+    setAuth(next);
+    saveAuthHint(next.user, next.tenant);
+  }, []);
 
   useEffect(() => {
     api
       .me()
-      .then((data) => {
-        setUser(data.user);
-        setTenant(data.tenant);
-      })
-      .catch(() => {
-        setUser(null);
-        setTenant(null);
-      })
+      .then((data) => commitAuth({ user: data.user, tenant: data.tenant }))
+      .catch(() => commitAuth({ user: null, tenant: null }))
       .finally(() => setLoading(false));
-  }, []);
+  }, [commitAuth]);
 
   const login = useCallback(async (email: string, password: string) => {
     const data = (await api.login({ email, password })) as {
       user: User;
       tenant: Tenant | null;
     };
-    setUser(data.user);
-    setTenant(data.tenant);
-  }, []);
+    commitAuth({ user: data.user, tenant: data.tenant });
+  }, [commitAuth]);
 
   const signup = useCallback(
     async (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => {
@@ -68,28 +108,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: User;
         tenant: Tenant | null;
       };
-      setUser(data.user);
-      setTenant(data.tenant);
+      commitAuth({ user: data.user, tenant: data.tenant });
     },
-    [],
+    [commitAuth],
   );
 
   const logout = useCallback(async () => {
     await api.logout();
-    setUser(null);
-    setTenant(null);
-  }, []);
+    commitAuth({ user: null, tenant: null });
+  }, [commitAuth]);
 
   const updateTenant = useCallback((updates: Partial<Tenant>) => {
-    setTenant((prev) => (prev ? { ...prev, ...updates } : prev));
+    setAuth((prev) => {
+      const nextTenant = prev.tenant ? { ...prev.tenant, ...updates } : prev.tenant;
+      saveAuthHint(prev.user, nextTenant);
+      return { user: prev.user, tenant: nextTenant };
+    });
   }, []);
 
   const setOnboardingStage = useCallback((stage: string | null) => {
-    setUser((prev) => (prev ? { ...prev, onboardingStage: stage } : prev));
+    setAuth((prev) => {
+      const nextUser = prev.user ? { ...prev.user, onboardingStage: stage } : prev.user;
+      saveAuthHint(nextUser, prev.tenant);
+      return { user: nextUser, tenant: prev.tenant };
+    });
   }, []);
 
+  const setUiMode = useCallback(async (mode: "simple" | "advanced") => {
+    await api.setUiMode(mode);
+    setAuth((prev) => {
+      const nextUser = prev.user ? { ...prev.user, uiMode: mode } : prev.user;
+      saveAuthHint(nextUser, prev.tenant);
+      return { user: nextUser, tenant: prev.tenant };
+    });
+  }, []);
+
+  const updateMe = useCallback(
+    async (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) => {
+      const { user: updated } = await api.updateMe(updates);
+      setAuth((prev) => {
+        saveAuthHint(updated, prev.tenant);
+        return { user: updated, tenant: prev.tenant };
+      });
+    },
+    [],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant, setOnboardingStage }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant, setOnboardingStage, setUiMode, updateMe }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,6 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
-import { eq, users, tenants, onboardingStageEnum } from "@lasagna/core";
+import { eq, users, tenants, onboardingStageEnum, uiModeEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import {
@@ -11,6 +11,19 @@ import {
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 
 export const authRoutes = new Hono<AuthEnv>();
+
+// Browsers (Chrome, Safari) refuse to STORE a `Secure; SameSite=None` cookie that
+// arrives over plain HTTP. In local dev the Vite proxy serves over http://localhost,
+// so we have to fall back to Lax + non-Secure or the session never sticks. In prod
+// (HTTPS origin) we keep None+Secure so it works across subdomains / oauth bounces.
+function cookieFlagsFor(c: Context) {
+  const origin = c.req.header("origin") || c.req.header("referer") || "";
+  const isHttps = origin.startsWith("https://");
+  return {
+    secure: isHttps,
+    sameSite: (isHttps ? "None" : "Lax") as "None" | "Lax",
+  };
+}
 
 // Sign up — creates a new tenant + user (owner)
 authRoutes.post("/signup", async (c) => {
@@ -50,6 +63,7 @@ authRoutes.post("/signup", async (c) => {
     .values({
       tenantId: tenant.id,
       email,
+      name: name ?? null,
       passwordHash,
       role: "owner",
       onboardingStage: "profile",
@@ -65,14 +79,20 @@ authRoutes.post("/signup", async (c) => {
 
   setCookie(c, COOKIE_NAME, token, {
     httpOnly: true,
-    secure: true,
-    sameSite: "None",
+    ...cookieFlagsFor(c),
     maxAge: MAX_AGE,
     path: "/",
   });
 
   return c.json({
-    user: { id: user.id, email: user.email, role: user.role, onboardingStage: user.onboardingStage },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      onboardingStage: user.onboardingStage,
+      uiMode: user.uiMode,
+    },
     tenant: { id: tenant.id, name: tenant.name, plan: tenant.plan },
   });
 });
@@ -105,8 +125,7 @@ authRoutes.post("/login", async (c) => {
 
   setCookie(c, COOKIE_NAME, token, {
     httpOnly: true,
-    secure: true,
-    sameSite: "None",
+    ...cookieFlagsFor(c),
     maxAge: MAX_AGE,
     path: "/",
   });
@@ -116,7 +135,14 @@ authRoutes.post("/login", async (c) => {
   });
 
   return c.json({
-    user: { id: user.id, email: user.email, role: user.role, onboardingStage: user.onboardingStage },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      onboardingStage: user.onboardingStage,
+      uiMode: user.uiMode,
+    },
     tenant: tenant
       ? { id: tenant.id, name: tenant.name, plan: tenant.plan }
       : null,
@@ -125,7 +151,7 @@ authRoutes.post("/login", async (c) => {
 
 // Logout
 authRoutes.post("/logout", (c) => {
-  deleteCookie(c, COOKIE_NAME, { path: "/", secure: true, sameSite: "None" });
+  deleteCookie(c, COOKIE_NAME, { path: "/", ...cookieFlagsFor(c) });
   return c.json({ ok: true });
 });
 
@@ -144,11 +170,96 @@ authRoutes.get("/me", requireAuth, async (c) => {
   });
 
   return c.json({
-    user: { id: user.id, email: user.email, role: user.role, onboardingStage: user.onboardingStage },
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      onboardingStage: user.onboardingStage,
+      uiMode: user.uiMode,
+      notifyDaily: user.notifyDaily,
+      notifyBills: user.notifyBills,
+      notifyWeeklyEmail: user.notifyWeeklyEmail,
+    },
     tenant: tenant
       ? { id: tenant.id, name: tenant.name, plan: tenant.plan }
       : null,
   });
+});
+
+// Update profile (name, notification prefs)
+authRoutes.patch("/me", requireAuth, async (c) => {
+  const session = c.get("session");
+  const body = await c.req.json<{
+    name?: string | null;
+    notifyDaily?: boolean;
+    notifyBills?: boolean;
+    notifyWeeklyEmail?: boolean;
+  }>();
+
+  const updates: Record<string, unknown> = {};
+  if (body.name !== undefined) updates.name = body.name;
+  if (body.notifyDaily !== undefined) updates.notifyDaily = body.notifyDaily;
+  if (body.notifyBills !== undefined) updates.notifyBills = body.notifyBills;
+  if (body.notifyWeeklyEmail !== undefined) updates.notifyWeeklyEmail = body.notifyWeeklyEmail;
+
+  if (Object.keys(updates).length === 0) {
+    const existing = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+    if (!existing) return c.json({ error: "User not found" }, 404);
+    return c.json({
+      user: {
+        id: existing.id,
+        email: existing.email,
+        name: existing.name,
+        role: existing.role,
+        onboardingStage: existing.onboardingStage,
+        uiMode: existing.uiMode,
+        notifyDaily: existing.notifyDaily,
+        notifyBills: existing.notifyBills,
+        notifyWeeklyEmail: existing.notifyWeeklyEmail,
+      },
+    });
+  }
+
+  const [updated] = await db
+    .update(users)
+    .set(updates)
+    .where(eq(users.id, session.userId))
+    .returning();
+
+  return c.json({
+    user: {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      role: updated.role,
+      onboardingStage: updated.onboardingStage,
+      uiMode: updated.uiMode,
+      notifyDaily: updated.notifyDaily,
+      notifyBills: updated.notifyBills,
+      notifyWeeklyEmail: updated.notifyWeeklyEmail,
+    },
+  });
+});
+
+// Update UI mode preference
+const VALID_UI_MODES = new Set(uiModeEnum.enumValues);
+
+authRoutes.patch("/ui-mode", requireAuth, async (c) => {
+  const session = c.get("session");
+  const { uiMode } = await c.req.json<{ uiMode: string }>();
+
+  if (!VALID_UI_MODES.has(uiMode as typeof uiModeEnum.enumValues[number])) {
+    return c.json({ error: "Invalid uiMode" }, 400);
+  }
+
+  const [updated] = await db
+    .update(users)
+    .set({ uiMode: uiMode as typeof uiModeEnum.enumValues[number] })
+    .where(eq(users.id, session.userId))
+    .returning();
+
+  return c.json({ uiMode: updated.uiMode });
 });
 
 // Update onboarding stage
