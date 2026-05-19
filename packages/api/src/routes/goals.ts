@@ -22,7 +22,7 @@ goalRoutes.post("/", async (c) => {
   const session = c.get("session");
   const body = await c.req.json();
 
-  const { name, targetAmount, deadline, category, icon } = body;
+  const { name, targetAmount, deadline, category, icon, description, linkedAccountId } = body;
 
   if (!name || !targetAmount) {
     return c.json({ error: "name and targetAmount are required" }, 400);
@@ -33,10 +33,12 @@ goalRoutes.post("/", async (c) => {
     .values({
       tenantId: session.tenantId,
       name,
+      description: description ?? null,
       targetAmount: String(targetAmount),
       deadline: deadline ? new Date(deadline) : undefined,
       category: category || "savings",
       icon: icon || undefined,
+      linkedAccountId: linkedAccountId ?? null,
     })
     .returning();
 
@@ -60,10 +62,17 @@ goalRoutes.patch("/:id", async (c) => {
 
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name;
+  if (body.description !== undefined) updates.description = body.description;
   if (body.targetAmount !== undefined) updates.targetAmount = String(body.targetAmount);
   if (body.currentAmount !== undefined) updates.currentAmount = String(body.currentAmount);
   if (body.deadline !== undefined) updates.deadline = body.deadline ? new Date(body.deadline) : null;
-  if (body.status !== undefined) updates.status = body.status;
+  if (body.linkedAccountId !== undefined) updates.linkedAccountId = body.linkedAccountId;
+  if (body.status !== undefined) {
+    updates.status = body.status;
+    if (body.status === "completed" && !existing.completedAt) {
+      updates.completedAt = new Date();
+    }
+  }
 
   if (Object.keys(updates).length === 0) {
     return c.json({ goal: existing });

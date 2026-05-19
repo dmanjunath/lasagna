@@ -6,7 +6,7 @@ import { generateInsights } from "../lib/insights-engine.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
 
-// List active insights (not dismissed, not expired)
+// List active insights (not dismissed, not snoozed, not expired)
 insightsRoutes.get("/", async (c) => {
   const session = c.get("session");
 
@@ -17,6 +17,8 @@ insightsRoutes.get("/", async (c) => {
       and(
         eq(insights.tenantId, session.tenantId),
         sql`${insights.dismissed} IS NULL`,
+        sql`${insights.actedOn} IS NULL`,
+        sql`(${insights.snoozedUntil} IS NULL OR ${insights.snoozedUntil} < NOW())`,
         sql`(${insights.expiresAt} IS NULL OR ${insights.expiresAt} > NOW())`
       )
     )
@@ -78,6 +80,22 @@ insightsRoutes.post("/:id/acted", async (c) => {
     .where(and(eq(insights.id, id), eq(insights.tenantId, session.tenantId)));
 
   return c.json({ ok: true });
+});
+
+// Snooze an insight for N hours (default 24h)
+insightsRoutes.post("/:id/snooze", async (c) => {
+  const session = c.get("session");
+  const { id } = c.req.param();
+  const { hours = 24 } = (await c.req.json().catch(() => ({}))) as { hours?: number };
+
+  const until = new Date(Date.now() + hours * 60 * 60 * 1000);
+
+  await db
+    .update(insights)
+    .set({ snoozedUntil: until })
+    .where(and(eq(insights.id, id), eq(insights.tenantId, session.tenantId)));
+
+  return c.json({ ok: true, snoozedUntil: until.toISOString() });
 });
 
 // Get dismissed/historical insights

@@ -1329,10 +1329,7 @@ export function Retirement() {
         {/* Page header + toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, gap: 16 }} className="ret-header-row">
           <div>
-            <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, fontWeight: 400, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
-              Retirement
-            </h1>
-            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--lf-muted)', marginTop: 6, marginBottom: 0 }}>
+            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--lf-muted)', margin: 0 }}>
               retire at {retirementAge} · {Math.max(0, retirementAge - currentAge)} years away
             </p>
           </div>

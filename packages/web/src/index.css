@@ -276,8 +276,35 @@
   .progress-glow { box-shadow: 0 0 12px var(--color-accent-glow); }
 }
 
+/* Prevent iOS Safari from auto-zooming when focusing a small-text input.
+   Safari only zooms if the input's effective font-size is < 16px. We bump
+   form fields to 16px on touch devices without changing the rendered look
+   of nearby text (the input visually still feels "small" because of its
+   padding + leading; only the typed/placeholder size grows by ~2px). */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 @layer utilities {
   .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  /* Chat "Lasagna is thinking..." indicator — simple opacity pulse so the
+     label stays visible on every browser (background-clip:text broke in
+     Safari iOS and rendered the bubble empty). */
+  .lf-thinking {
+    animation: lf-thinking-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes lf-thinking-pulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
+
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
   .scrollbar-thin::-webkit-scrollbar { width: 6px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }

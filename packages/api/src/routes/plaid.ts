@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { CountryCode, Products } from "plaid";
-import { eq, desc, plaidItems, accounts, balanceSnapshots, encrypt } from "@lasagna/core";
+import { eq, and, desc, plaidItems, accounts, balanceSnapshots, encrypt, decrypt } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { plaidClient } from "../lib/plaid.js";
 import { env } from "../lib/env.js";
@@ -20,6 +20,32 @@ plaidRoutes.post("/link-token", async (c) => {
     optional_products: [Products.Investments, Products.Liabilities],
     country_codes: [CountryCode.Us],
     language: "en",
+  });
+
+  return c.json({ linkToken: response.data.link_token });
+});
+
+// Update-mode link token: lets the user re-authenticate an existing Plaid
+// item without losing its access_token / transaction history. Used when the
+// item enters `item_login_required` or `error` state.
+plaidRoutes.post("/link-token/update", async (c) => {
+  const session = c.get("session");
+  const { itemId } = await c.req.json<{ itemId: string }>();
+  if (!itemId) return c.json({ error: "itemId is required" }, 400);
+
+  const item = await db.query.plaidItems.findFirst({
+    where: and(eq(plaidItems.id, itemId), eq(plaidItems.tenantId, session.tenantId)),
+    columns: { accessToken: true },
+  });
+  if (!item) return c.json({ error: "Item not found" }, 404);
+
+  const accessToken = await decrypt(item.accessToken, env.ENCRYPTION_KEY);
+  const response = await plaidClient.linkTokenCreate({
+    user: { client_user_id: session.userId },
+    client_name: "Lasagna",
+    country_codes: [CountryCode.Us],
+    language: "en",
+    access_token: accessToken,
   });
 
   return c.json({ linkToken: response.data.link_token });

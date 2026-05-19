@@ -36,9 +36,43 @@ export const api = {
 
   me: () =>
     request<{
-      user: { id: string; email: string; role: string; onboardingStage: string | null };
+      user: {
+        id: string;
+        email: string;
+        name: string | null;
+        role: string;
+        onboardingStage: string | null;
+        uiMode: "simple" | "advanced";
+        notifyDaily: boolean;
+        notifyBills: boolean;
+        notifyWeeklyEmail: boolean;
+      };
       tenant: { id: string; name: string; plan: string } | null;
     }>("/auth/me"),
+
+  setUiMode: (uiMode: "simple" | "advanced") =>
+    request<{ uiMode: "simple" | "advanced" }>("/auth/ui-mode", {
+      method: "PATCH",
+      body: JSON.stringify({ uiMode }),
+    }),
+
+  updateMe: (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) =>
+    request<{
+      user: {
+        id: string;
+        email: string;
+        name: string | null;
+        role: string;
+        onboardingStage: string | null;
+        uiMode: "simple" | "advanced";
+        notifyDaily: boolean;
+        notifyBills: boolean;
+        notifyWeeklyEmail: boolean;
+      };
+    }>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    }),
 
   updateOnboardingStage: (stage: string | null) =>
     request<{ onboardingStage: string | null }>("/auth/onboarding-stage", {
@@ -169,6 +203,15 @@ export const api = {
   // Sync
   triggerSync: () => request("/sync", { method: "POST" }),
   triggerResync: () => request("/sync/resync", { method: "POST" }),
+  syncItem: (itemId: string) =>
+    request<{ ok: boolean; message: string }>(`/sync/${itemId}`, { method: "POST" }),
+  syncAccount: (accountId: string) =>
+    request<{ ok: boolean; itemId: string }>(`/sync/account/${accountId}`, { method: "POST" }),
+  createUpdateLinkToken: (itemId: string) =>
+    request<{ linkToken: string }>("/plaid/link-token/update", {
+      method: "POST",
+      body: JSON.stringify({ itemId }),
+    }),
 
   // Plans
   getPlans: () => request<{ plans: Plan[] }>("/plans"),
@@ -380,6 +423,39 @@ export const api = {
   actOnInsight: (id: string) =>
     request<{ ok: boolean }>(`/insights/${id}/acted`, { method: "POST" }),
 
+  snoozeInsight: (id: string, hours = 24) =>
+    request<{ ok: boolean; snoozedUntil: string }>(`/insights/${id}/snooze`, {
+      method: "POST",
+      body: JSON.stringify({ hours }),
+    }),
+
+  // Recurring transactions (LLM-detected)
+  getRecurring: () =>
+    request<{
+      recurring: Array<{
+        id: string;
+        accountId: string | null;
+        name: string;
+        merchantName: string | null;
+        amount: string;
+        frequency: "weekly" | "biweekly" | "monthly" | "quarterly" | "annually";
+        category: string;
+        nextDueDate: string | null;
+        lastSeenDate: string | null;
+        confidence: string | null;
+        reasoning: string | null;
+        isActive: boolean;
+      }>;
+    }>("/recurring"),
+
+  detectRecurring: () =>
+    request<{ ok: boolean; detected: number; written: number }>("/recurring/detect", {
+      method: "POST",
+    }),
+
+  dismissRecurring: (id: string) =>
+    request<{ ok: boolean }>(`/recurring/${id}/dismiss`, { method: "POST" }),
+
   generateInsights: () =>
     request<{ ok: boolean; generated: number }>("/insights/generate", { method: "POST" }),
 
@@ -477,13 +553,26 @@ export const api = {
   // Goals
   getGoals: () =>
     request<{
-      goals: Array<{ id: string; name: string; targetAmount: string; currentAmount: string; deadline: string | null; category: string; status: string; icon: string | null; createdAt: string }>;
+      goals: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        targetAmount: string;
+        currentAmount: string;
+        deadline: string | null;
+        category: string;
+        status: string;
+        icon: string | null;
+        linkedAccountId: string | null;
+        completedAt: string | null;
+        createdAt: string;
+      }>;
     }>('/goals'),
 
-  createGoal: (data: { name: string; targetAmount: number; deadline?: string; category?: string; icon?: string }) =>
+  createGoal: (data: { name: string; targetAmount: number; deadline?: string; category?: string; icon?: string; description?: string; linkedAccountId?: string }) =>
     request<{ goal: { id: string } }>('/goals', { method: 'POST', body: JSON.stringify(data) }),
 
-  updateGoal: (id: string, data: { currentAmount?: number; name?: string; targetAmount?: number; deadline?: string; status?: string }) =>
+  updateGoal: (id: string, data: { currentAmount?: number; name?: string; description?: string; targetAmount?: number; deadline?: string; status?: string; linkedAccountId?: string | null }) =>
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   deleteGoal: (id: string) =>
@@ -549,4 +638,104 @@ export const api = {
 
   deleteManualAccount: (id: string) =>
     request<{ ok: boolean }>(`/manual-accounts/${id}`, { method: 'DELETE' }),
+
+  // Quick Import
+  quickImportParse: (text: string) =>
+    request<{
+      parseResult: QuickImportParseResult;
+      currentProfile: QuickImportCurrentProfile | null;
+    }>('/quick-import/parse', { method: 'POST', body: JSON.stringify({ text }) }),
+
+  quickImportCommit: (payload: QuickImportParseResult) =>
+    request<{
+      ok: boolean;
+      created: { accounts: { id: string; name: string }[]; goals: { id: string; name: string }[] };
+      profileUpdated: boolean;
+    }>('/quick-import/commit', { method: 'POST', body: JSON.stringify(payload) }),
 };
+
+// ─── Quick Import types ────────────────────────────────────────────────────
+
+export type QuickImportFilingStatus =
+  | 'single'
+  | 'married_joint'
+  | 'married_separate'
+  | 'head_of_household';
+
+export type QuickImportEmploymentType =
+  | 'w2'
+  | 'self_employed'
+  | '1099'
+  | 'business_owner';
+
+export type QuickImportRiskTolerance =
+  | 'conservative'
+  | 'moderate_conservative'
+  | 'moderate'
+  | 'moderate_aggressive'
+  | 'aggressive';
+
+export type QuickImportAccountType =
+  | 'depository'
+  | 'investment'
+  | 'credit'
+  | 'loan'
+  | 'real_estate'
+  | 'alternative';
+
+export interface QuickImportProfile {
+  name?: string | null;
+  dateOfBirth?: string | null;
+  annualIncome?: number | null;
+  filingStatus?: QuickImportFilingStatus | null;
+  stateOfResidence?: string | null;
+  employmentType?: QuickImportEmploymentType | null;
+  riskTolerance?: QuickImportRiskTolerance | null;
+  retirementAge?: number | null;
+  employerMatch?: number | null;
+  dependentCount?: number | null;
+  hasHDHP?: boolean | null;
+  isPSLFEligible?: boolean | null;
+}
+
+export interface QuickImportAccount {
+  name: string;
+  type: QuickImportAccountType;
+  subtype: string | null;
+  balance: number | null;
+  apr?: number | null;
+  apy?: number | null;
+  metadata?: Record<string, unknown> | null;
+  sourcePhrase: string;
+}
+
+export interface QuickImportGoal {
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadline?: string | null;
+  category: string;
+  sourcePhrase: string;
+}
+
+export interface QuickImportParseResult {
+  profile: QuickImportProfile | null;
+  accounts: QuickImportAccount[];
+  goals: QuickImportGoal[];
+  unparsed: string[];
+}
+
+export interface QuickImportCurrentProfile {
+  name: string | null;
+  dateOfBirth: string | null;
+  annualIncome: number | null;
+  filingStatus: string | null;
+  stateOfResidence: string | null;
+  employmentType: string | null;
+  riskTolerance: string | null;
+  retirementAge: number | null;
+  employerMatch: number | null;
+  dependentCount: number | null;
+  hasHDHP: boolean | null;
+  isPSLFEligible: boolean | null;
+}

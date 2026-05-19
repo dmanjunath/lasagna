@@ -10,10 +10,12 @@ import { env } from "../lib/env.js";
 // Lazy-load models to avoid startup failure when OPENROUTER_API_KEY is not set
 const _models = new Map<ModelLevel, LanguageModel>();
 
-export type ModelLevel = "fast" | "medium" | "quality" | "frontier";
+export type ModelLevel = "fast" | "fast-claude" | "medium-google" | "medium" | "quality" | "frontier";
 
 const modelMappings: Record<ModelLevel, string> = {
   "fast": "google/gemini-3.1-flash-lite-preview",
+  "fast-claude": "anthropic/claude-haiku-4.5",
+  "medium-google": "deepseek/deepseek-v4-flash",
   "medium": "anthropic/claude-sonnet-4.5",
   "quality": "moonshotai/kimi-k2.6",
   "frontier": "anthropic/claude-opus-4.7",

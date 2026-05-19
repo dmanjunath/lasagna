@@ -60,6 +60,8 @@ export const onboardingStageEnum = pgEnum("onboarding_stage", [
   "complete",
 ]);
 
+export const uiModeEnum = pgEnum("ui_mode", ["simple", "advanced"]);
+
 // ── Tenants ────────────────────────────────────────────────────────────────
 
 export const tenants = pgTable("tenants", {
@@ -83,10 +85,15 @@ export const users = pgTable("users", {
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
   email: varchar("email", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }),
   passwordHash: text("password_hash").notNull(),
   role: roleEnum("role").notNull().default("owner"),
   isDemo: boolean("is_demo").default(false).notNull(),
   onboardingStage: onboardingStageEnum("onboarding_stage"),
+  uiMode: uiModeEnum("ui_mode").notNull().default("simple"),
+  notifyDaily: boolean("notify_daily").notNull().default(true),
+  notifyBills: boolean("notify_bills").notNull().default(true),
+  notifyWeeklyEmail: boolean("notify_weekly_email").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -179,6 +186,8 @@ export const accounts = pgTable("accounts", {
   type: accountTypeEnum("type").notNull(),
   subtype: varchar("subtype", { length: 100 }),
   mask: varchar("mask", { length: 10 }),
+  apr: numeric("apr", { precision: 6, scale: 4 }), // annual % rate on debts (credit/loan)
+  apy: numeric("apy", { precision: 6, scale: 4 }), // annual % yield on deposits (savings)
   metadata: text("metadata"), // JSON string for loan details, property info, etc.
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -397,6 +406,7 @@ export const insights = pgTable("insights", {
   chatPrompt: text("chat_prompt"), // message to send to AI for deeper discussion
   dismissed: timestamp("dismissed_at", { withTimezone: true }),
   actedOn: timestamp("acted_on_at", { withTimezone: true }),
+  snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   generatedBy: varchar("generated_by", { length: 50 }).notNull().default("system"), // system, ai, manual
   insightType: text("type"), // page routing: spending|behavioral|debt|tax|portfolio|savings|retirement|general
@@ -456,6 +466,44 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ── Recurring Transactions ───────────────────────────────────────────────
+// LLM-detected: a periodic job reads transaction history and writes rows here.
+// We never compute recurrence with rules; the LLM is the source of truth and
+// downstream UI (bill reminders, "rent due in 3 days") reads from this table.
+
+export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
+  "weekly",
+  "biweekly",
+  "monthly",
+  "quarterly",
+  "annually",
+]);
+
+export const recurringTransactions = pgTable("recurring_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
+  name: varchar("name", { length: 255 }).notNull(),
+  merchantName: varchar("merchant_name", { length: 255 }),
+  amount: numeric("amount", { precision: 19, scale: 2 }).notNull(),
+  frequency: recurringFrequencyEnum("frequency").notNull(),
+  category: transactionCategoryEnum("category").notNull().default("other"),
+  nextDueDate: timestamp("next_due_date", { withTimezone: true }),
+  lastSeenDate: timestamp("last_seen_date", { withTimezone: true }),
+  confidence: numeric("confidence", { precision: 3, scale: 2 }), // 0.00-1.00 LLM confidence
+  reasoning: text("reasoning"), // why the LLM thinks this is recurring
+  isActive: boolean("is_active").notNull().default(true),
+  dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+  detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
 // ── Goals ─────────────────────────────────────────────────────────────────
 
 export const goalStatusEnum = pgEnum("goal_status", ["active", "completed", "paused"]);
@@ -466,12 +514,15 @@ export const goals = pgTable("goals", {
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
   targetAmount: numeric("target_amount", { precision: 19, scale: 2 }).notNull(),
   currentAmount: numeric("current_amount", { precision: 19, scale: 2 }).notNull().default("0"),
   deadline: timestamp("deadline", { withTimezone: true }),
   category: varchar("category", { length: 50 }).notNull().default("savings"),
   status: goalStatusEnum("goal_status").notNull().default("active"),
   icon: varchar("icon", { length: 10 }),
+  linkedAccountId: uuid("linked_account_id").references(() => accounts.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

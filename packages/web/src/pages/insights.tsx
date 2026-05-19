@@ -483,18 +483,6 @@ export function Insights() {
       {/* ------------------------------------------------------------------ */}
       <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h1
-            style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: 36,
-              fontWeight: 400,
-              color: 'var(--lf-ink)',
-              margin: 0,
-              lineHeight: 1.1,
-            }}
-          >
-            Actions
-          </h1>
           {!isLoading && (
             <p
               style={{

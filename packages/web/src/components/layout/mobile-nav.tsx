@@ -58,7 +58,7 @@ interface MobileNavProps {
 
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const [location, navigate] = useLocation();
-  const { tenant, logout } = useAuth();
+  const { tenant } = useAuth();
   const { openChat } = useChatStore();
 
   const isActive = (path: string) => path === '/' ? location === '/' : location.startsWith(path);
@@ -98,34 +98,40 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            className="fixed top-0 left-0 bottom-0 w-72 z-50 flex flex-col
-                       bg-lf-cream border-r border-border md:hidden"
+            className="fixed top-0 left-0 bottom-0 w-72 z-50 overflow-y-auto
+                       bg-lf-cream border-r border-border md:hidden scrollbar-thin"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between gap-2.5 p-4 border-b border-border"
-                 style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
-              <div className="flex items-center gap-2.5">
-                <div className="lf-mark">
-                  <span />
-                  <span />
-                  <span />
+            {/* Single scrolling column. Brand + close row scrolls inline; no
+                fixed top or bottom chrome — matches the Simple drawer pattern. */}
+            <nav
+              className="p-3"
+              style={{
+                paddingTop: 'max(16px, env(safe-area-inset-top))',
+                paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+              }}
+            >
+              <div className="flex items-center justify-between gap-2.5 px-2 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="lf-mark">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <span className="font-serif text-lg text-lf-ink">
+                    Lasagna<em className="text-lf-sauce italic">Fi</em>
+                  </span>
                 </div>
-                <span className="font-serif text-lg text-lf-ink">
-                  Lasagna<em className="text-lf-sauce italic">Fi</em>
-                </span>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-lg bg-lf-paper border border-border
+                             flex items-center justify-center cursor-pointer
+                             active:scale-95 transition-transform"
+                  aria-label="Close menu"
+                >
+                  <X size={16} className="text-lf-muted" />
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-lg bg-lf-paper border border-border
-                           flex items-center justify-center cursor-pointer
-                           active:scale-95 transition-transform"
-              >
-                <X size={16} className="text-lf-muted" />
-              </button>
-            </div>
 
-            {/* Nav */}
-            <nav className="flex-1 overflow-y-auto p-3 scrollbar-thin">
               {NAV_SECTIONS.map(({ section, items }) => (
                 <div key={section} className="mb-2">
                   <div className="font-mono text-xs tracking-widest uppercase text-lf-muted px-2 my-4">
@@ -161,11 +167,11 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 </div>
               ))}
 
-              {/* AI Chat */}
-              <div className="mb-2">
+              {/* AI Chat — mode-switch entry removed; toggle lives in top bar. */}
+              <div className="mb-4">
                 <button
                   onClick={() => { openChat(); onClose(); }}
-                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg mb-0.5
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg
                              border-0 cursor-pointer text-left font-sans text-sm
                              transition-colors active:scale-[0.98]
                              min-h-[44px]"
@@ -178,16 +184,13 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                   AI Chat
                 </button>
               </div>
-            </nav>
 
-            {/* Account chip at bottom */}
-            <div className="p-4 border-t border-border"
-                 style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+              {/* Account chip — inline as the last row, scrolls with the rest. */}
               <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl
-                           border border-border bg-lf-paper">
+                              border border-border bg-lf-paper">
                 <div className="w-7 h-7 rounded-lg bg-lf-sauce text-lf-paper
-                           flex items-center justify-center font-serif text-sm
-                           flex-shrink-0">
+                                flex items-center justify-center font-serif text-sm
+                                flex-shrink-0">
                   {initial}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -199,7 +202,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                   </div>
                 </div>
               </div>
-            </div>
+            </nav>
           </motion.div>
         </>
       )}

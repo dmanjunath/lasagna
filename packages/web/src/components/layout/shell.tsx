@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MessageSquare, X } from 'lucide-react';
+import { ArrowLeft, MessageSquare, X, Menu } from 'lucide-react';
 import { Sidebar } from './sidebar';
-import { MobileNav, MobileMenuButton } from './mobile-nav';
+import { MobileNav } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
+import { AppHeader } from './app-header';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { useChatStore } from '../../lib/chat-store';
 import { ChatTabs } from '../chat/chat-tabs';
@@ -28,10 +29,23 @@ export function Shell({ children }: ShellProps) {
 
   return (
     <div className="h-dvh w-screen overflow-hidden bg-bg flex flex-col">
-      {/* Mobile: hamburger (hidden when chat is open) */}
+      {/* Shared top bar — same component the Simple shell uses, so the
+          Simple/Advanced toggle and overall chrome are consistent across
+          modes. Hidden when the mobile chat overlay is up. */}
       {isMobile && !chatOpen && (
         <>
-          <MobileMenuButton onClick={() => setMobileMenuOpen(true)} />
+          <AppHeader
+            variant="advanced"
+            leadingSlot={
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open menu"
+                className="w-11 h-11 grid place-items-center rounded-full hover:bg-bg-elevated"
+              >
+                <Menu size={18} className="text-text-secondary" />
+              </button>
+            }
+          />
           <MobileNav
             isOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
@@ -43,9 +57,8 @@ export function Shell({ children }: ShellProps) {
       {isMobile ? (
         /* Mobile: main content + chat overlay */
         <div className="flex-1 flex overflow-hidden relative">
-          {/* Main content — always rendered */}
-          <main className="w-full flex flex-col overflow-hidden pt-[56px] pb-[56px]
-                          safe-top-safe-bottom">
+          {/* Main content — always rendered. pt offset = notch + 44px header. */}
+          <main className="w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] pb-[56px]">
             <div className="flex-1 overflow-y-auto">
               {children}
             </div>

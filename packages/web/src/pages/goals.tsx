@@ -234,11 +234,8 @@ export function Goals() {
         style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, gap: 16, flexWrap: 'wrap' }}
       >
         <div>
-          <h1 style={{ ...serif, fontSize: 36, lineHeight: 1.1, color: 'var(--lf-ink)', margin: 0, fontWeight: 400 }}>
-            Goals
-          </h1>
           {!loading && (
-            <div style={{ ...eyebrow, marginTop: 6 }}>
+            <div style={{ ...eyebrow }}>
               {activeGoals.length} active · {completedGoals.length} complete
             </div>
           )}

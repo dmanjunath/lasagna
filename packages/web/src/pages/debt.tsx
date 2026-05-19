@@ -305,12 +305,9 @@ function HasDebtView({
 }) {
   return (
     <>
-      {/* ── Page Header ── */}
+      {/* Title lives in the top bar; just the summary line here. */}
       <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
-        <h1 style={{ ...S.serif, fontSize: 36, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
-          Debt
-        </h1>
-        <p style={{ ...S.eyebrow, marginTop: 6 }}>
+        <p style={{ ...S.eyebrow }}>
           {debts.length} account{debts.length !== 1 ? 's' : ''}
         </p>
       </motion.div>
@@ -946,10 +943,7 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
       <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
-        <h1 style={{ ...S.serif, fontSize: 36, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
-          Debt
-        </h1>
-        <p style={{ ...S.eyebrow, marginTop: 6 }}>0 accounts</p>
+        <p style={{ ...S.eyebrow }}>0 accounts</p>
       </motion.div>
 
       <motion.div {...fadeUp(0.06)} style={{ ...S.darkCard, padding: 32, marginBottom: 20 }}>

@@ -163,6 +163,8 @@ export default {
         'scale-in': 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'slide-down': 'slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'drawer-in': 'drawerIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'overlay-in': 'overlayIn 0.18s ease-out forwards',
       },
       keyframes: {
         fadeIn: {
@@ -180,6 +182,16 @@ export default {
         slideDown: {
           from: { opacity: '0', transform: 'translateY(-20px)' },
           to:   { opacity: '1', transform: 'translateY(0)' },
+        },
+        // Drawer slides in from the left edge; pure translate so it
+        // doesn't fight the shadow during the tween.
+        drawerIn: {
+          from: { transform: 'translateX(-100%)' },
+          to:   { transform: 'translateX(0)' },
+        },
+        overlayIn: {
+          from: { opacity: '0' },
+          to:   { opacity: '1' },
         },
       },
       

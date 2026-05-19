@@ -1032,19 +1032,9 @@ export default function PortfolioComposition() {
     <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)' }}>
       <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* ── Page Header ── */}
+        {/* Title lives in the top bar; just the summary line here. */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 style={{
-            fontFamily: "'Instrument Serif', Georgia, serif",
-            fontSize: 36,
-            fontWeight: 400,
-            lineHeight: 1.1,
-            color: 'var(--lf-ink)',
-            margin: 0,
-          }}>
-            Portfolio
-          </h1>
-          <p className="lf-eyebrow" style={{ marginTop: 6 }}>
+          <p className="lf-eyebrow">
             {positionCount} position{positionCount !== 1 ? 's' : ''} across {accountCount} account{accountCount !== 1 ? 's' : ''}
           </p>
         </motion.div>
