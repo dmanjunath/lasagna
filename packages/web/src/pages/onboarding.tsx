@@ -270,6 +270,22 @@ export function Onboarding() {
               </p>
             </div>
 
+            <button
+              type="button"
+              onClick={() => navigate('/quick-import?from=onboarding')}
+              className="w-full text-left p-4 rounded-xl bg-accent/10 border border-accent/30 hover:bg-accent/15 transition-colors"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base">✨</span>
+                <span className="text-sm font-medium text-accent">
+                  Quick Import — describe yourself instead
+                </span>
+              </div>
+              <div className="text-xs text-text-secondary">
+                Type a sentence or two and we&apos;ll fill out your profile and accounts.
+              </div>
+            </button>
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-text-secondary mb-1.5">Your name</label>

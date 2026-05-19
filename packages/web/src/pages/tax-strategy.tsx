@@ -396,18 +396,7 @@ export function TaxStrategy() {
       >
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <h1
-              style={{
-                ...SERIF,
-                fontSize: 36,
-                color: "var(--lf-ink)",
-                margin: 0,
-                lineHeight: 1.1,
-              }}
-            >
-              Tax Strategy
-            </h1>
-            <div style={{ ...EYEBROW, marginTop: 6 }}>
+            <div style={{ ...EYEBROW }}>
               {FILING_YEAR} filing year
             </div>
           </div>

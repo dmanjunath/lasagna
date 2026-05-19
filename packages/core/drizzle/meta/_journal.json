@@ -22,6 +22,13 @@
       "when": 1778709548867,
       "tag": "0002_regular_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779024753339,
+      "tag": "0003_broken_vance_astro",
+      "breakpoints": true
     }
   ]
 }

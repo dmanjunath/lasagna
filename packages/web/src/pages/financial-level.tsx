@@ -750,17 +750,7 @@ export function FinancialLevel() {
         transition={{ duration: 0.3 }}
         style={{ marginBottom: 24 }}
       >
-        <h1 style={{
-          ...serifStyle,
-          fontSize: 36,
-          fontWeight: 400,
-          color: 'var(--lf-ink)',
-          margin: 0,
-          lineHeight: 1.1,
-        }}>
-          Financial Level
-        </h1>
-        <p style={{ ...eyebrowStyle, marginTop: 6 }}>{completeCount} of {steps.length} complete</p>
+        <p style={{ ...eyebrowStyle }}>{completeCount} of {steps.length} complete</p>
       </motion.div>
 
       {/* ── Dark Hero — Priority Overview ── */}

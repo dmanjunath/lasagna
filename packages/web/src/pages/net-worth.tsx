@@ -388,12 +388,9 @@ export function NetWorth() {
         </motion.div>
       )}
 
-      {/* Page header */}
+      {/* Page summary (title lives in the top bar) */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, fontWeight: 400, color: 'var(--lf-ink)', margin: 0, lineHeight: 1.1 }}>
-          Net Worth
-        </h1>
-        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: 'var(--lf-muted)', marginTop: 6, margin: '6px 0 0' }}>
+        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: 'var(--lf-muted)', margin: 0 }}>
           {assetClasses.length} asset {assetClasses.length === 1 ? 'class' : 'classes'}
         </p>
       </div>

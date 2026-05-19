@@ -11,8 +11,7 @@ export function CashFlow() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
-        <h1 className="font-display text-2xl md:text-3xl lg:text-4xl font-medium">Cash Flow</h1>
-        <p className="text-text-secondary mt-2">Income, expenses, and savings analysis</p>
+        <p className="text-text-secondary">Income, expenses, and savings analysis</p>
       </motion.div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 mb-8">

@@ -20,6 +20,8 @@ import { transactionRoutes } from "./routes/transactions.js";
 import { goalRoutes } from "./routes/goals.js";
 import { priorityRoutes } from "./routes/priorities.js";
 import { manualAccountRoutes } from "./routes/manual-accounts.js";
+import { recurringRoutes } from "./routes/recurring.js";
+import { quickImportRoutes } from "./routes/quick-import.js";
 
 export const app = new Hono<AuthEnv>();
 
@@ -118,3 +120,5 @@ app.route("/api/transactions", transactionRoutes);
 app.route("/api/goals", goalRoutes);
 app.route("/api/priorities", priorityRoutes);
 app.route("/api/manual-accounts", manualAccountRoutes);
+app.route("/api/recurring", recurringRoutes);
+app.route("/api/quick-import", quickImportRoutes);

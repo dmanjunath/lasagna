@@ -339,6 +339,10 @@ export function LayerHomeScreen({
   const [hoveredNwValue, setHoveredNwValue] = useState<number | null>(null);
   const [hoveredNwDate, setHoveredNwDate] = useState<string | null>(null);
 
+  // Carousel state for mobile insights
+  const actionsRowRef = useRef<HTMLDivElement>(null);
+  const [activeInsightIdx, setActiveInsightIdx] = useState(0);
+
   const primaryLayer = useMemo(() => getPrimaryLayer(steps), [steps]);
   const secondaryLayers = useMemo(() => getSecondaryLayers(steps), [steps]);
   const nextLayer = useMemo(
@@ -370,6 +374,35 @@ export function LayerHomeScreen({
   const handleSparklineHover = useCallback((idx: number | null, value: number | null, date: string | null) => {
     setHoveredNwValue(value);
     setHoveredNwDate(date);
+  }, []);
+
+  useEffect(() => {
+    const el = actionsRowRef.current;
+    if (!el) return;
+    const updateActive = () => {
+      const cards = el.querySelectorAll<HTMLElement>(':scope > *');
+      if (cards.length === 0) return;
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      cards.forEach((card, idx) => {
+        const dist = Math.abs(card.offsetLeft - el.scrollLeft);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = idx;
+        }
+      });
+      setActiveInsightIdx(bestIdx);
+    };
+    el.addEventListener('scroll', updateActive, { passive: true });
+    updateActive();
+    return () => el.removeEventListener('scroll', updateActive);
+  }, [displayInsights.length]);
+
+  const scrollToInsight = useCallback((idx: number) => {
+    const el = actionsRowRef.current;
+    if (!el) return;
+    const card = el.querySelectorAll<HTMLElement>(':scope > *')[idx];
+    if (card) el.scrollTo({ left: card.offsetLeft, behavior: 'smooth' });
   }, []);
 
   if (!primaryLayer) {
@@ -431,9 +464,30 @@ export function LayerHomeScreen({
     <div style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 10vw, 48px)', maxWidth: 1200, margin: '0 auto' }}>
       <style>{`
         @media (max-width: 900px) {
-          .layer-hero-grid { grid-template-columns: 1fr !important; }
+          .layer-hero-top { grid-template-columns: 1fr !important; }
           .layer-networth-grid { grid-template-columns: 1fr !important; }
           .layer-bottom-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 1100px) {
+          .layer-actions-row {
+            grid-template-columns: none !important;
+            display: flex !important;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+          }
+          .layer-actions-row::-webkit-scrollbar { display: none; }
+          .layer-actions-row > * {
+            flex: 0 0 100%;
+            scroll-snap-align: start;
+          }
+        }
+        @media (max-width: 768px) {
+          .layer-hero-hide-mobile { display: none !important; }
+        }
+        @media (min-width: 1101px) {
+          .layer-actions-dots { display: none !important; }
         }
       `}</style>
 
@@ -491,169 +545,226 @@ export function LayerHomeScreen({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05, duration: 0.4 }}
-        style={{ ...S.darkCard, padding: 'clamp(24px, 4vw, 40px)', marginBottom: 20 }}
+        style={{ ...S.darkCard, padding: 'clamp(20px, 3vw, 32px)', marginBottom: 20 }}
       >
-        <div className="layer-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 32, alignItems: 'start' }}>
-          {/* LEFT: Layer identity */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12,
-                background: color,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <Icon size={22} color="#fff" />
+        {/* TOP: Layer identity + description side-by-side */}
+        <div
+          className="layer-hero-top"
+          style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 24, alignItems: 'start', marginBottom: 18 }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: color,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Icon size={22} color="#fff" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)' }}>
+                Layer {primaryLayer.order} · Current focus
               </div>
-              <div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)' }}>
-                  Layer {primaryLayer.order} · Current focus
-                </div>
-                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 'clamp(28px, 5vw, 40px)', lineHeight: 1.1, color: 'var(--lf-paper)', marginTop: 2 }}>
-                  {primaryLayer.title}
-                </div>
+              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 'clamp(24px, 4vw, 32px)', lineHeight: 1.1, color: 'var(--lf-paper)', marginTop: 2 }}>
+                {primaryLayer.title}
               </div>
             </div>
+          </div>
+          <p style={{ fontSize: 13.5, lineHeight: 1.55, color: '#D4C6B0', margin: 0, maxWidth: 560, paddingTop: 4 }}>
+            {primaryLayer.description || primaryLayer.subtitle}
+          </p>
+        </div>
 
-            <p style={{ fontSize: 14, lineHeight: 1.6, color: '#D4C6B0', maxWidth: 480, margin: '0 0 20px' }}>
-              {primaryLayer.description || primaryLayer.subtitle}
-            </p>
+        {/* Progress bar */}
+        {primaryLayer.target !== null && primaryLayer.current !== null && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                Progress
+              </span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: color }}>
+                {primaryLayer.progress}% · {fmt(primaryLayer.current)} of {fmt(primaryLayer.target)}
+              </span>
+            </div>
+            <div style={{ height: 6, background: 'rgba(251,246,236,0.12)', borderRadius: 3, overflow: 'hidden' }}>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${primaryLayer.progress}%` }}
+                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                style={{ height: '100%', background: color, borderRadius: 3 }}
+              />
+            </div>
+          </div>
+        )}
 
-            {/* Progress bar */}
-            {primaryLayer.target !== null && primaryLayer.current !== null && (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                    Progress
-                  </span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: color }}>
-                    {primaryLayer.progress}% · {fmt(primaryLayer.current)} of {fmt(primaryLayer.target)}
-                  </span>
-                </div>
-                <div style={{ height: 6, background: 'rgba(251,246,236,0.12)', borderRadius: 3, overflow: 'hidden' }}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${primaryLayer.progress}%` }}
-                    transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                    style={{ height: '100%', background: color, borderRadius: 3 }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Debt-specific countdown */}
+        {/* Contextual stats row — debt countdown / FIRE stats / next layer */}
+        {((debtUser && debtFreeDate) || (fireUser && savingsRate !== null) || nextLayer) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 16, rowGap: 8 }}>
             {debtUser && debtFreeDate && (
-              <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Zap size={16} color="var(--lf-cheese)" />
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-cheese)' }}>
-                  {debtFreeMonths} months to debt-free · {debtFreeDate}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Zap size={14} color="var(--lf-cheese)" />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)' }}>
+                  {debtFreeMonths} {debtFreeMonths === 1 ? 'month' : 'months'} to debt-free · {debtFreeDate}
                 </span>
               </div>
             )}
-
-            {/* FIRE-specific stats */}
             {fireUser && savingsRate !== null && (
-              <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <TrendingUp size={16} color="var(--lf-cheese)" />
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-cheese)' }}>
+                  <TrendingUp size={14} color="var(--lf-cheese)" />
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)' }}>
                     {savingsRate}% savings rate
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Rocket size={16} color="var(--lf-basil)" />
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-basil)' }}>
+                  <Rocket size={14} color="var(--lf-basil)" />
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-basil)' }}>
                     {fiProgress}% to FI · {fmt(fiNumber)}
                   </span>
                 </div>
-              </div>
+              </>
             )}
-
-            {/* Next layer preview */}
             {nextLayer && (
-              <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(251,246,236,0.04)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ArrowRight size={14} color="#D4C6B0" />
-                <span style={{ fontSize: 13, color: '#D4C6B0' }}>
-                  When you complete this, you unlock: <strong style={{ color: 'var(--lf-paper)' }}>{nextLayer.title}</strong>
+                <span style={{ fontSize: 12, color: '#D4C6B0' }}>
+                  Next: <strong style={{ color: 'var(--lf-paper)', fontWeight: 500 }}>{nextLayer.title}</strong>
                 </span>
               </div>
             )}
           </div>
+        )}
 
-          {/* RIGHT: Insights & Actions */}
-          <div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 12 }}>
+        {/* Divider */}
+        <div style={{ height: 1, background: 'rgba(251,246,236,0.1)', marginBottom: 14 }} />
+
+        {/* Insights & Actions header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)' }}>
               Insights & Actions
-            </div>
-
-            {/* Last generated timestamp */}
+            </span>
             {lastActionsGeneratedAt && (
-              <div style={{ fontSize: 11, color: 'var(--lf-muted)', marginBottom: 10 }}>
-                Last updated {formatRelativeTime(lastActionsGeneratedAt)}
-              </div>
+              <span className="layer-hero-hide-mobile" style={{ fontSize: 11, color: 'var(--lf-muted)', whiteSpace: 'nowrap' }}>
+                Updated {formatRelativeTime(lastActionsGeneratedAt)}
+              </span>
             )}
+          </div>
+          <button
+            onClick={() => handleNav('/insights')}
+            style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)', background: 'none', border: 0, cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}
+          >
+            All actions →
+          </button>
+        </div>
 
-            {displayInsights.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {displayInsights.slice(0, 3).map((insight, i) => (
+        {/* Actions — 3-up grid on desktop, one-per-view carousel on mobile */}
+        {displayInsights.length > 0 ? (
+          <>
+            <div
+              ref={actionsRowRef}
+              className="layer-actions-row"
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}
+            >
+              {displayInsights.slice(0, 3).map((insight, i) => {
+                const detail = insight.actionText || insight.impact;
+                const showDetail = detail && detail.trim() !== insight.title.trim();
+                return (
                   <motion.div
                     key={insight.id}
-                    initial={{ opacity: 0, x: 8 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 + i * 0.06, duration: 0.3 }}
                     onClick={() => handleNav('/insights')}
                     style={{
                       background: 'rgba(251,246,236,0.06)',
                       border: '1px solid rgba(251,246,236,0.12)',
                       borderRadius: 10,
-                      padding: '12px 14px',
+                      padding: '14px 16px',
                       cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      minWidth: 0,
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                      <span style={{
-                        width: 6, height: 6, borderRadius: '50%',
-                        background: insight.urgency === 'critical' || insight.urgency === 'high' ? 'var(--lf-sauce)' : insight.urgency === 'medium' ? 'var(--lf-cheese)' : 'var(--lf-basil)',
-                        flexShrink: 0, marginTop: 5,
-                      }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--lf-paper)', lineHeight: 1.4 }}>
-                          {insight.title}
-                        </div>
-                        <div style={{ fontSize: 12, color: '#D4C6B0', marginTop: 2, lineHeight: 1.4 }}>
-                          {insight.actionText || insight.impact}
-                        </div>
+                    <span style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: insight.urgency === 'critical' || insight.urgency === 'high' ? 'var(--lf-sauce)' : insight.urgency === 'medium' ? 'var(--lf-cheese)' : 'var(--lf-basil)',
+                      flexShrink: 0, marginTop: 6,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 13, fontWeight: 500, color: 'var(--lf-paper)', lineHeight: 1.4,
+                        display: '-webkit-box', WebkitLineClamp: showDetail ? 2 : 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                      }}>
+                        {insight.title}
                       </div>
+                      {showDetail && (
+                        <div style={{
+                          fontSize: 12, color: '#D4C6B0', marginTop: 4, lineHeight: 1.45,
+                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                        }}>
+                          {detail}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
-                ))}
-              </div>
-            ) : (
-              <div style={{
-                background: 'rgba(251,246,236,0.06)',
-                border: '1px solid rgba(251,246,236,0.12)',
-                borderRadius: 10,
-                padding: '14px 16px',
-              }}>
-                <p style={{ fontSize: 14, lineHeight: 1.6, color: '#D4C6B0', margin: 0 }}>
-                  {primaryLayer.action || 'Complete this layer to unlock the next phase of your financial journey.'}
-                </p>
+                );
+              })}
+            </div>
+
+            {/* Carousel dot indicators — mobile only */}
+            {displayInsights.slice(0, 3).length > 1 && (
+              <div
+                className="layer-actions-dots"
+                style={{ display: 'flex', gap: 2, justifyContent: 'center', marginTop: 10 }}
+              >
+                {displayInsights.slice(0, 3).map((_, idx) => {
+                  const active = idx === activeInsightIdx;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      aria-label={`Go to insight ${idx + 1}`}
+                      onClick={() => scrollToInsight(idx)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 44,
+                        height: 24,
+                        background: 'transparent',
+                        border: 0,
+                        padding: 0,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{
+                        width: active ? 18 : 6,
+                        height: 6,
+                        borderRadius: 999,
+                        background: active ? 'var(--lf-cheese)' : 'rgba(251,246,236,0.25)',
+                        transition: 'width 0.25s ease, background 0.25s ease',
+                      }} />
+                    </button>
+                  );
+                })}
               </div>
             )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
-              <span style={{ fontSize: 12, color: 'var(--lf-muted)' }}>
-                {insights.length > displayInsights.length && `${insights.length - displayInsights.length} hidden (outside layer)`}
-              </span>
-              <button
-                onClick={() => handleNav('/insights')}
-                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)', background: 'none', border: 0, cursor: 'pointer', padding: 0 }}
-              >
-                All actions →
-              </button>
-            </div>
+          </>
+        ) : (
+          <div style={{
+            background: 'rgba(251,246,236,0.06)',
+            border: '1px solid rgba(251,246,236,0.12)',
+            borderRadius: 10,
+            padding: '14px 16px',
+          }}>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: '#D4C6B0', margin: 0 }}>
+              {primaryLayer.action || 'Complete this layer to unlock the next phase of your financial journey.'}
+            </p>
           </div>
-        </div>
+        )}
       </motion.div>
 
       {/* ═══════════════════════════════════════════════════════════════════════

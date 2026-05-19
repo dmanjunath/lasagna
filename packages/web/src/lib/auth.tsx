@@ -11,8 +11,13 @@ import { api } from "./api.js";
 interface User {
   id: string;
   email: string;
+  name: string | null;
   role: string;
   onboardingStage: string | null;
+  uiMode: "simple" | "advanced";
+  notifyDaily: boolean;
+  notifyBills: boolean;
+  notifyWeeklyEmail: boolean;
 }
 
 interface Tenant {
@@ -20,19 +25,6 @@ interface Tenant {
   name: string;
   plan: string;
 }
-
-interface AuthState {
-  user: User | null;
-  tenant: Tenant | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => Promise<void>;
-  logout: () => Promise<void>;
-  updateTenant: (updates: Partial<Tenant>) => void;
-  setOnboardingStage: (stage: string | null) => void;
-}
-
-const AuthContext = createContext<AuthState | null>(null);
 
 // Mirror of the last-known user/tenant so we can render the app shell
 // optimistically on boot instead of a blank screen while /me is in flight.
@@ -66,7 +58,24 @@ function saveAuthHint(user: User | null, tenant: Tenant | null) {
   } catch {}
 }
 
+interface AuthState {
+  user: User | null;
+  tenant: Tenant | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => Promise<void>;
+  logout: () => Promise<void>;
+  updateTenant: (updates: Partial<Tenant>) => void;
+  setOnboardingStage: (stage: string | null) => void;
+  setUiMode: (mode: "simple" | "advanced") => Promise<void>;
+  updateMe: (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) => Promise<void>;
+}
+
+const AuthContext = createContext<AuthState | null>(null);
+
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Hydrate from the localStorage hint so the very first paint is meaningful.
+  // The hint is replaced once /me confirms (or cleared if /me 401s).
   const [{ user, tenant }, setAuth] = useState<{ user: User | null; tenant: Tenant | null }>(() =>
     loadAuthHint(),
   );
@@ -125,8 +134,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setUiMode = useCallback(async (mode: "simple" | "advanced") => {
+    await api.setUiMode(mode);
+    setAuth((prev) => {
+      const nextUser = prev.user ? { ...prev.user, uiMode: mode } : prev.user;
+      saveAuthHint(nextUser, prev.tenant);
+      return { user: nextUser, tenant: prev.tenant };
+    });
+  }, []);
+
+  const updateMe = useCallback(
+    async (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) => {
+      const { user: updated } = await api.updateMe(updates);
+      setAuth((prev) => {
+        saveAuthHint(updated, prev.tenant);
+        return { user: updated, tenant: prev.tenant };
+      });
+    },
+    [],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant, setOnboardingStage }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant, setOnboardingStage, setUiMode, updateMe }}>
       {children}
     </AuthContext.Provider>
   );
