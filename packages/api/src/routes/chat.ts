@@ -3,7 +3,7 @@ import { z } from "zod";
 import { generateText } from "ai";
 import { db } from "../lib/db.js";
 import { chatThreads, messages, eq, and } from "@lasagna/core";
-import { getModel, createAgentTools, systemPrompt } from "../agent/index.js";
+import { getModel, getModelSlug, createAgentTools, systemPrompt, MODEL_LEVELS } from "../agent/index.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildAliasMap, scrub, descrub, PII_DEBUG } from "../lib/pii-scrubber.js";
 
@@ -17,7 +17,7 @@ const chatRequestSchema = z.object({
   // Optional structured context metadata for the user message bubble (stored as ui_payload)
   uiPayload: z.unknown().optional(),
   // Optional model quality level
-  modelLevel: z.enum(["fast", "medium", "quality", "frontier"]).optional(),
+  modelLevel: z.enum(MODEL_LEVELS).optional(),
 });
 
 chatRouter.post("/", async (c) => {
@@ -61,7 +61,7 @@ chatRouter.post("/", async (c) => {
     .orderBy(messages.createdAt);
 
   // Build conversation messages for AI
-  let conversationMessages = history.map((m) => ({
+  let conversationMessages: any[] = history.map((m) => ({
     role: m.role as "user" | "assistant",
     content: m.content,
   }));
@@ -80,6 +80,11 @@ chatRouter.post("/", async (c) => {
   const aliasMap = await buildAliasMap(tenantId);
   const threadId = body.threadId;
 
+  // Resolve the agent-loop model once — the response echoes this back so the
+  // client can show which model answered.
+  const agentLevel = body.modelLevel ?? "fast-claude";
+  const agentModelSlug = getModelSlug(agentLevel);
+
   console.log("[Chat] Starting agentic loop with", Object.keys(tools).length, "tools");
 
   let finalText = "";
@@ -92,15 +97,19 @@ chatRouter.post("/", async (c) => {
     if (PII_DEBUG) {
       console.log(`[Chat][PII Debug] Step ${step + 1} — messages sent to LLM:`);
       for (const msg of conversationMessages) {
-        console.log(`  [${msg.role}] ${msg.content.slice(0, 500)}${msg.content.length > 500 ? "..." : ""}`);
+        const preview = typeof msg.content === "string" ? msg.content.slice(0, 500) : JSON.stringify(msg.content).slice(0, 500);
+        console.log(`  [${msg.role}] ${preview}`);
       }
     }
 
     const stepResult = await generateText({
-      model: getModel(body.modelLevel ?? "fast"),
+      model: getModel(agentLevel),
       system: systemPrompt,
       messages: conversationMessages,
       tools,
+      // Force at least one tool call on step 1 so the model fetches real data
+      // before answering. Subsequent steps use "auto" so it can respond freely.
+      toolChoice: step === 0 ? "required" : "auto",
     });
 
     const toolCallCount = stepResult.toolCalls?.length || 0;
@@ -113,36 +122,54 @@ chatRouter.post("/", async (c) => {
       break;
     }
 
-    const toolResults: any[] = [];
+    // Execute tool calls and collect results
+    const toolResultParts: any[] = [];
     for (const toolCall of stepResult.toolCalls) {
       console.log(`[Chat] Calling tool: ${toolCall.toolName}`);
-      const tool = tools[toolCall.toolName as keyof typeof tools];
-      if (tool && 'execute' in tool) {
+      const t = tools[toolCall.toolName as keyof typeof tools];
+      if (t && 'execute' in t) {
         try {
-          const result = await (tool as any).execute((toolCall as any).args ?? {});
+          const toolInput = (toolCall as any).input ?? (toolCall as any).args ?? {};
+          const result = await (t as any).execute(toolInput);
           const scrubbedResult = scrub(result, aliasMap, "chat");
-          toolResults.push({ toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, result: JSON.stringify(scrubbedResult) });
+          const jsonValue = JSON.stringify(scrubbedResult);
+          toolResultParts.push({
+            type: "tool-result" as const,
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            output: { type: "text" as const, value: jsonValue },
+          });
         } catch (e) {
-          toolResults.push({ toolCallId: toolCall.toolCallId, toolName: toolCall.toolName, result: JSON.stringify({ error: e instanceof Error ? e.message : String(e) }) });
+          console.error(`[Chat] Tool ${toolCall.toolName} ERROR:`, e instanceof Error ? e.message : String(e));
+          toolResultParts.push({
+            type: "tool-result" as const,
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            output: { type: "text" as const, value: JSON.stringify({ error: e instanceof Error ? e.message : String(e) }) },
+          });
         }
       }
     }
 
     allToolCalls.push(...stepResult.toolCalls);
 
-    const toolResultsSummary = toolResults
-      .map(tr => `[Tool: ${tr.toolName}]\n${tr.result}`)
-      .join("\n\n");
+    // Build the assistant message with tool-call content parts
+    const assistantContent: any[] = [];
+    if (stepResult.text) {
+      assistantContent.push({ type: "text" as const, text: stepResult.text });
+    }
+    for (const tc of stepResult.toolCalls) {
+      assistantContent.push({
+        type: "tool-call" as const,
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        args: (tc as any).input ?? (tc as any).args,
+      });
+    }
+    conversationMessages.push({ role: "assistant" as const, content: assistantContent });
 
-    conversationMessages.push({ role: "assistant" as const, content: stepResult.text });
-
-    const isLastRound = step === MAX_TOOL_ROUNDS - 1;
-    conversationMessages.push({
-      role: "user" as const,
-      content: isLastRound
-        ? `[Tool results]\n\n${toolResultsSummary}\n\nYou have all the data. Write your final markdown analysis now.`
-        : `[Tool results]\n\n${toolResultsSummary}\n\nContinue your analysis.`,
-    });
+    // Add tool results as a proper tool message
+    conversationMessages.push({ role: "tool" as const, content: toolResultParts });
   }
 
   // Descrub LLM response — replace aliases back to real names
@@ -191,7 +218,8 @@ chatRouter.post("/", async (c) => {
     },
     toolResults: allToolCalls.map(tc => ({
       toolName: tc.toolName,
-      args: tc.args,
+      args: tc.input ?? tc.args,
     })),
+    model: { level: agentLevel, slug: agentModelSlug },
   });
 });

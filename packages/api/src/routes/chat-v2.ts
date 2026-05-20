@@ -85,7 +85,7 @@ chatRouterV2.post("/", async (c) => {
   // Manual multi-step tool execution loop (OpenRouter doesn't support auto maxSteps)
   console.log("[Chat V2] Starting agentic loop with", Object.keys(tools).length, "tools");
 
-  let conversationMessages = history.map((m) => ({
+  let conversationMessages: any[] = history.map((m) => ({
     role: m.role as "user" | "assistant",
     content: m.content,
   }));
@@ -102,7 +102,8 @@ chatRouterV2.post("/", async (c) => {
     if (PII_DEBUG) {
       console.log(`[Chat V2][PII Debug] Step ${step + 1} — messages sent to LLM:`);
       for (const msg of conversationMessages) {
-        console.log(`  [${msg.role}] ${msg.content.slice(0, 500)}${msg.content.length > 500 ? "..." : ""}`);
+        const preview = typeof msg.content === "string" ? msg.content.slice(0, 500) : JSON.stringify(msg.content).slice(0, 500);
+        console.log(`  [${msg.role}] ${preview}`);
       }
     }
 
@@ -111,7 +112,9 @@ chatRouterV2.post("/", async (c) => {
       system: systemPromptV2 + planContext,
       messages: conversationMessages,
       tools,
-      // Note: We handle multi-step manually with the loop above
+      // Force at least one tool call on step 1 so the model fetches real data
+      // before answering. Subsequent steps use "auto" so it can respond freely.
+      toolChoice: step === 0 ? "required" : "auto",
     });
 
     const toolCallCount = stepResult.toolCalls?.length || 0;
@@ -126,62 +129,78 @@ chatRouterV2.post("/", async (c) => {
       break;
     }
 
-    // Execute tools and add results to conversation
-    const toolResults: any[] = [];
+    // Execute tools and collect results
+    const toolResultParts: any[] = [];
 
     for (const toolCall of stepResult.toolCalls) {
       console.log(`[Chat V2] Calling tool: ${toolCall.toolName}`);
-      const tool = tools[toolCall.toolName as keyof typeof tools];
-      if (tool && 'execute' in tool) {
+      const t = tools[toolCall.toolName as keyof typeof tools];
+      if (t && 'execute' in t) {
         try {
-          const args = (toolCall as any).args ?? {};
-          const result = await (tool as any).execute(args);
+          const args = (toolCall as any).input ?? (toolCall as any).args ?? {};
+          const result = await (t as any).execute(args);
           const scrubbedResult = scrub(result, aliasMap, "chat-v2");
-          toolResults.push({
+          toolResultParts.push({
+            type: "tool-result" as const,
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            output: { type: "text" as const, value: JSON.stringify(scrubbedResult) },
+          });
+          allToolResults.push({
             toolCallId: toolCall.toolCallId,
             toolName: toolCall.toolName,
             result: JSON.stringify(scrubbedResult),
           });
         } catch (e) {
           console.error(`[Chat V2] Tool ${toolCall.toolName} error:`, e instanceof Error ? e.message : e);
-          toolResults.push({
+          const errStr = JSON.stringify({ error: e instanceof Error ? e.message : String(e) });
+          toolResultParts.push({
+            type: "tool-result" as const,
             toolCallId: toolCall.toolCallId,
             toolName: toolCall.toolName,
-            result: JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),
+            output: { type: "text" as const, value: errStr },
+          });
+          allToolResults.push({
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            result: errStr,
           });
         }
       } else {
-        toolResults.push({
+        const errStr = JSON.stringify({ error: `Tool ${toolCall.toolName} not found` });
+        toolResultParts.push({
+          type: "tool-result" as const,
           toolCallId: toolCall.toolCallId,
           toolName: toolCall.toolName,
-          result: JSON.stringify({ error: `Tool ${toolCall.toolName} not found` }),
+          output: { type: "text" as const, value: errStr },
+        });
+        allToolResults.push({
+          toolCallId: toolCall.toolCallId,
+          toolName: toolCall.toolName,
+          result: errStr,
         });
       }
     }
 
     allToolCalls.push(...stepResult.toolCalls);
-    allToolResults.push(...toolResults);
 
-    // Add assistant message and tool results for the next step
-    const toolResultsSummary = toolResults
-      .map(tr => `[Tool: ${tr.toolName}]\n${tr.result}`)
-      .join("\n\n");
+    // Build the assistant message with tool-call content parts
+    const assistantContent: any[] = [];
+    if (stepResult.text) {
+      assistantContent.push({ type: "text" as const, text: stepResult.text });
+    }
+    for (const tc of stepResult.toolCalls) {
+      assistantContent.push({
+        type: "tool-call" as const,
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        args: (tc as any).input ?? (tc as any).args,
+      });
+    }
+    conversationMessages.push({ role: "assistant" as const, content: assistantContent });
 
-    conversationMessages.push({
-      role: "assistant" as const,
-      content: stepResult.text,
-    });
-
-    // On the last round, tell the model to produce final output without more tool calls
-    const isLastRound = step === MAX_TOOL_ROUNDS - 1;
-    const nextPrompt = isLastRound
-      ? `[System: Tool results]\n\n${toolResultsSummary}\n\nYou have all the data you need. NOW produce your FINAL response as the JSON object with "chat", "content", and optionally "metrics" and "actions" fields. Do NOT call any more tools.`
-      : `[System: Tool results]\n\n${toolResultsSummary}\n\nContinue your analysis. When you have enough data, output the final JSON response with "chat" and "content" fields.`;
-
-    conversationMessages.push({
-      role: "user" as const,
-      content: nextPrompt,
-    });
+    // Add tool results as a proper tool message
+    conversationMessages.push({ role: "tool" as const, content: toolResultParts });
   }
 
   // Descrub LLM response — replace aliases back to real names

@@ -109,7 +109,21 @@ export function createSimulationTools(tenantId: string) {
           await cache.set(params.planId, tenantId, "monte_carlo", params, result);
         }
 
-        return { ...result, cached: false };
+        // Return a compact summary for the LLM (full percentile arrays are too large)
+        const lastIdx = result.percentiles.p50.length - 1;
+        return {
+          numSimulations: result.numSimulations,
+          successRate: result.successRate,
+          finalBalanceDistribution: result.finalBalanceDistribution,
+          failureStats: result.failureStats,
+          // Only include start, midpoint, and end of percentiles to save tokens
+          percentileSummary: {
+            start: { p5: result.percentiles.p5[0], p50: result.percentiles.p50[0], p95: result.percentiles.p95[0] },
+            mid: { p5: result.percentiles.p5[Math.floor(lastIdx / 2)], p50: result.percentiles.p50[Math.floor(lastIdx / 2)], p95: result.percentiles.p95[Math.floor(lastIdx / 2)] },
+            end: { p5: result.percentiles.p5[lastIdx], p50: result.percentiles.p50[lastIdx], p95: result.percentiles.p95[lastIdx] },
+          },
+          cached: false,
+        };
       },
     }),
 
@@ -184,7 +198,21 @@ export function createSimulationTools(tenantId: string) {
           await cache.set(params.planId, tenantId, "backtest", params, result);
         }
 
-        return { ...result, cached: false };
+        // Return compact summary — full period details are too large for LLM context
+        const worstPeriod = result.periods.length > 0
+          ? result.periods.reduce((w, p) => (p.endBalance < w.endBalance ? p : w), result.periods[0])
+          : null;
+        const bestPeriod = result.periods.length > 0
+          ? result.periods.reduce((b, p) => (p.endBalance > b.endBalance ? p : b), result.periods[0])
+          : null;
+        return {
+          totalPeriods: result.totalPeriods,
+          successfulPeriods: result.successfulPeriods,
+          successRate: result.successRate,
+          worstPeriod: worstPeriod ? { startYear: worstPeriod.startYear, endBalance: worstPeriod.endBalance, status: worstPeriod.status } : null,
+          bestPeriod: bestPeriod ? { startYear: bestPeriod.startYear, endBalance: bestPeriod.endBalance } : null,
+          cached: false,
+        };
       },
     }),
 
@@ -274,7 +302,16 @@ export function createSimulationTools(tenantId: string) {
           await cache.set(params.planId, tenantId, "scenario", params, result);
         }
 
-        return { ...result, cached: false };
+        // Return compact summary — yearByYear is too large for LLM context
+        return {
+          scenarioName: result.scenarioName,
+          description: result.description,
+          survivalRate: result.survivalRate,
+          endBalance: result.endBalance,
+          depletionYear: result.depletionYear,
+          comparison: result.comparison,
+          cached: false,
+        };
       },
     }),
 

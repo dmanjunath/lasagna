@@ -10,16 +10,29 @@ import { env } from "../lib/env.js";
 // Lazy-load models to avoid startup failure when OPENROUTER_API_KEY is not set
 const _models = new Map<ModelLevel, LanguageModel>();
 
-export type ModelLevel = "fast" | "fast-claude" | "medium-google" | "medium" | "quality" | "frontier";
+export const MODEL_LEVELS = [
+  "fast",
+  "fast-claude",
+  "medium-google",
+  "medium",
+  "quality",
+  "frontier",
+] as const;
+export type ModelLevel = (typeof MODEL_LEVELS)[number];
 
 const modelMappings: Record<ModelLevel, string> = {
   "fast": "google/gemini-3.1-flash-lite-preview",
   "fast-claude": "anthropic/claude-haiku-4.5",
-  "medium-google": "deepseek/deepseek-v4-flash",
+  "medium-google": "google/gemini-3.5-flash",
   "medium": "anthropic/claude-sonnet-4.5",
   "quality": "moonshotai/kimi-k2.6",
   "frontier": "anthropic/claude-opus-4.7",
 };
+
+/** OpenRouter slug for a given level — useful for telemetry / response metadata. */
+export function getModelSlug(level: ModelLevel): string {
+  return modelMappings[level];
+}
 
 export function getModel(level: ModelLevel = "quality"): LanguageModel {
   console.log("Requested model level:", level);
@@ -81,16 +94,16 @@ Professional but conversational. Explain the "so what" — why does this number 
 
 ## Tools
 
-Use tools to fetch real user data before analyzing. Available tools:
+You MUST call tools to fetch real user data before responding. NEVER answer with general knowledge when a tool can provide the user's actual numbers. Available tools:
 - get_portfolio_summary: Current portfolio data, asset allocation, holdings
 - run_monte_carlo: Monte Carlo simulations for retirement success probability
-- run_backtest: Historical backtest against actual market data
-- run_scenario: Stress test against specific scenarios (2008, dot-com, etc.)
+- run_backtest: Historical backtest against actual market data (1926-2023)
+- run_scenario: Stress test against specific scenarios (2008, great depression, stagflation, etc.)
 - calculate_fire_number: FIRE number from annual expenses
 - get_tax_documents: Tax documents (W-2, 1099, 1040, K-1, etc.) with extracted fields
 - get_spending_summary: Monthly spending by category, top merchants, income, savings rate
 
-**Always use tools to get real numbers rather than asking the user to provide them.** If a tool call returns an error, proceed with the data you have and note the limitation.
+**CRITICAL: You must call tools first before writing any analysis.** For retirement/withdrawal questions, ALWAYS run simulations (monte carlo, backtest, scenarios) with the user's actual portfolio data — do not just cite general rules of thumb. Start by calling get_portfolio_summary, then use those numbers to run the relevant simulations. If a tool returns an error, report the specific error — never claim tools are "experiencing issues" or "unavailable."
 
 ## Analysis Quality
 
