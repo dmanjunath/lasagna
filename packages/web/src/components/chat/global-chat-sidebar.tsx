@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { usePageContext } from '../../lib/page-context';
-import { useChatStore, getPreferredModelLevel, type ModelLevel } from '../../lib/chat-store';
+import { useChatStore, getPreferredModelLevel } from '../../lib/chat-store';
 import { getCategoryFromRoute } from '../../lib/route-categories';
 import { ChatThreadList } from './chat-thread-list';
 import { ChatThreadView } from './chat-thread-view';
@@ -373,68 +373,6 @@ export function GlobalChatSidebar() {
 
   const activeThread = activeThreadIndex !== null ? threads[activeThreadIndex] : null;
 
-  const handleRestartWithLevel = useCallback((level: ModelLevel) => {
-    if (!activeThread) return;
-    // Get the first user message from the current thread
-    const firstUserMsg = activeThread.messages.find(m => m.role === 'user');
-    if (!firstUserMsg) return;
-    // Go back to thread list, then create a new message with the new level
-    setActiveThread(null);
-    // Create a new thread with the desired level via handleNewMessage logic
-    const text = firstUserMsg.content;
-    const ctx = buildContext();
-    const tags = [getCategoryFromRoute(location)];
-    const userMsg: Message = {
-      id: `user-${Date.now()}`,
-      threadId: '',
-      role: 'user',
-      content: text,
-      toolCalls: null,
-      uiPayload: ctx.contextMeta ? { context: ctx.contextMeta } as unknown as Message['uiPayload'] : null,
-      createdAt: new Date().toISOString(),
-    };
-    const now = new Date();
-    const timestamp = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const localId = `thread-${Date.now()}`;
-    const newThread = {
-      thread: { id: localId, question: text, answerPreview: '', timestamp, tags },
-      messages: [userMsg],
-      apiThreadId: null as string | null,
-      modelLevel: level,
-      originalModelLevel: level,
-    };
-    setThreads(prev => [newThread, ...prev]);
-    setActiveThread(0);
-    setThreadLoading(localId, true);
-
-    (async () => {
-      const { response, threadId, threadTitle } = await sendMessage(text, null, ctx.contextString, ctx.contextMeta, tags, level);
-      const assistantMsg: Message = {
-        id: `assistant-${Date.now()}`,
-        threadId: threadId || '',
-        role: 'assistant',
-        content: response,
-        toolCalls: null,
-        uiPayload: null,
-        createdAt: new Date().toISOString(),
-      };
-      const isViewing = chatOpen && activeThreadIdRef.current === localId;
-      setThreads(prev => prev.map(t =>
-        t.thread.id === localId
-          ? {
-              ...t,
-              thread: { ...t.thread, question: threadTitle || t.thread.question, answerPreview: stripMarkdown(response).slice(0, 200) },
-              messages: [...t.messages, assistantMsg],
-              apiThreadId: threadId,
-              unread: !isViewing,
-            }
-          : t
-      ));
-      if (!isViewing) incrementUnread();
-      setThreadLoading(localId, false);
-    })();
-  }, [activeThread, buildContext, location, chatOpen, sendMessage, setThreads, setActiveThread, setThreadLoading, incrementUnread]);
-
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-bg">
       {activeThread ? (
@@ -445,7 +383,6 @@ export function GlobalChatSidebar() {
           onFollowUp={handleFollowUp}
           onDelete={() => handleDeleteThread()}
           onNewChat={() => setActiveThread(null)}
-          onRestartWithLevel={handleRestartWithLevel}
           loading={loadingThreads.has(activeThread.thread.id)}
         />
       ) : (

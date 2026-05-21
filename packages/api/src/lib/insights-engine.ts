@@ -573,6 +573,7 @@ CRITICAL RULES:
 9. NEVER produce timelines more than 30 years out. If a projection would be absurd (e.g., "complete in 2120"), instead calculate what monthly savings increase would be needed to hit the deadline.
 10. AVOID generic boilerplate advice like "max out your 401(k)" or "contribute to your Roth IRA" unless you can tie it to a SPECIFIC number from the data (e.g., "You're contributing $15k to your 401(k) — increasing to $23,500 saves $2,040 in taxes at your 24% bracket"). If you can't calculate a specific savings amount, don't generate the insight.
 11. When taxDocuments are present, PRIORITIZE document-specific insights (Lens 5) over generic optimization advice (Lens 3). The user uploaded documents to get specific analysis, not boilerplate.
+12. AT MOST ONE insight may primarily flag missing/incomplete data (phrases like "no holdings data", "with no payment tracking", "unknown interest rate", "no income tracked", "$0 monthly expenses"). The user knows their data is incomplete — repeating it across 3-4 insights is noise. If multiple data gaps exist, pick the single highest-impact gap and combine the rest into one "complete your profile" suggestion. Every OTHER insight must derive a concrete recommendation from data that IS present (account balances, balances by type, ages, account names, debt/asset ratios, etc.) — even partial data supports useful advice.
 
 Analyze through these 4 lenses and generate insights from each lens WHERE THE DATA SUPPORTS IT:
 
@@ -748,8 +749,35 @@ export async function generateInsights(tenantId: string): Promise<number> {
   const validColors = ["green", "amber", "red"];
   const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
 
+  // Cap "this data is missing" insights at one per generation. The LLM is told
+  // this in the prompt (rule #12) but reliably ignores it for users with
+  // incomplete profiles, producing 3-4 near-duplicate "we don't have your X"
+  // entries that drown out actionable insights. Keep the first encountered —
+  // the prompt orders by urgency, so that's the highest-priority gap.
+  const MISSING_DATA_PATTERNS: RegExp[] = [
+    /\bno\s+\w+\s+(data|tracking|tracked|info)\b/i,
+    /\bwith\s+no\s+\w+\s+(data|tracking|info)\b/i,
+    /\bunknown\s+(interest\s+rate|apr|apy|rate)\b/i,
+    /\bnot\s+tracked\b/i,
+    /\bmissing\s+(data|info|information)\b/i,
+    /\$0\s+(monthly\s+)?(income|expenses?|spending)\b/i,
+  ];
+  const isMissingDataInsight = (ins: GeneratedInsight): boolean => {
+    const text = `${ins.title ?? ""} ${ins.description ?? ""}`;
+    return MISSING_DATA_PATTERNS.some((p) => p.test(text));
+  };
+
+  let missingDataKept = 0;
   let insertCount = 0;
   for (const ins of generated) {
+    if (isMissingDataInsight(ins)) {
+      if (missingDataKept >= 1) {
+        console.log(`[Insights] Dropping duplicate missing-data insight: "${ins.title?.slice(0, 80)}"`);
+        continue;
+      }
+      missingDataKept++;
+    }
+
     const category = validCategories.includes(
       ins.category as (typeof validCategories)[number]
     )

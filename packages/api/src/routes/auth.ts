@@ -9,6 +9,7 @@ import {
   MAX_AGE,
 } from "../lib/session.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
+import { generateInsights } from "../lib/insights-engine.js";
 
 export const authRoutes = new Hono<AuthEnv>();
 
@@ -273,11 +274,27 @@ authRoutes.patch("/onboarding-stage", requireAuth, async (c) => {
     return c.json({ error: "Invalid onboarding stage" }, 400);
   }
 
+  // Snapshot the pre-update stage so we can detect the transition from
+  // "in onboarding" → "complete" and trigger first-run insights exactly once.
+  const before = await db.query.users.findFirst({
+    where: eq(users.id, session.userId),
+    columns: { onboardingStage: true },
+  });
+
   const [updated] = await db
     .update(users)
     .set({ onboardingStage: stage as typeof onboardingStageEnum.enumValues[number] | null })
     .where(eq(users.id, session.userId))
     .returning();
+
+  // Just completed onboarding (any path — quick import or step-by-step).
+  // Fire-and-forget so the dashboard redirect isn't blocked by the LLM call.
+  if (before?.onboardingStage !== null && updated.onboardingStage === null) {
+    void generateInsights(session.tenantId).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Onboarding complete] insights generation failed: ${msg.slice(0, 300)}`);
+    });
+  }
 
   return c.json({ onboardingStage: updated.onboardingStage });
 });

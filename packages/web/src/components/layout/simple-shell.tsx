@@ -41,6 +41,7 @@ export function SimpleShell({ children, title, activeTab, showBack, bottomDock, 
       <AppHeader
         variant="simple"
         title={title}
+        showModeToggle={false}
         leadingSlot={
           showBack ? (
             <button

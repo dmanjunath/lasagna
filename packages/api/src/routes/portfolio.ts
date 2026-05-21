@@ -33,34 +33,35 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
   }
 
   const holdingsArray = Array.from(latestHoldings.values());
-  if (holdingsArray.length === 0) return [];
-
-  // Batch fetch all securities and accounts using inArray
-  const securityIds = [...new Set(holdingsArray.map(h => h.securityId))];
-  const accountIds = [...new Set(holdingsArray.map(h => h.accountId))];
-
-  const [allSecurities, allAccounts] = await Promise.all([
-    db.query.securities.findMany({ where: inArray(securities.id, securityIds) }),
-    db.query.accounts.findMany({ where: inArray(accounts.id, accountIds) }),
-  ]);
-
-  const securitiesMap = new Map(allSecurities.map(s => [s.id, s]));
-  const accountsMap = new Map(allAccounts.map(a => [a.id, a]));
-
   const holdingsInput: HoldingInput[] = [];
-  for (const h of holdingsArray) {
-    const sec = securitiesMap.get(h.securityId);
-    const acct = accountsMap.get(h.accountId);
-    if (sec && acct) {
-      holdingsInput.push({
-        ticker: sec.tickerSymbol || 'UNKNOWN',
-        value: parseFloat(h.institutionValue || '0'),
-        shares: parseFloat(h.quantity || '0'),
-        name: sec.name || sec.tickerSymbol || 'Unknown Security',
-        account: acct.name,
-        costBasis: h.costBasis ? parseFloat(h.costBasis) : null,
-        securityType: sec.type || undefined,
-      });
+
+  if (holdingsArray.length > 0) {
+    // Batch fetch all securities and accounts using inArray
+    const securityIds = [...new Set(holdingsArray.map(h => h.securityId))];
+    const accountIds = [...new Set(holdingsArray.map(h => h.accountId))];
+
+    const [allSecurities, allAccounts] = await Promise.all([
+      db.query.securities.findMany({ where: inArray(securities.id, securityIds) }),
+      db.query.accounts.findMany({ where: inArray(accounts.id, accountIds) }),
+    ]);
+
+    const securitiesMap = new Map(allSecurities.map(s => [s.id, s]));
+    const accountsMap = new Map(allAccounts.map(a => [a.id, a]));
+
+    for (const h of holdingsArray) {
+      const sec = securitiesMap.get(h.securityId);
+      const acct = accountsMap.get(h.accountId);
+      if (sec && acct) {
+        holdingsInput.push({
+          ticker: sec.tickerSymbol || 'UNKNOWN',
+          value: parseFloat(h.institutionValue || '0'),
+          shares: parseFloat(h.quantity || '0'),
+          name: sec.name || sec.tickerSymbol || 'Unknown Security',
+          account: acct.name,
+          costBasis: h.costBasis ? parseFloat(h.costBasis) : null,
+          securityType: sec.type || undefined,
+        });
+      }
     }
   }
 
@@ -89,6 +90,50 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
         securityType: 'cash',
       });
     }
+  }
+
+  // Investment accounts without per-security holdings (e.g., manually entered
+  // via Quick Import) get an assumed 60/40 split — 60% US stocks, 40% bonds —
+  // so they show up in portfolio summaries instead of vanishing into a $0 total.
+  // Without this, a manual $325k 401k looks like an empty portfolio to the LLM.
+  const accountsWithRealHoldings = new Set(holdingsArray.map(h => h.accountId));
+  const investmentAccts = await db.query.accounts.findMany({
+    where: and(
+      eq(accounts.tenantId, tenantId),
+      sql`${accounts.type} = 'investment'`,
+    ),
+  });
+
+  for (const acct of investmentAccts) {
+    if (accountsWithRealHoldings.has(acct.id)) continue;
+    const latest = await db.query.balanceSnapshots.findFirst({
+      where: eq(balanceSnapshots.accountId, acct.id),
+      orderBy: desc(balanceSnapshots.snapshotAt),
+    });
+    const balance = parseFloat(latest?.balance ?? "0");
+    if (balance <= 0) continue;
+
+    const stockValue = balance * 0.6;
+    const bondValue = balance * 0.4;
+
+    holdingsInput.push({
+      ticker: 'VTI',
+      value: stockValue,
+      shares: stockValue,
+      name: `${acct.name} (assumed 60% US Stocks)`,
+      account: acct.name,
+      costBasis: stockValue,
+      securityType: 'etf',
+    });
+    holdingsInput.push({
+      ticker: 'BND',
+      value: bondValue,
+      shares: bondValue,
+      name: `${acct.name} (assumed 40% Bonds)`,
+      account: acct.name,
+      costBasis: bondValue,
+      securityType: 'etf',
+    });
   }
 
   return holdingsInput;

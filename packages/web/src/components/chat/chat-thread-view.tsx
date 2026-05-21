@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Send, Trash2, Plus, Loader2 } from 'lucide-react';
 import { MessageBubble } from './message-bubble';
-import { ModelSelector } from './model-selector';
 import { cn } from '../../lib/utils';
 import type { Message } from '../../lib/types';
 import type { Thread } from './chat-thread-list';
@@ -43,11 +42,10 @@ interface ChatThreadViewProps {
   onFollowUp: (text: string) => void;
   onDelete?: () => void;
   onNewChat?: () => void;
-  onRestartWithLevel?: (level: import('../../lib/chat-store').ModelLevel) => void;
   loading?: boolean;
 }
 
-export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete, onNewChat, onRestartWithLevel, loading }: ChatThreadViewProps) {
+export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete, onNewChat, loading }: ChatThreadViewProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -127,9 +125,6 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
 
       {/* Follow-up input */}
       <form onSubmit={handleSubmit} className="px-3 pt-2 pb-3 border-t border-border flex-shrink-0">
-        <div className="flex items-center justify-start mb-1.5">
-          <ModelSelector threadLocalId={thread.id} onRestart={onRestartWithLevel} />
-        </div>
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}

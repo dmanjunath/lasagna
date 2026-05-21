@@ -1110,7 +1110,16 @@ const SUGGESTIONS: SuggestionCategory[] = [
     label: 'Debts',
     patterns: [
       /\bmortg\w*\b/i,                            // tolerate typos like "mortage"
-      /\b(loans?|debt|credit card|car notes?|auto note)\b/i,
+      /\b(loans?|debt|car notes?|auto note)\b/i,
+    ],
+  },
+  {
+    key: 'credit_cards',
+    label: 'Credit cards',
+    patterns: [
+      /\bcredit\s*cards?\b/i,
+      /\bcc\s+(debt|balance|bill)\b/i,
+      /\b(visa|mastercard|master\s*card|amex|american\s*express|discover|chase\s*sapphire)\b/i,
     ],
   },
 ];

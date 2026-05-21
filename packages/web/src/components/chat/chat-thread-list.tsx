@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { MessageSquare, Send, Trash2 } from 'lucide-react';
-import { ModelSelector } from './model-selector';
 
 export interface Thread {
   id: string;
@@ -124,11 +123,8 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
         </div>
       )}
 
-      {/* Model quality selector + input */}
+      {/* Input */}
       <div className="px-3 pt-2 pb-3 flex-shrink-0 border-t border-border/50">
-        <div className="flex items-center justify-start mb-1.5">
-          <ModelSelector />
-        </div>
         <form onSubmit={handleSubmit}>
           <div className="flex items-end gap-2">
             <textarea

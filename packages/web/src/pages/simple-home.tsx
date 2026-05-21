@@ -102,7 +102,7 @@ function NextStepsCarousel({
         // InsightCard fills the same row so the snap-mandatory scroller still
         // lands cleanly card-by-card. We intentionally let cards grow tall
         // enough to fit their full content rather than clipping.
-        className={`flex gap-3 items-stretch ${single ? '' : 'overflow-x-auto snap-x snap-mandatory scrollbar-none'}`}
+        className={`flex gap-3 items-stretch max-h-[320px] ${single ? '' : 'overflow-x-auto snap-x snap-mandatory scrollbar-none'}`}
         style={single ? {} : { scrollbarWidth: 'none' }}
         // Keyboard nav: ←/→ scrolls one card. Carousel is now a real
         // listbox-like control instead of "swipe or nothing".
@@ -200,7 +200,7 @@ function LevelCard({
       </div>
       <h2 className="text-[22px] font-serif font-medium leading-[1.2]">{step.title}</h2>
       {body && (
-        <p className="text-sm text-text-secondary mt-3 leading-relaxed">
+        <p className="text-sm text-text-secondary mt-3 leading-relaxed line-clamp-4">
           {body}
         </p>
       )}
@@ -264,7 +264,7 @@ function InsightCard({
       </div>
       <h2 className="text-[22px] font-serif font-medium leading-[1.2]">{insight.title}</h2>
       {insight.description && (
-        <p className="text-sm text-text-secondary mt-3 leading-relaxed">
+        <p className="text-sm text-text-secondary mt-3 leading-relaxed line-clamp-4">
           {insight.description}
         </p>
       )}

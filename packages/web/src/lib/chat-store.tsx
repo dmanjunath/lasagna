@@ -110,7 +110,6 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
           message: content,
           context: contextString || undefined,
           uiPayload: contextMeta ? { context: contextMeta } : undefined,
-          modelLevel: modelLevel ?? DEFAULT_MODEL_LEVEL,
         }),
       });
 
