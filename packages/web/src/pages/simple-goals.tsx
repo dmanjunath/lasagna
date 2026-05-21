@@ -51,12 +51,6 @@ export function SimpleGoals() {
 
   return (
     <SimpleShell title="Goals" activeTab="goals">
-      {/* Title block — matches H1 size used on Home/Chat for a consistent ramp. */}
-      <div className="mb-5">
-        <h1 className="text-[28px] font-serif font-medium leading-[1.15]">Your goals.</h1>
-        <p className="text-sm text-text-muted mt-1.5">Things you're saving for or working toward.</p>
-      </div>
-
       {/* Add goal CTA */}
       <button
         onClick={() => setShowAdd(true)}

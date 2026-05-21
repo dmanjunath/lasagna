@@ -314,24 +314,15 @@ export function Dashboard() {
 
       {/* Link accounts nudge */}
       {!hasPlaidAccounts && accountCount > 0 && (
-        <div style={{
-          padding: '0 clamp(16px, 4vw, 40px)',
-          maxWidth: 1200,
-          margin: '0 auto',
-        }}>
-          <div style={{
-            marginBottom: 20, background: 'rgba(201,84,58,0.06)',
-            border: '1px solid rgba(201,84,58,0.2)', borderRadius: 14,
-            padding: '14px 20px', display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', gap: 16,
-          }}>
+        <div style={{ padding: '0 clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto' }}>
+          <div className="mb-5 bg-accent/5 border border-accent/20 rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4">
             <div>
-              <div style={{ fontWeight: 500, fontSize: 14 }}>Link your bank for automatic updates</div>
-              <div style={{ color: 'var(--lf-muted)', fontSize: 13, marginTop: 2 }}>Your balances are manual snapshots. Connect via Plaid for real-time tracking.</div>
+              <div className="text-sm font-medium">Link your bank for automatic updates</div>
+              <div className="text-sm text-text-muted mt-0.5">Your balances are manual snapshots. Connect via Plaid for real-time tracking.</div>
             </div>
             <button
               onClick={() => navigate('/accounts')}
-              style={{ padding: '8px 16px', background: 'var(--lf-sauce)', color: 'var(--lf-paper)', border: 0, borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              className="px-4 py-2 bg-accent text-white rounded-full text-sm font-medium cursor-pointer whitespace-nowrap hover:bg-accent-dim transition-colors"
             >
               Link Account
             </button>

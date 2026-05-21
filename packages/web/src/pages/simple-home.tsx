@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
+import { Wallet, TrendingUp, CreditCard, Target, Lightbulb, Sunrise } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
@@ -187,17 +188,6 @@ function LevelCard({
       data-card
       className="snap-center shrink-0 w-full rounded-2xl bg-gradient-to-br from-cheese/15 to-accent/10 border border-cheese/40 p-5 flex flex-col"
     >
-      <div className="flex items-center gap-2 mb-2">
-        <span
-          className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-medium text-white tabular-nums shrink-0"
-          style={{ background: color }}
-        >
-          {step.order}
-        </span>
-        <span className="text-[11px] uppercase tracking-[0.16em] text-accent font-medium">
-          Layer {step.order} of 12{isComplete ? ' · Done' : hasProgress ? ' · In progress' : ' · Up next'}
-        </span>
-      </div>
       <h2 className="text-[22px] font-serif font-medium leading-[1.2]">{step.title}</h2>
       {body && (
         <p className="text-sm text-text-secondary mt-3 leading-relaxed line-clamp-4">
@@ -259,9 +249,6 @@ function InsightCard({
       data-card
       className="snap-center shrink-0 w-full rounded-2xl bg-gradient-to-br from-cheese/15 to-accent/10 border border-cheese/40 p-5 flex flex-col"
     >
-      <div className="text-[11px] uppercase tracking-[0.16em] text-accent font-medium mb-2">
-        Today
-      </div>
       <h2 className="text-[22px] font-serif font-medium leading-[1.2]">{insight.title}</h2>
       {insight.description && (
         <p className="text-sm text-text-secondary mt-3 leading-relaxed line-clamp-4">
@@ -357,80 +344,62 @@ export function SimpleHome() {
   }, []);
 
   useEffect(() => {
-    // Cash / Investments / Debts breakdown — same logic as the Money page so the
-    // two views agree on totals. Also build the accountId → balance map the bill
-    // card uses to show "pulls from <account>".
-    api
-      .getBalances()
-      .then(({ balances }) => {
-        const next: NetBreakdown = {
-          cash: 0, cashCount: 0,
-          investments: 0, investmentsCount: 0,
-          debts: 0, debtsCount: 0,
-          netWorth: 0,
-        };
-        const map = new Map<string, { name: string; balance: number }>();
-        for (const b of balances) {
-          const v = parseFloat(b.balance ?? '0');
-          map.set(b.accountId, { name: b.name, balance: Number.isNaN(v) ? 0 : v });
-          if (Number.isNaN(v)) continue;
-          if (b.type === 'depository') { next.cash += v; next.cashCount++; }
-          else if (b.type === 'investment') { next.investments += v; next.investmentsCount++; }
-          else if (b.type === 'credit' || b.type === 'loan') { next.debts += v; next.debtsCount++; }
-        }
-        next.netWorth = next.cash + next.investments - next.debts;
-        setBreakdown(next);
-        setAccountsById(map);
-      })
-      .catch(() => setBreakdown(null));
-
-    api
-      .getGoals()
-      .then(({ goals }) => setGoals(goals as Goal[]))
-      .catch(() => setGoals([]));
-
-    // Current financial-journey step. Surfaces the headline answer to
-    // "what should I do next?" without making the user think.
-    loadPriorities().finally(() => setLevelLoading(false));
-
-    // Upcoming bill — only large recurring expenses (rent/mortgage, car, credit cards,
-    // utilities, insurance). We skip subscriptions, gym fees, dining, etc., AND
-    // anything under $200 — that filter catches things mis-tagged as "utilities"
-    // like pest control / minor home services that shouldn't crowd the Heads-up card.
-    const BIG_CATEGORIES = new Set([
-      'housing',
-      'debt_payment',
-      'transportation',
-      'insurance',
-      'utilities',
-    ]);
+    const BIG_CATEGORIES = new Set(['housing', 'debt_payment', 'transportation', 'insurance', 'utilities']);
     const BILL_MIN_AMOUNT = 200;
-    api
-      .getRecurring()
-      .then(({ recurring }) => {
-        const now = Date.now();
-        const sevenDays = 7 * 24 * 60 * 60 * 1000;
-        const upcoming = recurring
-          .filter((r) => r.nextDueDate && BIG_CATEGORIES.has(r.category))
-          .map((r) => ({
-            id: r.id,
-            name: r.name,
-            amount: parseFloat(r.amount),
-            dueDate: new Date(r.nextDueDate!),
-            accountId: r.accountId,
-          }))
-          .filter((r) => r.amount >= BILL_MIN_AMOUNT)
-          .filter((r) => {
-            const ms = r.dueDate.getTime() - now;
-            return ms >= -24 * 60 * 60 * 1000 && ms <= sevenDays;
-          })
-          .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
-        if (upcoming) {
-          const daysAway = Math.round((upcoming.dueDate.getTime() - now) / (24 * 60 * 60 * 1000));
-          setUpcomingBill({ ...upcoming, daysAway });
-        }
-      })
-      .catch(() => {});
+
+    // Fire all fetches in parallel for fast first paint
+    Promise.all([
+      api.getBalances().catch(() => ({ balances: [] as any[] })),
+      api.getGoals().catch(() => ({ goals: [] })),
+      loadPriorities().finally(() => setLevelLoading(false)),
+      api.getRecurring().catch(() => ({ recurring: [] as any[] })),
+    ]).then(([balanceData, goalsData, , recurringData]) => {
+      // Balances → net worth breakdown
+      const next: NetBreakdown = {
+        cash: 0, cashCount: 0,
+        investments: 0, investmentsCount: 0,
+        debts: 0, debtsCount: 0,
+        netWorth: 0,
+      };
+      const map = new Map<string, { name: string; balance: number }>();
+      for (const b of balanceData.balances) {
+        const v = parseFloat(b.balance ?? '0');
+        map.set(b.accountId, { name: b.name, balance: Number.isNaN(v) ? 0 : v });
+        if (Number.isNaN(v)) continue;
+        if (b.type === 'depository') { next.cash += v; next.cashCount++; }
+        else if (b.type === 'investment') { next.investments += v; next.investmentsCount++; }
+        else if (b.type === 'credit' || b.type === 'loan') { next.debts += v; next.debtsCount++; }
+      }
+      next.netWorth = next.cash + next.investments - next.debts;
+      setBreakdown(next);
+      setAccountsById(map);
+
+      // Goals
+      setGoals(goalsData.goals as Goal[]);
+
+      // Upcoming bill
+      const now = Date.now();
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      const upcoming = (recurringData.recurring || [])
+        .filter((r: any) => r.nextDueDate && BIG_CATEGORIES.has(r.category))
+        .map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          amount: parseFloat(r.amount),
+          dueDate: new Date(r.nextDueDate!),
+          accountId: r.accountId,
+        }))
+        .filter((r: any) => r.amount >= BILL_MIN_AMOUNT)
+        .filter((r: any) => {
+          const ms = r.dueDate.getTime() - now;
+          return ms >= -24 * 60 * 60 * 1000 && ms <= sevenDays;
+        })
+        .sort((a: any, b: any) => a.dueDate.getTime() - b.dueDate.getTime())[0];
+      if (upcoming) {
+        const daysAway = Math.round((upcoming.dueDate.getTime() - now) / (24 * 60 * 60 * 1000));
+        setUpcomingBill({ ...upcoming, daysAway });
+      }
+    });
   }, [loadPriorities]);
 
   function submitAsk(e?: React.FormEvent) {
@@ -455,16 +424,42 @@ export function SimpleHome() {
     ? Math.min(100, Math.round((parseFloat(topGoal.currentAmount) / parseFloat(topGoal.targetAmount)) * 100))
     : null;
 
+  // Context-aware suggested prompts based on user's actual financial state
+  const suggestedPrompts = useMemo(() => {
+    const prompts: string[] = [];
+    if (breakdown) {
+      const nw = breakdown.netWorth;
+      if (breakdown.debts > 0 && breakdown.investments > 0)
+        prompts.push(`Should I pay off my $${formatMoney(breakdown.debts).slice(1)} in debt or keep investing?`);
+      else if (breakdown.debts > 0)
+        prompts.push(`What's the fastest way to pay off $${formatMoney(breakdown.debts).slice(1)} in debt?`);
+      if (breakdown.investments > 0)
+        prompts.push(`Can I retire on $${formatMoney(breakdown.investments).slice(1)} in investments?`);
+      if (nw > 0 && breakdown.cash > 0) {
+        const cashPct = Math.round((breakdown.cash / nw) * 100);
+        if (cashPct > 30)
+          prompts.push(`Is ${cashPct}% cash too much? Should I invest more?`);
+      }
+    }
+    if (topGoal)
+      prompts.push(`How can I reach my ${topGoal.name} goal faster?`);
+    if (currentStep)
+      prompts.push(`Help me with: ${currentStep.title}`);
+    // Fallbacks if we couldn't build enough context-aware ones
+    if (prompts.length < 2) prompts.push('What should I focus on first?');
+    if (prompts.length < 3) prompts.push('Am I on track for retirement?');
+    return prompts.slice(0, 3);
+  }, [breakdown, topGoal, currentStep]);
+
   return (
     <SimpleShell title="Home" activeTab="home">
       {/* Greeting — uses the same display size as other page H1s so the
           Simple-mode type ramp is consistent across Home/Money/Chat/Goals. */}
       <div className="mb-5">
         <h1 className="text-[28px] font-serif font-medium leading-[1.15]">
-          Hey {firstName}{' '}
-          <span className="font-serif italic text-text-muted">👋</span>
+          Hey {firstName}
         </h1>
-        <p className="text-sm text-text-muted mt-1.5">Here's what to focus on today.</p>
+        <p className="text-sm text-text-muted mt-1.5">Here's what to focus on next.</p>
       </div>
 
       {/* "What to do next" — a swipeable stack starting with your current
@@ -507,7 +502,7 @@ export function SimpleHome() {
         />
       ) : (
         <section className="rounded-2xl bg-bg-elevated border border-rule p-5 mb-4">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium mb-2">
+          <div className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium font-mono mb-2">
             Your next step
           </div>
           <h2 className="text-xl font-serif font-medium">Set up your financial profile.</h2>
@@ -525,7 +520,7 @@ export function SimpleHome() {
 
       {/* Ask anything — real input that navigates to chat with the prompt */}
       <section className="rounded-2xl bg-bg-elevated border border-rule p-5 mb-4">
-        <div className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium mb-3">
+        <div className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium font-mono mb-3">
           Ask anything
         </div>
         <form
@@ -536,7 +531,7 @@ export function SimpleHome() {
             type="text"
             value={askDraft}
             onChange={(e) => setAskDraft(e.target.value)}
-            placeholder='Try: "Should I pay debt or save first?"'
+            placeholder={suggestedPrompts[0] ? `Try: "${suggestedPrompts[0]}"` : 'Ask anything about your finances…'}
             className="flex-1 bg-transparent text-sm focus:outline-none placeholder-text-muted/70"
           />
           <button
@@ -549,7 +544,7 @@ export function SimpleHome() {
           </button>
         </form>
         <div className="flex flex-wrap gap-2 mt-3">
-          {['Am I saving enough?', "What's a Roth IRA?", 'How do taxes work?'].map((q) => (
+          {suggestedPrompts.map((q) => (
             <button
               key={q}
               onClick={() => setLocation(`/s/chat?prompt=${encodeURIComponent(q)}`)}
@@ -617,8 +612,8 @@ export function SimpleHome() {
           >
             <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-base">🌅</span>
-                <span className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium">
+                <Sunrise size={14} className="text-text-muted" />
+                <span className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium font-mono">
                   This morning
                 </span>
               </div>
@@ -626,7 +621,7 @@ export function SimpleHome() {
             </div>
             {breakdown.cashCount > 0 && (
               <BreakdownLine
-                icon="💰"
+                icon={<Wallet size={16} className="text-text-muted" />}
                 label="Cash"
                 sublabel={`${breakdown.cashCount} account${breakdown.cashCount === 1 ? '' : 's'}`}
                 amount={breakdown.cash}
@@ -634,7 +629,7 @@ export function SimpleHome() {
             )}
             {breakdown.investmentsCount > 0 && (
               <BreakdownLine
-                icon="📈"
+                icon={<TrendingUp size={16} className="text-text-muted" />}
                 label="Investments"
                 sublabel={`${breakdown.investmentsCount} account${breakdown.investmentsCount === 1 ? '' : 's'}`}
                 amount={breakdown.investments}
@@ -642,7 +637,7 @@ export function SimpleHome() {
             )}
             {breakdown.debtsCount > 0 && (
               <BreakdownLine
-                icon="💳"
+                icon={<CreditCard size={16} className="text-text-muted" />}
                 label="Debts"
                 sublabel={`${breakdown.debtsCount} account${breakdown.debtsCount === 1 ? '' : 's'}`}
                 amount={-breakdown.debts}
@@ -669,9 +664,11 @@ export function SimpleHome() {
             className="block rounded-2xl bg-bg-elevated border border-rule p-4 hover:border-accent/30 transition"
           >
             <div className="flex items-start gap-3">
-              <div className="text-xl">{topGoal.icon || '🎯'}</div>
+              <div className="w-9 h-9 rounded-xl bg-bg grid place-items-center shrink-0">
+                <Target size={16} className="text-accent" />
+              </div>
               <div className="flex-1">
-                <div className="text-xs text-text-muted">Goal</div>
+                <div className="text-xs text-text-muted font-mono uppercase tracking-wider">Goal</div>
                 <div className="text-sm font-medium mt-1">
                   {topGoal.name} — {goalProgress}% there
                 </div>
@@ -695,9 +692,11 @@ export function SimpleHome() {
             className="block rounded-2xl bg-bg-elevated border border-rule p-4 hover:border-accent/30 transition"
           >
             <div className="flex items-start gap-3">
-              <div className="text-xl">💡</div>
+              <div className="w-9 h-9 rounded-xl bg-bg grid place-items-center shrink-0">
+                <Lightbulb size={16} className="text-cheese" />
+              </div>
               <div className="flex-1">
-                <div className="text-xs text-text-muted">Did you know</div>
+                <div className="text-xs text-text-muted font-mono uppercase tracking-wider">Did you know</div>
                 <div className="text-sm font-medium mt-1">{ins.title}</div>
                 {ins.description && (
                   // Clamp to 3 lines — DYK is a feed-row preview (tap the row
@@ -724,7 +723,7 @@ function BreakdownLine({
   amount,
   negative,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   sublabel: string;
   amount: number;
@@ -736,7 +735,7 @@ function BreakdownLine({
       : amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-t border-rule/60">
-      <div className="text-lg">{icon}</div>
+      <div className="w-8 h-8 rounded-lg bg-bg grid place-items-center shrink-0">{icon}</div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium">{label}</div>
         <div className="text-xs text-text-muted">{sublabel}</div>

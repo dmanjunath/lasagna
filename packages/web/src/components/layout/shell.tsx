@@ -36,6 +36,7 @@ export function Shell({ children }: ShellProps) {
         <>
           <AppHeader
             variant="advanced"
+            showModeToggle={false}
             leadingSlot={
               <button
                 onClick={() => setMobileMenuOpen(true)}
@@ -118,7 +119,7 @@ export function Shell({ children }: ShellProps) {
           {desktopChatOpen && (
             <aside className="w-[340px] flex-shrink-0 border-l border-border flex flex-col overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
-                <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Chat</span>
+                <span className="text-[11px] font-medium font-mono text-text-muted uppercase tracking-[0.14em]">Chat</span>
                 <button
                   onClick={() => { setDesktopChatOpen(false); closeChat(); }}
                   className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-secondary hover:text-text"

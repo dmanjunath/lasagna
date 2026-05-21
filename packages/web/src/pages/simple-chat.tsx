@@ -12,11 +12,9 @@ interface Bubble {
   pending?: boolean;
 }
 
-const STARTERS = [
-  'Should I pay debt or save first?',
-  "What's a Roth IRA?",
-  'Am I saving enough for retirement?',
-  'How do taxes work?',
+const FALLBACK_STARTERS = [
+  'What should I focus on first?',
+  'Am I on track for retirement?',
 ];
 
 type View = 'chat' | 'history';
@@ -38,6 +36,7 @@ export function SimpleChat() {
   const view: View = params.get('view') === 'history' ? 'history' : 'chat';
 
   const [draft, setDraft] = useState('');
+  const [starters, setStarters] = useState(FALLBACK_STARTERS);
   const [messages, setMessages] = useState<Bubble[]>([]);
   // Active thread ID — initialized from URL, then updated by send() when
   // the API assigns a new thread mid-conversation. Keeping a local copy
@@ -51,6 +50,35 @@ export function SimpleChat() {
   const inputRef = useRef<HTMLInputElement>(null);
   const autoSentRef = useRef(false);
   const loadedThreadRef = useRef<string | null>(null);
+
+  // Build tailored starter prompts from the user's financial data
+  useEffect(() => {
+    api.getBalances().then(({ balances }) => {
+      let cash = 0, investments = 0, debts = 0;
+      for (const b of balances) {
+        const v = parseFloat(b.balance ?? '0');
+        if (Number.isNaN(v)) continue;
+        if (b.type === 'depository') cash += v;
+        else if (b.type === 'investment') investments += v;
+        else if (b.type === 'credit' || b.type === 'loan') debts += v;
+      }
+      const fmt = (n: number) => n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(0)}K` : `$${Math.round(n)}`;
+      const prompts: string[] = [];
+      if (debts > 0 && investments > 0)
+        prompts.push(`Should I pay off my ${fmt(debts)} in debt or keep investing?`);
+      else if (debts > 0)
+        prompts.push(`What's the fastest way to pay off ${fmt(debts)} in debt?`);
+      if (investments > 0)
+        prompts.push(`If I retired today on ${fmt(investments)}, what withdrawal rate is safe?`);
+      if (cash > 0 && investments > 0) {
+        const nw = cash + investments - debts;
+        if (nw > 0 && cash / nw > 0.3)
+          prompts.push(`I have ${Math.round(cash / nw * 100)}% in cash — should I invest more?`);
+      }
+      if (prompts.length < 2) prompts.push(...FALLBACK_STARTERS);
+      setStarters(prompts.slice(0, 3));
+    }).catch(() => {});
+  }, []);
 
   // Auto-send a seed prompt from /s/action → /s/chat?prompt=…
   useEffect(() => {
@@ -229,7 +257,7 @@ export function SimpleChat() {
       </form>
       {!hasConversation && (
         <div className="flex flex-wrap gap-2 mt-3">
-          {STARTERS.slice(0, 2).map((s) => (
+          {starters.slice(0, 2).map((s) => (
             <button
               key={s}
               onClick={() => void send(s)}
@@ -246,13 +274,6 @@ export function SimpleChat() {
 
   return (
     <SimpleShell title="Chat" activeTab="chat" bottomDock={dock || undefined}>
-      {/* Page heading. No extra px — sits flush to the column gutter
-          so the History cards below line up against the same edge. */}
-      <div className="mb-5">
-        <h1 className="text-[28px] font-serif font-medium leading-[1.15]">Ask Lasagna.</h1>
-        <p className="text-sm text-text-muted mt-1.5">Plain English, your real numbers.</p>
-      </div>
-
       {/* Tab switcher + New chat. Pill heights matched (py-1.5 on both)
           so the row reads as one unit. New-chat is ghost-styled so it
           doesn't visually compete with the active tab. */}

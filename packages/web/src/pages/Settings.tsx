@@ -695,39 +695,7 @@ export function Settings() {
         )}
       </section>
 
-      {/* Preferences (notifications) */}
-      <section className="mb-5">
-        <h3 className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium mb-2">
-          Preferences
-        </h3>
-        <div className="rounded-2xl bg-bg-elevated border border-rule shadow-sm overflow-hidden">
-          <ToggleRow
-            title="Daily reminders"
-            subtitle="One nudge a day about your next step"
-            checked={!!user?.notifyDaily}
-            onChange={() => togglePref('notifyDaily')}
-          />
-          <ToggleRow
-            title="Bill reminders"
-            subtitle="Heads up a few days before"
-            checked={!!user?.notifyBills}
-            onChange={() => togglePref('notifyBills')}
-            divider
-          />
-          <ToggleRow
-            title="Weekly summary email"
-            subtitle="Sunday recap"
-            checked={!!user?.notifyWeeklyEmail}
-            onChange={() => togglePref('notifyWeeklyEmail')}
-            divider
-          />
-        </div>
-        {prefError && (
-          <div className="text-xs text-accent mt-2" role="alert">{prefError}</div>
-        )}
-      </section>
-
-      {/* Account & session — combines Security + Sign out so session controls live together */}
+      {/* Account & session — combines Security + Sign out + Delete so session controls live together */}
       <section className="mb-5">
         <h3 className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium mb-2">
           Account & session
@@ -772,29 +740,9 @@ export function Settings() {
             <div className="text-sm font-medium">Sign out</div>
             <div className="text-text-muted">›</div>
           </button>
-        </div>
-        {passwordMessage && passwordMessage.kind === 'ok' && !showPasswordForm && (
-          <div className="text-xs text-success mt-2 text-center">{passwordMessage.text}</div>
-        )}
-      </section>
-
-      {/* Privacy */}
-      <section className="mb-5">
-        <h3 className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium mb-2">
-          Privacy
-        </h3>
-        <div className="rounded-2xl bg-bg-elevated border border-rule shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-rule/60 min-h-[44px] opacity-60">
-            <div className="flex items-center gap-2">
-              <div className="text-sm font-medium">What Lasagna shares with the AI</div>
-              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-bg border border-rule text-text-muted">
-                Soon
-              </span>
-            </div>
-          </div>
           <a
             href="mailto:support@lasagnafi.com?subject=Export%20my%20Lasagna%20data"
-            className="flex items-center justify-between p-4 border-b border-rule/60 min-h-[44px]"
+            className="flex items-center justify-between p-4 border-t border-rule/60 min-h-[44px]"
           >
             <div className="text-sm font-medium">Download your data</div>
             <div className="text-text-muted">›</div>
@@ -805,19 +753,25 @@ export function Settings() {
               setConfirmDelete(true);
             }}
             disabled={isDemoMode}
-            className="w-full flex items-center justify-between p-4 min-h-[44px] text-left disabled:opacity-50"
+            className="w-full flex items-center justify-between p-4 min-h-[44px] text-left disabled:opacity-50 border-t border-rule/60"
           >
-            <div className="text-sm font-medium text-accent">Delete account</div>
+            <div>
+              <div className="text-sm font-medium text-accent">Delete account</div>
+              <div className="text-xs text-text-muted mt-0.5">Optionally delete all your data</div>
+            </div>
             <div className="text-text-muted">›</div>
           </button>
         </div>
+        {passwordMessage && passwordMessage.kind === 'ok' && !showPasswordForm && (
+          <div className="text-xs text-success mt-2 text-center">{passwordMessage.text}</div>
+        )}
         {deleteError && (
           <div className="text-xs text-accent mt-2 text-center" role="alert">{deleteError}</div>
         )}
       </section>
 
       <p className="text-[11px] text-text-muted text-center pt-2 pb-4 font-mono">
-        Lasagna v0.1.0 · Built in the open
+        Lasagna v0.1.0
       </p>
 
       <ConfirmDialog

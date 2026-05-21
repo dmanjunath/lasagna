@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Zap, Layers, TrendingUp, PieChart,
   CreditCard, AlertCircle, Receipt, Target, Building2,
-  User, MessageSquare, Sparkles, type LucideIcon,
+  User, MessageSquare, Sparkles, ChevronUp, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
@@ -78,36 +78,28 @@ export function Sidebar({ className }: SidebarProps) {
   const initial = firstName[0]?.toUpperCase() || 'U';
 
   return (
-    <aside
-      className={cn('w-full h-full flex flex-col', className)}
-      style={{ background: 'var(--lf-cream)', borderRight: '1px solid var(--lf-rule)' }}
-    >
+    <aside className={cn('w-full h-full flex flex-col bg-bg-elevated', className)}>
       {/* Brand */}
-      <div style={{ padding: '24px 16px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px' }}>
+      <div className="px-4 pt-6 pb-5">
+        <div className="flex items-center gap-2.5 px-2">
           <div className="lf-mark">
             <span /><span /><span />
           </div>
-          <span style={{
-            fontFamily: "'Instrument Serif', Georgia, serif",
-            fontSize: 20, color: 'var(--lf-ink)', letterSpacing: '-0.01em',
-          }}>
-            Lasagna<em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>Fi</em>
+          <span className="font-serif text-xl text-text tracking-tight">
+            Lasagna<em className="italic text-accent">Fi</em>
           </span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav style={{ flex: 1, padding: '0 12px', overflowY: 'auto' }} className="scrollbar-thin">
+      <nav className="flex-1 px-3 overflow-y-auto scrollbar-thin">
         {NAV.map((entry, i) => {
           if (isSection(entry)) {
             return (
-              <div key={i} style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13, letterSpacing: '0.14em',
-                textTransform: 'uppercase', color: 'var(--lf-muted)',
-                padding: '0 8px', margin: '20px 0 8px',
-              }}>
+              <div
+                key={i}
+                className="font-mono text-[11px] tracking-[0.14em] uppercase text-text-muted px-3 mt-5 mb-2"
+              >
                 {entry.section}
               </div>
             );
@@ -146,7 +138,7 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* Account chip */}
-      <div style={{ padding: '12px 16px', position: 'relative' }} ref={userMenuRef}>
+      <div className="px-3 py-3 relative" ref={userMenuRef}>
         <AnimatePresence>
           {userMenuOpen && (
             <motion.div
@@ -154,32 +146,29 @@ export function Sidebar({ className }: SidebarProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4 }}
               transition={{ duration: 0.15 }}
-              style={{
-                position: 'absolute', bottom: '100%', left: 16, right: 16,
-                marginBottom: 6,
-                background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)',
-                borderRadius: 10, overflow: 'hidden',
-                boxShadow: '0 8px 24px rgba(31,26,22,0.12)',
-                zIndex: 50,
-              }}
+              className="absolute bottom-full left-3 right-3 mb-1.5 bg-bg border border-rule rounded-xl overflow-hidden shadow-lg z-50"
             >
               {[
                 { label: 'Accounts', path: '/accounts' },
                 { label: 'Profile', path: '/profile' },
               ].map(({ label, path }, i) => (
-                <MenuButton
+                <button
                   key={path}
-                  label={label}
-                  borderTop={i > 0}
                   onClick={() => { setUserMenuOpen(false); navigate(path); }}
-                />
+                  className={cn(
+                    'w-full text-left px-4 py-2.5 text-sm hover:bg-bg-elevated transition-colors cursor-pointer',
+                    i > 0 && 'border-t border-rule',
+                  )}
+                >
+                  {label}
+                </button>
               ))}
-              <MenuButton
-                label="Sign out"
-                borderTop
-                danger
+              <button
                 onClick={() => { setUserMenuOpen(false); logout(); }}
-              />
+                className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-bg-elevated border-t border-rule transition-colors cursor-pointer"
+              >
+                Sign out
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -188,40 +177,24 @@ export function Sidebar({ className }: SidebarProps) {
           onClick={() => setUserMenuOpen(!userMenuOpen)}
           aria-haspopup="menu"
           aria-expanded={userMenuOpen}
-          style={{
-            width: '100%', background: 'var(--lf-paper)',
-            border: '1px solid var(--lf-rule)', borderRadius: 10,
-            padding: 14, display: 'flex', alignItems: 'center',
-            gap: 10, cursor: 'pointer',
-          }}
+          className="w-full flex items-center gap-2.5 p-3 bg-bg border border-rule rounded-xl cursor-pointer hover:border-accent/30 transition"
         >
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'var(--lf-sauce)', color: 'var(--lf-paper)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: "'Instrument Serif', Georgia, serif",
-            fontSize: 14, flexShrink: 0,
-          }}>
+          <div className="w-7 h-7 rounded-lg bg-accent text-white flex items-center justify-center font-serif text-sm shrink-0">
             {initial}
           </div>
-          <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
-            <div style={{
-              fontWeight: 500, color: 'var(--lf-ink)', fontSize: 13,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              fontFamily: "'Geist', system-ui, sans-serif",
-            }}>
-              {firstName}
-            </div>
-            <div style={{ color: 'var(--lf-muted)', fontSize: 11, marginTop: 1, fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="flex-1 text-left min-w-0">
+            <div className="text-sm font-medium text-text truncate">{firstName}</div>
+            <div className="text-[11px] text-text-muted font-mono truncate">
               {tenant?.plan === 'pro' ? 'pro plan' : 'self-hosted'}
             </div>
           </div>
-          <span style={{
-            color: 'var(--lf-muted)', fontSize: 13,
-            transform: userMenuOpen ? 'rotate(180deg)' : 'none',
-            transition: 'transform 0.15s',
-            display: 'inline-block',
-          }}>▾</span>
+          <ChevronUp
+            size={13}
+            className={cn(
+              'text-text-muted transition-transform duration-150',
+              !userMenuOpen && 'rotate-180',
+            )}
+          />
         </button>
       </div>
     </aside>
@@ -234,61 +207,25 @@ function NavButton({ active, icon: Icon, label, onClick }: {
   label: string;
   onClick: () => void;
 }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.98 }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        width: '100%', textAlign: 'left',
-        padding: '9px 12px', borderRadius: 8,
-        marginBottom: 2, border: 0, cursor: 'pointer',
-        fontSize: 14, fontFamily: "'Geist', system-ui, sans-serif",
-        background: active ? 'var(--lf-ink)' : hovered ? 'var(--lf-cream-deep)' : 'transparent',
-        color: active ? 'var(--lf-paper)' : 'var(--lf-ink-soft)',
-        transition: 'background 0.1s',
-      }}
+      className={cn(
+        'flex items-center gap-2.5 w-full text-left px-3 py-2.5 rounded-xl mb-0.5 border-0 cursor-pointer text-sm transition-colors',
+        active
+          ? 'bg-text text-white'
+          : 'text-text-secondary hover:bg-bg-subtle',
+      )}
     >
       <Icon
-        size={15}
-        style={{
-          flexShrink: 0,
-          opacity: active ? 1 : 0.65,
-          color: active ? 'var(--lf-cheese)' : 'currentColor',
-        }}
+        size={16}
+        className={cn(
+          'shrink-0',
+          active ? 'text-cheese opacity-100' : 'opacity-60',
+        )}
       />
-      <span style={{ flex: 1 }}>{label}</span>
+      <span className="flex-1">{label}</span>
     </motion.button>
-  );
-}
-
-function MenuButton({ label, onClick, borderTop, danger }: {
-  label: string;
-  onClick: () => void;
-  borderTop?: boolean;
-  danger?: boolean;
-}) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: '100%', textAlign: 'left', padding: '10px 14px',
-        fontSize: 13, border: 0,
-        borderTop: borderTop ? '1px solid var(--lf-rule)' : 'none',
-        background: hovered ? 'var(--lf-cream)' : 'transparent',
-        cursor: 'pointer',
-        color: danger ? 'var(--lf-sauce)' : 'var(--lf-ink-soft)',
-        fontFamily: "'Geist', system-ui, sans-serif",
-        transition: 'background 0.1s',
-      }}
-    >
-      {label}
-    </button>
   );
 }

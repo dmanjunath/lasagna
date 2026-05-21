@@ -1,5 +1,7 @@
 import { type ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
+import { Home, Wallet, MessageSquare, Target, HelpCircle, LogOut, Menu, ArrowLeft, ArrowLeftRight, Building2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { AppHeader } from './app-header';
 
@@ -26,7 +28,7 @@ interface SimpleShellProps {
 export function SimpleShell({ children, title, activeTab, showBack, bottomDock, hideNav }: SimpleShellProps) {
   const [location, setLocation] = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { user, tenant, logout } = useAuth();
+  const { user, tenant, logout, setUiMode } = useAuth();
 
   // Close drawer on navigation
   useEffect(() => {
@@ -46,18 +48,18 @@ export function SimpleShell({ children, title, activeTab, showBack, bottomDock, 
           showBack ? (
             <button
               onClick={() => window.history.back()}
-              className="w-11 h-11 grid place-items-center rounded-full hover:bg-bg-elevated text-lg"
+              className="w-11 h-11 grid place-items-center rounded-full hover:bg-bg-elevated"
               aria-label="Back"
             >
-              ←
+              <ArrowLeft size={18} className="text-text-secondary" />
             </button>
           ) : (
             <button
               onClick={() => setDrawerOpen(true)}
-              className="w-11 h-11 grid place-items-center rounded-full hover:bg-bg-elevated text-lg"
+              className="w-11 h-11 grid place-items-center rounded-full hover:bg-bg-elevated"
               aria-label="Open menu"
             >
-              ☰
+              <Menu size={18} className="text-text-secondary" />
             </button>
           )
         }
@@ -80,10 +82,10 @@ export function SimpleShell({ children, title, activeTab, showBack, bottomDock, 
           {!hideNav && (
             <nav className="bg-bg/95 backdrop-blur border-t border-rule/60 pb-[env(safe-area-inset-bottom)]">
               <div className="grid grid-cols-4">
-                <NavTab href="/s" icon="🏠" label="Home" active={activeTab === 'home'} />
-                <NavTab href="/s/money" icon="💰" label="Money" active={activeTab === 'money'} />
-                <NavTab href="/s/chat" icon="💬" label="Chat" active={activeTab === 'chat'} />
-                <NavTab href="/s/goals" icon="🎯" label="Goals" active={activeTab === 'goals'} />
+                <NavTab href="/s" icon={Home} label="Home" active={activeTab === 'home'} />
+                <NavTab href="/s/money" icon={Wallet} label="Money" active={activeTab === 'money'} />
+                <NavTab href="/s/chat" icon={MessageSquare} label="Chat" active={activeTab === 'chat'} />
+                <NavTab href="/s/goals" icon={Target} label="Goals" active={activeTab === 'goals'} />
               </div>
             </nav>
           )}
@@ -108,32 +110,48 @@ export function SimpleShell({ children, title, activeTab, showBack, bottomDock, 
               {/* Profile card */}
               <Link
                 href="/profile"
-                className="flex items-center gap-3 p-4 mb-5 bg-bg-elevated rounded-2xl border border-rule hover:border-accent/30 transition"
+                className="flex items-center gap-3 p-4 bg-bg-elevated rounded-2xl border border-rule hover:border-accent/30 transition"
               >
                 <div className="w-14 h-14 rounded-full bg-accent grid place-items-center text-xl font-serif font-medium text-white shrink-0 shadow-sm">
                   {avatarLetter}
                 </div>
                 <div className="flex-1 text-left">
                   <div className="text-base font-serif font-medium leading-tight">{displayName}</div>
-                  <div className="text-xs text-text-muted mt-1">View profile & settings</div>
+                  <div className="text-xs text-text-muted mt-1">View profile &amp; settings</div>
                 </div>
-                <div className="text-text-muted">›</div>
+                <div className="text-text-muted text-xs">›</div>
               </Link>
 
-              <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted px-3 pt-1 pb-2">
+              {/* Mode toggle */}
+              <button
+                onClick={async () => {
+                  await setUiMode('advanced');
+                  setLocation('/');
+                }}
+                className="w-full flex items-center gap-3 p-3 mb-3 hover:bg-bg-elevated rounded-xl text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center shrink-0">
+                  <ArrowLeftRight size={16} className="text-text-muted" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Switch to Advanced</div>
+                </div>
+              </button>
+
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted px-3 pt-1 pb-2">
                 Tabs
               </div>
-              <DrawerLink href="/s" icon="🏠" label="Home" active={activeTab === 'home'} />
-              <DrawerLink href="/s/money" icon="💰" label="Money" active={activeTab === 'money'} />
-              <DrawerLink href="/s/chat" icon="💬" label="Chat" active={activeTab === 'chat'} />
-              <DrawerLink href="/s/goals" icon="🎯" label="Goals" active={activeTab === 'goals'} />
+              <DrawerLink href="/s" icon={Home} label="Home" active={activeTab === 'home'} />
+              <DrawerLink href="/s/money" icon={Wallet} label="Money" active={activeTab === 'money'} />
+              <DrawerLink href="/s/chat" icon={MessageSquare} label="Chat" active={activeTab === 'chat'} />
+              <DrawerLink href="/s/goals" icon={Target} label="Goals" active={activeTab === 'goals'} />
 
-              <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted px-3 pt-4 pb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted px-3 pt-4 pb-2">
                 Account
               </div>
-              <DrawerLink href="/profile" icon="👤" label="Profile &amp; settings" />
+              <DrawerLink href="/accounts" icon={Building2} label="Accounts" />
 
-              <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted px-3 pt-4 pb-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted px-3 pt-4 pb-2">
                 Help
               </div>
               <a
@@ -142,11 +160,13 @@ export function SimpleShell({ children, title, activeTab, showBack, bottomDock, 
                 rel="noopener noreferrer"
                 className="w-full flex items-center gap-3 p-3 hover:bg-bg-elevated rounded-xl text-left"
               >
-                <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center text-base">❓</div>
+                <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center">
+                  <HelpCircle size={16} className="text-text-muted" />
+                </div>
                 <div className="flex-1">
                   <div className="text-sm font-medium">Help &amp; FAQ</div>
                 </div>
-                <div className="text-text-muted">›</div>
+                <div className="text-text-muted text-xs">›</div>
               </a>
 
               <button
@@ -156,7 +176,9 @@ export function SimpleShell({ children, title, activeTab, showBack, bottomDock, 
                 }}
                 className="w-full flex items-center gap-3 p-3 mt-4 hover:bg-bg-elevated rounded-xl text-left"
               >
-                <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center text-base">👋</div>
+                <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center">
+                  <LogOut size={16} className="text-text-muted" />
+                </div>
                 <div className="text-sm font-medium text-text-secondary">Sign out</div>
               </button>
             </div>
@@ -169,12 +191,12 @@ export function SimpleShell({ children, title, activeTab, showBack, bottomDock, 
 
 function DrawerLink({
   href,
-  icon,
+  icon: Icon,
   label,
   active,
 }: {
   href: string;
-  icon: string;
+  icon: LucideIcon;
   label: string;
   active?: boolean;
 }) {
@@ -185,37 +207,42 @@ function DrawerLink({
         active ? 'bg-bg-elevated' : ''
       }`}
     >
-      <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center text-base">{icon}</div>
+      <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center">
+        <Icon size={16} className={active ? 'text-accent' : 'text-text-muted'} />
+      </div>
       <div className="flex-1">
         <div className={`text-sm ${active ? 'font-semibold text-accent' : 'font-medium'}`}>
           <span dangerouslySetInnerHTML={{ __html: label }} />
         </div>
       </div>
-      <div className="text-text-muted">›</div>
+      <div className="text-text-muted text-xs">›</div>
     </Link>
   );
 }
 
 function NavTab({
   href,
-  icon,
+  icon: Icon,
   label,
   active,
 }: {
   href: string;
-  icon: string;
+  icon: LucideIcon;
   label: string;
   active: boolean;
 }) {
   return (
     <Link
       href={href}
-      className={`pt-2.5 pb-2 flex flex-col items-center gap-1 min-h-[56px] ${
+      className={`pt-2.5 pb-2 flex flex-col items-center gap-1 min-h-[56px] relative ${
         active ? 'text-accent font-medium' : 'text-text-muted'
       }`}
     >
-      <span className="text-[17px] leading-none">{icon}</span>
-      <span className="text-[10px] leading-none tracking-wide">{label}</span>
+      <Icon size={20} strokeWidth={active ? 2.2 : 1.5} />
+      <span className="text-[10px] leading-none tracking-wide font-mono uppercase">{label}</span>
+      {active && (
+        <span className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-b-sm bg-accent" />
+      )}
     </Link>
   );
 }
