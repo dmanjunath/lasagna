@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { Loader2, Sparkles, X, ChevronDown, ChevronUp, AlertCircle, Check } from 'lucide-react';
-import { SimpleShell } from '../components/layout/simple-shell';
 import { useAuth } from '../lib/auth';
 import { api, type QuickImportParseResult, type QuickImportAccount, type QuickImportGoal, type QuickImportProfile, type QuickImportCurrentProfile } from '../lib/api';
 
@@ -227,7 +226,7 @@ export function QuickImport() {
     Object.values(profileFieldsKept).filter(Boolean).length;
 
   return (
-    <SimpleShell title="Quick Import" showBack hideNav>
+    <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto' }}>
       {stage === 'input' && (
         <InputStage
           text={text}
@@ -279,7 +278,7 @@ export function QuickImport() {
           }}
         />
       )}
-    </SimpleShell>
+    </div>
   );
 }
 

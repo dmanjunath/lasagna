@@ -10,6 +10,7 @@ import { PageActions } from '../components/common/page-actions';
 interface DebtAccount {
   id: string;
   name: string;
+  mask: string | null;
   balance: number;
   type: string;
   subtype: string | null;
@@ -145,6 +146,7 @@ export function Debt() {
         return {
           id: d.id,
           name: d.name,
+          mask: (d as any).mask ?? null,
           balance: d.balance,
           type: d.type,
           subtype: d.subtype ?? null,
@@ -598,7 +600,7 @@ function DebtRow({
       {/* Name / type / badges */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--lf-ink)' }}>{d.name}</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--lf-ink)' }}>{d.name}{d.mask ? ` \u00B7\u00B7${d.mask}` : ''}</span>
           <span style={{
             ...S.eyebrow,
             background: 'var(--lf-cream)',

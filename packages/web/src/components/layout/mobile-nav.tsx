@@ -5,7 +5,7 @@ import {
   X, Menu,
   LayoutDashboard, Zap, Layers,
   TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, Target,
-  Building2, User, MessageSquare, ArrowLeftRight,
+  Building2, User, MessageSquare,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
@@ -58,7 +58,7 @@ interface MobileNavProps {
 
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const [location, navigate] = useLocation();
-  const { tenant, logout, setUiMode } = useAuth();
+  const { tenant, logout } = useAuth();
   const { openChat } = useChatStore();
 
   const isActive = (path: string) => path === '/' ? location === '/' : location.startsWith(path);
@@ -123,26 +123,9 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 <div className="text-text-muted text-xs">›</div>
               </button>
 
-              {/* Mode toggle */}
-              <button
-                onClick={async () => {
-                  onClose();
-                  await setUiMode('simple');
-                  navigate('/s');
-                }}
-                className="w-full flex items-center gap-3 p-3 mb-3 hover:bg-bg-elevated rounded-xl text-left"
-              >
-                <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center shrink-0">
-                  <ArrowLeftRight size={16} className="text-text-muted" />
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium">Switch to Simple</div>
-                </div>
-              </button>
-
               {NAV_SECTIONS.map(({ section, items }) => (
                 <div key={section} className="mb-2">
-                  <div className="font-mono text-[10px] tracking-[0.16em] uppercase text-text-muted px-3 pt-4 pb-2">
+                  <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-muted px-3 pt-4 pb-2">
                     {section}
                   </div>
                   {items.map(({ label, icon: Icon, path }) => {

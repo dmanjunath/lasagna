@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Zap, Layers, TrendingUp, PieChart,
+  LayoutDashboard, Zap, Layers, TrendingUp, PieChart, Wallet,
   CreditCard, AlertCircle, Receipt, Target, Building2,
-  User, MessageSquare, Sparkles, ChevronUp, type LucideIcon,
+  User, MessageSquare, ChevronUp, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
@@ -26,6 +26,7 @@ type NavEntry = NavItem | NavSection;
 const NAV: NavEntry[] = [
   { section: 'OVERVIEW' },
   { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
+  { id: 'money',      label: 'Money',      icon: Wallet,          path: '/money' },
   { id: 'actions',    label: 'Actions',    icon: Zap,             path: '/insights' },
   { id: 'financial-level', label: 'Financial Level', icon: Layers, path: '/financial-level' },
   { section: 'WEALTH' },
@@ -51,7 +52,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [location, navigate] = useLocation();
-  const { tenant, logout, setUiMode } = useAuth();
+  const { tenant, logout } = useAuth();
   const { openChat } = useChatStore();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -123,17 +124,6 @@ export function Sidebar({ className }: SidebarProps) {
           icon={MessageSquare}
           label="AI Chat"
           onClick={() => openChat()}
-        />
-
-        {/* Switch to Simple mode */}
-        <NavButton
-          active={false}
-          icon={Sparkles}
-          label="Try Simple mode"
-          onClick={async () => {
-            await setUiMode('simple');
-            navigate('/s');
-          }}
         />
       </nav>
 

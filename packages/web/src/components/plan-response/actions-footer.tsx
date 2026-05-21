@@ -9,7 +9,7 @@ export function ActionsFooter({ actions }: ActionsFooterProps) {
 
   return (
     <div data-testid="actions-footer" className="mt-8 p-6 rounded-2xl bg-gradient-to-b from-[#141416] to-[#0f0f11] border border-accent/10">
-      <h3 className="text-sm font-semibold text-accent uppercase tracking-wider mb-4">
+      <h3 className="font-mono text-[11px] font-semibold text-accent uppercase tracking-[0.14em] mb-4">
         Recommended Next Steps
       </h3>
       <ul className="space-y-3">

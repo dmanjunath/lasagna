@@ -14,7 +14,6 @@ interface User {
   name: string | null;
   role: string;
   onboardingStage: string | null;
-  uiMode: "simple" | "advanced";
   notifyDaily: boolean;
   notifyBills: boolean;
   notifyWeeklyEmail: boolean;
@@ -67,7 +66,6 @@ interface AuthState {
   logout: () => Promise<void>;
   updateTenant: (updates: Partial<Tenant>) => void;
   setOnboardingStage: (stage: string | null) => void;
-  setUiMode: (mode: "simple" | "advanced") => Promise<void>;
   updateMe: (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) => Promise<void>;
 }
 
@@ -134,15 +132,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setUiMode = useCallback(async (mode: "simple" | "advanced") => {
-    await api.setUiMode(mode);
-    setAuth((prev) => {
-      const nextUser = prev.user ? { ...prev.user, uiMode: mode } : prev.user;
-      saveAuthHint(nextUser, prev.tenant);
-      return { user: nextUser, tenant: prev.tenant };
-    });
-  }, []);
-
   const updateMe = useCallback(
     async (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) => {
       const { user: updated } = await api.updateMe(updates);
@@ -155,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant, setOnboardingStage, setUiMode, updateMe }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant, setOnboardingStage, updateMe }}>
       {children}
     </AuthContext.Provider>
   );

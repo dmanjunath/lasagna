@@ -36,7 +36,6 @@ export function Shell({ children }: ShellProps) {
         <>
           <AppHeader
             variant="advanced"
-            showModeToggle={false}
             leadingSlot={
               <button
                 onClick={() => setMobileMenuOpen(true)}

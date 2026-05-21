@@ -66,7 +66,7 @@ export function ModelSelector({ threadLocalId, onRestart }: ModelSelectorProps) 
                 : 'text-text-muted hover:text-text-secondary border border-transparent'
             }`}
           >
-            <span className="text-[10px] font-semibold uppercase tracking-wider leading-none">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] leading-none">
               {l.label}
             </span>
             <span className="text-[9px] leading-none mt-0.5 opacity-70">

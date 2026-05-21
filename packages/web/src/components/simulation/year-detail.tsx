@@ -38,7 +38,7 @@ function ReturnTooltipContent({ year }: { year: YearDetailData }) {
 
   return (
     <>
-      <div className="text-[10px] text-text-secondary uppercase tracking-wider mb-2">Return Breakdown</div>
+      <div className="font-mono text-[10px] text-text-secondary uppercase tracking-[0.14em] mb-2">Return Breakdown</div>
       <div className="space-y-1.5">
         {entries.map(([key, ret]) => {
           const weight = year.assetWeights?.[key] ?? 0;
@@ -88,14 +88,14 @@ export function YearDetail({ yearByYear, useRealDollars, showWithdrawalSource }:
       <table className="w-full text-left">
         <thead className="sticky top-0 bg-bg z-10">
           <tr className="border-b border-border">
-            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Year</th>
-            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Portfolio Value</th>
-            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Return</th>
-            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Withdrawal</th>
+            <th className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary font-semibold px-3 py-2">Year</th>
+            <th className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary font-semibold px-3 py-2">Portfolio Value</th>
+            <th className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary font-semibold px-3 py-2">Return</th>
+            <th className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary font-semibold px-3 py-2">Withdrawal</th>
             {showWithdrawalSource && (
-              <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Source</th>
+              <th className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary font-semibold px-3 py-2">Source</th>
             )}
-            <th className="text-xs uppercase tracking-wider text-text-secondary font-semibold px-3 py-2">Notes</th>
+            <th className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary font-semibold px-3 py-2">Notes</th>
           </tr>
         </thead>
         <tbody>

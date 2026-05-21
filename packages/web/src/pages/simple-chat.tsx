@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { useChatStore } from '../lib/chat-store';
 import { api } from '../lib/api';
 import type { ChatThread, Message } from '../lib/types';
-import { SimpleShell } from '../components/layout/simple-shell';
+
 
 interface Bubble {
   role: 'user' | 'assistant';
@@ -22,10 +22,10 @@ type View = 'chat' | 'history';
 export function SimpleChat() {
   // URL is the source of truth for view + selected thread so the browser
   // back button restores the prior chat state instead of leaving the page.
-  // /s/chat            → current chat (in-memory thread, may be empty)
-  // /s/chat?view=history → history list
-  // /s/chat?thread=<id>  → load that thread in the chat view
-  // /s/chat?prompt=<msg> → auto-send seed prompt from /s/action
+  // /chat            → current chat (in-memory thread, may be empty)
+  // /chat?view=history → history list
+  // /chat?thread=<id>  → load that thread in the chat view
+  // /chat?prompt=<msg> → auto-send seed prompt from /insights
   // NOTE: read query via useSearch — useLocation strips it (was a fixed bug).
   const search = useSearch();
   const [, setLocation] = useLocation();
@@ -80,7 +80,7 @@ export function SimpleChat() {
     }).catch(() => {});
   }, []);
 
-  // Auto-send a seed prompt from /s/action → /s/chat?prompt=…
+  // Auto-send a seed prompt from /insights → /chat?prompt=…
   useEffect(() => {
     if (seedPrompt && !autoSentRef.current) {
       autoSentRef.current = true;
@@ -144,7 +144,7 @@ export function SimpleChat() {
       // already-loaded so the URL-driven effect doesn't re-fetch it.
       if (nextThreadId && nextThreadId !== urlThreadId) {
         loadedThreadRef.current = nextThreadId;
-        setLocation(`/s/chat?thread=${encodeURIComponent(nextThreadId)}`, { replace: true });
+        setLocation(`/chat?thread=${encodeURIComponent(nextThreadId)}`, { replace: true });
       }
       setMessages((m) => {
         const next = [...m];
@@ -182,13 +182,13 @@ export function SimpleChat() {
 
   function setView(next: View) {
     if (next === 'history') {
-      setLocation('/s/chat?view=history');
+      setLocation('/chat?view=history');
       return;
     }
     // Going back to "Current" — preserve a loaded thread in the URL so
     // pressing the pill from history doesn't accidentally wipe the
     // conversation the user was just reading.
-    setLocation(threadId ? `/s/chat?thread=${encodeURIComponent(threadId)}` : '/s/chat');
+    setLocation(threadId ? `/chat?thread=${encodeURIComponent(threadId)}` : '/chat');
   }
 
   function newChat() {
@@ -196,7 +196,7 @@ export function SimpleChat() {
     // auto-reset on a thread-param clear (so flipping Current ↔ History
     // preserves the loaded conversation), which means newChat() is the
     // single explicit reset path.
-    setLocation('/s/chat');
+    setLocation('/chat');
     autoSentRef.current = true; // suppress auto-send of any lingering seed
     loadedThreadRef.current = null;
     setMessages([]);
@@ -209,7 +209,7 @@ export function SimpleChat() {
   // Open a thread by pushing to the URL — back-nav from here returns to
   // the history list. This is the whole point of URL-driven state.
   function openThread(t: ChatThread) {
-    setLocation(`/s/chat?thread=${encodeURIComponent(t.id)}`);
+    setLocation(`/chat?thread=${encodeURIComponent(t.id)}`);
   }
 
   async function deleteThread(id: string) {
@@ -218,7 +218,7 @@ export function SimpleChat() {
       setThreads((prev) => prev.filter((t) => t.id !== id));
       if (id === threadId) {
         // If the deleted thread is the one we have loaded, drop it from the URL.
-        setLocation('/s/chat?view=history');
+        setLocation('/chat?view=history');
         loadedThreadRef.current = null;
         setThreadId(null);
         setMessages([]);
@@ -273,7 +273,7 @@ export function SimpleChat() {
   );
 
   return (
-    <SimpleShell title="Chat" activeTab="chat" bottomDock={dock || undefined}>
+    <div className="flex flex-col" style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto', minHeight: 'calc(100dvh - 130px)' }}>
       {/* Tab switcher + New chat. Pill heights matched (py-1.5 on both)
           so the row reads as one unit. New-chat is ghost-styled so it
           doesn't visually compete with the active tab. */}
@@ -320,7 +320,7 @@ export function SimpleChat() {
               <div className="w-7 h-7 rounded-full bg-cheese/20 grid place-items-center text-sm shrink-0">🥬</div>
               <div className="flex-1 max-w-[85%] bg-bg-elevated border border-rule rounded-3xl px-4 py-3 shadow-sm">
                 <p className="text-sm leading-relaxed">
-                  Hey — ask me anything about your money. I see your real balances but never share them with the AI provider.
+                  Hey — ask me anything about your money. I can see your financial data to answer questions. Your data is processed securely and never stored by the AI provider.
                 </p>
               </div>
             </div>
@@ -348,7 +348,14 @@ export function SimpleChat() {
           )}
         </div>
       )}
-    </SimpleShell>
+
+      {/* Composer dock — sticky above bottom nav */}
+      {dock && (
+        <div className="sticky bottom-14 mt-auto z-10">
+          {dock}
+        </div>
+      )}
+    </div>
   );
 }
 

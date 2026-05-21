@@ -28,7 +28,7 @@ export function ContextualInsights({
   return (
     <div className="mb-4">
       <div className="flex items-center gap-2 mb-2 px-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
           Actions
         </span>
         <span className="text-xs text-text-muted">({shown.length})</span>

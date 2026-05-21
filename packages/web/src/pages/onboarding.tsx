@@ -524,7 +524,7 @@ export function Onboarding() {
                 {/* Added accounts */}
                 {addedAccounts.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs text-text-secondary uppercase tracking-wider">Added accounts</p>
+                    <p className="font-mono text-[11px] text-text-secondary uppercase tracking-[0.14em]">Added accounts</p>
                     {addedAccounts.map((acct) => (
                       <motion.div key={acct.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                         className="flex items-center justify-between bg-bg-elevated border border-border rounded-lg px-4 py-3">
@@ -630,7 +630,7 @@ export function Onboarding() {
             </div>
 
             <div className="bg-bg-elevated border border-border rounded-lg p-5 text-left space-y-3 max-w-sm mx-auto">
-              <p className="text-xs text-text-secondary uppercase tracking-wider mb-2">Summary</p>
+              <p className="font-mono text-[11px] text-text-secondary uppercase tracking-[0.14em] mb-2">Summary</p>
               {name && <div className="flex justify-between text-sm"><span className="text-text-secondary">Name</span><span className="text-text font-medium">{name}</span></div>}
               {annualIncome && <div className="flex justify-between text-sm"><span className="text-text-secondary">Income</span><span className="text-text font-medium">{formatMoney(parseFloat(annualIncome), true)}</span></div>}
               {employmentType && (

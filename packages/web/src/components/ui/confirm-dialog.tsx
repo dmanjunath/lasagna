@@ -112,7 +112,7 @@ export function ConfirmDialog({
         </p>
         {typeToConfirm !== undefined && (
           <div className="flex flex-col gap-2">
-            <label className="text-[11px] uppercase tracking-[0.16em] text-text-muted font-medium">
+            <label className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted font-medium">
               Type <span className="font-mono normal-case tracking-normal">{typeToConfirm}</span> to confirm
             </label>
             <input

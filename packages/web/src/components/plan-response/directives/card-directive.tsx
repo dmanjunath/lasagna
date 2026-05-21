@@ -21,7 +21,7 @@ interface CardDirectiveProps {
 export function CardDirective({ variant, content }: CardDirectiveProps) {
   return (
     <div className={cn('my-6 p-5 rounded-xl border', variantStyles[variant])}>
-      <div className={cn('text-xs font-semibold uppercase tracking-wider mb-2', labelStyles[variant])}>
+      <div className={cn('font-mono text-[11px] font-semibold uppercase tracking-[0.14em] mb-2', labelStyles[variant])}>
         {variant === 'warning' ? '⚠ Warning' : variant === 'highlight' ? '★ Key Insight' : '◆ Note'}
       </div>
       <div className="prose prose-sm prose-invert max-w-none prose-p:text-text-secondary">

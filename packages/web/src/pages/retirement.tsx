@@ -1333,7 +1333,7 @@ export function Retirement() {
               retire at {retirementAge} · {Math.max(0, retirementAge - currentAge)} years away
             </p>
           </div>
-          {/* Simple | Advanced toggle */}
+          {/* Overview | Detailed toggle */}
           <div style={{ display: 'flex', gap: 6, padding: 4, background: 'var(--lf-cream)', borderRadius: 999, border: '1px solid var(--lf-rule)', width: 'fit-content', flexShrink: 0 }}>
             {(['simple', 'advanced'] as const).map(v => (
               <button key={v} onClick={() => setView(v)} style={{
@@ -1344,7 +1344,7 @@ export function Retirement() {
                 color: view === v ? 'var(--lf-paper)' : 'var(--lf-ink-soft)',
                 transition: 'background 0.15s, color 0.15s',
               }}>
-                {v === 'simple' ? 'Simple' : 'Advanced'}
+                {v === 'simple' ? 'Overview' : 'Detailed'}
               </button>
             ))}
           </div>

@@ -50,12 +50,6 @@ export const api = {
       tenant: { id: string; name: string; plan: string } | null;
     }>("/auth/me"),
 
-  setUiMode: (uiMode: "simple" | "advanced") =>
-    request<{ uiMode: "simple" | "advanced" }>("/auth/ui-mode", {
-      method: "PATCH",
-      body: JSON.stringify({ uiMode }),
-    }),
-
   updateMe: (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) =>
     request<{
       user: {

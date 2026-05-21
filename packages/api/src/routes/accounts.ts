@@ -219,6 +219,7 @@ accountRoutes.get("/debts", async (c) => {
       return {
         id: acct.id,
         name: acct.name,
+        mask: acct.mask ?? null,
         type: acct.type,
         subtype: acct.subtype,
         balance,

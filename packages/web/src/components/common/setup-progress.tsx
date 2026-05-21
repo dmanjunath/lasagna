@@ -61,7 +61,7 @@ export function SetupProgress({ steps }: SetupProgressProps) {
         >
           {/* Header + progress bar inline */}
           <div className="flex items-center gap-3 mb-2">
-            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">
+            <span className="font-mono text-[11px] font-semibold text-text-secondary uppercase tracking-[0.14em] whitespace-nowrap">
               {allDone ? 'Complete ✓' : 'Get Started'}
             </span>
             <div className="flex-1 h-1 rounded-full bg-surface">

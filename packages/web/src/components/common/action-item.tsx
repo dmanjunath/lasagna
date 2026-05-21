@@ -87,7 +87,7 @@ export function ActionItem({
         {/* Tag badge */}
         <span
           className={cn(
-            'text-xs font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-opacity',
+            'font-mono text-[11px] font-bold uppercase tracking-[0.14em] px-1.5 py-0.5 rounded transition-opacity',
             tagColors[tag.toUpperCase()] || 'text-text-secondary',
             done && 'opacity-40'
           )}

@@ -1,29 +1,24 @@
 import { useLocation } from 'wouter';
-import { LayoutDashboard, Zap, MessageSquare, Layers, User } from 'lucide-react';
-import { useChatStore } from '../../lib/chat-store';
+import { Home, Wallet, MessageSquare, Target } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface TabItem {
   name: string;
   icon: LucideIcon;
-  path?: string;
-  action?: 'chat';
+  path: string;
 }
 
 const tabs: TabItem[] = [
-  { name: 'Home',    icon: LayoutDashboard, path: '/' },
-  { name: 'Actions', icon: Zap,             path: '/insights' },
-  { name: 'Chat',    icon: MessageSquare,   action: 'chat' },
-  { name: 'My Level', icon: Layers,         path: '/financial-level' },
-  { name: 'Profile', icon: User,            path: '/profile' },
+  { name: 'Home',  icon: Home,          path: '/' },
+  { name: 'Money', icon: Wallet,        path: '/money' },
+  { name: 'Chat',  icon: MessageSquare, path: '/chat' },
+  { name: 'Goals', icon: Target,        path: '/goals' },
 ];
 
 export function MobileTabBar() {
   const [location, navigate] = useLocation();
-  const { openChat, unreadCount } = useChatStore();
 
   const isActive = (tab: TabItem) => {
-    if (!tab.path) return false;
     return tab.path === '/' ? location === '/' : location.startsWith(tab.path);
   };
 
@@ -37,10 +32,7 @@ export function MobileTabBar() {
             <button
               key={tab.name}
               aria-current={active ? 'page' : undefined}
-              onClick={() => {
-                if (tab.action === 'chat') openChat();
-                else if (tab.path) navigate(tab.path);
-              }}
+              onClick={() => navigate(tab.path)}
               className={`flex-1 flex flex-col items-center justify-center gap-1 h-14 relative
                          transition-all duration-200 active:scale-95 min-w-[44px] min-h-[44px]
                          ${active ? 'text-accent' : 'text-text-muted'}`}
@@ -49,9 +41,6 @@ export function MobileTabBar() {
               <span className="font-mono text-[10px] tracking-wide uppercase">
                 {tab.name}
               </span>
-              {tab.action === 'chat' && unreadCount > 0 && (
-                <span className="absolute top-2 right-1/2 translate-x-2 w-2.5 h-2.5 rounded-full bg-accent border-2 border-bg" />
-              )}
               {active && (
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-b-sm bg-accent" />
               )}
