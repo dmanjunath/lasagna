@@ -67,7 +67,7 @@ export function SavingsGoal() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
-        <h1 className="font-display text-2xl md:text-3xl font-medium">{goal.name}</h1>
+        <h1 className="lf-h1">{goal.name}</h1>
         {deadlineLabel && (
           <p className="text-text-secondary mt-2">Target: {deadlineLabel}</p>
         )}

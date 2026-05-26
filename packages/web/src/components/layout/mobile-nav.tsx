@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Menu,
+  X, Menu, Wallet,
   LayoutDashboard, Zap, Layers,
   TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, Target,
   Building2, User, MessageSquare,
@@ -27,6 +27,7 @@ const NAV_SECTIONS: NavSection[] = [
     section: 'Overview',
     items: [
       { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
+      { label: 'Money',      icon: Wallet,          path: '/money' },
       { label: 'Actions',    icon: Zap,             path: '/insights' },
       { label: 'Financial Level', icon: Layers, path: '/financial-level' },
     ],

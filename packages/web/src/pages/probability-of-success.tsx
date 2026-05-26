@@ -313,7 +313,7 @@ export function ProbabilityOfSuccess() {
           className="glass-card rounded-2xl p-8 md:p-12 flex flex-col items-center justify-center text-center"
         >
           <Building2 className="w-16 h-16 text-text-secondary mb-6" />
-          <h2 className="font-display text-2xl md:text-3xl font-medium mb-3">
+          <h2 className="lf-h2 mb-3">
             No Accounts Linked
           </h2>
           <p className="text-text-secondary max-w-md mb-8">

@@ -326,13 +326,7 @@ export function Settings() {
           }}>
             {initial}
           </div>
-          <h1 style={{
-            fontFamily: "'Instrument Serif', Georgia, serif",
-            fontSize: 22,
-            fontWeight: 600,
-            color: 'var(--lf-ink)',
-            margin: 0,
-          }}>
+          <h1 className="lf-h1" style={{ margin: 0 }}>
             {displayName}
           </h1>
           <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 4, fontFamily: "'Geist', system-ui, sans-serif" }}>

@@ -526,10 +526,10 @@ export function LayerHomeScreen({
               onClick={() => handleNav('/financial-level')}
               style={{ padding: '10px 18px', borderRadius: 999, border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)', color: 'var(--lf-ink)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
             >
-              View all layers
+              View all levels
             </button>
             <button
-              onClick={() => openChat(`I'm on Layer ${primaryLayer.order}: ${primaryLayer.title}. What should I focus on right now?`)}
+              onClick={() => openChat(`I'm on Level ${primaryLayer.order}: ${primaryLayer.title}. What should I focus on right now?`)}
               style={{ padding: '10px 18px', borderRadius: 999, border: '1px solid var(--lf-ink)', background: 'var(--lf-ink)', color: 'var(--lf-paper)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
             >
               Walk me through this →
@@ -563,7 +563,7 @@ export function LayerHomeScreen({
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)' }}>
-                Layer {primaryLayer.order} · Current focus
+                Level {primaryLayer.order} · Current focus
               </div>
               <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 'clamp(24px, 4vw, 32px)', lineHeight: 1.1, color: 'var(--lf-paper)', marginTop: 2 }}>
                 {primaryLayer.title}
@@ -642,7 +642,7 @@ export function LayerHomeScreen({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)' }}>
-              Insights & Actions
+              Actions
             </span>
             {lastActionsGeneratedAt && (
               <span className="layer-hero-hide-mobile" style={{ fontSize: 11, color: 'var(--lf-muted)', whiteSpace: 'nowrap' }}>
@@ -851,7 +851,7 @@ export function LayerHomeScreen({
               {/* Insights card (shown here when no debt cascade) */}
               <div style={{ ...S.card, padding: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-                  <div style={S.eyebrow}>Layer-relevant insights</div>
+                  <div style={S.eyebrow}>Level-relevant actions</div>
                   <button onClick={() => handleNav('/insights')} style={{ fontSize: 12, color: 'var(--lf-sauce)', background: 'none', border: 0, cursor: 'pointer', padding: 0 }}>
                     all →
                   </button>
@@ -869,7 +869,7 @@ export function LayerHomeScreen({
                   </div>
                 ) : (
                   <div style={{ color: 'var(--lf-muted)', fontSize: 13, padding: '16px 0', textAlign: 'center' }}>
-                    No insights for your current layer.
+                    No actions for your current level.
                   </div>
                 )}
               </div>
@@ -881,7 +881,7 @@ export function LayerHomeScreen({
                     onClick={() => setSecondaryExpanded(!secondaryExpanded)}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 0, cursor: 'pointer', padding: 0 }}
                   >
-                    <div style={S.eyebrow}>Also working on · {secondaryLayers.length} layer{secondaryLayers.length !== 1 ? 's' : ''}</div>
+                    <div style={S.eyebrow}>Also working on · {secondaryLayers.length} level{secondaryLayers.length !== 1 ? 's' : ''}</div>
                     {secondaryExpanded ? <ChevronUp size={16} color="var(--lf-muted)" /> : <ChevronDown size={16} color="var(--lf-muted)" />}
                   </button>
                   <AnimatePresence>

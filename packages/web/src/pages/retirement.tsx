@@ -1280,7 +1280,7 @@ export function Retirement() {
         >
           <Card style={{ padding: '48px 40px', textAlign: 'center', maxWidth: 480 }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>&#127968;</div>
-            <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 26, color: 'var(--lf-ink)', marginBottom: 12, fontWeight: 400 }}>
+            <h2 className="lf-h2" style={{ marginBottom: 12 }}>
               No Accounts Linked
             </h2>
             <p style={{ fontFamily: "'Geist', system-ui, sans-serif", color: 'var(--lf-muted)', marginBottom: 28, lineHeight: 1.6 }}>

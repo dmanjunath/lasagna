@@ -418,7 +418,7 @@ export function Insights() {
     try {
       await refresh();
     } catch {
-      setRefreshError("Couldn't refresh insights right now. Please try again later.");
+      setRefreshError("Couldn't refresh actions right now. Please try again later.");
     } finally {
       setRefreshing(false);
     }
@@ -483,17 +483,9 @@ export function Insights() {
       {/* ------------------------------------------------------------------ */}
       <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
+          <h1 className="lf-h1">Actions</h1>
           {!isLoading && (
-            <p
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'var(--lf-muted)',
-                margin: '6px 0 0',
-              }}
-            >
+            <p className="lf-eyebrow" style={{ margin: '6px 0 0' }}>
               {doNowCount} urgent · {thisWeekCount} this week
             </p>
           )}
@@ -723,7 +715,7 @@ export function Insights() {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing || !refreshReady}
-            title={!refreshReady ? 'Insights refresh once every 3 hours' : undefined}
+            title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -812,7 +804,7 @@ export function Insights() {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing || !refreshReady}
-            title={!refreshReady ? 'Insights refresh once every 3 hours' : undefined}
+            title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
             style={{
               padding: '10px 20px',
               background: 'var(--lf-ink)',
@@ -825,7 +817,7 @@ export function Insights() {
               opacity: refreshing || !refreshReady ? 0.6 : 1,
             }}
           >
-            {refreshing ? 'Generating…' : 'Generate insights'}
+            {refreshing ? 'Generating…' : 'Generate actions'}
           </button>
         </div>
       )}

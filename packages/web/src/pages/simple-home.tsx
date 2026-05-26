@@ -189,7 +189,7 @@ function LevelCard({
       data-card
       className="snap-center shrink-0 w-full rounded-2xl bg-gradient-to-br from-cheese/15 to-accent/10 border border-cheese/40 p-5 flex flex-col"
     >
-      <h2 className="font-serif text-xl font-medium leading-[1.2]">{step.title}</h2>
+      <h2 className="lf-h2">{step.title}</h2>
       {body && (
         <p className="text-sm text-text-secondary mt-3 leading-relaxed line-clamp-4">
           {body}
@@ -256,7 +256,7 @@ function InsightCard({
       data-card
       className="snap-center shrink-0 w-full rounded-2xl bg-gradient-to-br from-cheese/15 to-accent/10 border border-cheese/40 p-5 flex flex-col"
     >
-      <h2 className="font-serif text-xl font-medium leading-[1.2]">{insight.title}</h2>
+      <h2 className="lf-h2">{insight.title}</h2>
       {insight.description && (
         <p className="text-sm text-text-secondary mt-3 leading-relaxed line-clamp-4">
           {insight.description}
@@ -468,7 +468,7 @@ export function SimpleHome() {
   // Shared blocks extracted so both mobile and desktop can reference them
   const greetingBlock = (
     <div className="mb-5">
-      <h1 className="font-serif text-2xl font-medium leading-[1.15]">
+      <h1 className="lf-h1">
         Hey {firstName}
       </h1>
       <p className="text-sm text-text-muted mt-1.5">Here's what to focus on next.</p>
@@ -501,7 +501,7 @@ export function SimpleHome() {
       <div className="text-[11px] uppercase tracking-[0.14em] text-text-muted font-medium font-mono mb-2">
         Your next step
       </div>
-      <h2 className="text-xl font-serif font-medium">Set up your financial profile.</h2>
+      <h2 className="lf-h2">Set up your financial profile.</h2>
       <p className="text-sm text-text-muted mt-2">
         Tell us your basics and we'll show you exactly what to do next.
       </p>

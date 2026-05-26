@@ -289,7 +289,7 @@ export function SimpleMoney() {
       {/* ── AI Insights ── */}
       {moneyInsights.length > 0 && (
         <section className="mt-8 mb-6">
-          <h3 className="font-serif text-lg font-medium text-text mb-3">Insights</h3>
+          <h3 className="lf-h3 mb-3">Actions</h3>
           <div className="space-y-3">
             {moneyInsights.map((ins) => (
               <Link key={ins.id} href={`/insights?id=${ins.id}`} className="block rounded-2xl bg-bg-elevated border border-rule p-4 hover:border-accent/30 transition">
@@ -310,7 +310,7 @@ export function SimpleMoney() {
       {transactions.length > 0 && (
         <section className="mt-8">
           <div className="flex items-baseline justify-between mb-3">
-            <h3 className="font-serif text-lg font-medium text-text">Recent activity</h3>
+            <h3 className="lf-h3">Recent activity</h3>
             <Link href="/spending" className="text-xs text-text-muted underline">All spending →</Link>
           </div>
           {transactions.map((t, i) => {
@@ -374,7 +374,7 @@ function AccountSection({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {icon}
-          <h3 className="font-serif text-lg font-medium text-text">{title}</h3>
+          <h3 className="lf-h3">{title}</h3>
         </div>
         <span className="text-base font-medium tabular-nums">{fmtUsd(total)}</span>
       </div>
@@ -507,15 +507,27 @@ function humanCategory(c: string) {
 
 // ── Interactive net-worth chart ──────────────────────────────────────────
 
-const CHART_W = 900;
 const CHART_H = 200;
-const CHART_M = { top: 16, right: 16, bottom: 28, left: 56 };
+const CHART_M = { top: 16, right: 16, bottom: 28, left: 48 };
 
 function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Range }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [chartW, setChartW] = useState(600);
 
-  const innerW = CHART_W - CHART_M.left - CHART_M.right;
+  // Measure container so viewBox matches pixel width — text renders at 1:1
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const update = () => setChartW(el.clientWidth || 600);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const innerW = chartW - CHART_M.left - CHART_M.right;
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
 
   const { yMin, yMax, yTicks } = useMemo(() => {
@@ -527,6 +539,7 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
   }, [points]);
 
   const xAt = (i: number) => CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
+  const CHART_W = chartW;
   const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
 
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yAt(p.value).toFixed(1)}`).join(' ');
@@ -548,7 +561,7 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
   const xLabels = useMemo(() => pickXLabels(points, range), [points, range]);
 
   return (
-    <div className="relative select-none">
+    <div ref={wrapperRef} className="relative select-none">
       <div className="h-6 flex items-baseline justify-end gap-2 px-1 mb-1 tabular-nums">
         {hover ? (
           <>

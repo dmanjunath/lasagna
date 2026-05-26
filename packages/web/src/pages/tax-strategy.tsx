@@ -471,16 +471,16 @@ export function TaxStrategy() {
         </div>
         {/* Insights count */}
         <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Insights</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Actions</div>
           <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em", color: insights.length > 0 ? "var(--lf-cheese)" : "var(--lf-paper)" }}>{insightsLoading ? "…" : insights.length}</div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>tax {insights.length === 1 ? "insight" : "insights"}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>tax {insights.length === 1 ? "action" : "actions"}</div>
         </div>
       </motion.div>
 
       {/* ── Tax Insights ────────────────────────────────────────────────────── */}
       {!insightsLoading && insights.length > 0 && (
         <Section
-          title={`Tax Insights${estimatedSavings ? " · " + formatMoney(estimatedSavings) + "/yr potential" : ""}`}
+          title={`Tax Actions${estimatedSavings ? " · " + formatMoney(estimatedSavings) + "/yr potential" : ""}`}
           actions={
             <button
               type="button"
@@ -608,7 +608,7 @@ export function TaxStrategy() {
                   </span>
                 )}
                 {insightStatus === "done" && (
-                  <span style={{ ...EYEBROW, color: "var(--lf-basil)" }}>Insights updated ✓</span>
+                  <span style={{ ...EYEBROW, color: "var(--lf-basil)" }}>Actions updated ✓</span>
                 )}
               </div>
             </div>

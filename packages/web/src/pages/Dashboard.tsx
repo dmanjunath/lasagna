@@ -227,7 +227,7 @@ export function Dashboard() {
       setPageContext({
         pageId: 'dashboard',
         pageTitle: 'Home',
-        description: 'Your current financial layer and highest-impact next move.',
+        description: 'Your current financial level and highest-impact next move.',
       });
     }
   }, [loading, setPageContext]);

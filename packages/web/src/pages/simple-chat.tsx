@@ -314,7 +314,7 @@ export function SimpleChat() {
           onNew={newChat}
         />
       ) : (
-        <div ref={scrollRef} className="space-y-4 pb-44">
+        <div ref={scrollRef} className="space-y-4 pb-32 md:pb-44">
           {!hasConversation && (
             <div className="flex items-start gap-2">
               <div className="w-7 h-7 rounded-full bg-cheese/20 grid place-items-center text-sm shrink-0">🥬</div>
@@ -349,9 +349,11 @@ export function SimpleChat() {
         </div>
       )}
 
-      {/* Composer dock — sticky above bottom nav */}
+      {/* Composer dock — fixed above bottom nav on mobile, sticky on desktop */}
       {dock && (
-        <div className="sticky bottom-14 mt-auto z-10">
+        <div className="fixed bottom-[56px] left-0 right-0 z-10 md:sticky md:bottom-0 md:left-auto md:right-auto md:mt-auto bg-bg border-t border-rule/40 px-4 pb-[env(safe-area-inset-bottom)]"
+             style={{ maxWidth: 1200 }}
+        >
           {dock}
         </div>
       )}

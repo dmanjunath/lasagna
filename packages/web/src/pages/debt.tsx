@@ -251,7 +251,7 @@ function NoAccountsView() {
       style={{ textAlign: 'center', padding: '64px 0' }}
     >
       <CreditCard style={{ width: 48, height: 48, color: 'var(--lf-muted)', margin: '0 auto 16px' }} />
-      <h2 style={{ ...S.serif, fontSize: 28, color: 'var(--lf-ink)', marginBottom: 8 }}>
+      <h2 className="lf-h2" style={{ marginBottom: 8 }}>
         No Accounts Linked
       </h2>
       <p style={{ fontSize: 14, color: 'var(--lf-muted)', maxWidth: 380, margin: '0 auto 24px' }}>

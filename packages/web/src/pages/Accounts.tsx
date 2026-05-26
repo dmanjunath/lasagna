@@ -518,12 +518,7 @@ export function Accounts() {
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
             <div>
-              <h1 style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: 36,
-                fontWeight: 400, lineHeight: 1.1,
-                color: "var(--lf-ink)", margin: 0,
-              }}>
+              <h1 className="lf-h1" style={{ margin: 0 }}>
                 Accounts
               </h1>
               {!loading && (

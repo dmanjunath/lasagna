@@ -114,6 +114,38 @@
 }
 
 /* ============================================================
+   HEADING SCALE — use these everywhere; do not roll your own.
+   .lf-h1 once per page. .lf-h2 for major sections.
+   .lf-h3 for cards / sub-sections. .lf-eyebrow above any title.
+   ============================================================ */
+.lf-h1 {
+  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--lf-ink);
+}
+@media (min-width: 768px) { .lf-h1 { font-size: 36px; } }
+
+.lf-h2 {
+  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  color: var(--lf-ink);
+}
+
+.lf-h3 {
+  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 1.25;
+  color: var(--lf-ink);
+}
+
+/* ============================================================
    BRAND MARK — three stacked bars (sauce/cheese/basil)
    ============================================================ */
 .lf-mark {

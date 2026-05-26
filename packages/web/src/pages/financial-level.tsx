@@ -145,20 +145,13 @@ function StepDetailPanel({ step, onSkip, onAsk, onComplete, onUndoComplete, skip
       {/* Eyebrow */}
       <div style={{ padding: '14px 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={eyebrowStyle}>
-          Layer {String(step.order).padStart(2, '0')}{isComplete ? ' · Complete' : hasProgress ? ' · In Progress' : ''}
+          Level {String(step.order).padStart(2, '0')}{isComplete ? ' · Complete' : hasProgress ? ' · In Progress' : ''}
         </span>
       </div>
 
       {/* Title */}
       <div style={{ padding: '10px 20px 0' }}>
-        <h2 style={{
-          ...serifStyle,
-          fontSize: 20,
-          fontWeight: 400,
-          color: 'var(--lf-ink)',
-          lineHeight: 1.25,
-          margin: 0,
-        }}>
+        <h2 className="lf-h3" style={{ margin: 0 }}>
           {step.title}
         </h2>
       </div>
@@ -679,11 +672,11 @@ export function FinancialLevel() {
         style={{ textAlign: 'center', maxWidth: 360 }}
       >
         <Rocket size={36} style={{ color: 'var(--lf-muted)', margin: '0 auto 16px' }} />
-        <h2 style={{ ...serifStyle, fontSize: 24, color: 'var(--lf-ink)', marginBottom: 8 }}>
+        <h2 className="lf-h2" style={{ marginBottom: 8 }}>
           Let's build your plan
         </h2>
         <p style={{ fontSize: 13, color: 'var(--lf-ink-soft)', marginBottom: 24, lineHeight: 1.6 }}>
-          Add your income and accounts to see your personalized priority layers.
+          Add your income and accounts to see your personalized priority levels.
         </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
           <a
