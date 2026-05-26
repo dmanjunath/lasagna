@@ -1032,8 +1032,8 @@ export default function PortfolioComposition() {
     <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)' }}>
       <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* Title lives in the top bar; just the summary line here. */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Portfolio</h1>
           <p className="lf-eyebrow">
             {positionCount} position{positionCount !== 1 ? 's' : ''} across {accountCount} account{accountCount !== 1 ? 's' : ''}
           </p>

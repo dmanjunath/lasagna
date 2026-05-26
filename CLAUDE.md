@@ -62,6 +62,8 @@ It's not required you get confirmation to execute the plan, just make a plan and
 
 - **NEVER modify user data in the database** — do not reset passwords, delete accounts, alter balances, or change any real user records. If you need to test as a specific user, ask for credentials. Use seed data for testing instead.
 - **NEVER run destructive database operations** (DROP, TRUNCATE, DELETE) on production or user data without explicit permission.
+- **NEVER commit by default.** Only commit when the user explicitly asks ("commit this", "make a commit", "git commit"). Finishing a task is not an implicit request to commit — leave the working tree dirty so the user can review.
+- **Always run typecheck before committing.** Once asked to commit, run `pnpm -F @lasagna/web typecheck` (or `cd packages/web && npx tsc --noEmit` for just the web package) and fix any errors before staging. If typecheck fails, surface the errors and stop — do not commit broken code.
 
 ## Docker Development
 
@@ -79,6 +81,20 @@ All specs and plans from superpowers skills (brainstorming, writing-plans, etc.)
 - Plans: `.superpowers/plans/YYYY-MM-DD-<topic>.md`
 
 These paths are git-ignored. Never write to `docs/superpowers/`.
+
+## Visual Verification
+
+**Anything that could benefit from visual verification — UI changes, design polish, layout fixes, new pages, chart tweaks — must be verified with Playwright before claiming it works.** Type-checking and reading the diff are not substitutes for seeing the rendered pixels.
+
+How:
+1. Use Playwright (already installed) with the `lasagna_session` cookie on `domain: localhost` to authenticate. The cookie is the same one issued by the API login flow (`COOKIE_NAME = "lasagna_session"` in `packages/api/src/lib/session.ts`).
+2. Drive the relevant flow (navigate, hover, click) and screenshot — desktop and a mobile viewport (e.g. 390×844) where it matters.
+3. Read the screenshot back. If something looks off (foreign colors, layout drift, missing element), fix and re-screenshot before reporting done.
+4. For state-dependent visuals (focus rings, hovered chart points, computed `box-shadow`), inspect computed styles via `page.evaluate(() => getComputedStyle(...))` — don't trust the class list alone, since unresolved Tailwind tokens silently fall back to defaults (e.g. `ring-rule/60` → `rgba(59,130,246,0.5)` blue).
+
+**Token:** ask the user for the current `lasagna_session` token if one isn't already present in the conversation. Tokens expire (the JSON payload has `exp`), so don't cache an old one across sessions.
+
+Throwaway scripts go under `_shots-*/` (already gitignored). Don't add them to `e2e/` — that's for the test suite, not ad-hoc verification.
 
 ## Debugging
 

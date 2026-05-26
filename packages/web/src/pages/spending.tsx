@@ -488,6 +488,7 @@ export function Spending() {
         {/* Title + month nav row */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
           <div>
+            <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Spending</h1>
             <div style={{ ...S.eyebrow }}>
               {monthLabel(currentMonth)}
             </div>

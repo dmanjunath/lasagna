@@ -351,18 +351,18 @@ function WhyThisOrderPopover() {
         type="button"
         onClick={() => setOpen(!open)}
         style={{
-          ...eyebrowStyle,
           background: 'none',
           border: 'none',
           cursor: 'pointer',
           padding: 0,
-          color: 'var(--lf-muted)',
+          color: 'var(--lf-sauce)',
+          fontSize: 13,
+          fontWeight: 500,
           textDecoration: 'underline',
-          textDecorationStyle: 'dotted',
           textUnderlineOffset: '3px',
         }}
       >
-        Why this order?
+        Why this order? ⓘ
       </button>
       {open && (
         <>
@@ -743,6 +743,7 @@ export function FinancialLevel() {
         transition={{ duration: 0.3 }}
         style={{ marginBottom: 24 }}
       >
+        <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Financial Level</h1>
         <p style={{ ...eyebrowStyle }}>{completeCount} of {steps.length} complete</p>
       </motion.div>
 

@@ -274,6 +274,8 @@ export function SimpleChat() {
 
   return (
     <div className="flex flex-col" style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto', minHeight: 'calc(100dvh - 130px)' }}>
+      <h1 className="lf-h1 mb-5">Chat</h1>
+
       {/* Tab switcher + New chat. Pill heights matched (py-1.5 on both)
           so the row reads as one unit. New-chat is ghost-styled so it
           doesn't visually compete with the active tab. */}

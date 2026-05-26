@@ -136,10 +136,12 @@ export function SimpleMoney() {
 
   return (
     <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto' }}>
+      <h1 className="lf-h1 mb-6">Money</h1>
+
       {/* ── Net worth hero + action buttons ── */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted font-medium">Net worth</div>
+          <div className="lf-eyebrow">Net worth</div>
           <div className="mt-2 font-serif text-4xl md:text-5xl font-medium leading-[1.05] tabular-nums">
             {loading ? '…' : fmtUsd(netWorth)}
           </div>
@@ -189,20 +191,35 @@ export function SimpleMoney() {
 
       {/* ── Chart — full width, borderless ── */}
       {chartPoints.length >= 2 && (
-        <section className="mb-8 pb-4 border-b border-rule/60">
+        <section className="mb-8 pb-5 border-b border-rule/60">
           <NetWorthChart points={chartPoints} range={range} />
-          <div className="flex justify-center mt-3">
-            <div className="inline-flex bg-bg rounded-full p-0.5 text-xs border border-rule/60">
+          <div className="flex justify-center mt-4">
+            <div role="radiogroup" aria-label="Time range" className="inline-flex bg-bg-elevated/60 rounded-full p-1 text-xs border border-rule/60">
               {(['1M', '6M', '1Y', 'All'] as Range[]).map((r) => (
                 <button
                   key={r}
                   onClick={() => setRange(r)}
-                  aria-pressed={range === r}
-                  className={`px-3.5 py-1.5 min-h-[44px] rounded-full transition ${range === r ? 'bg-bg-elevated shadow-sm font-medium text-text' : 'text-text-muted'}`}
+                  role="radio"
+                  aria-checked={range === r}
+                  className={`relative px-3.5 py-1.5 rounded-full transition-colors tabular-nums ${range === r ? 'bg-bg text-text font-medium shadow-sm ring-1 ring-[color:var(--lf-rule)]' : 'text-text-muted hover:text-text'}`}
                 >
+                  <span aria-hidden="true" className="absolute inset-x-0 -inset-y-2" />
                   {r}
                 </button>
               ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Chart placeholder — visible when not enough history yet ── */}
+      {!loading && chartPoints.length < 2 && allAccounts.length > 0 && (
+        <section className="mb-8 pb-5 border-b border-rule/60">
+          <div className="h-[230px] rounded-xl border border-dashed border-rule/70 bg-bg-elevated/40 grid place-items-center text-center px-6">
+            <div>
+              <TrendingUp size={20} className="text-text-muted mx-auto mb-2" />
+              <div className="text-sm font-medium text-text">Building your trend</div>
+              <div className="text-xs text-text-muted mt-1">Your net-worth chart will appear once we have a few days of history.</div>
             </div>
           </div>
         </section>
@@ -508,7 +525,10 @@ function humanCategory(c: string) {
 // ── Interactive net-worth chart ──────────────────────────────────────────
 
 const CHART_H = 200;
-const CHART_M = { top: 16, right: 16, bottom: 28, left: 48 };
+const CHART_M = { top: 18, right: 16, bottom: 34, left: 56 };
+// Single source of truth for the chart accent — matches `text-success` /
+// `--color-success` (#4C7A3E) so palette changes propagate automatically.
+const CHART_COLOR = 'rgb(var(--color-success))';
 
 function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Range }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -561,14 +581,14 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
   const xLabels = useMemo(() => pickXLabels(points, range), [points, range]);
 
   return (
-    <div ref={wrapperRef} className="relative select-none">
-      <div className="h-6 flex items-baseline justify-end gap-2 px-1 mb-1 tabular-nums">
+    <div ref={wrapperRef} className="relative select-none" style={{ color: CHART_COLOR }}>
+      <div className="h-7 flex items-baseline justify-end gap-2 px-1 mb-1 tabular-nums" aria-live="polite">
         {hover ? (
           <>
-            <span className="text-xs text-text-muted">{new Date(hover.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-            <span className="text-sm font-semibold text-text">{fmtUsd(hover.value)}</span>
+            <span className="text-sm text-text-muted">{new Date(hover.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+            <span className="font-serif text-lg font-medium text-text leading-none">{fmtUsd(hover.value)}</span>
           </>
-        ) : <span className="text-xs text-text-muted/0">.</span>}
+        ) : <span aria-hidden="true">&nbsp;</span>}
       </div>
       <svg
         ref={svgRef}
@@ -583,29 +603,91 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
         onPointerCancel={() => setHoverIdx(null)}
       >
         <defs>
-          <linearGradient id="nw-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgb(76 122 62)" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="rgb(76 122 62)" stopOpacity="0" />
+          {/* Vertical multi-stop area fill — richer at the top, fades to nothing at the baseline */}
+          <linearGradient id="nw-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="currentColor" stopOpacity="0.36" />
+            <stop offset="55%"  stopColor="currentColor" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          </linearGradient>
+          {/* Horizontal gradient along the line — muted at the past, vivid at "now" */}
+          <linearGradient id="nw-line" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor="currentColor" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="1" />
+          </linearGradient>
+          {/* Horizontal fade for the start-of-range anchor line — solid near "then", invisible by "now" */}
+          <linearGradient id="nw-anchor" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor="currentColor" stopOpacity="0.55" />
+            <stop offset="70%"  stopColor="currentColor" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
         {yTicks.map((t) => (
           <g key={t}>
-            <line x1={CHART_M.left} y1={yAt(t)} x2={CHART_W - CHART_M.right} y2={yAt(t)} className="stroke-rule" strokeWidth={1} strokeDasharray="2 3" />
-            <text x={CHART_M.left - 6} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-text-muted" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
+            <line x1={CHART_M.left} y1={yAt(t)} x2={CHART_W - CHART_M.right} y2={yAt(t)} className="stroke-rule/70" strokeWidth={1} strokeDasharray="2 4" />
+            <text x={CHART_M.left - 10} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-text-muted" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
           </g>
         ))}
-        <path d={areaPath} fill="url(#nw-grad)" />
-        <path d={linePath} fill="none" stroke="rgb(76 122 62)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        {!hover && points.length > 0 && <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={3.5} fill="rgb(76 122 62)" />}
+        {/* Starting-value anchor: a horizontal gradient line at points[0].value — fades out toward "now",
+            so the eye reads "this is where you started" and the line above it = growth since then. */}
+        {points.length >= 2 && (
+          <line
+            x1={xAt(0)}
+            x2={CHART_W - CHART_M.right}
+            y1={yAt(points[0].value)}
+            y2={yAt(points[0].value)}
+            stroke="url(#nw-anchor)"
+            strokeWidth={1.25}
+            strokeDasharray="3 4"
+          />
+        )}
+        <path d={areaPath} fill="url(#nw-area)" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="url(#nw-line)"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ filter: 'drop-shadow(0 1px 1.5px rgb(31 26 22 / 0.10))' }}
+        />
+        {/* Hollow ring at the start of the range — the "from" pin to the latest "to" dot */}
+        {points.length >= 2 && (
+          <circle
+            cx={xAt(0)}
+            cy={yAt(points[0].value)}
+            r={3.5}
+            fill="rgb(var(--color-bg))"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            opacity={0.7}
+          />
+        )}
+        {!hover && points.length > 0 && (
+          <circle
+            cx={xAt(points.length - 1)}
+            cy={yAt(points[points.length - 1].value)}
+            r={4.5}
+            fill="currentColor"
+            stroke="rgb(var(--color-bg))"
+            strokeWidth={2}
+          />
+        )}
         {hover && hoverIdx !== null && (
           <g>
-            <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} className="stroke-text-muted" strokeWidth={1} strokeDasharray="2 2" />
-            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={9} fill="rgb(76 122 62)" fillOpacity={0.15} />
-            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={4} fill="rgb(76 122 62)" />
+            <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} className="stroke-text-muted/70" strokeWidth={1} strokeDasharray="2 3" />
+            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={10} fill="currentColor" fillOpacity={0.18} />
+            <circle
+              cx={xAt(hoverIdx)}
+              cy={yAt(hover.value)}
+              r={4}
+              fill="currentColor"
+              stroke="rgb(var(--color-bg))"
+              strokeWidth={2}
+            />
           </g>
         )}
         {xLabels.map(({ idx, label }) => (
-          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 8} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 10} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
         ))}
       </svg>
     </div>

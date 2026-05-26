@@ -307,8 +307,8 @@ function HasDebtView({
 }) {
   return (
     <>
-      {/* Title lives in the top bar; just the summary line here. */}
       <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
+        <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Debt</h1>
         <p style={{ ...S.eyebrow }}>
           {debts.length} account{debts.length !== 1 ? 's' : ''}
         </p>

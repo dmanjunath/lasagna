@@ -56,18 +56,20 @@ interface PlaidMetadata {
   };
 }
 
-// Color palette — LasagnaFi brand-aligned earthy tones
+// Color palette — LasagnaFi brand-aligned earthy tones.
+// Recharts writes these straight into SVG `fill=`, where CSS variables don't
+// resolve — use hex tokens that mirror the CSS variables in index.css.
 const COLORS = [
-  'var(--lf-sauce)',
-  'var(--lf-cheese)',
-  'var(--lf-basil)',
-  'var(--lf-noodle)',
-  'var(--lf-crust)',
-  'var(--lf-burgundy)',
+  '#C9543A', // --lf-sauce
+  '#E6B85C', // --lf-cheese
+  '#5A6B3F', // --lf-basil
+  '#E8C789', // --lf-noodle
+  '#8B4A2B', // --lf-crust
+  '#6B2420', // --lf-burgundy
   '#A68965',
   '#7A5C3F',
-  'var(--lf-muted)',
-  'var(--lf-ink-soft)',
+  '#8B7E6F', // --lf-muted
+  '#3A322C', // --lf-ink-soft
 ];
 
 const GROUPING_LABELS: Record<GroupingLevel, string> = {
@@ -388,9 +390,10 @@ export function NetWorth() {
         </motion.div>
       )}
 
-      {/* Page summary (title lives in the top bar) */}
+      {/* Page header */}
       <div style={{ marginBottom: 24 }}>
-        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: 'var(--lf-muted)', margin: 0 }}>
+        <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Net Worth</h1>
+        <p className="lf-eyebrow" style={{ margin: 0 }}>
           {assetClasses.length} asset {assetClasses.length === 1 ? 'class' : 'classes'}
         </p>
       </div>

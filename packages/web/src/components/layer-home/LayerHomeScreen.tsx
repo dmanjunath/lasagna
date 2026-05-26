@@ -499,11 +499,11 @@ export function LayerHomeScreen({
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, fontWeight: 400, margin: 0 }}>
+          <h1 className="lf-h1" style={{ margin: 0 }}>
             Your Focus
           </h1>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginTop: 6 }}>
-            {greeting} · {displayInsights.length} insight{displayInsights.length !== 1 ? 's' : ''}
+          <div className="lf-eyebrow" style={{ marginTop: 6 }}>
+            {greeting} · {displayInsights.length} action{displayInsights.length !== 1 ? 's' : ''}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -726,7 +726,7 @@ export function LayerHomeScreen({
                     <button
                       key={idx}
                       type="button"
-                      aria-label={`Go to insight ${idx + 1}`}
+                      aria-label={`Go to action ${idx + 1}`}
                       onClick={() => scrollToInsight(idx)}
                       style={{
                         display: 'flex',
@@ -1074,14 +1074,14 @@ function AllCompleteView({ summary }: { summary: PrioritySummary }) {
   return (
     <div style={{ textAlign: 'center', padding: '64px 0' }}>
       <Rocket size={48} style={{ color: 'var(--lf-basil)', margin: '0 auto 16px' }} />
-      <h2 style={{ ...S.serif, fontSize: 32, color: 'var(--lf-ink)', marginBottom: 8 }}>
-        All layers complete
+      <h2 className="lf-h1" style={{ marginBottom: 8 }}>
+        All levels complete
       </h2>
       <p style={{ fontSize: 14, color: 'var(--lf-muted)', maxWidth: 400, margin: '0 auto 24px', lineHeight: 1.6 }}>
-        You have completed every layer of the financial independence framework. Your portfolio of {fmt(summary.totalInvested)} sustains your lifestyle.
+        You have completed every level of the financial independence framework. Your portfolio of {fmt(summary.totalInvested)} sustains your lifestyle.
       </p>
       <button
-        onClick={() => openChat('I have completed all 12 financial layers. What should I focus on now?')}
+        onClick={() => openChat('I have completed all 12 financial levels. What should I focus on now?')}
         style={{ padding: '10px 20px', borderRadius: 10, background: 'var(--lf-ink)', color: 'var(--lf-paper)', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer' }}
       >
         Walk me through this →

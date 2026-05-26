@@ -494,15 +494,13 @@ export function Insights() {
           type="button"
           onClick={() => openChat('Can you explain my top financial actions and why they matter?')}
           style={{
-            fontFamily: "'JetBrains Mono', monospace",
             fontSize: 13,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            color: 'var(--lf-muted)',
-            background: 'none',
-            border: '1px solid var(--lf-rule)',
-            borderRadius: 8,
-            padding: '6px 12px',
+            fontWeight: 600,
+            color: 'var(--lf-paper)',
+            background: 'var(--lf-sauce)',
+            border: 'none',
+            borderRadius: 10,
+            padding: '10px 18px',
             cursor: 'pointer',
             whiteSpace: 'nowrap',
           }}
