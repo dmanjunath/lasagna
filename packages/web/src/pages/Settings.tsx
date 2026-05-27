@@ -4,88 +4,25 @@ import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { formatMoney } from "../lib/utils";
 import { useState, useEffect, useCallback } from "react";
+import {
+  User,
+  Briefcase,
+  Building2,
+  Target,
+  ChevronRight,
+  ChevronDown,
+  LogOut,
+} from "lucide-react";
+import {
+  Page,
+  PageHeader,
+  Section,
+  Button,
+  Eyebrow,
+  Lede,
+} from "../components/ds";
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.07 },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
-};
-
-interface SettingsRowProps {
-  icon: string;
-  label: string;
-  danger?: boolean;
-  onClick?: () => void;
-  first?: boolean;
-}
-
-function SettingsRow({ icon, label, danger, onClick, first }: SettingsRowProps) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: '100%',
-        textAlign: 'left',
-        padding: '14px 18px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        border: 0,
-        borderTop: first ? 0 : '1px solid var(--lf-rule)',
-        background: hovered ? 'var(--lf-cream)' : 'transparent',
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'background 0.1s',
-        fontFamily: "'Geist', system-ui, sans-serif",
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 18 }}>{icon}</span>
-        <span style={{
-          fontSize: 14,
-          color: danger ? 'var(--lf-sauce)' : 'var(--lf-ink-soft)',
-          fontWeight: danger ? 500 : 400,
-        }}>
-          {label}
-        </span>
-      </div>
-      {onClick && <span style={{ color: 'var(--lf-muted)', fontSize: 16 }}>›</span>}
-    </button>
-  );
-}
-
-interface StatRowProps {
-  label: string;
-  value: string;
-  valueColor?: string;
-  first?: boolean;
-}
-
-function StatRow({ label, value, valueColor, first }: StatRowProps) {
-  return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '12px 18px',
-      borderTop: first ? 0 : '1px solid var(--lf-rule)',
-      fontFamily: "'Geist', system-ui, sans-serif",
-    }}>
-      <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>{label}</span>
-      <span style={{ fontSize: 13, color: valueColor || 'var(--lf-ink)', fontWeight: 500 }}>{value}</span>
-    </div>
-  );
-}
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type FinancialProfile = {
   dateOfBirth: string | null;
@@ -132,33 +69,18 @@ function formatRiskTolerance(risk: string | null): string {
   return match?.label || risk;
 }
 
-function riskToleranceColor(risk: string | null): string {
-  if (!risk) return 'var(--lf-muted)';
-  if (risk.includes('aggressive')) return 'var(--lf-basil)';
-  if (risk === 'moderate') return 'var(--lf-cheese)';
-  return 'var(--lf-sauce)';
+function formatEmployment(type: string): string {
+  switch (type) {
+    case "w2": return "W2 employee";
+    case "self_employed": return "Self-employed";
+    case "1099": return "1099 / contractor";
+    case "business_owner": return "Business owner";
+    case "Not set": return "Not set";
+    default: return type;
+  }
 }
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  background: 'var(--lf-cream)',
-  border: '1px solid var(--lf-rule)',
-  borderRadius: 8,
-  fontSize: 13,
-  color: 'var(--lf-ink)',
-  fontFamily: "'Geist', system-ui, sans-serif",
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const labelTextStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 13,
-  color: 'var(--lf-muted)',
-  marginBottom: 6,
-  fontFamily: "'Geist', system-ui, sans-serif",
-};
+// ─── Main component ──────────────────────────────────────────────────────────
 
 export function Settings() {
   const { user, tenant, logout } = useAuth();
@@ -184,8 +106,8 @@ export function Settings() {
     isPSLFEligible: false,
   });
 
-  const initial = (tenant?.name || user?.email || "U").charAt(0).toUpperCase();
-  const displayName = tenant?.name || "User";
+  const displayName = tenant?.name || user?.name || "Profile";
+  const firstName = displayName.split(" ")[0] || "Profile";
   const email = user?.email || "";
 
   const fetchProfile = useCallback(async () => {
@@ -193,7 +115,6 @@ export function Settings() {
       const res = await api.getFinancialProfile();
       setProfile(res.financialProfile);
     } catch {
-      // Profile not found or not yet created
       setProfile(null);
     } finally {
       setLoading(false);
@@ -205,6 +126,10 @@ export function Settings() {
   }, [fetchProfile]);
 
   const openEdit = (section: EditSection) => {
+    if (editSection === section) {
+      setEditSection(null);
+      return;
+    }
     setFormData({
       dateOfBirth: profile?.dateOfBirth ? profile.dateOfBirth.split("T")[0] : "",
       annualIncome: profile?.annualIncome?.toString() ?? "",
@@ -261,8 +186,7 @@ export function Settings() {
   };
 
   // Display values
-  const age =
-    profile?.age != null ? String(profile.age) : "Not set";
+  const age = profile?.age != null ? String(profile.age) : "Not set";
   const grossIncome =
     profile?.annualIncome != null
       ? `${formatMoney(profile.annualIncome, true)}/yr`
@@ -270,438 +194,559 @@ export function Settings() {
   const filingStatus = formatFilingStatus(profile?.filingStatus ?? null);
   const state = profile?.stateOfResidence || "Not set";
   const riskTolerance = formatRiskTolerance(profile?.riskTolerance ?? null);
-  const riskColor = riskToleranceColor(profile?.riskTolerance ?? null);
   const employerMatch =
     profile?.employerMatchPercent != null
       ? `${profile.employerMatchPercent}%`
-      : null;
+      : "Not set";
   const retirementAge =
-    profile?.retirementAge != null ? String(profile.retirementAge) : null;
+    profile?.retirementAge != null ? String(profile.retirementAge) : "Not set";
+  const dependents = profile?.dependentCount != null ? String(profile.dependentCount) : "Not set";
+  const employmentType = profile?.employmentType || "Not set";
 
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--lf-paper)',
-    border: '1px solid var(--lf-rule)',
-    borderRadius: 14,
-    overflow: 'hidden',
-  };
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+  const canEdit = !isDemoMode;
 
-  const sectionLabelStyle: React.CSSProperties = {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 13,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase',
-    color: 'var(--lf-muted)',
-    marginBottom: 8,
-    paddingLeft: 4,
-  };
+  const personalRows: ArticleRowSpec[] = [
+    { label: "Date of birth", value: profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set", muted: !profile?.dateOfBirth },
+    { label: "Age", value: age, muted: age === "Not set" },
+    { label: "Filing status", value: filingStatus, muted: !profile?.filingStatus },
+    { label: "State of residence", value: state, muted: state === "Not set" },
+    { label: "Risk tolerance", value: riskTolerance, muted: !profile?.riskTolerance },
+    { label: "Dependents", value: dependents, muted: dependents === "Not set" },
+  ];
+
+  const incomeRows: ArticleRowSpec[] = [
+    { label: "Gross income", value: grossIncome, muted: grossIncome === "Not set" },
+    { label: "Employment type", value: formatEmployment(employmentType), muted: employmentType === "Not set" },
+    { label: "Employer match", value: employerMatch, muted: employerMatch === "Not set" },
+    { label: "Retirement age", value: retirementAge, muted: retirementAge === "Not set" },
+  ];
 
   return (
-    <div
-      style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)', padding: '24px 20px 48px' }}
-      className="scrollbar-thin"
-    >
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        style={{ maxWidth: 520, margin: '0 auto' }}
-      >
-        {/* Profile Header */}
-        <motion.div
-          variants={item}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 16, paddingBottom: 8, marginBottom: 24 }}
+    <Page width="narrow">
+      <PageHeader
+        eyebrow={email || "Account"}
+        title={firstName}
+      />
+
+      <div style={{ marginBottom: 40 }}>
+        <Lede>
+          Your profile, household, and financial preferences. Lasagna uses
+          these to personalize advice.
+        </Lede>
+      </div>
+
+      {/* ── Personal info ─────────────────────────────────────── */}
+      <Section title="Personal info" eyebrow="Who you are">
+        <EditorialArticle
+          icon={<User size={16} />}
+          summary={`${age === "Not set" ? "Age not set" : `Age ${age}`} · ${dependents === "Not set" ? "0 dependents" : `${dependents} dependent${dependents === "1" ? "" : "s"}`}${state !== "Not set" ? ` · ${state}` : ""}`}
+          rows={personalRows}
+          loading={loading}
+          editable={canEdit}
+          expanded={editSection === "personal"}
+          onEdit={() => openEdit("personal")}
         >
-          <div style={{
-            width: 64,
-            height: 64,
-            borderRadius: 16,
-            background: 'var(--lf-sauce)',
-            color: 'var(--lf-paper)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: "'Instrument Serif', Georgia, serif",
-            fontSize: 28,
-            marginBottom: 12,
-          }}>
-            {initial}
-          </div>
-          <h1 className="lf-h1" style={{ margin: 0 }}>
-            {displayName}
-          </h1>
-          <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 4, fontFamily: "'Geist', system-ui, sans-serif" }}>
-            {email}
-          </p>
-        </motion.div>
+          {editSection === "personal" && canEdit && (
+            <PersonalEditPanel
+              formData={formData}
+              setFormData={setFormData}
+              saving={saving}
+              onCancel={() => setEditSection(null)}
+              onSave={handleSave}
+            />
+          )}
+        </EditorialArticle>
+      </Section>
 
-        {/* Navigation Card */}
-        <motion.div variants={item} style={{ ...cardStyle, marginBottom: 24 }}>
-          <SettingsRow
-            icon="👤"
-            label="Personal Info"
-            first
-            onClick={import.meta.env.VITE_DEMO_MODE !== "true" ? () => openEdit("personal") : undefined}
-          />
-          <SettingsRow
-            icon="💼"
-            label="Income & Employment"
-            onClick={import.meta.env.VITE_DEMO_MODE !== "true" ? () => openEdit("income") : undefined}
-          />
-          <SettingsRow
-            icon="🏦"
-            label="Linked Accounts"
-            onClick={() => navigate("/accounts")}
-          />
-          <SettingsRow icon="🎯" label="Financial Goals" />
-        </motion.div>
+      {/* ── Income & employment ───────────────────────────────── */}
+      <Section title="Income & employment" eyebrow="What you earn">
+        <EditorialArticle
+          icon={<Briefcase size={16} />}
+          summary={`${grossIncome}${employerMatch !== "Not set" ? ` · ${employerMatch} match` : " · no match"}`}
+          rows={incomeRows}
+          loading={loading}
+          editable={canEdit}
+          expanded={editSection === "income"}
+          onEdit={() => openEdit("income")}
+        >
+          {editSection === "income" && canEdit && (
+            <IncomeEditPanel
+              formData={formData}
+              setFormData={setFormData}
+              saving={saving}
+              onCancel={() => setEditSection(null)}
+              onSave={handleSave}
+            />
+          )}
+        </EditorialArticle>
+      </Section>
 
-        {/* Edit Panel - Personal Info */}
-        {editSection === "personal" && import.meta.env.VITE_DEMO_MODE !== "true" && (
-          <motion.div
-            variants={item}
-            initial="hidden"
-            animate="show"
-            style={{ ...cardStyle, padding: 20, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}
-          >
-            <h2 style={{
-              fontFamily: "'Geist', system-ui, sans-serif",
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--lf-ink)',
-              margin: 0,
-            }}>
-              Personal Info
-            </h2>
+      {/* ── Linked accounts ───────────────────────────────────── */}
+      <Section title="Linked accounts" eyebrow="What's connected">
+        <NavLine
+          icon={<Building2 size={16} />}
+          label="Manage accounts"
+          sub="Banks, brokerages, and manual balances"
+          onClick={() => navigate("/accounts")}
+        />
+      </Section>
 
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>Date of Birth</span>
-              <input
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))
-                }
-                style={inputStyle}
-              />
-            </label>
+      {/* ── Financial goals ───────────────────────────────────── */}
+      <Section title="Financial goals" eyebrow="What you're working toward">
+        <NavLine
+          icon={<Target size={16} />}
+          label="Manage goals"
+          sub="Targets, milestones, progress"
+          onClick={() => navigate("/goals")}
+        />
+      </Section>
 
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>Filing Status</span>
-              <select
-                value={formData.filingStatus}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, filingStatus: e.target.value }))
-                }
-                style={inputStyle}
-              >
-                <option value="">Select...</option>
-                {FILING_STATUS_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>State of Residence (2-letter code)</span>
-              <input
-                type="text"
-                maxLength={2}
-                value={formData.stateOfResidence}
-                onChange={(e) =>
-                  setFormData((f) => ({
-                    ...f,
-                    stateOfResidence: e.target.value,
-                  }))
-                }
-                placeholder="CA"
-                style={inputStyle}
-              />
-            </label>
-
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>Risk Tolerance</span>
-              <select
-                value={formData.riskTolerance}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, riskTolerance: e.target.value }))
-                }
-                style={inputStyle}
-              >
-                <option value="">Select...</option>
-                {RISK_TOLERANCE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>Retirement Age</span>
-              <input
-                type="number"
-                min={30}
-                max={100}
-                value={formData.retirementAge}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, retirementAge: e.target.value }))
-                }
-                placeholder="65"
-                style={inputStyle}
-              />
-            </label>
-
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>Number of dependents</span>
-              <input
-                type="number"
-                min={0}
-                max={10}
-                value={formData.dependentCount}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, dependentCount: e.target.value }))
-                }
-                placeholder="0"
-                style={inputStyle}
-              />
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={formData.hasHDHP}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, hasHDHP: e.target.checked }))
-                }
-                style={{ width: 16, height: 16, accentColor: 'var(--lf-sauce)', cursor: 'pointer' }}
-              />
-              <span style={{ ...labelTextStyle, display: 'inline', marginBottom: 0 }}>
-                Enrolled in a high-deductible health plan (HDHP)
-              </span>
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={formData.isPSLFEligible}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, isPSLFEligible: e.target.checked }))
-                }
-                style={{ width: 16, height: 16, accentColor: 'var(--lf-sauce)', cursor: 'pointer' }}
-              />
-              <span style={{ ...labelTextStyle, display: 'inline', marginBottom: 0 }}>
-                Work in public service (PSLF eligible)
-              </span>
-            </label>
-
-            <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  flex: 1,
-                  padding: '10px 0',
-                  background: 'var(--lf-ink)',
-                  color: 'var(--lf-paper)',
-                  border: 0,
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  fontFamily: "'Geist', system-ui, sans-serif",
-                  opacity: saving ? 0.6 : 1,
-                }}
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditSection(null)}
-                style={{
-                  flex: 1,
-                  padding: '10px 0',
-                  background: 'transparent',
-                  color: 'var(--lf-ink-soft)',
-                  border: '1px solid var(--lf-rule)',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  fontFamily: "'Geist', system-ui, sans-serif",
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Edit Panel - Income & Employment */}
-        {editSection === "income" && import.meta.env.VITE_DEMO_MODE !== "true" && (
-          <motion.div
-            variants={item}
-            initial="hidden"
-            animate="show"
-            style={{ ...cardStyle, padding: 20, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 16 }}
-          >
-            <h2 style={{
-              fontFamily: "'Geist', system-ui, sans-serif",
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--lf-ink)',
-              margin: 0,
-            }}>
-              Income &amp; Employment
-            </h2>
-
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>Employment type</span>
-              <select
-                value={formData.employmentType}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, employmentType: e.target.value }))
-                }
-                style={inputStyle}
-              >
-                <option value="w2">W2 employee</option>
-                <option value="self_employed">Self-employed</option>
-                <option value="1099">1099 / contractor</option>
-                <option value="business_owner">Business owner</option>
-              </select>
-            </label>
-
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>Annual Gross Income ($)</span>
-              <input
-                type="number"
-                min={0}
-                step={1000}
-                value={formData.annualIncome}
-                onChange={(e) =>
-                  setFormData((f) => ({ ...f, annualIncome: e.target.value }))
-                }
-                placeholder="72000"
-                style={inputStyle}
-              />
-            </label>
-
-            <label style={{ display: 'block' }}>
-              <span style={labelTextStyle}>Employer Match (%)</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={0.5}
-                value={formData.employerMatchPercent}
-                onChange={(e) =>
-                  setFormData((f) => ({
-                    ...f,
-                    employerMatchPercent: e.target.value,
-                  }))
-                }
-                placeholder="4"
-                style={inputStyle}
-              />
-            </label>
-
-            <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  flex: 1,
-                  padding: '10px 0',
-                  background: 'var(--lf-ink)',
-                  color: 'var(--lf-paper)',
-                  border: 0,
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  fontFamily: "'Geist', system-ui, sans-serif",
-                  opacity: saving ? 0.6 : 1,
-                }}
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditSection(null)}
-                style={{
-                  flex: 1,
-                  padding: '10px 0',
-                  background: 'transparent',
-                  color: 'var(--lf-ink-soft)',
-                  border: '1px solid var(--lf-rule)',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  fontFamily: "'Geist', system-ui, sans-serif",
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Your Profile Stats */}
-        <motion.div variants={item} style={{ marginBottom: 24 }}>
-          <div style={sectionLabelStyle}>YOUR PROFILE</div>
-          <div style={cardStyle}>
-            {loading ? null : (
-              <>
-                <StatRow label="Age" value={age} first />
-                <StatRow label="Gross income" value={grossIncome} />
-                <StatRow label="Filing status" value={filingStatus} />
-                <StatRow label="State" value={state} />
-                <StatRow
-                  label="Risk tolerance"
-                  value={riskTolerance}
-                  valueColor={riskColor}
-                />
-                {employerMatch && (
-                  <StatRow label="Employer match" value={employerMatch} />
-                )}
-                {retirementAge && (
-                  <StatRow label="Retirement age" value={retirementAge} />
-                )}
-              </>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Settings Card */}
-        <motion.div variants={item} style={{ ...cardStyle, marginBottom: 24 }}>
-          <SettingsRow icon="🔔" label="Notifications" first />
-          <SettingsRow icon="🔒" label="Privacy & Security" />
-          <SettingsRow icon="❓" label="Help & Support" />
-          <SettingsRow
-            icon="🚪"
-            label="Sign Out"
-            danger
+      {/* ── Account ───────────────────────────────────────────── */}
+      <Section title="Account" eyebrow="Session">
+        <div style={{ display: 'flex', justifyContent: 'flex-start', paddingTop: 4 }}>
+          <Button
+            variant="ghost"
             onClick={() => logout()}
-          />
-        </motion.div>
+            icon={<LogOut size={14} />}
+            className="ds-settings-signout"
+          >
+            Sign out
+          </Button>
+        </div>
+      </Section>
 
-        {/* Footer */}
-        <motion.p
-          variants={item}
-          style={{
-            fontSize: 13,
-            color: 'var(--lf-muted)',
-            textAlign: 'center',
-            paddingTop: 8,
-            fontFamily: "'JetBrains Mono', monospace",
-            margin: 0,
-          }}
+      <p className="ds-caption" style={{
+        textAlign: 'center',
+        fontFamily: "'JetBrains Mono', monospace",
+        letterSpacing: '0.08em',
+        margin: '48px 0 0',
+        paddingTop: 24,
+        borderTop: '1px solid var(--lf-rule-soft)',
+      }}>
+        Lasagna v0.1.0 · Built in the open
+      </p>
+
+      <style>{`
+        .ds-article {
+          border-top: 1px solid var(--lf-ink);
+          padding: 0;
+        }
+        .ds-article__head {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 18px 0 14px;
+          border-bottom: 1px solid var(--lf-rule-soft);
+          width: 100%;
+          background: none;
+          border-left: 0; border-right: 0; border-top: 0;
+          cursor: pointer;
+          text-align: left;
+          font-family: 'Geist', system-ui, sans-serif;
+          color: inherit;
+        }
+        .ds-article__head:disabled { cursor: default; }
+        .ds-article__head-icon {
+          width: 28px; height: 28px;
+          display: grid; place-items: center;
+          color: var(--lf-ink-soft);
+          flex-shrink: 0;
+        }
+        .ds-article__head-body { flex: 1; min-width: 0; }
+        .ds-article__head-title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: 20px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.2;
+        }
+        .ds-article__head-sub {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          color: var(--lf-muted);
+          margin-top: 2px;
+        }
+        .ds-article__head-chev {
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          display: flex;
+          transition: color 0.15s;
+        }
+        .ds-article__head:not(:disabled):hover .ds-article__head-chev { color: var(--lf-sauce); }
+        .ds-article__row {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 16px;
+          padding: 12px 0;
+          border-bottom: 1px solid var(--lf-rule-soft);
+        }
+        .ds-article__row:last-child { border-bottom: 0; }
+        .ds-article__row-label {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--lf-muted);
+        }
+        .ds-article__row-value {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          color: var(--lf-ink);
+          font-weight: 500;
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+        }
+        .ds-article__row-value--muted { color: var(--lf-muted); font-weight: 400; }
+        .ds-article__edit {
+          padding: 20px 0 8px;
+          border-bottom: 1px solid var(--lf-rule-soft);
+          display: flex; flex-direction: column; gap: 16px;
+        }
+        .ds-article__skeleton {
+          height: 80px;
+          background: var(--lf-cream);
+          border-radius: 6px;
+        }
+        .ds-navline {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          width: 100%;
+          padding: 18px 0;
+          border: 0;
+          border-top: 1px solid var(--lf-ink);
+          background: none;
+          font-family: 'Geist', system-ui, sans-serif;
+          color: inherit;
+          cursor: pointer;
+          text-align: left;
+        }
+        .ds-navline-icon {
+          width: 28px; height: 28px;
+          display: grid; place-items: center;
+          color: var(--lf-ink-soft);
+          flex-shrink: 0;
+        }
+        .ds-navline-body { flex: 1; min-width: 0; }
+        .ds-navline-title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: 20px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.2;
+          transition: color 0.15s;
+        }
+        .ds-navline-sub {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          color: var(--lf-muted);
+          margin-top: 2px;
+        }
+        .ds-navline-chev {
+          color: var(--lf-muted);
+          display: flex;
+          transition: color 0.15s, transform 0.15s;
+        }
+        .ds-navline:hover .ds-navline-title { color: var(--lf-sauce); }
+        .ds-navline:hover .ds-navline-chev { color: var(--lf-sauce); transform: translateX(2px); }
+        .ds-settings-input {
+          width: 100%;
+          padding: 10px 12px;
+          background: var(--lf-paper);
+          border: 1px solid var(--lf-rule);
+          border-radius: 8px;
+          font-size: 14px;
+          color: var(--lf-ink);
+          font-family: 'Geist', system-ui, sans-serif;
+          outline: none;
+          box-sizing: border-box;
+        }
+        .ds-settings-input:focus { border-color: var(--lf-ink); }
+        .ds-settings-signout { color: var(--lf-sauce); }
+        .ds-settings-signout:hover { color: var(--lf-sauce-deep); border-color: rgba(201,84,58,0.4); }
+      `}</style>
+    </Page>
+  );
+}
+
+// ─── Editorial article ───────────────────────────────────────────────────────
+
+interface ArticleRowSpec {
+  label: string;
+  value: string;
+  muted?: boolean;
+}
+
+interface EditorialArticleProps {
+  icon: React.ReactNode;
+  summary: string;
+  rows: ArticleRowSpec[];
+  loading: boolean;
+  editable: boolean;
+  expanded: boolean;
+  onEdit: () => void;
+  children?: React.ReactNode;
+}
+
+function EditorialArticle({ icon, summary, rows, loading, editable, expanded, onEdit, children }: EditorialArticleProps) {
+  return (
+    <article className="ds-article">
+      <button
+        type="button"
+        className="ds-article__head"
+        onClick={editable ? onEdit : undefined}
+        disabled={!editable}
+        aria-expanded={expanded}
+      >
+        <span className="ds-article__head-icon">{icon}</span>
+        <span className="ds-article__head-body">
+          <span className="ds-article__head-sub">{summary}</span>
+        </span>
+        {editable && (
+          <span className="ds-article__head-chev">
+            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </span>
+        )}
+      </button>
+
+      {loading ? (
+        <div style={{ padding: '20px 0' }}>
+          <div className="ds-article__skeleton animate-pulse" />
+        </div>
+      ) : expanded && editable ? (
+        children
+      ) : (
+        <div>
+          {rows.map((r) => (
+            <div key={r.label} className="ds-article__row">
+              <span className="ds-article__row-label">{r.label}</span>
+              <span className={`ds-article__row-value${r.muted ? ' ds-article__row-value--muted' : ''}`}>
+                {r.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
+// ─── NavLine — single editorial row that navigates somewhere ─────────────────
+
+function NavLine({
+  icon, label, sub, onClick,
+}: { icon: React.ReactNode; label: string; sub?: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="ds-navline">
+      <span className="ds-navline-icon">{icon}</span>
+      <span className="ds-navline-body">
+        <span className="ds-navline-title">{label}</span>
+        {sub && <span className="ds-navline-sub">{sub}</span>}
+      </span>
+      <span className="ds-navline-chev"><ChevronRight size={16} /></span>
+    </button>
+  );
+}
+
+// ─── Edit panels ─────────────────────────────────────────────────────────────
+
+interface EditPanelProps {
+  formData: {
+    dateOfBirth: string;
+    annualIncome: string;
+    filingStatus: string;
+    stateOfResidence: string;
+    riskTolerance: string;
+    employerMatchPercent: string;
+    retirementAge: string;
+    employmentType: string;
+    dependentCount: string;
+    hasHDHP: boolean;
+    isPSLFEligible: boolean;
+  };
+  setFormData: React.Dispatch<React.SetStateAction<EditPanelProps['formData']>>;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <Eyebrow style={{ display: 'block', marginBottom: 6 }}>{children}</Eyebrow>;
+}
+
+function PersonalEditPanel({ formData, setFormData, saving, onCancel, onSave }: EditPanelProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      className="ds-article__edit"
+    >
+      <div>
+        <FieldLabel>Date of birth</FieldLabel>
+        <input
+          type="date"
+          value={formData.dateOfBirth}
+          onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
+          className="ds-settings-input"
+        />
+      </div>
+
+      <div>
+        <FieldLabel>Filing status</FieldLabel>
+        <select
+          value={formData.filingStatus}
+          onChange={(e) => setFormData((f) => ({ ...f, filingStatus: e.target.value }))}
+          className="ds-settings-input"
         >
-          Lasagna v0.1.0 · Built in the open
-        </motion.p>
-      </motion.div>
-    </div>
+          <option value="">Select…</option>
+          {FILING_STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <FieldLabel>State of residence (2-letter)</FieldLabel>
+        <input
+          type="text"
+          maxLength={2}
+          value={formData.stateOfResidence}
+          onChange={(e) => setFormData((f) => ({ ...f, stateOfResidence: e.target.value }))}
+          placeholder="CA"
+          className="ds-settings-input"
+        />
+      </div>
+
+      <div>
+        <FieldLabel>Risk tolerance</FieldLabel>
+        <select
+          value={formData.riskTolerance}
+          onChange={(e) => setFormData((f) => ({ ...f, riskTolerance: e.target.value }))}
+          className="ds-settings-input"
+        >
+          <option value="">Select…</option>
+          {RISK_TOLERANCE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <FieldLabel>Retirement age</FieldLabel>
+        <input
+          type="number"
+          min={30}
+          max={100}
+          value={formData.retirementAge}
+          onChange={(e) => setFormData((f) => ({ ...f, retirementAge: e.target.value }))}
+          placeholder="65"
+          className="ds-settings-input"
+        />
+      </div>
+
+      <div>
+        <FieldLabel>Number of dependents</FieldLabel>
+        <input
+          type="number"
+          min={0}
+          max={10}
+          value={formData.dependentCount}
+          onChange={(e) => setFormData((f) => ({ ...f, dependentCount: e.target.value }))}
+          placeholder="0"
+          className="ds-settings-input"
+        />
+      </div>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+        <input
+          type="checkbox"
+          checked={formData.hasHDHP}
+          onChange={(e) => setFormData((f) => ({ ...f, hasHDHP: e.target.checked }))}
+          style={{ width: 16, height: 16, accentColor: 'var(--lf-sauce)', cursor: 'pointer' }}
+        />
+        <span style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
+          Enrolled in a high-deductible health plan (HDHP)
+        </span>
+      </label>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+        <input
+          type="checkbox"
+          checked={formData.isPSLFEligible}
+          onChange={(e) => setFormData((f) => ({ ...f, isPSLFEligible: e.target.checked }))}
+          style={{ width: 16, height: 16, accentColor: 'var(--lf-sauce)', cursor: 'pointer' }}
+        />
+        <span style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
+          Work in public service (PSLF eligible)
+        </span>
+      </label>
+
+      <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
+        <Button variant="ink" onClick={onSave} disabled={saving}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </motion.div>
+  );
+}
+
+function IncomeEditPanel({ formData, setFormData, saving, onCancel, onSave }: EditPanelProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      className="ds-article__edit"
+    >
+      <div>
+        <FieldLabel>Employment type</FieldLabel>
+        <select
+          value={formData.employmentType}
+          onChange={(e) => setFormData((f) => ({ ...f, employmentType: e.target.value }))}
+          className="ds-settings-input"
+        >
+          <option value="w2">W2 employee</option>
+          <option value="self_employed">Self-employed</option>
+          <option value="1099">1099 / contractor</option>
+          <option value="business_owner">Business owner</option>
+        </select>
+      </div>
+
+      <div>
+        <FieldLabel>Annual gross income ($)</FieldLabel>
+        <input
+          type="number"
+          min={0}
+          step={1000}
+          value={formData.annualIncome}
+          onChange={(e) => setFormData((f) => ({ ...f, annualIncome: e.target.value }))}
+          placeholder="72000"
+          className="ds-settings-input"
+        />
+      </div>
+
+      <div>
+        <FieldLabel>Employer match (%)</FieldLabel>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          step={0.5}
+          value={formData.employerMatchPercent}
+          onChange={(e) => setFormData((f) => ({ ...f, employerMatchPercent: e.target.value }))}
+          placeholder="4"
+          className="ds-settings-input"
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
+        <Button variant="ink" onClick={onSave} disabled={saving}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </motion.div>
   );
 }

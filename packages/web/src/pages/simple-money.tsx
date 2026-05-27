@@ -7,6 +7,20 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import {
+  Page,
+  PageHeader,
+  Section,
+  Card,
+  Button,
+  Pill,
+  DataTable,
+  EmptyState,
+  CompositionRibbon,
+  StatStrip,
+  Lede,
+} from '../components/ds';
+import type { DataTableColumn } from '../components/ds/DataTable';
 
 type Range = '1M' | '6M' | '1Y' | 'All';
 
@@ -38,15 +52,18 @@ interface Insight {
 const fmtUsd = (n: number, frac = 0) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
 
+const formatDateLong = (d: Date) =>
+  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+
 const categoryIcon: Record<string, React.ReactNode> = {
-  income: <DollarSign size={16} />, groceries: <ShoppingCart size={16} />,
-  food_dining: <UtensilsCrossed size={16} />, housing: <Home size={16} />,
-  transportation: <Car size={16} />, entertainment: <Clapperboard size={16} />,
-  shopping: <ShoppingBag size={16} />, utilities: <Lightbulb size={16} />,
-  healthcare: <HeartPulse size={16} />, insurance: <Shield size={16} />,
-  travel: <Plane size={16} />, subscriptions: <Tv size={16} />,
-  debt_payment: <CreditCard size={16} />, savings_investment: <TrendingUp size={16} />,
-  taxes: <Receipt size={16} />, transfer: <ArrowLeftRight size={16} />,
+  income: <DollarSign size={14} />, groceries: <ShoppingCart size={14} />,
+  food_dining: <UtensilsCrossed size={14} />, housing: <Home size={14} />,
+  transportation: <Car size={14} />, entertainment: <Clapperboard size={14} />,
+  shopping: <ShoppingBag size={14} />, utilities: <Lightbulb size={14} />,
+  healthcare: <HeartPulse size={14} />, insurance: <Shield size={14} />,
+  travel: <Plane size={14} />, subscriptions: <Tv size={14} />,
+  debt_payment: <CreditCard size={14} />, savings_investment: <TrendingUp size={14} />,
+  taxes: <Receipt size={14} />, transfer: <ArrowLeftRight size={14} />,
 };
 
 export function SimpleMoney() {
@@ -63,13 +80,13 @@ export function SimpleMoney() {
     Promise.all([
       api.getItems().catch(() => ({ items: [] as Item[] })),
       api.getNetWorthHistory().catch(() => ({ history: [] as NetWorthPoint[] })),
-      api.getTransactions({ limit: 5 }).catch(() => ({ transactions: [] as Transaction[] })),
+      api.getTransactions({ limit: 8 }).catch(() => ({ transactions: [] as Transaction[] })),
       api.getInsights().catch(() => ({ insights: [] as Insight[] })),
     ]).then(([itemsData, historyData, txData, insightsData]) => {
       setItems(itemsData.items);
       setHistory(historyData.history || []);
       setTransactions(txData.transactions);
-      setInsights((insightsData.insights || []).filter((i: any) => !i.dismissedAt).slice(0, 3));
+      setInsights((insightsData.insights || []).filter((i: any) => !i.dismissedAt).slice(0, 5));
     }).finally(() => setLoading(false));
   }, []);
 
@@ -113,161 +130,257 @@ export function SimpleMoney() {
   const netWorth = cashTotal + investTotal - debtTotal;
 
   const monthChange = computeDelta(history, 30);
-  const yearChange = computeDelta(history, 365);
   const chartPoints = useMemo(() => filterByRange(history, range), [history, range]);
-
-  // ── Prebaked + real insights per section ──
-  const cashInsight = cashTotal > 50000
-    ? `You have ${fmtUsd(cashTotal)} in cash — that's ${Math.round(cashTotal / (netWorth || 1) * 100)}% of your net worth.`
-    : cashTotal > 1000
-      ? 'Your cash reserves are building. Keep growing your emergency fund.'
-      : null;
-  const investInsight = investTotal > 0
-    ? `${fmtUsd(investTotal)} invested — that's your money compounding over time.`
-    : null;
-  const debtInsight = debtTotal > 0
-    ? `${fmtUsd(debtTotal)} in total debt. ${debtAccounts.some((a) => a.type === 'credit') ? 'Focus on high-interest credit cards first.' : 'Low-interest debt — no rush.'}`
-    : null;
 
   // Real AI insights filtered to portfolio/debt/cash categories
   const moneyInsights = insights.filter((i) =>
     ['portfolio', 'cash', 'debt', 'savings', 'investment'].some((k) => (i.category + (i.type || '')).toLowerCase().includes(k))
   );
 
-  return (
-    <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto' }}>
-      <h1 className="lf-h1 mb-6">Money</h1>
-
-      {/* ── Net worth hero + action buttons ── */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="lf-eyebrow">Net worth</div>
-          <div className="mt-2 font-serif text-4xl md:text-5xl font-medium leading-[1.05] tabular-nums">
-            {loading ? '…' : fmtUsd(netWorth)}
-          </div>
-          <div className="text-sm mt-2 tabular-nums">
-            {monthChange !== null && (
-              <span className={monthChange >= 0 ? 'text-success' : 'text-accent'}>
-                {monthChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthChange))} this month
-              </span>
-            )}
-            {monthChange !== null && yearChange !== null && <span className="text-text-muted"> · </span>}
-            {yearChange !== null && (
-              <span className={yearChange >= 0 ? 'text-success' : 'text-accent'}>
-                {yearChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(yearChange))} this year
-              </span>
-            )}
-            {monthChange === null && yearChange === null && <span className="text-text-muted">No history yet</span>}
-          </div>
+  // Transactions for DataTable
+  const txColumns: DataTableColumn<Transaction>[] = [
+    {
+      key: 'merchant',
+      header: 'Merchant',
+      cell: (t) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span style={{
+            width: 28, height: 28, borderRadius: 999,
+            background: parseFloat(t.amount) < 0 ? 'rgba(90,107,63,0.12)' : 'var(--lf-cream)',
+            display: 'grid', placeItems: 'center', flexShrink: 0,
+            color: parseFloat(t.amount) < 0 ? 'var(--lf-basil)' : 'var(--lf-muted)',
+          }}>
+            {categoryIcon[t.category] || <Banknote size={14} />}
+          </span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {t.merchantName || t.name}
+          </span>
         </div>
-        {!loading && items.length > 0 && (
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleSyncAll}
-              disabled={syncingAll}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-rule hover:bg-bg-elevated transition-colors disabled:opacity-50"
-            >
-              <RefreshCw size={12} className={syncingAll ? 'animate-spin' : ''} />
-              {syncingAll ? 'Syncing…' : 'Sync all'}
-            </button>
-            <Link
-              href="/accounts"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-text text-white hover:bg-text/90 transition-colors"
-            >
-              <Plus size={12} />
-              Add account
-            </Link>
-          </div>
-        )}
-      </div>
+      ),
+    },
+    { key: 'category', header: 'Category', muted: true, cell: (t) => humanCategory(t.category) },
+    { key: 'date', header: 'Date', muted: true, cell: (t) => formatDate(t.date) },
+    {
+      key: 'amount',
+      header: 'Amount',
+      num: true,
+      cell: (t) => {
+        const amt = parseFloat(t.amount);
+        const isIncome = amt < 0;
+        return (
+          <span className={isIncome ? 'ds-pos ds-num' : 'ds-num'}>
+            {isIncome ? '+' : '−'}{fmtUsd(Math.abs(amt), 2)}
+          </span>
+        );
+      },
+    },
+  ];
 
-      {/* Sync error banner */}
-      {syncError && (
-        <div className="rounded-xl bg-accent/5 border border-accent/20 px-4 py-3 mb-4 flex items-center justify-between" role="alert">
-          <span className="text-sm text-accent">{syncError}</span>
-          <button onClick={() => setSyncError(null)} className="text-xs text-text-muted hover:text-text ml-3">Dismiss</button>
+  const totalAccountCount = cashAccounts.length + investAccounts.length + debtAccounts.length;
+
+  return (
+    <Page>
+      <PageHeader
+        eyebrow={formatDateLong(new Date())}
+        title="Money"
+        actions={
+          !loading && items.length > 0 ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSyncAll}
+                disabled={syncingAll}
+                icon={<RefreshCw size={12} className={syncingAll ? 'animate-spin' : ''} />}
+              >
+                {syncingAll ? 'Syncing…' : 'Sync all'}
+              </Button>
+              <Link href="/accounts">
+                <Button variant="ink" size="sm" icon={<Plus size={12} />}>Add account</Button>
+              </Link>
+            </>
+          ) : null
+        }
+      />
+
+      {/* Editorial lede — addresses the user directly with inline tabular money */}
+      {!loading && totalAccountCount > 0 && (
+        <div style={{ marginBottom: 40 }}>
+          <Lede>
+            You have <Lede.Num>{fmtUsd(cashTotal)}</Lede.Num> in cash,{' '}
+            <Lede.Num>{fmtUsd(investTotal)}</Lede.Num> invested
+            {debtTotal > 0 && (
+              <>
+                {' '}and <Lede.Num tone="neg">−{fmtUsd(debtTotal)}</Lede.Num> in debt
+              </>
+            )}
+            {' — for a net worth of '}
+            <Lede.Num highlight>{fmtUsd(netWorth)}</Lede.Num>
+            {monthChange !== null && (
+              <>
+                {' ('}
+                <Lede.Num tone={monthChange >= 0 ? 'pos' : 'neg'}>
+                  {monthChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthChange))}
+                </Lede.Num>
+                {' this month)'}
+              </>
+            )}.
+          </Lede>
         </div>
       )}
 
-      {/* ── Chart — full width, borderless ── */}
+      {/* Composition ribbon — single proportional bar */}
+      {!loading && (cashTotal > 0 || investTotal > 0 || debtTotal > 0) && (
+        <Section>
+          <CompositionRibbon
+            leadLabel="Net worth"
+            leadValue={fmtUsd(netWorth)}
+            leadDelta={
+              totalAccountCount > 0
+                ? `${totalAccountCount} account${totalAccountCount === 1 ? '' : 's'}`
+                : undefined
+            }
+            segments={[
+              ...(cashTotal > 0 ? [{ label: 'Cash', value: cashTotal, color: 'var(--lf-basil)' }] : []),
+              ...(investTotal > 0 ? [{ label: 'Investments', value: investTotal, color: 'var(--lf-cheese)' }] : []),
+              ...(debtTotal > 0 ? [{ label: 'Debt', value: debtTotal, color: 'var(--lf-sauce)', negative: true }] : []),
+            ]}
+          />
+        </Section>
+      )}
+
+      {/* Stat strip — secondary KPIs as a typographic ribbon */}
+      {!loading && totalAccountCount > 0 && (
+        <StatStrip
+          className="ds-money-stats"
+          items={[
+            {
+              label: 'Cash',
+              value: fmtUsd(cashTotal),
+              sub: `${cashAccounts.length} account${cashAccounts.length === 1 ? '' : 's'}`,
+            },
+            {
+              label: 'Investments',
+              value: fmtUsd(investTotal),
+              sub: `${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`,
+            },
+            {
+              label: 'Debt',
+              value: fmtUsd(debtTotal),
+              sub: `${debtAccounts.length} account${debtAccounts.length === 1 ? '' : 's'}`,
+              tone: debtTotal > 0 ? 'neg' : 'default',
+            },
+            ...(monthChange !== null
+              ? [{
+                  label: '30-day change',
+                  value: `${monthChange >= 0 ? '+' : '−'}${fmtUsd(Math.abs(monthChange))}`,
+                  sub: monthChange >= 0 ? 'gaining' : 'losing',
+                  tone: monthChange >= 0 ? 'pos' : 'neg',
+                } as const]
+              : []),
+          ]}
+        />
+      )}
+
+      {/* Sync error banner */}
+      {syncError && (
+        <Section>
+          <Card variant="ghost">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span className="ds-body ds-neg">{syncError}</span>
+              <Button variant="link" size="sm" onClick={() => setSyncError(null)}>Dismiss</Button>
+            </div>
+          </Card>
+        </Section>
+      )}
+
+      {/* ── Chart ── */}
       {chartPoints.length >= 2 && (
-        <section className="mb-8 pb-5 border-b border-rule/60">
-          <NetWorthChart points={chartPoints} range={range} />
-          <div className="flex justify-center mt-4">
-            <div role="radiogroup" aria-label="Time range" className="inline-flex bg-bg-elevated/60 rounded-full p-1 text-xs border border-rule/60">
+        <Section
+          title="Net worth over time"
+          actions={
+            <div role="radiogroup" aria-label="Time range" style={{ display: 'inline-flex', gap: 6 }}>
               {(['1M', '6M', '1Y', 'All'] as Range[]).map((r) => (
                 <button
                   key={r}
                   onClick={() => setRange(r)}
                   role="radio"
                   aria-checked={range === r}
-                  className={`relative px-3.5 py-1.5 rounded-full transition-colors tabular-nums ${range === r ? 'bg-bg text-text font-medium shadow-sm ring-1 ring-[color:var(--lf-rule)]' : 'text-text-muted hover:text-text'}`}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                 >
-                  <span aria-hidden="true" className="absolute inset-x-0 -inset-y-2" />
-                  {r}
+                  <Pill tone={range === r ? 'ink' : 'ghost'}>{r}</Pill>
                 </button>
               ))}
             </div>
-          </div>
-        </section>
+          }
+        >
+          <Card>
+            <NetWorthChart points={chartPoints} range={range} />
+          </Card>
+        </Section>
       )}
 
-      {/* ── Chart placeholder — visible when not enough history yet ── */}
+      {/* ── Chart placeholder ── */}
       {!loading && chartPoints.length < 2 && allAccounts.length > 0 && (
-        <section className="mb-8 pb-5 border-b border-rule/60">
-          <div className="h-[230px] rounded-xl border border-dashed border-rule/70 bg-bg-elevated/40 grid place-items-center text-center px-6">
-            <div>
-              <TrendingUp size={20} className="text-text-muted mx-auto mb-2" />
-              <div className="text-sm font-medium text-text">Building your trend</div>
-              <div className="text-xs text-text-muted mt-1">Your net-worth chart will appear once we have a few days of history.</div>
+        <Section title="Net worth over time">
+          <Card variant="ghost">
+            <div style={{ display: 'grid', placeItems: 'center', padding: '36px 12px', textAlign: 'center' }}>
+              <TrendingUp size={20} className="text-text-muted" style={{ marginBottom: 8 }} />
+              <div className="ds-h3">Building your trend</div>
+              <p className="ds-caption" style={{ marginTop: 6 }}>Your net-worth chart appears once we have a few days of history.</p>
             </div>
-          </div>
-        </section>
+          </Card>
+        </Section>
       )}
 
       {/* ── Loading skeleton ── */}
       {loading && (
-        <div className="animate-pulse space-y-6 mb-8">
-          {[1, 2].map((n) => (
-            <div key={n}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-5 w-24 bg-rule/40 rounded" />
-                <div className="h-5 w-20 bg-rule/40 rounded" />
-              </div>
-              <div className="rounded-2xl bg-bg-elevated border border-rule overflow-hidden">
+        <Section>
+          <div className="animate-pulse" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {[1, 2].map((n) => (
+              <Card key={n} flush>
                 {[1, 2].map((r) => (
-                  <div key={r} className={`flex items-center gap-3 px-4 py-3 ${r > 1 ? 'border-t border-rule/40' : ''}`}>
-                    <div className="w-8 h-8 rounded-lg bg-rule/40" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-4 w-32 bg-rule/40 rounded" />
-                      <div className="h-3 w-24 bg-rule/40 rounded" />
+                  <div key={r} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '14px 20px',
+                    borderTop: r > 1 ? '1px solid var(--lf-rule-soft)' : 'none',
+                  }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--lf-rule)' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ height: 14, width: 140, background: 'var(--lf-rule)', borderRadius: 4, marginBottom: 6 }} />
+                      <div style={{ height: 11, width: 100, background: 'var(--lf-rule-soft)', borderRadius: 4 }} />
                     </div>
-                    <div className="h-4 w-16 bg-rule/40 rounded" />
+                    <div style={{ height: 14, width: 64, background: 'var(--lf-rule)', borderRadius: 4 }} />
                   </div>
                 ))}
-              </div>
-            </div>
-          ))}
-        </div>
+              </Card>
+            ))}
+          </div>
+        </Section>
       )}
 
       {/* ── Empty state ── */}
       {!loading && allAccounts.length === 0 && (
-        <div className="rounded-2xl bg-bg-elevated border border-rule p-8 text-center mb-8">
-          <Wallet size={32} className="text-text-muted mx-auto mb-3" />
-          <div className="text-sm font-medium text-text mb-1">No accounts connected</div>
-          <div className="text-xs text-text-muted mb-4">Link a bank or brokerage to see your money here.</div>
-          <Link href="/accounts" className="text-sm font-medium text-accent underline">Connect an account</Link>
-        </div>
+        <Section>
+          <EmptyState
+            icon={<Wallet size={28} />}
+            title="No accounts connected"
+            body="Link a bank or brokerage to see your money here."
+            cta={
+              <Link href="/accounts">
+                <Button variant="ink">Connect an account</Button>
+              </Link>
+            }
+          />
+        </Section>
       )}
 
       {/* ── Cash section ── */}
       {cashAccounts.length > 0 && (
         <AccountSection
           title="Cash"
-          icon={<Wallet size={18} className="text-success" />}
+          eyebrow={`${cashAccounts.length} account${cashAccounts.length === 1 ? '' : 's'}`}
           total={cashTotal}
-          insight={cashInsight}
           items={items}
           filterType="depository"
           syncing={syncing}
@@ -279,9 +392,8 @@ export function SimpleMoney() {
       {investAccounts.length > 0 && (
         <AccountSection
           title="Investments"
-          icon={<TrendingUp size={18} className="text-cheese" />}
+          eyebrow={`${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`}
           total={investTotal}
-          insight={investInsight}
           items={items}
           filterType="investment"
           syncing={syncing}
@@ -293,9 +405,9 @@ export function SimpleMoney() {
       {debtAccounts.length > 0 && (
         <AccountSection
           title="Debt"
-          icon={<CreditCard size={18} className="text-accent" />}
+          eyebrow={`${debtAccounts.length} account${debtAccounts.length === 1 ? '' : 's'}`}
           total={debtTotal}
-          insight={debtInsight}
+          totalTone="neg"
           items={items}
           filterType={['credit', 'loan']}
           syncing={syncing}
@@ -303,82 +415,168 @@ export function SimpleMoney() {
         />
       )}
 
-      {/* ── AI Insights ── */}
+      {/* ── Actions — editorial feed (not cards) ── */}
       {moneyInsights.length > 0 && (
-        <section className="mt-8 mb-6">
-          <h3 className="lf-h3 mb-3">Actions</h3>
-          <div className="space-y-3">
+        <Section
+          title="Actions"
+          eyebrow={`${moneyInsights.length} item${moneyInsights.length === 1 ? '' : 's'}`}
+          actions={<Link href="/insights" className="ds-btn ds-btn--link">All actions →</Link>}
+        >
+          <ul className="ds-money-feed">
             {moneyInsights.map((ins) => (
-              <Link key={ins.id} href={`/insights?id=${ins.id}`} className="block rounded-2xl bg-bg-elevated border border-rule p-4 hover:border-accent/30 transition">
-                <div className="flex items-start gap-3">
-                  <Lightbulb size={16} className="text-cheese mt-0.5 shrink-0" />
-                  <div>
-                    <div className="text-sm font-medium">{ins.title}</div>
-                    <div className="text-xs text-text-muted mt-1 line-clamp-2">{ins.description}</div>
+              <li key={ins.id}>
+                <Link href={`/insights?id=${ins.id}`} className="ds-money-feed__link">
+                  <div className="ds-money-feed__bullet">
+                    <Lightbulb size={14} className="text-cheese" />
                   </div>
-                </div>
-              </Link>
+                  <div className="ds-money-feed__body">
+                    <div className="ds-money-feed__title">{ins.title}</div>
+                    {ins.description && (
+                      <p className="ds-money-feed__desc">{ins.description}</p>
+                    )}
+                  </div>
+                </Link>
+              </li>
             ))}
-          </div>
-        </section>
+          </ul>
+        </Section>
       )}
 
       {/* ── Recent activity ── */}
       {transactions.length > 0 && (
-        <section className="mt-8">
-          <div className="flex items-baseline justify-between mb-3">
-            <h3 className="lf-h3">Recent activity</h3>
-            <Link href="/spending" className="text-xs text-text-muted underline">All spending →</Link>
-          </div>
-          {transactions.map((t, i) => {
-            const amt = parseFloat(t.amount);
-            const isIncome = amt < 0;
-            return (
-              <div key={t.id} className={`flex items-center gap-3 py-3 ${i < transactions.length - 1 ? 'border-b border-rule/60' : ''}`}>
-                <div className={`w-8 h-8 rounded-full ${isIncome ? 'bg-success/10' : 'bg-bg-elevated'} grid place-items-center text-sm`}>
-                  {categoryIcon[t.category] || <Banknote size={16} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{t.merchantName || t.name}</div>
-                  <div className="text-xs text-text-muted">{formatDate(t.date)} · {humanCategory(t.category)}</div>
-                </div>
-                <div className={`text-sm font-medium tabular-nums ${isIncome ? 'text-success' : ''}`}>
-                  {isIncome ? '+' : '−'}{fmtUsd(Math.abs(amt), 2)}
-                </div>
-              </div>
-            );
-          })}
-        </section>
+        <Section
+          title="Recent activity"
+          actions={<Link href="/spending" className="ds-btn ds-btn--link">All spending →</Link>}
+        >
+          <Card flush>
+            <DataTable
+              columns={txColumns}
+              rows={transactions}
+              rowKey={(t) => t.id}
+            />
+          </Card>
+        </Section>
       )}
-    </div>
+
+      <style>{`
+        .ds-money-stats { margin: 32px 0 56px; }
+
+        .ds-money-account-row {
+          display: flex; align-items: center; gap: 12px;
+          padding: 14px 20px;
+        }
+        .ds-money-account-row + .ds-money-account-row {
+          border-top: 1px solid var(--lf-rule-soft);
+        }
+        .ds-money-account-row__badge {
+          width: 32px; height: 32px; border-radius: 8px;
+          display: grid; place-items: center;
+          color: var(--lf-paper); font-weight: 600; font-size: 13px;
+          flex-shrink: 0;
+        }
+        .ds-money-account-row__main { flex: 1; min-width: 0; }
+        .ds-money-account-row__name {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px; font-weight: 500;
+          color: var(--lf-ink);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .ds-money-account-row__meta {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px; letter-spacing: 0.05em;
+          color: var(--lf-muted);
+          margin-top: 2px;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .ds-money-account-row__balance {
+          font-size: 14px; font-weight: 500;
+          color: var(--lf-ink);
+          flex-shrink: 0;
+        }
+        .ds-money-account-row__sync {
+          width: 36px; height: 36px;
+          display: grid; place-items: center;
+          border-radius: 8px;
+          background: none; border: none;
+          color: var(--lf-muted); cursor: pointer;
+          flex-shrink: 0;
+          transition: background 0.12s, color 0.12s;
+        }
+        .ds-money-account-row__sync:hover { background: var(--lf-cream); color: var(--lf-ink); }
+        .ds-money-account-row__sync:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Editorial action feed — same family as ds-home-feed on Home */
+        .ds-money-feed { list-style: none; margin: 0; padding: 0; }
+        .ds-money-feed li {
+          padding: 18px 0;
+          border-top: 1px solid var(--lf-rule);
+        }
+        .ds-money-feed li:first-child { border-top: 0; padding-top: 0; }
+        .ds-money-feed li:last-child { padding-bottom: 0; }
+        .ds-money-feed__link {
+          display: flex;
+          gap: 14px;
+          text-decoration: none;
+          color: inherit;
+        }
+        .ds-money-feed__link:hover .ds-money-feed__title { color: var(--lf-sauce); }
+        .ds-money-feed__bullet {
+          width: 28px; height: 28px;
+          border-radius: 4px;
+          background: var(--lf-cream);
+          display: grid; place-items: center;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+        .ds-money-feed__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: 17px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.3;
+          transition: color 0.15s;
+        }
+        .ds-money-feed__desc {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--lf-muted);
+          margin: 6px 0 0;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      `}</style>
+    </Page>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Account section — groups accounts by institution with sync controls
+// Account section — groups accounts by institution with sync controls.
+// Header uses Section primitive (serif h2 + eyebrow), total surfaces in the
+// Section actions slot as tabular ink — no inline serif/dark hero.
 // ─────────────────────────────────────────────────────────────────────────
 
 function AccountSection({
-  title, icon, total, insight, items, filterType, syncing, onSync,
+  title, eyebrow, total, totalTone, items, filterType, syncing, onSync,
 }: {
   title: string;
-  icon: React.ReactNode;
+  eyebrow: string;
   total: number;
-  insight: string | null;
+  totalTone?: 'neg' | 'default';
   items: Item[];
   filterType: string | string[];
   syncing: string | null;
   onSync: (itemId: string) => void;
 }) {
   const types = Array.isArray(filterType) ? filterType : [filterType];
-  // Flat list of accounts matching this type, with their parent item attached
   const accounts = items.flatMap((item) =>
     item.accounts
       .filter((a) => types.includes(a.type))
       .map((a) => ({ ...a, item }))
   );
 
-  // Find items with sync errors that have accounts in this section
   const errorItems = items.filter(
     (item) =>
       (item.status === 'error' || item.status === 'item_login_required') &&
@@ -386,70 +584,57 @@ function AccountSection({
   );
 
   return (
-    <section className="mb-8">
-      {/* Section header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          {icon}
-          <h3 className="lf-h3">{title}</h3>
-        </div>
-        <span className="text-base font-medium tabular-nums">{fmtUsd(total)}</span>
-      </div>
-
-      {/* Insight card */}
-      {insight && (
-        <div className="rounded-xl bg-bg-elevated border border-rule/60 px-4 py-3 mb-3 text-sm text-text-secondary">
-          {insight}
-        </div>
-      )}
-
+    <Section
+      title={title}
+      eyebrow={eyebrow}
+      actions={
+        <span className={`ds-num ${totalTone === 'neg' ? 'ds-neg' : ''}`} style={{ fontSize: 18, fontWeight: 500 }}>
+          {totalTone === 'neg' ? '−' : ''}{fmtUsd(total)}
+        </span>
+      }
+    >
       {/* Sync error banners */}
       {errorItems.map((item) => (
-        <div key={item.id} className="rounded-xl bg-accent/5 border border-accent/20 px-4 py-3 mb-3 flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium text-accent">
-              {item.institutionName || 'Institution'} needs attention
+        <Card key={item.id} variant="ghost" tight style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div className="ds-body" style={{ color: 'var(--lf-sauce-deep)', fontWeight: 600 }}>
+                {item.institutionName || 'Institution'} needs attention
+              </div>
+              <p className="ds-caption" style={{ marginTop: 2 }}>
+                {item.status === 'item_login_required' ? 'Login expired — reconnect to resume syncing' : 'Sync error — try reconnecting'}
+              </p>
             </div>
-            <div className="text-xs text-text-muted mt-0.5">
-              {item.status === 'item_login_required' ? 'Login expired — reconnect to resume syncing' : 'Sync error — try reconnecting'}
-            </div>
+            <Link href="/accounts" className="ds-btn ds-btn--link">Reconnect →</Link>
           </div>
-          <Link
-            href="/accounts"
-            className="text-xs font-medium text-accent underline whitespace-nowrap"
-          >
-            Reconnect →
-          </Link>
-        </div>
+        </Card>
       ))}
 
-      {/* Account rows — grouped by type, each row shows institution + sync */}
-      <div className="rounded-2xl bg-bg-elevated border border-rule shadow-sm overflow-hidden">
-        {accounts.map((acct, i) => {
+      <Card flush>
+        {accounts.map((acct) => {
           const bal = parseFloat(acct.balance ?? '0');
           return (
-            <div key={acct.id} className={`flex items-center gap-3 px-4 py-3.5 ${i > 0 ? 'border-t border-rule/40' : ''}`}>
-              {/* Institution badge */}
+            <div key={acct.id} className="ds-money-account-row">
               <div
-                className="w-8 h-8 rounded-lg grid place-items-center text-sm font-medium shrink-0 text-white"
+                className="ds-money-account-row__badge"
                 style={{ background: institutionColor(acct.item.institutionName || '') }}
               >
                 {(acct.item.institutionName || '?')[0].toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{titleCase(acct.name)}</div>
-                <div className="text-[11px] text-text-muted font-mono truncate">
+              <div className="ds-money-account-row__main">
+                <div className="ds-money-account-row__name">{titleCase(acct.name)}</div>
+                <div className="ds-money-account-row__meta">
                   {acct.item.institutionName || 'Manual'}
                   {acct.subtype && <span> · {titleCase(acct.subtype)}</span>}
                   {acct.mask && <span> · ··{acct.mask}</span>}
                   {acct.item.lastSyncedAt && <span> · {relativeTime(acct.item.lastSyncedAt)}</span>}
                 </div>
               </div>
-              <span className="text-sm font-medium tabular-nums shrink-0">{fmtUsd(Math.abs(bal))}</span>
+              <span className="ds-money-account-row__balance ds-num">{fmtUsd(Math.abs(bal))}</span>
               <button
                 onClick={() => onSync(acct.item.id)}
                 disabled={syncing === acct.item.id}
-                className="w-11 h-11 grid place-items-center rounded-lg hover:bg-bg transition-colors text-text-muted hover:text-text disabled:opacity-50 shrink-0 -mr-2"
+                className="ds-money-account-row__sync"
                 title={`Sync ${acct.item.institutionName || ''}`}
                 aria-label={`Sync ${acct.item.institutionName || 'account'}`}
               >
@@ -458,8 +643,8 @@ function AccountSection({
             </div>
           );
         })}
-      </div>
-    </section>
+      </Card>
+    </Section>
   );
 }
 
@@ -524,11 +709,55 @@ function humanCategory(c: string) {
 
 // ── Interactive net-worth chart ──────────────────────────────────────────
 
-const CHART_H = 200;
-const CHART_M = { top: 18, right: 16, bottom: 34, left: 56 };
+const CHART_H = 300;
+const CHART_M = { top: 24, right: 16, bottom: 40, left: 64 };
 // Single source of truth for the chart accent — matches `text-success` /
 // `--color-success` (#4C7A3E) so palette changes propagate automatically.
 const CHART_COLOR = 'rgb(var(--color-success))';
+
+/**
+ * Build a smooth monotone-cubic Hermite spline path through (x, y) points.
+ * Fritsch–Carlson tangents prevent the curve from overshooting the data —
+ * monthly balances will look like a sweep, not a connect-the-dots zigzag.
+ */
+function smoothLinePath(pts: Array<[number, number]>): string {
+  const n = pts.length;
+  if (n < 2) return '';
+  if (n === 2) return `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)} L ${pts[1][0].toFixed(2)} ${pts[1][1].toFixed(2)}`;
+
+  const d: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    d[i] = (pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0]);
+  }
+  const m: number[] = new Array(n);
+  m[0] = d[0];
+  m[n - 1] = d[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    if (d[i - 1] === 0 || d[i] === 0 || Math.sign(d[i - 1]) !== Math.sign(d[i])) {
+      m[i] = 0;
+    } else {
+      m[i] = (d[i - 1] + d[i]) / 2;
+      const a = m[i] / d[i - 1];
+      const b = m[i] / d[i];
+      const s = a * a + b * b;
+      if (s > 9) {
+        const t = 3 / Math.sqrt(s);
+        m[i] = t * a * d[i - 1];
+      }
+    }
+  }
+
+  let out = `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const dx = (pts[i + 1][0] - pts[i][0]) / 3;
+    const c1x = pts[i][0] + dx;
+    const c1y = pts[i][1] + m[i] * dx;
+    const c2x = pts[i + 1][0] - dx;
+    const c2y = pts[i + 1][1] - m[i + 1] * dx;
+    out += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${pts[i + 1][0].toFixed(2)} ${pts[i + 1][1].toFixed(2)}`;
+  }
+  return out;
+}
 
 function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Range }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -536,7 +765,6 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [chartW, setChartW] = useState(600);
 
-  // Measure container so viewBox matches pixel width — text renders at 1:1
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
@@ -562,8 +790,16 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
   const CHART_W = chartW;
   const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
 
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yAt(p.value).toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L ${xAt(points.length - 1).toFixed(1)} ${(CHART_M.top + innerH).toFixed(1)} L ${xAt(0).toFixed(1)} ${(CHART_M.top + innerH).toFixed(1)} Z`;
+  const xy = useMemo<Array<[number, number]>>(
+    () => points.map((p, i) => [xAt(i), yAt(p.value)]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [points, chartW, yMin, yMax],
+  );
+  const linePath = useMemo(() => smoothLinePath(xy), [xy]);
+  const baseY = (CHART_M.top + innerH).toFixed(2);
+  const areaPath = linePath
+    ? `${linePath} L ${xAt(points.length - 1).toFixed(2)} ${baseY} L ${xAt(0).toFixed(2)} ${baseY} Z`
+    : '';
 
   function pointerToIdx(clientX: number): number | null {
     const svg = svgRef.current;
@@ -603,91 +839,67 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
         onPointerCancel={() => setHoverIdx(null)}
       >
         <defs>
-          {/* Vertical multi-stop area fill — richer at the top, fades to nothing at the baseline */}
           <linearGradient id="nw-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor="currentColor" stopOpacity="0.36" />
-            <stop offset="55%"  stopColor="currentColor" stopOpacity="0.18" />
+            <stop offset="0%"   stopColor="currentColor" stopOpacity="0.55" />
+            <stop offset="40%"  stopColor="currentColor" stopOpacity="0.22" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
-          {/* Horizontal gradient along the line — muted at the past, vivid at "now" */}
           <linearGradient id="nw-line" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%"   stopColor="currentColor" stopOpacity="0.45" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="1" />
           </linearGradient>
-          {/* Horizontal fade for the start-of-range anchor line — solid near "then", invisible by "now" */}
-          <linearGradient id="nw-anchor" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"   stopColor="currentColor" stopOpacity="0.55" />
-            <stop offset="70%"  stopColor="currentColor" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
         </defs>
         {yTicks.map((t) => (
           <g key={t}>
-            <line x1={CHART_M.left} y1={yAt(t)} x2={CHART_W - CHART_M.right} y2={yAt(t)} className="stroke-rule/70" strokeWidth={1} strokeDasharray="2 4" />
-            <text x={CHART_M.left - 10} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-text-muted" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
+            <line x1={CHART_M.left} y1={yAt(t)} x2={CHART_W - CHART_M.right} y2={yAt(t)} className="stroke-rule/70" strokeWidth={1} strokeDasharray="2 5" />
+            <text x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-text-muted" style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
           </g>
         ))}
-        {/* Starting-value anchor: a horizontal gradient line at points[0].value — fades out toward "now",
-            so the eye reads "this is where you started" and the line above it = growth since then. */}
-        {points.length >= 2 && (
-          <line
-            x1={xAt(0)}
-            x2={CHART_W - CHART_M.right}
-            y1={yAt(points[0].value)}
-            y2={yAt(points[0].value)}
-            stroke="url(#nw-anchor)"
-            strokeWidth={1.25}
-            strokeDasharray="3 4"
-          />
-        )}
         <path d={areaPath} fill="url(#nw-area)" />
         <path
           d={linePath}
           fill="none"
           stroke="url(#nw-line)"
-          strokeWidth={2.5}
+          strokeWidth={2.75}
           strokeLinecap="round"
           strokeLinejoin="round"
-          style={{ filter: 'drop-shadow(0 1px 1.5px rgb(31 26 22 / 0.10))' }}
+          style={{ filter: 'drop-shadow(0 2px 3px rgb(31 26 22 / 0.12))' }}
         />
-        {/* Hollow ring at the start of the range — the "from" pin to the latest "to" dot */}
-        {points.length >= 2 && (
-          <circle
-            cx={xAt(0)}
-            cy={yAt(points[0].value)}
-            r={3.5}
-            fill="rgb(var(--color-bg))"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            opacity={0.7}
-          />
-        )}
         {!hover && points.length > 0 && (
-          <circle
-            cx={xAt(points.length - 1)}
-            cy={yAt(points[points.length - 1].value)}
-            r={4.5}
-            fill="currentColor"
-            stroke="rgb(var(--color-bg))"
-            strokeWidth={2}
-          />
+          <>
+            <circle
+              cx={xAt(points.length - 1)}
+              cy={yAt(points[points.length - 1].value)}
+              r={11}
+              fill="currentColor"
+              fillOpacity={0.12}
+            />
+            <circle
+              cx={xAt(points.length - 1)}
+              cy={yAt(points[points.length - 1].value)}
+              r={5.5}
+              fill="currentColor"
+              stroke="rgb(var(--color-bg))"
+              strokeWidth={2.5}
+            />
+          </>
         )}
         {hover && hoverIdx !== null && (
           <g>
-            <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} className="stroke-text-muted/70" strokeWidth={1} strokeDasharray="2 3" />
-            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={10} fill="currentColor" fillOpacity={0.18} />
+            <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} className="stroke-text-muted/60" strokeWidth={1} strokeDasharray="2 4" />
+            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={14} fill="currentColor" fillOpacity={0.18} />
             <circle
               cx={xAt(hoverIdx)}
               cy={yAt(hover.value)}
-              r={4}
+              r={5.5}
               fill="currentColor"
               stroke="rgb(var(--color-bg))"
-              strokeWidth={2}
+              strokeWidth={2.5}
             />
           </g>
         )}
         {xLabels.map(({ idx, label }) => (
-          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 10} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 12} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
         ))}
       </svg>
     </div>
@@ -732,3 +944,4 @@ function pickXLabels(points: NetWorthPoint[], range: Range): Array<{ idx: number
   }
   return out;
 }
+

@@ -6,6 +6,17 @@ import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
 import { formatRelativeTime } from '../lib/utils';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
+import {
+  Page,
+  PageHeader,
+  Section,
+  Button,
+  Pill,
+  Eyebrow,
+  EmptyState,
+  StatStrip,
+  Lede,
+} from '../components/ds';
 
 // ---------------------------------------------------------------------------
 // Urgency → display group mapping
@@ -20,24 +31,31 @@ const URGENCY_GROUP: Record<string, UrgencyGroup> = {
   low: 'watch',
 };
 
+const URGENCY_RANK: Record<string, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
+
 const GROUP_META: Record<
   UrgencyGroup,
-  { label: string; hint: string; color: string }
+  { label: string; hint: string; pillTone: 'sauce' | 'cheese' | 'basil' }
 > = {
   do_now: {
-    label: 'High priority',
+    label: 'Do now',
     hint: 'Critical or high-impact actions — address these first',
-    color: 'var(--lf-sauce)',
+    pillTone: 'sauce',
   },
   this_week: {
-    label: 'Important',
+    label: 'This week',
     hint: 'Meaningful improvements worth acting on soon',
-    color: 'var(--lf-cheese)',
+    pillTone: 'cheese',
   },
   watch: {
     label: 'Watch',
     hint: 'Keep an eye on these — no urgent action needed yet',
-    color: 'var(--lf-basil)',
+    pillTone: 'basil',
   },
 };
 
@@ -55,38 +73,16 @@ const FILTER_PILLS: { label: string; value: FilterValue }[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Area chip color
+// Area chip → ds-Pill tone
 // ---------------------------------------------------------------------------
 
-function areaChipStyle(type: string | null): React.CSSProperties {
+function areaPillTone(type: string | null): 'sauce' | 'cheese' | 'basil' | 'cream' | 'ghost' {
   const t = (type ?? '').toLowerCase();
-  let bg = 'var(--lf-muted)';
-  let color = 'var(--lf-paper)';
-
-  if (t === 'spending' || t === 'behavioral') {
-    bg = 'var(--lf-sauce)';
-  } else if (t === 'debt') {
-    bg = 'var(--lf-cheese)';
-    color = 'var(--lf-ink)';
-  } else if (t === 'tax' || t === 'portfolio') {
-    bg = 'var(--lf-basil)';
-  } else if (t === 'savings' || t === 'retirement') {
-    bg = 'var(--lf-noodle)';
-    color = 'var(--lf-ink)';
-  }
-
-  return {
-    display: 'inline-block',
-    background: bg,
-    color,
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 13,
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase' as const,
-    padding: '2px 8px',
-    borderRadius: 4,
-    lineHeight: '18px',
-  };
+  if (t === 'spending' || t === 'behavioral') return 'sauce';
+  if (t === 'debt') return 'cheese';
+  if (t === 'tax' || t === 'portfolio') return 'basil';
+  if (t === 'savings' || t === 'retirement') return 'cream';
+  return 'ghost';
 }
 
 // Page links per area type
@@ -102,10 +98,10 @@ const PAGE_LINKS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Expandable action card
+// Action row — editorial hairline-separated, expands inline
 // ---------------------------------------------------------------------------
 
-interface ActionCardProps {
+interface ActionRowProps {
   title: string;
   type: string | null;
   description: string;
@@ -116,7 +112,7 @@ interface ActionCardProps {
   defaultOpen?: boolean;
 }
 
-function ActionCard({
+function ActionRow({
   title,
   type,
   description,
@@ -125,68 +121,27 @@ function ActionCard({
   onOpenArea,
   areaLabel,
   defaultOpen = false,
-}: ActionCardProps) {
+}: ActionRowProps) {
   const [open, setOpen] = useState(defaultOpen);
   const { openChat } = useChatStore();
 
   return (
-    <div
-      style={{
-        background: 'var(--lf-paper)',
-        border: '1px solid var(--lf-rule)',
-        borderRadius: 14,
-        overflow: 'hidden',
-        marginBottom: 8,
-      }}
-    >
-      {/* Collapsed header — always visible */}
+    <li className="ins-row">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          width: '100%',
-          padding: '14px 16px',
-          textAlign: 'left',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-        }}
+        className="ins-row__btn"
+        aria-expanded={open}
       >
-        {/* Area chip */}
-        <span style={areaChipStyle(type)}>{areaLabel}</span>
-
-        {/* Title */}
-        <span
-          style={{
-            flex: 1,
-            fontFamily: "'Instrument Serif', Georgia, serif",
-            fontSize: 16,
-            letterSpacing: '0.04em',
-            color: 'var(--lf-ink)',
-            lineHeight: 1.3,
-          }}
-        >
-          {title}
-        </span>
-
-        {/* DATA-NEEDED: impact dollar amount not available on insight object */}
-
-        {/* Chevron */}
+        <Pill tone={areaPillTone(type)}>{areaLabel}</Pill>
+        <span className="ins-row__title">{title}</span>
         <ChevronDown
           size={16}
-          style={{
-            color: 'var(--lf-muted)',
-            flexShrink: 0,
-            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease',
-          }}
+          className="ins-row__chev"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
         />
       </button>
 
-      {/* Expanded body */}
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
@@ -197,194 +152,61 @@ function ActionCard({
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             style={{ overflow: 'hidden' }}
           >
-            <div
-              style={{
-                padding: '0 16px 16px',
-                borderTop: '1px solid var(--lf-rule)',
-              }}
-            >
-              {/* Rationale */}
-              <p
-                style={{
-                  fontSize: 14,
-                  color: 'var(--lf-muted)',
-                  lineHeight: 1.6,
-                  margin: '14px 0 12px',
-                }}
-              >
+            <div className="ins-row__body">
+              <p className="ds-body" style={{ margin: '0 0 14px', maxWidth: '62ch' }}>
                 {description}
               </p>
 
-              {/* "Do this next" box */}
-              <div
-                style={{
-                  background: 'var(--lf-cream)',
-                  border: '1px solid var(--lf-rule)',
-                  borderRadius: 10,
-                  padding: '12px 14px',
-                  marginBottom: 14,
-                }}
-              >
-                <p
-                  style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 13,
-                    letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
-                    color: 'var(--lf-muted)',
-                    marginBottom: 6,
-                  }}
-                >
-                  Do this next
-                </p>
-                {/* DATA-NEEDED: specific step text not on insight; using title as placeholder */}
-                <p
-                  style={{
-                    fontSize: 14,
-                    color: 'var(--lf-ink)',
-                    lineHeight: 1.5,
-                    margin: 0,
-                  }}
-                >
+              <div className="ins-row__callout">
+                <Eyebrow style={{ marginBottom: 6 }}>Do this next</Eyebrow>
+                <p className="ds-body" style={{ color: 'var(--lf-ink)', margin: 0 }}>
                   {title}
                 </p>
               </div>
 
-              {/* Action buttons */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
+              <div className="ins-row__actions">
+                <Button
+                  variant="ink"
+                  size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     openChat(
                       `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\n\n${chatPrompt}`
                     );
                   }}
-                  style={{
-                    padding: '8px 14px',
-                    background: 'var(--lf-ink)',
-                    color: 'var(--lf-paper)',
-                    border: 'none',
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    lineHeight: 1,
-                  }}
                 >
                   Walk me through this →
-                </button>
+                </Button>
 
                 {onOpenArea && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenArea();
                     }}
-                    style={{
-                      padding: '8px 14px',
-                      background: 'none',
-                      color: 'var(--lf-ink)',
-                      border: '1px solid var(--lf-rule)',
-                      borderRadius: 8,
-                      fontSize: 13,
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      lineHeight: 1,
-                    }}
                   >
                     Open in {areaLabel}
-                  </button>
+                  </Button>
                 )}
 
-                <button
-                  type="button"
+                <Button
+                  variant="link"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDismiss();
                   }}
-                  style={{
-                    marginLeft: 'auto',
-                    padding: '8px 14px',
-                    background: 'none',
-                    color: 'var(--lf-muted)',
-                    border: '1px solid var(--lf-rule)',
-                    borderRadius: 8,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    lineHeight: 1,
-                  }}
+                  style={{ marginLeft: 'auto' }}
                 >
                   Dismiss
-                </button>
+                </Button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Urgency section header
-// ---------------------------------------------------------------------------
-
-function UrgencyHeader({
-  group,
-  count,
-}: {
-  group: UrgencyGroup;
-  count: number;
-}) {
-  const meta = GROUP_META[group];
-  return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
-      {/* Colored dot */}
-      <span
-        style={{
-          display: 'inline-block',
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: meta.color,
-          flexShrink: 0,
-          position: 'relative',
-          top: -1,
-        }}
-      />
-      <span
-        style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 13,
-          letterSpacing: '0.14em',
-          textTransform: 'uppercase',
-          color: 'var(--lf-ink)',
-          fontWeight: 600,
-        }}
-      >
-        {meta.label}
-      </span>
-      <span
-        style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 13,
-          color: 'var(--lf-muted)',
-        }}
-      >
-        {count}
-      </span>
-      <span
-        style={{
-          fontSize: 13,
-          color: 'var(--lf-muted)',
-          marginLeft: 2,
-        }}
-      >
-        {meta.hint}
-      </span>
-    </div>
+    </li>
   );
 }
 
@@ -400,11 +222,8 @@ export function Insights() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const { openChat } = useChatStore();
 
-  // Fetch all insights unfiltered — we handle grouping locally
   const { insights, lastActionsGeneratedAt, isLoading, dismiss, refresh } = useInsights();
 
-  // Refresh is gated to once every 3 hours. New users (no prior generation)
-  // can refresh immediately.
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
   const msSinceLastGen = lastActionsGeneratedAt
     ? Date.now() - lastActionsGeneratedAt.getTime()
@@ -429,11 +248,9 @@ export function Insights() {
     await dismiss(id);
   };
 
-  // Separate active vs dismissed
   const activeInsights = insights.filter((i) => !dismissed.has(i.id));
   const completedInsights = insights.filter((i) => dismissed.has(i.id));
 
-  // Group active insights by urgency group
   const grouped = GROUP_ORDER.reduce<
     Record<UrgencyGroup, typeof activeInsights>
   >(
@@ -451,7 +268,11 @@ export function Insights() {
   const watchCount = grouped.watch.length;
   const totalCount = activeInsights.length;
 
-  // Determine which groups/items to show based on active filter
+  // Top action for the lede
+  const topAction = [...activeInsights].sort(
+    (a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0),
+  )[0];
+
   const visibleGroups: UrgencyGroup[] =
     activeFilter === null
       ? GROUP_ORDER
@@ -463,284 +284,121 @@ export function Insights() {
     activeFilter === null || activeFilter === 'completed';
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)' }} className="scrollbar-thin">
-    <style>{`
-      @media (max-width: 480px) {
-        .insights-hero-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 16px !important; }
-        .insights-hero-grid > div { border-left: none !important; padding: 8px !important; }
-      }
-    `}</style>
-    <div
-      style={{
-        maxWidth: 1100,
-        margin: '0 auto',
-        padding: 'clamp(16px, 4vw, 40px)',
-        paddingBottom: 'clamp(80px, 12vw, 48px)',
-      }}
-    >
-      {/* ------------------------------------------------------------------ */}
-      {/* Page header                                                          */}
-      {/* ------------------------------------------------------------------ */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 className="lf-h1">Actions</h1>
-          {!isLoading && (
-            <p className="lf-eyebrow" style={{ margin: '6px 0 0' }}>
-              {doNowCount} urgent · {thisWeekCount} this week
-            </p>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => openChat('Can you explain my top financial actions and why they matter?')}
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--lf-paper)',
-            background: 'var(--lf-sauce)',
-            border: 'none',
-            borderRadius: 10,
-            padding: '10px 18px',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Walk me through this →
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow={!isLoading ? `${doNowCount} urgent · ${thisWeekCount} this week` : 'Loading'}
+        title="Actions"
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => openChat('Can you explain my top financial actions and why they matter?')}
+          >
+            Walk me through this →
+          </Button>
+        }
+      />
 
       <LegalDisclaimer variant="insights" />
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Dark hero card — summary grid                                        */}
-      {/* ------------------------------------------------------------------ */}
       {!isLoading && totalCount > 0 && (
-        <div
-          className="insights-hero-grid"
-          style={{
-            background: 'var(--lf-ink)',
-            color: 'var(--lf-paper)',
-            borderRadius: 14,
-            padding: '24px',
-            marginBottom: 24,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 0,
-          }}
-        >
-          {/* Total */}
-          <div style={{ textAlign: 'center', padding: '0 12px' }}>
-            <p
-              style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: 52,
-                fontWeight: 400,
-                lineHeight: 1,
-                margin: '0 0 4px',
-                color: 'var(--lf-paper)',
-              }}
-            >
-              {totalCount}
-            </p>
-            <p
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.45)',
-                margin: 0,
-              }}
-            >
-              Total
-            </p>
-          </div>
-
-          {/* Do now */}
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '0 12px',
-              borderLeft: '1px solid rgba(255,255,255,0.1)',
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: 52,
-                fontWeight: 400,
-                lineHeight: 1,
-                margin: '0 0 4px',
-                color: 'var(--lf-sauce)',
-              }}
-            >
-              {doNowCount}
-            </p>
-            <p
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.45)',
-                margin: 0,
-              }}
-            >
-              Do now
-            </p>
-          </div>
-
-          {/* This week */}
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '0 12px',
-              borderLeft: '1px solid rgba(255,255,255,0.1)',
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: 52,
-                fontWeight: 400,
-                lineHeight: 1,
-                margin: '0 0 4px',
-                color: 'var(--lf-cheese)',
-              }}
-            >
-              {thisWeekCount}
-            </p>
-            <p
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.45)',
-                margin: 0,
-              }}
-            >
-              This week
-            </p>
-          </div>
-
-          {/* Watch */}
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '0 12px',
-              borderLeft: '1px solid rgba(255,255,255,0.1)',
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: 52,
-                fontWeight: 400,
-                lineHeight: 1,
-                margin: '0 0 4px',
-                color: 'var(--lf-basil)',
-              }}
-            >
-              {watchCount}
-            </p>
-            <p
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.45)',
-                margin: 0,
-              }}
-            >
-              Watch
-            </p>
-          </div>
+        <div style={{ marginBottom: 32 }}>
+          <Lede>
+            <Lede.Num>{totalCount}</Lede.Num> action{totalCount === 1 ? '' : 's'} for you today.
+            {doNowCount > 0 && (
+              <>
+                {' '}
+                <Lede.Num tone="neg">{doNowCount}</Lede.Num>{' '}
+                {doNowCount === 1 ? 'is' : 'are'} time-sensitive
+                {topAction && (
+                  <>
+                    {' — start with '}
+                    <Lede.Num highlight>{topAction.title}</Lede.Num>
+                  </>
+                )}
+              </>
+            )}
+            .
+          </Lede>
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Filter pills                                                         */}
-      {/* ------------------------------------------------------------------ */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          overflowX: 'auto',
-          paddingBottom: 2,
-          marginBottom: 24,
-          scrollbarWidth: 'none',
-        }}
-      >
-        {FILTER_PILLS.map((pill) => {
-          const active = activeFilter === pill.value;
-          return (
-            <button
-              key={pill.label}
-              type="button"
-              onClick={() => setActiveFilter(pill.value)}
-              style={{
-                flexShrink: 0,
-                padding: '6px 14px',
-                borderRadius: 100,
-                border: active
-                  ? '1px solid var(--lf-ink)'
-                  : '1px solid var(--lf-rule)',
-                background: active ? 'var(--lf-ink)' : 'var(--lf-paper)',
-                color: active ? 'var(--lf-paper)' : 'var(--lf-muted)',
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {pill.label}
-            </button>
-          );
-        })}
+      {!isLoading && totalCount > 0 && (
+        <StatStrip
+          className="ins-stats"
+          items={[
+            {
+              label: 'Total',
+              value: <span className="ds-num">{totalCount}</span>,
+              sub: 'active actions',
+            },
+            {
+              label: 'Do now',
+              value: <span className="ds-num">{doNowCount}</span>,
+              sub: 'high priority',
+              tone: 'neg',
+            },
+            {
+              label: 'This week',
+              value: <span className="ds-num">{thisWeekCount}</span>,
+              sub: <span style={{ color: 'var(--lf-cheese)' }}>important</span>,
+            },
+            {
+              label: 'Watch',
+              value: <span className="ds-num">{watchCount}</span>,
+              sub: 'keep an eye on',
+              tone: 'pos',
+            },
+          ]}
+        />
+      )}
 
-        {/* Spacer + Last updated + Refresh button */}
-        <div style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-          {lastActionsGeneratedAt && (
-            <span style={{ fontSize: 12, color: 'var(--lf-muted)', whiteSpace: 'nowrap' }}>
-              Updated {formatRelativeTime(lastActionsGeneratedAt)}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing || !refreshReady}
-            title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              border: '1px solid var(--lf-rule)',
-              borderRadius: 100,
-              background: 'none',
-              color: 'var(--lf-muted)',
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 13,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              cursor: refreshing || !refreshReady ? 'not-allowed' : 'pointer',
-              opacity: refreshing || !refreshReady ? 0.5 : 1,
-            }}
-          >
-            <RefreshCw
-              size={12}
-              style={{
-                animation: refreshing ? 'spin 1s linear infinite' : undefined,
-              }}
-            />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
-        </div>
-      </div>
+      {/* Filter pills + refresh meta */}
+      {!isLoading && insights.length > 0 && (
+        <Section
+          actions={
+            <div className="ins-meta">
+              {lastActionsGeneratedAt && (
+                <span className="ds-caption" style={{ whiteSpace: 'nowrap' }}>
+                  Updated {formatRelativeTime(lastActionsGeneratedAt)}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={refreshing || !refreshReady}
+                title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
+                icon={
+                  <RefreshCw
+                    size={12}
+                    style={{
+                      animation: refreshing ? 'spin 1s linear infinite' : undefined,
+                    }}
+                  />
+                }
+              >
+                {refreshing ? 'Refreshing…' : 'Refresh'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="ins-filter-pills">
+            {FILTER_PILLS.map((pill) => {
+              const active = activeFilter === pill.value;
+              return (
+                <Button
+                  key={pill.label}
+                  variant={active ? 'ink' : 'ghost'}
+                  size="sm"
+                  onClick={() => setActiveFilter(pill.value)}
+                >
+                  {pill.label}
+                </Button>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       {refreshError && (
         <div
@@ -760,203 +418,189 @@ export function Insights() {
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Loading state                                                        */}
-      {/* ------------------------------------------------------------------ */}
-      {isLoading && null}
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Empty / generate state                                               */}
-      {/* ------------------------------------------------------------------ */}
+      {/* Empty / generate state */}
       {!isLoading && insights.length === 0 && (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '64px 24px',
-          }}
-        >
-          <Zap
-            size={32}
-            style={{ color: 'var(--lf-muted)', margin: '0 auto 16px' }}
-          />
-          <p
-            style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: 22,
-              color: 'var(--lf-ink)',
-              marginBottom: 8,
-            }}
-          >
-            No actions yet.
-          </p>
-          <p
-            style={{
-              fontSize: 14,
-              color: 'var(--lf-muted)',
-              marginBottom: 20,
-            }}
-          >
-            Generate personalized actions based on your financial data.
-          </p>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing || !refreshReady}
-            title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
-            style={{
-              padding: '10px 20px',
-              background: 'var(--lf-ink)',
-              color: 'var(--lf-paper)',
-              border: 'none',
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: refreshing || !refreshReady ? 'not-allowed' : 'pointer',
-              opacity: refreshing || !refreshReady ? 0.6 : 1,
-            }}
-          >
-            {refreshing ? 'Generating…' : 'Generate actions'}
-          </button>
-        </div>
+        <EmptyState
+          icon={<Zap size={32} />}
+          title="No actions yet"
+          body="Generate personalized actions based on your financial data."
+          cta={
+            <Button
+              variant="ink"
+              onClick={handleRefresh}
+              disabled={refreshing || !refreshReady}
+              title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
+            >
+              {refreshing ? 'Generating…' : 'Generate actions'}
+            </Button>
+          }
+        />
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Grouped action list                                                  */}
-      {/* ------------------------------------------------------------------ */}
+      {/* Grouped action lists — each section renders rows as editorial articles */}
       {!isLoading &&
         visibleGroups.map((group) => {
           const items = grouped[group];
           if (!items.length) return null;
+          const meta = GROUP_META[group];
           return (
-            <motion.section
+            <motion.div
               key={group}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35 }}
-              style={{ marginBottom: 32 }}
             >
-              <UrgencyHeader group={group} count={items.length} />
-              {items.map((insight, idx) => {
-                const insightType = insight.type ?? insight.category ?? 'general';
-                const contextLink = PAGE_LINKS[insightType];
-                const areaLabel = insightType.charAt(0).toUpperCase() + insightType.slice(1);
+              <Section
+                title={meta.label}
+                eyebrow={`${items.length} ${items.length === 1 ? 'action' : 'actions'} · ${meta.hint}`}
+              >
+                <ul className="ins-list">
+                  {items.map((insight, idx) => {
+                    const insightType = insight.type ?? insight.category ?? 'general';
+                    const contextLink = PAGE_LINKS[insightType];
+                    const areaLabel = insightType.charAt(0).toUpperCase() + insightType.slice(1);
 
-                return (
-                  <ActionCard
-                    key={insight.id}
-                    title={insight.title}
-                    type={insight.type}
-                    description={insight.description}
-                    chatPrompt={insight.chatPrompt ?? insight.title}
-                    areaLabel={areaLabel}
-                    defaultOpen={idx === 0 && group === 'do_now'}
-                    onDismiss={() => handleDismiss(insight.id)}
-                    onOpenArea={
-                      contextLink ? () => navigate(contextLink) : undefined
-                    }
-                  />
-                );
-              })}
-            </motion.section>
+                    return (
+                      <ActionRow
+                        key={insight.id}
+                        title={insight.title}
+                        type={insight.type}
+                        description={insight.description}
+                        chatPrompt={insight.chatPrompt ?? insight.title}
+                        areaLabel={areaLabel}
+                        defaultOpen={idx === 0 && group === 'do_now'}
+                        onDismiss={() => handleDismiss(insight.id)}
+                        onOpenArea={
+                          contextLink ? () => navigate(contextLink) : undefined
+                        }
+                      />
+                    );
+                  })}
+                </ul>
+              </Section>
+            </motion.div>
           );
         })}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Completed / dismissed group                                          */}
-      {/* ------------------------------------------------------------------ */}
+      {/* Completed / dismissed */}
       {!isLoading && showCompleted && completedInsights.length > 0 && (
-        <motion.section
+        <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
-          style={{ marginBottom: 32 }}
         >
-          {/* Completed header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 10,
-              marginBottom: 12,
-            }}
+          <Section
+            title="Completed"
+            eyebrow={`${completedInsights.length} dismissed`}
           >
-            <span
-              style={{
-                display: 'inline-block',
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: 'var(--lf-muted)',
-                flexShrink: 0,
-                position: 'relative',
-                top: -1,
-              }}
-            />
-            <span
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'var(--lf-muted)',
-                fontWeight: 600,
-              }}
-            >
-              Completed
-            </span>
-            <span
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 13,
-                color: 'var(--lf-muted)',
-              }}
-            >
-              {completedInsights.length}
-            </span>
-          </div>
+            <ul className="ins-list ins-list--dim">
+              {completedInsights.map((insight) => {
+                const insightType = insight.type ?? insight.category ?? 'general';
+                const areaLabel =
+                  insightType.charAt(0).toUpperCase() + insightType.slice(1);
 
-          {completedInsights.map((insight) => {
-            const insightType = insight.type ?? insight.category ?? 'general';
-            const areaLabel =
-              insightType.charAt(0).toUpperCase() + insightType.slice(1);
-
-            return (
-              <div
-                key={insight.id}
-                style={{
-                  background: 'var(--lf-cream)',
-                  border: '1px solid var(--lf-rule)',
-                  borderRadius: 14,
-                  padding: '12px 16px',
-                  marginBottom: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  opacity: 0.6,
-                }}
-              >
-                <span style={areaChipStyle(insight.type)}>{areaLabel}</span>
-                <span
-                  style={{
-                    flex: 1,
-                    fontSize: 14,
-                    color: 'var(--lf-muted)',
-                    textDecoration: 'line-through',
-                  }}
-                >
-                  {insight.title}
-                </span>
-              </div>
-            );
-          })}
-        </motion.section>
+                return (
+                  <li key={insight.id} className="ins-row ins-row--done">
+                    <div className="ins-row__btn" style={{ cursor: 'default' }}>
+                      <Pill tone={areaPillTone(insight.type)}>{areaLabel}</Pill>
+                      <span
+                        className="ins-row__title"
+                        style={{
+                          color: 'var(--lf-muted)',
+                          textDecoration: 'line-through',
+                        }}
+                      >
+                        {insight.title}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Section>
+        </motion.div>
       )}
 
-      {/* Spin keyframe for refresh icon */}
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .ins-stats { margin: 0 0 40px; }
+
+        .ins-filter-pills {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .ins-meta {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+
+        .ins-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+        .ins-list--dim { opacity: 0.7; }
+
+        .ins-row {
+          border-top: 1px solid var(--lf-rule);
+        }
+        .ins-row:first-child { border-top: 1px solid var(--lf-ink); }
+        .ins-row:last-child { border-bottom: 1px solid var(--lf-rule); }
+
+        .ins-row__btn {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          width: 100%;
+          background: none;
+          border: 0;
+          padding: 16px 0;
+          text-align: left;
+          cursor: pointer;
+          color: inherit;
+        }
+        .ins-row__btn:hover .ins-row__title { color: var(--lf-sauce); }
+        .ins-row__title {
+          flex: 1;
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: 19px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.25;
+          letter-spacing: -0.005em;
+          transition: color 0.15s;
+        }
+        .ins-row__chev {
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          transition: transform 0.2s ease;
+        }
+
+        .ins-row__body {
+          padding: 4px 0 20px 0;
+        }
+        .ins-row__callout {
+          background: var(--lf-cream);
+          border: 1px solid var(--lf-rule);
+          border-radius: 10px;
+          padding: 12px 14px;
+          margin-bottom: 14px;
+          max-width: 62ch;
+        }
+        .ins-row__actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        @media (max-width: 640px) {
+          .ins-row__title { font-size: 17px; }
+        }
       `}</style>
-    </div>
-    </div>
+    </Page>
   );
 }

@@ -1,10 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Wallet, TrendingUp, CreditCard, Target, Lightbulb, Sunrise } from 'lucide-react';
+import { Lightbulb, Calendar, MessageSquare } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
+import {
+  Page,
+  PageHeader,
+  Section,
+  Card,
+  Button,
+  Pill,
+  Eyebrow,
+  CompositionRibbon,
+  StatStrip,
+  Lede,
+} from '../components/ds';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Goal {
   id: string;
@@ -33,15 +46,6 @@ interface BillCard {
   accountId: string | null;
 }
 
-// Layer color ramp — red → green across 12 levels of the financial journey.
-// Mirrors the palette used by /financial-level so the two views feel like
-// the same thing at different depths.
-const LAYER_COLORS = [
-  '#B83B3B', '#C25030', '#C46425', '#B87A1E', '#8B7A22', '#5E7A28',
-  '#3D7A35', '#2D7040', '#25664A', '#1E5C50', '#185248', '#134840',
-];
-const layerColor = (order: number) => LAYER_COLORS[order - 1] ?? '#7A5C3F';
-
 interface LevelStep {
   id: string;
   order: number;
@@ -56,241 +60,6 @@ interface LevelStep {
   target: number | null;
 }
 
-/**
- * Side-scroll "what to do next" carousel. The first card (when available) is
- * the Level hero — your position on the financial journey + the one action to
- * advance it. Subsequent cards are tactical insights ("today's items"). One
- * gesture (swipe), one decision (tap a card), no thinking required.
- */
-function NextStepsCarousel({
-  step,
-  actions,
-  onLevelDone,
-  onLevelHelp,
-  onDone,
-}: {
-  step: LevelStep | null;
-  actions: InsightLike[];
-  onLevelDone: () => void | Promise<void>;
-  onLevelHelp: () => void;
-  onDone: (id: string) => void | Promise<void>;
-}) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const [activeIdx, setActiveIdx] = useState(0);
-  const cardCount = (step ? 1 : 0) + actions.length;
-
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el || cardCount < 2) return;
-    const onScroll = () => {
-      const card = el.querySelector<HTMLElement>('[data-card]');
-      if (!card) return;
-      const w = card.offsetWidth + 12;
-      const idx = Math.round(el.scrollLeft / w);
-      setActiveIdx(Math.min(cardCount - 1, Math.max(0, idx)));
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, [cardCount]);
-
-  const single = cardCount === 1;
-
-  return (
-    <div className="mb-4">
-      <div
-        ref={scrollerRef}
-        // `items-stretch` ensures any height delta between LevelCard and
-        // InsightCard fills the same row so the snap-mandatory scroller still
-        // lands cleanly card-by-card. We intentionally let cards grow tall
-        // enough to fit their full content rather than clipping.
-        className={`flex gap-3 items-stretch max-h-[320px] ${single ? '' : 'overflow-x-auto snap-x snap-mandatory scrollbar-none'}`}
-        style={single ? {} : { scrollbarWidth: 'none' }}
-        // Keyboard nav: ←/→ scrolls one card. Carousel is now a real
-        // listbox-like control instead of "swipe or nothing".
-        role={cardCount > 1 ? 'region' : undefined}
-        aria-label={cardCount > 1 ? 'What to do next' : undefined}
-        tabIndex={cardCount > 1 ? 0 : undefined}
-        onKeyDown={(e) => {
-          if (cardCount < 2) return;
-          const el = scrollerRef.current;
-          if (!el) return;
-          const card = el.querySelector<HTMLElement>('[data-card]');
-          if (!card) return;
-          const w = card.offsetWidth + 12;
-          if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            el.scrollBy({ left: w, behavior: 'smooth' });
-          } else if (e.key === 'ArrowLeft') {
-            e.preventDefault();
-            el.scrollBy({ left: -w, behavior: 'smooth' });
-          }
-        }}
-      >
-        {step && (
-          <LevelCard key="__level" step={step} onDone={onLevelDone} onHelp={onLevelHelp} />
-        )}
-        {actions.map((a) => (
-          <InsightCard key={a.id} insight={a} onDone={onDone} />
-        ))}
-      </div>
-      {cardCount > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-3" aria-hidden="true">
-          {Array.from({ length: cardCount }).map((_, i) => (
-            <span
-              key={i}
-              className={`h-2 rounded-full transition-all ${
-                i === activeIdx ? 'w-6 bg-accent' : 'w-2 bg-text/40'
-              }`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Carousel card #1 — strategic. Where you are on the journey + what to do next.
- * Visually matches the insight cards (same gradient surface, same eyebrow color,
- * same dark primary CTA) so the carousel reads as a single coherent stack. The
- * layer color is preserved as the only badge/progress accent — that's the
- * "where you are" cue.
- */
-function LevelCard({
-  step,
-  onDone,
-  onHelp,
-}: {
-  step: LevelStep;
-  onDone: () => void | Promise<void>;
-  onHelp: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const color = layerColor(step.order);
-  const isComplete = step.status === 'complete';
-  const progress = Math.max(0, Math.min(100, Math.round(step.progress || 0)));
-  const hasProgress = !isComplete && progress > 0;
-  const progressDetail =
-    step.current != null && step.target != null
-      ? `${formatMoney(step.current)} of ${formatMoney(step.target)}`
-      : null;
-  // Show the longest meaningful explainer available — `description` is the
-  // "why this matters" copy; subtitle is the shorter framing. The
-  // action/detail strings are intentionally not rendered as a separate
-  // paragraph: when they're concrete ("Contribute $X to a Roth") they
-  // duplicate information the description already covers, and when they're
-  // generic ("Review and mark complete when done.") they restate the Done
-  // button. Either way the body is the body — keep it unclamped so the user
-  // sees the full "why this matters" without a tap-to-expand.
-  const body = step.description || step.subtitle;
-
-  return (
-    <section
-      data-card
-      className="snap-center shrink-0 w-full rounded-2xl bg-gradient-to-br from-cheese/15 to-accent/10 border border-cheese/40 p-5 flex flex-col"
-    >
-      <h2 className="lf-h2">{step.title}</h2>
-      {body && (
-        <p className="text-sm text-text-secondary mt-3 leading-relaxed line-clamp-4">
-          {body}
-        </p>
-      )}
-      {hasProgress && (
-        <div className="mt-4">
-          <div className="flex items-baseline justify-between mb-1.5 tabular-nums">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-text-muted font-medium">
-              Progress
-            </span>
-            <span className="text-xs font-medium" style={{ color }}>
-              {progress}%{progressDetail ? ` · ${progressDetail}` : ''}
-            </span>
-          </div>
-          <div className="h-1.5 rounded-full bg-bg/60 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${progress}%`, background: color }}
-            />
-          </div>
-        </div>
-      )}
-      <div className="flex gap-2 mt-auto pt-5">
-        <button
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try { await onDone(); } finally { setBusy(false); }
-          }}
-          className="flex-1 rounded-xl bg-text text-white py-3 text-sm font-medium min-h-[44px] disabled:opacity-50"
-        >
-          {busy ? '...' : 'Done \u2713'}
-        </button>
-        <button
-          disabled={busy}
-          onClick={onHelp}
-          className="flex-1 rounded-xl bg-bg border border-rule text-text py-3 text-sm font-medium min-h-[44px] disabled:opacity-50"
-        >
-          Help me with this
-        </button>
-      </div>
-    </section>
-  );
-}
-
-/**
- * Carousel card #2+ — tactical. A single insight ("today's items") with
- * explicit Done / Help-me CTAs. Description is rendered unclamped — the
- * "Did you know" feed clamps for a denser list view, but the carousel card
- * has the room to show the full reasoning so the user doesn't have to tap
- * into a detail view just to see the second half of a sentence.
- */
-function InsightCard({
-  insight,
-  onDone,
-}: {
-  insight: InsightLike;
-  onDone: (id: string) => void | Promise<void>;
-}) {
-  const [busy, setBusy] = useState(false);
-  return (
-    <section
-      data-card
-      className="snap-center shrink-0 w-full rounded-2xl bg-gradient-to-br from-cheese/15 to-accent/10 border border-cheese/40 p-5 flex flex-col"
-    >
-      <h2 className="lf-h2">{insight.title}</h2>
-      {insight.description && (
-        <p className="text-sm text-text-secondary mt-3 leading-relaxed line-clamp-4">
-          {insight.description}
-        </p>
-      )}
-      <div className="flex gap-2 mt-auto pt-5">
-        <button
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try { await onDone(insight.id); } finally { setBusy(false); }
-          }}
-          className="flex-1 rounded-xl bg-text text-white py-3 text-sm font-medium min-h-[44px] disabled:opacity-50"
-        >
-          {busy ? '...' : 'Done \u2713'}
-        </button>
-        <Link
-          href={`/insights?id=${insight.id}`}
-          className="flex-1 rounded-xl bg-bg border border-rule text-text py-3 text-sm font-medium text-center min-h-[44px] flex items-center justify-center"
-        >
-          Help me with this
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-function formatMoney(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1e6) return `$${(abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}M`;
-  if (abs >= 1e3) return `$${(abs / 1e3).toFixed(abs >= 1e4 ? 0 : 1)}K`;
-  return `$${Math.round(abs)}`;
-}
-
 interface NetBreakdown {
   cash: number;
   cashCount: number;
@@ -301,34 +70,55 @@ interface NetBreakdown {
   netWorth: number;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const fmtUsd = (n: number, frac = 0) =>
+  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
+
+function formatMoneyShort(n: number): string {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '−' : '';
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(abs >= 1e4 ? 0 : 1)}K`;
+  return `${sign}$${Math.round(abs)}`;
+}
+
+const formatDateLong = (d: Date) =>
+  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+
+function formatRel(when: string | Date): string {
+  const t = when instanceof Date ? when.getTime() : new Date(when).getTime();
+  const ms = Date.now() - t;
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  return `${days}d ago`;
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export function SimpleHome() {
   const { user, tenant } = useAuth();
   const [, setLocation] = useLocation();
-  const { insights, reload: reloadInsights } = useInsights();
+  const { insights, reload: reloadInsights, lastActionsGeneratedAt } = useInsights();
   const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
-  const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(
-    new Map(),
-  );
+  const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
   const [goals, setGoals] = useState<Goal[]>([]);
   const [nwHistory, setNwHistory] = useState<{ date: string; value: number }[]>([]);
   const [upcomingBill, setUpcomingBill] = useState<BillCard | null>(null);
   const [askDraft, setAskDraft] = useState('');
-  // The user's current step on the financial-level journey. This drives the
-  // hero — "you are at Layer N, here's what to do next" — and is the single
-  // most important thing the Home page conveys.
   const [currentStep, setCurrentStep] = useState<LevelStep | null>(null);
   const [levelLoading, setLevelLoading] = useState(true);
 
   const firstName =
-    (user?.name?.split(' ')[0]) ||
-    (tenant?.name?.split(' ')[0]) ||
+    user?.name?.split(' ')[0] ||
+    tenant?.name?.split(' ')[0] ||
     user?.email?.split('@')[0] ||
     'there';
 
-  // Refetch the user's current priority step. Called on mount and again
-  // after they tap Done on the Level card so we re-render with the next
-  // step without doing a full `window.location.reload()` (which loses
-  // carousel position + scroll position + remounts every other section).
   const loadPriorities = useCallback(() => {
     return api
       .getPriorities()
@@ -359,7 +149,6 @@ export function SimpleHome() {
     const BIG_CATEGORIES = new Set(['housing', 'debt_payment', 'transportation', 'insurance', 'utilities']);
     const BILL_MIN_AMOUNT = 200;
 
-    // Fire all fetches in parallel for fast first paint
     Promise.all([
       api.getBalances().catch(() => ({ balances: [] as any[] })),
       api.getGoals().catch(() => ({ goals: [] })),
@@ -368,7 +157,6 @@ export function SimpleHome() {
       api.getNetWorthHistory().catch(() => ({ history: [] as { date: string; value: number }[] })),
     ]).then(([balanceData, goalsData, , recurringData, historyData]) => {
       setNwHistory(historyData.history || []);
-      // Balances → net worth breakdown
       const next: NetBreakdown = {
         cash: 0, cashCount: 0,
         investments: 0, investmentsCount: 0,
@@ -388,10 +176,8 @@ export function SimpleHome() {
       setBreakdown(next);
       setAccountsById(map);
 
-      // Goals
       setGoals(goalsData.goals as Goal[]);
 
-      // Upcoming bill
       const now = Date.now();
       const sevenDays = 7 * 24 * 60 * 60 * 1000;
       const upcoming = (recurringData.recurring || [])
@@ -423,343 +209,691 @@ export function SimpleHome() {
     setLocation(text ? `/chat?prompt=${encodeURIComponent(text)}` : '/chat');
   }
 
-  // Top urgency-ranked insights for the carousel (after the level card).
-  // "Did you know" feed below catches everything not in the carousel.
+  // ── Ranked insights ──────────────────────────────────────────────────────
   const URGENCY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
   const ranked = [...insights].sort(
     (a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0),
   );
-  const carouselActions = ranked.slice(0, 3);
-  const carouselIds = new Set(carouselActions.map((a) => a.id));
-  const dykInsights = ranked.filter((i) => !carouselIds.has(i.id)).slice(0, 3);
+  const sideActions = ranked.slice(0, 2);
+  const sideIds = new Set(sideActions.map((a) => a.id));
+  const dykInsights = ranked.filter((i) => !sideIds.has(i.id)).slice(0, 5);
 
   const topGoal = goals.find((g) => g.status === 'active');
   const goalProgress = topGoal
     ? Math.min(100, Math.round((parseFloat(topGoal.currentAmount) / parseFloat(topGoal.targetAmount)) * 100))
     : null;
 
-  // Context-aware suggested prompts based on user's actual financial state
+  const monthDelta = useMemo(() => {
+    if (nwHistory.length < 2) return null;
+    const last = nwHistory[nwHistory.length - 1].value;
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const prior = [...nwHistory].reverse().find((p) => new Date(p.date).getTime() <= cutoff);
+    if (!prior) return null;
+    return last - prior.value;
+  }, [nwHistory]);
+
   const suggestedPrompts = useMemo(() => {
     const prompts: string[] = [];
     if (breakdown) {
-      const nw = breakdown.netWorth;
       if (breakdown.debts > 0 && breakdown.investments > 0)
-        prompts.push(`Should I pay off my $${formatMoney(breakdown.debts).slice(1)} in debt or keep investing?`);
+        prompts.push(`Should I pay off ${formatMoneyShort(breakdown.debts)} in debt or keep investing?`);
       else if (breakdown.debts > 0)
-        prompts.push(`What's the fastest way to pay off $${formatMoney(breakdown.debts).slice(1)} in debt?`);
+        prompts.push(`Fastest way to pay off ${formatMoneyShort(breakdown.debts)} in debt?`);
       if (breakdown.investments > 0)
-        prompts.push(`Can I retire on $${formatMoney(breakdown.investments).slice(1)} in investments?`);
-      if (nw > 0 && breakdown.cash > 0) {
-        const cashPct = Math.round((breakdown.cash / nw) * 100);
-        if (cashPct > 30)
-          prompts.push(`Is ${cashPct}% cash too much? Should I invest more?`);
-      }
+        prompts.push(`Can I retire on ${formatMoneyShort(breakdown.investments)}?`);
     }
-    if (topGoal)
-      prompts.push(`How can I reach my ${topGoal.name} goal faster?`);
-    if (currentStep)
-      prompts.push(`Help me with: ${currentStep.title}`);
-    // Fallbacks if we couldn't build enough context-aware ones
+    if (topGoal) prompts.push(`How can I reach ${topGoal.name} faster?`);
+    if (currentStep) prompts.push(`Help me with: ${currentStep.title}`);
     if (prompts.length < 2) prompts.push('What should I focus on first?');
     if (prompts.length < 3) prompts.push('Am I on track for retirement?');
     return prompts.slice(0, 3);
   }, [breakdown, topGoal, currentStep]);
 
-  // Shared blocks extracted so both mobile and desktop can reference them
-  const greetingBlock = (
-    <div className="mb-5">
-      <h1 className="lf-h1">
-        Hey {firstName}
-      </h1>
-      <p className="text-sm text-text-muted mt-1.5">Here's what to focus on next.</p>
-    </div>
-  );
+  return (
+    <Page>
+      {/* Masthead — date eyebrow, greeting (chat is now a full section below) */}
+      <PageHeader
+        eyebrow={formatDateLong(new Date())}
+        title={<>Good morning, {firstName}.</>}
+      />
 
-  const focusBlock = levelLoading ? (
-    <div className="rounded-2xl bg-bg-elevated border border-rule p-5 mb-4 animate-pulse h-48" />
-  ) : currentStep || carouselActions.length > 0 ? (
-    <NextStepsCarousel
-      step={currentStep}
-      actions={carouselActions}
-      onLevelDone={async () => {
-        if (!currentStep) return;
-        try { await api.completePriorityStep(currentStep.id, true); } catch {}
-        await loadPriorities();
-      }}
-      onLevelHelp={() => {
-        if (!currentStep) return;
-        const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
-        setLocation(`/chat?prompt=${encodeURIComponent(prompt)}`);
-      }}
-      onDone={async (id) => {
-        try { await api.actOnInsight(id); } catch {}
-        await reloadInsights();
-      }}
-    />
-  ) : (
-    <section className="rounded-2xl bg-bg-elevated border border-rule p-5 mb-4">
-      <div className="text-[11px] uppercase tracking-[0.14em] text-text-muted font-medium font-mono mb-2">
-        Your next step
-      </div>
-      <h2 className="lf-h2">Set up your financial profile.</h2>
-      <p className="text-sm text-text-muted mt-2">
-        Tell us your basics and we'll show you exactly what to do next.
-      </p>
-      <button
-        onClick={() => setLocation('/profile')}
-        className="mt-4 rounded-xl bg-text text-white px-4 py-2.5 text-sm font-medium"
-      >
-        Get started →
-      </button>
-    </section>
-  );
-
-  const askBlock = (
-    <section className="rounded-2xl bg-bg-elevated border border-rule p-5 mb-4">
-      <div className="text-[11px] uppercase tracking-[0.14em] text-text-muted font-medium font-mono mb-3">
-        Ask anything
-      </div>
-      <form
-        onSubmit={submitAsk}
-        className="flex items-center gap-2 rounded-xl bg-bg border border-rule pl-4 pr-1.5 py-1.5 focus-within:border-accent/60 transition"
-      >
-        <input
-          type="text"
-          value={askDraft}
-          onChange={(e) => setAskDraft(e.target.value)}
-          placeholder={suggestedPrompts[0] ? `Try: "${suggestedPrompts[0]}"` : 'Ask anything about your finances…'}
-          className="flex-1 bg-transparent text-sm focus:outline-none placeholder-text-muted/70"
-        />
-        <button
-          type="submit"
-          disabled={!askDraft.trim()}
-          className="rounded-full bg-text text-white w-9 h-9 grid place-items-center text-sm disabled:opacity-30 shrink-0"
-          aria-label="Ask"
-        >
-          ↑
-        </button>
-      </form>
-      <div className="flex flex-wrap gap-2 mt-3">
-        {suggestedPrompts.map((q) => (
-          <button
-            key={q}
-            onClick={() => setLocation(`/chat?prompt=${encodeURIComponent(q)}`)}
-            className="text-xs px-3 py-1.5 bg-bg rounded-full text-text-secondary border border-transparent hover:border-rule transition-colors"
-          >
-            {q}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-
-  const billBlock = upcomingBill ? (() => {
-    const acct = upcomingBill.accountId ? accountsById.get(upcomingBill.accountId) : null;
-    return (
-      <article className="rounded-2xl bg-bg-elevated border border-rule p-4 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="text-xl">📅</div>
-          <div className="flex-1">
-            <div className="text-xs text-text-muted">Heads up</div>
-            <div className="text-sm font-medium mt-1">
-              {upcomingBill.name} due {upcomingBill.daysAway <= 0 ? 'today' : upcomingBill.daysAway === 1 ? 'tomorrow' : `in ${upcomingBill.daysAway} days`}
-              {' — '}
-              <span className="tabular-nums">
-                {upcomingBill.amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
-              </span>
-            </div>
-            {acct && (
-              <div className="text-xs text-text-muted mt-1 tabular-nums">
-                Pulls from <strong className="text-text-secondary">{acct.name}</strong> · balance{' '}
-                {acct.balance.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
-                . {acct.balance >= upcomingBill.amount ? "You're good." : 'Heads up — may not cover this.'}
-              </div>
+      {/* Editorial lede — directly addresses the user with inline tabular numbers */}
+      {breakdown && (
+        <div style={{ marginBottom: 40 }}>
+          <Lede>
+            You're worth{' '}
+            <Lede.Num>{fmtUsd(breakdown.netWorth)}</Lede.Num>
+            {monthDelta !== null && (
+              <>
+                {' — '}
+                <Lede.Num tone={monthDelta >= 0 ? 'pos' : 'neg'}>
+                  {monthDelta >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthDelta))}
+                </Lede.Num>{' '}this month
+              </>
+            )}.
+            {currentStep && (
+              <>
+                {' '}Today, focus on{' '}
+                <Lede.Num highlight>{currentStep.title}</Lede.Num>.
+              </>
             )}
-          </div>
+          </Lede>
         </div>
-      </article>
-    );
-  })() : null;
-
-  const netWorthBlock = breakdown ? (
-    <Link
-      href="/money"
-      className="block rounded-2xl bg-bg-elevated border border-rule shadow-sm overflow-hidden hover:border-accent/30 transition"
-    >
-      <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
-        <div className="flex items-center gap-2">
-          <Sunrise size={14} className="text-text-muted" />
-          <span className="text-[11px] uppercase tracking-[0.14em] text-text-muted font-medium font-mono">
-            Snapshot
-          </span>
-        </div>
-        <span className="text-[11px] text-text-secondary underline">See all →</span>
-      </div>
-      {breakdown.cashCount > 0 && (
-        <BreakdownLine icon={<Wallet size={16} className="text-text-muted" />} label="Cash" sublabel={`${breakdown.cashCount} account${breakdown.cashCount === 1 ? '' : 's'}`} amount={breakdown.cash} />
       )}
-      {breakdown.investmentsCount > 0 && (
-        <BreakdownLine icon={<TrendingUp size={16} className="text-text-muted" />} label="Investments" sublabel={`${breakdown.investmentsCount} account${breakdown.investmentsCount === 1 ? '' : 's'}`} amount={breakdown.investments} />
+
+      {/* Ask Lasagna — the headline feature of the product, rendered as an
+          editorial hero with a prominent composer + contextual headline questions. */}
+      <AskHero
+        value={askDraft}
+        onChange={setAskDraft}
+        onSubmit={submitAsk}
+        prompts={suggestedPrompts}
+        onPick={(q) => setLocation(`/chat?prompt=${encodeURIComponent(q)}`)}
+      />
+
+      {/* Composition ribbon — net worth as one visual */}
+      {breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.debts > 0) && (
+        <Section>
+          <CompositionRibbon
+            leadLabel="Composition"
+            leadValue={fmtUsd(breakdown.netWorth)}
+            leadDelta={
+              breakdown.cashCount + breakdown.investmentsCount + breakdown.debtsCount > 0
+                ? `${breakdown.cashCount + breakdown.investmentsCount + breakdown.debtsCount} accounts`
+                : undefined
+            }
+            segments={[
+              ...(breakdown.cash > 0 ? [{ label: 'Cash', value: breakdown.cash, color: 'var(--lf-basil)' }] : []),
+              ...(breakdown.investments > 0 ? [{ label: 'Investments', value: breakdown.investments, color: 'var(--lf-cheese)' }] : []),
+              ...(breakdown.debts > 0 ? [{ label: 'Debt', value: breakdown.debts, color: 'var(--lf-sauce)', negative: true }] : []),
+            ]}
+          />
+        </Section>
       )}
-      {breakdown.debtsCount > 0 && (
-        <BreakdownLine icon={<CreditCard size={16} className="text-text-muted" />} label="Debts" sublabel={`${breakdown.debtsCount} account${breakdown.debtsCount === 1 ? '' : 's'}`} amount={-breakdown.debts} negative />
+
+      {/* Stat strip — secondary KPIs as a typographic ribbon */}
+      {breakdown && (
+        <StatStrip
+          className="ds-home-stats"
+          items={[
+            { label: 'Cash on hand', value: fmtUsd(breakdown.cash), sub: `${breakdown.cashCount} account${breakdown.cashCount === 1 ? '' : 's'}` },
+            { label: 'Invested', value: fmtUsd(breakdown.investments), sub: `${breakdown.investmentsCount} account${breakdown.investmentsCount === 1 ? '' : 's'}` },
+            { label: 'Debt', value: fmtUsd(breakdown.debts), sub: `${breakdown.debtsCount} account${breakdown.debtsCount === 1 ? '' : 's'}`, tone: breakdown.debts > 0 ? 'neg' : 'default' },
+            ...(topGoal && goalProgress !== null ? [{
+              label: 'Top goal',
+              value: `${goalProgress}%`,
+              sub: topGoal.name,
+            } as const] : []),
+          ]}
+        />
       )}
-      <div className="flex items-center justify-between px-4 py-3 bg-bg/40 border-t border-rule/60">
-        <div className="text-sm font-semibold">Net worth</div>
-        <div className="text-sm font-semibold tabular-nums">
-          {breakdown.netWorth.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
-        </div>
+
+      {/* The focus — ONE editorial card, not a grid of three */}
+      <Section
+        title="Today's focus"
+        eyebrow={currentStep ? `Level ${currentStep.order} · Financial independence path` : undefined}
+        actions={<Link href="/insights" className="ds-btn ds-btn--link">All actions →</Link>}
+      >
+        {levelLoading ? (
+          <Card><div style={{ height: 120 }} className="animate-pulse" /></Card>
+        ) : currentStep ? (
+          <FocusEditorial
+            step={currentStep}
+            onDone={async () => {
+              if (!currentStep) return;
+              try { await api.completePriorityStep(currentStep.id, true); } catch {}
+              await loadPriorities();
+            }}
+            onHelp={() => {
+              if (!currentStep) return;
+              const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
+              setLocation(`/chat?prompt=${encodeURIComponent(prompt)}`);
+            }}
+          />
+        ) : sideActions.length > 0 ? (
+          <ActionEditorial
+            insight={sideActions[0]}
+            onDone={async (id) => {
+              try { await api.actOnInsight(id); } catch {}
+              await reloadInsights();
+            }}
+          />
+        ) : (
+          <Card variant="ghost">
+            <Eyebrow>Get started</Eyebrow>
+            <h3 className="ds-h2" style={{ marginTop: 8 }}>Set up your financial profile</h3>
+            <p className="ds-body" style={{ marginTop: 8, marginBottom: 16 }}>
+              Tell us the basics and we'll show you exactly what to do next.
+            </p>
+            <Button variant="ink" onClick={() => setLocation('/profile')}>Get started →</Button>
+          </Card>
+        )}
+      </Section>
+
+      {/* Two-column body */}
+      <div className="ds-home-twocol">
+        {/* Did you know feed */}
+        {dykInsights.length > 0 && (
+          <Section
+            title="Did you know"
+            eyebrow={lastActionsGeneratedAt ? `Updated ${formatRel(lastActionsGeneratedAt)}` : undefined}
+            actions={<Link href="/insights" className="ds-btn ds-btn--link">More →</Link>}
+          >
+            <ul className="ds-home-feed">
+              {dykInsights.map((ins) => (
+                <li key={ins.id}>
+                  <Link href={`/insights?id=${ins.id}`} className="ds-home-feed__link">
+                    <div className="ds-home-feed__bullet">
+                      <Lightbulb size={14} className="text-cheese" />
+                    </div>
+                    <div className="ds-home-feed__body">
+                      <div className="ds-home-feed__title">{ins.title}</div>
+                      {ins.description && (
+                        <p className="ds-home-feed__desc">{ins.description}</p>
+                      )}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* Marginalia: goal + bill (ask moved to a prominent hero above) */}
+        <aside className="ds-home-aside">
+          {topGoal && goalProgress !== null && (
+            <MarginaliaGoal goal={topGoal} progress={goalProgress} />
+          )}
+
+          {upcomingBill && (
+            <MarginaliaBill bill={upcomingBill} account={upcomingBill.accountId ? accountsById.get(upcomingBill.accountId) ?? null : null} />
+          )}
+        </aside>
       </div>
-    </Link>
-  ) : null;
 
-  const goalBlock = topGoal && goalProgress !== null ? (
-    <Link href="/goals" className="block rounded-2xl bg-bg-elevated border border-rule p-4 hover:border-accent/30 transition">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-bg grid place-items-center shrink-0">
-          <Target size={16} className="text-accent" />
-        </div>
-        <div className="flex-1">
-          <div className="font-mono text-[11px] text-text-muted uppercase tracking-[0.14em]">Goal</div>
-          <div className="text-sm font-medium mt-1">{topGoal.name} — {goalProgress}% there</div>
-          <div className="mt-2 h-2 rounded-full bg-bg overflow-hidden">
-            <div className="h-full bg-success" style={{ width: `${goalProgress}%` }} />
-          </div>
-          <div className="text-xs text-text-muted mt-2 tabular-nums">
-            ${parseFloat(topGoal.currentAmount).toLocaleString()} of ${parseFloat(topGoal.targetAmount).toLocaleString()}
-          </div>
-        </div>
-      </div>
-    </Link>
-  ) : null;
-
-  const insightsBlock = dykInsights.length > 0 ? (
-    <div className="space-y-3">
-      {dykInsights.map((ins) => (
-        <Link key={ins.id} href={`/insights?id=${ins.id}`} className="block rounded-2xl bg-bg-elevated border border-rule p-4 hover:border-accent/30 transition">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-bg grid place-items-center shrink-0">
-              <Lightbulb size={16} className="text-cheese" />
-            </div>
-            <div className="flex-1">
-              <div className="font-mono text-[11px] text-text-muted uppercase tracking-[0.14em]">Did you know</div>
-              <div className="text-sm font-medium mt-1">{ins.title}</div>
-              {ins.description && (
-                <div className="text-xs text-text-muted mt-1 line-clamp-3">{ins.description}</div>
-              )}
-            </div>
-          </div>
-        </Link>
-      ))}
-    </div>
-  ) : null;
-
-  // Mini sparkline for the desktop right column
-  const sparklineBlock = nwHistory.length >= 2 ? (
-    <div className="hidden lg:block rounded-2xl bg-bg-elevated border border-rule p-4 shadow-sm">
-      <div className="flex items-baseline justify-between mb-3">
-        <span className="text-[11px] uppercase tracking-[0.14em] text-text-muted font-medium font-mono">
-          Net worth trend
-        </span>
-        <Link href="/money" className="text-[11px] text-text-secondary underline">Details →</Link>
-      </div>
-      <MiniSparkline data={nwHistory} />
-    </div>
-  ) : null;
-
-  return (
-    <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto' }}>
-      {greetingBlock}
-
-      {/* Desktop: two-column. Tablet: single column. Mobile: single column.
-          lg = 1024px, well above the sidebar (220px) + content threshold. */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
-        {/* Left column — actions & engagement */}
-        <div className="space-y-4 min-w-0">
-          {focusBlock}
-          {askBlock}
-          {insightsBlock}
-        </div>
-
-        {/* Right column — financial snapshot (stacks below on mobile) */}
-        <div className="space-y-4">
-          {sparklineBlock}
-          {netWorthBlock}
-          {goalBlock}
-          {billBlock}
-        </div>
-      </div>
-    </div>
+      {/* Local layout helpers — page-specific grid only, no typography tokens */}
+      <style>{`
+        .ds-home-stats { margin: 32px 0 56px; }
+        .ds-home-twocol {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 40px;
+        }
+        @media (min-width: 1024px) {
+          .ds-home-twocol {
+            grid-template-columns: minmax(0, 1fr) 320px;
+            align-items: start;
+            gap: 56px;
+          }
+        }
+        .ds-home-feed {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+        .ds-home-feed li {
+          padding: 18px 0;
+          border-top: 1px solid var(--lf-rule);
+        }
+        .ds-home-feed li:first-child { border-top: 0; padding-top: 0; }
+        .ds-home-feed li:last-child { padding-bottom: 0; }
+        .ds-home-feed__link {
+          display: flex;
+          gap: 14px;
+          text-decoration: none;
+          color: inherit;
+        }
+        .ds-home-feed__link:hover .ds-home-feed__title { color: var(--lf-sauce); }
+        .ds-home-feed__bullet {
+          width: 28px; height: 28px;
+          border-radius: 4px;
+          background: var(--lf-cream);
+          display: grid; place-items: center;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+        .ds-home-feed__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: 17px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.3;
+          transition: color 0.15s;
+        }
+        .ds-home-feed__desc {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--lf-muted);
+          margin: 6px 0 0;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .ds-home-aside {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+      `}</style>
+    </Page>
   );
 }
 
-function BreakdownLine({
-  icon,
-  label,
-  sublabel,
-  amount,
-  negative,
+// ─── Focus editorial (level) ───────────────────────────────────────────────
+
+function FocusEditorial({
+  step,
+  onDone,
+  onHelp,
 }: {
-  icon: React.ReactNode;
-  label: string;
-  sublabel: string;
-  amount: number;
-  negative?: boolean;
+  step: LevelStep;
+  onDone: () => void | Promise<void>;
+  onHelp: () => void;
 }) {
-  const display =
-    amount < 0
-      ? `−${Math.abs(amount).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`
-      : amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const [busy, setBusy] = useState(false);
+  const isComplete = step.status === 'complete';
+  const progress = Math.max(0, Math.min(100, Math.round(step.progress || 0)));
+  const hasProgress = !isComplete && progress > 0;
+  const progressDetail =
+    step.current != null && step.target != null
+      ? `${formatMoneyShort(step.current)} of ${formatMoneyShort(step.target)}`
+      : null;
+  const body = step.description || step.subtitle;
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-t border-rule/60">
-      <div className="w-8 h-8 rounded-lg bg-bg grid place-items-center shrink-0">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-text-muted">{sublabel}</div>
+    <article className="ds-focus">
+      <div className="ds-focus__head">
+        <Pill tone="cheese">Level {step.order}</Pill>
+        {step.action && <Eyebrow>One step: {step.action.length > 60 ? step.action.slice(0, 60) + '…' : step.action}</Eyebrow>}
       </div>
-      <div className={`text-sm font-medium tabular-nums ${negative ? 'text-text-secondary' : ''}`}>
-        {display}
+      <h3 className="ds-focus__title">{step.title}</h3>
+      {body && <p className="ds-focus__body">{body}</p>}
+      {hasProgress && (
+        <div className="ds-focus__progress">
+          <div className="ds-focus__progress-meta">
+            <Eyebrow>Progress</Eyebrow>
+            <span className="ds-caption ds-num">
+              {progress}%{progressDetail ? ` · ${progressDetail}` : ''}
+            </span>
+          </div>
+          <div className="ds-focus__progress-bar">
+            <div style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+      <div className="ds-focus__actions">
+        <Button
+          variant="ink"
+          disabled={busy}
+          onClick={async () => { setBusy(true); try { await onDone(); } finally { setBusy(false); } }}
+        >
+          {busy ? '…' : 'Mark done ✓'}
+        </Button>
+        <Button variant="ghost" disabled={busy} onClick={onHelp}>
+          Walk me through this →
+        </Button>
       </div>
+      <style>{`
+        .ds-focus {
+          padding: 32px 0 8px;
+          border-top: 1px solid var(--lf-ink);
+        }
+        .ds-focus__head {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+        }
+        .ds-focus__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-weight: 500;
+          font-size: clamp(28px, 4vw, 40px);
+          line-height: 1.05;
+          letter-spacing: -0.015em;
+          color: var(--lf-ink);
+          margin: 0 0 16px;
+        }
+        .ds-focus__body {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 15px;
+          line-height: 1.6;
+          color: var(--lf-ink-soft);
+          max-width: 60ch;
+          margin: 0 0 24px;
+        }
+        .ds-focus__progress { margin-bottom: 24px; max-width: 480px; }
+        .ds-focus__progress-meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          margin-bottom: 8px;
+        }
+        .ds-focus__progress-bar {
+          height: 6px;
+          background: var(--lf-cream-deep);
+          border-radius: 3px;
+          overflow: hidden;
+        }
+        .ds-focus__progress-bar > div {
+          height: 100%;
+          background: var(--lf-cheese);
+          border-radius: 3px;
+          transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .ds-focus__actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+      `}</style>
+    </article>
+  );
+}
+
+// ─── Action editorial (used when no level step is present) ─────────────────
+
+function ActionEditorial({
+  insight,
+  onDone,
+}: {
+  insight: InsightLike;
+  onDone: (id: string) => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <article className="ds-focus">
+      <div className="ds-focus__head">
+        <UrgencyPill urgency={insight.urgency} />
+      </div>
+      <h3 className="ds-focus__title">{insight.title}</h3>
+      {insight.description && <p className="ds-focus__body">{insight.description}</p>}
+      <div className="ds-focus__actions">
+        <Button
+          variant="ink"
+          disabled={busy}
+          onClick={async () => { setBusy(true); try { await onDone(insight.id); } finally { setBusy(false); } }}
+        >
+          {busy ? '…' : 'Mark done ✓'}
+        </Button>
+        <Link href={`/insights?id=${insight.id}`}>
+          <Button variant="ghost">Open →</Button>
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function UrgencyPill({ urgency }: { urgency: string }) {
+  if (urgency === 'critical' || urgency === 'high') return <Pill tone="sauce">High priority</Pill>;
+  if (urgency === 'medium') return <Pill tone="cheese">This week</Pill>;
+  return <Pill tone="basil">Watch</Pill>;
+}
+
+// ─── Marginalia (right column) ─────────────────────────────────────────────
+
+function MarginaliaGoal({ goal, progress }: { goal: Goal; progress: number }) {
+  return (
+    <div className="ds-margin">
+      <Eyebrow>Active goal</Eyebrow>
+      <div className="ds-margin__title">{goal.name}</div>
+      <div className="ds-margin__bar">
+        <div style={{ width: `${progress}%` }} />
+      </div>
+      <div className="ds-margin__meta">
+        <span className="ds-num">{fmtUsd(parseFloat(goal.currentAmount))} / {fmtUsd(parseFloat(goal.targetAmount))}</span>
+        <Link href="/goals" className="ds-btn ds-btn--link">Open →</Link>
+      </div>
+      <style>{`
+        .ds-margin { border-top: 1px solid var(--lf-ink); padding-top: 20px; }
+        .ds-margin__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: 22px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.2;
+          margin: 10px 0 16px;
+        }
+        .ds-margin__bar {
+          height: 4px;
+          background: var(--lf-cream-deep);
+          border-radius: 2px;
+          overflow: hidden;
+          margin-bottom: 10px;
+        }
+        .ds-margin__bar > div {
+          height: 100%;
+          background: var(--lf-basil);
+          border-radius: 2px;
+        }
+        .ds-margin__meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          font-size: 12px;
+          color: var(--lf-muted);
+          font-variant-numeric: tabular-nums;
+        }
+      `}</style>
     </div>
   );
 }
 
-/** Compact sparkline for the home page right column. No interactivity — just the line + area. */
-function MiniSparkline({ data }: { data: { date: string; value: number }[] }) {
-  const W = 300, H = 80, P = 4;
-  const values = data.map((d) => d.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const pts = values.map((v, i) => [
-    P + (i / (values.length - 1)) * (W - 2 * P),
-    P + (1 - (v - min) / range) * (H - 2 * P),
-  ]);
-  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
-  const area = `${line} L${pts[pts.length - 1][0].toFixed(1)} ${H} L${pts[0][0].toFixed(1)} ${H} Z`;
-  const last = values[values.length - 1];
-  const first = values[0];
-  const color = last >= first ? 'rgb(76 122 62)' : 'var(--lf-sauce)';
+function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: string; balance: number } | null }) {
+  const when = bill.daysAway <= 0 ? 'today' : bill.daysAway === 1 ? 'tomorrow' : `in ${bill.daysAway} days`;
+  const covered = account ? account.balance >= bill.amount : null;
   return (
-    <div>
-      <div className="flex items-baseline justify-between mb-1">
-        <span className="text-lg font-serif font-medium tabular-nums">
-          {last.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
-        </span>
-        <span className="text-xs tabular-nums" style={{ color }}>
-          {last >= first ? '+' : ''}{((last - first) / Math.abs(first) * 100).toFixed(1)}%
-        </span>
+    <div className="ds-margin">
+      <Eyebrow><Calendar size={11} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />Coming up</Eyebrow>
+      <div className="ds-margin__title" style={{ fontSize: 18 }}>
+        {bill.name} · <span className="ds-num">{fmtUsd(bill.amount)}</span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block">
-        <defs>
-          <linearGradient id="home-spark-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.18" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={area} fill="url(#home-spark-grad)" />
-        <path d={line} fill="none" stroke={color} strokeWidth="2" />
-      </svg>
+      <p className="ds-margin__desc">
+        Due {when}
+        {account && (
+          <>
+            {' '}from {account.name}.{' '}
+            {covered
+              ? <>You're covered — balance <span className="ds-num">{fmtUsd(account.balance)}</span>.</>
+              : <span className="ds-neg">Balance <span className="ds-num">{fmtUsd(account.balance)}</span> may not cover.</span>}
+          </>
+        )}
+      </p>
+      <style>{`
+        .ds-margin__desc {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          line-height: 1.55;
+          color: var(--lf-muted);
+          margin: 0;
+        }
+      `}</style>
     </div>
+  );
+}
+
+// ─── Ask Lasagna hero ──────────────────────────────────────────────────────
+// Lasagna's signature feature is chat — surface it prominently as an
+// editorial centerpiece, not a sidebar widget. The input is large; suggested
+// questions render below as serif headlines (hairline-separated) like
+// "today's questions" in a magazine.
+
+function AskHero({
+  value, onChange, onSubmit, prompts, onPick,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (e?: React.FormEvent) => void;
+  prompts: string[];
+  onPick: (q: string) => void;
+}) {
+  return (
+    <section className="ds-askhero" aria-labelledby="ds-askhero-title">
+      <div className="ds-askhero__head">
+        <Eyebrow>
+          <MessageSquare size={11} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+          Ask Lasagna
+        </Eyebrow>
+        <span className="ds-askhero__meta">Always on · Sees your accounts</span>
+      </div>
+      <h2 id="ds-askhero-title" className="ds-askhero__title">
+        What do you want to know?
+      </h2>
+      <form onSubmit={onSubmit} className="ds-askhero__form">
+        <div className="ds-askhero__box">
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Ask anything about your finances…"
+            className="ds-askhero__input"
+            autoComplete="off"
+          />
+          <button
+            type="submit"
+            disabled={!value.trim()}
+            className="ds-askhero__submit"
+            aria-label="Send question"
+          >
+            Ask <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </form>
+      {prompts.length > 0 && (
+        <ul className="ds-askhero__prompts">
+          {prompts.map((q, i) => (
+            <li key={q}>
+              <button type="button" onClick={() => onPick(q)} className="ds-askhero__prompt">
+                <span className="ds-askhero__prompt-num">{String(i + 1).padStart(2, '0')}</span>
+                <span className="ds-askhero__prompt-text">{q}</span>
+                <span className="ds-askhero__prompt-arrow" aria-hidden="true">→</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <style>{`
+        .ds-askhero {
+          border-top: 1px solid var(--lf-ink);
+          border-bottom: 1px solid var(--lf-rule);
+          padding: 32px 0 40px;
+          margin-bottom: 48px;
+        }
+        .ds-askhero__head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 14px;
+        }
+        .ds-askhero__meta {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--lf-muted);
+        }
+        .ds-askhero__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-weight: 500;
+          font-size: clamp(28px, 4vw, 40px);
+          line-height: 1.05;
+          letter-spacing: -0.015em;
+          color: var(--lf-ink);
+          margin: 0 0 20px;
+        }
+        .ds-askhero__form { margin: 0 0 24px; }
+        .ds-askhero__box {
+          display: flex;
+          align-items: stretch;
+          background: var(--lf-paper);
+          border: 1px solid var(--lf-rule);
+          border-radius: 12px;
+          transition: border-color 0.15s, box-shadow 0.15s;
+          overflow: hidden;
+        }
+        .ds-askhero__box:focus-within {
+          border-color: var(--lf-ink);
+          box-shadow: 0 0 0 4px rgba(31,26,22,0.06);
+        }
+        .ds-askhero__input {
+          flex: 1;
+          background: transparent;
+          border: 0;
+          outline: 0;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 16px;
+          color: var(--lf-ink);
+          padding: 16px 20px;
+          min-width: 0;
+        }
+        .ds-askhero__input::placeholder { color: var(--lf-muted); }
+        .ds-askhero__submit {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--lf-sauce);
+          color: var(--lf-paper);
+          border: 0;
+          padding: 0 22px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-weight: 600;
+          font-size: 14px;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .ds-askhero__submit:hover:not(:disabled) { background: var(--lf-sauce-deep); }
+        .ds-askhero__submit:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ds-askhero__prompts {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+        .ds-askhero__prompts li {
+          border-top: 1px solid var(--lf-rule);
+        }
+        .ds-askhero__prompts li:first-child { border-top: 0; }
+        .ds-askhero__prompt {
+          display: flex;
+          align-items: baseline;
+          gap: 16px;
+          width: 100%;
+          background: none;
+          border: 0;
+          padding: 16px 0;
+          text-align: left;
+          cursor: pointer;
+          transition: color 0.15s;
+        }
+        .ds-askhero__prompt:hover .ds-askhero__prompt-text { color: var(--lf-sauce); }
+        .ds-askhero__prompt:hover .ds-askhero__prompt-arrow { transform: translateX(4px); color: var(--lf-sauce); }
+        .ds-askhero__prompt-num {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 11px;
+          letter-spacing: 0.14em;
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          width: 22px;
+        }
+        .ds-askhero__prompt-text {
+          flex: 1;
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: clamp(17px, 2vw, 21px);
+          font-weight: 400;
+          color: var(--lf-ink);
+          line-height: 1.35;
+          letter-spacing: -0.005em;
+          transition: color 0.15s;
+        }
+        .ds-askhero__prompt-arrow {
+          font-size: 16px;
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          transition: transform 0.15s, color 0.15s;
+        }
+      `}</style>
+    </section>
   );
 }

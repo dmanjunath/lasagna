@@ -11,6 +11,18 @@ import {
   type WithdrawalStrategy, type BacktestYearData, type BacktestRow,
   computeWithdrawal, eraLabel, runBacktest, buildBands,
 } from '../lib/retirement-engine';
+import {
+  Page as DSPage,
+  PageHeader as DSPageHeader,
+  Section as DSSection,
+  Card as DSCard,
+  Button as DSButton,
+  Eyebrow as DSEyebrow,
+  EmptyState as DSEmptyState,
+  StatStrip as DSStatStrip,
+  CompositionRibbon as DSCompositionRibbon,
+  Lede as DSLede,
+} from '../components/ds';
 
 // ── MC constants ─────────────────────────────────────────────────────────────
 const HISTORICAL_RETURNS: Record<string, number> = {
@@ -1271,32 +1283,31 @@ export function Retirement() {
 
   if (!hasAccounts) {
     return (
-      <div style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)', padding: '24px 28px 48px' }} className="scrollbar-thin">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          style={{ maxWidth: 960, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}
-        >
-          <Card style={{ padding: '48px 40px', textAlign: 'center', maxWidth: 480 }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>&#127968;</div>
-            <h2 className="lf-h2" style={{ marginBottom: 12 }}>
-              No Accounts Linked
-            </h2>
-            <p style={{ fontFamily: "'Geist', system-ui, sans-serif", color: 'var(--lf-muted)', marginBottom: 28, lineHeight: 1.6 }}>
-              Connect your bank and investment accounts to see your retirement projections based on real data.
-            </p>
-            <button onClick={() => navigate('/accounts')} style={{ background: 'var(--lf-sauce)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontFamily: "'Geist', system-ui, sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
-              + Link Your First Account
-            </button>
-          </Card>
-        </motion.div>
-      </div>
+      <DSPage>
+        <DSPageHeader
+          eyebrow="Get started"
+          title="Retirement"
+          lede="Project your portfolio, withdrawals, and timeline."
+        />
+        <DSEmptyState
+          title="No accounts linked"
+          body="Connect your bank and investment accounts to see your retirement projections based on real data."
+          cta={
+            <DSButton variant="ink" onClick={() => navigate('/accounts')}>
+              + Link your first account
+            </DSButton>
+          }
+        />
+      </DSPage>
     );
   }
 
+  const readinessTone: 'pos' | 'warn' | 'neg' =
+    readiness >= 80 ? 'pos' : readiness >= 50 ? 'warn' : 'neg';
+
+  // Page-scoped responsive helpers — kept inline since they're page-specific.
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--lf-paper)' }} className="scrollbar-thin">
+    <DSPage>
       <style>{`
         @media (max-width: 800px) {
           .ret-hero-grid { grid-template-columns: repeat(3, 1fr) !important; }
@@ -1318,232 +1329,327 @@ export function Retirement() {
           .ret-simulate-big { font-size: 56px !important; }
           .ret-header-row { flex-direction: column !important; align-items: flex-start !important; }
         }
+        .ret-view-toggle {
+          display: inline-flex;
+          padding: 4px;
+          gap: 2px;
+          background: var(--lf-cream);
+          border: 1px solid var(--lf-rule);
+          border-radius: 999px;
+        }
+        .ret-view-toggle button {
+          padding: 7px 16px;
+          font-size: 12px;
+          font-weight: 500;
+          font-family: 'Geist', system-ui, sans-serif;
+          color: var(--lf-ink-soft);
+          background: transparent;
+          border: 0;
+          border-radius: 999px;
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+        .ret-view-toggle button.is-active {
+          background: var(--lf-ink);
+          color: var(--lf-paper);
+        }
+        .ret-slider-row {
+          display: grid;
+          gap: 24px;
+        }
+        .ret-slider-label {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          color: var(--lf-ink-soft);
+          font-weight: 500;
+        }
+        .ret-slider-input {
+          width: 64px;
+          text-align: right;
+          border: 1px solid var(--lf-rule);
+          border-radius: 6px;
+          padding: 2px 6px;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 13px;
+          color: var(--lf-sauce);
+          font-weight: 600;
+          background: transparent;
+        }
+        .ret-stats { margin: 0 0 40px; }
       `}</style>
+
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' as const }}
       >
+        <DSPageHeader
+          eyebrow={`retire at ${retirementAge} · ${Math.max(0, retirementAge - currentAge)} years away`}
+          title="Retirement"
+          actions={
+            <div className="ret-view-toggle" role="tablist" aria-label="View mode">
+              {(['simple', 'advanced'] as const).map(v => (
+                <button
+                  key={v}
+                  role="tab"
+                  aria-selected={view === v}
+                  className={view === v ? 'is-active' : ''}
+                  onClick={() => setView(v)}
+                >
+                  {v === 'simple' ? 'Overview' : 'Detailed'}
+                </button>
+              ))}
+            </div>
+          }
+        />
 
-        {/* Page header + toggle */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, gap: 16 }} className="ret-header-row">
-          <div>
-            <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Retirement</h1>
-            <p className="lf-eyebrow" style={{ margin: 0 }}>
-              retire at {retirementAge} · {Math.max(0, retirementAge - currentAge)} years away
-            </p>
-          </div>
-          {/* Overview | Detailed toggle */}
-          <div style={{ display: 'flex', gap: 6, padding: 4, background: 'var(--lf-cream)', borderRadius: 999, border: '1px solid var(--lf-rule)', width: 'fit-content', flexShrink: 0 }}>
-            {(['simple', 'advanced'] as const).map(v => (
-              <button key={v} onClick={() => setView(v)} style={{
-                padding: '8px 18px', fontSize: 13, cursor: 'pointer',
-                fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 500,
-                borderRadius: 999, border: 0,
-                background: view === v ? 'var(--lf-ink)' : 'transparent',
-                color: view === v ? 'var(--lf-paper)' : 'var(--lf-ink-soft)',
-                transition: 'background 0.15s, color 0.15s',
-              }}>
-                {v === 'simple' ? 'Overview' : 'Detailed'}
-              </button>
-            ))}
-          </div>
+        {/* Editorial lede — addresses the user with inline tabular numbers */}
+        <div style={{ marginBottom: 32 }}>
+          <DSLede>
+            On your current path, you'll have{' '}
+            <DSLede.Num>{formatMoney(portfolioAtRetirement, true)}</DSLede.Num>
+            {' '}by age {retirementAge} — that lasts{' '}
+            <DSLede.Num highlight>
+              {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+ years` : `${yearsMoneyLasts} year${yearsMoneyLasts === 1 ? '' : 's'}`}
+            </DSLede.Num>
+            {' '}at{' '}
+            <DSLede.Num>{formatMoney(monthlyRetirementSpend, true)}/month</DSLede.Num>.
+          </DSLede>
         </div>
 
-        {/* Shared dark hero card */}
-        <div style={{
-          background: 'var(--lf-ink)', border: '1px solid var(--lf-ink)',
-          borderRadius: 14, padding: 32, marginBottom: 20,
-        }}>
-          {/* Portfolio value — full width */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>
-              {view === 'advanced' ? 'Portfolio today' : `Projected at retirement · age ${retirementAge}`}
-            </div>
-            <div className="ret-hero-big" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 'clamp(40px, 8vw, 64px)', letterSpacing: '-0.03em', lineHeight: 1, color: 'var(--lf-paper)' }}>
-              {formatMoney(view === 'advanced' ? portfolioValue : portfolioAtRetirement, true)}
-            </div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-cheese)', marginTop: 10 }}>
-              {view === 'advanced'
-                ? `${yearsUntilRetirement} yrs accumulation → retire at ${retirementAge}`
-                : `${yearsUntilRetirement} years to go · ${expectedReturn.toFixed(1)}% blended return`}
-            </div>
-          </div>
-          {/* Stats row */}
-          <div className="ret-hero-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
-            {(view === 'simple' ? [
-              { label: 'FIRE number', value: formatMoney(fireNumber, true), sub: '25× annual spend' },
-              { label: 'Years money lasts', value: yearsMoneyLasts >= lifeHorizon ? 'lifetime' : `${yearsMoneyLasts}`, sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}` },
-              { label: 'Readiness', value: `${readiness.toFixed(0)}%`, sub: 'of FIRE number', color: readiness >= 80 ? '#9FD18E' : readiness >= 50 ? 'var(--lf-cheese)' : '#E89070' },
-            ] : [
-              { label: 'FIRE number', value: formatMoney(fireNumber, true), sub: '25× annual spend' },
-              { label: 'Monte Carlo', value: `${mcRate}%`, sub: '1,000 runs', color: mcRate >= 80 ? '#9FD18E' : mcRate >= 60 ? 'var(--lf-cheese)' : '#E89070' },
-              { label: 'Backtest', value: `${btRate}%`, sub: 'historical scenarios', color: btRate >= 80 ? '#9FD18E' : btRate >= 60 ? 'var(--lf-cheese)' : '#E89070' },
-            ]).map(({ label, value, sub, color }) => (
-              <div key={label} style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)', marginBottom: 6 }}>
-                  {label}
-                </div>
-                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 'clamp(22px, 4vw, 36px)', letterSpacing: '-0.02em', color: color || 'var(--lf-paper)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {value}
-                </div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#D4C6B0', marginTop: 6 }}>
-                  {sub}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Composition ribbon — only when we have a real allocation to show */}
+        {Object.keys(allocation).length > 0 && portfolioValue > 0 && (() => {
+          // Convert allocation (decimals or percents) to dollar segments by share of portfolioValue
+          const total = Object.values(allocation).reduce((s, v) => s + v, 0);
+          if (total <= 0) return null;
+          const labelMap: Record<string, string> = {
+            usStocks: 'US stocks', us: 'US stocks',
+            intlStocks: "Int'l stocks", intl: "Int'l stocks", international: "Int'l stocks",
+            bonds: 'Bonds', bond: 'Bonds',
+            reits: 'REITs', reit: 'REITs',
+            cash: 'Cash',
+          };
+          const colorMap: Record<string, string> = {
+            usStocks: 'var(--lf-sauce)', us: 'var(--lf-sauce)',
+            intlStocks: 'var(--lf-cheese)', intl: 'var(--lf-cheese)', international: 'var(--lf-cheese)',
+            bonds: 'var(--lf-basil)', bond: 'var(--lf-basil)',
+            reits: 'var(--lf-noodle)', reit: 'var(--lf-noodle)',
+            cash: 'var(--lf-crust)',
+          };
+          const segments = Object.entries(allocation)
+            .filter(([, v]) => v > 0)
+            .map(([k, v]) => ({
+              label: labelMap[k] ?? k,
+              value: Math.round((v / total) * portfolioValue),
+              color: colorMap[k] ?? 'var(--lf-rule)',
+            }));
+          if (segments.length === 0) return null;
+          return (
+            <DSSection>
+              <DSCompositionRibbon
+                leadLabel="Portfolio today"
+                leadValue={<span className="ds-num">{formatMoney(portfolioValue, true)}</span>}
+                leadDelta={`${expectedReturn.toFixed(1)}% blended return`}
+                segments={segments}
+              />
+            </DSSection>
+          );
+        })()}
+
+        {/* Stat strip — secondary KPIs as typographic ribbon, never a card grid */}
+        <DSStatStrip
+          className="ret-stats"
+          items={[
+            {
+              label: 'Portfolio at retirement',
+              value: <span className="ds-num">{formatMoney(portfolioAtRetirement, true)}</span>,
+              sub: `age ${retirementAge} · ${expectedReturn.toFixed(1)}% return`,
+            },
+            {
+              label: 'FIRE number',
+              value: <span className="ds-num">{formatMoney(fireNumber, true)}</span>,
+              sub: '25× annual spend',
+            },
+            {
+              label: 'Years money lasts',
+              value: (
+                <span className="ds-num">
+                  {yearsMoneyLasts >= lifeHorizon ? 'lifetime' : yearsMoneyLasts}
+                </span>
+              ),
+              sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}`,
+            },
+            view === 'simple'
+              ? {
+                  label: 'Readiness',
+                  value: <span className="ds-num">{readiness.toFixed(0)}%</span>,
+                  sub: readinessLabel,
+                  tone: readinessTone,
+                }
+              : {
+                  label: 'Monte Carlo',
+                  value: <span className="ds-num">{mcRate}%</span>,
+                  sub: '1,000 runs',
+                  tone: mcRate >= 80 ? 'pos' : mcRate >= 60 ? 'neg' : 'neg',
+                },
+          ]}
+        />
 
         <LegalDisclaimer variant="projections" />
 
         <PageActions types="retirement" />
 
-        {/* Shared sliders — retirement age & life expectancy */}
-        <Card style={{ marginBottom: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: view === 'simple' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: 24 }} className="ret-sliders-grid">
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500 }}>Retirement Age</label>
-                <input
-                  type="number" min={currentAge} max={100} value={retAgeStr}
-                  onChange={e => {
-                    setRetAgeStr(e.target.value);
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v) && v >= currentAge && v <= 100) setRetirementAge(v);
-                  }}
-                  onBlur={() => {
-                    const v = parseInt(retAgeStr, 10);
-                    const clamped = isNaN(v) ? currentAge : Math.max(currentAge, Math.min(100, v));
-                    setRetirementAge(clamped);
-                    setRetAgeStr(String(clamped));
-                  }}
-                  style={{ width: 52, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600, background: 'transparent' }}
-                />
-              </div>
-              <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
-                onChange={e => setRetirementAge(+e.target.value)}
-                style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 4 }}>
-                <span>{currentAge}</span><span>100</span>
-              </div>
-            </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500 }}>Life Expectancy</label>
-                <input
-                  type="number" min={retirementAge + 1} max={120} value={lifeExpStr}
-                  onChange={e => {
-                    setLifeExpStr(e.target.value);
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v) && v > retirementAge && v <= 120) setLifeExpectancy(v);
-                  }}
-                  onBlur={() => {
-                    const v = parseInt(lifeExpStr, 10);
-                    const clamped = isNaN(v) ? retirementAge + 1 : Math.max(retirementAge + 1, Math.min(120, v));
-                    setLifeExpectancy(clamped);
-                    setLifeExpStr(String(clamped));
-                  }}
-                  style={{ width: 52, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600, background: 'transparent' }}
-                />
-              </div>
-              <input type="range" min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
-                onChange={e => setLifeExpectancy(+e.target.value)}
-                style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 4 }}>
-                <span>{retirementAge + 1}</span><span>120</span>
-              </div>
-            </div>
-            {view === 'simple' && (
+        {/* Assumptions sliders */}
+        <DSSection title="Assumptions" eyebrow="Tune the inputs">
+          <DSCard>
+            <div
+              className="ret-slider-row ret-sliders-grid"
+              style={{ gridTemplateColumns: view === 'simple' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}
+            >
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <label style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500 }}>Monthly Spending</label>
+                  <label className="ret-slider-label">Retirement age</label>
                   <input
-                    type="number" min={500} max={50000} step={500} value={monthlySpendStr}
+                    type="number" min={currentAge} max={100} value={retAgeStr}
                     onChange={e => {
-                      setMonthlySpendStr(e.target.value);
+                      setRetAgeStr(e.target.value);
                       const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlyRetirementSpend(v);
+                      if (!isNaN(v) && v >= currentAge && v <= 100) setRetirementAge(v);
                     }}
                     onBlur={() => {
-                      const v = parseInt(monthlySpendStr, 10);
-                      const clamped = isNaN(v) ? 500 : Math.max(500, Math.min(50000, v));
-                      setMonthlyRetirementSpend(clamped);
-                      setMonthlySpendStr(String(clamped));
+                      const v = parseInt(retAgeStr, 10);
+                      const clamped = isNaN(v) ? currentAge : Math.max(currentAge, Math.min(100, v));
+                      setRetirementAge(clamped);
+                      setRetAgeStr(String(clamped));
                     }}
-                    style={{ width: 80, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)', fontWeight: 600, background: 'transparent' }}
+                    className="ret-slider-input ds-num"
                   />
                 </div>
-                <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
-                  onChange={e => setMonthlyRetirementSpend(+e.target.value)}
+                <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
+                  onChange={e => setRetirementAge(+e.target.value)}
                   style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 4 }}>
-                  <span>$2k</span><span>$20k</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                  <span className="ds-caption ds-num">{currentAge}</span>
+                  <span className="ds-caption ds-num">100</span>
                 </div>
               </div>
-            )}
-          </div>
-        </Card>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label className="ret-slider-label">Life expectancy</label>
+                  <input
+                    type="number" min={retirementAge + 1} max={120} value={lifeExpStr}
+                    onChange={e => {
+                      setLifeExpStr(e.target.value);
+                      const v = parseInt(e.target.value, 10);
+                      if (!isNaN(v) && v > retirementAge && v <= 120) setLifeExpectancy(v);
+                    }}
+                    onBlur={() => {
+                      const v = parseInt(lifeExpStr, 10);
+                      const clamped = isNaN(v) ? retirementAge + 1 : Math.max(retirementAge + 1, Math.min(120, v));
+                      setLifeExpectancy(clamped);
+                      setLifeExpStr(String(clamped));
+                    }}
+                    className="ret-slider-input ds-num"
+                  />
+                </div>
+                <input type="range" min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
+                  onChange={e => setLifeExpectancy(+e.target.value)}
+                  style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                  <span className="ds-caption ds-num">{retirementAge + 1}</span>
+                  <span className="ds-caption ds-num">120</span>
+                </div>
+              </div>
+              {view === 'simple' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label className="ret-slider-label">Monthly spending</label>
+                    <input
+                      type="number" min={500} max={50000} step={500} value={monthlySpendStr}
+                      onChange={e => {
+                        setMonthlySpendStr(e.target.value);
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlyRetirementSpend(v);
+                      }}
+                      onBlur={() => {
+                        const v = parseInt(monthlySpendStr, 10);
+                        const clamped = isNaN(v) ? 500 : Math.max(500, Math.min(50000, v));
+                        setMonthlyRetirementSpend(clamped);
+                        setMonthlySpendStr(String(clamped));
+                      }}
+                      className="ret-slider-input ds-num"
+                      style={{ width: 80 }}
+                    />
+                  </div>
+                  <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
+                    onChange={e => setMonthlyRetirementSpend(+e.target.value)}
+                    style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                    <span className="ds-caption ds-num">$2k</span>
+                    <span className="ds-caption ds-num">$20k</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DSCard>
+        </DSSection>
 
         {/* ── SIMPLE VIEW ──────────────────────────────────────────────────────── */}
         {view === 'simple' && (
           <>
-
-            {/* KPI cards + readiness ring */}
-            <div className="ret-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
-              <Card>
-                <Eyebrow>Projected Portfolio</Eyebrow>
-                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color: 'var(--lf-pos)', lineHeight: 1 }}>
-                  {formatMoney(portfolioAtRetirement, true)}
-                </div>
-                <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)', marginTop: 6 }}>At age {retirementAge}</div>
-              </Card>
-              <Card>
-                <Eyebrow>Monthly Income</Eyebrow>
-                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color: 'var(--lf-ink)', lineHeight: 1 }}>
-                  {formatMoney(monthlyRetirementIncome)}
-                </div>
-                <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)', marginTop: 6 }}>Sustainable (4% rule)</div>
-                <div style={{ height: 4, background: 'var(--lf-rule)', borderRadius: 2, marginTop: 10, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.min(100, (monthlyRetirementIncome / Math.max(monthlyRetirementSpend, 1)) * 100)}%`, background: monthlyRetirementIncome >= monthlyRetirementSpend ? 'var(--lf-basil)' : 'var(--lf-sauce)', borderRadius: 2, transition: 'width 0.6s ease' }} />
-                </div>
-              </Card>
-              <Card>
-                <Eyebrow>Money Lasts</Eyebrow>
-                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color: yearsMoneyLasts >= lifeHorizon ? 'var(--lf-basil)' : yearsMoneyLasts >= 20 ? 'var(--lf-cheese)' : 'var(--lf-sauce)', lineHeight: 1 }}>
-                  {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+` : `${yearsMoneyLasts} yrs`}
-                </div>
-                <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)', marginTop: 6 }}>
-                  {yearsMoneyLasts >= lifeHorizon ? `through age ${lifeExpectancy}+` : `Until age ${retirementAge + yearsMoneyLasts}`}
-                </div>
-              </Card>
-              <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <ReadinessRing pct={readiness} />
-                <p style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)', textAlign: 'center', lineHeight: 1.4, margin: 0 }}>
-                  {readinessLabel}
-                </p>
-              </Card>
-            </div>
+            {/* Readiness + Income sub-cards */}
+            <DSSection title="Income & longevity" eyebrow="What you can spend, and for how long">
+              <div
+                className="ret-3col"
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}
+              >
+                <DSCard>
+                  <DSEyebrow>Sustainable monthly income</DSEyebrow>
+                  <div className="ds-num" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 32, color: 'var(--lf-ink)', lineHeight: 1, marginTop: 8 }}>
+                    {formatMoney(monthlyRetirementIncome)}
+                  </div>
+                  <p className="ds-caption" style={{ marginTop: 6 }}>4% rule from projected portfolio</p>
+                  <div style={{ height: 4, background: 'var(--lf-rule)', borderRadius: 2, marginTop: 12, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${Math.min(100, (monthlyRetirementIncome / Math.max(monthlyRetirementSpend, 1)) * 100)}%`,
+                      background: monthlyRetirementIncome >= monthlyRetirementSpend ? 'var(--lf-basil)' : 'var(--lf-sauce)',
+                      borderRadius: 2,
+                      transition: 'width 0.6s ease',
+                    }} />
+                  </div>
+                  <p className="ds-caption" style={{ marginTop: 6 }}>
+                    {monthlyRetirementIncome >= monthlyRetirementSpend
+                      ? 'covers your planned spending'
+                      : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))} short of plan`}
+                  </p>
+                </DSCard>
+                <DSCard style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 200 }}>
+                  <ReadinessRing pct={readiness} />
+                  <p className="ds-caption" style={{ textAlign: 'center', margin: 0 }}>
+                    {readinessLabel}
+                  </p>
+                </DSCard>
+              </div>
+            </DSSection>
 
             {/* Projection chart */}
-            <Card style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 20px 12px' }}>
-                <div>
-                  <Eyebrow>Portfolio Projection · Nominal $</Eyebrow>
-                  <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-muted)' }}>
-                    At {expectedReturn.toFixed(1)}% avg return · {annualSavings > 0 ? `${formatMoney(annualSavings, true)}/yr contributions` : 'no contributions estimated'}
-                  </div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--lf-muted)', opacity: 0.7, marginTop: 4 }}>
-                    Not inflation-adjusted — real purchasing power will be lower
+            <DSSection title="Projection" eyebrow={`Age ${currentAge} → ${Math.max(retirementAge + 20, 90)}`}>
+              <DSCard flush>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 20px 12px', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <DSEyebrow>Portfolio projection · nominal $</DSEyebrow>
+                    <p className="ds-body ds-body--sm" style={{ marginTop: 6 }}>
+                      At {expectedReturn.toFixed(1)}% avg return · {annualSavings > 0 ? `${formatMoney(annualSavings, true)}/yr contributions` : 'no contributions estimated'}
+                    </p>
+                    <p className="ds-caption" style={{ marginTop: 4, opacity: 0.7 }}>
+                      Not inflation-adjusted — real purchasing power will be lower
+                    </p>
                   </div>
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', textAlign: 'right' }}>
-                  Age {currentAge} → {Math.max(retirementAge + 20, 90)}
-                </div>
-              </div>
-              <ProjectionLine data={projectionData} />
-            </Card>
+                <ProjectionLine data={projectionData} />
+              </DSCard>
+            </DSSection>
           </>
         )}
 
@@ -1565,8 +1671,7 @@ export function Retirement() {
             onRatesChange={handleRatesChange}
           />
         )}
-
       </motion.div>
-    </div>
+    </DSPage>
   );
 }

@@ -1,14 +1,27 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Trash2, RefreshCw, Upload, X, HelpCircle, ShieldCheck, ChevronDown, FolderOpen } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { FileText, Trash2, RefreshCw, Upload, X, HelpCircle, ShieldCheck, FolderOpen, ArrowRight } from "lucide-react";
 import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
-import { ActionItem } from "../components/common/action-item.js";
-import { Section } from "../components/common/section.js";
 import type { TaxDocument, TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
+import { useChatStore } from "../lib/chat-store.js";
 import { LegalDisclaimer } from "../components/common/legal-disclaimer.js";
+import {
+  Page,
+  PageHeader,
+  Section,
+  Card,
+  Button,
+  Pill,
+  Eyebrow,
+  DataTable,
+  EmptyState,
+  StatStrip,
+  Lede,
+} from "../components/ds";
+import type { DataTableColumn } from "../components/ds/DataTable";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -27,51 +40,6 @@ function formatMoney(n: number): string {
     maximumFractionDigits: 0,
   }).format(n);
 }
-
-/**
- * Estimate marginal tax bracket from annual income + filing status.
- * Brackets as of tax year 2024.
- */
-function estimateBracket(income: number, filingStatus: string | null): string {
-  const mfj = filingStatus === "married_joint";
-  if (mfj) {
-    if (income <= 23_200) return "10%";
-    if (income <= 94_300) return "12%";
-    if (income <= 201_050) return "22%";
-    if (income <= 383_900) return "24%";
-    if (income <= 487_450) return "32%";
-    if (income <= 731_200) return "35%";
-    return "37%";
-  }
-  // single / default
-  if (income <= 11_600) return "10%";
-  if (income <= 47_150) return "12%";
-  if (income <= 100_525) return "22%";
-  if (income <= 191_950) return "24%";
-  if (income <= 243_725) return "32%";
-  if (income <= 609_350) return "35%";
-  return "37%";
-}
-
-// ─── shared inline style tokens ─────────────────────────────────────────────
-
-const CARD: React.CSSProperties = {
-  background: "var(--lf-paper)",
-  border: "1px solid var(--lf-rule)",
-  borderRadius: 14,
-};
-
-const EYEBROW: React.CSSProperties = {
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: 13,
-  letterSpacing: "0.14em",
-  textTransform: "uppercase" as const,
-  color: "var(--lf-muted)",
-};
-
-const SERIF: React.CSSProperties = {
-  fontFamily: "'Instrument Serif', Georgia, serif",
-};
 
 const FILING_YEAR = new Date().getFullYear() - 1;
 
@@ -109,15 +77,12 @@ const FORM_LABELS: Record<string, string> = {
   "5498": "5498 — IRA Contribution Info",
 };
 
-/** Try to find a form type string from llmFields (handles various key names and nesting) */
 function extractFormType(fields: Record<string, unknown>): string | null {
   if (!fields || typeof fields !== "object") return null;
-  // Direct keys
   for (const k of ["document_type", "form_type", "documentType", "formType", "type", "form"]) {
     const v = fields[k];
     if (typeof v === "string" && v.trim()) return v.trim();
   }
-  // Check nested "fields" object (some extractions nest inside { fields: { document_type: ... } })
   if (typeof fields.fields === "object" && fields.fields !== null) {
     const nested = extractFormType(fields.fields as Record<string, unknown>);
     if (nested) return nested;
@@ -125,10 +90,8 @@ function extractFormType(fields: Record<string, unknown>): string | null {
   return null;
 }
 
-/** Try to extract a form type from the summary text */
 function extractFormTypeFromSummary(summary: string): string | null {
   if (!summary) return null;
-  // Match common patterns: "1040 for tax year", "W-2 showing", "Form 1040", "1099-MISC from"
   const patterns = [
     /\b(Form\s+\d{4}[A-Z]?(?:-[A-Z]+)?)\b/i,
     /\b(W-?2)\b/i,
@@ -144,20 +107,16 @@ function extractFormTypeFromSummary(summary: string): string | null {
   return null;
 }
 
-/** Derive a display label from a tax document summary */
 function getDocLabel(doc: { llmFields?: Record<string, unknown> | null; llmSummary: string; fileName: string }): { label: string; formType: string | null } {
-  // 1. Try llmFields
   const rawType = extractFormType((doc.llmFields ?? {}) as Record<string, unknown>);
   if (rawType) {
     const key = rawType.toLowerCase().replace(/\s+/g, "").replace("form", "");
-    // Normalize key for lookup (remove "form" prefix, spaces)
     const lookupKey = rawType.toLowerCase().trim();
     const friendly = FORM_LABELS[lookupKey] || FORM_LABELS[key];
     if (friendly) return { label: friendly, formType: rawType.toUpperCase() };
     return { label: rawType, formType: rawType.toUpperCase() };
   }
 
-  // 2. Try the summary text
   const summaryType = extractFormTypeFromSummary(doc.llmSummary);
   if (summaryType) {
     const key = summaryType.toLowerCase().trim();
@@ -166,7 +125,6 @@ function getDocLabel(doc: { llmFields?: Record<string, unknown> | null; llmSumma
     return { label: summaryType, formType: summaryType.toUpperCase() };
   }
 
-  // 3. Use first sentence of summary if available
   if (doc.llmSummary) {
     const firstSentence = doc.llmSummary.split(/[.!]\s/)[0];
     if (firstSentence && firstSentence.length < 80) {
@@ -174,9 +132,15 @@ function getDocLabel(doc: { llmFields?: Record<string, unknown> | null; llmSumma
     }
   }
 
-  // 4. Fallback to filename without extension
   const nameNoExt = doc.fileName.replace(/\.[^.]+$/, "");
   return { label: nameNoExt, formType: null };
+}
+
+function urgencyPill(color?: string) {
+  // map insight impactColor to a Pill tone
+  if (color === 'red') return { tone: 'sauce' as const, label: 'High priority' };
+  if (color === 'green') return { tone: 'basil' as const, label: 'Opportunity' };
+  return { tone: 'cheese' as const, label: 'Worth a look' };
 }
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -197,12 +161,12 @@ export function TaxStrategy() {
   const [docLoading, setDocLoading] = useState<string | null>(null);
   const [showSafety, setShowSafety] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [expandedYears, setExpandedYears] = useState<Set<string>>(() => new Set());
   const [refreshingInsights, setRefreshingInsights] = useState(false);
   const safetyRef = useRef<HTMLDivElement>(null);
 
   const { insights, isLoading: insightsLoading, reload, refresh, dismiss } = useInsights("tax");
   const { setPageContext } = usePageContext();
+  const { openChat } = useChatStore();
 
   // Close safety popover on outside click
   useEffect(() => {
@@ -216,7 +180,6 @@ export function TaxStrategy() {
     return () => document.removeEventListener("mousedown", handler);
   }, [showSafety]);
 
-  // ── data loading ────────────────────────────────────────────────────────────
   useEffect(() => {
     loadDocuments();
     api
@@ -242,7 +205,6 @@ export function TaxStrategy() {
     }
   };
 
-  // ── handlers ─────────────────────────────────────────────────────────────
   const handleInputSuccess = useCallback(
     (doc: TaxInputResult) => {
       setDocuments((prev) => [
@@ -256,8 +218,6 @@ export function TaxStrategy() {
         },
         ...prev,
       ]);
-      // Insights are regenerated server-side after upload.
-      // Poll for the updated insights after a delay.
       setInsightStatus("generating");
       setTimeout(() => {
         reload()
@@ -273,7 +233,6 @@ export function TaxStrategy() {
       await api.deleteTaxDocument(id);
       setDocuments((prev) => prev.filter((d) => d.id !== id));
       if (selectedDoc?.id === id) setSelectedDoc(null);
-      // Server regenerates insights on delete; poll after a delay
       setInsightStatus("generating");
       setTimeout(() => {
         reload()
@@ -310,12 +269,10 @@ export function TaxStrategy() {
     }
   }, [refresh]);
 
-  // ── derived values ────────────────────────────────────────────────────────
   const filingLabel = profile?.filingStatus
     ? FILING_LABELS[profile.filingStatus] ?? profile.filingStatus
     : null;
 
-  // Estimated tax savings: sum all dollar amounts from insight impacts
   const estimatedSavings = useMemo(() => {
     if (documents.length === 0 || insights.length === 0) return null;
     let total = 0;
@@ -326,41 +283,6 @@ export function TaxStrategy() {
     return total > 0 ? total : null;
   }, [insights, documents.length]);
 
-  // Group documents by tax year, sorted descending. "Unknown" year goes last.
-  const documentsByYear = useMemo(() => {
-    const groups = new Map<string, TaxDocumentSummary[]>();
-    for (const doc of documents) {
-      const key = doc.taxYear ? String(doc.taxYear) : "Unknown";
-      const list = groups.get(key) || [];
-      list.push(doc);
-      groups.set(key, list);
-    }
-    // Sort year keys descending, "Unknown" last
-    const sorted = [...groups.entries()].sort(([a], [b]) => {
-      if (a === "Unknown") return 1;
-      if (b === "Unknown") return -1;
-      return Number(b) - Number(a);
-    });
-    return sorted;
-  }, [documents]);
-
-  // Auto-expand all year groups on initial load
-  useEffect(() => {
-    if (documentsByYear.length > 0 && expandedYears.size === 0) {
-      setExpandedYears(new Set(documentsByYear.map(([year]) => year)));
-    }
-  }, [documentsByYear, expandedYears.size]);
-
-  const toggleYear = useCallback((year: string) => {
-    setExpandedYears((prev) => {
-      const next = new Set(prev);
-      if (next.has(year)) next.delete(year);
-      else next.add(year);
-      return next;
-    });
-  }, []);
-
-  // ── page context for AI chat ─────────────────────────────────────────────
   useEffect(() => {
     if (profile) {
       setPageContext({
@@ -371,559 +293,435 @@ export function TaxStrategy() {
     }
   }, [profile, setPageContext]);
 
-  return (
-    <div
-      style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: "clamp(16px, 4vw, 40px)",
-        paddingBottom: "clamp(80px, 12vw, 48px)",
-        background: "var(--lf-paper)",
-        minHeight: 0,
-        maxWidth: 1100,
-        margin: "0 auto",
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-      className="scrollbar-thin"
-    >
-      {/* ── Page header ────────────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        style={{ marginBottom: 28 }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Tax</h1>
-            <div style={{ ...EYEBROW }}>
-              {FILING_YEAR} filing year
+  // Document table columns
+  const docCols: DataTableColumn<TaxDocumentSummary>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      cell: (doc) => {
+        const { label } = getDocLabel(doc);
+        const isSelected = selectedDoc?.id === doc.id;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <FileText
+              size={14}
+              style={{ color: isSelected ? 'var(--lf-cheese)' : 'var(--lf-muted)', flexShrink: 0 }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 500, color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {label}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--lf-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {doc.fileName}
+              </div>
             </div>
           </div>
-          {import.meta.env.VITE_DEMO_MODE !== "true" && (
-            <button
-              onClick={() => {
-                const el = document.getElementById("tax-documents-section");
-                el?.scrollIntoView({ behavior: "smooth" });
-              }}
-              style={{
-                ...EYEBROW,
-                background: "var(--lf-ink)",
-                color: "var(--lf-paper)",
-                border: "none",
-                borderRadius: 8,
-                padding: "8px 16px",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <Upload size={12} />
-              Upload tax documents
-            </button>
+        );
+      },
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      cell: (doc) => {
+        const { formType } = getDocLabel(doc);
+        return formType
+          ? <Pill tone="cream">{formType}</Pill>
+          : <span className="ds-caption">—</span>;
+      },
+    },
+    {
+      key: 'year',
+      header: 'Year',
+      muted: true,
+      cell: (doc) => doc.taxYear ? <span className="ds-num">{doc.taxYear}</span> : '—',
+    },
+    {
+      key: 'uploaded',
+      header: 'Uploaded',
+      muted: true,
+      cell: (doc) => doc.createdAt
+        ? <span className="ds-num">{new Date(doc.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+        : '—',
+    },
+    {
+      key: 'actions',
+      header: '',
+      cell: (doc) => {
+        const isLoading = docLoading === doc.id;
+        const isConfirming = deleteConfirmId === doc.id;
+        return (
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+            {isLoading && <RefreshCw size={12} style={{ color: 'var(--lf-muted)', animation: 'spin 1s linear infinite' }} />}
+            {import.meta.env.VITE_DEMO_MODE !== "true" && (
+              isConfirming ? (
+                <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); setDeleteConfirmId(null); }}
+                    className="ds-btn ds-btn--primary ds-btn--sm"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }}
+                    className="ds-btn ds-btn--ghost ds-btn--sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(doc.id); }}
+                  style={{
+                    background: 'transparent', border: '1px solid var(--lf-rule)', borderRadius: 6,
+                    cursor: 'pointer', color: 'var(--lf-muted)', padding: 6, lineHeight: 0,
+                  }}
+                  aria-label="Delete document"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const uploadBtn = import.meta.env.VITE_DEMO_MODE !== "true" ? (
+    <Button
+      variant="primary"
+      icon={<Upload size={14} />}
+      onClick={() => {
+        const el = document.getElementById("tax-documents-section");
+        el?.scrollIntoView({ behavior: "smooth" });
+      }}
+    >
+      Upload documents
+    </Button>
+  ) : null;
+
+  return (
+    <Page>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .tax-strip { margin: 32px 0 48px; }
+        .tax-feed { list-style: none; margin: 0; padding: 0; }
+        .tax-feed li {
+          padding: 22px 0;
+          border-top: 1px solid var(--lf-rule);
+        }
+        .tax-feed li:last-child { padding-bottom: 0; }
+        .tax-feed__row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 16px;
+          align-items: start;
+        }
+        .tax-feed__main { min-width: 0; }
+        .tax-feed__head {
+          display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+          margin-bottom: 8px;
+        }
+        .tax-feed__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-weight: 500;
+          font-size: clamp(20px, 2.2vw, 26px);
+          line-height: 1.15;
+          color: var(--lf-ink);
+          margin: 0;
+          letter-spacing: -0.01em;
+        }
+        .tax-feed__body {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          line-height: 1.55;
+          color: var(--lf-ink-soft);
+          margin: 0;
+          max-width: 60ch;
+        }
+        .tax-feed__impact {
+          margin-top: 8px;
+          display: inline-block;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+        }
+        .tax-feed__actions {
+          display: flex; gap: 4px;
+          align-items: flex-start; padding-top: 4px;
+        }
+        .tax-feed__open {
+          display: inline-flex; align-items: center; gap: 6px;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+          color: var(--lf-muted);
+          background: transparent; border: none; cursor: pointer;
+          padding: 4px 6px;
+          transition: color 0.15s, transform 0.15s;
+        }
+        .tax-feed__open:hover { color: var(--lf-sauce); transform: translateX(2px); }
+        .tax-feed__dismiss {
+          display: flex; align-items: center; justify-content: center;
+          width: 28px; height: 28px; border-radius: 6px;
+          border: none; background: transparent;
+          color: var(--lf-muted); cursor: pointer;
+        }
+        .tax-feed__dismiss:hover { background: var(--lf-cream); color: var(--lf-ink); }
+        .tax-doc-layout { display: grid; grid-template-columns: 1fr; gap: 0; }
+        @media (min-width: 900px) {
+          .tax-doc-layout.is-split { grid-template-columns: 1fr 1fr; }
+        }
+        .tax-doc-detail-wrap { border-top: 1px solid var(--lf-rule); }
+        @media (min-width: 900px) {
+          .tax-doc-layout.is-split .tax-doc-detail-wrap {
+            border-top: none;
+            border-left: 1px solid var(--lf-rule);
+          }
+        }
+      `}</style>
+
+      <PageHeader
+        eyebrow={`${FILING_YEAR} filing year`}
+        title="Tax"
+        actions={uploadBtn}
+      />
+
+      {/* Editorial lede */}
+      <div style={{ marginBottom: 8 }}>
+        <Lede>
+          We see{' '}
+          <Lede.Num>{documents.length}</Lede.Num>
+          {' '}tax document{documents.length === 1 ? '' : 's'} and{' '}
+          <Lede.Num tone={insights.length > 0 ? 'pos' : 'default'}>{insights.length}</Lede.Num>
+          {' '}open opportunit{insights.length === 1 ? 'y' : 'ies'}
+          {estimatedSavings && (
+            <>
+              {' '}worth roughly{' '}
+              <Lede.Num highlight>{formatMoney(estimatedSavings)}/yr</Lede.Num>
+            </>
           )}
-        </div>
-      </motion.div>
+          .
+        </Lede>
+      </div>
 
-      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.06 }}
-        style={{
-          background: "var(--lf-ink)", color: "var(--lf-paper)",
-          borderRadius: 14, padding: "clamp(20px, 4vw, 32px)", marginBottom: 20,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: 24,
-        }}
-      >
-        {/* Est. tax savings */}
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Est. tax savings</div>
-          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em", color: estimatedSavings ? "var(--lf-basil)" : "var(--lf-paper)" }}>
-            {insightsLoading ? "…" : estimatedSavings ? formatMoney(estimatedSavings) : "—"}
-          </div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>
-            {insightsLoading
-              ? "calculating…"
-              : estimatedSavings
-                ? "/yr from insights"
-                : documents.length === 0
-                  ? "Upload documents to estimate"
-                  : "Upload more documents"}
-          </div>
-        </div>
-        {/* Filing status */}
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Filing status</div>
-          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em" }}>{filingLabel ?? "—"}</div>
-          {profile?.stateOfResidence && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>{profile.stateOfResidence}</div>}
-        </div>
-        {/* Documents count */}
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Documents</div>
-          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em" }}>{documents.length}</div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>tax {documents.length === 1 ? "document" : "documents"} uploaded</div>
-        </div>
-        {/* Insights count */}
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "var(--lf-cheese)", marginBottom: 6 }}>Actions</div>
-          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, lineHeight: 1.1, letterSpacing: "-0.02em", color: insights.length > 0 ? "var(--lf-cheese)" : "var(--lf-paper)" }}>{insightsLoading ? "…" : insights.length}</div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#D4C6B0", marginTop: 8 }}>tax {insights.length === 1 ? "action" : "actions"}</div>
-        </div>
-      </motion.div>
+      {/* Stat strip */}
+      <StatStrip
+        className="tax-strip"
+        items={[
+          {
+            label: 'Estimated savings',
+            value: <span className="ds-num">{insightsLoading ? '…' : estimatedSavings ? formatMoney(estimatedSavings) : '—'}</span>,
+            sub: insightsLoading ? 'calculating' : estimatedSavings ? '/yr from insights' : 'upload documents',
+            tone: estimatedSavings ? 'pos' : 'default',
+          },
+          {
+            label: 'Filing status',
+            value: filingLabel ?? '—',
+            sub: profile?.stateOfResidence ?? undefined,
+          },
+          {
+            label: 'Documents',
+            value: <span className="ds-num">{documents.length}</span>,
+            sub: documents.length === 1 ? 'uploaded' : 'uploaded',
+          },
+          {
+            label: 'Open actions',
+            value: <span className="ds-num">{insightsLoading ? '…' : insights.length}</span>,
+            sub: insights.length === 1 ? 'tax action' : 'tax actions',
+          },
+        ]}
+      />
 
-      {/* ── Tax Insights ────────────────────────────────────────────────────── */}
-      {!insightsLoading && insights.length > 0 && (
+      {/* Tax inputs */}
+      {import.meta.env.VITE_DEMO_MODE !== "true" && (
         <Section
-          title={`Tax Actions${estimatedSavings ? " · " + formatMoney(estimatedSavings) + "/yr potential" : ""}`}
+          title="Tax inputs"
+          eyebrow="Upload or describe"
           actions={
-            <button
-              type="button"
-              onClick={handleRefreshInsights}
-              disabled={refreshingInsights}
-              className="text-xs text-text-secondary hover:text-accent transition-colors disabled:opacity-50"
-            >
-              {refreshingInsights ? "↻ Refreshing…" : "↻ Refresh"}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {insightStatus === "generating" && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.16em',
+                  textTransform: 'uppercase', color: "var(--lf-cheese)",
+                }}>
+                  <RefreshCw size={11} style={{ animation: "spin 1s linear infinite" }} />
+                  Updating insights…
+                </span>
+              )}
+              {insightStatus === "done" && (
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.16em',
+                  textTransform: 'uppercase', color: "var(--lf-basil)",
+                }}>
+                  Actions updated ✓
+                </span>
+              )}
+              <div style={{ position: "relative" }} ref={safetyRef}>
+                <button
+                  onClick={() => setShowSafety((p) => !p)}
+                  style={{
+                    background: "transparent", border: "1px solid var(--lf-rule)",
+                    borderRadius: 6, cursor: "pointer", padding: 6,
+                    color: "var(--lf-muted)", display: "flex", alignItems: "center", lineHeight: 0,
+                  }}
+                  aria-label="Privacy & safety information"
+                >
+                  <HelpCircle size={13} />
+                </button>
+                {showSafety && (
+                  <div
+                    style={{
+                      position: "absolute", right: 0, top: 32, zIndex: 50, width: 280,
+                      borderRadius: 12, border: "1px solid var(--lf-rule)",
+                      background: "var(--lf-paper)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                      padding: 16, textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                      <ShieldCheck size={14} style={{ color: "var(--lf-basil)", flexShrink: 0 }} />
+                      <span className="ds-h3" style={{ fontSize: 13 }}>Privacy & security</span>
+                      <button
+                        onClick={() => setShowSafety(false)}
+                        style={{ marginLeft: "auto", background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--lf-muted)" }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {[
+                        "Open-weight models with zero data retention — documents never used for training.",
+                        "Documents sent over HTTPS, used only for field extraction.",
+                        "Only extracted tax fields are stored — not the original file.",
+                        "Prefer not to upload? Use the text option to describe your situation.",
+                      ].map((item) => (
+                        <div key={item} className="ds-body ds-body--sm" style={{ display: "flex", gap: 6 }}>
+                          <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--lf-muted)", flexShrink: 0, marginTop: 7, opacity: 0.5 }} />
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           }
         >
-          <div className="bg-bg-elevated border border-border rounded-xl px-4">
-            {insights.map((ins, i) => (
-              <ActionItem
-                key={ins.id}
-                title={ins.title}
-                tag={(ins.type ?? ins.category ?? "general").toUpperCase()}
-                description={ins.description}
-                impact={ins.impact ?? ""}
-                impactColor={(ins.impactColor as "green" | "amber" | "red") ?? "amber"}
-                chatPrompt={ins.chatPrompt ?? ins.title}
-                defaultOpen={i === 0}
-                onDismiss={() => dismiss(ins.id)}
-              />
-            ))}
+          <div id="tax-documents-section">
+            <Card>
+              <TaxInputPanel onSuccess={handleInputSuccess} />
+            </Card>
+          </div>
+        </Section>
+      )}
+
+      {/* Recommended actions — editorial article list */}
+      {!insightsLoading && insights.length > 0 && (
+        <Section
+          title="Recommended actions"
+          eyebrow={estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} action${insights.length === 1 ? '' : 's'}`}
+          actions={
+            <Button variant="link" size="sm" onClick={handleRefreshInsights} disabled={refreshingInsights}>
+              {refreshingInsights ? "↻ Refreshing…" : "↻ Refresh"}
+            </Button>
+          }
+        >
+          <ul className="tax-feed">
+            {insights.map((ins) => {
+              const pill = urgencyPill(ins.impactColor as string | undefined);
+              const impactTone = ins.impactColor === 'green' ? 'var(--lf-basil)'
+                : ins.impactColor === 'red' ? 'var(--lf-sauce)'
+                : 'var(--lf-cheese)';
+              return (
+                <li key={ins.id}>
+                  <div className="tax-feed__row">
+                    <div className="tax-feed__main">
+                      <div className="tax-feed__head">
+                        <Pill tone={pill.tone}>{pill.label}</Pill>
+                        <h3 className="tax-feed__title">{ins.title}</h3>
+                      </div>
+                      {ins.description && <p className="tax-feed__body">{ins.description}</p>}
+                      {ins.impact && (
+                        <span className="tax-feed__impact" style={{ color: impactTone }}>
+                          {ins.impact}
+                        </span>
+                      )}
+                    </div>
+                    <div className="tax-feed__actions">
+                      <button
+                        type="button"
+                        className="tax-feed__dismiss"
+                        onClick={() => dismiss(ins.id)}
+                        title="Dismiss"
+                        aria-label="Dismiss"
+                      >
+                        <X size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="tax-feed__open"
+                        onClick={() => openChat(ins.chatPrompt ?? ins.title)}
+                        aria-label="Open"
+                      >
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div style={{ marginTop: 24 }}>
             <LegalDisclaimer variant="insights" />
           </div>
         </Section>
       )}
 
-      {/* ── Upload + Documents ─────────────────────────────────────────────── */}
-      {import.meta.env.VITE_DEMO_MODE !== "true" && (
-        <motion.div
-          id="tax-documents-section"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.18 }}
-          style={{ marginBottom: 20 }}
-        >
-          <div style={{ ...CARD, overflow: "hidden" }}>
-            {/* Header */}
-            <div
-              style={{
-                padding: "14px 18px",
-                borderBottom: "1px solid var(--lf-rule)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={EYEBROW}>Upload documents</span>
-                {/* Safety popover */}
-                <div style={{ position: "relative" }} ref={safetyRef}>
-                  <button
-                    onClick={() => setShowSafety((p) => !p)}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 0,
-                      color: "var(--lf-muted)",
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                    aria-label="Privacy & safety information"
-                  >
-                    <HelpCircle size={13} />
-                  </button>
-                  {showSafety && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        top: 22,
-                        zIndex: 50,
-                        width: 280,
-                        borderRadius: 12,
-                        border: "1px solid var(--lf-rule)",
-                        background: "var(--lf-paper)",
-                        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                        padding: 16,
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                        <ShieldCheck size={14} style={{ color: "var(--lf-basil)", flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--lf-ink)" }}>Privacy & security</span>
-                        <button
-                          onClick={() => setShowSafety(false)}
-                          style={{ marginLeft: "auto", background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--lf-muted)" }}
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {[
-                          "Open-weight models with zero data retention — documents never used for training.",
-                          "Documents sent over HTTPS, used only for field extraction.",
-                          "Only extracted tax fields are stored — not the original file.",
-                          "Prefer not to upload? Use the text option to describe your situation.",
-                        ].map((item) => (
-                          <div key={item} style={{ display: "flex", gap: 6, fontSize: 12, color: "var(--lf-muted)", lineHeight: 1.5 }}>
-                            <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--lf-muted)", flexShrink: 0, marginTop: 6, opacity: 0.5 }} />
-                            {item}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {insightStatus === "generating" && (
-                  <span
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 5,
-                      ...EYEBROW,
-                      color: "var(--lf-cheese)",
-                    }}
-                  >
-                    <RefreshCw size={11} style={{ animation: "spin 1s linear infinite" }} />
-                    Updating insights…
-                  </span>
-                )}
-                {insightStatus === "done" && (
-                  <span style={{ ...EYEBROW, color: "var(--lf-basil)" }}>Actions updated ✓</span>
-                )}
-              </div>
-            </div>
-
-            {/* Upload panel — full width */}
-            <div style={{ padding: 16 }}>
-              <TaxInputPanel onSuccess={handleInputSuccess} />
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── Uploaded Documents (separate section) ─────────────────────────── */}
-      {documents.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.24 }}
-          style={{ marginBottom: 20 }}
-        >
-          <div style={{ ...CARD, overflow: "hidden" }}>
-            <div
-              style={{
-                padding: "14px 18px",
-                borderBottom: "1px solid var(--lf-rule)",
-              }}
-            >
-              <span style={EYEBROW}>Uploaded documents · {documents.length}</span>
-            </div>
-
-            <div
-              className="tax-doc-layout"
-              style={{
-                display: "grid",
-                gridTemplateColumns: selectedDoc ? "1fr 1fr" : "1fr",
-                gap: 0,
-              }}
-            >
-              {/* Document list — year accordion folders */}
-              <div style={{ padding: 16, overflowY: "auto", maxHeight: 480 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {documentsByYear.map(([year, yearDocs]) => {
-                    const isOpen = expandedYears.has(year);
-                    return (
-                      <div key={year}>
-                        {/* Folder header */}
-                        <button
-                          onClick={() => toggleYear(year)}
-                          style={{
-                            width: "100%",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "8px 10px",
-                            background: "transparent",
-                            border: "none",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            transition: "background 0.12s",
-                          }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--lf-cream)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                        >
-                          <ChevronDown
-                            size={14}
-                            style={{
-                              color: "var(--lf-muted)",
-                              flexShrink: 0,
-                              transition: "transform 0.2s",
-                              transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
-                            }}
-                          />
-                          <FolderOpen size={14} style={{ color: "var(--lf-cheese)", flexShrink: 0 }} />
-                          <span style={{ ...EYEBROW, fontSize: 12 }}>
-                            {year === "Unknown" ? "Unknown Year" : year}
-                          </span>
-                          <span style={{ ...EYEBROW, fontSize: 11, opacity: 0.5, marginLeft: "auto" }}>
-                            {yearDocs.length}
-                          </span>
-                        </button>
-
-                        {/* Folder contents */}
-                        <AnimatePresence initial={false}>
-                          {isOpen && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2, ease: "easeInOut" }}
-                              style={{ overflow: "hidden" }}
-                            >
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "4px 0 8px 22px" }}>
-                                {yearDocs.map((doc, i) => {
-                                  const isSelected = selectedDoc?.id === doc.id;
-                                  const isLoading = docLoading === doc.id;
-                                  const isConfirming = deleteConfirmId === doc.id;
-                                  const { label } = getDocLabel(doc);
-                                  const uploadDate = doc.createdAt
-                                    ? new Date(doc.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                                      + " at "
-                                      + new Date(doc.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-                                    : null;
-                                  return (
-                                    <motion.div
-                                      key={doc.id}
-                                      initial={{ opacity: 0, x: -4 }}
-                                      animate={{ opacity: 1, x: 0 }}
-                                      transition={{ delay: i * 0.03 }}
-                                      onClick={() => handleSelectDocument(doc.id)}
-                                      style={{
-                                        background: isSelected ? "var(--lf-ink)" : "var(--lf-cream)",
-                                        color: isSelected ? "var(--lf-paper)" : "var(--lf-ink)",
-                                        border: `1px solid ${isSelected ? "var(--lf-ink)" : "var(--lf-rule)"}`,
-                                        borderRadius: 8,
-                                        padding: "8px 12px",
-                                        display: "flex",
-                                        alignItems: "flex-start",
-                                        gap: 8,
-                                        cursor: "pointer",
-                                        transition: "background 0.15s, border-color 0.15s, color 0.15s",
-                                      }}
-                                    >
-                                      <FileText
-                                        size={14}
-                                        style={{ color: isSelected ? "var(--lf-cheese)" : "var(--lf-muted)", flexShrink: 0, marginTop: 2 }}
-                                      />
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div
-                                          style={{
-                                            fontSize: 13,
-                                            fontWeight: 500,
-                                            overflow: "hidden",
-                                            textOverflow: "ellipsis",
-                                            whiteSpace: "nowrap",
-                                          }}
-                                        >
-                                          {label}
-                                        </div>
-                                        <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2, display: "flex", gap: 8 }}>
-                                          {uploadDate && <span>{uploadDate}</span>}
-                                          <span>{doc.fileName}</span>
-                                        </div>
-                                        {!isSelected && doc.llmSummary && (
-                                          <div
-                                            style={{
-                                              fontSize: 12,
-                                              color: isSelected ? undefined : "var(--lf-muted)",
-                                              opacity: isSelected ? 0.7 : 1,
-                                              marginTop: 3,
-                                              lineHeight: 1.4,
-                                              display: "-webkit-box",
-                                              WebkitLineClamp: 2,
-                                              WebkitBoxOrient: "vertical" as const,
-                                              overflow: "hidden",
-                                            }}
-                                          >
-                                            {doc.llmSummary}
-                                          </div>
-                                        )}
-                                      </div>
-                                      {isLoading && (
-                                        <RefreshCw size={12} style={{ color: isSelected ? "var(--lf-cheese)" : "var(--lf-muted)", flexShrink: 0, marginTop: 2, animation: "spin 1s linear infinite" }} />
-                                      )}
-                                      {import.meta.env.VITE_DEMO_MODE !== "true" && (
-                                        isConfirming ? (
-                                          <div
-                                            onClick={(e) => e.stopPropagation()}
-                                            style={{ display: "flex", gap: 4, flexShrink: 0 }}
-                                          >
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); setDeleteConfirmId(null); }}
-                                              style={{
-                                                background: "var(--lf-sauce)",
-                                                border: "none",
-                                                cursor: "pointer",
-                                                padding: "2px 8px",
-                                                borderRadius: 4,
-                                                color: "var(--lf-paper)",
-                                                fontSize: 11,
-                                                fontWeight: 600,
-                                              }}
-                                            >
-                                              Delete
-                                            </button>
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }}
-                                              style={{
-                                                background: "transparent",
-                                                border: `1px solid ${isSelected ? "var(--lf-paper)" : "var(--lf-rule)"}`,
-                                                cursor: "pointer",
-                                                padding: "2px 8px",
-                                                borderRadius: 4,
-                                                color: isSelected ? "var(--lf-paper)" : "var(--lf-muted)",
-                                                fontSize: 11,
-                                                fontWeight: 600,
-                                              }}
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(doc.id); }}
-                                            style={{
-                                              background: "transparent",
-                                              border: "none",
-                                              cursor: "pointer",
-                                              padding: 4,
-                                              borderRadius: 6,
-                                              color: isSelected ? "var(--lf-paper)" : "var(--lf-muted)",
-                                              flexShrink: 0,
-                                              opacity: 0.6,
-                                              transition: "opacity 0.15s",
-                                            }}
-                                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
-                                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.6"; }}
-                                          >
-                                            <Trash2 size={13} />
-                                          </button>
-                                        )
-                                      )}
-                                    </motion.div>
-                                  );
-                                })}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    );
-                  })}
-                </div>
+      {/* Documents */}
+      <Section
+        title="Documents"
+        eyebrow={documents.length > 0 ? `${documents.length} uploaded` : 'None yet'}
+      >
+        {documents.length === 0 ? (
+          <EmptyState
+            icon={<FolderOpen size={40} />}
+            title="No documents uploaded yet"
+            body="Upload W-2s, 1099s, or any tax form. We extract the fields, surface deductions, and never store the original file."
+          />
+        ) : (
+          <Card flush>
+            <div className={`tax-doc-layout ${selectedDoc ? 'is-split' : ''}`}>
+              <div>
+                <DataTable
+                  columns={docCols}
+                  rows={documents}
+                  rowKey={(d) => d.id}
+                  hover
+                  onRowClick={(d) => handleSelectDocument(d.id)}
+                />
               </div>
 
-              {/* Detail side panel */}
               <AnimatePresence>
                 {selectedDoc && (
                   <motion.div
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: "auto" }}
-                    exit={{ opacity: 0, width: 0 }}
-                    transition={{ duration: 0.25, ease: "easeInOut" }}
-                    style={{
-                      borderLeft: "1px solid var(--lf-rule)",
-                      overflow: "hidden",
-                    }}
-                    className="tax-doc-detail"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                    className="tax-doc-detail-wrap"
                   >
                     <DocumentDetail doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Responsive style override for narrow viewports */}
-      <style>{`
-        @media (max-width: 700px) {
-          .tax-doc-layout {
-            grid-template-columns: 1fr !important;
-          }
-          .tax-doc-detail {
-            border-left: none !important;
-            border-top: 1px solid var(--lf-rule);
-          }
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
-    </div>
+          </Card>
+        )}
+      </Section>
+    </Page>
   );
 }
 
 // ─── sub-components ──────────────────────────────────────────────────────────
-
-function MiniCard({
-  label,
-  value,
-  sub,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  valueColor?: string;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--lf-paper)",
-        border: "1px solid var(--lf-rule)",
-        borderRadius: 12,
-        padding: "14px 16px",
-      }}
-    >
-      <div style={{ ...EYEBROW, fontSize: 13, marginBottom: 8 }}>{label}</div>
-      <div
-        style={{
-          ...SERIF,
-          fontSize: 22,
-          color: valueColor ?? "var(--lf-ink)",
-          lineHeight: 1,
-          marginBottom: sub ? 5 : 0,
-        }}
-      >
-        {value}
-      </div>
-      {sub && (
-        <div style={{ fontSize: 13, color: "var(--lf-muted)", marginTop: 4 }}>{sub}</div>
-      )}
-    </div>
-  );
-}
 
 function formatFieldKey(key: string): string {
   return key
@@ -934,7 +732,6 @@ function formatFieldKey(key: string): string {
 function formatFieldValue(value: unknown): string {
   if (value === null || value === undefined) return "—";
   if (typeof value === "number") {
-    // Format as currency if it looks like money (> 1 and not a year)
     if (value > 100 && value < 100_000_000) {
       return new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -947,7 +744,6 @@ function formatFieldValue(value: unknown): string {
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "string") return value;
-  // Arrays and objects — won't produce [Object object]
   if (Array.isArray(value)) {
     return value.map((v) => formatFieldValue(v)).join(", ");
   }
@@ -957,7 +753,6 @@ function formatFieldValue(value: unknown): string {
   return String(value);
 }
 
-/** Check if a value is a nested object (not null, not array, not primitive) */
 function isNestedObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -968,11 +763,9 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
     ([, v]) => v !== null && v !== undefined && v !== ""
   );
 
-  // Metadata fields shown as badges above the grid, not in the grid
   const docType = fields.document_type || fields.form_type || null;
   const taxYear = fields.tax_year ?? doc.taxYear ?? null;
   const metaKeys = new Set(["document_type", "form_type", "tax_year"]);
-  // Split into flat fields and nested objects
   const flatFields = fieldEntries.filter(
     ([k, v]) => !metaKeys.has(k) && !isNestedObject(v)
   );
@@ -981,136 +774,59 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
   );
 
   return (
-    <div
-      style={{
-        padding: "16px",
-        overflowY: "auto",
-        maxHeight: 400,
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {docType && (
-            <span
-              style={{
-                ...EYEBROW,
-                fontSize: 11,
-                padding: "3px 8px",
-                borderRadius: 6,
-                background: "var(--lf-ink)",
-                color: "var(--lf-cheese)",
-              }}
-            >
-              {String(docType)}
-            </span>
-          )}
-          {taxYear && (
-            <span
-              style={{
-                ...EYEBROW,
-                fontSize: 11,
-                padding: "3px 8px",
-                borderRadius: 6,
-                background: "var(--lf-cream)",
-                color: "var(--lf-ink)",
-                border: "1px solid var(--lf-rule)",
-              }}
-            >
-              Tax Year {String(taxYear)}
-            </span>
-          )}
-          <span style={{ ...EYEBROW, fontSize: 11 }}>Extracted fields</span>
+    <div style={{ padding: 16, overflowY: 'auto', maxHeight: 480 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {docType && <Pill tone="ink">{String(docType)}</Pill>}
+          {taxYear && <Pill tone="cream">Tax Year {String(taxYear)}</Pill>}
+          <Eyebrow>Extracted fields</Eyebrow>
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
           style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: 2,
-            color: "var(--lf-muted)",
-            borderRadius: 4,
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            padding: 2, color: 'var(--lf-muted)', borderRadius: 4,
           }}
+          aria-label="Close detail"
         >
           <X size={14} />
         </button>
       </div>
 
-      {/* File name */}
-      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--lf-ink)", marginBottom: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--lf-ink)', marginBottom: 8 }}>
         {doc.fileName}
       </div>
 
-      {/* Summary */}
       {doc.llmSummary && (
-        <div
-          style={{
-            fontSize: 13,
-            color: "var(--lf-ink-soft)",
-            lineHeight: 1.5,
-            marginBottom: 14,
-            padding: "10px 12px",
-            background: "var(--lf-cream)",
-            borderRadius: 8,
-          }}
-        >
+        <div className="ds-body ds-body--sm" style={{
+          color: 'var(--lf-ink-soft)', marginBottom: 14,
+          padding: '10px 12px', background: 'var(--lf-cream)', borderRadius: 8,
+        }}>
           {doc.llmSummary}
         </div>
       )}
 
-      {/* Flat fields table */}
       {flatFields.length > 0 ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "1px",
-            background: "var(--lf-rule)",
-            borderRadius: 8,
-            overflow: "hidden",
-            border: "1px solid var(--lf-rule)",
-          }}
-        >
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1,
+          background: 'var(--lf-rule)', borderRadius: 8, overflow: 'hidden',
+          border: '1px solid var(--lf-rule)',
+        }}>
           {flatFields.map(([key, value]) => (
-            <div
-              key={key}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                padding: "8px 10px",
-                background: "var(--lf-paper)",
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 11,
-                  color: "var(--lf-muted)",
-                  letterSpacing: "0.04em",
-                }}
-              >
+            <div key={key} style={{
+              display: 'flex', flexDirection: 'column', gap: 2,
+              padding: '8px 10px', background: 'var(--lf-paper)',
+            }}>
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 11, color: 'var(--lf-muted)', letterSpacing: '0.04em',
+              }}>
                 {formatFieldKey(key)}
               </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: "var(--lf-ink)",
-                  fontFamily:
-                    typeof value === "number"
-                      ? "'JetBrains Mono', monospace"
-                      : "inherit",
-                }}
-              >
+              <div className={typeof value === 'number' ? 'ds-num' : ''} style={{
+                fontSize: 14, fontWeight: 500, color: 'var(--lf-ink)',
+                fontFamily: typeof value === 'number' ? "'JetBrains Mono', monospace" : 'inherit',
+              }}>
                 {formatFieldValue(value)}
               </div>
             </div>
@@ -1118,20 +834,12 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
         </div>
       ) : (
         !nestedFields.length && (
-          <div
-            style={{
-              fontSize: 13,
-              color: "var(--lf-muted)",
-              textAlign: "center",
-              padding: "16px 0",
-            }}
-          >
+          <div className="ds-caption" style={{ textAlign: 'center', padding: '16px 0' }}>
             No extracted fields available.
           </div>
         )
       )}
 
-      {/* Nested object sections */}
       {nestedFields.map(([key, value]) => {
         const obj = value as Record<string, unknown>;
         const entries = Object.entries(obj).filter(
@@ -1140,58 +848,28 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
         if (!entries.length) return null;
         return (
           <div key={key} style={{ marginTop: 14 }}>
-            <div
-              style={{
-                ...EYEBROW,
-                fontSize: 11,
-                marginBottom: 6,
-              }}
-            >
-              {formatFieldKey(key)}
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "1px",
-                background: "var(--lf-rule)",
-                borderRadius: 8,
-                overflow: "hidden",
-                border: "1px solid var(--lf-rule)",
-              }}
-            >
+            <Eyebrow>{formatFieldKey(key)}</Eyebrow>
+            <div style={{
+              marginTop: 6,
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1,
+              background: 'var(--lf-rule)', borderRadius: 8, overflow: 'hidden',
+              border: '1px solid var(--lf-rule)',
+            }}>
               {entries.map(([subKey, subValue]) => (
-                <div
-                  key={subKey}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 2,
-                    padding: "8px 10px",
-                    background: "var(--lf-paper)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 11,
-                      color: "var(--lf-muted)",
-                      letterSpacing: "0.04em",
-                    }}
-                  >
+                <div key={subKey} style={{
+                  display: 'flex', flexDirection: 'column', gap: 2,
+                  padding: '8px 10px', background: 'var(--lf-paper)',
+                }}>
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11, color: 'var(--lf-muted)', letterSpacing: '0.04em',
+                  }}>
                     {formatFieldKey(subKey)}
                   </div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 500,
-                      color: "var(--lf-ink)",
-                      fontFamily:
-                        typeof subValue === "number"
-                          ? "'JetBrains Mono', monospace"
-                          : "inherit",
-                    }}
-                  >
+                  <div className={typeof subValue === 'number' ? 'ds-num' : ''} style={{
+                    fontSize: 14, fontWeight: 500, color: 'var(--lf-ink)',
+                    fontFamily: typeof subValue === 'number' ? "'JetBrains Mono', monospace" : 'inherit',
+                  }}>
                     {formatFieldValue(subValue)}
                   </div>
                 </div>
@@ -1203,4 +881,3 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
     </div>
   );
 }
-

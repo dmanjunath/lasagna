@@ -1,5 +1,29 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "wouter";
+import {
+  RefreshCw,
+  X,
+  Plus,
+  Pencil,
+  AlertTriangle,
+  Sparkles,
+  Building2,
+  ChevronDown,
+  ChevronRight,
+  Trash2,
+} from "lucide-react";
+import {
+  Page,
+  PageHeader,
+  Section,
+  Button,
+  Pill,
+  Eyebrow,
+  EmptyState,
+  Lede,
+} from "../components/ds";
+import { api } from "../lib/api.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -10,7 +34,16 @@ function formatCurrency(value: string, currency: string): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency,
+    maximumFractionDigits: 0,
   }).format(num);
+}
+
+function formatTotal(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 function formatRelativeTime(iso: string): string {
@@ -54,178 +87,10 @@ interface PlaidItem {
 }
 
 // ---------------------------------------------------------------------------
-// API (preserved from original)
+// Spinner
 // ---------------------------------------------------------------------------
 
-import { api } from "../lib/api.js";
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function InstitutionInitial({ name }: { name: string }) {
-  const initial = (name || "?")[0].toUpperCase();
-  return (
-    <div style={{
-      width: 36, height: 36, borderRadius: 8,
-      background: "var(--lf-ink)", color: "var(--lf-cheese)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "'Instrument Serif', Georgia, serif",
-      fontSize: 16, fontWeight: 400, flexShrink: 0,
-    }}>
-      {initial}
-    </div>
-  );
-}
-
-function StatusBadge({ status, lastSyncedAt }: { status: string; lastSyncedAt: string | null }) {
-  const isError = status === "error" || status === "item_login_required";
-  const color = isError ? "var(--lf-sauce)" : "var(--lf-muted)";
-  const prefix = isError ? "⚠" : "✓";
-  const label = isError
-    ? "needs re-auth"
-    : lastSyncedAt
-    ? `synced · ${formatRelativeTime(lastSyncedAt)}`
-    : "synced";
-
-  return (
-    <span style={{
-      fontFamily: "'JetBrains Mono', monospace",
-      fontSize: 13, color,
-      letterSpacing: "0.02em",
-    }}>
-      {prefix} {label}
-    </span>
-  );
-}
-
-function TypePill({ type, subtype }: { type: string; subtype: string | null }) {
-  return (
-    <span style={{
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: 20,
-      fontSize: 13,
-      fontFamily: "'JetBrains Mono', monospace",
-      letterSpacing: "0.04em",
-      background: "var(--lf-cream-deep)",
-      color: "var(--lf-muted)",
-      whiteSpace: "nowrap",
-      flexShrink: 0,
-    }}>
-      {getAccountTypeLabel(type, subtype)}
-    </span>
-  );
-}
-
-function GhostButton({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "6px 14px", borderRadius: 8,
-        border: "1px solid var(--lf-rule)",
-        background: hovered && !disabled ? "var(--lf-cream)" : "transparent",
-        color: disabled ? "var(--lf-muted)" : "var(--lf-ink)",
-        fontSize: 13, fontFamily: "'Geist', system-ui, sans-serif",
-        cursor: disabled ? "not-allowed" : "pointer",
-        transition: "background 0.12s",
-        opacity: disabled ? 0.6 : 1,
-        flexShrink: 0,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PrimaryButton({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "6px 16px", borderRadius: 8,
-        border: "1px solid var(--lf-ink)",
-        background: hovered && !disabled ? "var(--lf-sauce-deep)" : "var(--lf-ink)",
-        color: "var(--lf-paper)",
-        fontSize: 13, fontFamily: "'Geist', system-ui, sans-serif",
-        cursor: disabled ? "not-allowed" : "pointer",
-        transition: "background 0.12s",
-        opacity: disabled ? 0.6 : 1,
-        flexShrink: 0,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SmallIconButton({
-  label,
-  onClick,
-  danger,
-  "aria-label": ariaLabel,
-}: {
-  label: string;
-  onClick?: () => void;
-  danger?: boolean;
-  "aria-label"?: string;
-}) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      title={ariaLabel ?? label}
-      aria-label={ariaLabel ?? label}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        width: 30, height: 30, borderRadius: 7,
-        border: "1px solid var(--lf-rule)",
-        background: hovered ? (danger ? "rgba(201,84,58,0.08)" : "var(--lf-cream-deep)") : "transparent",
-        color: danger && hovered ? "var(--lf-sauce)" : "var(--lf-muted)",
-        fontSize: 13, cursor: "pointer",
-        transition: "background 0.1s, color 0.1s",
-        flexShrink: 0,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Spinner (inline — no lucide dependency in this file)
-// ---------------------------------------------------------------------------
-
-function Spinner({ size = 16 }: { size?: number }) {
+function Spinner({ size = 14 }: { size?: number }) {
   return (
     <svg
       width={size} height={size}
@@ -253,18 +118,18 @@ interface AccountTypeDef {
 }
 
 const ACCOUNT_TYPES: AccountTypeDef[] = [
-  { label: "Checking / Savings", emoji: "\uD83D\uDCB5", type: "depository", isDebt: false },
-  { label: "401(k) / 403(b)", emoji: "\uD83D\uDCC8", type: "investment", subtype: "401k", isDebt: false },
-  { label: "Roth IRA", emoji: "\uD83C\uDF31", type: "investment", subtype: "roth_ira", isDebt: false },
-  { label: "Traditional IRA", emoji: "\uD83D\uDCCA", type: "investment", subtype: "ira", isDebt: false },
-  { label: "Brokerage", emoji: "\uD83D\uDCBC", type: "investment", subtype: "brokerage", isDebt: false },
-  { label: "HSA", emoji: "\uD83C\uDFE5", type: "investment", subtype: "hsa", isDebt: false },
-  { label: "Primary Residence", emoji: "\uD83C\uDFE1", type: "real_estate", subtype: "primary", isDebt: false },
-  { label: "Rental Property", emoji: "\uD83C\uDFE2", type: "real_estate", subtype: "rental", isDebt: false },
-  { label: "Credit Card", emoji: "\uD83D\uDCB3", type: "credit", isDebt: true },
-  { label: "Student Loan", emoji: "\uD83C\uDF93", type: "loan", subtype: "student", isDebt: true },
-  { label: "Auto Loan", emoji: "\uD83D\uDE97", type: "loan", subtype: "auto", isDebt: true },
-  { label: "Mortgage", emoji: "\uD83C\uDFE0", type: "loan", subtype: "mortgage", isDebt: true },
+  { label: "Checking / Savings", emoji: "💵", type: "depository", isDebt: false },
+  { label: "401(k) / 403(b)", emoji: "📈", type: "investment", subtype: "401k", isDebt: false },
+  { label: "Roth IRA", emoji: "🌱", type: "investment", subtype: "roth_ira", isDebt: false },
+  { label: "Traditional IRA", emoji: "📊", type: "investment", subtype: "ira", isDebt: false },
+  { label: "Brokerage", emoji: "💼", type: "investment", subtype: "brokerage", isDebt: false },
+  { label: "HSA", emoji: "🏥", type: "investment", subtype: "hsa", isDebt: false },
+  { label: "Primary Residence", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false },
+  { label: "Rental Property", emoji: "🏢", type: "real_estate", subtype: "rental", isDebt: false },
+  { label: "Credit Card", emoji: "💳", type: "credit", isDebt: true },
+  { label: "Student Loan", emoji: "🎓", type: "loan", subtype: "student", isDebt: true },
+  { label: "Auto Loan", emoji: "🚗", type: "loan", subtype: "auto", isDebt: true },
+  { label: "Mortgage", emoji: "🏠", type: "loan", subtype: "mortgage", isDebt: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -279,7 +144,8 @@ export function Accounts() {
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [newlyLinkedId, setNewlyLinkedId] = useState<string | null>(null);
-  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const itemRefs = useRef<Record<string, HTMLElement | null>>({});
 
   // Manual account modal state
   const [showManualModal, setShowManualModal] = useState(false);
@@ -288,9 +154,7 @@ export function Accounts() {
   const [acctBalance, setAcctBalance] = useState("");
   const [acctRate, setAcctRate] = useState("");
   const [addingAccount, setAddingAccount] = useState(false);
-  // Banner prompt: after adding a property suggest mortgage, and vice versa
   const [linkedBanner, setLinkedBanner] = useState<{ message: string; actionLabel: string; onAction: () => void } | null>(null);
-  // ID of an account to cross-link with the next manual account creation
   const [pendingLinkedId, setPendingLinkedId] = useState<string | null>(null);
 
   const loadItems = (showLoader = true) => {
@@ -303,7 +167,7 @@ export function Accounts() {
 
   useEffect(() => loadItems(), []);
 
-  // Auto-open Plaid Link if navigated with ?autoLink=true (from onboarding)
+  // Auto-open Plaid Link if navigated with ?autoLink=true
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("autoLink") === "true") {
@@ -311,7 +175,24 @@ export function Accounts() {
       const timer = setTimeout(() => handleLink(), 300);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-expand on highlight (newly linked)
+  useEffect(() => {
+    if (newlyLinkedId) {
+      setExpandedIds((prev) => new Set(prev).add(newlyLinkedId));
+    }
+  }, [newlyLinkedId]);
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleLink = async () => {
     setLinking(true);
@@ -338,7 +219,6 @@ export function Accounts() {
               institutionId: metadata.institution?.institution_id,
               institutionName: metadata.institution?.name,
             });
-            // Sync runs async on the server — poll until accounts appear
             setSyncing(true);
             let attempts = 0;
             const poll = setInterval(async () => {
@@ -360,8 +240,6 @@ export function Accounts() {
                       itemRefs.current[newInst.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
                     }, 100);
                     setTimeout(() => setNewlyLinkedId(null), 3000);
-                    // Insights are regenerated by the backend after exchange-token
-                    // chains syncItem → generateInsights — no need to trigger here.
                   }
                 }
               } catch {
@@ -458,7 +336,6 @@ export function Accounts() {
       setShowManualModal(false);
       loadItems();
 
-      // Show banner suggesting linked account
       if (justAdded.type === "real_estate") {
         setLinkedBanner({
           message: "Have a mortgage on this property?",
@@ -479,7 +356,7 @@ export function Accounts() {
           onAction: () => {
             setLinkedBanner(null);
             setPendingLinkedId(createdId);
-            setShowManualModal(true); // opens to type picker so they can choose primary/rental
+            setShowManualModal(true);
           },
         });
       }
@@ -495,303 +372,176 @@ export function Accounts() {
   const allAccounts = items.flatMap((i) => i.accounts);
   const totalAccounts = allAccounts.length;
 
+  // Total tracked = sum of absolute balances across all accounts (a soft "scope" figure)
+  const totalTracked = allAccounts.reduce((sum, a) => {
+    const v = a.balance !== null ? parseFloat(a.balance) : 0;
+    return sum + (Number.isNaN(v) ? 0 : Math.abs(v));
+  }, 0);
+
+  const linkedItems = items.filter((i) => i.institutionId !== "manual");
+  const manualItems = items.filter((i) => i.institutionId === "manual");
+  const manualAccounts = manualItems.flatMap((i) => i.accounts);
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   return (
-    <div style={{
-      flex: 1, overflowY: "auto",
-      padding: "clamp(16px, 4vw, 40px)",
-      paddingBottom: "clamp(80px, 12vw, 40px)",
-      background: "var(--lf-paper)",
-      minHeight: "100vh",
-    }}>
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        style={{ maxWidth: 1100, margin: "0 auto" }}
-      >
-
-        {/* ── Page Header ── */}
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
-            <div>
-              <h1 className="lf-h1" style={{ margin: 0 }}>
-                Accounts
-              </h1>
-              {!loading && (
-                <div style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 13, letterSpacing: "0.14em",
-                  textTransform: "uppercase", color: "var(--lf-muted)",
-                  marginTop: 6,
-                }}>
-                  {items.length} institution{items.length !== 1 ? "s" : ""} · {totalAccounts} account{totalAccounts !== 1 ? "s" : ""}
-                </div>
-              )}
-            </div>
-
-            {!isDemoMode && (
-              <div style={{ display: "flex", gap: 8, paddingBottom: 6 }}>
-                {items.length > 0 && (
-                  <GhostButton onClick={handleSyncAll} disabled={syncing || linking}>
-                    {syncing ? <><Spinner size={13} /> Syncing…</> : "↺ Sync all"}
-                  </GhostButton>
-                )}
-                <GhostButton onClick={() => setShowManualModal(true)}>
-                  ✎ Add Manual
-                </GhostButton>
-                <PrimaryButton onClick={handleLink} disabled={linking || syncing}>
-                  {linking ? <><Spinner size={13} /> Linking…</> : "+ Link via Plaid"}
-                </PrimaryButton>
-              </div>
+    <Page>
+      <PageHeader
+        eyebrow={loading ? null : `${items.length} institution${items.length !== 1 ? "s" : ""} · ${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`}
+        title="Accounts"
+        actions={!isDemoMode ? (
+          <>
+            {items.length > 0 && (
+              <Button variant="ghost" onClick={handleSyncAll} disabled={syncing || linking} icon={syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}>
+                {syncing ? "Syncing…" : "Sync all"}
+              </Button>
             )}
-          </div>
+            <Button variant="ghost" onClick={() => setShowManualModal(true)} icon={<Pencil size={14} />}>
+              Add manual
+            </Button>
+            <Button variant="primary" onClick={handleLink} disabled={linking || syncing} icon={linking ? <Spinner size={13} /> : <Plus size={14} />}>
+              {linking ? "Linking…" : "Link via Plaid"}
+            </Button>
+          </>
+        ) : undefined}
+      />
+
+      {/* Editorial lede */}
+      {!loading && items.length > 0 && (
+        <div style={{ marginBottom: 40 }}>
+          <Lede>
+            <Lede.Num>{items.length}</Lede.Num> institution{items.length !== 1 ? "s" : ""} linked.
+            Total tracked:{' '}
+            <Lede.Num highlight>{formatTotal(totalTracked)}</Lede.Num>{' '}
+            across <Lede.Num>{totalAccounts}</Lede.Num> account{totalAccounts !== 1 ? "s" : ""}.
+          </Lede>
         </div>
+      )}
 
-        {/* ── Quick Import CTA ── */}
-        <a
-          href="/quick-import"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 16,
-            padding: '16px 20px', marginBottom: 24,
-            borderRadius: 14,
-            background: 'linear-gradient(135deg, rgba(230,184,92,0.12) 0%, rgba(201,84,58,0.08) 100%)',
-            border: '1px solid rgba(230,184,92,0.3)',
-            textDecoration: 'none', color: 'inherit',
-            transition: 'border-color 0.15s',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(201,84,58,0.4)')}
-          onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'rgba(230,184,92,0.3)')}
+      {/* Quick Import CTA — kept as a soft inline marginalia line */}
+      <Link href="/quick-import" className="ds-accounts-quickimport">
+        <div className="ds-accounts-quickimport__icon">
+          <Sparkles size={14} />
+        </div>
+        <div className="ds-accounts-quickimport__body">
+          <span className="ds-accounts-quickimport__eyebrow">Quick import</span>
+          <span className="ds-accounts-quickimport__title">Describe your accounts in plain English</span>
+        </div>
+        <span className="ds-accounts-quickimport__arrow" aria-hidden="true">→</span>
+      </Link>
+
+      {/* Error banner */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="ds-accounts-banner ds-accounts-banner--error"
         >
-          <span style={{ fontSize: 28, lineHeight: 1 }}>✨</span>
-          <div style={{ flex: 1 }}>
-            <div style={{
-              fontFamily: "'Geist', system-ui, sans-serif",
-              fontSize: 14, fontWeight: 600, color: 'var(--lf-ink)',
-            }}>
-              Quick Import — describe your accounts in plain English
+          <AlertTriangle size={14} />
+          <span style={{ flex: 1 }}>{error}</span>
+        </motion.div>
+      )}
+
+      {/* Linked-suggestion banner */}
+      {linkedBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="ds-accounts-banner ds-accounts-banner--basil"
+        >
+          <span style={{ flex: 1 }}>{linkedBanner.message}</span>
+          <Button variant="ghost" size="sm" onClick={linkedBanner.onAction}>
+            {linkedBanner.actionLabel}
+          </Button>
+          <Button variant="icon" size="sm" onClick={() => setLinkedBanner(null)} aria-label="Dismiss">
+            <X size={14} />
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Loading state */}
+      {loading && (
+        <div style={{ height: 120, background: 'var(--lf-cream)', borderRadius: 8 }} className="animate-pulse" />
+      )}
+
+      {/* Empty state */}
+      {!loading && items.length === 0 && (
+        <EmptyState
+          icon={<Building2 size={28} />}
+          title="No accounts linked yet"
+          body="Connect your bank to see balances, transactions, and synced insights."
+          cta={!isDemoMode ? (
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <Button variant="primary" onClick={handleLink} disabled={linking} icon={linking ? <Spinner size={13} /> : <Plus size={14} />}>
+                {linking ? "Linking…" : "Link via Plaid"}
+              </Button>
+              <Button variant="ghost" onClick={() => setShowManualModal(true)} icon={<Pencil size={14} />}>
+                Add manual
+              </Button>
             </div>
-            <div style={{
-              fontFamily: "'Geist', system-ui, sans-serif",
-              fontSize: 13, color: 'var(--lf-muted)', marginTop: 3,
-            }}>
-              Paste a description of your finances and we'll set up all your accounts, goals, and profile in seconds. No forms, no Plaid.
-            </div>
-          </div>
-          <span style={{ color: 'var(--lf-muted)', fontSize: 16 }}>→</span>
-        </a>
+          ) : undefined}
+        />
+      )}
 
-        {/* ── Error banner ── */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{
-              marginBottom: 24,
-              padding: "12px 16px",
-              borderRadius: 10,
-              background: "rgba(201,84,58,0.08)",
-              border: "1px solid rgba(201,84,58,0.25)",
-              color: "var(--lf-sauce)",
-              fontSize: 13,
-              fontFamily: "'Geist', system-ui, sans-serif",
-              display: "flex", alignItems: "center", gap: 8,
-            }}
-          >
-            <span style={{ fontSize: 15 }}>⚠</span>
-            {error}
-          </motion.div>
-        )}
-
-        {/* ── Linked account banner ── */}
-        {linkedBanner && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{
-              marginBottom: 24,
-              padding: "14px 20px",
-              borderRadius: 10,
-              background: "rgba(90,107,63,0.08)",
-              border: "1px solid rgba(90,107,63,0.25)",
-              fontSize: 13,
-              fontFamily: "'Geist', system-ui, sans-serif",
-              display: "flex", alignItems: "center", gap: 12,
-              color: "var(--lf-ink)",
-            }}
-          >
-            <span style={{ flex: 1 }}>{linkedBanner.message}</span>
-            <GhostButton onClick={linkedBanner.onAction}>
-              {linkedBanner.actionLabel}
-            </GhostButton>
-            <SmallIconButton
-              label="✕"
-              onClick={() => setLinkedBanner(null)}
-            />
-          </motion.div>
-        )}
-
-        {/* ── Loading state ── */}
-        {loading && (
-          <div style={{
-            background: "var(--lf-paper)",
-            border: "1px solid var(--lf-rule)",
-            borderRadius: 14, overflow: "hidden",
-            padding: "48px 32px",
-          }}>
-            {null}
-          </div>
-        )}
-
-        {/* ── Empty state ── */}
-        {!loading && items.length === 0 && (
-          <div style={{
-            background: "var(--lf-paper)",
-            border: "1px solid var(--lf-rule)",
-            borderRadius: 14, overflow: "hidden",
-            padding: "56px 32px",
-            display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center",
-            gap: 12, textAlign: "center",
-          }}>
-            <div style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 28, color: "var(--lf-cream-deep)",
-            }}>⊞</div>
-            <p style={{
-              fontFamily: "'Instrument Serif', Georgia, serif",
-              fontSize: 20, color: "var(--lf-ink)", margin: 0,
-            }}>
-              No accounts linked yet.
-            </p>
-            <p style={{ color: "var(--lf-muted)", fontSize: 13, margin: 0, fontFamily: "'Geist', system-ui, sans-serif" }}>
-              Connect your bank to see balances, transactions, and synced insights.
-            </p>
-            {!isDemoMode && (
-              <div style={{ marginTop: 8, display: "flex", gap: 8, justifyContent: "center" }}>
-                <PrimaryButton onClick={handleLink} disabled={linking}>
-                  {linking ? <><Spinner size={13} /> Linking…</> : "+ Link via Plaid"}
-                </PrimaryButton>
-                <GhostButton onClick={() => setShowManualModal(true)}>
-                  ✎ Add Manual
-                </GhostButton>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Institution list ── */}
-        {!loading && items.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {items.map((item, i) => (
-              <motion.div
+      {/* Linked institutions — editorial articles */}
+      {!loading && linkedItems.length > 0 && (
+        <Section
+          title="Connected institutions"
+          eyebrow={`${linkedItems.length} linked`}
+        >
+          <div className="ds-accounts-feed">
+            {linkedItems.map((item) => (
+              <InstitutionArticle
                 key={item.id}
-                ref={(el) => { itemRefs.current[item.id] = el; }}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05, duration: 0.35 }}
-                style={{
-                  background: "var(--lf-paper)",
-                  border: newlyLinkedId === item.id
-                    ? "1px solid var(--lf-basil)"
-                    : "1px solid var(--lf-rule)",
-                  borderRadius: 14, overflow: "hidden",
-                  boxShadow: newlyLinkedId === item.id
-                    ? "0 0 0 3px rgba(90,107,63,0.15)"
-                    : "none",
-                  transition: "border-color 0.4s, box-shadow 0.4s",
-                }}
-              >
-                {/* Institution header */}
-                <div style={{
-                  background: "var(--lf-cream)",
-                  padding: "18px 24px",
-                  borderBottom: "1px solid var(--lf-rule)",
-                  display: "flex", alignItems: "center",
-                  justifyContent: "space-between", gap: 12,
-                }}>
-                  {/* Left: logo chip + name + status */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                    <InstitutionInitial name={item.institutionName ?? "?"} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{
-                        fontFamily: "'Geist', system-ui, sans-serif",
-                        fontSize: 15, fontWeight: 600,
-                        color: "var(--lf-ink)",
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>
-                        {item.institutionName ?? "Unknown Bank"}
-                      </div>
-                      <div style={{ marginTop: 2 }}>
-                        <StatusBadge status={item.status} lastSyncedAt={item.lastSyncedAt} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: actions */}
-                  {!isDemoMode && (
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      <SmallIconButton
-                        label={syncingItemId === item.id ? "…" : "↺"}
-                        aria-label={`Sync ${item.institutionName ?? "Unknown Bank"}`}
-                        onClick={() => handleSyncItem(item.id)}
-                      />
-                      <SmallIconButton
-                        label="✕"
-                        danger
-                        aria-label={`Disconnect ${item.institutionName ?? "Unknown Bank"}`}
-                        onClick={() => handleDelete(item.id, item.institutionName ?? "Unknown Bank")}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Account rows */}
-                {item.accounts.length === 0 && syncing && (
-                  <div style={{
-                    padding: "18px 24px",
-                    display: "flex", alignItems: "center", gap: 8,
-                    color: "var(--lf-muted)", fontSize: 13,
-                    fontFamily: "'Geist', system-ui, sans-serif",
-                  }}>
-                    <Spinner size={14} /> Syncing accounts…
-                  </div>
-                )}
-
-                {item.accounts.length === 0 && !syncing && (
-                  <div style={{
-                    padding: "18px 24px",
-                    color: "var(--lf-muted)", fontSize: 13,
-                    fontFamily: "'Geist', system-ui, sans-serif",
-                  }}>
-                    No accounts found for this institution.
-                  </div>
-                )}
-
-                {item.accounts.length > 0 && (
-                  <div>
-                    {item.accounts.map((account, ai) => (
-                      <AccountRow
-                        key={account.id}
-                        account={account}
-                        isLast={ai === item.accounts.length - 1}
-                        isManual={item.institutionId === "manual"}
-                        onDelete={() => handleDeleteAccount(account.id, account.name)}
-                        linkedAccountName={account.metadata?.linkedAccountId
-                          ? allAccounts.find((a) => a.id === account.metadata?.linkedAccountId)?.name ?? null
-                          : null}
-                      />
-                    ))}
-                  </div>
-                )}
-              </motion.div>
+                refCallback={(el) => { itemRefs.current[item.id] = el; }}
+                item={item}
+                isManual={false}
+                isHighlighted={newlyLinkedId === item.id}
+                syncing={syncingItemId === item.id}
+                isDemoMode={isDemoMode}
+                showSyncSpinner={item.accounts.length === 0 && syncing}
+                expanded={expandedIds.has(item.id)}
+                onToggle={() => toggleExpand(item.id)}
+                onSync={() => handleSyncItem(item.id)}
+                onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Unknown Bank")}
+                onDeleteAccount={handleDeleteAccount}
+                allAccounts={allAccounts}
+              />
             ))}
           </div>
-        )}
-      </motion.div>
+        </Section>
+      )}
+
+      {/* Manual accounts */}
+      {!loading && manualAccounts.length > 0 && (
+        <Section
+          title="Manual accounts"
+          eyebrow={`${manualAccounts.length} tracked`}
+        >
+          <div className="ds-accounts-feed">
+            {manualItems.map((item) => (
+              <InstitutionArticle
+                key={item.id}
+                refCallback={(el) => { itemRefs.current[item.id] = el; }}
+                item={item}
+                isManual
+                isHighlighted={false}
+                syncing={false}
+                isDemoMode={isDemoMode}
+                showSyncSpinner={false}
+                expanded={expandedIds.has(item.id)}
+                onToggle={() => toggleExpand(item.id)}
+                onSync={() => {}}
+                onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
+                onDeleteAccount={handleDeleteAccount}
+                allAccounts={allAccounts}
+              />
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* ── Manual Account Modal ── */}
       <AnimatePresence>
@@ -813,139 +563,86 @@ export function Accounts() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 16 }}
               style={{
-                width: "100%", maxWidth: 440,
+                width: "100%", maxWidth: 480,
                 background: "var(--lf-paper)",
                 border: "1px solid var(--lf-rule)",
-                borderRadius: 16, overflow: "hidden",
-                boxShadow: "0 24px 48px rgba(0,0,0,0.15)",
+                borderRadius: 14, overflow: "hidden",
               }}
             >
-              {/* Header */}
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "18px 24px",
-                borderBottom: "1px solid var(--lf-rule)",
-                background: "var(--lf-cream)",
-              }}>
-                <span style={{
-                  fontFamily: "'Instrument Serif', Georgia, serif",
-                  fontSize: 20, fontWeight: 400, color: "var(--lf-ink)",
-                }}>
-                  Add Manual Account
-                </span>
-                <SmallIconButton
-                  label="✕"
+              {/* Editorial modal header — eyebrow + serif h2 */}
+              <div className="ds-accounts-modal__head">
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <Eyebrow>Manual account</Eyebrow>
+                  <h2 className="ds-h2" style={{ marginTop: 6, fontSize: 26 }}>
+                    {activeType ? activeType.label : "Add an account"}
+                  </h2>
+                </div>
+                <Button
+                  variant="icon"
+                  size="sm"
+                  aria-label="Close"
                   onClick={() => { setShowManualModal(false); resetManualForm(); }}
-                />
+                >
+                  <X size={14} />
+                </Button>
               </div>
 
               {/* Body */}
-              <div style={{ padding: 24, maxHeight: "70vh", overflowY: "auto" }}>
+              <div className="ds-accounts-modal__body">
                 {activeType ? (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    style={{ display: "flex", flexDirection: "column", gap: 16 }}
+                    style={{ display: "flex", flexDirection: "column", gap: 18 }}
                   >
-                    {/* Selected type header */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 20 }}>{activeType.emoji}</span>
-                      <span style={{
-                        fontFamily: "'Geist', system-ui, sans-serif",
-                        fontSize: 15, fontWeight: 600, color: "var(--lf-ink)",
-                      }}>
-                        {activeType.label}
-                      </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Pill tone="cream">{activeType.label}</Pill>
                       <button
+                        type="button"
                         onClick={resetManualForm}
-                        style={{
-                          marginLeft: "auto", fontSize: 12,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          color: "var(--lf-muted)", background: "none",
-                          border: "none", cursor: "pointer",
-                          letterSpacing: "0.04em",
-                        }}
+                        className="ds-btn ds-btn--link"
+                        style={{ marginLeft: "auto" }}
                       >
                         change type
                       </button>
                     </div>
 
-                    {/* Account name */}
                     <div>
-                      <label style={{
-                        display: "block", fontSize: 12, color: "var(--lf-muted)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: "0.06em", textTransform: "uppercase",
-                        marginBottom: 6,
-                      }}>
-                        Account name
-                      </label>
+                      <Eyebrow>Account name</Eyebrow>
                       <input
                         type="text"
                         value={acctName}
                         onChange={(e) => setAcctName(e.target.value)}
                         autoFocus
-                        style={{
-                          width: "100%", padding: "10px 14px",
-                          background: "var(--lf-paper)",
-                          border: "1px solid var(--lf-rule)",
-                          borderRadius: 8, fontSize: 14,
-                          fontFamily: "'Geist', system-ui, sans-serif",
-                          color: "var(--lf-ink)", outline: "none",
-                          boxSizing: "border-box",
-                        }}
+                        className="ds-input"
+                        style={{ marginTop: 8 }}
                       />
                     </div>
 
-                    {/* Balance / Property Value */}
                     <div>
-                      <label style={{
-                        display: "block", fontSize: 12, color: "var(--lf-muted)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: "0.06em", textTransform: "uppercase",
-                        marginBottom: 6,
-                      }}>
-                        {activeType.type === "real_estate" ? "Estimated value" : "Balance"}
-                      </label>
-                      <div style={{ position: "relative" }}>
+                      <Eyebrow>{activeType.type === "real_estate" ? "Estimated value" : "Balance"}</Eyebrow>
+                      <div style={{ position: "relative", marginTop: 8 }}>
                         <span style={{
                           position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
                           color: "var(--lf-muted)", fontSize: 14,
                           fontFamily: "'JetBrains Mono', monospace",
-                        }}>
-                          $
-                        </span>
+                        }}>$</span>
                         <input
                           type="text"
                           inputMode="decimal"
                           value={acctBalance}
                           onChange={(e) => setAcctBalance(e.target.value.replace(/[^0-9.]/g, ""))}
                           placeholder="0"
-                          style={{
-                            width: "100%", padding: "10px 14px 10px 28px",
-                            background: "var(--lf-paper)",
-                            border: "1px solid var(--lf-rule)",
-                            borderRadius: 8, fontSize: 14,
-                            fontFamily: "'JetBrains Mono', monospace",
-                            color: "var(--lf-ink)", outline: "none",
-                            boxSizing: "border-box",
-                          }}
+                          className="ds-input ds-num"
+                          style={{ paddingLeft: 28 }}
                         />
                       </div>
                     </div>
 
-                    {/* Interest rate (debt only) */}
                     {activeType.isDebt && (
                       <div>
-                        <label style={{
-                          display: "block", fontSize: 12, color: "var(--lf-muted)",
-                          fontFamily: "'JetBrains Mono', monospace",
-                          letterSpacing: "0.06em", textTransform: "uppercase",
-                          marginBottom: 6,
-                        }}>
-                          Interest rate
-                        </label>
-                        <div style={{ position: "relative" }}>
+                        <Eyebrow>Interest rate</Eyebrow>
+                        <div style={{ position: "relative", marginTop: 8 }}>
                           <input
                             type="number"
                             min={0}
@@ -954,38 +651,17 @@ export function Accounts() {
                             value={acctRate}
                             onChange={(e) => setAcctRate(e.target.value)}
                             placeholder="5.5"
-                            style={{
-                              width: "100%", padding: "10px 36px 10px 14px",
-                              background: "var(--lf-paper)",
-                              border: "1px solid var(--lf-rule)",
-                              borderRadius: 8, fontSize: 14,
-                              fontFamily: "'JetBrains Mono', monospace",
-                              color: "var(--lf-ink)", outline: "none",
-                              boxSizing: "border-box",
-                            }}
+                            className="ds-input ds-num"
+                            style={{ paddingRight: 32 }}
                           />
                           <span style={{
                             position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
                             color: "var(--lf-muted)", fontSize: 14,
                             fontFamily: "'JetBrains Mono', monospace",
-                          }}>
-                            %
-                          </span>
+                          }}>%</span>
                         </div>
                       </div>
                     )}
-
-                    {/* Submit */}
-                    <div style={{ paddingTop: 4 }}>
-                      <PrimaryButton
-                        onClick={handleAddManualAccount}
-                        disabled={!acctName.trim() || addingAccount}
-                      >
-                        {addingAccount
-                          ? <><Spinner size={13} /> Adding…</>
-                          : "+ Add Account"}
-                      </PrimaryButton>
-                    </div>
                   </motion.div>
                 ) : (
                   <div style={{
@@ -994,84 +670,371 @@ export function Accounts() {
                     {ACCOUNT_TYPES.map((at) => (
                       <button
                         key={at.label}
+                        type="button"
                         onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(""); setAcctRate(""); }}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          padding: "12px 14px", borderRadius: 10,
-                          border: "1px solid var(--lf-rule)",
-                          background: "var(--lf-paper)",
-                          textAlign: "left", cursor: "pointer",
-                          fontFamily: "'Geist', system-ui, sans-serif",
-                          fontSize: 13, color: "var(--lf-muted)",
-                          fontWeight: 500,
-                          transition: "background 0.12s, border-color 0.12s",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "var(--lf-cream)";
-                          e.currentTarget.style.borderColor = "var(--lf-cream-deep)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "var(--lf-paper)";
-                          e.currentTarget.style.borderColor = "var(--lf-rule)";
-                        }}
+                        className="ds-accounts-type-tile"
                       >
-                        <span style={{ fontSize: 18 }}>{at.emoji}</span>
+                        <span style={{ fontSize: 16 }}>{at.emoji}</span>
                         {at.label}
                       </button>
                     ))}
                   </div>
                 )}
 
-                <p style={{
-                  textAlign: "center", fontSize: 12, color: "var(--lf-muted)",
-                  fontFamily: "'Geist', system-ui, sans-serif",
-                  marginTop: 16, marginBottom: 0,
+                <p className="ds-caption" style={{
+                  textAlign: "center",
+                  marginTop: 18, marginBottom: 0,
                 }}>
                   Manual balances are a snapshot — link accounts for automatic updates.
                 </p>
               </div>
+
+              {/* Editorial modal footer — sauce primary + ghost secondary */}
+              {activeType && (
+                <div className="ds-accounts-modal__foot">
+                  <Button variant="ghost" onClick={() => { setShowManualModal(false); resetManualForm(); }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleAddManualAccount}
+                    disabled={!acctName.trim() || addingAccount}
+                    icon={addingAccount ? <Spinner size={13} /> : <Plus size={14} />}
+                  >
+                    {addingAccount ? "Adding…" : "Add account"}
+                  </Button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+
+      {/* Page-local styles */}
+      <style>{`
+        .ds-accounts-quickimport {
+          display: flex; align-items: center; gap: 12px;
+          padding: 14px 0;
+          border-top: 1px solid var(--lf-rule);
+          border-bottom: 1px solid var(--lf-rule);
+          margin-bottom: 40px;
+          text-decoration: none; color: inherit;
+          transition: background 0.12s;
+        }
+        .ds-accounts-quickimport:hover { background: var(--lf-cream); }
+        .ds-accounts-quickimport__icon {
+          width: 24px; height: 24px;
+          display: grid; place-items: center;
+          color: var(--lf-cheese);
+          flex-shrink: 0;
+        }
+        .ds-accounts-quickimport__body {
+          flex: 1; min-width: 0;
+          display: flex; flex-direction: column; gap: 2px;
+        }
+        .ds-accounts-quickimport__eyebrow {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 10px; letter-spacing: 0.14em;
+          text-transform: uppercase; color: var(--lf-sauce);
+        }
+        .ds-accounts-quickimport__title {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px; font-weight: 500; color: var(--lf-ink);
+        }
+        .ds-accounts-quickimport__arrow {
+          font-family: 'Geist', system-ui, sans-serif;
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          transition: transform 0.15s, color 0.15s;
+        }
+        .ds-accounts-quickimport:hover .ds-accounts-quickimport__arrow {
+          color: var(--lf-sauce);
+          transform: translateX(3px);
+        }
+        .ds-accounts-banner {
+          display: flex; align-items: center; gap: 10px;
+          padding: 12px 16px; margin-bottom: 20px;
+          border-radius: 10px;
+          font-family: 'Geist', system-ui, sans-serif; font-size: 13px;
+        }
+        .ds-accounts-banner--error {
+          background: rgba(201,84,58,0.08);
+          border: 1px solid rgba(201,84,58,0.25);
+          color: var(--lf-sauce);
+        }
+        .ds-accounts-banner--basil {
+          background: rgba(90,107,63,0.08);
+          border: 1px solid rgba(90,107,63,0.25);
+          color: var(--lf-ink);
+        }
+        .ds-accounts-feed { display: flex; flex-direction: column; }
+        .ds-accounts-type-tile {
+          display: flex; align-items: center; gap: 10px;
+          padding: 12px 14px; border-radius: 10px;
+          border: 1px solid var(--lf-rule);
+          background: var(--lf-paper);
+          text-align: left; cursor: pointer;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px; color: var(--lf-ink-soft);
+          font-weight: 500;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .ds-accounts-type-tile:hover {
+          background: var(--lf-cream);
+          border-color: var(--lf-cream-deep);
+        }
+        .ds-input {
+          width: 100%; padding: 10px 14px;
+          background: var(--lf-paper);
+          border: 1px solid var(--lf-rule);
+          border-radius: 8px; font-size: 14px;
+          font-family: 'Geist', system-ui, sans-serif;
+          color: var(--lf-ink); outline: none;
+          box-sizing: border-box;
+        }
+        .ds-input:focus { border-color: var(--lf-ink); }
+        .ds-accounts-modal__head {
+          display: flex; align-items: flex-start; justify-content: space-between;
+          gap: 16px;
+          padding: 22px 26px 20px;
+          border-bottom: 1px solid var(--lf-rule);
+        }
+        .ds-accounts-modal__body {
+          padding: 24px 26px;
+          max-height: 60vh; overflow-y: auto;
+        }
+        .ds-accounts-modal__foot {
+          display: flex; justify-content: flex-end; gap: 8px;
+          padding: 16px 26px;
+          border-top: 1px solid var(--lf-rule);
+          background: var(--lf-paper);
+        }
+      `}</style>
+    </Page>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Account row sub-component
+// Editorial institution article — hairline-separated, expands inline
 // ---------------------------------------------------------------------------
 
-function AccountRow({ account, isLast, isManual, onDelete, linkedAccountName }: {
-  account: Account; isLast: boolean; isManual: boolean; onDelete: () => void;
+function InstitutionArticle({
+  refCallback,
+  item,
+  isManual,
+  isHighlighted,
+  syncing,
+  isDemoMode,
+  showSyncSpinner,
+  expanded,
+  onToggle,
+  onSync,
+  onDisconnect,
+  onDeleteAccount,
+  allAccounts,
+}: {
+  refCallback: (el: HTMLElement | null) => void;
+  item: PlaidItem;
+  isManual: boolean;
+  isHighlighted: boolean;
+  syncing: boolean;
+  isDemoMode: boolean;
+  showSyncSpinner: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onSync: () => void;
+  onDisconnect: () => void;
+  onDeleteAccount: (id: string, name: string) => void;
+  allAccounts: Account[];
+}) {
+  const isError = item.status === "error" || item.status === "item_login_required";
+  const statusLabel = isError
+    ? "needs re-auth"
+    : item.lastSyncedAt
+    ? `synced ${formatRelativeTime(item.lastSyncedAt)}`
+    : isManual
+    ? "manual"
+    : "synced";
+
+  const institutionName = item.institutionName ?? (isManual ? "Manual" : "Unknown Bank");
+  // Net total across the institution (debts reduce; depository/investment increase)
+  const total = item.accounts.reduce((sum, a) => {
+    if (a.balance === null) return sum;
+    const v = parseFloat(a.balance);
+    if (Number.isNaN(v)) return sum;
+    if (a.type === "credit" || a.type === "loan") return sum - v;
+    return sum + v;
+  }, 0);
+
+  return (
+    <motion.article
+      ref={(el) => refCallback(el as HTMLElement | null)}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className="ds-inst"
+      style={{
+        background: isHighlighted ? 'rgba(90,107,63,0.06)' : undefined,
+      }}
+    >
+      {/* Header row — clickable to expand */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="ds-inst__head"
+        aria-expanded={expanded}
+      >
+        <span className="ds-inst__head-chev">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+        <div className="ds-inst__head-body">
+          <div className="ds-inst__head-name">{institutionName}</div>
+          <div className="ds-inst__head-meta">
+            <Pill tone={isError ? "sauce" : "ghost"}>{statusLabel}</Pill>
+            <span className="ds-inst__head-count">
+              {item.accounts.length} account{item.accounts.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
+        <span className="ds-inst__head-total ds-num">{formatTotal(total)}</span>
+        {!isDemoMode && (
+          <span className="ds-inst__head-actions">
+            {!isManual && (
+              <Button
+                variant="icon"
+                size="sm"
+                aria-label={`Sync ${institutionName}`}
+                onClick={(e) => { e.stopPropagation(); onSync(); }}
+                disabled={syncing}
+              >
+                {syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}
+              </Button>
+            )}
+            <Button
+              variant="icon"
+              size="sm"
+              aria-label={`Disconnect ${institutionName}`}
+              onClick={(e) => { e.stopPropagation(); onDisconnect(); }}
+              className="ds-inst__icon-danger"
+            >
+              <X size={14} />
+            </Button>
+          </span>
+        )}
+      </button>
+
+      {/* Expanded body */}
+      {expanded && (
+        <div className="ds-inst__body">
+          {item.accounts.length === 0 && showSyncSpinner && (
+            <div className="ds-inst__empty">
+              <Spinner size={14} /> Syncing accounts…
+            </div>
+          )}
+          {item.accounts.length === 0 && !showSyncSpinner && !isManual && (
+            <div className="ds-inst__empty">No accounts found for this institution.</div>
+          )}
+          {item.accounts.length > 0 && (
+            <div>
+              {item.accounts.map((account) => (
+                <AccountRow
+                  key={account.id}
+                  account={account}
+                  isManual={isManual}
+                  onDelete={() => onDeleteAccount(account.id, account.name)}
+                  linkedAccountName={account.metadata?.linkedAccountId
+                    ? allAccounts.find((a) => a.id === account.metadata?.linkedAccountId)?.name ?? null
+                    : null}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <style>{`
+        .ds-inst {
+          border-top: 1px solid var(--lf-ink);
+        }
+        .ds-inst:last-child { border-bottom: 1px solid var(--lf-ink); }
+        .ds-inst__head {
+          display: flex; align-items: center;
+          gap: 12px;
+          width: 100%;
+          padding: 18px 0;
+          background: none;
+          border: 0;
+          font-family: 'Geist', system-ui, sans-serif;
+          color: inherit;
+          cursor: pointer;
+          text-align: left;
+        }
+        .ds-inst__head-chev {
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          display: flex;
+        }
+        .ds-inst__head-body { flex: 1; min-width: 0; }
+        .ds-inst__head-name {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: 22px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.2;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .ds-inst__head-meta {
+          display: flex; align-items: center; gap: 10px;
+          margin-top: 4px;
+          flex-wrap: wrap;
+        }
+        .ds-inst__head-count {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          color: var(--lf-muted);
+        }
+        .ds-inst__head-total {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 15px; font-weight: 500;
+          color: var(--lf-ink);
+          flex-shrink: 0;
+          min-width: 90px;
+          text-align: right;
+        }
+        .ds-inst__head-actions {
+          display: flex; gap: 4px;
+          flex-shrink: 0;
+        }
+        .ds-inst__body {
+          padding: 0 0 14px 26px;
+        }
+        .ds-inst__empty {
+          padding: 12px 0;
+          display: flex; align-items: center; gap: 8px;
+          color: var(--lf-muted); font-size: 13px;
+          font-family: 'Geist', system-ui, sans-serif;
+        }
+        .ds-inst__icon-danger:hover { color: var(--lf-sauce); border-color: rgba(201,84,58,0.4); }
+      `}</style>
+    </motion.article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Account row
+// ---------------------------------------------------------------------------
+
+function AccountRow({ account, isManual, onDelete, linkedAccountName }: {
+  account: Account; isManual: boolean; onDelete: () => void;
   linkedAccountName: string | null;
 }) {
-  const [hovered, setHovered] = useState(false);
   const balance = account.balance !== null ? parseFloat(account.balance) : null;
   const isNegative = balance !== null && balance < 0;
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: "flex", alignItems: "center",
-        padding: "14px 24px", gap: 12,
-        borderBottom: isLast ? "none" : "1px solid var(--lf-rule-soft)",
-        background: hovered ? "var(--lf-cream)" : "transparent",
-        transition: "background 0.1s",
-        cursor: "default",
-      }}
-    >
-      {/* Name + mask + linked hint */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{
-          fontFamily: "'Geist', system-ui, sans-serif",
-          fontSize: 14, fontWeight: 500,
-          color: "var(--lf-ink)",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          display: "block",
-        }}>
+    <div className="ds-acctrow">
+      <div className="ds-acctrow__name">
+        <span className="ds-acctrow__name-main">
           {account.name}
           {account.mask && (
             <span style={{ color: "var(--lf-muted)", fontWeight: 400, marginLeft: 6 }}>
@@ -1080,23 +1043,17 @@ function AccountRow({ account, isLast, isManual, onDelete, linkedAccountName }: 
           )}
         </span>
         {linkedAccountName && (
-          <span style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 11, color: "var(--lf-muted)",
-            letterSpacing: "0.02em",
-          }}>
+          <span className="ds-caption" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
             linked to {linkedAccountName}
           </span>
         )}
       </div>
 
-      {/* Type pill */}
-      <TypePill type={account.type} subtype={account.subtype} />
+      <Pill tone="cream">{getAccountTypeLabel(account.type, account.subtype)}</Pill>
 
-      {/* Balance */}
-      <span style={{
+      <span className="ds-num" style={{
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 14, fontWeight: 500,
+        fontSize: 13, fontWeight: 500,
         color: isNegative ? "var(--lf-sauce)" : "var(--lf-ink)",
         minWidth: 90, textAlign: "right",
         flexShrink: 0,
@@ -1106,14 +1063,37 @@ function AccountRow({ account, isLast, isManual, onDelete, linkedAccountName }: 
           : "—"}
       </span>
 
-      {/* Delete button (visible on hover) */}
       {isManual && (
-        <SmallIconButton
-          label="✕"
-          danger
+        <Button
+          variant="icon"
+          size="sm"
+          aria-label={`Remove ${account.name}`}
           onClick={onDelete}
-        />
+          className="ds-inst__icon-danger"
+        >
+          <Trash2 size={13} />
+        </Button>
       )}
+
+      <style>{`
+        .ds-acctrow {
+          display: flex; align-items: center;
+          padding: 10px 0;
+          gap: 12px;
+          border-top: 1px solid var(--lf-rule-soft);
+        }
+        .ds-acctrow:first-child { border-top: 0; }
+        .ds-acctrow__name {
+          flex: 1; min-width: 0;
+          display: flex; flex-direction: column; gap: 2px;
+        }
+        .ds-acctrow__name-main {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px; font-weight: 500;
+          color: var(--lf-ink);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,18 +1,32 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useIsMobile } from '../lib/hooks/use-mobile';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Building2 } from 'lucide-react';
+import { Plus, Building2, ChevronRight } from 'lucide-react';
 import { formatMoney } from '../lib/utils';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useLocation } from 'wouter';
 import { PageActions } from '../components/common/page-actions';
+import {
+  Page,
+  PageHeader,
+  Section,
+  Card,
+  Button,
+  Pill,
+  Eyebrow,
+  DataTable,
+  EmptyState,
+  CompositionRibbon,
+  StatStrip,
+  Lede,
+} from '../components/ds';
+import type { DataTableColumn } from '../components/ds/DataTable';
+import type { CompositionSegment } from '../components/ds/CompositionRibbon';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type ChartType = 'donut' | 'bar' | 'treemap';
 type GroupBy = 'assetClass' | 'category' | 'holding' | 'account';
 
 interface AssetClass {
@@ -140,282 +154,29 @@ function PortfolioDonut({
       {/* Center text — shows hover info or total */}
       {hp ? (
         <>
-          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.08em', fill: 'var(--lf-muted)' }}>
-            {hp.name.toUpperCase()}
+          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fill: 'var(--lf-muted)' }}>
+            {hp.name}
           </text>
-          <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 19, fill: 'var(--lf-ink)' }}>
+          <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, fill: 'var(--lf-ink)' }}>
             {formatMoney(hp.value, true)}
           </text>
-          <text x={cx} y={cy + 20} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fill: hp.color }}>
+          <text x={cx} y={cy + 22} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fill: hp.color }}>
             {hp.pct.toFixed(1)}%
           </text>
         </>
       ) : (
         <>
-          <text x={cx} y={cy - 8} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, fill: 'var(--lf-ink)' }}>
+          <text x={cx} y={cy - 6} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 26, fill: 'var(--lf-ink)' }}>
             {formatMoney(total, true)}
           </text>
-          <text x={cx} y={cy + 14} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.1em', fill: 'var(--lf-muted)' }}>
-            TOTAL
+          <text x={cx} y={cy + 16} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', fill: 'var(--lf-muted)' }}>
+            Total
           </text>
         </>
       )}
     </svg>
   );
 }
-
-// ---------------------------------------------------------------------------
-// SVG Stacked bar
-// ---------------------------------------------------------------------------
-
-function PortfolioBar({
-  slices,
-  onSliceClick,
-}: {
-  slices: DonutSlice[];
-  onSliceClick?: (name: string) => void;
-}) {
-  const [hovered, setHovered] = useState<number | null>(null);
-  const W = 640;
-  const H = 56;
-  const R = 10;
-
-  let xPos = 0;
-  const rects: { x: number; w: number; color: string; name: string; pct: number; value: number }[] = [];
-  for (const s of slices) {
-    if (s.pct <= 0) continue;
-    const w = (s.pct / 100) * W;
-    rects.push({ x: xPos, w, color: s.color, name: s.name, pct: s.pct, value: s.value });
-    xPos += w;
-  }
-
-  const hr = hovered !== null ? rects[hovered] : null;
-
-  return (
-    <svg
-      width="100%"
-      viewBox={`0 0 ${W} ${H + (hr ? 32 : 0)}`}
-      style={{ borderRadius: R, overflow: 'visible', display: 'block' }}
-    >
-      {rects.map((rect, i) => (
-        <rect
-          key={i}
-          x={rect.x}
-          y={0}
-          width={rect.w}
-          height={H}
-          fill={rect.color}
-          opacity={hovered === null ? 0.9 : hovered === i ? 1 : 0.5}
-          style={{ cursor: onSliceClick ? 'pointer' : 'default', transition: 'opacity 0.15s' }}
-          onMouseEnter={() => setHovered(i)}
-          onMouseLeave={() => setHovered(null)}
-          onTouchStart={() => setHovered(hovered === i ? null : i)}
-          onClick={() => onSliceClick?.(rect.name)}
-        />
-      ))}
-      {hr && (
-        <g>
-          <rect x={Math.min(hr.x + hr.w / 2 - 60, W - 130)} y={H + 6} width={128} height={22} rx={5} fill="var(--lf-ink)" />
-          <text
-            x={Math.min(hr.x + hr.w / 2 - 60, W - 130) + 8}
-            y={H + 21}
-            fontFamily="'JetBrains Mono', monospace"
-            fontSize="10"
-            fill="var(--lf-paper)"
-          >
-            {hr.name} · {hr.pct.toFixed(1)}% · {formatMoney(hr.value, true)}
-          </text>
-        </g>
-      )}
-    </svg>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Treemap
-// ---------------------------------------------------------------------------
-
-interface TreeNode { name: string; value: number; pct: number; color: string }
-
-function layoutTreemap(
-  nodes: TreeNode[],
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): Array<TreeNode & { x: number; y: number; w: number; h: number }> {
-  if (nodes.length === 0) return [];
-  if (nodes.length === 1) return [{ ...nodes[0], x, y, w, h }];
-
-  const sorted = [...nodes].sort((a, b) => b.value - a.value);
-  const total = sorted.reduce((s, n) => s + n.value, 0);
-
-  const splitAt = Math.ceil(sorted.length / 2);
-  const group1 = sorted.slice(0, splitAt);
-  const group2 = sorted.slice(splitAt);
-
-  const g1Sum = group1.reduce((s, n) => s + n.value, 0);
-  const g1Ratio = total > 0 ? g1Sum / total : 0.5;
-
-  const gap = 3;
-
-  if (w >= h) {
-    const w1 = Math.max(0, w * g1Ratio - gap / 2);
-    const w2 = Math.max(0, w - w1 - gap);
-    return [
-      ...layoutTreemap(group1, x, y, w1, h),
-      ...layoutTreemap(group2, x + w1 + gap, y, w2, h),
-    ];
-  } else {
-    const h1 = Math.max(0, h * g1Ratio - gap / 2);
-    const h2 = Math.max(0, h - h1 - gap);
-    return [
-      ...layoutTreemap(group1, x, y, w, h1),
-      ...layoutTreemap(group2, x, y + h1 + gap, w, h2),
-    ];
-  }
-}
-
-function PortfolioTreemap({
-  slices,
-  onSliceClick,
-}: {
-  slices: DonutSlice[];
-  onSliceClick?: (name: string) => void;
-}) {
-  const [hovered, setHovered] = useState<number | null>(null);
-  const W = 640;
-  const H = 360;
-  const cells = layoutTreemap(slices, 0, 0, W, H);
-  const hc = hovered !== null ? cells[hovered] : null;
-
-  return (
-    <svg
-      width="100%"
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ display: 'block' }}
-    >
-      {cells.map((cell, i) => {
-        const isHov = hovered === i;
-        return (
-          <g key={i}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
-            onTouchStart={() => setHovered(hovered === i ? null : i)}
-            onClick={() => onSliceClick?.(cell.name)}
-            style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
-          >
-            <rect
-              x={cell.x}
-              y={cell.y}
-              width={cell.w}
-              height={cell.h}
-              rx={6}
-              fill={cell.color}
-              opacity={hovered === null ? 0.88 : isHov ? 1 : 0.55}
-              style={{ transition: 'opacity 0.15s' }}
-            />
-            {cell.w > 70 && cell.h > 36 && (
-              <>
-                <text
-                  x={cell.x + 10}
-                  y={cell.y + 22}
-                  style={{
-                    fontFamily: "'Geist', system-ui, sans-serif",
-                    fontSize: Math.min(13, cell.w / 6),
-                    fontWeight: 600,
-                    fill: 'rgba(251,246,236,0.95)',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  {cell.name.length > 14 ? cell.name.slice(0, 13) + '…' : cell.name}
-                </text>
-                {cell.h > 52 && (
-                  <text
-                    x={cell.x + 10}
-                    y={cell.y + 38}
-                    style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: Math.min(11, cell.w / 7),
-                      fill: 'rgba(251,246,236,0.7)',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    {cell.pct.toFixed(1)}%
-                  </text>
-                )}
-              </>
-            )}
-          </g>
-        );
-      })}
-      {/* Hover tooltip for small cells or additional detail */}
-      {hc !== null && (
-        <g style={{ pointerEvents: 'none' }}>
-          <rect
-            x={Math.min(hc.x + 4, W - 180)}
-            y={Math.max(hc.y + 4, 0)}
-            width={174}
-            height={42}
-            rx={6}
-            fill="var(--lf-ink)"
-            opacity={0.95}
-          />
-          <text
-            x={Math.min(hc.x + 12, W - 172)}
-            y={Math.max(hc.y + 20, 16)}
-            fontFamily="'Geist', system-ui, sans-serif"
-            fontSize="11"
-            fontWeight="600"
-            fill="var(--lf-paper)"
-          >
-            {hc.name}
-          </text>
-          <text
-            x={Math.min(hc.x + 12, W - 172)}
-            y={Math.max(hc.y + 35, 31)}
-            fontFamily="'JetBrains Mono', monospace"
-            fontSize="10"
-            fill="var(--lf-cheese)"
-          >
-            {formatMoney(hc.value, true)} · {hc.pct.toFixed(1)}%
-          </text>
-        </g>
-      )}
-    </svg>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
-const card: React.CSSProperties = {
-  background: 'var(--lf-paper)',
-  border: '1px solid var(--lf-rule)',
-  borderRadius: 14,
-};
-
-const darkCard: React.CSSProperties = {
-  background: 'var(--lf-ink)',
-  color: 'var(--lf-paper)',
-  borderRadius: 14,
-};
-
-const pill = (active: boolean): React.CSSProperties => ({
-  display: 'inline-flex',
-  alignItems: 'center',
-  padding: '5px 14px',
-  borderRadius: 999,
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
-  border: active ? '1px solid var(--lf-ink)' : '1px solid var(--lf-rule)',
-  background: active ? 'var(--lf-ink)' : 'transparent',
-  color: active ? 'var(--lf-paper)' : 'var(--lf-muted)',
-  transition: 'all 0.15s',
-});
 
 // ---------------------------------------------------------------------------
 // Account filter dropdown
@@ -469,17 +230,11 @@ function FilterDropdown({
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
         onClick={() => setOpen(v => !v)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 500,
-          border: allActive ? '1px solid var(--lf-rule)' : '1px solid var(--lf-ink)',
-          background: allActive ? 'transparent' : 'var(--lf-ink)',
-          color: allActive ? 'var(--lf-muted)' : 'var(--lf-paper)',
-          cursor: 'pointer', transition: 'all 0.15s',
-        }}
+        className="ds-btn ds-btn--ghost ds-btn--sm"
+        style={{ gap: 6 }}
       >
         {displayLabel}
-        <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2 }}>{open ? '▲' : '▼'}</span>
+        <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
@@ -496,6 +251,7 @@ function FilterDropdown({
               width: '100%', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
               background: 'none', border: 'none', cursor: 'pointer', fontSize: 13,
               color: 'var(--lf-ink)', textAlign: 'left',
+              fontFamily: 'Geist, system-ui, sans-serif',
             }}
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
@@ -514,6 +270,7 @@ function FilterDropdown({
                   width: '100%', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
                   background: 'none', border: 'none', cursor: 'pointer', fontSize: 13,
                   color: 'var(--lf-ink)', textAlign: 'left',
+                  fontFamily: 'Geist, system-ui, sans-serif',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
@@ -560,6 +317,7 @@ function AccountFilterDropdown({
               fontSize: 11, padding: '1px 6px', borderRadius: 4,
               background: 'var(--lf-cream)', color: 'var(--lf-muted)',
               border: '1px solid var(--lf-rule)', flexShrink: 0,
+              fontFamily: "'JetBrains Mono', monospace",
             }}>
               {ACCOUNT_TYPE_LABELS[accountTypeMap.get(name)!] ?? accountTypeMap.get(name)}
             </span>
@@ -589,13 +347,29 @@ function Checkbox({ checked }: { checked: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
+// Holdings table row
+// ---------------------------------------------------------------------------
+
+interface HoldingRow {
+  ticker: string;
+  totalShares: number;
+  totalValue: number;
+  percentage: number;
+  color: string;
+  holdings: Holding[];
+  accountLabel: string;
+  assetClass: string;
+  category: string;
+  historicalReturn: number | null;
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export default function PortfolioComposition() {
   const [, setLocation] = useLocation();
   const { setPageContext } = usePageContext();
-  const isMobile = useIsMobile();
 
   // ── API state (preserved from original) ──
   const [loading, setLoading] = useState(true);
@@ -610,17 +384,13 @@ export default function PortfolioComposition() {
     name: string; value: number; percentage: number; color: string;
   }>>([]);
   const [accountTotal, setAccountTotal] = useState(0);
-  const [filingStatus, setFilingStatus] = useState<string | null>(null);
   const [accountTypeMap, setAccountTypeMap] = useState<Map<string, string>>(new Map());
 
   // ── UI state ──
-  const [chartType, setChartType] = useState<ChartType>('donut');
   const [groupBy, setGroupBy] = useState<GroupBy>('assetClass');
   const [drillLevel1, setDrillLevel1] = useState<string | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   // Account filter: set of account names to SHOW (null = show all)
   const [activeAccounts, setActiveAccounts] = useState<Set<string> | null>(null);
-
 
   // ---------------------------------------------------------------------------
   // Data fetching (preserved from original)
@@ -629,22 +399,14 @@ export default function PortfolioComposition() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [compData, expData, balanceData, profileData] = await Promise.all([
+        const [compData, expData, balanceData] = await Promise.all([
           api.getPortfolioComposition(),
           api.getPortfolioExposure().catch(() => null),
           api.getBalances().catch(() => ({ balances: [] })),
-          api.getFinancialProfile().catch(() => ({ financialProfile: null })),
         ]);
 
-        if (profileData.financialProfile?.filingStatus) {
-          setFilingStatus(profileData.financialProfile.filingStatus);
-        }
         setTotalValue(compData.totalValue);
         setAssetClasses(compData.assetClasses);
-
-        if (compData.assetClasses.length > 0) {
-          setExpandedRows({ [compData.assetClasses[0].name]: true });
-        }
 
         if (expData) {
           setBlendedReturn(expData.blendedReturn);
@@ -736,9 +498,8 @@ export default function PortfolioComposition() {
   );
 
   // Holdings grouped by ticker
-  const holdingsByTicker = useMemo(() => {
+  const holdingsByTicker = useMemo<HoldingRow[]>(() => {
     const tickerMap = new Map<string, { holdings: Holding[]; totalValue: number; totalShares: number; assetClass: string; category: string }>();
-    let idx = 0;
     for (const ac of filteredAssetClasses) {
       for (const sc of ac.categories ?? []) {
         for (const h of sc.holdings) {
@@ -755,20 +516,29 @@ export default function PortfolioComposition() {
               assetClass: ac.name,
               category: sc.name,
             });
-            idx++;
           }
         }
       }
     }
     return Array.from(tickerMap.entries())
-      .map(([ticker, data], i) => ({
-        ticker,
-        ...data,
-        color: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
-        percentage: filteredTotal > 0 ? (data.totalValue / filteredTotal) * 100 : 0,
-      }))
+      .map(([ticker, data], i) => {
+        const exp = exposures.find(e => e.holdings.some(h => h.ticker === ticker));
+        const isCash = data.assetClass.toLowerCase().includes('cash');
+        return {
+          ticker,
+          totalShares: data.totalShares,
+          totalValue: data.totalValue,
+          assetClass: data.assetClass,
+          category: data.category,
+          holdings: data.holdings,
+          color: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+          percentage: filteredTotal > 0 ? (data.totalValue / filteredTotal) * 100 : 0,
+          accountLabel: data.holdings.length > 1 ? `${data.holdings.length} accounts` : (data.holdings[0]?.account ?? '—'),
+          historicalReturn: exp && !isCash ? exp.historicalReturn : null,
+        };
+      })
       .sort((a, b) => b.totalValue - a.totalValue);
-  }, [filteredAssetClasses, filteredTotal]);
+  }, [filteredAssetClasses, filteredTotal, exposures]);
 
   // All sub-categories flat list
   const allCategories = useMemo(() => {
@@ -869,8 +639,6 @@ export default function PortfolioComposition() {
       .sort((a, b) => b.value - a.value);
   }, [groupBy, drillLevel1, filteredAssetClasses, allCategories, holdingsByTicker, filteredTotal]);
 
-
-  // ---------------------------------------------------------------------------
   // ---------------------------------------------------------------------------
   // Interactions
   // ---------------------------------------------------------------------------
@@ -878,47 +646,31 @@ export default function PortfolioComposition() {
   const toggleAccount = (name: string) => {
     setActiveAccounts(prev => {
       if (prev === null) {
-        // Start filtering: exclude this one
         const next = new Set(allAccounts.filter(a => a !== name));
         return next.size === allAccounts.length ? null : next;
       }
       const next = new Set(prev);
       if (next.has(name)) {
         next.delete(name);
-        if (next.size === 0) return new Set(allAccounts); // re-enable all
+        if (next.size === 0) return new Set(allAccounts);
       } else {
         next.add(name);
-        if (next.size === allAccounts.length) return null; // back to "all"
+        if (next.size === allAccounts.length) return null;
       }
       return next;
     });
   };
 
-  const isAccountActive = (name: string) => activeAccounts === null || activeAccounts.has(name);
   const selectAllAccounts = () => setActiveAccounts(null);
-
 
   const handleSliceClick = (name: string) => {
     if (!drillLevel1) setDrillLevel1(name);
   };
 
-  const toggleRow = (key: string) =>
-    setExpandedRows(prev => ({ ...prev, [key]: !prev[key] }));
-
   const handleGroupByChange = (g: GroupBy) => {
     setGroupBy(g);
     setDrillLevel1(null);
   };
-
-  // Breadcrumbs
-  const breadcrumbs = useMemo(() => {
-    const root =
-      groupBy === 'assetClass' ? 'Asset Class'
-      : groupBy === 'category' ? 'Category'
-      : groupBy === 'holding' ? 'Holdings'
-      : 'Account';
-    return drillLevel1 ? [root, drillLevel1] : [root];
-  }, [groupBy, drillLevel1]);
 
   // Count positions & accounts
   const positionCount = holdingsByTicker.length;
@@ -940,60 +692,57 @@ export default function PortfolioComposition() {
     }));
 
     return (
-      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px', maxWidth: 900, margin: '0 auto' }}>
-        {/* Hero */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-          style={{ ...darkCard, padding: '32px 36px', marginBottom: 20 }}
-        >
-          <p className="lf-eyebrow" style={{ color: 'var(--lf-cheese)', marginBottom: 8 }}>
-            Portfolio · {accountAllocation.length} accounts
-          </p>
-          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 38, lineHeight: 1.1, marginBottom: 4 }}>
-            Portfolio
-          </div>
-          <p style={{ color: 'var(--lf-muted)', fontSize: 14, marginTop: 8 }}>
-            No individual holdings found — showing account-level balances.
-          </p>
-        </motion.div>
+      <Page>
+        <PageHeader
+          title="Portfolio"
+          eyebrow={`${accountAllocation.length} account${accountAllocation.length === 1 ? '' : 's'}`}
+        />
 
-        {/* Donut + list */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          style={{ ...card, padding: 28, marginBottom: 20 }}
-        >
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 32 }}>
-            <PortfolioDonut slices={acctSlices} total={accountTotal} />
-            <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {accountAllocation.map(acct => (
-                <div key={acct.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: acct.color, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--lf-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acct.name}</div>
-                    <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {acct.percentage.toFixed(1)}% · {formatMoney(acct.value, true)}
+        <div style={{ marginBottom: 40 }}>
+          <Lede>
+            No individual holdings found — showing your <Lede.Num highlight>{formatMoney(accountTotal)}</Lede.Num> spread across{' '}
+            <Lede.Num>{accountAllocation.length}</Lede.Num> account{accountAllocation.length === 1 ? '' : 's'}.
+          </Lede>
+        </div>
+
+        <Section title="Asset allocation">
+          <Card>
+            <div className="ds-portfolio-grid">
+              <div className="ds-portfolio-grid__chart">
+                <PortfolioDonut slices={acctSlices} total={accountTotal} />
+              </div>
+              <div className="ds-portfolio-grid__legend">
+                {accountAllocation.map(acct => (
+                  <div key={acct.name} className="ds-portfolio-legend-row">
+                    <span className="ds-portfolio-legend-dot" style={{ background: acct.color }} />
+                    <div className="ds-portfolio-legend-text">
+                      <div className="ds-portfolio-legend-name">{acct.name}</div>
+                      <div className="ds-portfolio-legend-meta ds-num">
+                        {acct.percentage.toFixed(1)}% · {formatMoney(acct.value, true)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </Card>
+        </Section>
 
-        {/* CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          style={{ ...card, padding: 24, textAlign: 'center' }}
-        >
-          <p style={{ color: 'var(--lf-muted)', fontSize: 14, marginBottom: 16 }}>
-            Link investment accounts via Plaid to see individual holdings and ticker-level analysis.
-          </p>
-          <button className="lf-btn lf-btn-primary" onClick={() => setLocation('/accounts')}>
-            <Plus size={14} />
-            Link Investment Account
-          </button>
-        </motion.div>
-      </div>
+        <Section>
+          <EmptyState
+            icon={<Building2 size={28} />}
+            title="Link an investment account"
+            body="Connect a brokerage via Plaid to see individual holdings and ticker-level analysis."
+            cta={
+              <Button variant="ink" icon={<Plus size={14} />} onClick={() => setLocation('/accounts')}>
+                Link investment account
+              </Button>
+            }
+          />
+        </Section>
+
+        <PortfolioStyles />
+      </Page>
     );
   }
 
@@ -1003,24 +752,24 @@ export default function PortfolioComposition() {
 
   if (assetClasses.length === 0) {
     return (
-      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-          style={{ ...card, padding: 48, textAlign: 'center', maxWidth: 520, margin: '0 auto' }}
-        >
-          <Building2 size={48} style={{ color: 'var(--lf-muted)', margin: '0 auto 20px' }} />
-          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, marginBottom: 12 }}>
-            No holdings found
-          </div>
-          <p style={{ color: 'var(--lf-muted)', fontSize: 14, marginBottom: 24 }}>
-            Connect your investment accounts to see your portfolio composition and asset allocation.
-          </p>
-          <button className="lf-btn lf-btn-primary" onClick={() => setLocation('/accounts')}>
-            <Plus size={14} />
-            Link Account
-          </button>
-        </motion.div>
-      </div>
+      <Page>
+        <PageHeader
+          title="Portfolio"
+          lede="Asset allocation across your investment accounts."
+        />
+        <Section>
+          <EmptyState
+            icon={<Building2 size={32} />}
+            title="No holdings found"
+            body="Connect your investment accounts to see your portfolio composition and asset allocation."
+            cta={
+              <Button variant="ink" icon={<Plus size={14} />} onClick={() => setLocation('/accounts')}>
+                Link account
+              </Button>
+            }
+          />
+        </Section>
+      </Page>
     );
   }
 
@@ -1028,157 +777,177 @@ export default function PortfolioComposition() {
   // Main render — full holdings view
   // ---------------------------------------------------------------------------
 
+  // Holdings table columns
+  const holdingColumns: DataTableColumn<HoldingRow>[] = [
+    {
+      key: 'ticker',
+      header: 'Ticker',
+      cell: (t) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>
+            {t.ticker}
+          </span>
+        </div>
+      ),
+    },
+    { key: 'account', header: 'Account', muted: true, cell: (t) => t.accountLabel },
+    { key: 'class', header: 'Class', cell: (t) => <span style={{ color: colorForAssetClass(t.assetClass, 0) }}>{t.assetClass}</span> },
+    { key: 'category', header: 'Category', muted: true, cell: (t) => t.category },
+    { key: 'value', header: 'Value', num: true, cell: (t) => <span className="ds-num">{formatMoney(t.totalValue, true)}</span> },
+    { key: 'pct', header: '%', num: true, muted: true, cell: (t) => <span className="ds-num">{t.percentage.toFixed(1)}%</span> },
+    {
+      key: 'hist',
+      header: 'Hist. Ret.',
+      num: true,
+      cell: (t) =>
+        t.historicalReturn !== null ? (
+          <span className={`ds-num ${t.historicalReturn >= 0 ? 'ds-pos' : 'ds-neg'}`}>
+            {t.historicalReturn.toFixed(1)}%
+          </span>
+        ) : (
+          <span className="ds-num" style={{ color: 'var(--lf-muted)' }}>—</span>
+        ),
+    },
+  ];
+
+  // ── Composition ribbon: top 5 asset classes + Other ──
+  const sortedClasses = [...filteredAssetClasses].sort((a, b) => b.value - a.value);
+  const topClasses = sortedClasses.slice(0, 5);
+  const restClasses = sortedClasses.slice(5);
+  const restSum = restClasses.reduce((s, c) => s + c.value, 0);
+  const ribbonSegments: CompositionSegment[] = [
+    ...topClasses.map((ac, i) => ({
+      label: ac.name,
+      value: ac.value,
+      color: colorForAssetClass(ac.name, i),
+    })),
+    ...(restSum > 0
+      ? [{ label: 'Other', value: restSum, color: FALLBACK_COLORS[6 % FALLBACK_COLORS.length] }]
+      : []),
+  ];
+
+  const biggestHolding = holdingsByTicker[0];
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <Page>
+      <PageHeader
+        title="Portfolio"
+        eyebrow={`${positionCount} position${positionCount !== 1 ? 's' : ''} · ${accountCount} account${accountCount !== 1 ? 's' : ''}`}
+      />
 
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Portfolio</h1>
-          <p className="lf-eyebrow">
-            {positionCount} position{positionCount !== 1 ? 's' : ''} across {accountCount} account{accountCount !== 1 ? 's' : ''}
-          </p>
-        </motion.div>
-
-        {/* ── Hero dark card: totals ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}
-          style={{ ...darkCard, padding: '28px 32px' }}
-        >
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 32, alignItems: 'flex-start' }}>
-            {/* Total value */}
-            <div style={{ flex: '1 1 180px' }}>
-              <p style={{ color: 'var(--lf-muted)', fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-                Total Portfolio Value
-              </p>
-              <div style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: 'clamp(36px, 5vw, 52px)',
-                fontWeight: 400,
-                lineHeight: 1,
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {formatMoney(filteredTotal)}
-              </div>
-              <p style={{ color: 'var(--lf-muted)', fontSize: 12, marginTop: 8, lineHeight: 1.4, maxWidth: 320 }}>
-                Investments and cash only. Net worth on the dashboard also includes property and debts.
-              </p>
-            </div>
-
-            {/* Blended return */}
-            <div style={{ flex: '0 0 auto', minWidth: 120 }}>
-              <p style={{ color: 'var(--lf-muted)', fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-                Blended Hist. Return
-              </p>
-              <div style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: 32,
-                color: blendedReturn !== null ? 'var(--lf-cheese)' : 'var(--lf-muted)',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {blendedReturn !== null ? `${blendedReturn.toFixed(1)}%` : '—'}
-              </div>
-              <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2 }}>per year</p>
-            </div>
-
-            {/* Position count */}
-            <div style={{ flex: '0 0 auto', minWidth: 100 }}>
-              <p style={{ color: 'var(--lf-muted)', fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-                Positions
-              </p>
-              <div style={{
-                fontFamily: "'Instrument Serif', Georgia, serif",
-                fontSize: 32,
-                color: 'var(--lf-paper)',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {positionCount}
-              </div>
-              <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2 }}>holdings tracked</p>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ── Page Actions (insights) ── */}
-        <PageActions types="portfolio" />
-
-        {/* ── Unified filter row ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 }}
-          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}
-        >
-          {/* Account filter */}
-          {allAccounts.length > 1 && (
+      {/* Editorial lede */}
+      <div style={{ marginBottom: 40 }}>
+        <Lede>
+          Your portfolio is worth <Lede.Num highlight>{formatMoney(filteredTotal)}</Lede.Num>.
+          {blendedReturn !== null && (
             <>
-              <span style={{ fontSize: 12, color: 'var(--lf-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Account</span>
-              <AccountFilterDropdown
-                accounts={allAccounts}
-                activeAccounts={activeAccounts}
-                accountTypeMap={accountTypeMap}
-                onToggle={toggleAccount}
-                onSelectAll={selectAllAccounts}
-              />
-              <span style={{ width: 1, height: 20, background: 'var(--lf-rule)', margin: '0 4px' }} />
+              {' '}Blended historical return:{' '}
+              <Lede.Num tone={blendedReturn >= 0 ? 'pos' : 'neg'}>
+                {blendedReturn.toFixed(1)}%
+              </Lede.Num>{' '}per year.
             </>
           )}
+        </Lede>
+      </div>
 
-          {/* Group by */}
-          <span style={{ fontSize: 12, color: 'var(--lf-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Group by</span>
-          {(['assetClass', 'category', 'holding', 'account'] as GroupBy[]).map(g => {
-            const labels: Record<GroupBy, string> = {
-              assetClass: 'Asset Class', category: 'Category', holding: 'Holdings', account: 'Account',
-            };
-            return (
-              <button key={g} onClick={() => handleGroupByChange(g)} style={pill(groupBy === g)}>
-                {labels[g]}
-              </button>
-            );
-          })}
+      {/* Composition ribbon */}
+      {ribbonSegments.length > 0 && (
+        <Section>
+          <CompositionRibbon
+            leadLabel="Allocation"
+            leadValue={formatMoney(filteredTotal)}
+            leadDelta={`${positionCount} position${positionCount === 1 ? '' : 's'}`}
+            segments={ribbonSegments}
+          />
+        </Section>
+      )}
 
-          {/* Separator */}
-          <span style={{ width: 1, height: 20, background: 'var(--lf-rule)', margin: '0 4px' }} />
+      {/* Stat strip */}
+      <StatStrip
+        className="ds-portfolio-stats"
+        items={[
+          { label: 'Total value', value: formatMoney(filteredTotal) },
+          {
+            label: 'Blended return',
+            value: blendedReturn !== null ? `${blendedReturn.toFixed(1)}%` : '—',
+            sub: blendedReturn !== null ? 'per year' : 'unavailable',
+            tone: blendedReturn !== null && blendedReturn >= 0 ? 'pos' : 'default',
+          },
+          {
+            label: 'Positions',
+            value: String(positionCount),
+            sub: `${accountCount} account${accountCount === 1 ? '' : 's'}`,
+          },
+          ...(biggestHolding
+            ? [{
+                label: 'Largest holding',
+                value: biggestHolding.ticker,
+                sub: `${biggestHolding.percentage.toFixed(1)}% · ${formatMoney(biggestHolding.totalValue, true)}`,
+              }]
+            : []),
+        ]}
+      />
 
-          {/* Chart type */}
-          <span style={{ fontSize: 12, color: 'var(--lf-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>View</span>
-          {(['donut', 'bar', 'treemap'] as ChartType[]).map(ct => {
-            const icons: Record<ChartType, string> = { donut: 'Donut', bar: 'Bar', treemap: 'Map' };
-            return (
-              <button key={ct} onClick={() => setChartType(ct)} style={pill(chartType === ct)}>
-                {icons[ct]}
-              </button>
-            );
-          })}
-        </motion.div>
+      {/* ── Insights (preserved) ── */}
+      <PageActions types="portfolio" />
 
-        {/* ── Chart card ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
-          style={{ ...card, padding: 28 }}
-        >
-          {/* Breadcrumb */}
-          {breadcrumbs.length > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: 13 }}>
+      {/* ── Asset allocation chart ── */}
+      <Section
+        title="Asset allocation"
+        eyebrow={
+          drillLevel1 ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <button
                 onClick={() => setDrillLevel1(null)}
-                style={{ color: 'var(--lf-sauce)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500 }}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--lf-sauce)', fontFamily: 'inherit', fontSize: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}
               >
-                {breadcrumbs[0]}
+                {labelFor(groupBy)}
               </button>
-              <span style={{ color: 'var(--lf-muted)' }}>›</span>
-              <span style={{ color: 'var(--lf-ink)', fontWeight: 600 }}>{breadcrumbs[1]}</span>
-            </div>
-          )}
+              <ChevronRight size={11} />
+              <span style={{ color: 'var(--lf-ink)' }}>{drillLevel1}</span>
+            </span>
+          ) : `By ${labelFor(groupBy)}`
+        }
+        actions={
+          <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6 }}>
+            {(['assetClass', 'category', 'holding', 'account'] as GroupBy[]).map((g) => (
+              <button
+                key={g}
+                onClick={() => handleGroupByChange(g)}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              >
+                <Pill tone={groupBy === g ? 'ink' : 'ghost'}>{labelFor(g)}</Pill>
+              </button>
+            ))}
+          </div>
+        }
+      >
+        {/* Filter row */}
+        {allAccounts.length > 1 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Eyebrow>Account</Eyebrow>
+            <AccountFilterDropdown
+              accounts={allAccounts}
+              activeAccounts={activeAccounts}
+              accountTypeMap={accountTypeMap}
+              onToggle={toggleAccount}
+              onSelectAll={selectAllAccounts}
+            />
+          </div>
+        )}
 
-          {/* Chart */}
+        <Card>
           <AnimatePresence mode="wait">
             <motion.div
-              key={`${groupBy}-${drillLevel1}-${chartType}`}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
+              key={`${groupBy}-${drillLevel1}`}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18 }}
             >
-              {chartType === 'donut' && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 32, alignItems: 'center' }}>
+              <div className="ds-portfolio-grid">
+                <div className="ds-portfolio-grid__chart">
                   <PortfolioDonut
                     slices={chartSlices}
                     total={drillLevel1
@@ -1186,517 +955,109 @@ export default function PortfolioComposition() {
                       : filteredTotal}
                     onSliceClick={handleSliceClick}
                   />
-                  <div style={{ flex: 1, minWidth: 200, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                    {chartSlices.slice(0, 10).map(sl => (
-                      <button
-                        key={sl.name}
-                        onClick={() => handleSliceClick(sl.name)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                      >
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: sl.color, flexShrink: 0 }} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sl.name}</div>
-                          <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                            {sl.pct.toFixed(1)}% · {formatMoney(sl.value, true)}
-                          </div>
+                </div>
+                <div className="ds-portfolio-grid__legend">
+                  {chartSlices.slice(0, 10).map(sl => (
+                    <button
+                      key={sl.name}
+                      onClick={() => handleSliceClick(sl.name)}
+                      className="ds-portfolio-legend-row"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
+                    >
+                      <span className="ds-portfolio-legend-dot" style={{ background: sl.color }} />
+                      <div className="ds-portfolio-legend-text">
+                        <div className="ds-portfolio-legend-name">{sl.name}</div>
+                        <div className="ds-portfolio-legend-meta ds-num">
+                          {sl.pct.toFixed(1)}% · {formatMoney(sl.value, true)}
                         </div>
-                      </button>
-                    ))}
-                  </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              )}
-
-              {chartType === 'bar' && (
-                <div>
-                  <PortfolioBar slices={chartSlices} onSliceClick={handleSliceClick} />
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 20px', marginTop: 16 }}>
-                    {chartSlices.map(sl => (
-                      <button
-                        key={sl.name}
-                        onClick={() => handleSliceClick(sl.name)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--lf-ink)', padding: 0 }}
-                      >
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: sl.color, flexShrink: 0 }} />
-                        {sl.name}
-                        <span style={{ color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>{sl.pct.toFixed(1)}%</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {chartType === 'treemap' && (
-                <PortfolioTreemap slices={chartSlices} onSliceClick={handleSliceClick} />
-              )}
+              </div>
             </motion.div>
           </AnimatePresence>
-        </motion.div>
+        </Card>
+      </Section>
 
-
-        {/* ── Holdings table ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}
-          style={{ ...card, overflow: 'hidden' }}
-        >
-          <div style={{ padding: '20px 24px 0', borderBottom: '1px solid var(--lf-rule)' }}>
-            <p className="lf-eyebrow" style={{ marginBottom: 12 }}>Holdings</p>
+      {/* ── Holdings ── */}
+      <Section
+        title="Holdings"
+        eyebrow={`${holdingsByTicker.length} position${holdingsByTicker.length === 1 ? '' : 's'}`}
+      >
+        <Card flush>
+          <div style={{ overflowX: 'auto' }}>
+            <DataTable
+              columns={holdingColumns}
+              rows={holdingsByTicker}
+              rowKey={(t) => t.ticker}
+              hover
+              emptyMessage="No holdings match the current filter."
+            />
           </div>
+        </Card>
+      </Section>
 
-          {isMobile ? (
-            /* ── Mobile: card list ── */
-            <div>
-              {holdingsByTicker.map((t, i) => {
-                let acName = '—';
-                let histReturn: number | null = null;
-                for (const ac of filteredAssetClasses) {
-                  for (const sc of ac.categories ?? []) {
-                    if (sc.holdings.some(h => h.ticker === t.ticker)) acName = ac.name;
-                  }
-                }
-                const exp = exposures.find(e => e.holdings.some(h => h.ticker === t.ticker));
-                if (exp && !acName.toLowerCase().includes('cash')) histReturn = exp.historicalReturn;
-                const accountLabel = t.holdings.length > 1 ? `${t.holdings.length} accounts` : (t.holdings[0]?.account ?? '—');
-                const histColor = histReturn !== null ? (histReturn >= 0 ? 'var(--lf-pos)' : 'var(--lf-neg)') : 'var(--lf-muted)';
+      <PortfolioStyles />
+    </Page>
+  );
+}
 
-                return (
-                  <div key={t.ticker} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '12px 16px',
-                    borderBottom: i < holdingsByTicker.length - 1 ? '1px solid var(--lf-rule)' : 'none',
-                    gap: 12,
-                  }}>
-                    {/* Color dot */}
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0, marginTop: 2 }} />
-                    {/* Left: ticker + account */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: 'var(--lf-ink)' }}>
-                        {t.ticker}
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {accountLabel}{acName !== '—' ? ` · ${acName}` : ''}
-                      </div>
-                    </div>
-                    {/* Right: value + pct/hist */}
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 600, color: 'var(--lf-ink)', fontVariantNumeric: 'tabular-nums' }}>
-                        {formatMoney(t.totalValue, true)}
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-                        {t.percentage.toFixed(1)}%
-                        {histReturn !== null && (
-                          <span style={{ color: histColor, marginLeft: 4 }}>· {histReturn.toFixed(1)}% hist</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* ── Desktop: full grid table ── */
-            <div style={{ overflowX: 'auto' }}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '80px 1fr 120px 140px 100px 80px 110px',
-                minWidth: 680,
-                columnGap: 12,
-                padding: '10px 24px',
-                background: 'var(--lf-cream)',
-                borderBottom: '1px solid var(--lf-rule)',
-              }}>
-                {['Ticker', 'Account', 'Class', 'Sub-cat', 'Value', '%', 'Hist. Ret.'].map(h => (
-                  <div key={h} style={{ fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--lf-muted)' }}>
-                    {h}
-                  </div>
-                ))}
-              </div>
-              {holdingsByTicker.map((t, i) => {
-                let acName = '—';
-                let scName = '—';
-                let histReturn: number | null = null;
-                for (const ac of filteredAssetClasses) {
-                  for (const sc of ac.categories ?? []) {
-                    if (sc.holdings.some(h => h.ticker === t.ticker)) {
-                      acName = ac.name;
-                      scName = sc.name;
-                    }
-                  }
-                }
-                const exp = exposures.find(e => e.holdings.some(h => h.ticker === t.ticker));
-                if (exp && !acName.toLowerCase().includes('cash')) histReturn = exp.historicalReturn;
-                const accountLabel = t.holdings.length > 1 ? `${t.holdings.length} accounts` : (t.holdings[0]?.account ?? '—');
-                const histColor = histReturn !== null ? (histReturn >= 0 ? 'var(--lf-pos)' : 'var(--lf-neg)') : 'var(--lf-muted)';
+function labelFor(g: GroupBy): string {
+  return g === 'assetClass' ? 'Asset Class'
+    : g === 'category' ? 'Category'
+    : g === 'holding' ? 'Holdings'
+    : 'Account';
+}
 
-                return (
-                  <div key={t.ticker} style={{
-                    display: 'grid',
-                    gridTemplateColumns: '80px 1fr 120px 140px 100px 80px 110px',
-                    minWidth: 680,
-                    columnGap: 12,
-                    padding: '12px 24px',
-                    borderBottom: i < holdingsByTicker.length - 1 ? '1px solid var(--lf-rule)' : 'none',
-                    background: i % 2 === 0 ? 'transparent' : 'var(--lf-cream-deep)',
-                    alignItems: 'center',
-                    transition: 'background 0.12s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--lf-cream-deep)')}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>{t.ticker}</span>
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--lf-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{accountLabel}</div>
-                    <div style={{ fontSize: 13, color: colorForAssetClass(acName, i), fontWeight: 500 }}>{acName}</div>
-                    <div style={{ fontSize: 13, color: 'var(--lf-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{scName}</div>
-                    <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>{formatMoney(t.totalValue, true)}</div>
-                    <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-muted)' }}>{t.percentage.toFixed(1)}%</div>
-                    <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: histColor, fontWeight: histReturn !== null ? 600 : 400 }}>
-                      {histReturn !== null ? `${histReturn.toFixed(1)}%` : '—'}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </motion.div>
-
-        {/* ── Breakdown accordion (grouped by current groupBy) ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-        >
-          <p className="lf-eyebrow" style={{ marginBottom: 12 }}>
-            {groupBy === 'assetClass' ? 'Asset Classes'
-              : groupBy === 'category' ? 'Sub-Categories'
-              : groupBy === 'holding' ? 'By Ticker'
-              : 'By Account'}
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Asset Class view */}
-            {groupBy === 'assetClass' && filteredAssetClasses.map((ac, i) => (
-              <motion.div
-                key={ac.name}
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i }}
-                style={{ ...card, overflow: 'hidden' }}
-              >
-                <button
-                  onClick={() => toggleRow(ac.name)}
-                  style={{ width: '100%', padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorForAssetClass(ac.name, i), flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, color: 'var(--lf-ink)', fontSize: 15 }}>{ac.name}</span>
-                    <span style={{ fontSize: 13, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
-                      {(ac.categories ?? []).length}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)' }}>
-                        {formatMoney(ac.value)}
-                      </span>
-                      <span style={{ fontSize: 13, color: 'var(--lf-muted)', marginLeft: 8 }}>
-                        {ac.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    <span style={{ color: 'var(--lf-muted)', fontSize: 16, transform: expandedRows[ac.name] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                      ▾
-                    </span>
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {expandedRows[ac.name] && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-                      style={{ borderTop: '1px solid var(--lf-rule)', background: 'var(--lf-cream)', overflow: 'hidden' }}
-                    >
-                      {(ac.categories ?? []).map((sc, j) => (
-                        <div key={sc.name} style={{ padding: '12px 20px 0 36px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>{sc.name}</span>
-                            <span style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                              {formatMoney(sc.value)} · {sc.percentage.toFixed(1)}%
-                            </span>
-                          </div>
-                          {sc.holdings.map(h => (
-                            <div
-                              key={`${h.ticker}-${h.account}`}
-                              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--lf-paper)' }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
-                                  {h.ticker}
-                                </span>
-                                <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>{h.account}</span>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
-                                  {formatMoney(h.value)}
-                                </div>
-                                <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                                  {h.shares.toFixed(2)} sh
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                          {j < (ac.categories ?? []).length - 1 && (
-                            <div style={{ height: 1, background: 'var(--lf-rule)', margin: '12px 0' }} />
-                          )}
-                        </div>
-                      ))}
-                      <div style={{ height: 12 }} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
-
-            {/* Category view */}
-            {groupBy === 'category' && allCategories.map((sc, i) => (
-              <motion.div
-                key={sc.name}
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 * i }}
-                style={{ ...card, overflow: 'hidden' }}
-              >
-                <button
-                  onClick={() => toggleRow(sc.name)}
-                  style={{ width: '100%', padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: sc.color, flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, color: 'var(--lf-ink)', fontSize: 15 }}>{sc.name}</span>
-                    <span style={{ fontSize: 13, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
-                      {sc.holdings.length}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)' }}>
-                        {formatMoney(sc.value)}
-                      </span>
-                      <span style={{ fontSize: 13, color: 'var(--lf-muted)', marginLeft: 8 }}>
-                        {sc.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    <span style={{ color: 'var(--lf-muted)', fontSize: 16, transform: expandedRows[sc.name] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                      ▾
-                    </span>
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {expandedRows[sc.name] && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-                      style={{ borderTop: '1px solid var(--lf-rule)', background: 'var(--lf-cream)', overflow: 'hidden', padding: '12px 20px' }}
-                    >
-                      {sc.holdings.map(h => (
-                        <div
-                          key={`${h.ticker}-${h.account}`}
-                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--lf-paper)' }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
-                              {h.ticker}
-                            </span>
-                            <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>{h.account}</span>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
-                              {formatMoney(h.value)}
-                            </div>
-                            <div style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                              {h.shares.toFixed(2)} sh
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
-
-            {/* Holdings (ticker) view */}
-            {groupBy === 'holding' && holdingsByTicker.map((t, i) => (
-              <motion.div
-                key={t.ticker}
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.02 * Math.min(i, 15) }}
-                style={{ ...card, overflow: 'hidden' }}
-              >
-                <button
-                  onClick={() => t.holdings.length > 1 && toggleRow(`holding-${t.ticker}`)}
-                  style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', cursor: t.holdings.length > 1 ? 'pointer' : 'default', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
-                  onMouseEnter={e => { if (t.holdings.length > 1) e.currentTarget.style.background = 'var(--lf-cream)'; }}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: 'var(--lf-ink)' }}>
-                        {t.ticker}
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 1 }}>
-                        {t.totalShares.toFixed(2)} sh
-                        {t.holdings.length > 1 && ` · ${t.holdings.length} accounts`}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 20, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)' }}>
-                        {formatMoney(t.totalValue)}
-                      </span>
-                      <span style={{ fontSize: 13, color: 'var(--lf-muted)', marginLeft: 8 }}>
-                        {t.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    {t.holdings.length > 1 && (
-                      <span style={{ color: 'var(--lf-muted)', fontSize: 16, transform: expandedRows[`holding-${t.ticker}`] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                        ▾
-                      </span>
-                    )}
-                  </div>
-                </button>
-
-                {t.holdings.length > 1 && (
-                  <AnimatePresence>
-                    {expandedRows[`holding-${t.ticker}`] && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-                        style={{ borderTop: '1px solid var(--lf-rule)', background: 'var(--lf-cream)', overflow: 'hidden', padding: '12px 20px' }}
-                      >
-                        {t.holdings.sort((a, b) => b.value - a.value).map(h => (
-                          <div
-                            key={`${h.ticker}-${h.account}`}
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--lf-paper)' }}
-                          >
-                            <span style={{ fontSize: 13, color: 'var(--lf-ink)' }}>{h.account}</span>
-                            <div style={{ display: 'flex', gap: 24, textAlign: 'right' }}>
-                              <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
-                                {formatMoney(h.value)}
-                              </span>
-                              <span style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 80 }}>
-                                {h.shares.toFixed(2)} sh
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                )}
-              </motion.div>
-            ))}
-
-            {/* Account view */}
-            {groupBy === 'account' && (() => {
-              const acctMap = new Map<string, { value: number; holdings: Holding[] }>();
-              for (const ac of filteredAssetClasses) {
-                for (const sc of ac.categories ?? []) {
-                  for (const h of sc.holdings) {
-                    const existing = acctMap.get(h.account);
-                    if (existing) {
-                      existing.value += h.value;
-                      existing.holdings.push(h);
-                    } else {
-                      acctMap.set(h.account, { value: h.value, holdings: [h] });
-                    }
-                  }
-                }
-              }
-              const accts = Array.from(acctMap.entries())
-                .map(([name, data], i) => ({
-                  name,
-                  ...data,
-                  pct: filteredTotal > 0 ? (data.value / filteredTotal) * 100 : 0,
-                  color: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
-                }))
-                .sort((a, b) => b.value - a.value);
-
-              return accts.map((acct, i) => (
-                <motion.div
-                  key={acct.name}
-                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 * i }}
-                  style={{ ...card, overflow: 'hidden' }}
-                >
-                  <button
-                    onClick={() => toggleRow(`acct-${acct.name}`)}
-                    style={{ width: '100%', padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: acct.color, flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, color: 'var(--lf-ink)', fontSize: 15 }}>{acct.name}</span>
-                      <span style={{ fontSize: 13, background: 'var(--lf-cream)', border: '1px solid var(--lf-rule)', borderRadius: 999, padding: '2px 8px', color: 'var(--lf-muted)' }}>
-                        {acct.holdings.length}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)' }}>
-                          {formatMoney(acct.value)}
-                        </span>
-                        <span style={{ fontSize: 13, color: 'var(--lf-muted)', marginLeft: 8 }}>
-                          {acct.pct.toFixed(1)}%
-                        </span>
-                      </div>
-                      <span style={{ color: 'var(--lf-muted)', fontSize: 16, transform: expandedRows[`acct-${acct.name}`] ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                        ▾
-                      </span>
-                    </div>
-                  </button>
-
-                  <AnimatePresence>
-                    {expandedRows[`acct-${acct.name}`] && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-                        style={{ borderTop: '1px solid var(--lf-rule)', background: 'var(--lf-cream)', overflow: 'hidden', padding: '12px 20px' }}
-                      >
-                        {acct.holdings.sort((a, b) => b.value - a.value).map(h => (
-                          <div
-                            key={`${h.ticker}-${h.account}`}
-                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, marginBottom: 4, background: 'var(--lf-paper)' }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', minWidth: 48 }}>
-                                {h.ticker}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', gap: 24, textAlign: 'right' }}>
-                              <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--lf-ink)', fontWeight: 500 }}>
-                                {formatMoney(h.value)}
-                              </span>
-                              <span style={{ fontSize: 13, color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 80 }}>
-                                {h.shares.toFixed(2)} sh
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              ));
-            })()}
-          </div>
-        </motion.div>
-
-      </div>
-    </div>
+function PortfolioStyles() {
+  return (
+    <style>{`
+      .ds-portfolio-stats { margin: 32px 0 56px; }
+      .ds-portfolio-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 32px;
+        align-items: center;
+      }
+      .ds-portfolio-grid__chart {
+        display: flex;
+        justify-content: center;
+        min-width: 0;
+      }
+      .ds-portfolio-grid__legend {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 10px;
+        min-width: 0;
+      }
+      @media (min-width: 820px) {
+        .ds-portfolio-grid {
+          grid-template-columns: 280px minmax(0, 1fr);
+          gap: 40px;
+          align-items: center;
+        }
+      }
+      .ds-portfolio-legend-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .ds-portfolio-legend-dot {
+        width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+      }
+      .ds-portfolio-legend-text { min-width: 0; flex: 1; }
+      .ds-portfolio-legend-name {
+        font-family: 'Geist', system-ui, sans-serif;
+        font-size: 13px; font-weight: 600;
+        color: var(--lf-ink);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .ds-portfolio-legend-meta {
+        font-family: 'Geist', system-ui, sans-serif;
+        font-size: 12px; color: var(--lf-muted);
+      }
+    `}</style>
   );
 }

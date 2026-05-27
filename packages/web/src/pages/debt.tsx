@@ -1,11 +1,26 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { CreditCard, Landmark, Pencil, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatMoney } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
+import {
+  Page,
+  PageHeader,
+  Section,
+  Card,
+  Button,
+  Pill,
+  Eyebrow,
+  DataTable,
+  EmptyState,
+  CompositionRibbon,
+  StatStrip,
+  Lede,
+} from '../components/ds';
+import type { DataTableColumn } from '../components/ds/DataTable';
+import type { CompositionSegment } from '../components/ds/CompositionRibbon';
 
 interface DebtAccount {
   id: string;
@@ -24,31 +39,6 @@ interface DebtAccount {
   liabilityLastSyncedAt: string | null;
 }
 
-// ── Styles ──────────────────────────────────────────────────────────────────
-
-const S = {
-  card: {
-    background: 'var(--lf-paper)',
-    border: '1px solid var(--lf-rule)',
-    borderRadius: 14,
-  } as React.CSSProperties,
-  darkCard: {
-    background: 'var(--lf-ink)',
-    color: 'var(--lf-paper)',
-    borderRadius: 14,
-  } as React.CSSProperties,
-  eyebrow: {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 13,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase' as const,
-    color: 'var(--lf-muted)',
-  } as React.CSSProperties,
-  serif: {
-    fontFamily: "'Instrument Serif', Georgia, serif",
-  } as React.CSSProperties,
-};
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCurrency(value: number): string {
@@ -63,7 +53,7 @@ function formatCurrency(value: number): string {
 /** Calculate months to pay off with given monthly payment */
 function monthsToPayoff(balance: number, apr: number, payment: number): number {
   const monthlyRate = apr / 100 / 12;
-  if (payment <= balance * monthlyRate) return 999; // never pays off
+  if (payment <= balance * monthlyRate) return 999;
   if (monthlyRate === 0) return Math.ceil(balance / payment);
   return Math.ceil(Math.log(payment / (payment - balance * monthlyRate)) / Math.log(1 + monthlyRate));
 }
@@ -80,7 +70,7 @@ function calcTotalInterest(debts: DebtAccount[], paymentFn: (d: DebtAccount) => 
   return debts.reduce((sum, d) => {
     const pmt = paymentFn(d);
     const months = monthsToPayoff(d.balance, d.apr, pmt);
-    if (months >= 999) return sum + 999_999; // treat as huge
+    if (months >= 999) return sum + 999_999;
     return sum + Math.max(0, pmt * months - d.balance);
   }, 0);
 }
@@ -100,11 +90,18 @@ function debtTypeLabel(d: DebtAccount): string {
   return 'Loan';
 }
 
-const fadeUp = (delay: number) => ({
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4, delay },
-});
+// Sauce/cheese/crust shades for debt segments
+const DEBT_SHADES = [
+  'var(--lf-sauce)',
+  'var(--lf-cheese)',
+  'var(--lf-crust)',
+  'var(--lf-sauce-deep)',
+  'var(--lf-burgundy)',
+  'var(--lf-muted)',
+];
+function debtColor(i: number): string {
+  return DEBT_SHADES[i % DEBT_SHADES.length];
+}
 
 // ── Page Component ────────────────────────────────────────────────────────────
 
@@ -161,7 +158,6 @@ export function Debt() {
         };
       });
 
-      // Default sort: avalanche (highest APR first)
       mapped.sort((a, b) => b.apr - a.apr);
       setDebts(mapped);
       setTotalDebt(apiTotal);
@@ -169,7 +165,6 @@ export function Debt() {
     .finally(() => setLoading(false));
   }, [refreshKey]);
 
-  // Page context for chat
   useEffect(() => {
     if (!loading) {
       setPageContext({
@@ -182,7 +177,6 @@ export function Debt() {
 
   const hasDebt = totalDebt > 0;
 
-  // ── Strategy calculations ─────────────────────────────────────────────────
   const avalancheOrder = [...debts].sort((a, b) => b.apr - a.apr);
   const snowballOrder = [...debts].sort((a, b) => a.balance - b.balance);
 
@@ -190,7 +184,6 @@ export function Debt() {
   const snowballInterest = calcTotalInterest(snowballOrder, d => d.suggestedPayment);
   const interestSavedVsSnowball = Math.round(Math.max(0, snowballInterest - avalancheInterest));
 
-  // Payoff date under current strategy (max across debts at suggested payment)
   const orderedDebts = strategy === 'avalanche' ? avalancheOrder : snowballOrder;
   const suggestedMonths = orderedDebts.length > 0
     ? Math.max(...orderedDebts.map(d => monthsToPayoff(d.balance, d.apr, d.suggestedPayment)))
@@ -200,18 +193,12 @@ export function Debt() {
     : 0;
 
   const debtFreeDate = addMonths(suggestedMonths);
+  const minOnlyDate = addMonths(minOnlyMonths);
   const totalMonthlyPayment = debts.reduce((s, d) => s + d.suggestedPayment, 0);
   const apr = blendedApr(debts);
 
-  // Progress toward debt-free: percent of max payoff months already elapsed (proxy: 0% at start)
-  // We show progress as months-elapsed / total-months — no historical data available
-  // DATA-NEEDED: historical debt balance to show YTD paydown progress
-  const progressPct = suggestedMonths > 0 && suggestedMonths < 999
-    ? Math.min(99, Math.round((1 / suggestedMonths) * 100)) // represents 1 month in
-    : 0;
-
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 12vw, 48px)', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+    <Page>
       {loading ? null : !hasAccounts ? (
         <NoAccountsView />
       ) : hasDebt ? (
@@ -223,9 +210,8 @@ export function Debt() {
           avalancheInterest={avalancheInterest}
           snowballInterest={snowballInterest}
           debtFreeDate={debtFreeDate}
-          minOnlyDate={addMonths(minOnlyMonths)}
+          minOnlyDate={minOnlyDate}
           apr={apr}
-          progressPct={progressPct}
           strategy={strategy}
           onStrategyChange={setStrategy}
           orderedDebts={orderedDebts}
@@ -238,7 +224,7 @@ export function Debt() {
       ) : (
         <DebtFreeView openChat={openChat} />
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -246,34 +232,24 @@ export function Debt() {
 
 function NoAccountsView() {
   return (
-    <motion.div
-      {...fadeUp(0)}
-      style={{ textAlign: 'center', padding: '64px 0' }}
-    >
-      <CreditCard style={{ width: 48, height: 48, color: 'var(--lf-muted)', margin: '0 auto 16px' }} />
-      <h2 className="lf-h2" style={{ marginBottom: 8 }}>
-        No Accounts Linked
-      </h2>
-      <p style={{ fontSize: 14, color: 'var(--lf-muted)', maxWidth: 380, margin: '0 auto 24px' }}>
-        Add your credit cards and loans to see your debt breakdown, payoff timeline, and optimization strategy.
-      </p>
-      {import.meta.env.VITE_DEMO_MODE !== "true" && (
-        <a
-          href="/accounts"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '10px 20px',
-            background: 'var(--lf-sauce)',
-            color: 'var(--lf-paper)',
-            fontWeight: 600, fontSize: 14,
-            borderRadius: 10,
-            textDecoration: 'none',
-          }}
-        >
-          Add Accounts
-        </a>
-      )}
-    </motion.div>
+    <>
+      <PageHeader
+        eyebrow="0 accounts"
+        title="Debt"
+      />
+      <Section>
+        <EmptyState
+          icon={<CreditCard size={40} />}
+          title="No accounts linked"
+          body="Add your credit cards and loans to see your debt breakdown, payoff timeline, and optimization strategy."
+          cta={import.meta.env.VITE_DEMO_MODE !== "true" ? (
+            <a href="/accounts" className="ds-btn ds-btn--primary">
+              Add accounts
+            </a>
+          ) : undefined}
+        />
+      </Section>
+    </>
   );
 }
 
@@ -282,7 +258,7 @@ function NoAccountsView() {
 function HasDebtView({
   debts, totalDebt, totalMonthlyPayment, interestSavedVsSnowball,
   avalancheInterest, snowballInterest,
-  debtFreeDate, minOnlyDate, apr, progressPct,
+  debtFreeDate, minOnlyDate, apr,
   strategy, onStrategyChange, orderedDebts,
   openChat, editingDebt, onEditDebt, onCloseModal, onLoanDetailsSaved,
 }: {
@@ -295,7 +271,6 @@ function HasDebtView({
   debtFreeDate: string;
   minOnlyDate: string;
   apr: number;
-  progressPct: number;
   strategy: 'avalanche' | 'snowball';
   onStrategyChange: (s: 'avalanche' | 'snowball') => void;
   orderedDebts: DebtAccount[];
@@ -305,231 +280,339 @@ function HasDebtView({
   onCloseModal: () => void;
   onLoanDetailsSaved: () => void;
 }) {
+  // Composition segments per account
+  const compositionSegments: CompositionSegment[] = [...debts]
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 6)
+    .map((d, i) => ({
+      label: d.name + (d.mask ? ` ··${d.mask}` : ''),
+      value: d.balance,
+      color: debtColor(i),
+      negative: true,
+    }));
+
+  // Total interest delta: how much interest saved using avalanche vs snowball
+  const cheaperInterest = Math.min(avalancheInterest, snowballInterest);
+  const totalInterest = Math.round(cheaperInterest);
+
+  // Debt table columns
+  const cols: DataTableColumn<DebtAccount>[] = [
+    {
+      key: 'name',
+      header: 'Account',
+      cell: (d) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span style={{ flexShrink: 0, color: 'var(--lf-muted)' }}>
+            {d.type === 'credit'
+              ? <CreditCard size={16} />
+              : <Landmark size={16} />}
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 500, color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {d.name}{d.mask ? ` ··${d.mask}` : ''}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+              <Pill tone="cream">{debtTypeLabel(d)}</Pill>
+              {d.liabilitySource === 'plaid' && (
+                <Pill tone="basil">Synced</Pill>
+              )}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'balance',
+      header: 'Balance',
+      num: true,
+      cell: (d) => <span className="ds-num">{formatCurrency(d.balance)}</span>,
+    },
+    {
+      key: 'apr',
+      header: 'APR',
+      num: true,
+      cell: (d) => {
+        const high = d.apr > 20;
+        return (
+          <span className={`ds-num ${high ? 'ds-neg' : ''}`} style={{ fontWeight: high ? 600 : 400 }}>
+            {d.apr}%
+          </span>
+        );
+      },
+    },
+    {
+      key: 'min',
+      header: 'Min pay',
+      num: true,
+      cell: (d) => <span className="ds-num">{formatCurrency(d.minPayment)}/mo</span>,
+    },
+    {
+      key: 'payoff',
+      header: 'Payoff',
+      num: true,
+      muted: true,
+      cell: (d) => (
+        <span className="ds-num">
+          {d.payoffDate
+            ? new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+            : d.suggestedPayoffDate}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      cell: (d) => (
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          {import.meta.env.VITE_DEMO_MODE !== 'true' && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onEditDebt(d); }}
+              title="Edit loan details"
+              aria-label="Edit loan details"
+              style={{
+                background: 'transparent', border: '1px solid var(--lf-rule)', borderRadius: 6,
+                cursor: 'pointer', color: 'var(--lf-muted)', padding: 6, lineHeight: 0,
+              }}
+            >
+              <Pencil size={12} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`);
+            }}
+            className="ds-btn ds-btn--ghost ds-btn--sm"
+          >
+            Plan →
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <>
-      <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
-        <h1 className="lf-h1" style={{ margin: '0 0 6px' }}>Debt</h1>
-        <p style={{ ...S.eyebrow }}>
-          {debts.length} account{debts.length !== 1 ? 's' : ''}
-        </p>
-      </motion.div>
+      <style>{`
+        .debt-strip { margin: 32px 0 48px; }
+        .debt-strategy {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0;
+        }
+        @media (min-width: 720px) {
+          .debt-strategy { grid-template-columns: 1fr 1fr; }
+        }
+        .debt-strategy__col {
+          padding: 20px 0;
+        }
+        .debt-strategy__col + .debt-strategy__col {
+          border-top: 1px solid var(--lf-rule);
+        }
+        @media (min-width: 720px) {
+          .debt-strategy__col + .debt-strategy__col {
+            border-top: none;
+            border-left: 1px solid var(--lf-rule);
+            padding-left: 28px;
+          }
+          .debt-strategy__col:first-child {
+            padding-right: 28px;
+          }
+        }
+        .debt-strategy__label {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 10px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: var(--lf-muted);
+          margin-bottom: 6px;
+        }
+        .debt-strategy__amount {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-weight: 500;
+          font-size: clamp(28px, 3.4vw, 36px);
+          line-height: 1.1;
+          color: var(--lf-ink);
+          font-variant-numeric: tabular-nums;
+          letter-spacing: -0.01em;
+        }
+        .debt-strategy__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-weight: 500;
+          font-size: 22px;
+          color: var(--lf-ink);
+          margin: 0 0 4px;
+        }
+        .debt-strategy__body {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          line-height: 1.55;
+          color: var(--lf-ink-soft);
+          margin: 8px 0 0;
+        }
+        .debt-strategy__pill {
+          display: inline-block;
+          margin-top: 12px;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 11px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+        .debt-pill-toggle {
+          display: inline-flex;
+          gap: 4px;
+          padding: 3px;
+          border-radius: 999px;
+          border: 1px solid var(--lf-rule);
+          background: var(--lf-paper);
+        }
+        .debt-pill-toggle button {
+          padding: 5px 14px;
+          border-radius: 999px;
+          border: none;
+          background: transparent;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 10px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: var(--lf-muted);
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .debt-pill-toggle button[data-active="true"] {
+          background: var(--lf-ink);
+          color: var(--lf-paper);
+        }
+      `}</style>
 
-      {/* ── Two-column hero ── */}
-      <motion.div
-        {...fadeUp(0.06)}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 16,
-          marginBottom: 20,
-        }}
+      <PageHeader
+        eyebrow={`${debts.length} account${debts.length !== 1 ? 's' : ''}`}
+        title="Debt"
+      />
+
+      {/* Editorial lede */}
+      <div style={{ marginBottom: 8 }}>
+        <Lede>
+          You owe{' '}
+          <Lede.Num tone="neg">{formatCurrency(totalDebt)}</Lede.Num>
+          {' '}across{' '}
+          <Lede.Num>{debts.length}</Lede.Num> account{debts.length === 1 ? '' : 's'}{' '}
+          at a blended rate of{' '}
+          <Lede.Num tone={apr > 15 ? 'neg' : 'default'}>{apr}%</Lede.Num>.
+          {' '}At your current pace, you'll be debt-free{' '}
+          <Lede.Num highlight>{debtFreeDate}</Lede.Num>.
+        </Lede>
+      </div>
+
+      {/* Composition ribbon */}
+      {compositionSegments.length > 0 && (
+        <Section>
+          <CompositionRibbon
+            leadLabel="By account"
+            leadValue={formatCurrency(totalDebt)}
+            leadDelta={`${debts.length} account${debts.length === 1 ? '' : 's'}`}
+            segments={compositionSegments}
+          />
+        </Section>
+      )}
+
+      {/* Stat strip */}
+      <StatStrip
+        className="debt-strip"
+        items={[
+          { label: 'Total debt', value: <span className="ds-num">{formatCurrency(totalDebt)}</span>, sub: `${debts.length} account${debts.length === 1 ? '' : 's'}`, tone: 'neg' },
+          { label: 'Blended APR', value: <span className="ds-num">{apr}%</span>, sub: 'weighted average' },
+          { label: 'Monthly payment', value: <span className="ds-num">{formatCurrency(totalMonthlyPayment)}</span>, sub: 'suggested plan' },
+          { label: 'Total interest', value: <span className="ds-num">{formatCurrency(totalInterest)}</span>, sub: 'over plan' },
+        ]}
+      />
+
+      {/* Payoff strategy — editorial comparison */}
+      <Section
+        title="Payoff strategy"
+        eyebrow="Choose your approach"
+        actions={
+          <div className="debt-pill-toggle">
+            <button data-active={strategy === 'avalanche'} onClick={() => onStrategyChange('avalanche')}>Avalanche</button>
+            <button data-active={strategy === 'snowball'} onClick={() => onStrategyChange('snowball')}>Snowball</button>
+          </div>
+        }
       >
-        {/* LEFT: dark card — total debt overview */}
-        <div style={{ ...S.darkCard, padding: 28 }}>
-          <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.5)', marginBottom: 12 }}>
-            Total debt
-          </p>
-          <p style={{ ...S.serif, fontSize: 'clamp(28px, 6vw, 48px)', lineHeight: 1, color: 'var(--lf-paper)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {formatCurrency(totalDebt)}
-          </p>
-
-          {/* Stats row */}
-          <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
-            <div>
-              <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.45)', marginBottom: 4 }}>Blended APR</p>
-              <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--lf-cheese)' }}>{apr}%</p>
+        <div className="debt-strategy">
+          <div className="debt-strategy__col">
+            <div className="debt-strategy__label">Avalanche</div>
+            <h3 className="debt-strategy__title">Highest APR first</h3>
+            <div className="debt-strategy__amount" style={{ marginTop: 12 }}>
+              {formatCurrency(Math.round(avalancheInterest))}
             </div>
-            <div>
-              <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.45)', marginBottom: 4 }}>Monthly payment</p>
-              <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--lf-paper)' }}>{formatCurrency(totalMonthlyPayment)}</p>
-            </div>
-          </div>
-
-          {/* Progress bar to debt-free */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.45)' }}>Progress</p>
-              <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.45)' }}>{debtFreeDate}</p>
-            </div>
-            <div style={{ height: 6, background: 'rgba(251,246,236,0.12)', borderRadius: 3 }}>
-              <div
-                style={{
-                  height: '100%',
-                  width: `${progressPct}%`,
-                  background: 'var(--lf-basil)',
-                  borderRadius: 3,
-                  transition: 'width 0.6s ease',
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT: strategy selector */}
-        <div style={{ ...S.card, padding: 28 }}>
-          <p style={{ ...S.eyebrow, marginBottom: 16 }}>Strategy</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Avalanche option */}
-            <button
-              type="button"
-              onClick={() => onStrategyChange('avalanche')}
-              style={{
-                display: 'block',
-                textAlign: 'left',
-                width: '100%',
-                padding: '16px 18px',
-                borderRadius: 10,
-                border: strategy === 'avalanche'
-                  ? '1.5px solid var(--lf-sauce)'
-                  : '1.5px solid var(--lf-rule)',
-                background: strategy === 'avalanche'
-                  ? 'rgba(201,84,58,0.06)'
-                  : 'transparent',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--lf-ink)', marginBottom: 2 }}>
-                    Avalanche
-                  </p>
-                  <p style={{ fontSize: 13, color: 'var(--lf-muted)', lineHeight: 1.4 }}>
-                    Highest APR first &middot; saves the most interest
-                  </p>
-                </div>
-                {strategy === 'avalanche' && (
-                  <span style={{
-                    ...S.eyebrow,
-                    color: 'var(--lf-sauce)',
-                    background: 'rgba(201,84,58,0.1)',
-                    padding: '3px 8px',
-                    borderRadius: 20,
-                    flexShrink: 0,
-                    marginLeft: 8,
-                  }}>
-                    Active
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--lf-sauce)', marginTop: 8 }}>
-                {formatCurrency(Math.round(avalancheInterest))} total interest
-              </p>
-            </button>
-
-            {/* Snowball option */}
-            <button
-              type="button"
-              onClick={() => onStrategyChange('snowball')}
-              style={{
-                display: 'block',
-                textAlign: 'left',
-                width: '100%',
-                padding: '16px 18px',
-                borderRadius: 10,
-                border: strategy === 'snowball'
-                  ? '1.5px solid var(--lf-sauce)'
-                  : '1.5px solid var(--lf-rule)',
-                background: strategy === 'snowball'
-                  ? 'rgba(201,84,58,0.06)'
-                  : 'transparent',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--lf-ink)', marginBottom: 2 }}>
-                    Snowball
-                  </p>
-                  <p style={{ fontSize: 13, color: 'var(--lf-muted)', lineHeight: 1.4 }}>
-                    Smallest balance first &middot; quick psychological wins
-                  </p>
-                </div>
-                {strategy === 'snowball' && (
-                  <span style={{
-                    ...S.eyebrow,
-                    color: 'var(--lf-sauce)',
-                    background: 'rgba(201,84,58,0.1)',
-                    padding: '3px 8px',
-                    borderRadius: 20,
-                    flexShrink: 0,
-                    marginLeft: 8,
-                  }}>
-                    Active
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--lf-muted)', marginTop: 8 }}>
-                {formatCurrency(Math.round(snowballInterest))} total interest
-              </p>
-            </button>
-
-            {/* Savings callout */}
+            <div className="debt-strategy__label" style={{ marginTop: 4 }}>Total interest paid</div>
+            <p className="debt-strategy__body">
+              Mathematically optimal. Saves you the most money over the life of the plan.
+            </p>
             {interestSavedVsSnowball > 0 && (
-              <p style={{ fontSize: 13, color: 'var(--lf-basil)', padding: '8px 12px', background: 'rgba(90,107,63,0.08)', borderRadius: 8 }}>
-                Avalanche saves you{' '}
-                <strong>{formatCurrency(interestSavedVsSnowball)}</strong> vs snowball.
-              </p>
+              <span className="debt-strategy__pill" style={{ color: 'var(--lf-basil)' }}>
+                Saves {formatCurrency(interestSavedVsSnowball)} vs snowball
+              </span>
             )}
-
-            <button
-              type="button"
-              onClick={() => openChat('Should I use avalanche or snowball to pay off my debt?')}
-              style={{
-                marginTop: 2,
-                fontSize: 13,
-                color: 'var(--lf-muted)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: 0,
-                textDecoration: 'underline',
-                textUnderlineOffset: 3,
-              }}
-            >
-              Walk me through this →
-            </button>
+          </div>
+          <div className="debt-strategy__col">
+            <div className="debt-strategy__label">Snowball</div>
+            <h3 className="debt-strategy__title">Smallest balance first</h3>
+            <div className="debt-strategy__amount" style={{ marginTop: 12 }}>
+              {formatCurrency(Math.round(snowballInterest))}
+            </div>
+            <div className="debt-strategy__label" style={{ marginTop: 4 }}>Total interest paid</div>
+            <p className="debt-strategy__body">
+              Quick psychological wins. You close accounts faster — useful if motivation matters more than dollars.
+            </p>
+            {interestSavedVsSnowball > 0 && (
+              <span className="debt-strategy__pill" style={{ color: 'var(--lf-sauce)' }}>
+                Costs {formatCurrency(interestSavedVsSnowball)} more in interest
+              </span>
+            )}
           </div>
         </div>
-      </motion.div>
-
-      {/* ── Debt order table ── */}
-      <motion.div {...fadeUp(0.12)}>
-        <div style={{ ...S.card, overflow: 'hidden', marginBottom: 20 }}>
-          {/* Table header */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '18px 22px',
-            borderBottom: '1px solid var(--lf-rule)',
-          }}>
-            <p style={{ ...S.eyebrow }}>
-              Debt order &middot; {strategy}
-            </p>
-            <p style={{ fontSize: 13, color: 'var(--lf-muted)' }}>
-              Minimum only: <span style={{ fontWeight: 600 }}>{minOnlyDate}</span>
-            </p>
+        <div style={{
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+          marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--lf-rule)',
+          gap: 16, flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            <div>
+              <Eyebrow>Debt-free</Eyebrow>
+              <div className="ds-num" style={{ fontSize: 15, fontWeight: 500, marginTop: 4 }}>{debtFreeDate}</div>
+            </div>
+            <div>
+              <Eyebrow>If minimum only</Eyebrow>
+              <div className="ds-num" style={{ fontSize: 15, fontWeight: 500, marginTop: 4, color: 'var(--lf-muted)' }}>{minOnlyDate}</div>
+            </div>
           </div>
-
-          {/* Debt rows */}
-          {orderedDebts.map((d, i) => (
-            <DebtRow
-              key={d.id}
-              debt={d}
-              rank={i + 1}
-              isFirst={i === 0}
-              isLast={i === orderedDebts.length - 1}
-              onEdit={onEditDebt}
-              openChat={openChat}
-            />
-          ))}
+          <Button variant="link" onClick={() => openChat('Should I use avalanche or snowball to pay off my debt?')}>
+            Why this strategy? →
+          </Button>
         </div>
-      </motion.div>
+      </Section>
 
-      <PageActions types="debt" />
+      {/* Accounts table */}
+      <Section
+        title="Accounts"
+        eyebrow={`Sorted by ${strategy}`}
+      >
+        <Card flush>
+          <DataTable
+            columns={cols}
+            rows={orderedDebts}
+            rowKey={(d) => d.id}
+            hover
+          />
+        </Card>
+      </Section>
+
+      <Section>
+        <PageActions types="debt" />
+      </Section>
 
       {editingDebt && (
         <LoanDetailsModal
@@ -539,169 +622,6 @@ function HasDebtView({
         />
       )}
     </>
-  );
-}
-
-// ── Debt Row ──────────────────────────────────────────────────────────────────
-
-function DebtRow({
-  debt: d, rank, isFirst, isLast, onEdit, openChat,
-}: {
-  debt: DebtAccount;
-  rank: number;
-  isFirst: boolean;
-  isLast: boolean;
-  onEdit: (d: DebtAccount) => void;
-  openChat: (prompt: string) => void;
-}) {
-  const highApr = d.apr > 20;
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 12,
-        padding: 'clamp(12px, 3vw, 16px) clamp(12px, 3vw, 22px)',
-        borderBottom: isLast ? 'none' : '1px solid var(--lf-rule-soft)',
-        background: isFirst ? 'rgba(201,84,58,0.03)' : 'transparent',
-        flexWrap: 'wrap',
-      }}
-    >
-      {/* Rank chip */}
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 13,
-          fontWeight: 500,
-          background: isFirst ? 'rgba(201,84,58,0.12)' : 'var(--lf-cream)',
-          color: isFirst ? 'var(--lf-sauce)' : 'var(--lf-muted)',
-          border: isFirst ? '1px solid rgba(201,84,58,0.2)' : '1px solid var(--lf-rule)',
-        }}
-      >
-        {rank}
-      </div>
-
-      {/* Icon */}
-      <div style={{ flexShrink: 0, color: 'var(--lf-muted)' }}>
-        {d.type === 'credit'
-          ? <CreditCard style={{ width: 18, height: 18 }} />
-          : <Landmark style={{ width: 18, height: 18 }} />
-        }
-      </div>
-
-      {/* Name / type / badges */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--lf-ink)' }}>{d.name}{d.mask ? ` \u00B7\u00B7${d.mask}` : ''}</span>
-          <span style={{
-            ...S.eyebrow,
-            background: 'var(--lf-cream)',
-            color: 'var(--lf-muted)',
-            padding: '2px 7px',
-            borderRadius: 20,
-            border: '1px solid var(--lf-rule)',
-          }}>
-            {debtTypeLabel(d)}
-          </span>
-          {import.meta.env.VITE_DEMO_MODE !== "true" && (
-            <button
-              type="button"
-              onClick={() => onEdit(d)}
-              title="Edit loan details"
-              aria-label="Edit loan details"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--lf-muted)', padding: 2, lineHeight: 0,
-              }}
-            >
-              <Pencil style={{ width: 12, height: 12 }} />
-            </button>
-          )}
-          {d.liabilitySource === "plaid" && (
-            <span style={{
-              ...S.eyebrow,
-              color: 'var(--lf-basil)',
-              background: 'rgba(90,107,63,0.1)',
-              padding: '2px 7px',
-              borderRadius: 20,
-            }}
-              title={d.liabilityLastSyncedAt ? `Synced ${new Date(d.liabilityLastSyncedAt).toLocaleDateString()}` : undefined}
-            >
-              Synced
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 5, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>
-            Balance{' '}
-            <strong style={{ color: 'var(--lf-ink)' }}>{formatCurrency(d.balance)}</strong>
-          </span>
-          <span style={{ fontSize: 13, color: highApr ? 'var(--lf-sauce)' : 'var(--lf-muted)', fontWeight: highApr ? 600 : 400 }}>
-            {d.apr}% APR{highApr ? ' ⚠' : ''}
-          </span>
-          <span style={{ fontSize: 13, color: 'var(--lf-muted)' }}>
-            Min <strong style={{ color: 'var(--lf-ink)' }}>{formatCurrency(d.minPayment)}/mo</strong>
-          </span>
-        </div>
-        {/* Payoff date note */}
-        {d.type !== 'credit' && (
-          <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 3 }}>
-            {d.payoffDate ? (
-              <>
-                Payoff:{' '}
-                <span style={{ color: 'var(--lf-basil)', fontWeight: 600 }}>
-                  {new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                </span>
-              </>
-            ) : import.meta.env.VITE_DEMO_MODE !== "true" ? (
-              <button
-                type="button"
-                onClick={() => onEdit(d)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--lf-cheese)', fontWeight: 600, fontSize: 13 }}
-              >
-                Unknown — add details
-              </button>
-            ) : (
-              <span style={{ color: 'var(--lf-cheese)', fontWeight: 600 }}>Unknown payoff date</span>
-            )}
-            {' '}
-            &middot; Your plan:{' '}
-            <span style={{ color: 'var(--lf-basil)', fontWeight: 600 }}>{d.suggestedPayoffDate}</span>
-          </p>
-        )}
-      </div>
-
-      {/* CTA */}
-      <button
-        type="button"
-        onClick={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`)}
-        style={{
-          flexShrink: 0,
-          padding: '7px 14px',
-          borderRadius: 8,
-          border: '1px solid var(--lf-rule)',
-          background: 'var(--lf-cream)',
-          fontSize: 13,
-          fontWeight: 600,
-          color: 'var(--lf-ink)',
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          transition: 'border-color 0.15s',
-        }}
-        onMouseEnter={e => ((e.target as HTMLButtonElement).style.borderColor = 'var(--lf-sauce)')}
-        onMouseLeave={e => ((e.target as HTMLButtonElement).style.borderColor = 'var(--lf-rule)')}
-      >
-        Payoff plan →
-      </button>
-    </div>
   );
 }
 
@@ -789,14 +709,7 @@ function LoanDetailsModal({
     color: 'var(--lf-ink)',
     outline: 'none',
     boxSizing: 'border-box',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: 13,
-    fontWeight: 500,
-    color: 'var(--lf-muted)',
-    marginBottom: 2,
+    fontFamily: 'inherit',
   };
 
   return (
@@ -809,131 +722,119 @@ function LoanDetailsModal({
       }}
       onClick={onClose}
     >
-      <div
-        style={{
-          ...S.card,
-          padding: 24,
-          width: '100%',
-          maxWidth: 380,
-          margin: '0 16px',
-          boxShadow: '0 8px 32px rgba(31,26,22,0.18)',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--lf-ink)' }}>{debt.name}</h2>
-            <p style={{ fontSize: 13, color: 'var(--lf-muted)', marginTop: 2 }}>Update loan details</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--lf-muted)', padding: 2 }}
-          >
-            <X style={{ width: 18, height: 18 }} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {(loanType === "mortgage" || loanType === "other_loan") && (
-            <label>
-              <span style={labelStyle}>Maturity / Payoff Date</span>
-              <input type="date" value={maturityDate} onChange={e => setMaturityDate(e.target.value)} style={inputStyle} />
-            </label>
-          )}
-          {loanType === "student_loan" && (
-            <label>
-              <span style={labelStyle}>Expected Payoff Date</span>
-              <input type="date" value={expectedPayoffDate} onChange={e => setExpectedPayoffDate(e.target.value)} style={inputStyle} />
-            </label>
-          )}
-          {loanType !== "credit_card" && (
-            <label>
-              <span style={labelStyle}>Interest Rate (%)</span>
-              <input
-                type="number" step="0.01" min="0"
-                value={interestRate}
-                onChange={e => setInterestRate(e.target.value)}
-                placeholder={loanType === "mortgage" ? "e.g. 3.5" : "e.g. 6.5"}
-                style={inputStyle}
-              />
-            </label>
-          )}
-          {(loanType === "mortgage" || loanType === "other_loan") && (
-            <label>
-              <span style={labelStyle}>Origination Date</span>
-              <input type="date" value={originationDate} onChange={e => setOriginationDate(e.target.value)} style={inputStyle} />
-            </label>
-          )}
-          {loanType === "credit_card" && (
-            <label>
-              <span style={labelStyle}>Purchase APR (%)</span>
-              <input
-                type="number" step="0.01" min="0"
-                value={purchaseApr}
-                onChange={e => setPurchaseApr(e.target.value)}
-                placeholder="e.g. 21.99"
-                style={inputStyle}
-              />
-            </label>
-          )}
-          {(loanType === "student_loan" || loanType === "credit_card" || loanType === "other_loan") && (
-            <label>
-              <span style={labelStyle}>Minimum Payment ($)</span>
-              <input
-                type="number" step="1" min="0"
-                value={minPayment}
-                onChange={e => setMinPayment(e.target.value)}
-                placeholder="e.g. 250"
-                style={inputStyle}
-              />
-            </label>
-          )}
-          {loanType === "student_loan" && (
-            <label>
-              <span style={labelStyle}>Repayment Plan</span>
-              <input
-                type="text"
-                value={repaymentPlanType}
-                onChange={e => setRepaymentPlanType(e.target.value)}
-                placeholder="e.g. income_driven, standard"
-                style={inputStyle}
-              />
-            </label>
-          )}
-
-          {error && <p style={{ fontSize: 13, color: 'var(--lf-sauce)' }}>{error}</p>}
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: '0 16px' }}>
+        <div style={{
+          background: 'var(--lf-paper)',
+          border: '1px solid var(--lf-rule)',
+          borderRadius: 12,
+          padding: 28,
+        }}>
+          {/* Header with hairline-bottom */}
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+            paddingBottom: 16, marginBottom: 20,
+            borderBottom: '1px solid var(--lf-rule)',
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <Eyebrow>Update loan details</Eyebrow>
+              <h3 className="ds-h3" style={{ marginTop: 6 }}>{debt.name}</h3>
+            </div>
             <button
               type="button"
               onClick={onClose}
-              style={{
-                flex: 1, padding: '9px 0', borderRadius: 8, fontSize: 14, fontWeight: 600,
-                border: '1px solid var(--lf-rule)',
-                background: 'transparent',
-                color: 'var(--lf-muted)',
-                cursor: 'pointer',
-              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--lf-muted)', padding: 2 }}
+              aria-label="Close"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              style={{
-                flex: 1, padding: '9px 0', borderRadius: 8, fontSize: 14, fontWeight: 600,
-                background: 'var(--lf-sauce)',
-                color: 'var(--lf-paper)',
-                border: 'none',
-                cursor: saving ? 'not-allowed' : 'pointer',
-                opacity: saving ? 0.6 : 1,
-              }}
-            >
-              {saving ? "Saving…" : "Save"}
+              <X size={18} />
             </button>
           </div>
-        </form>
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {(loanType === "mortgage" || loanType === "other_loan") && (
+              <label>
+                <Eyebrow>Maturity / Payoff Date</Eyebrow>
+                <input type="date" value={maturityDate} onChange={e => setMaturityDate(e.target.value)} style={inputStyle} />
+              </label>
+            )}
+            {loanType === "student_loan" && (
+              <label>
+                <Eyebrow>Expected Payoff Date</Eyebrow>
+                <input type="date" value={expectedPayoffDate} onChange={e => setExpectedPayoffDate(e.target.value)} style={inputStyle} />
+              </label>
+            )}
+            {loanType !== "credit_card" && (
+              <label>
+                <Eyebrow>Interest Rate (%)</Eyebrow>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={interestRate}
+                  onChange={e => setInterestRate(e.target.value)}
+                  placeholder={loanType === "mortgage" ? "e.g. 3.5" : "e.g. 6.5"}
+                  className="ds-num"
+                  style={inputStyle}
+                />
+              </label>
+            )}
+            {(loanType === "mortgage" || loanType === "other_loan") && (
+              <label>
+                <Eyebrow>Origination Date</Eyebrow>
+                <input type="date" value={originationDate} onChange={e => setOriginationDate(e.target.value)} style={inputStyle} />
+              </label>
+            )}
+            {loanType === "credit_card" && (
+              <label>
+                <Eyebrow>Purchase APR (%)</Eyebrow>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={purchaseApr}
+                  onChange={e => setPurchaseApr(e.target.value)}
+                  placeholder="e.g. 21.99"
+                  className="ds-num"
+                  style={inputStyle}
+                />
+              </label>
+            )}
+            {(loanType === "student_loan" || loanType === "credit_card" || loanType === "other_loan") && (
+              <label>
+                <Eyebrow>Minimum Payment ($)</Eyebrow>
+                <input
+                  type="number" step="1" min="0"
+                  value={minPayment}
+                  onChange={e => setMinPayment(e.target.value)}
+                  placeholder="e.g. 250"
+                  className="ds-num"
+                  style={inputStyle}
+                />
+              </label>
+            )}
+            {loanType === "student_loan" && (
+              <label>
+                <Eyebrow>Repayment Plan</Eyebrow>
+                <input
+                  type="text"
+                  value={repaymentPlanType}
+                  onChange={e => setRepaymentPlanType(e.target.value)}
+                  placeholder="e.g. income_driven, standard"
+                  style={inputStyle}
+                />
+              </label>
+            )}
+
+            {error && <p className="ds-body ds-body--sm ds-neg">{error}</p>}
+
+            <div style={{
+              display: 'flex', gap: 8, marginTop: 8,
+              paddingTop: 16, borderTop: '1px solid var(--lf-rule)',
+            }}>
+              <Button type="button" variant="ghost" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="ink" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -944,64 +845,38 @@ function LoanDetailsModal({
 function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
-      <motion.div {...fadeUp(0)} style={{ marginBottom: 28 }}>
-        <p style={{ ...S.eyebrow }}>0 accounts</p>
-      </motion.div>
+      <PageHeader
+        eyebrow="0 accounts"
+        title="Debt"
+      />
 
-      <motion.div {...fadeUp(0.06)} style={{ ...S.darkCard, padding: 32, marginBottom: 20 }}>
-        <p style={{ ...S.eyebrow, color: 'rgba(251,246,236,0.5)', marginBottom: 8 }}>Total debt</p>
-        <p style={{ ...S.serif, fontSize: 56, color: 'var(--lf-paper)', lineHeight: 1 }}>$0</p>
-        <p style={{ fontSize: 14, color: 'rgba(251,246,236,0.55)', marginTop: 12 }}>
-          Every dollar you earn stays in your pocket. Keep building your financial safety net.
-        </p>
-        <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
-          <span style={{
-            ...S.eyebrow,
-            color: 'var(--lf-basil)',
-            background: 'rgba(90,107,63,0.18)',
-            padding: '5px 12px',
-            borderRadius: 20,
-          }}>
-            No credit card debt
-          </span>
-          <span style={{
-            ...S.eyebrow,
-            color: 'var(--lf-basil)',
-            background: 'rgba(90,107,63,0.18)',
-            padding: '5px 12px',
-            borderRadius: 20,
-          }}>
-            No active loans
-          </span>
-        </div>
-      </motion.div>
+      <div style={{ marginBottom: 8 }}>
+        <Lede>
+          You owe{' '}
+          <Lede.Num tone="pos">$0</Lede.Num>.
+          {' '}Every dollar you earn stays in your pocket — <Lede.Num highlight>now build the safety net</Lede.Num>.
+        </Lede>
+      </div>
 
-      <motion.div {...fadeUp(0.12)} style={{ ...S.card, padding: 24, textAlign: 'center', marginBottom: 20 }}>
-        <p style={{ ...S.serif, fontSize: 28, color: 'var(--lf-ink)', marginBottom: 8 }}>
-          What's next?
-        </p>
-        <p style={{ fontSize: 14, color: 'var(--lf-muted)', marginBottom: 16 }}>
-          Now that you're debt-free, redirect those payments into investments and savings.
-        </p>
-        <button
-          type="button"
-          onClick={() => openChat('I just paid off all my debt. What should I do with the extra cash flow?')}
-          style={{
-            padding: '10px 20px',
-            borderRadius: 8,
-            background: 'var(--lf-sauce)',
-            color: 'var(--lf-paper)',
-            border: 'none',
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: 'pointer',
-          }}
-        >
-          Walk me through this →
-        </button>
-      </motion.div>
+      <Section title="What's next?" eyebrow="Now that you're debt-free">
+        <Card>
+          <p className="ds-body">
+            Redirect those payments into investments and savings.
+          </p>
+          <div style={{ marginTop: 16 }}>
+            <Button
+              variant="ink"
+              onClick={() => openChat('I just paid off all my debt. What should I do with the extra cash flow?')}
+            >
+              Walk me through this →
+            </Button>
+          </div>
+        </Card>
+      </Section>
 
-      <PageActions types="debt" />
+      <Section>
+        <PageActions types="debt" />
+      </Section>
     </>
   );
 }

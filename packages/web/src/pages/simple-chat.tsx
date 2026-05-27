@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import ReactMarkdown from 'react-markdown';
+import { MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { useChatStore } from '../lib/chat-store';
 import { api } from '../lib/api';
 import type { ChatThread, Message } from '../lib/types';
-
+import {
+  Page,
+  PageHeader,
+  Button,
+  Eyebrow,
+  EmptyState,
+} from '../components/ds';
 
 interface Bubble {
   role: 'user' | 'assistant';
@@ -15,6 +22,7 @@ interface Bubble {
 const FALLBACK_STARTERS = [
   'What should I focus on first?',
   'Am I on track for retirement?',
+  'How am I spending each month?',
 ];
 
 type View = 'chat' | 'history';
@@ -39,9 +47,7 @@ export function SimpleChat() {
   const [starters, setStarters] = useState(FALLBACK_STARTERS);
   const [messages, setMessages] = useState<Bubble[]>([]);
   // Active thread ID — initialized from URL, then updated by send() when
-  // the API assigns a new thread mid-conversation. Keeping a local copy
-  // (rather than reading only from the URL) means we don't have to bounce
-  // through setLocation on every reply.
+  // the API assigns a new thread mid-conversation.
   const [threadId, setThreadId] = useState<string | null>(urlThreadId);
   const [busy, setBusy] = useState(false);
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -75,12 +81,12 @@ export function SimpleChat() {
         if (nw > 0 && cash / nw > 0.3)
           prompts.push(`I have ${Math.round(cash / nw * 100)}% in cash — should I invest more?`);
       }
-      if (prompts.length < 2) prompts.push(...FALLBACK_STARTERS);
-      setStarters(prompts.slice(0, 3));
+      if (prompts.length < 3) prompts.push(...FALLBACK_STARTERS);
+      setStarters(prompts.slice(0, 4));
     }).catch(() => {});
   }, []);
 
-  // Auto-send a seed prompt from /insights → /chat?prompt=…
+  // Auto-send a seed prompt
   useEffect(() => {
     if (seedPrompt && !autoSentRef.current) {
       autoSentRef.current = true;
@@ -89,14 +95,7 @@ export function SimpleChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seedPrompt]);
 
-  // Load a thread when the URL says so. Tracking which thread we've already
-  // loaded prevents re-fetching on every render.
-  //
-  // We DELIBERATELY do not reset state when urlThreadId clears — that lets
-  // the user flip Current ↔ History without losing the loaded conversation
-  // (state survives the round-trip, and the Current pill writes the
-  // thread back into the URL on re-entry). Wipes happen explicitly via
-  // newChat().
+  // Load a thread when the URL says so
   useEffect(() => {
     if (urlThreadId && loadedThreadRef.current !== urlThreadId) {
       loadedThreadRef.current = urlThreadId;
@@ -112,8 +111,6 @@ export function SimpleChat() {
   }, [messages]);
 
   // Load thread list when switching to history view.
-  // Only show threads created in Simple mode (tagged 'simple-mode') —
-  // legacy Advanced threads have jargon-heavy titles that confuse Simple users.
   useEffect(() => {
     if (view === 'history') {
       setLoadingThreads(true);
@@ -139,9 +136,6 @@ export function SimpleChat() {
       const result = await sendMessage(trimmed, threadId, '', null, ['simple-mode']);
       const nextThreadId = result.threadId || threadId;
       setThreadId(nextThreadId);
-      // Reflect the new thread in the URL so flipping to History and back,
-      // or sharing the URL, keeps the loaded conversation. Mark it as
-      // already-loaded so the URL-driven effect doesn't re-fetch it.
       if (nextThreadId && nextThreadId !== urlThreadId) {
         loadedThreadRef.current = nextThreadId;
         setLocation(`/chat?thread=${encodeURIComponent(nextThreadId)}`, { replace: true });
@@ -185,29 +179,19 @@ export function SimpleChat() {
       setLocation('/chat?view=history');
       return;
     }
-    // Going back to "Current" — preserve a loaded thread in the URL so
-    // pressing the pill from history doesn't accidentally wipe the
-    // conversation the user was just reading.
     setLocation(threadId ? `/chat?thread=${encodeURIComponent(threadId)}` : '/chat');
   }
 
   function newChat() {
-    // Wipe URL + local state. The URL-driven effect intentionally doesn't
-    // auto-reset on a thread-param clear (so flipping Current ↔ History
-    // preserves the loaded conversation), which means newChat() is the
-    // single explicit reset path.
     setLocation('/chat');
-    autoSentRef.current = true; // suppress auto-send of any lingering seed
+    autoSentRef.current = true;
     loadedThreadRef.current = null;
     setMessages([]);
     setThreadId(null);
     setDraft('');
-    // Focus on next paint — input may not be mounted yet if view was 'history'.
     requestAnimationFrame(() => inputRef.current?.focus());
   }
 
-  // Open a thread by pushing to the URL — back-nav from here returns to
-  // the history list. This is the whole point of URL-driven state.
   function openThread(t: ChatThread) {
     setLocation(`/chat?thread=${encodeURIComponent(t.id)}`);
   }
@@ -217,7 +201,6 @@ export function SimpleChat() {
       await api.deleteThread(id);
       setThreads((prev) => prev.filter((t) => t.id !== id));
       if (id === threadId) {
-        // If the deleted thread is the one we have loaded, drop it from the URL.
         setLocation('/chat?view=history');
         loadedThreadRef.current = null;
         setThreadId(null);
@@ -228,86 +211,40 @@ export function SimpleChat() {
 
   const hasConversation = messages.length > 0;
 
-  const dock = view === 'chat' && (
-    <div className="bg-bg/95 backdrop-blur px-4 pt-3 pb-3 border-t border-rule/60">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send(draft);
-        }}
-        className="flex items-center gap-2 rounded-2xl bg-bg-elevated border border-rule pl-4 pr-1.5 py-1.5 shadow-sm focus-within:border-accent/60 focus-within:shadow-md transition"
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ask anything…"
-          disabled={busy}
-          className="flex-1 bg-transparent text-sm focus:outline-none placeholder-text-muted/70"
-        />
-        <button
-          type="submit"
-          disabled={busy || !draft.trim()}
-          className="rounded-full bg-text text-white w-10 h-10 grid place-items-center text-base disabled:opacity-30 shrink-0"
-          aria-label="Send"
-        >
-          ↑
-        </button>
-      </form>
-      {!hasConversation && (
-        <div className="flex flex-wrap gap-2 mt-3">
-          {starters.slice(0, 2).map((s) => (
-            <button
-              key={s}
-              onClick={() => void send(s)}
-              disabled={busy}
-              className="text-xs px-3 py-1.5 bg-bg-elevated border border-rule rounded-full text-text-secondary"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
   return (
-    <div className="flex flex-col" style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto', minHeight: 'calc(100dvh - 130px)' }}>
-      <h1 className="lf-h1 mb-5">Chat</h1>
-
-      {/* Tab switcher + New chat. Pill heights matched (py-1.5 on both)
-          so the row reads as one unit. New-chat is ghost-styled so it
-          doesn't visually compete with the active tab. */}
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div className="inline-flex rounded-full bg-bg-elevated border border-rule p-[3px] text-xs">
-          <button
-            onClick={() => setView('chat')}
-            className={`px-3.5 py-1.5 rounded-full transition ${
-              view === 'chat' ? 'bg-text text-white font-medium' : 'text-text-muted'
-            }`}
-          >
-            Current
-          </button>
-          <button
-            onClick={() => setView('history')}
-            className={`px-3.5 py-1.5 rounded-full transition ${
-              view === 'history' ? 'bg-text text-white font-medium' : 'text-text-muted'
-            }`}
-          >
-            History
-          </button>
-        </div>
-        <button
-          onClick={newChat}
-          className="text-xs px-3 py-1.5 rounded-full border border-rule text-text-secondary hover:bg-bg-elevated whitespace-nowrap"
-        >
-          + New chat
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow="Always on · Sees your accounts"
+        title="Chat"
+        actions={
+          <>
+            <div className="ds-chat-segmented" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'chat'}
+                onClick={() => setView('chat')}
+                className={`ds-chat-segmented__btn ${view === 'chat' ? 'is-active' : ''}`}
+              >
+                Current
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'history'}
+                onClick={() => setView('history')}
+                className={`ds-chat-segmented__btn ${view === 'history' ? 'is-active' : ''}`}
+              >
+                History
+              </button>
+            </div>
+            <Button variant="ghost" onClick={newChat} icon={<Plus size={14} />}>New chat</Button>
+          </>
+        }
+      />
 
       {view === 'history' ? (
-        <HistoryList
+        <HistoryListView
           threads={threads}
           loading={loadingThreads}
           activeId={threadId}
@@ -316,54 +253,354 @@ export function SimpleChat() {
           onNew={newChat}
         />
       ) : (
-        <div ref={scrollRef} className="space-y-4 pb-32 md:pb-44">
-          {!hasConversation && (
-            <div className="flex items-start gap-2">
-              <div className="w-7 h-7 rounded-full bg-cheese/20 grid place-items-center text-sm shrink-0">🥬</div>
-              <div className="flex-1 max-w-[85%] bg-bg-elevated border border-rule rounded-3xl px-4 py-3 shadow-sm">
-                <p className="text-sm leading-relaxed">
-                  Hey — ask me anything about your money. I can see your financial data to answer questions. Your data is processed securely and never stored by the AI provider.
-                </p>
-              </div>
+        <div ref={scrollRef} className="ds-chat-thread">
+          {!hasConversation ? (
+            <ChatStartHero
+              starters={starters}
+              busy={busy}
+              onPick={(s) => void send(s)}
+            />
+          ) : (
+            <div className="ds-chat-messages">
+              {messages.map((m, i) =>
+                m.role === 'user' ? (
+                  <div key={i} className="ds-chat-bubble ds-chat-bubble--user">
+                    <p>{m.text}</p>
+                  </div>
+                ) : (
+                  <div key={i} className="ds-chat-bubble-row">
+                    <div className="ds-chat-avatar">🥬</div>
+                    <div className="ds-chat-bubble ds-chat-bubble--assistant">
+                      {m.pending ? (
+                        <TypingIndicator />
+                      ) : (
+                        <AssistantMarkdown text={m.text} />
+                      )}
+                    </div>
+                  </div>
+                ),
+              )}
             </div>
-          )}
-
-          {messages.map((m, i) =>
-            m.role === 'user' ? (
-              <div key={i} className="flex justify-end">
-                <div className="max-w-[85%] bg-text text-white rounded-3xl px-4 py-3">
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.text}</p>
-                </div>
-              </div>
-            ) : (
-              <div key={i} className="flex items-start gap-2">
-                <div className="w-7 h-7 rounded-full bg-cheese/20 grid place-items-center text-sm shrink-0">🥬</div>
-                <div className="flex-1 max-w-[85%] bg-bg-elevated border border-rule rounded-3xl px-4 py-3 shadow-sm">
-                  {m.pending ? (
-                    <TypingIndicator />
-                  ) : (
-                    <AssistantMarkdown text={m.text} />
-                  )}
-                </div>
-              </div>
-            ),
           )}
         </div>
       )}
 
       {/* Composer dock — fixed above bottom nav on mobile, sticky on desktop */}
-      {dock && (
-        <div className="fixed bottom-[56px] left-0 right-0 z-10 md:sticky md:bottom-0 md:left-auto md:right-auto md:mt-auto bg-bg border-t border-rule/40 px-4 pb-[env(safe-area-inset-bottom)]"
-             style={{ maxWidth: 1200 }}
-        >
-          {dock}
+      {view === 'chat' && (
+        <div className="ds-chat-dock">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send(draft);
+            }}
+            className="ds-chat-composer"
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Ask anything about your finances…"
+              disabled={busy}
+              className="ds-chat-composer__input"
+            />
+            <button
+              type="submit"
+              disabled={busy || !draft.trim()}
+              className="ds-chat-composer__send"
+              aria-label="Send"
+            >
+              ↑
+            </button>
+          </form>
         </div>
       )}
-    </div>
+
+      <style>{`
+        .ds-chat-segmented {
+          display: inline-flex;
+          gap: 2px;
+          padding: 3px;
+          border: 1px solid var(--lf-rule);
+          border-radius: 999px;
+          background: var(--lf-paper);
+        }
+        .ds-chat-segmented__btn {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          font-weight: 500;
+          padding: 7px 14px;
+          border-radius: 999px;
+          border: 0;
+          background: transparent;
+          color: var(--lf-muted);
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+        .ds-chat-segmented__btn.is-active {
+          background: var(--lf-ink);
+          color: var(--lf-paper);
+        }
+        .ds-chat-thread {
+          padding-bottom: 160px;
+        }
+        @media (min-width: 768px) {
+          .ds-chat-thread { padding-bottom: 200px; }
+        }
+        .ds-chat-messages {
+          display: flex; flex-direction: column; gap: 16px;
+        }
+        .ds-chat-bubble-row {
+          display: flex; gap: 8px; align-items: flex-start;
+        }
+        .ds-chat-avatar {
+          width: 28px; height: 28px;
+          border-radius: 50%;
+          background: rgba(230,184,92,0.18);
+          display: grid; place-items: center;
+          font-size: 14px;
+          flex-shrink: 0;
+        }
+        .ds-chat-bubble {
+          max-width: 85%;
+          padding: 12px 16px;
+          border-radius: 20px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          line-height: 1.55;
+        }
+        .ds-chat-bubble--user {
+          align-self: flex-end;
+          background: var(--lf-ink);
+          color: var(--lf-paper);
+          margin-left: auto;
+        }
+        .ds-chat-bubble--user p {
+          margin: 0;
+          white-space: pre-wrap;
+        }
+        .ds-chat-bubble--assistant {
+          background: var(--lf-paper);
+          border: 1px solid var(--lf-rule);
+          color: var(--lf-ink);
+          flex: 1;
+        }
+        .ds-chat-dock {
+          position: fixed;
+          bottom: 56px;
+          left: 0; right: 0;
+          z-index: 10;
+          background: var(--lf-paper);
+          border-top: 1px solid var(--lf-rule);
+          padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        }
+        @media (min-width: 768px) {
+          .ds-chat-dock {
+            position: sticky;
+            bottom: 0;
+            left: auto; right: auto;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px 0;
+            border-top: 1px solid var(--lf-rule);
+          }
+        }
+        .ds-chat-composer {
+          max-width: 1200px;
+          margin: 0 auto;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--lf-paper);
+          border: 1px solid var(--lf-rule);
+          border-radius: 999px;
+          padding: 6px 6px 6px 18px;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .ds-chat-composer:focus-within {
+          border-color: var(--lf-ink);
+          box-shadow: 0 0 0 4px rgba(31,26,22,0.06);
+        }
+        .ds-chat-composer__input {
+          flex: 1;
+          background: transparent;
+          border: 0;
+          outline: none;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          color: var(--lf-ink);
+          min-width: 0;
+        }
+        .ds-chat-composer__input::placeholder { color: var(--lf-muted); }
+        .ds-chat-composer__send {
+          width: 36px; height: 36px;
+          border-radius: 50%;
+          background: var(--lf-sauce);
+          color: var(--lf-paper);
+          border: 0;
+          cursor: pointer;
+          font-size: 16px;
+          display: grid; place-items: center;
+          flex-shrink: 0;
+          transition: opacity 0.15s, background 0.15s;
+        }
+        .ds-chat-composer__send:hover:not(:disabled) { background: var(--lf-sauce-deep); }
+        .ds-chat-composer__send:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* Assistant markdown */
+        .ds-chat-md p:not(:last-child) { margin: 0 0 8px; }
+        .ds-chat-md ul, .ds-chat-md ol { padding-left: 20px; margin: 0 0 8px; }
+        .ds-chat-md ul { list-style: disc; }
+        .ds-chat-md ol { list-style: decimal; }
+        .ds-chat-md li { margin: 2px 0; }
+        .ds-chat-md h1, .ds-chat-md h2, .ds-chat-md h3 {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px; font-weight: 600;
+          margin: 8px 0 4px; color: var(--lf-ink);
+        }
+        .ds-chat-md h1 { font-size: 15px; }
+        .ds-chat-md strong { font-weight: 600; }
+        .ds-chat-md em { font-style: italic; }
+        .ds-chat-md a { color: var(--lf-sauce); text-decoration: underline; text-underline-offset: 2px; }
+        .ds-chat-md code {
+          background: var(--lf-cream);
+          padding: 1px 5px; border-radius: 4px;
+          font-family: 'JetBrains Mono', monospace; font-size: 12px;
+        }
+        .ds-chat-md pre {
+          background: var(--lf-cream);
+          padding: 10px 12px; border-radius: 8px;
+          overflow-x: auto;
+          font-family: 'JetBrains Mono', monospace; font-size: 12px;
+          margin: 8px 0;
+        }
+        .ds-chat-md blockquote {
+          border-left: 2px solid var(--lf-rule);
+          padding-left: 12px;
+          color: var(--lf-ink-soft);
+          margin: 8px 0;
+        }
+      `}</style>
+    </Page>
   );
 }
 
-function HistoryList({
+// ─── Editorial empty-state hero ──────────────────────────────────────────────
+
+function ChatStartHero({
+  starters, busy, onPick,
+}: { starters: string[]; busy: boolean; onPick: (q: string) => void }) {
+  return (
+    <section className="ds-chat-hero" aria-labelledby="ds-chat-hero-title">
+      <Eyebrow>Ask Lasagna</Eyebrow>
+      <h2 id="ds-chat-hero-title" className="ds-chat-hero__title">
+        What do you want to know?
+      </h2>
+      <p className="ds-chat-hero__lede">
+        Lasagna can see your accounts, goals, and history. Ask anything —
+        from "how am I doing?" to "should I refinance this loan?"
+      </p>
+
+      {starters.length > 0 && (
+        <ul className="ds-chat-hero__prompts">
+          {starters.map((q, i) => (
+            <li key={q}>
+              <button
+                type="button"
+                onClick={() => onPick(q)}
+                disabled={busy}
+                className="ds-chat-hero__prompt"
+              >
+                <span className="ds-chat-hero__prompt-num">{String(i + 1).padStart(2, '0')}</span>
+                <span className="ds-chat-hero__prompt-text">{q}</span>
+                <span className="ds-chat-hero__prompt-arrow" aria-hidden="true">→</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <style>{`
+        .ds-chat-hero {
+          padding: 24px 0 40px;
+        }
+        .ds-chat-hero__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-weight: 500;
+          font-size: clamp(32px, 5vw, 48px);
+          line-height: 1.05;
+          letter-spacing: -0.015em;
+          color: var(--lf-ink);
+          margin: 12px 0 16px;
+        }
+        .ds-chat-hero__lede {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 15px;
+          line-height: 1.6;
+          color: var(--lf-ink-soft);
+          max-width: 60ch;
+          margin: 0 0 28px;
+        }
+        .ds-chat-hero__prompts {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          border-top: 1px solid var(--lf-ink);
+        }
+        .ds-chat-hero__prompts li {
+          border-bottom: 1px solid var(--lf-rule);
+        }
+        .ds-chat-hero__prompt {
+          display: flex;
+          align-items: baseline;
+          gap: 16px;
+          width: 100%;
+          background: none;
+          border: 0;
+          padding: 18px 0;
+          text-align: left;
+          cursor: pointer;
+          transition: color 0.15s;
+          color: inherit;
+        }
+        .ds-chat-hero__prompt:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ds-chat-hero__prompt:hover:not(:disabled) .ds-chat-hero__prompt-text { color: var(--lf-sauce); }
+        .ds-chat-hero__prompt:hover:not(:disabled) .ds-chat-hero__prompt-arrow {
+          transform: translateX(4px);
+          color: var(--lf-sauce);
+        }
+        .ds-chat-hero__prompt-num {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 11px;
+          letter-spacing: 0.14em;
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          width: 22px;
+        }
+        .ds-chat-hero__prompt-text {
+          flex: 1;
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: clamp(18px, 2vw, 22px);
+          font-weight: 400;
+          color: var(--lf-ink);
+          line-height: 1.35;
+          letter-spacing: -0.005em;
+          transition: color 0.15s;
+        }
+        .ds-chat-hero__prompt-arrow {
+          font-size: 16px;
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          transition: transform 0.15s, color 0.15s;
+        }
+      `}</style>
+    </section>
+  );
+}
+
+// ─── History list — editorial feed ───────────────────────────────────────────
+
+function HistoryListView({
   threads,
   loading,
   activeId,
@@ -379,67 +616,140 @@ function HistoryList({
   onNew: () => void;
 }) {
   if (loading) {
-    return <div className="rounded-2xl bg-bg-elevated border border-rule p-5 animate-pulse h-32" />;
+    return (
+      <div style={{ height: 200, background: 'var(--lf-cream)', borderRadius: 8 }} className="animate-pulse" />
+    );
   }
   if (threads.length === 0) {
     return (
-      <div className="rounded-2xl bg-bg-elevated border border-rule p-6 text-center">
-        <div className="text-3xl mb-2">💬</div>
-        <div className="text-base font-serif font-medium">No conversations yet.</div>
-        <p className="text-sm text-text-muted mt-2">Start a new chat — your history will show up here.</p>
-        <button
-          onClick={onNew}
-          className="mt-4 rounded-xl bg-text text-white px-4 py-2 text-sm font-medium"
-        >
-          Start chatting
-        </button>
-      </div>
+      <EmptyState
+        icon={<MessageSquare size={28} />}
+        title="No conversations yet"
+        body="Start a new chat — your history will show up here."
+        cta={<Button variant="primary" onClick={onNew}>Start chatting</Button>}
+      />
     );
   }
   return (
-    <div className="rounded-2xl bg-bg-elevated border border-rule shadow-sm overflow-hidden pb-1">
-      {threads.map((t, i) => {
-        const isActive = t.id === activeId;
-        const title = stripMarkdown(t.title || t.firstMessage || 'Untitled conversation');
-        const when = new Date(t.updatedAt).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-        });
-        return (
-          <div
-            key={t.id}
-            className={`group relative flex items-center transition ${
-              isActive ? 'bg-cheese/10' : ''
-            } ${i < threads.length - 1 ? 'border-b border-rule/50' : ''}`}
-          >
-            <button
-              onClick={() => onOpen(t)}
-              className="flex-1 min-w-0 text-left px-3 py-2.5 flex items-center justify-between gap-3 min-h-[44px]"
-            >
-              <div className="text-sm font-medium line-clamp-1 flex-1">{title}</div>
-              <div className="text-[10px] text-text-muted whitespace-nowrap tabular-nums shrink-0">
-                {when}
-              </div>
-            </button>
-            <button
-              onClick={() => {
-                if (confirm('Delete this conversation?')) onDelete(t.id);
-              }}
-              aria-label="Delete conversation"
-              className="w-9 h-11 grid place-items-center text-text-muted/60 hover:text-accent text-sm shrink-0"
-            >
-              ✕
-            </button>
-          </div>
-        );
-      })}
+    <div className="ds-chat-history">
+      <ul className="ds-chat-history__feed">
+        {threads.map((t) => {
+          const isActive = t.id === activeId;
+          const title = stripMarkdown(t.title || t.firstMessage || 'Untitled conversation');
+          const preview = t.firstMessage && t.title ? stripMarkdown(t.firstMessage) : null;
+          const when = new Date(t.updatedAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: new Date(t.updatedAt).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+          }).toUpperCase();
+          return (
+            <li key={t.id} className={isActive ? 'is-active' : undefined}>
+              <button
+                type="button"
+                onClick={() => onOpen(t)}
+                className="ds-chat-history__link"
+              >
+                <div className="ds-chat-history__body">
+                  <div className="ds-chat-history__eyebrow">{when}{isActive ? ' · OPEN' : ''}</div>
+                  <div className="ds-chat-history__title">{title}</div>
+                  {preview && preview !== title && (
+                    <p className="ds-chat-history__preview">{preview}</p>
+                  )}
+                </div>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm('Delete this conversation?')) onDelete(t.id);
+                }}
+                aria-label="Delete conversation"
+                className="ds-chat-history__delete"
+              >
+                <Trash2 size={14} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <style>{`
+        .ds-chat-history {
+          padding-bottom: 80px;
+        }
+        .ds-chat-history__feed {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          border-top: 1px solid var(--lf-ink);
+        }
+        .ds-chat-history__feed li {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          border-bottom: 1px solid var(--lf-rule);
+          padding: 18px 0;
+        }
+        .ds-chat-history__feed li.is-active { background: rgba(230,184,92,0.05); }
+        .ds-chat-history__link {
+          flex: 1; min-width: 0;
+          display: block;
+          background: none;
+          border: 0;
+          padding: 0;
+          text-align: left;
+          cursor: pointer;
+          color: inherit;
+        }
+        .ds-chat-history__body { min-width: 0; }
+        .ds-chat-history__eyebrow {
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-size: 10px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--lf-muted);
+          margin-bottom: 6px;
+        }
+        .ds-chat-history__title {
+          font-family: 'Instrument Serif', Georgia, serif;
+          font-size: 19px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.3;
+          transition: color 0.15s;
+        }
+        .ds-chat-history__link:hover .ds-chat-history__title { color: var(--lf-sauce); }
+        .ds-chat-history__preview {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--lf-muted);
+          margin: 6px 0 0;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .ds-chat-history__delete {
+          width: 30px; height: 30px;
+          border: 0; background: transparent;
+          color: var(--lf-muted);
+          cursor: pointer;
+          border-radius: 6px;
+          flex-shrink: 0;
+          display: grid; place-items: center;
+          transition: background 0.15s, color 0.15s;
+        }
+        .ds-chat-history__delete:hover {
+          background: rgba(201,84,58,0.08);
+          color: var(--lf-sauce);
+        }
+      `}</style>
     </div>
   );
 }
 
 /** Strip a small set of markdown tokens so chat-thread previews don't show
- *  raw asterisks, backticks, or hashes in the History list. Intentionally
- *  conservative — we only render plain text here, not HTML. */
+ *  raw asterisks, backticks, or hashes in the History list. */
 function stripMarkdown(s: string): string {
   return s
     .replace(/```[\s\S]*?```/g, ' ')      // fenced code → space
@@ -456,28 +766,31 @@ function stripMarkdown(s: string): string {
 }
 
 function AssistantMarkdown({ text }: { text: string }) {
-  // Render markdown in assistant bubbles so headings, lists, bold, links, etc.
-  // appear formatted instead of as raw asterisks/hashes. Styles are tuned for
-  // a chat bubble — tight spacing, smaller headings, readable inline code.
   return (
-    <div className="text-sm leading-relaxed text-text [&_p:not(:last-child)]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:space-y-1 [&_li]:my-0 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:mt-2 [&_h1]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-2 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_strong]:font-semibold [&_em]:italic [&_a]:text-accent [&_a]:underline [&_code]:bg-bg [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[12px] [&_pre]:bg-bg [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:text-[12px] [&_blockquote]:border-l-2 [&_blockquote]:border-rule [&_blockquote]:pl-3 [&_blockquote]:text-text-secondary">
+    <div className="ds-chat-md">
       <ReactMarkdown>{text}</ReactMarkdown>
     </div>
   );
 }
 
 function TypingIndicator() {
-  // Pulsing cheese dot + plain "thinking" label. Earlier version used
-  // background-clip:text for a shimmer; Safari iOS rendered the text as
-  // transparent with no fallback, leaving an empty bubble. Plain text +
-  // opacity pulse is bulletproof.
   return (
-    <div className="flex items-center gap-2 py-0.5">
-      <span className="relative flex w-2 h-2 shrink-0">
-        <span className="absolute inset-0 rounded-full bg-cheese animate-ping opacity-75" />
-        <span className="relative rounded-full w-2 h-2 bg-cheese" />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
+      <span style={{ position: 'relative', display: 'flex', width: 8, height: 8, flexShrink: 0 }}>
+        <span style={{
+          position: 'absolute', inset: 0, borderRadius: '50%',
+          background: 'var(--lf-cheese)', opacity: 0.75,
+          animation: 'lf-chat-ping 1s ease-out infinite',
+        }} />
+        <span style={{
+          position: 'relative', borderRadius: '50%',
+          width: 8, height: 8, background: 'var(--lf-cheese)',
+        }} />
       </span>
-      <span className="text-sm text-text-secondary lf-thinking">Lasagna is thinking…</span>
+      <span style={{ fontSize: 14, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
+        Lasagna is thinking…
+      </span>
+      <style>{`@keyframes lf-chat-ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }`}</style>
     </div>
   );
 }
