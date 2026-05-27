@@ -65,9 +65,25 @@ interface NetBreakdown {
   cashCount: number;
   investments: number;
   investmentsCount: number;
+  /** real_estate + alternative — collectively "other assets". */
+  assets: number;
+  assetsCount: number;
+  realEstateValue: number;
+  alternativeValue: number;
   debts: number;
   debtsCount: number;
   netWorth: number;
+}
+
+/**
+ * Label for the "other assets" segment depends on what's in it. If the user
+ * only has real estate (most common), call it "Property". If only alts,
+ * "Alternatives". If both, "Other assets".
+ */
+function assetsLabel(b: NetBreakdown): string {
+  if (b.realEstateValue > 0 && b.alternativeValue > 0) return 'Other assets';
+  if (b.realEstateValue > 0) return 'Property';
+  return 'Alternatives';
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -160,6 +176,8 @@ export function SimpleHome() {
       const next: NetBreakdown = {
         cash: 0, cashCount: 0,
         investments: 0, investmentsCount: 0,
+        assets: 0, assetsCount: 0,
+        realEstateValue: 0, alternativeValue: 0,
         debts: 0, debtsCount: 0,
         netWorth: 0,
       };
@@ -170,9 +188,11 @@ export function SimpleHome() {
         if (Number.isNaN(v)) continue;
         if (b.type === 'depository') { next.cash += v; next.cashCount++; }
         else if (b.type === 'investment') { next.investments += v; next.investmentsCount++; }
-        else if (b.type === 'credit' || b.type === 'loan') { next.debts += v; next.debtsCount++; }
+        else if (b.type === 'real_estate') { next.assets += v; next.assetsCount++; next.realEstateValue += v; }
+        else if (b.type === 'alternative') { next.assets += v; next.assetsCount++; next.alternativeValue += v; }
+        else if (b.type === 'credit' || b.type === 'loan') { next.debts += Math.abs(v); next.debtsCount++; }
       }
-      next.netWorth = next.cash + next.investments - next.debts;
+      next.netWorth = next.cash + next.investments + next.assets - next.debts;
       setBreakdown(next);
       setAccountsById(map);
 
@@ -292,24 +312,24 @@ export function SimpleHome() {
       />
 
       {/* Composition ribbon — net worth as one visual */}
-      {breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.debts > 0) && (
-        <Section>
-          <CompositionRibbon
-            leadLabel="Composition"
-            leadValue={fmtUsd(breakdown.netWorth)}
-            leadDelta={
-              breakdown.cashCount + breakdown.investmentsCount + breakdown.debtsCount > 0
-                ? `${breakdown.cashCount + breakdown.investmentsCount + breakdown.debtsCount} accounts`
-                : undefined
-            }
-            segments={[
-              ...(breakdown.cash > 0 ? [{ label: 'Cash', value: breakdown.cash, color: 'var(--lf-basil)' }] : []),
-              ...(breakdown.investments > 0 ? [{ label: 'Investments', value: breakdown.investments, color: 'var(--lf-cheese)' }] : []),
-              ...(breakdown.debts > 0 ? [{ label: 'Debt', value: breakdown.debts, color: 'var(--lf-sauce)', negative: true }] : []),
-            ]}
-          />
-        </Section>
-      )}
+      {breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0) && (() => {
+        const totalAccounts = breakdown.cashCount + breakdown.investmentsCount + breakdown.assetsCount + breakdown.debtsCount;
+        return (
+          <Section>
+            <CompositionRibbon
+              leadLabel="Composition"
+              leadValue={fmtUsd(breakdown.netWorth)}
+              leadDelta={totalAccounts > 0 ? `${totalAccounts} account${totalAccounts === 1 ? '' : 's'}` : undefined}
+              segments={[
+                ...(breakdown.cash > 0 ? [{ label: 'Cash', value: breakdown.cash, color: 'var(--lf-basil)' }] : []),
+                ...(breakdown.investments > 0 ? [{ label: 'Investments', value: breakdown.investments, color: 'var(--lf-cheese)' }] : []),
+                ...(breakdown.assets > 0 ? [{ label: assetsLabel(breakdown), value: breakdown.assets, color: 'var(--lf-noodle)' }] : []),
+                ...(breakdown.debts > 0 ? [{ label: 'Debt', value: breakdown.debts, color: 'var(--lf-sauce)', negative: true }] : []),
+              ]}
+            />
+          </Section>
+        );
+      })()}
 
       {/* Stat strip — secondary KPIs as a typographic ribbon */}
       {breakdown && (
@@ -318,6 +338,11 @@ export function SimpleHome() {
           items={[
             { label: 'Cash on hand', value: fmtUsd(breakdown.cash), sub: `${breakdown.cashCount} account${breakdown.cashCount === 1 ? '' : 's'}` },
             { label: 'Invested', value: fmtUsd(breakdown.investments), sub: `${breakdown.investmentsCount} account${breakdown.investmentsCount === 1 ? '' : 's'}` },
+            ...(breakdown.assets > 0 ? [{
+              label: assetsLabel(breakdown),
+              value: fmtUsd(breakdown.assets),
+              sub: `${breakdown.assetsCount} item${breakdown.assetsCount === 1 ? '' : 's'}`,
+            }] : []),
             { label: 'Debt', value: fmtUsd(breakdown.debts), sub: `${breakdown.debtsCount} account${breakdown.debtsCount === 1 ? '' : 's'}`, tone: breakdown.debts > 0 ? 'neg' : 'default' },
             ...(topGoal && goalProgress !== null ? [{
               label: 'Top goal',
@@ -732,22 +757,24 @@ function AskHero({
   return (
     <section className="ds-askhero" aria-labelledby="ds-askhero-title">
       <div className="ds-askhero__head">
-        <Eyebrow>
-          <MessageSquare size={11} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
-          Ask Lasagna
-        </Eyebrow>
-        <span className="ds-askhero__meta">Always on · Sees your accounts</span>
+        <MessageSquare size={20} className="ds-askhero__icon" />
+        <div>
+          <h2 id="ds-askhero-title" className="ds-askhero__title">
+            What do you want to know?
+          </h2>
+          <p className="ds-askhero__sub">
+            Lasagna sees your accounts, goals, and history.
+          </p>
+        </div>
       </div>
-      <h2 id="ds-askhero-title" className="ds-askhero__title">
-        What do you want to know?
-      </h2>
+
       <form onSubmit={onSubmit} className="ds-askhero__form">
         <div className="ds-askhero__box">
           <input
             type="text"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Ask anything about your finances…"
+            placeholder="e.g. Can I afford to buy a house this year?"
             className="ds-askhero__input"
             autoComplete="off"
           />
@@ -761,12 +788,12 @@ function AskHero({
           </button>
         </div>
       </form>
+
       {prompts.length > 0 && (
         <ul className="ds-askhero__prompts">
-          {prompts.map((q, i) => (
+          {prompts.map((q) => (
             <li key={q}>
               <button type="button" onClick={() => onPick(q)} className="ds-askhero__prompt">
-                <span className="ds-askhero__prompt-num">{String(i + 1).padStart(2, '0')}</span>
                 <span className="ds-askhero__prompt-text">{q}</span>
                 <span className="ds-askhero__prompt-arrow" aria-hidden="true">→</span>
               </button>
@@ -774,49 +801,60 @@ function AskHero({
           ))}
         </ul>
       )}
+
       <style>{`
         .ds-askhero {
-          border-top: 1px solid var(--lf-ink);
-          border-bottom: 1px solid var(--lf-rule);
-          padding: 32px 0 40px;
+          position: relative;
+          background: var(--lf-cream);
+          border: 1px solid var(--lf-rule);
+          border-top: 3px solid var(--lf-sauce);
+          border-radius: 14px;
+          padding: 28px clamp(20px, 3vw, 32px) 24px;
           margin-bottom: 48px;
         }
         .ds-askhero__head {
           display: flex;
-          align-items: baseline;
-          justify-content: space-between;
-          gap: 16px;
-          margin-bottom: 14px;
+          align-items: flex-start;
+          gap: 14px;
+          margin-bottom: 20px;
         }
-        .ds-askhero__meta {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: var(--lf-muted);
+        .ds-askhero__icon {
+          flex-shrink: 0;
+          padding: 8px;
+          background: var(--lf-sauce);
+          color: var(--lf-paper);
+          border-radius: 10px;
+          width: 36px;
+          height: 36px;
         }
         .ds-askhero__title {
           font-family: 'Instrument Serif', Georgia, serif;
           font-weight: 500;
-          font-size: clamp(28px, 4vw, 40px);
-          line-height: 1.05;
+          font-size: clamp(24px, 3.4vw, 32px);
+          line-height: 1.1;
           letter-spacing: -0.015em;
           color: var(--lf-ink);
-          margin: 0 0 20px;
+          margin: 0;
         }
-        .ds-askhero__form { margin: 0 0 24px; }
+        .ds-askhero__sub {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          color: var(--lf-ink-soft);
+          margin: 6px 0 0;
+        }
+        .ds-askhero__form { margin: 0 0 16px; }
         .ds-askhero__box {
           display: flex;
           align-items: stretch;
           background: var(--lf-paper);
           border: 1px solid var(--lf-rule);
-          border-radius: 12px;
+          border-radius: 10px;
           transition: border-color 0.15s, box-shadow 0.15s;
           overflow: hidden;
         }
         .ds-askhero__box:focus-within {
-          border-color: var(--lf-ink);
-          box-shadow: 0 0 0 4px rgba(31,26,22,0.06);
+          border-color: var(--lf-sauce);
+          box-shadow: 0 0 0 3px rgba(201,84,58,0.12);
         }
         .ds-askhero__input {
           flex: 1;
@@ -824,16 +862,16 @@ function AskHero({
           border: 0;
           outline: 0;
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 16px;
+          font-size: 15px;
           color: var(--lf-ink);
-          padding: 16px 20px;
+          padding: 14px 18px;
           min-width: 0;
         }
         .ds-askhero__input::placeholder { color: var(--lf-muted); }
         .ds-askhero__submit {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           background: var(--lf-sauce);
           color: var(--lf-paper);
           border: 0;
@@ -850,45 +888,41 @@ function AskHero({
           list-style: none;
           margin: 0;
           padding: 0;
+          display: flex;
+          flex-direction: column;
         }
         .ds-askhero__prompts li {
-          border-top: 1px solid var(--lf-rule);
+          border-top: 1px solid var(--lf-rule-soft);
         }
-        .ds-askhero__prompts li:first-child { border-top: 0; }
         .ds-askhero__prompt {
           display: flex;
-          align-items: baseline;
-          gap: 16px;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
           width: 100%;
           background: none;
           border: 0;
-          padding: 16px 0;
+          padding: 12px 0;
           text-align: left;
           cursor: pointer;
           transition: color 0.15s;
         }
         .ds-askhero__prompt:hover .ds-askhero__prompt-text { color: var(--lf-sauce); }
-        .ds-askhero__prompt:hover .ds-askhero__prompt-arrow { transform: translateX(4px); color: var(--lf-sauce); }
-        .ds-askhero__prompt-num {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 11px;
-          letter-spacing: 0.14em;
-          color: var(--lf-muted);
-          flex-shrink: 0;
-          width: 22px;
+        .ds-askhero__prompt:hover .ds-askhero__prompt-arrow {
+          transform: translateX(4px);
+          color: var(--lf-sauce);
         }
         .ds-askhero__prompt-text {
           flex: 1;
-          font-family: 'Instrument Serif', Georgia, serif;
-          font-size: clamp(17px, 2vw, 21px);
-          font-weight: 400;
-          color: var(--lf-ink);
-          line-height: 1.35;
-          letter-spacing: -0.005em;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--lf-ink-soft);
+          line-height: 1.4;
           transition: color 0.15s;
         }
         .ds-askhero__prompt-arrow {
-          font-size: 16px;
+          font-size: 14px;
           color: var(--lf-muted);
           flex-shrink: 0;
           transition: transform 0.15s, color 0.15s;

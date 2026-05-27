@@ -101,14 +101,16 @@
   font-feature-settings: "zero", "ss01";
 }
 
+/* Eyebrow: clean sans uppercase, tracked. Reserve mono for code-like data
+   (sync timestamps, account masks) via .lf-mono. */
 .lf-eyebrow {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 13px;
-  letter-spacing: 0.14em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  font-weight: 600;
   color: var(--lf-muted);
 }
-/* Use on dark-hero (ink) backgrounds — same mono treatment, brand-cheese color. */
 .lf-eyebrow--on-dark { color: var(--lf-cheese); }
 
 .lf-tabular {
@@ -643,11 +645,11 @@
 }
 
 .ds-eyebrow {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lf-muted);
   display: inline-block;
 }
@@ -744,11 +746,11 @@
 
 .ds-kpi { padding: 20px 24px; min-width: 0; }
 .ds-kpi__eyebrow {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lf-muted);
   display: block;
   margin-bottom: 8px;
@@ -783,11 +785,11 @@
 }
 .ds-table th {
   text-align: left;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: 'Geist', system-ui, sans-serif;
   font-size: 11px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lf-muted);
   padding: 12px 16px;
   border-bottom: 1px solid var(--lf-rule);
@@ -876,11 +878,11 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: 'Geist', system-ui, sans-serif;
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 600;
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid transparent;
@@ -950,11 +952,11 @@
 }
 .ds-strip__label {
   display: block;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lf-muted);
   margin-bottom: 12px;
 }
@@ -976,6 +978,7 @@
 .ds-strip__value--warn { color: #B8801E; }
 .ds-strip__sub {
   display: block;
+  font-family: 'Geist', system-ui, sans-serif;
   font-size: 12px;
   color: var(--lf-muted);
   margin-top: 8px;
@@ -1005,11 +1008,11 @@
   flex-wrap: wrap;
 }
 .ds-ribbon__lead-label {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lf-muted);
 }
 .ds-ribbon__lead-value {
@@ -1066,12 +1069,12 @@
   top: 1px;
 }
 .ds-ribbon__legend-label {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--lf-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 .ds-ribbon__legend-value {
   font-variant-numeric: tabular-nums;

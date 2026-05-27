@@ -29,6 +29,18 @@ const iconMap: Record<string, LucideIcon> = {
   'alert-circle': AlertCircle, 'piggy-bank': PiggyBank, landmark: Landmark, layers: Layers,
 };
 
+// Whimsy: 12-step earth ramp from sauce (urgent base layers) → basil (FI).
+// Each level gets a distinct color so the journey reads as a literal climb.
+const LEVEL_COLORS = [
+  '#B83B3B', '#C25030', '#C46425', '#B87A1E', '#8B7A22', '#5E7A28',
+  '#3D7A35', '#2D7040', '#25664A', '#1E5C50', '#185248', '#134840',
+];
+const levelColor = (order: number) => LEVEL_COLORS[Math.min(LEVEL_COLORS.length, Math.max(1, order)) - 1] ?? '#7A5C3F';
+const withAlpha = (hex: string, a: number) => {
+  const v = parseInt(hex.slice(1), 16);
+  return `rgba(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255}, ${a})`;
+};
+
 // ── types ────────────────────────────────────────────────────────────────────
 
 interface PriorityStep {
@@ -130,6 +142,7 @@ function LevelRow({ step, isCurrent, isComplete, isSkipped, isSelected, onSelect
   const fill = isComplete ? 100 : Math.min(step.progress, 100);
   const isFuture = !isComplete && !isCurrent && !isSkipped;
   const Icon = iconMap[step.icon] ?? Layers;
+  const color = levelColor(step.order);
 
   const pillTone: 'basil' | 'cheese' | 'ghost' | undefined =
     isComplete ? 'basil' :
@@ -141,12 +154,17 @@ function LevelRow({ step, isCurrent, isComplete, isSkipped, isSelected, onSelect
   return (
     <li
       className={`fl-row ${isSelected ? 'is-selected' : ''}`}
-      style={{ opacity: isFuture ? 0.75 : isSkipped ? 0.55 : 1 }}
+      style={{
+        opacity: isFuture ? 0.78 : isSkipped ? 0.5 : 1,
+        ['--level-color' as any]: color,
+      }}
     >
       <button type="button" onClick={onSelect} className="fl-row__btn">
-        <span className="fl-row__num">L{String(step.order).padStart(2, '0')}</span>
-        <span className="fl-row__icon">
-          <Icon size={14} style={{ color: 'var(--lf-ink-soft)' }} />
+        <span className="fl-row__chip" aria-hidden="true">
+          {String(step.order).padStart(2, '0')}
+        </span>
+        <span className="fl-row__icon" style={{ background: withAlpha(color, 0.12) }}>
+          <Icon size={14} style={{ color }} />
         </span>
         <span className="fl-row__body">
           <span
@@ -157,12 +175,7 @@ function LevelRow({ step, isCurrent, isComplete, isSkipped, isSelected, onSelect
           </span>
           {!isComplete && !isSkipped && fill > 0 && (
             <span className="fl-row__progress">
-              <span
-                style={{
-                  width: `${fill}%`,
-                  background: isCurrent ? 'var(--lf-cheese)' : 'var(--lf-rule)',
-                }}
-              />
+              <span style={{ width: `${fill}%`, background: color }} />
             </span>
           )}
         </span>
@@ -196,17 +209,24 @@ function FocusArticle({ step, skipped, onSkip, onAsk, onComplete, onUndoComplete
     else progressDetail = fmt(step.current) + ' saved';
   }
   const hasProgress = !isComplete && fill > 0;
+  const color = levelColor(step.order);
 
   return (
-    <article className="fl-focus">
+    <article className="fl-focus" style={{ ['--level-color' as any]: color, borderTopColor: color }}>
       <div className="fl-focus__head">
-        <Pill tone={isComplete ? 'basil' : 'cheese'}>Level {step.order}</Pill>
+        <span
+          className="fl-focus__chip"
+          aria-hidden="true"
+          style={{ background: color, color: 'var(--lf-paper)' }}
+        >
+          L{String(step.order).padStart(2, '0')}
+        </span>
+        <span className="fl-focus__icon" aria-hidden="true" style={{ background: withAlpha(color, 0.14) }}>
+          <Icon size={16} style={{ color }} />
+        </span>
         {isComplete && <Pill tone="basil">Complete</Pill>}
         {!isComplete && hasProgress && <Pill tone="cheese">In progress</Pill>}
         {skipped && <Pill tone="ghost">Skipped</Pill>}
-        <span className="fl-focus__icon" aria-hidden="true">
-          <Icon size={14} style={{ color: 'var(--lf-ink-soft)' }} />
-        </span>
       </div>
 
       <h3 className="fl-focus__title">{step.title}</h3>
@@ -226,6 +246,7 @@ function FocusArticle({ step, skipped, onSkip, onAsk, onComplete, onUndoComplete
               initial={{ width: 0 }}
               animate={{ width: `${fill}%` }}
               transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+              style={{ background: color }}
             />
           </div>
         </div>
@@ -579,24 +600,28 @@ export function FinancialLevel() {
         .fl-row.is-selected .fl-row__btn { background: var(--lf-cream); padding-left: 12px; padding-right: 12px; }
         .fl-row__btn:hover .fl-row__title { color: var(--lf-sauce); }
 
-        .fl-row__num {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 11px;
-          letter-spacing: 0.14em;
-          color: var(--lf-muted);
+        .fl-row__chip {
           flex-shrink: 0;
-          width: 32px;
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          background: var(--level-color);
+          color: var(--lf-paper);
+          display: grid;
+          place-items: center;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
         }
         .fl-row__icon {
           width: 28px;
           height: 28px;
-          border-radius: 4px;
-          background: var(--lf-cream);
+          border-radius: 6px;
           display: grid;
           place-items: center;
           flex-shrink: 0;
         }
-        .fl-row.is-selected .fl-row__icon { background: var(--lf-paper); }
         .fl-row__body {
           flex: 1;
           min-width: 0;
@@ -630,23 +655,35 @@ export function FinancialLevel() {
 
         /* Focus article */
         .fl-focus {
-          padding: 32px 0 8px;
-          border-top: 1px solid var(--lf-ink);
+          padding: 28px 0 8px;
+          border-top: 3px solid var(--lf-ink);
         }
         .fl-focus__head {
           display: flex;
           align-items: center;
           gap: 10px;
-          margin-bottom: 16px;
+          margin-bottom: 18px;
           flex-wrap: wrap;
         }
-        .fl-focus__icon {
-          width: 28px;
-          height: 28px;
-          border-radius: 4px;
-          background: var(--lf-cream);
+        .fl-focus__chip {
+          width: 44px;
+          height: 44px;
+          border-radius: 10px;
           display: grid;
           place-items: center;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          flex-shrink: 0;
+        }
+        .fl-focus__icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
         }
         .fl-focus__title {
           font-family: 'Instrument Serif', Georgia, serif;

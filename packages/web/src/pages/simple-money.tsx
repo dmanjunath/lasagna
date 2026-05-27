@@ -120,14 +120,26 @@ export function SimpleMoney() {
   }
 
   // ── Totals from items ──
+  // Account types: depository, investment, real_estate, alternative, credit, loan.
+  // Real estate + alternative (cars, crypto, watches, etc.) count as assets too —
+  // dropping them silently understates net worth and the composition ribbon.
   const allAccounts = items.flatMap((i) => i.accounts);
   const cashAccounts = allAccounts.filter((a) => a.type === 'depository');
   const investAccounts = allAccounts.filter((a) => a.type === 'investment');
+  const realEstateAccounts = allAccounts.filter((a) => a.type === 'real_estate');
+  const altAccounts = allAccounts.filter((a) => a.type === 'alternative');
   const debtAccounts = allAccounts.filter((a) => a.type === 'credit' || a.type === 'loan');
-  const cashTotal = cashAccounts.reduce((s, a) => s + parseFloat(a.balance ?? '0'), 0);
-  const investTotal = investAccounts.reduce((s, a) => s + parseFloat(a.balance ?? '0'), 0);
+  const sumBalances = (arr: typeof allAccounts) => arr.reduce((s, a) => s + parseFloat(a.balance ?? '0'), 0);
+  const cashTotal = sumBalances(cashAccounts);
+  const investTotal = sumBalances(investAccounts);
+  const realEstateTotal = sumBalances(realEstateAccounts);
+  const altTotal = sumBalances(altAccounts);
+  const assetsTotal = realEstateTotal + altTotal;
   const debtTotal = debtAccounts.reduce((s, a) => s + Math.abs(parseFloat(a.balance ?? '0')), 0);
-  const netWorth = cashTotal + investTotal - debtTotal;
+  const netWorth = cashTotal + investTotal + assetsTotal - debtTotal;
+  const assetsLabelText =
+    realEstateTotal > 0 && altTotal > 0 ? 'Other assets' :
+    realEstateTotal > 0 ? 'Property' : 'Alternatives';
 
   const monthChange = computeDelta(history, 30);
   const chartPoints = useMemo(() => filterByRange(history, range), [history, range]);
@@ -176,7 +188,7 @@ export function SimpleMoney() {
     },
   ];
 
-  const totalAccountCount = cashAccounts.length + investAccounts.length + debtAccounts.length;
+  const totalAccountCount = cashAccounts.length + investAccounts.length + realEstateAccounts.length + altAccounts.length + debtAccounts.length;
 
   return (
     <Page>
@@ -209,9 +221,15 @@ export function SimpleMoney() {
           <Lede>
             You have <Lede.Num>{fmtUsd(cashTotal)}</Lede.Num> in cash,{' '}
             <Lede.Num>{fmtUsd(investTotal)}</Lede.Num> invested
+            {assetsTotal > 0 && (
+              <>
+                {', '}
+                <Lede.Num>{fmtUsd(assetsTotal)}</Lede.Num> in {assetsLabelText.toLowerCase()}
+              </>
+            )}
             {debtTotal > 0 && (
               <>
-                {' '}and <Lede.Num tone="neg">−{fmtUsd(debtTotal)}</Lede.Num> in debt
+                {', '}and <Lede.Num tone="neg">−{fmtUsd(debtTotal)}</Lede.Num> in debt
               </>
             )}
             {' — for a net worth of '}
@@ -230,7 +248,7 @@ export function SimpleMoney() {
       )}
 
       {/* Composition ribbon — single proportional bar */}
-      {!loading && (cashTotal > 0 || investTotal > 0 || debtTotal > 0) && (
+      {!loading && (cashTotal > 0 || investTotal > 0 || assetsTotal > 0 || debtTotal > 0) && (
         <Section>
           <CompositionRibbon
             leadLabel="Net worth"
@@ -243,6 +261,7 @@ export function SimpleMoney() {
             segments={[
               ...(cashTotal > 0 ? [{ label: 'Cash', value: cashTotal, color: 'var(--lf-basil)' }] : []),
               ...(investTotal > 0 ? [{ label: 'Investments', value: investTotal, color: 'var(--lf-cheese)' }] : []),
+              ...(assetsTotal > 0 ? [{ label: assetsLabelText, value: assetsTotal, color: 'var(--lf-noodle)' }] : []),
               ...(debtTotal > 0 ? [{ label: 'Debt', value: debtTotal, color: 'var(--lf-sauce)', negative: true }] : []),
             ]}
           />
@@ -264,6 +283,13 @@ export function SimpleMoney() {
               value: fmtUsd(investTotal),
               sub: `${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`,
             },
+            ...(assetsTotal > 0
+              ? [{
+                  label: assetsLabelText,
+                  value: fmtUsd(assetsTotal),
+                  sub: `${realEstateAccounts.length + altAccounts.length} item${(realEstateAccounts.length + altAccounts.length) === 1 ? '' : 's'}`,
+                } as const]
+              : []),
             {
               label: 'Debt',
               value: fmtUsd(debtTotal),
@@ -314,7 +340,7 @@ export function SimpleMoney() {
             </div>
           }
         >
-          <Card>
+          <Card tight>
             <NetWorthChart points={chartPoints} range={range} />
           </Card>
         </Section>
@@ -396,6 +422,32 @@ export function SimpleMoney() {
           total={investTotal}
           items={items}
           filterType="investment"
+          syncing={syncing}
+          onSync={handleSync}
+        />
+      )}
+
+      {/* ── Property section ── */}
+      {realEstateAccounts.length > 0 && (
+        <AccountSection
+          title="Property"
+          eyebrow={`${realEstateAccounts.length} ${realEstateAccounts.length === 1 ? 'property' : 'properties'}`}
+          total={realEstateTotal}
+          items={items}
+          filterType="real_estate"
+          syncing={syncing}
+          onSync={handleSync}
+        />
+      )}
+
+      {/* ── Other assets section ── */}
+      {altAccounts.length > 0 && (
+        <AccountSection
+          title="Other assets"
+          eyebrow={`${altAccounts.length} item${altAccounts.length === 1 ? '' : 's'}`}
+          total={altTotal}
+          items={items}
+          filterType="alternative"
           syncing={syncing}
           onSync={handleSync}
         />
@@ -709,8 +761,8 @@ function humanCategory(c: string) {
 
 // ── Interactive net-worth chart ──────────────────────────────────────────
 
-const CHART_H = 300;
-const CHART_M = { top: 24, right: 16, bottom: 40, left: 64 };
+const CHART_H = 240;
+const CHART_M = { top: 16, right: 12, bottom: 36, left: 56 };
 // Single source of truth for the chart accent — matches `text-success` /
 // `--color-success` (#4C7A3E) so palette changes propagate automatically.
 const CHART_COLOR = 'rgb(var(--color-success))';
@@ -852,7 +904,7 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
         {yTicks.map((t) => (
           <g key={t}>
             <line x1={CHART_M.left} y1={yAt(t)} x2={CHART_W - CHART_M.right} y2={yAt(t)} className="stroke-rule/70" strokeWidth={1} strokeDasharray="2 5" />
-            <text x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-text-muted" style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
+            <text x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-text-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
           </g>
         ))}
         <path d={areaPath} fill="url(#nw-area)" />
@@ -899,7 +951,7 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
           </g>
         )}
         {xLabels.map(({ idx, label }) => (
-          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 12} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 12} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
         ))}
       </svg>
     </div>

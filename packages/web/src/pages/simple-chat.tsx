@@ -214,7 +214,6 @@ export function SimpleChat() {
   return (
     <Page>
       <PageHeader
-        eyebrow="Always on · Sees your accounts"
         title="Chat"
         actions={
           <>
