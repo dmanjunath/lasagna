@@ -872,6 +872,12 @@
   color: var(--lf-paper);
   border-color: rgba(255,255,255,0.18);
 }
+.ds-btn--danger {
+  background: var(--lf-sauce);
+  color: var(--lf-paper);
+  border-color: var(--lf-sauce);
+}
+.ds-btn--danger:hover:not(:disabled) { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
 .ds-btn--sm  { padding: 7px 12px; font-size: 12px; min-height: 32px; }
 .ds-btn--lg  { padding: 14px 24px; font-size: 14px; min-height: 48px; }
 .ds-btn--link {
@@ -946,6 +952,58 @@
 .ds-empty__icon { color: var(--lf-muted); margin-bottom: 16px; }
 .ds-empty__title { font-family: 'Instrument Serif', Georgia, serif; font-size: 22px; font-weight: 500; color: var(--lf-ink); margin: 0 0 8px; }
 .ds-empty__body  { font-size: 14px; color: var(--lf-muted); margin: 0 auto 24px; max-width: 360px; line-height: 1.55; }
+
+/* Confirm dialog — replaces window.confirm() for destructive actions. */
+.ds-confirm__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(31,26,22,0.45);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  animation: ds-confirm-fade 0.15s ease-out;
+}
+@keyframes ds-confirm-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ds-confirm {
+  background: var(--lf-paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(31,26,22,0.18);
+  animation: ds-confirm-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ds-confirm-pop {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+.ds-confirm__title {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  color: var(--lf-ink);
+  margin: 0 0 12px;
+}
+.ds-confirm__body {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--lf-ink-soft);
+  margin: 0 0 20px;
+}
+.ds-confirm__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
 /* ────────────────────────────────────────────────────────────
    EDITORIAL PRIMITIVES — built specifically for Lasagna.

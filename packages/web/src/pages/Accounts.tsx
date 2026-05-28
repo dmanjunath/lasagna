@@ -22,6 +22,7 @@ import {
   Eyebrow,
   EmptyState,
   Lede,
+  useConfirm,
 } from "../components/ds";
 import { api } from "../lib/api.js";
 
@@ -137,6 +138,7 @@ const ACCOUNT_TYPES: AccountTypeDef[] = [
 // ---------------------------------------------------------------------------
 
 export function Accounts() {
+  const confirm = useConfirm();
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
@@ -264,13 +266,25 @@ export function Accounts() {
   };
 
   const handleDelete = async (id: string, institutionName: string) => {
-    if (!window.confirm(`Disconnect ${institutionName}? This will remove all linked accounts and their transaction history.`)) return;
+    const ok = await confirm({
+      title: `Disconnect ${institutionName}?`,
+      body: 'All linked accounts and their transaction history will be removed. You can reconnect later, but transactions before today will need to be re-synced.',
+      confirmLabel: 'Disconnect',
+      destructive: true,
+    });
+    if (!ok) return;
     await api.deleteItem(id);
     loadItems();
   };
 
   const handleDeleteAccount = async (id: string, accountName: string) => {
-    if (!window.confirm(`Remove ${accountName}? This account and its balance will be deleted.`)) return;
+    const ok = await confirm({
+      title: `Remove ${accountName}?`,
+      body: 'This account and its current balance will be deleted. Historical snapshots are kept.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteManualAccount(id);
       loadItems();
@@ -402,7 +416,7 @@ export function Accounts() {
               Add manual
             </Button>
             <Button variant="primary" onClick={handleLink} disabled={linking || syncing} icon={linking ? <Spinner size={13} /> : <Plus size={14} />} className="ds-accounts-cta-primary">
-              {linking ? "Linking…" : "Link via Plaid"}
+              {linking ? "Connecting…" : "Connect a bank"}
             </Button>
           </span>
         ) : undefined}
@@ -475,7 +489,7 @@ export function Accounts() {
           cta={!isDemoMode ? (
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               <Button variant="primary" onClick={handleLink} disabled={linking} icon={linking ? <Spinner size={13} /> : <Plus size={14} />}>
-                {linking ? "Linking…" : "Link via Plaid"}
+                {linking ? "Connecting…" : "Connect a bank"}
               </Button>
               <Button variant="ghost" onClick={() => setShowManualModal(true)} icon={<Pencil size={14} />}>
                 Add manual
@@ -934,10 +948,16 @@ function InstitutionArticle({
         background: isHighlighted ? 'rgba(90,107,63,0.06)' : undefined,
       }}
     >
-      {/* Header row — clickable to expand */}
-      <button
-        type="button"
+      {/* Header row — clickable to expand. Rendered as a div with role=button
+          (instead of <button>) so the sync icon-button inside can remain a
+          proper <button> element without nesting. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); }
+        }}
         className="ds-inst__head"
         aria-expanded={expanded}
       >
@@ -967,7 +987,7 @@ function InstitutionArticle({
             </Button>
           </span>
         )}
-      </button>
+      </div>
 
       {/* Expanded body */}
       {expanded && (

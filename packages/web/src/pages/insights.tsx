@@ -221,7 +221,6 @@ export function Insights() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const { openChat } = useChatStore();
 
   const { insights, lastActionsGeneratedAt, isLoading, dismiss, refresh } = useInsights();
 
@@ -286,19 +285,7 @@ export function Insights() {
 
   return (
     <Page>
-      <PageHeader
-        eyebrow={!isLoading ? `${doNowCount} urgent · ${thisWeekCount} this week` : 'Loading'}
-        title="Actions"
-        actions={
-          <Button
-            variant="primary"
-            className="ins-walk-cta"
-            onClick={() => openChat('Can you explain my top financial actions and why they matter?')}
-          >
-            Walk me through this →
-          </Button>
-        }
-      />
+      <PageHeader title="Actions" />
 
       <LegalDisclaimer variant="insights" />
 

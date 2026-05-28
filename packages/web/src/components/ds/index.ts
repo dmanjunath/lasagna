@@ -15,3 +15,4 @@ export type { StatStripItem } from './StatStrip';
 export { CompositionRibbon } from './CompositionRibbon';
 export type { CompositionSegment } from './CompositionRibbon';
 export { Lede } from './Lede';
+export { ConfirmProvider, useConfirm } from './Confirm';

@@ -317,13 +317,12 @@ export function SimpleHome() {
         return (
           <Section>
             <CompositionRibbon
-              leadLabel="Composition"
               leadValue={fmtUsd(breakdown.netWorth)}
               leadDelta={totalAccounts > 0 ? `${totalAccounts} account${totalAccounts === 1 ? '' : 's'}` : undefined}
               segments={[
                 ...(breakdown.cash > 0 ? [{ label: 'Cash', value: breakdown.cash, color: 'var(--lf-basil)' }] : []),
                 ...(breakdown.investments > 0 ? [{ label: 'Investments', value: breakdown.investments, color: 'var(--lf-cheese)' }] : []),
-                ...(breakdown.assets > 0 ? [{ label: assetsLabel(breakdown), value: breakdown.assets, color: 'var(--lf-noodle)' }] : []),
+                ...(breakdown.assets > 0 ? [{ label: assetsLabel(breakdown), value: breakdown.assets, color: 'var(--lf-crust)' }] : []),
                 ...(breakdown.debts > 0 ? [{ label: 'Debt', value: breakdown.debts, color: 'var(--lf-sauce)', negative: true }] : []),
               ]}
             />
@@ -531,10 +530,15 @@ function FocusEditorial({
     <article className="ds-focus">
       <div className="ds-focus__head">
         <Pill tone="cheese">Level {step.order}</Pill>
-        {step.action && <Eyebrow>One step: {step.action.length > 60 ? step.action.slice(0, 60) + '…' : step.action}</Eyebrow>}
       </div>
       <h3 className="ds-focus__title">{step.title}</h3>
       {body && <p className="ds-focus__body">{body}</p>}
+      {step.action && (
+        <p className="ds-focus__body" style={{ marginTop: -8 }}>
+          <strong style={{ color: 'var(--lf-ink)', fontWeight: 600 }}>Next step.</strong>{' '}
+          {step.action}
+        </p>
+      )}
       {hasProgress && (
         <div className="ds-focus__progress">
           <div className="ds-focus__progress-meta">
@@ -760,7 +764,7 @@ function AskHero({
         <MessageSquare size={20} className="ds-askhero__icon" />
         <div>
           <h2 id="ds-askhero-title" className="ds-askhero__title">
-            What do you want to know?
+            Ask Lasagna anything.
           </h2>
           <p className="ds-askhero__sub">
             Lasagna sees your accounts, goals, and history.

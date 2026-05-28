@@ -90,14 +90,16 @@ function debtTypeLabel(d: DebtAccount): string {
   return 'Loan';
 }
 
-// Sauce/cheese/crust shades for debt segments
+// Distinct hues for debt segments — sauce + crust + muted + cheese were
+// the prior set's three browns, which read as one block. Alternating hue
+// (red → brown → warm-grey → yellow) gives users at-a-glance separation.
 const DEBT_SHADES = [
   'var(--lf-sauce)',
-  'var(--lf-cheese)',
   'var(--lf-crust)',
-  'var(--lf-sauce-deep)',
-  'var(--lf-burgundy)',
   'var(--lf-muted)',
+  'var(--lf-cheese)',
+  'var(--lf-burgundy)',
+  'var(--lf-sauce-deep)',
 ];
 function debtColor(i: number): string {
   return DEBT_SHADES[i % DEBT_SHADES.length];

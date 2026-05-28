@@ -10,6 +10,7 @@ import {
   Button,
   Eyebrow,
   EmptyState,
+  useConfirm,
 } from '../components/ds';
 
 interface Bubble {
@@ -646,6 +647,7 @@ function HistoryListView({
   onDelete: (id: string) => void;
   onNew: () => void;
 }) {
+  const confirm = useConfirm();
   if (loading) {
     return (
       <div style={{ height: 200, background: 'var(--lf-cream)', borderRadius: 8 }} className="animate-pulse" />
@@ -689,9 +691,15 @@ function HistoryListView({
                 </div>
               </button>
               <button
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  if (confirm('Delete this conversation?')) onDelete(t.id);
+                  const ok = await confirm({
+                    title: 'Delete this conversation?',
+                    body: 'The messages and any Lasagna responses in this thread will be removed permanently.',
+                    confirmLabel: 'Delete',
+                    destructive: true,
+                  });
+                  if (ok) onDelete(t.id);
                 }}
                 aria-label="Delete conversation"
                 className="ds-chat-history__delete"

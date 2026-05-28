@@ -13,6 +13,7 @@ import {
   EmptyState,
   StatStrip,
   Lede,
+  useConfirm,
 } from '../components/ds';
 
 // ---------------------------------------------------------------------------
@@ -85,6 +86,7 @@ interface Goal {
 // ---------------------------------------------------------------------------
 
 export function Goals() {
+  const confirm = useConfirm();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -146,7 +148,14 @@ export function Goals() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this goal?')) return;
+    const goal = goals.find((g) => g.id === id);
+    const ok = await confirm({
+      title: goal ? `Delete "${goal.name}"?` : 'Delete this goal?',
+      body: 'The goal and its progress history will be removed. Linked savings accounts are kept.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteGoal(id);
       setGoals(prev => prev.filter(g => g.id !== id));

@@ -261,7 +261,6 @@ export function SimpleMoney() {
       {!loading && (cashTotal > 0 || investTotal > 0 || assetsTotal > 0 || debtTotal > 0) && (
         <Section>
           <CompositionRibbon
-            leadLabel="Net worth"
             leadValue={fmtUsd(netWorth)}
             leadDelta={
               totalAccountCount > 0
@@ -271,7 +270,7 @@ export function SimpleMoney() {
             segments={[
               ...(cashTotal > 0 ? [{ label: 'Cash', value: cashTotal, color: 'var(--lf-basil)' }] : []),
               ...(investTotal > 0 ? [{ label: 'Investments', value: investTotal, color: 'var(--lf-cheese)' }] : []),
-              ...(assetsTotal > 0 ? [{ label: assetsLabelText, value: assetsTotal, color: 'var(--lf-noodle)' }] : []),
+              ...(assetsTotal > 0 ? [{ label: assetsLabelText, value: assetsTotal, color: 'var(--lf-crust)' }] : []),
               ...(debtTotal > 0 ? [{ label: 'Debt', value: debtTotal, color: 'var(--lf-sauce)', negative: true }] : []),
             ]}
           />

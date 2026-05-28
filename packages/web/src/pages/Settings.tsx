@@ -225,7 +225,7 @@ export function Settings() {
   return (
     <Page width="narrow">
       <PageHeader
-        eyebrow={email || "Account"}
+        eyebrow="Account"
         title={firstName}
       />
 
@@ -393,17 +393,20 @@ export function Settings() {
         }
         .ds-article__row:last-child { border-bottom: 0; }
         .ds-article__row-label {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
+          /* Quiet sans label — the figure on the right is the signal,
+             this is just naming the row. */
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          letter-spacing: 0;
+          text-transform: none;
+          font-weight: 400;
           color: var(--lf-muted);
         }
         .ds-article__row-value {
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
+          font-size: 15px;
           color: var(--lf-ink);
-          font-weight: 500;
+          font-weight: 600;
           text-align: right;
           font-variant-numeric: tabular-nums;
         }

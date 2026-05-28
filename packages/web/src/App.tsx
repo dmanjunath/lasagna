@@ -5,6 +5,7 @@ import { ChatStoreProvider } from './lib/chat-store';
 import { PageContextProvider } from './lib/page-context';
 import { Login } from './pages/Login';
 import { DemoBanner } from './components/common/DemoBanner';
+import { ConfirmProvider } from './components/ds';
 
 // Shell pulls framer-motion + mobile/desktop chat panels. Lazy so the
 // initial bundle stays small for first paint; Suspense fallback is null
@@ -130,7 +131,9 @@ function AppRoutes() {
 export function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <ConfirmProvider>
+        <AppRoutes />
+      </ConfirmProvider>
     </AuthProvider>
   );
 }
