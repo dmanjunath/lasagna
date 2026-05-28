@@ -18,7 +18,6 @@ import {
   DataTable,
   Eyebrow,
   CompositionRibbon,
-  StatStrip,
   Lede,
 } from '../components/ds';
 import type { DataTableColumn } from '../components/ds/DataTable';
@@ -427,7 +426,8 @@ export function NetWorth() {
       <div style={{ marginBottom: 40 }}>
         <Lede>
           Your portfolio is worth <Lede.Num highlight>{formatMoney(totalValue, true)}</Lede.Num> —{' '}
-          <Lede.Num>{assetClasses.length}</Lede.Num> asset {assetClasses.length === 1 ? 'class' : 'classes'} across{' '}
+          <Lede.Num>{holdingsByTicker.length}</Lede.Num>{' '}
+          {holdingsByTicker.length === 1 ? 'holding' : 'holdings'} across{' '}
           <Lede.Num>{accountCount}</Lede.Num> account{accountCount === 1 ? '' : 's'}.
           {biggest && (
             <>
@@ -461,32 +461,9 @@ export function NetWorth() {
         </Section>
       )}
 
-      {/* Stat strip */}
-      <StatStrip
-        className="ds-nw-stats"
-        items={[
-          { label: 'Total', value: formatMoney(totalValue) },
-          ...(biggest
-            ? [{
-                label: 'Biggest class',
-                value: biggest.name,
-                sub: `${biggestPct.toFixed(0)}% · ${formatMoney(biggest.value)}`,
-              }]
-            : []),
-          {
-            label: 'Positions',
-            value: String(holdingsByTicker.length),
-            sub: `${holdingsByTicker.length === 1 ? 'holding' : 'holdings'} tracked`,
-          },
-          ...(cashClass
-            ? [{
-                label: 'Cash',
-                value: formatMoney(cashClass.value),
-                sub: `${totalValue > 0 ? ((cashClass.value / totalValue) * 100).toFixed(0) : 0}% of portfolio`,
-              }]
-            : []),
-        ]}
-      />
+      {/* Stat strip removed — every cell duplicated the ribbon. Positions
+          count moved into the lede above; cash + biggest-class are already
+          itemized in the ribbon legend. */}
 
       {/* ── By (current grouping) — chart + breakdown ── */}
       <Section

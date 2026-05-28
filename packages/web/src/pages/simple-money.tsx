@@ -17,7 +17,6 @@ import {
   DataTable,
   EmptyState,
   CompositionRibbon,
-  StatStrip,
   Lede,
 } from '../components/ds';
 import type { DataTableColumn } from '../components/ds/DataTable';
@@ -277,45 +276,10 @@ export function SimpleMoney() {
         </Section>
       )}
 
-      {/* Stat strip — secondary KPIs as a typographic ribbon */}
-      {!loading && totalAccountCount > 0 && (
-        <StatStrip
-          className="ds-money-stats"
-          items={[
-            {
-              label: 'Cash',
-              value: fmtUsd(cashTotal),
-              sub: `${cashAccounts.length} account${cashAccounts.length === 1 ? '' : 's'}`,
-            },
-            {
-              label: 'Investments',
-              value: fmtUsd(investTotal),
-              sub: `${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`,
-            },
-            ...(assetsTotal > 0
-              ? [{
-                  label: assetsLabelText,
-                  value: fmtUsd(assetsTotal),
-                  sub: `${realEstateAccounts.length + altAccounts.length} item${(realEstateAccounts.length + altAccounts.length) === 1 ? '' : 's'}`,
-                } as const]
-              : []),
-            {
-              label: 'Debt',
-              value: fmtUsd(debtTotal),
-              sub: `${debtAccounts.length} account${debtAccounts.length === 1 ? '' : 's'}`,
-              tone: debtTotal > 0 ? 'neg' : 'default',
-            },
-            ...(monthChange !== null
-              ? [{
-                  label: '30-day change',
-                  value: `${monthChange >= 0 ? '+' : '−'}${fmtUsd(Math.abs(monthChange))}`,
-                  sub: monthChange >= 0 ? 'gaining' : 'losing',
-                  tone: monthChange >= 0 ? 'pos' : 'neg',
-                } as const]
-              : []),
-          ]}
-        />
-      )}
+      {/* Stat strip removed — Cash/Investments/Property/Debt all duplicated
+          the composition ribbon directly above. The 30-day change is
+          already in the lede ("$X this month"). Per-category account
+          counts live in each AccountSection's header below. */}
 
       {/* Sync error banner */}
       {syncError && (

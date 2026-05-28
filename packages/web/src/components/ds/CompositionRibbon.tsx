@@ -21,9 +21,11 @@ interface CompositionRibbonProps {
   leadDelta?: ReactNode;
   /** Segments composing the bar */
   segments: CompositionSegment[];
-  /** Segments below this proportion of the total are grouped into a single
-   *  "Other" bucket in the bar (still itemized in the legend) so the bar
-   *  doesn't render tappable-impossible 2px slivers. Defaults to 3%. */
+  /** Positive segments below this proportion of the total are bucketed
+   *  into a single "Other" block (in both the bar and the legend, so
+   *  the two stay in sync). The bucketed items are then listed as
+   *  fine print under the Other legend entry. Set to 0 to disable
+   *  auto-bucketing (callers that pre-bucket should do this). */
   groupBelowPct?: number;
 }
 
@@ -31,9 +33,13 @@ const fmtUsd = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 /**
- * A single horizontal proportional bar showing financial composition.
- * Above the bar: lead value (+ optional eyebrow). Below: legend with
- * proportion + dollars per segment.
+ * Horizontal proportional bar showing financial composition.
+ * - Above the bar: lead value (+ optional eyebrow).
+ * - Below: legend with proportion + dollars per segment.
+ *
+ * The legend always reflects what's rendered in the bar. When small
+ * segments get bucketed into "Other", they're listed as sub-items
+ * beneath the Other legend row so the user can still see them.
  */
 export function CompositionRibbon({
   leadLabel,
@@ -43,26 +49,29 @@ export function CompositionRibbon({
   groupBelowPct = 3,
 }: CompositionRibbonProps) {
   const total = segments.reduce((s, seg) => s + Math.abs(seg.value), 0);
-  const threshold = (groupBelowPct / 100) * total;
+  const threshold = groupBelowPct > 0 ? (groupBelowPct / 100) * total : 0;
 
-  // Bar segments: combine sub-threshold positive segments into a single
-  // "Other" bar block (still listed individually in the legend). Negative
-  // segments (debt) are always rendered as their own block regardless of size.
-  const barSegments = (() => {
-    const big = segments.filter((s) => s.negative || Math.abs(s.value) >= threshold);
-    const small = segments.filter((s) => !s.negative && Math.abs(s.value) < threshold);
-    if (small.length === 0) return big;
-    const otherValue = small.reduce((s, seg) => s + Math.abs(seg.value), 0);
-    // Insert "Other" before debts (debts always last so they sit on the right edge).
-    const otherSeg: CompositionSegment = {
-      label: 'Other',
-      value: otherValue,
-      color: 'var(--lf-muted)',
-    };
-    const debts = big.filter((s) => s.negative);
-    const positives = big.filter((s) => !s.negative);
-    return [...positives, otherSeg, ...debts];
-  })();
+  // Bar segments: bucket positive segments below threshold into a single
+  // "Other". Debt segments are always kept distinct so they sit on the right
+  // edge regardless of size. The bucketed items are tracked so we can list
+  // them under the legend's Other row.
+  const small = segments.filter((s) => !s.negative && Math.abs(s.value) < threshold);
+  const big = segments.filter((s) => s.negative || Math.abs(s.value) >= threshold);
+
+  const otherSeg: CompositionSegment | null = small.length > 0
+    ? {
+        label: 'Other',
+        value: small.reduce((s, seg) => s + Math.abs(seg.value), 0),
+        color: 'var(--lf-muted)',
+      }
+    : null;
+
+  // Positives first, then "Other", then debts (debts always on the right).
+  const positives = big.filter((s) => !s.negative);
+  const debts = big.filter((s) => s.negative);
+  const renderedSegments: CompositionSegment[] = otherSeg
+    ? [...positives, otherSeg, ...debts]
+    : big;
 
   return (
     <div className="ds-ribbon">
@@ -74,7 +83,7 @@ export function CompositionRibbon({
         </div>
       </div>
       <div className="ds-ribbon__bar" role="img" aria-label={`Composition: ${segments.map(s => `${s.label} ${fmtUsd(s.value)}`).join(', ')}`}>
-        {barSegments.map((seg, i) => {
+        {renderedSegments.map((seg, i) => {
           const pct = total > 0 ? (Math.abs(seg.value) / total) * 100 : 0;
           return (
             <div
@@ -87,8 +96,9 @@ export function CompositionRibbon({
         })}
       </div>
       <div className="ds-ribbon__legend">
-        {segments.map((seg, i) => {
+        {renderedSegments.map((seg, i) => {
           const pct = total > 0 ? (Math.abs(seg.value) / total) * 100 : 0;
+          const isOther = seg === otherSeg;
           return (
             <span className="ds-ribbon__legend-item" key={`${seg.label}-${i}`}>
               <span className="ds-ribbon__swatch" style={{ background: seg.color }} aria-hidden="true" />
@@ -99,6 +109,16 @@ export function CompositionRibbon({
               <span style={{ color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
                 {pct.toFixed(0)}%
               </span>
+              {isOther && small.length > 0 && (
+                <span className="ds-ribbon__legend-sub">
+                  {small.map((s, j) => (
+                    <span key={`${s.label}-${j}`}>
+                      {s.label} {fmtUsd(Math.abs(s.value))}
+                      {j < small.length - 1 ? ' · ' : ''}
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
           );
         })}

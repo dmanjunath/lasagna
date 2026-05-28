@@ -13,7 +13,6 @@ import {
   Pill,
   Eyebrow,
   CompositionRibbon,
-  StatStrip,
   Lede,
 } from '../components/ds';
 
@@ -330,27 +329,8 @@ export function SimpleHome() {
         );
       })()}
 
-      {/* Stat strip — secondary KPIs as a typographic ribbon */}
-      {breakdown && (
-        <StatStrip
-          className="ds-home-stats"
-          items={[
-            { label: 'Cash on hand', value: fmtUsd(breakdown.cash), sub: `${breakdown.cashCount} account${breakdown.cashCount === 1 ? '' : 's'}` },
-            { label: 'Invested', value: fmtUsd(breakdown.investments), sub: `${breakdown.investmentsCount} account${breakdown.investmentsCount === 1 ? '' : 's'}` },
-            ...(breakdown.assets > 0 ? [{
-              label: assetsLabel(breakdown),
-              value: fmtUsd(breakdown.assets),
-              sub: `${breakdown.assetsCount} item${breakdown.assetsCount === 1 ? '' : 's'}`,
-            }] : []),
-            { label: 'Debt', value: fmtUsd(breakdown.debts), sub: `${breakdown.debtsCount} account${breakdown.debtsCount === 1 ? '' : 's'}`, tone: breakdown.debts > 0 ? 'neg' : 'default' },
-            ...(topGoal && goalProgress !== null ? [{
-              label: 'Top goal',
-              value: `${goalProgress}%`,
-              sub: topGoal.name,
-            } as const] : []),
-          ]}
-        />
-      )}
+      {/* Stat strip removed — every cell duplicated the composition ribbon.
+          Top goal lives in the right-column marginalia. */}
 
       {/* The focus — ONE editorial card, not a grid of three */}
       <Section

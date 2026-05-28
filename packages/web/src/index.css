@@ -1174,6 +1174,16 @@
   font-weight: 500;
   color: var(--lf-ink);
 }
+.ds-ribbon__legend-sub {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--lf-muted);
+  font-variant-numeric: tabular-nums;
+  padding-left: 18px;
+}
 
 /* Editorial Lede ── large serif paragraph with inline tabular numbers.
    Used as the page's opening voice — addresses the user directly. */
