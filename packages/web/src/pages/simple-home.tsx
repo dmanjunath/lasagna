@@ -10,7 +10,6 @@ import {
   Section,
   Card,
   Button,
-  Pill,
   Eyebrow,
   CompositionRibbon,
   Lede,
@@ -300,17 +299,7 @@ export function SimpleHome() {
         </div>
       )}
 
-      {/* Ask Lasagna — the headline feature of the product, rendered as an
-          editorial hero with a prominent composer + contextual headline questions. */}
-      <AskHero
-        value={askDraft}
-        onChange={setAskDraft}
-        onSubmit={submitAsk}
-        prompts={suggestedPrompts}
-        onPick={(q) => setLocation(`/chat?prompt=${encodeURIComponent(q)}`)}
-      />
-
-      {/* Composition ribbon — net worth as one visual */}
+      {/* Composition ribbon — money status first; AskHero follows */}
       {breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0) && (() => {
         const totalAccounts = breakdown.cashCount + breakdown.investmentsCount + breakdown.assetsCount + breakdown.debtsCount;
         return (
@@ -329,40 +318,43 @@ export function SimpleHome() {
         );
       })()}
 
-      {/* Stat strip removed — every cell duplicated the composition ribbon.
-          Top goal lives in the right-column marginalia. */}
+      {/* Ask Lasagna — full-width editorial hero with composer + contextual prompts */}
+      <AskHero
+        value={askDraft}
+        onChange={setAskDraft}
+        onSubmit={submitAsk}
+        prompts={suggestedPrompts}
+        onPick={(q) => setLocation(`/chat?prompt=${encodeURIComponent(q)}`)}
+      />
 
-      {/* The focus — ONE editorial card, not a grid of three */}
-      <Section
-        title="Today's focus"
-        eyebrow={currentStep ? `Level ${currentStep.order} · Financial independence path` : undefined}
-        actions={<Link href="/insights" className="ds-btn ds-btn--link">All actions →</Link>}
-      >
-        {levelLoading ? (
-          <Card><div style={{ height: 120 }} className="animate-pulse" /></Card>
-        ) : currentStep ? (
-          <FocusEditorial
-            step={currentStep}
-            onDone={async () => {
-              if (!currentStep) return;
-              try { await api.completePriorityStep(currentStep.id, true); } catch {}
-              await loadPriorities();
-            }}
-            onHelp={() => {
-              if (!currentStep) return;
-              const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
-              setLocation(`/chat?prompt=${encodeURIComponent(prompt)}`);
-            }}
-          />
-        ) : sideActions.length > 0 ? (
-          <ActionEditorial
-            insight={sideActions[0]}
-            onDone={async (id) => {
-              try { await api.actOnInsight(id); } catch {}
-              await reloadInsights();
-            }}
-          />
-        ) : (
+      {/* Today's focus — unified editorial article (no separate Section header
+          above it; the article carries its own eyebrow/title/actions) */}
+      {levelLoading ? (
+        <div className="ds-focus-wrap"><div style={{ height: 140 }} className="animate-pulse" /></div>
+      ) : currentStep ? (
+        <FocusEditorial
+          step={currentStep}
+          onDone={async () => {
+            if (!currentStep) return;
+            try { await api.completePriorityStep(currentStep.id, true); } catch {}
+            await loadPriorities();
+          }}
+          onHelp={() => {
+            if (!currentStep) return;
+            const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
+            setLocation(`/chat?prompt=${encodeURIComponent(prompt)}`);
+          }}
+        />
+      ) : sideActions.length > 0 ? (
+        <ActionEditorial
+          insight={sideActions[0]}
+          onDone={async (id) => {
+            try { await api.actOnInsight(id); } catch {}
+            await reloadInsights();
+          }}
+        />
+      ) : (
+        <div className="ds-focus-wrap">
           <Card variant="ghost">
             <Eyebrow>Get started</Eyebrow>
             <h3 className="ds-h2" style={{ marginTop: 8 }}>Set up your financial profile</h3>
@@ -371,8 +363,8 @@ export function SimpleHome() {
             </p>
             <Button variant="ink" onClick={() => setLocation('/profile')}>Get started →</Button>
           </Card>
-        )}
-      </Section>
+        </div>
+      )}
 
       {/* Two-column body */}
       <div className="ds-home-twocol">
@@ -508,21 +500,21 @@ function FocusEditorial({
 
   return (
     <article className="ds-focus">
-      <div className="ds-focus__head">
-        <Pill tone="cheese">Level {step.order}</Pill>
+      <div className="ds-focus__eyebrow">
+        Today's focus <span aria-hidden="true">·</span> Level {step.order} of 12
       </div>
-      <h3 className="ds-focus__title">{step.title}</h3>
+      <h2 className="ds-focus__title">{step.title}</h2>
       {body && <p className="ds-focus__body">{body}</p>}
       {step.action && (
-        <p className="ds-focus__body" style={{ marginTop: -8 }}>
-          <strong style={{ color: 'var(--lf-ink)', fontWeight: 600 }}>Next step.</strong>{' '}
+        <p className="ds-focus__nextstep">
+          <span className="ds-focus__nextstep-label">Next step.</span>{' '}
           {step.action}
         </p>
       )}
       {hasProgress && (
         <div className="ds-focus__progress">
           <div className="ds-focus__progress-meta">
-            <Eyebrow>Progress</Eyebrow>
+            <span className="ds-focus__progress-label">Progress</span>
             <span className="ds-caption ds-num">
               {progress}%{progressDetail ? ` · ${progressDetail}` : ''}
             </span>
@@ -532,38 +524,48 @@ function FocusEditorial({
           </div>
         </div>
       )}
-      <div className="ds-focus__actions">
-        <Button
-          variant="ink"
-          disabled={busy}
-          onClick={async () => { setBusy(true); try { await onDone(); } finally { setBusy(false); } }}
-        >
-          {busy ? '…' : 'Mark done ✓'}
-        </Button>
-        <Button variant="ghost" disabled={busy} onClick={onHelp}>
-          Walk me through this →
-        </Button>
+      <div className="ds-focus__footer">
+        <div className="ds-focus__actions">
+          <Button
+            variant="ink"
+            disabled={busy}
+            onClick={async () => { setBusy(true); try { await onDone(); } finally { setBusy(false); } }}
+          >
+            {busy ? '…' : 'Mark done ✓'}
+          </Button>
+          <Button variant="ghost" disabled={busy} onClick={onHelp}>
+            Walk me through this →
+          </Button>
+        </div>
+        <Link href="/insights" className="ds-focus__all">All actions →</Link>
       </div>
       <style>{`
         .ds-focus {
-          padding: 32px 0 8px;
-          border-top: 1px solid var(--lf-ink);
+          padding: 28px 0 8px;
+          border-top: 3px solid var(--lf-ink);
+          margin-bottom: 56px;
         }
-        .ds-focus__head {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 16px;
-          flex-wrap: wrap;
+        .ds-focus__eyebrow {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          font-weight: 600;
+          color: var(--lf-sauce);
+          margin-bottom: 14px;
+        }
+        .ds-focus__eyebrow > span {
+          color: var(--lf-muted);
+          margin: 0 6px;
         }
         .ds-focus__title {
           font-family: 'Instrument Serif', Georgia, serif;
           font-weight: 500;
-          font-size: clamp(28px, 4vw, 40px);
+          font-size: clamp(30px, 4.5vw, 44px);
           line-height: 1.05;
           letter-spacing: -0.015em;
           color: var(--lf-ink);
-          margin: 0 0 16px;
+          margin: 0 0 18px;
         }
         .ds-focus__body {
           font-family: 'Geist', system-ui, sans-serif;
@@ -571,14 +573,38 @@ function FocusEditorial({
           line-height: 1.6;
           color: var(--lf-ink-soft);
           max-width: 60ch;
-          margin: 0 0 24px;
+          margin: 0 0 18px;
         }
-        .ds-focus__progress { margin-bottom: 24px; max-width: 480px; }
+        .ds-focus__nextstep {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          line-height: 1.55;
+          color: var(--lf-ink-soft);
+          background: var(--lf-cream);
+          border-left: 3px solid var(--lf-cheese);
+          padding: 12px 14px;
+          border-radius: 0 8px 8px 0;
+          margin: 0 0 22px;
+          max-width: 60ch;
+        }
+        .ds-focus__nextstep-label {
+          color: var(--lf-ink);
+          font-weight: 600;
+        }
+        .ds-focus__progress { margin-bottom: 22px; max-width: 480px; }
         .ds-focus__progress-meta {
           display: flex;
           justify-content: space-between;
           align-items: baseline;
           margin-bottom: 8px;
+        }
+        .ds-focus__progress-label {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 11px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          font-weight: 600;
+          color: var(--lf-muted);
         }
         .ds-focus__progress-bar {
           height: 6px;
@@ -592,11 +618,31 @@ function FocusEditorial({
           border-radius: 3px;
           transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
+        .ds-focus__footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin-top: 4px;
+        }
         .ds-focus__actions {
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
         }
+        .ds-focus__all {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--lf-muted);
+          text-decoration: none;
+          padding: 8px 0;
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+        }
+        .ds-focus__all:hover { color: var(--lf-sauce); }
       `}</style>
     </article>
   );
@@ -612,33 +658,33 @@ function ActionEditorial({
   onDone: (id: string) => void | Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const urgencyLabel =
+    insight.urgency === 'critical' || insight.urgency === 'high' ? 'High priority' :
+    insight.urgency === 'medium' ? 'This week' : 'Watch';
   return (
     <article className="ds-focus">
-      <div className="ds-focus__head">
-        <UrgencyPill urgency={insight.urgency} />
+      <div className="ds-focus__eyebrow">
+        Today's focus <span aria-hidden="true">·</span> {urgencyLabel}
       </div>
-      <h3 className="ds-focus__title">{insight.title}</h3>
+      <h2 className="ds-focus__title">{insight.title}</h2>
       {insight.description && <p className="ds-focus__body">{insight.description}</p>}
-      <div className="ds-focus__actions">
-        <Button
-          variant="ink"
-          disabled={busy}
-          onClick={async () => { setBusy(true); try { await onDone(insight.id); } finally { setBusy(false); } }}
-        >
-          {busy ? '…' : 'Mark done ✓'}
-        </Button>
-        <Link href={`/insights?id=${insight.id}`}>
-          <Button variant="ghost">Open →</Button>
-        </Link>
+      <div className="ds-focus__footer">
+        <div className="ds-focus__actions">
+          <Button
+            variant="ink"
+            disabled={busy}
+            onClick={async () => { setBusy(true); try { await onDone(insight.id); } finally { setBusy(false); } }}
+          >
+            {busy ? '…' : 'Mark done ✓'}
+          </Button>
+          <Link href={`/insights?id=${insight.id}`}>
+            <Button variant="ghost">Open →</Button>
+          </Link>
+        </div>
+        <Link href="/insights" className="ds-focus__all">All actions →</Link>
       </div>
     </article>
   );
-}
-
-function UrgencyPill({ urgency }: { urgency: string }) {
-  if (urgency === 'critical' || urgency === 'high') return <Pill tone="sauce">High priority</Pill>;
-  if (urgency === 'medium') return <Pill tone="cheese">This week</Pill>;
-  return <Pill tone="basil">Watch</Pill>;
 }
 
 // ─── Marginalia (right column) ─────────────────────────────────────────────
