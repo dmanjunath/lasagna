@@ -259,18 +259,20 @@ export function Goals() {
         }
         .goals-feed__iconbtn {
           display: flex; align-items: center; justify-content: center;
-          width: 28px; height: 28px; border-radius: 6px;
+          min-width: 44px; min-height: 44px;
+          width: 44px; height: 44px; border-radius: 6px;
           border: none; background: transparent;
           color: var(--lf-muted); cursor: pointer;
         }
         .goals-feed__iconbtn:hover { background: var(--lf-cream); color: var(--lf-ink); }
         .goals-feed__open {
-          display: inline-flex; align-items: center; gap: 6px;
+          display: inline-flex; align-items: center; justify-content: center;
+          min-width: 44px; min-height: 44px;
           font-family: 'JetBrains Mono', ui-monospace, monospace;
           font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
           color: var(--lf-muted);
           background: transparent; border: none; cursor: pointer;
-          padding: 4px 6px;
+          padding: 0 6px;
           transition: color 0.15s;
         }
         .goals-feed__open:hover { color: var(--lf-sauce); }
@@ -282,6 +284,18 @@ export function Goals() {
           width: 120px; outline: none;
         }
         .goals-strip { margin: 32px 0 48px; }
+        @media (max-width: 640px) {
+          .goals-strip { margin: 16px 0 20px; }
+          .goals-feed li { padding: 16px 0; }
+          .goals-feed__row {
+            grid-template-columns: 36px minmax(0, 1fr) auto;
+            gap: 12px;
+          }
+          .goals-feed__icon {
+            width: 36px; height: 36px;
+            font-size: 18px;
+          }
+        }
         .goals-presets {
           display: flex; flex-wrap: wrap; gap: 8px;
         }
@@ -310,12 +324,12 @@ export function Goals() {
             <Lede.Num tone="pos">{formatCurrency(totalSaved)}</Lede.Num>
             {' '}of{' '}
             <Lede.Num>{formatCurrency(totalTarget)}</Lede.Num>
-            {' — '}
+            {' '}across{' '}
             <Lede.Num highlight>{activeGoals.length} active</Lede.Num>
             {activeGoals.length === 1 ? ' goal' : ' goals'}
             {completedGoals.length > 0 && (
               <>
-                , <Lede.Num tone="pos">{completedGoals.length} complete</Lede.Num>
+                , with <Lede.Num tone="pos">{completedGoals.length} complete</Lede.Num>
               </>
             )}.
           </Lede>
@@ -353,29 +367,7 @@ export function Goals() {
               <Eyebrow>New goal</Eyebrow>
               <h3 className="ds-h3" style={{ marginTop: 6, marginBottom: 16 }}>What are you saving for?</h3>
 
-              <div style={{ marginBottom: 20 }}>
-                <Eyebrow>Quick start</Eyebrow>
-                <div className="goals-presets" style={{ marginTop: 8 }}>
-                  {GOAL_PRESETS.map((preset) => {
-                    const active = newCategory === preset.category;
-                    const color = goalColor(preset.category);
-                    return (
-                      <button
-                        key={preset.category}
-                        onClick={() => selectPreset(preset)}
-                        className="goals-preset"
-                        style={{
-                          borderColor: active ? color : 'var(--lf-rule)',
-                          color: active ? color : 'var(--lf-muted)',
-                        }}
-                      >
-                        {preset.icon} {preset.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
+              {/* Form-first: name, amount, date — primary fields */}
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -384,13 +376,23 @@ export function Goals() {
               }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <Eyebrow>Goal name</Eyebrow>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    placeholder="e.g. Emergency Fund"
-                    style={inputStyle}
-                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="text"
+                      value={newIcon}
+                      onChange={e => setNewIcon(e.target.value)}
+                      maxLength={4}
+                      aria-label="Icon"
+                      style={{ ...inputStyle, width: 56, textAlign: 'center', flexShrink: 0 }}
+                    />
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={e => setNewName(e.target.value)}
+                      placeholder="e.g. Emergency Fund"
+                      style={inputStyle}
+                    />
+                  </div>
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <Eyebrow>Target amount</Eyebrow>
@@ -419,16 +421,30 @@ export function Goals() {
                     style={inputStyle}
                   />
                 </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <Eyebrow>Icon</Eyebrow>
-                  <input
-                    type="text"
-                    value={newIcon}
-                    onChange={e => setNewIcon(e.target.value)}
-                    maxLength={4}
-                    style={inputStyle}
-                  />
-                </label>
+              </div>
+
+              {/* Category chips — now BELOW as optional quick-start */}
+              <div style={{ marginBottom: 20 }}>
+                <Eyebrow>Category (optional)</Eyebrow>
+                <div className="goals-presets" style={{ marginTop: 8 }}>
+                  {GOAL_PRESETS.map((preset) => {
+                    const active = newCategory === preset.category;
+                    const color = goalColor(preset.category);
+                    return (
+                      <button
+                        key={preset.category}
+                        onClick={() => selectPreset(preset)}
+                        className="goals-preset"
+                        style={{
+                          borderColor: active ? color : 'var(--lf-rule)',
+                          color: active ? color : 'var(--lf-muted)',
+                        }}
+                      >
+                        {preset.icon} {preset.name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
@@ -635,11 +651,12 @@ export function Goals() {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '8px 12px',
+  padding: '10px 12px',
   background: 'var(--lf-cream)',
   border: '1px solid var(--lf-rule)',
   borderRadius: 8,
-  fontSize: 13,
+  // 16px prevents iOS Safari auto-zoom on focus
+  fontSize: 16,
   color: 'var(--lf-ink)',
   outline: 'none',
   boxSizing: 'border-box',

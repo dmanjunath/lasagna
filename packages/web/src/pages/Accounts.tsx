@@ -392,19 +392,19 @@ export function Accounts() {
         eyebrow={loading ? null : `${items.length} institution${items.length !== 1 ? "s" : ""} · ${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`}
         title="Accounts"
         actions={!isDemoMode ? (
-          <>
+          <span className="ds-accounts-header-actions">
             {items.length > 0 && (
-              <Button variant="ghost" onClick={handleSyncAll} disabled={syncing || linking} icon={syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}>
+              <Button variant="ghost" onClick={handleSyncAll} disabled={syncing || linking} icon={syncing ? <Spinner size={13} /> : <RefreshCw size={14} />} className="ds-accounts-cta-secondary">
                 {syncing ? "Syncing…" : "Sync all"}
               </Button>
             )}
-            <Button variant="ghost" onClick={() => setShowManualModal(true)} icon={<Pencil size={14} />}>
+            <Button variant="ghost" onClick={() => setShowManualModal(true)} icon={<Pencil size={14} />} className="ds-accounts-cta-secondary">
               Add manual
             </Button>
-            <Button variant="primary" onClick={handleLink} disabled={linking || syncing} icon={linking ? <Spinner size={13} /> : <Plus size={14} />}>
+            <Button variant="primary" onClick={handleLink} disabled={linking || syncing} icon={linking ? <Spinner size={13} /> : <Plus size={14} />} className="ds-accounts-cta-primary">
               {linking ? "Linking…" : "Link via Plaid"}
             </Button>
-          </>
+          </span>
         ) : undefined}
       />
 
@@ -514,33 +514,59 @@ export function Accounts() {
         </Section>
       )}
 
-      {/* Manual accounts */}
+      {/* Manual accounts — drop H2 when only one entry (single divider + caption) */}
       {!loading && manualAccounts.length > 0 && (
-        <Section
-          title="Manual accounts"
-          eyebrow={`${manualAccounts.length} tracked`}
-        >
-          <div className="ds-accounts-feed">
-            {manualItems.map((item) => (
-              <InstitutionArticle
-                key={item.id}
-                refCallback={(el) => { itemRefs.current[item.id] = el; }}
-                item={item}
-                isManual
-                isHighlighted={false}
-                syncing={false}
-                isDemoMode={isDemoMode}
-                showSyncSpinner={false}
-                expanded={expandedIds.has(item.id)}
-                onToggle={() => toggleExpand(item.id)}
-                onSync={() => {}}
-                onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
-                onDeleteAccount={handleDeleteAccount}
-                allAccounts={allAccounts}
-              />
-            ))}
-          </div>
-        </Section>
+        manualAccounts.length === 1 ? (
+          <section className="ds-section">
+            <p className="ds-eyebrow ds-accounts-manual-caption">Manual · {manualAccounts.length} tracked</p>
+            <div className="ds-accounts-feed">
+              {manualItems.map((item) => (
+                <InstitutionArticle
+                  key={item.id}
+                  refCallback={(el) => { itemRefs.current[item.id] = el; }}
+                  item={item}
+                  isManual
+                  isHighlighted={false}
+                  syncing={false}
+                  isDemoMode={isDemoMode}
+                  showSyncSpinner={false}
+                  expanded={expandedIds.has(item.id)}
+                  onToggle={() => toggleExpand(item.id)}
+                  onSync={() => {}}
+                  onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
+                  onDeleteAccount={handleDeleteAccount}
+                  allAccounts={allAccounts}
+                />
+              ))}
+            </div>
+          </section>
+        ) : (
+          <Section
+            title="Manual accounts"
+            eyebrow={`${manualAccounts.length} tracked`}
+          >
+            <div className="ds-accounts-feed">
+              {manualItems.map((item) => (
+                <InstitutionArticle
+                  key={item.id}
+                  refCallback={(el) => { itemRefs.current[item.id] = el; }}
+                  item={item}
+                  isManual
+                  isHighlighted={false}
+                  syncing={false}
+                  isDemoMode={isDemoMode}
+                  showSyncSpinner={false}
+                  expanded={expandedIds.has(item.id)}
+                  onToggle={() => toggleExpand(item.id)}
+                  onSync={() => {}}
+                  onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
+                  onDeleteAccount={handleDeleteAccount}
+                  allAccounts={allAccounts}
+                />
+              ))}
+            </div>
+          </Section>
+        )
       )}
 
       {/* ── Manual Account Modal ── */}
@@ -674,8 +700,8 @@ export function Accounts() {
                         onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(""); setAcctRate(""); }}
                         className="ds-accounts-type-tile"
                       >
-                        <span style={{ fontSize: 16 }}>{at.emoji}</span>
-                        {at.label}
+                        <span className="ds-accounts-type-tile__emoji">{at.emoji}</span>
+                        <span className="ds-accounts-type-tile__label">{at.label}</span>
                       </button>
                     ))}
                   </div>
@@ -712,34 +738,59 @@ export function Accounts() {
 
       {/* Page-local styles */}
       <style>{`
-        .ds-accounts-quickimport {
-          display: flex; align-items: center; gap: 12px;
-          padding: 14px 0;
-          border-top: 1px solid var(--lf-rule);
-          border-bottom: 1px solid var(--lf-rule);
-          margin-bottom: 40px;
-          text-decoration: none; color: inherit;
-          transition: background 0.12s;
+        .ds-accounts-manual-caption {
+          margin: 0 0 8px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid var(--lf-rule-soft);
         }
-        .ds-accounts-quickimport:hover { background: var(--lf-cream); }
+        .ds-accounts-header-actions {
+          display: inline-flex; gap: 8px; flex-wrap: wrap;
+          align-items: center;
+        }
+        @media (max-width: 640px) {
+          /* Mobile: Plaid primary on its own full-width row;
+             Sync all + Add manual share a row of ghost buttons */
+          .ds-accounts-header-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            width: 100%;
+          }
+          .ds-accounts-cta-secondary { grid-column: span 1; }
+          .ds-accounts-cta-primary {
+            grid-column: 1 / -1;
+            width: 100%;
+            justify-content: center;
+          }
+        }
+        .ds-accounts-quickimport {
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 6px 0;
+          margin-bottom: 24px;
+          text-decoration: none; color: var(--lf-muted);
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          transition: color 0.15s;
+        }
+        .ds-accounts-quickimport:hover { color: var(--lf-sauce); }
         .ds-accounts-quickimport__icon {
-          width: 24px; height: 24px;
+          width: 16px; height: 16px;
           display: grid; place-items: center;
           color: var(--lf-cheese);
           flex-shrink: 0;
         }
         .ds-accounts-quickimport__body {
-          flex: 1; min-width: 0;
-          display: flex; flex-direction: column; gap: 2px;
+          display: inline-flex; align-items: baseline; gap: 8px;
+          min-width: 0;
         }
         .ds-accounts-quickimport__eyebrow {
           font-family: 'JetBrains Mono', ui-monospace, monospace;
           font-size: 10px; letter-spacing: 0.14em;
-          text-transform: uppercase; color: var(--lf-sauce);
+          text-transform: uppercase; color: var(--lf-muted);
         }
         .ds-accounts-quickimport__title {
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; font-weight: 500; color: var(--lf-ink);
+          font-size: 12px; color: var(--lf-ink-soft);
         }
         .ds-accounts-quickimport__arrow {
           font-family: 'Geist', system-ui, sans-serif;
@@ -777,17 +828,23 @@ export function Accounts() {
           font-family: 'Geist', system-ui, sans-serif;
           font-size: 13px; color: var(--lf-ink-soft);
           font-weight: 500;
+          /* uniform height for grid visual rhythm regardless of label length */
+          min-height: 56px;
           transition: background 0.12s, border-color 0.12s;
         }
         .ds-accounts-type-tile:hover {
           background: var(--lf-cream);
           border-color: var(--lf-cream-deep);
         }
+        .ds-accounts-type-tile__emoji { font-size: 14px; flex-shrink: 0; line-height: 1; }
+        .ds-accounts-type-tile__label { text-align: left; line-height: 1.25; }
         .ds-input {
           width: 100%; padding: 10px 14px;
           background: var(--lf-paper);
           border: 1px solid var(--lf-rule);
-          border-radius: 8px; font-size: 14px;
+          border-radius: 8px;
+          /* 16px prevents iOS Safari auto-zoom on focus */
+          font-size: 16px;
           font-family: 'Geist', system-ui, sans-serif;
           color: var(--lf-ink); outline: none;
           box-sizing: border-box;
@@ -897,27 +954,16 @@ function InstitutionArticle({
           </div>
         </div>
         <span className="ds-inst__head-total ds-num">{formatTotal(total)}</span>
-        {!isDemoMode && (
+        {!isDemoMode && !isManual && (
           <span className="ds-inst__head-actions">
-            {!isManual && (
-              <Button
-                variant="icon"
-                size="sm"
-                aria-label={`Sync ${institutionName}`}
-                onClick={(e) => { e.stopPropagation(); onSync(); }}
-                disabled={syncing}
-              >
-                {syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}
-              </Button>
-            )}
             <Button
               variant="icon"
               size="sm"
-              aria-label={`Disconnect ${institutionName}`}
-              onClick={(e) => { e.stopPropagation(); onDisconnect(); }}
-              className="ds-inst__icon-danger"
+              aria-label={`Sync ${institutionName}`}
+              onClick={(e) => { e.stopPropagation(); onSync(); }}
+              disabled={syncing}
             >
-              <X size={14} />
+              {syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}
             </Button>
           </span>
         )}
@@ -947,6 +993,20 @@ function InstitutionArticle({
                     : null}
                 />
               ))}
+            </div>
+          )}
+
+          {!isDemoMode && !isManual && (
+            <div className="ds-inst__danger-zone">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDisconnect}
+                icon={<X size={13} />}
+                className="ds-inst__disconnect-btn"
+              >
+                Disconnect this institution
+              </Button>
             </div>
           )}
         </div>
@@ -1015,6 +1075,19 @@ function InstitutionArticle({
           font-family: 'Geist', system-ui, sans-serif;
         }
         .ds-inst__icon-danger:hover { color: var(--lf-sauce); border-color: rgba(201,84,58,0.4); }
+        .ds-inst__danger-zone {
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid var(--lf-rule-soft);
+        }
+        .ds-inst__disconnect-btn {
+          color: var(--lf-sauce);
+          border-color: rgba(201,84,58,0.35);
+        }
+        .ds-inst__disconnect-btn:hover {
+          color: var(--lf-sauce-deep);
+          border-color: rgba(201,84,58,0.6);
+        }
       `}</style>
     </motion.article>
   );

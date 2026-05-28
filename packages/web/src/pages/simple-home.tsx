@@ -402,7 +402,7 @@ export function SimpleHome() {
           <Section
             title="Did you know"
             eyebrow={lastActionsGeneratedAt ? `Updated ${formatRel(lastActionsGeneratedAt)}` : undefined}
-            actions={<Link href="/insights" className="ds-btn ds-btn--link">More →</Link>}
+            actions={<Link href="/insights" className="ds-btn ds-btn--link" aria-label="More insights">→</Link>}
           >
             <ul className="ds-home-feed">
               {dykInsights.map((ins) => (
@@ -774,7 +774,7 @@ function AskHero({
             type="text"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="e.g. Can I afford to buy a house this year?"
+            placeholder="Ask anything…"
             className="ds-askhero__input"
             autoComplete="off"
           />
@@ -794,8 +794,7 @@ function AskHero({
           {prompts.map((q) => (
             <li key={q}>
               <button type="button" onClick={() => onPick(q)} className="ds-askhero__prompt">
-                <span className="ds-askhero__prompt-text">{q}</span>
-                <span className="ds-askhero__prompt-arrow" aria-hidden="true">→</span>
+                {q}
               </button>
             </li>
           ))}
@@ -895,38 +894,25 @@ function AskHero({
           border-top: 1px solid var(--lf-rule-soft);
         }
         .ds-askhero__prompt {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
           width: 100%;
           background: none;
           border: 0;
-          padding: 12px 0;
+          padding: 14px 0;
+          min-height: 44px;
           text-align: left;
           cursor: pointer;
-          transition: color 0.15s;
-        }
-        .ds-askhero__prompt:hover .ds-askhero__prompt-text { color: var(--lf-sauce); }
-        .ds-askhero__prompt:hover .ds-askhero__prompt-arrow {
-          transform: translateX(4px);
-          color: var(--lf-sauce);
-        }
-        .ds-askhero__prompt-text {
-          flex: 1;
           font-family: 'Geist', system-ui, sans-serif;
           font-size: 14px;
           font-weight: 500;
           color: var(--lf-ink-soft);
           line-height: 1.4;
           transition: color 0.15s;
+          /* Single line, ellipsis if too long — keeps every row uniform */
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .ds-askhero__prompt-arrow {
-          font-size: 14px;
-          color: var(--lf-muted);
-          flex-shrink: 0;
-          transition: transform 0.15s, color 0.15s;
-        }
+        .ds-askhero__prompt:hover { color: var(--lf-sauce); }
       `}</style>
     </section>
   );

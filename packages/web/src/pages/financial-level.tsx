@@ -85,9 +85,23 @@ function WhyThisOrderPopover() {
 
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
-      <Button variant="link" onClick={() => setOpen(!open)}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          background: 'none',
+          border: 0,
+          padding: 0,
+          font: 'inherit',
+          fontSize: 12,
+          color: 'var(--lf-muted)',
+          textDecoration: 'underline',
+          textUnderlineOffset: 3,
+          cursor: 'pointer',
+        }}
+      >
         Why this order? ⓘ
-      </Button>
+      </button>
       {open && (
         <>
           <div
@@ -153,7 +167,7 @@ function LevelRow({ step, isCurrent, isComplete, isSkipped, isSelected, onSelect
 
   return (
     <li
-      className={`fl-row ${isSelected ? 'is-selected' : ''}`}
+      className={`fl-row ${isCurrent ? 'is-current' : ''} ${isSelected && !isCurrent ? 'is-selected' : ''}`}
       style={{
         opacity: isFuture ? 0.78 : isSkipped ? 0.5 : 1,
         ['--level-color' as any]: color,
@@ -462,9 +476,14 @@ export function FinancialLevel() {
   const investedOrCash = summary.totalInvested > 0 ? summary.totalInvested : summary.totalCash;
   const investedLabel = summary.totalInvested > 0 ? 'total portfolio' : summary.totalCash > 0 ? 'cash holdings' : 'link accounts';
 
-  // Build action snippet for the lede
+  // Build action snippet for the lede. Replace ambiguous "open" → "set up and fund"
+  // (e.g. "Open a Roth IRA and start contributing" → "set up and fund a Roth IRA…").
   const actionSnippet = currentStep?.action
-    ? (currentStep.action.length > 90 ? currentStep.action.slice(0, 90) + '…' : currentStep.action).toLowerCase().replace(/\.$/, '')
+    ? (currentStep.action.length > 90 ? currentStep.action.slice(0, 90) + '…' : currentStep.action)
+        .toLowerCase()
+        .replace(/\.$/, '')
+        .replace(/\bopen and start contributing\b/, 'set up and fund')
+        .replace(/^open\b/, 'set up and fund')
     : null;
 
   return (
@@ -500,9 +519,9 @@ export function FinancialLevel() {
             sub: 'per month',
           },
           {
-            label: 'Monthly surplus',
+            label: 'Surplus/mo',
             value: <span className="ds-num">{summary.monthlySurplus !== null ? fmt(summary.monthlySurplus) : '—'}</span>,
-            sub: 'income minus expenses',
+            sub: 'income − expenses',
             tone: surplusTone,
           },
           {
@@ -589,28 +608,32 @@ export function FinancialLevel() {
           align-items: center;
           gap: 14px;
           width: 100%;
+          min-height: 56px;
           background: none;
           border: 0;
-          padding: 16px 0;
+          padding: 14px 0;
           text-align: left;
           cursor: pointer;
           color: inherit;
           transition: color 0.15s;
         }
-        .fl-row.is-selected .fl-row__btn { background: var(--lf-cream); padding-left: 12px; padding-right: 12px; }
+        /* Only the current step gets the cream extension — unifies with the "You are here" pill. */
+        .fl-row.is-current .fl-row__btn { background: var(--lf-cream); padding-left: 12px; padding-right: 12px; }
+        /* A non-current row that's been clicked to inspect uses a subtle inset rule, not the cream fill. */
+        .fl-row.is-selected .fl-row__btn { box-shadow: inset 2px 0 0 var(--lf-ink); padding-left: 12px; }
         .fl-row__btn:hover .fl-row__title { color: var(--lf-sauce); }
 
         .fl-row__chip {
           flex-shrink: 0;
-          width: 36px;
-          height: 36px;
+          width: 44px;
+          height: 44px;
           border-radius: 8px;
           background: var(--level-color);
           color: var(--lf-paper);
           display: grid;
           place-items: center;
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 700;
           letter-spacing: 0.04em;
         }

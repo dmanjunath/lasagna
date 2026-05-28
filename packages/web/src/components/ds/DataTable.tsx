@@ -12,6 +12,10 @@ export interface DataTableColumn<T> {
   cell: (row: T) => ReactNode;
   /** Optional width hint */
   width?: string;
+  /** Extra className applied to both <th> and <td> for this column.
+   *  Useful for responsive visibility (e.g. "hidden md:table-cell") or
+   *  enabling wrapping (e.g. "td--wrap" — only meaningful on <td>). */
+  className?: string;
 }
 
 interface DataTableProps<T> {
@@ -41,35 +45,41 @@ export function DataTable<T>({
     );
   }
   return (
-    <table className="ds-table">
-      <thead>
-        <tr>
-          {columns.map((c) => (
-            <th key={c.key} className={c.num ? 'th--num' : undefined} style={c.width ? { width: c.width } : undefined}>
-              {c.header}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr
-            key={rowKey(row)}
-            className={cn(hover && 'ds-table__row--hover')}
-            onClick={onRowClick ? () => onRowClick(row) : undefined}
-            style={onRowClick ? { cursor: 'pointer' } : undefined}
-          >
+    <div className="ds-table-scroll">
+      <table className="ds-table">
+        <thead>
+          <tr>
             {columns.map((c) => (
-              <td
+              <th
                 key={c.key}
-                className={cn(c.num && 'td--num', c.muted && 'td--muted')}
+                className={cn(c.num && 'th--num', c.className)}
+                style={c.width ? { width: c.width } : undefined}
               >
-                {c.cell(row)}
-              </td>
+                {c.header}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={rowKey(row)}
+              className={cn(hover && 'ds-table__row--hover')}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              style={onRowClick ? { cursor: 'pointer' } : undefined}
+            >
+              {columns.map((c) => (
+                <td
+                  key={c.key}
+                  className={cn(c.num && 'td--num', c.muted && 'td--muted', c.className)}
+                >
+                  {c.cell(row)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

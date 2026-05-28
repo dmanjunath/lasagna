@@ -154,24 +154,34 @@ export function SimpleMoney() {
     {
       key: 'merchant',
       header: 'Merchant',
+      className: 'td--wrap',
       cell: (t) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
           <span style={{
             width: 28, height: 28, borderRadius: 999,
             background: parseFloat(t.amount) < 0 ? 'rgba(90,107,63,0.12)' : 'var(--lf-cream)',
             display: 'grid', placeItems: 'center', flexShrink: 0,
             color: parseFloat(t.amount) < 0 ? 'var(--lf-basil)' : 'var(--lf-muted)',
+            marginTop: 1,
           }}>
             {categoryIcon[t.category] || <Banknote size={14} />}
           </span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {/* Wraps to 2 lines instead of ellipsing so the Amount column stays visible
+              without horizontal scroll on narrow viewports. */}
+          <span style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordBreak: 'break-word',
+          }}>
             {t.merchantName || t.name}
           </span>
         </div>
       ),
     },
     { key: 'category', header: 'Category', muted: true, cell: (t) => humanCategory(t.category) },
-    { key: 'date', header: 'Date', muted: true, cell: (t) => formatDate(t.date) },
+    { key: 'date', header: 'Date', muted: true, className: 'hidden md:table-cell', cell: (t) => formatDate(t.date) },
     {
       key: 'amount',
       header: 'Amount',
@@ -197,7 +207,7 @@ export function SimpleMoney() {
         title="Money"
         actions={
           !loading && items.length > 0 ? (
-            <>
+            <div className="ds-money-header-actions">
               <Button
                 variant="ghost"
                 size="sm"
@@ -210,7 +220,7 @@ export function SimpleMoney() {
               <Link href="/accounts">
                 <Button variant="ink" size="sm" icon={<Plus size={12} />}>Add account</Button>
               </Link>
-            </>
+            </div>
           ) : null
         }
       />
@@ -332,7 +342,11 @@ export function SimpleMoney() {
                   onClick={() => setRange(r)}
                   role="radio"
                   aria-checked={range === r}
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                  className="min-w-[44px] min-h-[44px]"
+                  style={{
+                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  }}
                 >
                   <Pill tone={range === r ? 'ink' : 'ghost'}>{r}</Pill>
                 </button>
@@ -512,6 +526,45 @@ export function SimpleMoney() {
 
       <style>{`
         .ds-money-stats { margin: 32px 0 56px; }
+
+        /* Page-header actions: stack vertically on mobile, inline at md+. */
+        .ds-money-header-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          align-items: stretch;
+        }
+        .ds-money-header-actions > * { width: 100%; }
+        .ds-money-header-actions a { display: block; }
+        @media (min-width: 768px) {
+          .ds-money-header-actions {
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+          }
+          .ds-money-header-actions > * { width: auto; }
+          .ds-money-header-actions a { display: inline-block; }
+        }
+
+        /* Composition ribbon legend: stack to one column on mobile with a
+           fixed-width % column on the right so values right-align cleanly. */
+        @media (max-width: 640px) {
+          .ds-ribbon__legend {
+            flex-direction: column;
+            gap: 8px;
+            align-items: stretch;
+          }
+          .ds-ribbon__legend-item {
+            display: grid;
+            grid-template-columns: 12px 1fr auto;
+            gap: 10px;
+            align-items: baseline;
+          }
+          .ds-ribbon__legend-value {
+            text-align: right;
+            min-width: 64px;
+          }
+        }
 
         .ds-money-account-row {
           display: flex; align-items: center; gap: 12px;

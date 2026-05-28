@@ -58,7 +58,7 @@ export function Shell({ children }: ShellProps) {
         /* Mobile: main content + chat overlay */
         <div className="flex-1 flex overflow-hidden relative">
           {/* Main content — always rendered. pt offset = notch + 44px header. */}
-          <main className="w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] pb-[56px]">
+          <main className="w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] pb-[calc(env(safe-area-inset-bottom)+56px)]">
             <div className="flex-1 overflow-y-auto">
               {children}
             </div>

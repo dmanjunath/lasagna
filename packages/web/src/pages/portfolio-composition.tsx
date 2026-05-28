@@ -82,6 +82,21 @@ function colorForAssetClass(name: string, index: number): string {
   return ASSET_CLASS_COLORS[name] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
+// Strip trailing account-id suffixes like "-242726519-01" and collapse comma-
+// joined dupes ("Suhana - 529, Dheeraj - 242726519-01") to just the first.
+function cleanAccountLabel(raw: string): string {
+  if (!raw) return raw;
+  const first = raw.split(',')[0].trim();
+  return first.replace(/[\s-]*\d{5,}(?:[-_]\d+)*$/, '').trim() || first;
+}
+
+// Abbreviate verbose asset-class labels for the composition ribbon.
+function abbreviateClassLabel(name: string): string {
+  return name
+    .replace(/^INTERNATIONAL\s+STOCKS$/i, "INT'L STOCKS")
+    .replace(/^INTERNATIONAL\s+/i, "INT'L ");
+}
+
 // ---------------------------------------------------------------------------
 // SVG Donut chart — native SVG, no external lib
 // ---------------------------------------------------------------------------
@@ -700,7 +715,7 @@ export default function PortfolioComposition() {
 
         <div style={{ marginBottom: 40 }}>
           <Lede>
-            No individual holdings found — showing your <Lede.Num highlight>{formatMoney(accountTotal)}</Lede.Num> spread across{' '}
+            No individual holdings found — showing your <Lede.Num highlight>{formatMoney(accountTotal, true)}</Lede.Num> spread across{' '}
             <Lede.Num>{accountAllocation.length}</Lede.Num> account{accountAllocation.length === 1 ? '' : 's'}.
           </Lede>
         </div>
@@ -791,7 +806,7 @@ export default function PortfolioComposition() {
         </div>
       ),
     },
-    { key: 'account', header: 'Account', muted: true, cell: (t) => t.accountLabel },
+    { key: 'account', header: 'Account', muted: true, className: 'td--wrap', cell: (t) => cleanAccountLabel(t.accountLabel) },
     { key: 'class', header: 'Class', cell: (t) => <span style={{ color: colorForAssetClass(t.assetClass, 0) }}>{t.assetClass}</span> },
     { key: 'category', header: 'Category', muted: true, cell: (t) => t.category },
     { key: 'value', header: 'Value', num: true, cell: (t) => <span className="ds-num">{formatMoney(t.totalValue, true)}</span> },
@@ -818,7 +833,7 @@ export default function PortfolioComposition() {
   const restSum = restClasses.reduce((s, c) => s + c.value, 0);
   const ribbonSegments: CompositionSegment[] = [
     ...topClasses.map((ac, i) => ({
-      label: ac.name,
+      label: abbreviateClassLabel(ac.name),
       value: ac.value,
       color: colorForAssetClass(ac.name, i),
     })),
@@ -839,7 +854,7 @@ export default function PortfolioComposition() {
       {/* Editorial lede */}
       <div style={{ marginBottom: 40 }}>
         <Lede>
-          Your portfolio is worth <Lede.Num highlight>{formatMoney(filteredTotal)}</Lede.Num>.
+          Your portfolio is worth <Lede.Num highlight>{formatMoney(filteredTotal, true)}</Lede.Num>.
           {blendedReturn !== null && (
             <>
               {' '}Blended historical return:{' '}
@@ -957,22 +972,24 @@ export default function PortfolioComposition() {
                   />
                 </div>
                 <div className="ds-portfolio-grid__legend">
-                  {chartSlices.slice(0, 10).map(sl => (
-                    <button
-                      key={sl.name}
-                      onClick={() => handleSliceClick(sl.name)}
-                      className="ds-portfolio-legend-row"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
-                    >
-                      <span className="ds-portfolio-legend-dot" style={{ background: sl.color }} />
-                      <div className="ds-portfolio-legend-text">
-                        <div className="ds-portfolio-legend-name">{sl.name}</div>
-                        <div className="ds-portfolio-legend-meta ds-num">
-                          {sl.pct.toFixed(1)}% · {formatMoney(sl.value, true)}
+                  {chartSlices.slice(0, 10).map(sl => {
+                    const isActive = drillLevel1 === sl.name;
+                    return (
+                      <button
+                        key={sl.name}
+                        onClick={() => handleSliceClick(sl.name)}
+                        className={`ds-portfolio-legend-row ds-portfolio-legend-btn${isActive ? ' is-active' : ''}`}
+                      >
+                        <span className="ds-portfolio-legend-dot" style={{ background: sl.color }} />
+                        <div className="ds-portfolio-legend-text">
+                          <div className="ds-portfolio-legend-name">{sl.name}</div>
+                          <div className="ds-portfolio-legend-meta ds-num">
+                            {sl.pct.toFixed(1)}% · {formatMoney(sl.value, true)}
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </motion.div>
@@ -1030,6 +1047,36 @@ function PortfolioStyles() {
         grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
         gap: 10px;
         min-width: 0;
+      }
+      @media (max-width: 640px) {
+        .ds-portfolio-grid__legend {
+          grid-template-columns: 1fr;
+        }
+        /* P2 — composition ribbon legend: 1 column on mobile */
+        .ds-comp-ribbon__legend,
+        .ds-comp__legend {
+          grid-template-columns: 1fr !important;
+        }
+      }
+      .ds-portfolio-legend-btn {
+        background: none;
+        border: 0;
+        padding: 8px 6px;
+        margin: -8px -6px;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        border-radius: 6px;
+        min-height: 44px;
+        transition: background 0.12s;
+      }
+      .ds-portfolio-legend-btn:hover {
+        background: var(--lf-cream);
+      }
+      .ds-portfolio-legend-btn.is-active {
+        background: var(--lf-cream);
+        outline: 2px solid var(--lf-sauce);
+        outline-offset: -2px;
       }
       @media (min-width: 820px) {
         .ds-portfolio-grid {

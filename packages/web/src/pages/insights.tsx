@@ -192,12 +192,13 @@ function ActionRow({
                 )}
 
                 <Button
-                  variant="link"
+                  variant="ghost"
+                  size="sm"
+                  className="ins-dismiss-btn"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDismiss();
                   }}
-                  style={{ marginLeft: 'auto' }}
                 >
                   Dismiss
                 </Button>
@@ -291,6 +292,7 @@ export function Insights() {
         actions={
           <Button
             variant="primary"
+            className="ins-walk-cta"
             onClick={() => openChat('Can you explain my top financial actions and why they matter?')}
           >
             Walk me through this →
@@ -329,23 +331,19 @@ export function Insights() {
             {
               label: 'Total',
               value: <span className="ds-num">{totalCount}</span>,
-              sub: 'active actions',
             },
             {
-              label: 'Do now',
+              label: 'Urgent',
               value: <span className="ds-num">{doNowCount}</span>,
-              sub: 'high priority',
               tone: 'neg',
             },
             {
               label: 'This week',
               value: <span className="ds-num">{thisWeekCount}</span>,
-              sub: <span style={{ color: 'var(--lf-cheese)' }}>important</span>,
             },
             {
               label: 'Watch',
               value: <span className="ds-num">{watchCount}</span>,
-              sub: 'keep an eye on',
               tone: 'pos',
             },
           ]}
@@ -382,20 +380,23 @@ export function Insights() {
             </div>
           }
         >
-          <div className="ins-filter-pills">
-            {FILTER_PILLS.map((pill) => {
-              const active = activeFilter === pill.value;
-              return (
-                <Button
-                  key={pill.label}
-                  variant={active ? 'ink' : 'ghost'}
-                  size="sm"
-                  onClick={() => setActiveFilter(pill.value)}
-                >
-                  {pill.label}
-                </Button>
-              );
-            })}
+          <div className="ins-filter-scroll">
+            <div className="ins-filter-pills">
+              {FILTER_PILLS.map((pill) => {
+                const active = activeFilter === pill.value;
+                return (
+                  <Button
+                    key={pill.label}
+                    variant={active ? 'ink' : 'ghost'}
+                    size="sm"
+                    className="ins-filter-pill"
+                    onClick={() => setActiveFilter(pill.value)}
+                  >
+                    {pill.label}
+                  </Button>
+                );
+              })}
+            </div>
           </div>
         </Section>
       )}
@@ -525,10 +526,39 @@ export function Insights() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .ins-stats { margin: 0 0 40px; }
 
+        /* Header CTA: full width on mobile is overkill — shrink to sm sizing. */
+        @media (max-width: 640px) {
+          .ins-walk-cta {
+            font-size: 13px;
+            padding: 8px 12px;
+          }
+        }
+
+        /* Filter pills: horizontally scroll on mobile rather than wrap. */
+        .ins-filter-scroll {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          margin: 0 -16px;
+          padding: 0 16px;
+          scrollbar-width: none;
+        }
+        .ins-filter-scroll::-webkit-scrollbar { display: none; }
         .ins-filter-pills {
           display: flex;
           gap: 8px;
-          flex-wrap: wrap;
+          flex-wrap: nowrap;
+          white-space: nowrap;
+        }
+        .ins-filter-pill { flex-shrink: 0; }
+        @media (min-width: 768px) {
+          .ins-filter-scroll { overflow-x: visible; margin: 0; padding: 0; }
+          .ins-filter-pills { flex-wrap: wrap; white-space: normal; }
+        }
+
+        /* Action row: push Dismiss to the right on desktop only — on mobile it
+           wraps into the next row naturally. */
+        @media (min-width: 768px) {
+          .ins-row__actions .ins-dismiss-btn { margin-left: auto; }
         }
         .ins-meta {
           display: flex;

@@ -7,7 +7,6 @@ import { api } from '../lib/api';
 import type { ChatThread, Message } from '../lib/types';
 import {
   Page,
-  PageHeader,
   Button,
   Eyebrow,
   EmptyState,
@@ -213,34 +212,33 @@ export function SimpleChat() {
 
   return (
     <Page>
-      <PageHeader
-        title="Chat"
-        actions={
-          <>
-            <div className="ds-chat-segmented" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={view === 'chat'}
-                onClick={() => setView('chat')}
-                className={`ds-chat-segmented__btn ${view === 'chat' ? 'is-active' : ''}`}
-              >
-                Current
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={view === 'history'}
-                onClick={() => setView('history')}
-                className={`ds-chat-segmented__btn ${view === 'history' ? 'is-active' : ''}`}
-              >
-                History
-              </button>
-            </div>
-            <Button variant="ghost" onClick={newChat} icon={<Plus size={14} />}>New chat</Button>
-          </>
-        }
-      />
+      {/* C1: PageHeader title dropped — the AppHeader already shows "Chat", and
+          PageHeader was a third duplicate of it. We keep only the segmented tab
+          control + "New chat" button as the page's top row. C2: this row is now
+          position: sticky so it stays visible as the user scrolls history. */}
+      <div className="ds-chat-subheader">
+        <div className="ds-chat-segmented" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'chat'}
+            onClick={() => setView('chat')}
+            className={`ds-chat-segmented__btn ${view === 'chat' ? 'is-active' : ''}`}
+          >
+            Current
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'history'}
+            onClick={() => setView('history')}
+            className={`ds-chat-segmented__btn ${view === 'history' ? 'is-active' : ''}`}
+          >
+            History
+          </button>
+        </div>
+        <Button variant="ghost" onClick={newChat} icon={<Plus size={14} />}>New chat</Button>
+      </div>
 
       {view === 'history' ? (
         <HistoryListView
@@ -316,6 +314,21 @@ export function SimpleChat() {
       )}
 
       <style>{`
+        /* Sub-header — tabs + New chat, sticky to the top of the page's scroll
+           container so it stays visible as history scrolls. */
+        .ds-chat-subheader {
+          position: sticky;
+          top: 0;
+          z-index: 5;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px 0;
+          margin-bottom: 16px;
+          background: var(--lf-paper);
+          border-bottom: 1px solid var(--lf-rule);
+        }
         .ds-chat-segmented {
           display: inline-flex;
           gap: 2px;
@@ -426,7 +439,8 @@ export function SimpleChat() {
           border: 0;
           outline: none;
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
+          /* C5: 16px prevents iOS Safari from auto-zooming the viewport on focus. */
+          font-size: 16px;
           color: var(--lf-ink);
           min-width: 0;
         }
@@ -439,12 +453,20 @@ export function SimpleChat() {
           border: 0;
           cursor: pointer;
           font-size: 16px;
+          font-weight: 600;
           display: grid; place-items: center;
           flex-shrink: 0;
-          transition: opacity 0.15s, background 0.15s;
+          transition: background 0.15s, color 0.15s;
         }
         .ds-chat-composer__send:hover:not(:disabled) { background: var(--lf-sauce-deep); }
-        .ds-chat-composer__send:disabled { opacity: 0.3; cursor: not-allowed; }
+        /* C4: when empty, use a clear neutral gray instead of low-opacity sauce
+           (which read as "soft pink, looks disabled when active"). The sauce
+           state now only shows when there's content to send. */
+        .ds-chat-composer__send:disabled {
+          background: var(--lf-rule);
+          color: var(--lf-muted);
+          cursor: not-allowed;
+        }
 
         /* Assistant markdown */
         .ds-chat-md p:not(:last-child) { margin: 0 0 8px; }
@@ -556,7 +578,7 @@ function ChatStartHero({
           width: 100%;
           background: none;
           border: 0;
-          padding: 18px 0;
+          padding: 12px 0;
           text-align: left;
           cursor: pointer;
           transition: color 0.15s;
@@ -576,15 +598,25 @@ function ChatStartHero({
           flex-shrink: 0;
           width: 22px;
         }
+        /* C3: drop the "01" numeric prefix on mobile — visual noise that pushes
+           the prompts to wrap and forces fewer above the fold. */
+        @media (max-width: 640px) {
+          .ds-chat-hero__prompt-num { display: none; }
+          .ds-chat-hero__prompt { gap: 0; padding: 10px 0; }
+        }
         .ds-chat-hero__prompt-text {
           flex: 1;
           font-family: 'Instrument Serif', Georgia, serif;
-          font-size: clamp(18px, 2vw, 22px);
+          /* C3: 17px instead of clamp(18, 22) so more starters fit above the fold on mobile. */
+          font-size: 17px;
           font-weight: 400;
           color: var(--lf-ink);
           line-height: 1.35;
           letter-spacing: -0.005em;
           transition: color 0.15s;
+        }
+        @media (min-width: 768px) {
+          .ds-chat-hero__prompt-text { font-size: 20px; }
         }
         .ds-chat-hero__prompt-arrow {
           font-size: 16px;

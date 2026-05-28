@@ -280,16 +280,20 @@ function HasDebtView({
   onCloseModal: () => void;
   onLoanDetailsSaved: () => void;
 }) {
-  // Composition segments per account
+  // Composition segments per account. Abbreviate "MORTGAGE" → "MTG" so the legend
+  // stays scannable on mobile, and drop the ··mask suffix from the label (it adds
+  // noise when stacked one-per-row).
   const compositionSegments: CompositionSegment[] = [...debts]
     .sort((a, b) => b.balance - a.balance)
     .slice(0, 6)
     .map((d, i) => ({
-      label: d.name + (d.mask ? ` ··${d.mask}` : ''),
+      label: d.name.replace(/\bMORTGAGE\b/gi, 'MTG'),
       value: d.balance,
       color: debtColor(i),
       negative: true,
     }));
+  // Largest balance to identify <1% rows for de-emphasis (D5).
+  const compositionTotal = compositionSegments.reduce((s, seg) => s + Math.abs(seg.value), 0);
 
   // Total interest delta: how much interest saved using avalanche vs snowball
   const cheaperInterest = Math.min(avalancheInterest, snowballInterest);
@@ -397,6 +401,48 @@ function HasDebtView({
     <>
       <style>{`
         .debt-strip { margin: 32px 0 48px; }
+
+        /* Composition legend on mobile — force one item per row (vs the default
+           wrap-onto-multiple-rows which mixes line heights). Each legend item
+           becomes a clean: SWATCH · account name · amount · % strip. */
+        @media (max-width: 640px) {
+          .debt-ribbon-wrap .ds-ribbon__legend {
+            flex-direction: column;
+            gap: 8px;
+            row-gap: 8px;
+          }
+          .debt-ribbon-wrap .ds-ribbon__legend-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            grid-template-areas:
+              "swatch label  pct"
+              ".      value  pct";
+            align-items: baseline;
+            gap: 4px 10px;
+            width: 100%;
+          }
+          .debt-ribbon-wrap .ds-ribbon__swatch { grid-area: swatch; align-self: center; }
+          .debt-ribbon-wrap .ds-ribbon__legend-label { grid-area: label; }
+          .debt-ribbon-wrap .ds-ribbon__legend-value { grid-area: value; }
+          .debt-ribbon-wrap .ds-ribbon__legend-item > span:last-child { grid-area: pct; }
+        }
+
+        /* De-emphasize the trailing tiny-% rows (D5). data-tiny is the count of
+           sub-1% segments at the end of the legend, set by the page. */
+        .debt-ribbon-wrap[data-tiny="1"] .ds-ribbon__legend-item:nth-last-child(-n+1),
+        .debt-ribbon-wrap[data-tiny="2"] .ds-ribbon__legend-item:nth-last-child(-n+2),
+        .debt-ribbon-wrap[data-tiny="3"] .ds-ribbon__legend-item:nth-last-child(-n+3),
+        .debt-ribbon-wrap[data-tiny="4"] .ds-ribbon__legend-item:nth-last-child(-n+4) {
+          opacity: 0.55;
+          font-size: 11px;
+        }
+        .debt-ribbon-wrap[data-tiny="1"] .ds-ribbon__legend-item:nth-last-child(-n+1) .ds-ribbon__legend-label,
+        .debt-ribbon-wrap[data-tiny="2"] .ds-ribbon__legend-item:nth-last-child(-n+2) .ds-ribbon__legend-label,
+        .debt-ribbon-wrap[data-tiny="3"] .ds-ribbon__legend-item:nth-last-child(-n+3) .ds-ribbon__legend-label,
+        .debt-ribbon-wrap[data-tiny="4"] .ds-ribbon__legend-item:nth-last-child(-n+4) .ds-ribbon__legend-label {
+          font-size: 10px;
+        }
+
         .debt-strategy {
           display: grid;
           grid-template-columns: 1fr;
@@ -407,6 +453,32 @@ function HasDebtView({
         }
         .debt-strategy__col {
           padding: 20px 0;
+        }
+        /* The strategy columns are now <button>s — strip the default UA styles
+           so they read as cards, and add a clear active state pill + ring. */
+        .debt-strategy__col--btn {
+          background: none;
+          border: 0;
+          width: 100%;
+          text-align: left;
+          font: inherit;
+          color: inherit;
+          cursor: pointer;
+          border-radius: 10px;
+          transition: background 0.15s, box-shadow 0.15s;
+        }
+        .debt-strategy__col--btn:hover:not(.is-active) {
+          background: var(--lf-cream);
+        }
+        .debt-strategy__col--btn.is-active {
+          background: var(--lf-cream);
+          box-shadow: inset 0 0 0 1px var(--lf-sauce);
+          padding-left: 14px;
+          padding-right: 14px;
+        }
+        .debt-strategy__col--btn:focus-visible {
+          outline: 2px solid var(--lf-sauce);
+          outline-offset: 2px;
         }
         .debt-strategy__col + .debt-strategy__col {
           border-top: 1px solid var(--lf-rule);
@@ -507,16 +579,28 @@ function HasDebtView({
       </div>
 
       {/* Composition ribbon */}
-      {compositionSegments.length > 0 && (
-        <Section>
-          <CompositionRibbon
-            leadLabel="By account"
-            leadValue={formatCurrency(totalDebt)}
-            leadDelta={`${debts.length} account${debts.length === 1 ? '' : 's'}`}
-            segments={compositionSegments}
-          />
-        </Section>
-      )}
+      {compositionSegments.length > 0 && (() => {
+        // Count trailing tiny segments (<1% of total) so we can de-emphasize them
+        // in the legend via :nth-last-child. Segments are already sorted desc.
+        let tinyCount = 0;
+        for (let i = compositionSegments.length - 1; i >= 0; i--) {
+          const pct = compositionTotal > 0 ? (Math.abs(compositionSegments[i].value) / compositionTotal) * 100 : 0;
+          if (pct < 1) tinyCount++;
+          else break;
+        }
+        return (
+          <Section>
+            <div className="debt-ribbon-wrap" data-tiny={tinyCount}>
+              <CompositionRibbon
+                leadLabel="By account"
+                leadValue={formatCurrency(totalDebt)}
+                leadDelta={`${debts.length} account${debts.length === 1 ? '' : 's'}`}
+                segments={compositionSegments}
+              />
+            </div>
+          </Section>
+        );
+      })()}
 
       {/* Stat strip */}
       <StatStrip
@@ -534,15 +618,39 @@ function HasDebtView({
         title="Payoff strategy"
         eyebrow="Choose your approach"
         actions={
-          <div className="debt-pill-toggle">
-            <button data-active={strategy === 'avalanche'} onClick={() => onStrategyChange('avalanche')}>Avalanche</button>
-            <button data-active={strategy === 'snowball'} onClick={() => onStrategyChange('snowball')}>Snowball</button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                fontSize: 10,
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'var(--lf-muted)',
+              }}
+              aria-live="polite"
+            >
+              Sorted · {strategy}
+            </span>
+            <div className="debt-pill-toggle">
+              <button data-active={strategy === 'avalanche'} onClick={() => onStrategyChange('avalanche')}>Avalanche</button>
+              <button data-active={strategy === 'snowball'} onClick={() => onStrategyChange('snowball')}>Snowball</button>
+            </div>
           </div>
         }
       >
         <div className="debt-strategy">
-          <div className="debt-strategy__col">
-            <div className="debt-strategy__label">Avalanche</div>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={strategy === 'avalanche'}
+            aria-pressed={strategy === 'avalanche'}
+            onClick={() => onStrategyChange('avalanche')}
+            className={`debt-strategy__col debt-strategy__col--btn ${strategy === 'avalanche' ? 'is-active' : ''}`}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+              <span className="debt-strategy__label" style={{ marginBottom: 0 }}>Avalanche</span>
+              {strategy === 'avalanche' && <Pill tone="sauce">Active</Pill>}
+            </div>
             <h3 className="debt-strategy__title">Highest APR first</h3>
             <div className="debt-strategy__amount" style={{ marginTop: 12 }}>
               {formatCurrency(Math.round(avalancheInterest))}
@@ -556,9 +664,19 @@ function HasDebtView({
                 Saves {formatCurrency(interestSavedVsSnowball)} vs snowball
               </span>
             )}
-          </div>
-          <div className="debt-strategy__col">
-            <div className="debt-strategy__label">Snowball</div>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={strategy === 'snowball'}
+            aria-pressed={strategy === 'snowball'}
+            onClick={() => onStrategyChange('snowball')}
+            className={`debt-strategy__col debt-strategy__col--btn ${strategy === 'snowball' ? 'is-active' : ''}`}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+              <span className="debt-strategy__label" style={{ marginBottom: 0 }}>Snowball</span>
+              {strategy === 'snowball' && <Pill tone="sauce">Active</Pill>}
+            </div>
             <h3 className="debt-strategy__title">Smallest balance first</h3>
             <div className="debt-strategy__amount" style={{ marginTop: 12 }}>
               {formatCurrency(Math.round(snowballInterest))}
@@ -572,7 +690,7 @@ function HasDebtView({
                 Costs {formatCurrency(interestSavedVsSnowball)} more in interest
               </span>
             )}
-          </div>
+          </button>
         </div>
         <div style={{
           display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
@@ -595,10 +713,10 @@ function HasDebtView({
         </div>
       </Section>
 
-      {/* Accounts table */}
+      {/* Accounts table — the sort indicator now sits next to the strategy
+          toggle above (D2), so this section keeps just its title. */}
       <Section
         title="Accounts"
-        eyebrow={`Sorted by ${strategy}`}
       >
         <Card flush>
           <DataTable

@@ -778,8 +778,21 @@
 }
 
 /* ── Data table ─────────────────────────────────────────────── */
+/* Wrapper provides horizontal scroll on narrow viewports. The table
+   itself has a min-width so columns don't crunch unreadably; the wrapper
+   gets a right-side fade mask to hint the scrollability. */
+.ds-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+.ds-table-scroll::-webkit-scrollbar { height: 6px; }
+.ds-table-scroll::-webkit-scrollbar-track { background: transparent; }
+.ds-table-scroll::-webkit-scrollbar-thumb { background: rgba(139,126,111,0.25); border-radius: 3px; }
 .ds-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
   font-family: 'Geist', system-ui, sans-serif;
 }
@@ -801,7 +814,15 @@
   color: var(--lf-ink);
   border-bottom: 1px solid var(--lf-rule-soft);
   vertical-align: middle;
+  /* Long cell content (account names, merchant strings) shouldn't blow
+     out the table — let it truncate with ellipsis. Wrap individual cells
+     allow text to fall to a second line if .ds-table-cell--wrap is set. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
 }
+.ds-table td.td--wrap { white-space: normal; max-width: none; }
 .ds-table td--num { text-align: right; font-variant-numeric: tabular-nums; }
 .ds-table td--muted { color: var(--lf-muted); }
 .ds-table tr:last-child td { border-bottom: none; }
@@ -942,13 +963,25 @@
   margin: 0;
 }
 .ds-strip__item {
-  padding: 24px 24px;
+  padding: 20px 20px;
   border-left: 1px solid var(--lf-rule);
   min-width: 0;
 }
 .ds-strip__item:first-child {
   border-left: 0;
   padding-left: 0;
+}
+/* On 2-col mobile fallback, the items that wrap to row 2 still need a top
+   hairline so the grid reads correctly; auto-fit grid + repeat-pattern via
+   nth-child can't know how many columns are active, so we lean on the
+   border-top trick which is harmless if it's never visually crossed. */
+@media (max-width: 540px) {
+  .ds-strip { grid-template-columns: repeat(2, 1fr); }
+  .ds-strip__item { padding: 16px 14px; border-top: 1px solid var(--lf-rule); }
+  .ds-strip__item:nth-child(1),
+  .ds-strip__item:nth-child(2) { border-top: 0; }
+  .ds-strip__item:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .ds-strip__item:nth-child(even) { padding-right: 0; }
 }
 .ds-strip__label {
   display: block;
@@ -964,14 +997,16 @@
   display: block;
   font-family: 'Instrument Serif', Georgia, serif;
   font-weight: 500;
-  font-size: clamp(26px, 3vw, 36px);
-  line-height: 1;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.05;
   letter-spacing: -0.015em;
   color: var(--lf-ink);
   font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Wrap (don't silently truncate). Numeric values are short and won't
+     wrap; long text values (e.g. "Married Filing Jointly") flow to a
+     second line, which is readable. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .ds-strip__value--pos { color: var(--lf-basil); }
 .ds-strip__value--neg { color: var(--lf-sauce-deep); }
@@ -1106,6 +1141,11 @@
   padding: 0 2px;
   color: var(--lf-ink);
   font-weight: 500;
+  /* When the highlighted phrase wraps to a new line, clone the background box on
+     each line so the highlight covers the whole span (e.g. "52+ years"), not
+     just the fragment after the break. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 /* ── Trend chip (number with up/down indicator) ─────────────── */

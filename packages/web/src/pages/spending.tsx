@@ -404,18 +404,22 @@ export function Spending() {
             setTimeout(() => { loadData(); setSyncing(false); }, 3000);
           }}
           icon={<RefreshCw size={12} style={syncing ? { animation: 'spin 1s linear infinite' } : undefined} />}
+          aria-label={syncing ? 'Syncing' : 'Sync'}
         >
-          {syncing ? 'Syncing…' : 'Sync'}
+          <span className="spend-sync-label">{syncing ? 'Syncing…' : 'Sync'}</span>
         </Button>
       )}
     </div>
   );
 
   // Transaction table columns
+  // S1 — Merchant | Amount | Category. Date hidden on mobile. Merchant wraps,
+  // amount right-aligned and never truncated.
   const txColumns: DataTableColumn<Transaction>[] = [
     {
       key: 'merchant',
       header: 'Merchant',
+      className: 'td--wrap',
       cell: (tx) => {
         const display = getCategoryDisplay(tx.category);
         return (
@@ -425,14 +429,44 @@ export function Spending() {
               background: display.color,
             }} />
             <span style={{
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               color: 'var(--lf-ink)', fontWeight: 500,
+              wordBreak: 'break-word',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
             }}>
               {tx.merchantName || tx.name}
             </span>
           </div>
         );
       },
+    },
+    {
+      key: 'amount',
+      header: 'Amount',
+      num: true,
+      className: 'tx-col-amount',
+      cell: (tx) => {
+        const amount = parseFloat(tx.amount);
+        const isIncome = amount < 0;
+        return (
+          <span className={`ds-num ${isIncome ? 'ds-pos' : ''}`} style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'date',
+      header: 'Date',
+      muted: true,
+      className: 'hidden md:table-cell',
+      cell: (tx) => (
+        <span className="ds-num">
+          {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </span>
+      ),
     },
     {
       key: 'category',
@@ -477,45 +511,16 @@ export function Spending() {
         );
       },
     },
-    {
-      key: 'date',
-      header: 'Date',
-      muted: true,
-      cell: (tx) => (
-        <span className="ds-num">
-          {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </span>
-      ),
-    },
-    {
-      key: 'amount',
-      header: 'Amount',
-      num: true,
-      cell: (tx) => {
-        const amount = parseFloat(tx.amount);
-        const isIncome = amount < 0;
-        return (
-          <span className={`ds-num ${isIncome ? 'ds-pos' : ''}`} style={{ fontWeight: 600 }}>
-            {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
-          </span>
-        );
-      },
-    },
   ];
 
   // Filter controls in the transactions section header
+  // S2 — stack vertically on mobile; search input shouldn't clip.
   const txFilterControls = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+    <div className="spend-filters">
       <select
         value={selectedCategory || ''}
         onChange={(e) => { setSelectedCategory(e.target.value || null); setTxPage(1); }}
-        style={{
-          height: 32, padding: '0 10px', borderRadius: 6,
-          border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
-          color: 'var(--lf-ink)', fontSize: 12,
-          fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-          appearance: 'none',
-        }}
+        className="spend-filters__select"
       >
         <option value="">All categories</option>
         {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
@@ -523,7 +528,7 @@ export function Spending() {
         ))}
       </select>
 
-      <div style={{ position: 'relative' }}>
+      <div className="spend-filters__search">
         <Search
           size={12}
           style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--lf-muted)', pointerEvents: 'none' }}
@@ -533,13 +538,7 @@ export function Spending() {
           placeholder="Search merchants…"
           value={searchQuery}
           onChange={(e) => { setSearchQuery(e.target.value); setTxPage(1); }}
-          style={{
-            height: 32, padding: '0 30px 0 28px', borderRadius: 6,
-            border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
-            color: 'var(--lf-ink)', fontSize: 12, width: '100%', maxWidth: 200, minWidth: 120,
-            fontFamily: "'JetBrains Mono', monospace",
-            outline: 'none',
-          }}
+          className="spend-filters__input"
         />
         {searchQuery && (
           <button
@@ -573,6 +572,93 @@ export function Spending() {
           .spend-by-cat { grid-template-columns: 140px minmax(0, 1fr); gap: 32px; }
         }
         .spend-strip { margin: 32px 0 48px; }
+
+        /* S2 — filter row stacks vertically on mobile */
+        .spend-filters {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          align-items: stretch;
+          width: 100%;
+        }
+        @media (min-width: 768px) {
+          .spend-filters {
+            flex-direction: row;
+            align-items: center;
+            width: auto;
+          }
+        }
+        .spend-filters__select {
+          height: 36px;
+          padding: 0 10px;
+          border-radius: 6px;
+          border: 1px solid var(--lf-rule);
+          background: var(--lf-paper);
+          color: var(--lf-ink);
+          font-size: 13px;
+          font-family: 'JetBrains Mono', monospace;
+          cursor: pointer;
+          appearance: none;
+          width: 100%;
+        }
+        @media (min-width: 768px) {
+          .spend-filters__select { width: auto; height: 32px; font-size: 12px; }
+        }
+        .spend-filters__search {
+          position: relative;
+          width: 100%;
+        }
+        .spend-filters__input {
+          height: 36px;
+          padding: 0 30px 0 28px;
+          border-radius: 6px;
+          border: 1px solid var(--lf-rule);
+          background: var(--lf-paper);
+          color: var(--lf-ink);
+          font-size: 13px;
+          width: 100%;
+          font-family: 'JetBrains Mono', monospace;
+          outline: none;
+          box-sizing: border-box;
+        }
+        @media (min-width: 768px) {
+          .spend-filters__input { height: 32px; font-size: 12px; max-width: 220px; min-width: 140px; }
+        }
+
+        /* S3 — hide Sync label on mobile, icon only */
+        @media (max-width: 767px) {
+          .spend-sync-label {
+            position: absolute;
+            width: 1px; height: 1px;
+            padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0,0,0,0);
+            white-space: nowrap; border: 0;
+          }
+        }
+
+        /* S5 — 44×44 pagination chips */
+        .spend-page-btn {
+          min-width: 44px;
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: 1px solid var(--lf-rule);
+          border-radius: 8px;
+          color: var(--lf-ink);
+          cursor: pointer;
+          padding: 0;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .spend-page-btn:hover:not(:disabled) {
+          background: var(--lf-cream);
+          border-color: var(--lf-ink);
+        }
+        .spend-page-btn:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+        }
       `}</style>
 
       <PageHeader
@@ -676,44 +762,54 @@ export function Spending() {
                 <DonutMini cats={donutCats} total={donutTotal} />
               </div>
               <div style={{ minWidth: 0 }}>
-                {(showAllCategories ? spendingCategories : spendingCategories.slice(0, 6)).map((cat) => {
-                  const display = getCategoryDisplay(cat.category);
-                  const isSelected = selectedCategory === cat.category;
-                  return (
-                    <button
-                      key={cat.category}
-                      onClick={() => setSelectedCategory(isSelected ? null : cat.category)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        width: '100%', padding: '10px 0',
-                        borderTop: '1px solid var(--lf-rule)',
-                        background: 'transparent',
-                        border: 'none', borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: 'var(--lf-rule)',
-                        cursor: 'pointer', textAlign: 'left',
-                        fontFamily: 'inherit',
-                        color: isSelected ? 'var(--lf-sauce)' : 'inherit',
-                      }}
-                    >
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: display.color }} />
-                      <span style={{ flex: 1, fontSize: 14, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {display.label}
-                      </span>
-                      <span className="ds-num" style={{ fontSize: 13, color: 'var(--lf-ink-soft)', flexShrink: 0 }}>
-                        {formatCurrency(Math.abs(cat.total))}
-                      </span>
-                      <span className="ds-num" style={{ fontSize: 12, color: 'var(--lf-muted)', flexShrink: 0, marginLeft: 4, minWidth: 36, textAlign: 'right' }}>
-                        {cat.percentage.toFixed(0)}%
-                      </span>
-                    </button>
-                  );
-                })}
-                {spendingCategories.length > 6 && (
-                  <div style={{ paddingTop: 10, borderTop: '1px solid var(--lf-rule)' }}>
-                    <Button variant="link" size="sm" onClick={() => setShowAllCategories((v) => !v)}>
-                      {showAllCategories ? 'Show less' : `+${spendingCategories.length - 6} more`}
-                    </Button>
-                  </div>
-                )}
+                {(() => {
+                  const visible = showAllCategories ? spendingCategories : spendingCategories.slice(0, 6);
+                  const hiddenCount = spendingCategories.length - 6;
+                  const showMore = !showAllCategories && hiddenCount > 0;
+                  return visible.map((cat, idx) => {
+                    const display = getCategoryDisplay(cat.category);
+                    const isSelected = selectedCategory === cat.category;
+                    const isLast = idx === visible.length - 1;
+                    return (
+                      <div
+                        key={cat.category}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          borderTop: '1px solid var(--lf-rule)',
+                        }}
+                      >
+                        <button
+                          onClick={() => setSelectedCategory(isSelected ? null : cat.category)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            flex: 1, minWidth: 0, padding: '10px 0',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer', textAlign: 'left',
+                            fontFamily: 'inherit',
+                            color: isSelected ? 'var(--lf-sauce)' : 'inherit',
+                          }}
+                        >
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: display.color }} />
+                          <span style={{ flex: 1, fontSize: 14, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {display.label}
+                          </span>
+                          <span className="ds-num" style={{ fontSize: 13, color: 'var(--lf-ink-soft)', flexShrink: 0 }}>
+                            {formatCurrency(Math.abs(cat.total))}
+                          </span>
+                          <span className="ds-num" style={{ fontSize: 12, color: 'var(--lf-muted)', flexShrink: 0, marginLeft: 4, minWidth: 36, textAlign: 'right' }}>
+                            {cat.percentage.toFixed(0)}%
+                          </span>
+                        </button>
+                        {isLast && (showMore || showAllCategories) && (
+                          <Button variant="link" size="sm" onClick={() => setShowAllCategories((v) => !v)}>
+                            {showAllCategories ? 'Show less' : `+${hiddenCount} more`}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </Card>
@@ -770,15 +866,27 @@ export function Spending() {
                 {(txPage - 1) * PAGE_SIZE + 1}&ndash;{Math.min(txPage * PAGE_SIZE, txTotal)} of {txTotal}
               </Eyebrow>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Button variant="icon" size="sm" onClick={() => setTxPage((p) => Math.max(1, p - 1))} disabled={txPage <= 1} aria-label="Previous page">
-                  <ChevronLeft size={13} />
-                </Button>
+                <button
+                  type="button"
+                  className="spend-page-btn"
+                  onClick={() => setTxPage((p) => Math.max(1, p - 1))}
+                  disabled={txPage <= 1}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={16} />
+                </button>
                 <span className="ds-num" style={{ minWidth: 60, textAlign: 'center', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)' }}>
                   {txPage} / {totalPages}
                 </span>
-                <Button variant="icon" size="sm" onClick={() => setTxPage((p) => Math.min(totalPages, p + 1))} disabled={txPage >= totalPages} aria-label="Next page">
-                  <ChevronRight size={13} />
-                </Button>
+                <button
+                  type="button"
+                  className="spend-page-btn"
+                  onClick={() => setTxPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={txPage >= totalPages}
+                  aria-label="Next page"
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           )}

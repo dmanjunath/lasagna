@@ -229,7 +229,7 @@ export function Settings() {
         title={firstName}
       />
 
-      <div style={{ marginBottom: 40 }}>
+      <div className="ds-settings-lede">
         <Lede>
           Your profile, household, and financial preferences. Lasagna uses
           these to personalize advice.
@@ -237,9 +237,10 @@ export function Settings() {
       </div>
 
       {/* ── Personal info ─────────────────────────────────────── */}
-      <Section title="Personal info" eyebrow="Who you are">
+      <Section eyebrow="Who you are">
         <EditorialArticle
           icon={<User size={16} />}
+          title="Personal info"
           summary={`${age === "Not set" ? "Age not set" : `Age ${age}`} · ${dependents === "Not set" ? "0 dependents" : `${dependents} dependent${dependents === "1" ? "" : "s"}`}${state !== "Not set" ? ` · ${state}` : ""}`}
           rows={personalRows}
           loading={loading}
@@ -260,9 +261,10 @@ export function Settings() {
       </Section>
 
       {/* ── Income & employment ───────────────────────────────── */}
-      <Section title="Income & employment" eyebrow="What you earn">
+      <Section eyebrow="What you earn">
         <EditorialArticle
           icon={<Briefcase size={16} />}
+          title="Income & employment"
           summary={`${grossIncome}${employerMatch !== "Not set" ? ` · ${employerMatch} match` : " · no match"}`}
           rows={incomeRows}
           loading={loading}
@@ -353,8 +355,15 @@ export function Settings() {
           color: var(--lf-ink-soft);
           flex-shrink: 0;
         }
-        .ds-article__head-body { flex: 1; min-width: 0; }
+        .ds-article__head-body {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
         .ds-article__head-title {
+          display: block;
           font-family: 'Instrument Serif', Georgia, serif;
           font-size: 20px;
           font-weight: 500;
@@ -362,10 +371,10 @@ export function Settings() {
           line-height: 1.2;
         }
         .ds-article__head-sub {
+          display: block;
           font-family: 'Geist', system-ui, sans-serif;
           font-size: 12px;
           color: var(--lf-muted);
-          margin-top: 2px;
         }
         .ds-article__head-chev {
           color: var(--lf-muted);
@@ -429,8 +438,15 @@ export function Settings() {
           color: var(--lf-ink-soft);
           flex-shrink: 0;
         }
-        .ds-navline-body { flex: 1; min-width: 0; }
+        .ds-navline-body {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
         .ds-navline-title {
+          display: block;
           font-family: 'Instrument Serif', Georgia, serif;
           font-size: 20px;
           font-weight: 500;
@@ -439,10 +455,10 @@ export function Settings() {
           transition: color 0.15s;
         }
         .ds-navline-sub {
+          display: block;
           font-family: 'Geist', system-ui, sans-serif;
           font-size: 12px;
           color: var(--lf-muted);
-          margin-top: 2px;
         }
         .ds-navline-chev {
           color: var(--lf-muted);
@@ -453,19 +469,29 @@ export function Settings() {
         .ds-navline:hover .ds-navline-chev { color: var(--lf-sauce); transform: translateX(2px); }
         .ds-settings-input {
           width: 100%;
-          padding: 10px 12px;
+          padding: 12px 14px;
           background: var(--lf-paper);
           border: 1px solid var(--lf-rule);
           border-radius: 8px;
-          font-size: 14px;
+          /* 16px prevents iOS Safari auto-zoom on focus */
+          font-size: 16px;
           color: var(--lf-ink);
           font-family: 'Geist', system-ui, sans-serif;
           outline: none;
           box-sizing: border-box;
         }
         .ds-settings-input:focus { border-color: var(--lf-ink); }
-        .ds-settings-signout { color: var(--lf-sauce); }
-        .ds-settings-signout:hover { color: var(--lf-sauce-deep); border-color: rgba(201,84,58,0.4); }
+        .ds-settings-signout {
+          color: var(--lf-sauce);
+          min-height: 44px;
+          padding-left: 16px; padding-right: 16px;
+          border-color: rgba(201,84,58,0.4);
+        }
+        .ds-settings-signout:hover { color: var(--lf-sauce-deep); border-color: rgba(201,84,58,0.6); }
+        .ds-settings-lede { margin-bottom: 40px; }
+        @media (max-width: 640px) {
+          .ds-settings-lede { margin-bottom: 20px; }
+        }
       `}</style>
     </Page>
   );
@@ -481,6 +507,7 @@ interface ArticleRowSpec {
 
 interface EditorialArticleProps {
   icon: React.ReactNode;
+  title?: string;
   summary: string;
   rows: ArticleRowSpec[];
   loading: boolean;
@@ -490,7 +517,7 @@ interface EditorialArticleProps {
   children?: React.ReactNode;
 }
 
-function EditorialArticle({ icon, summary, rows, loading, editable, expanded, onEdit, children }: EditorialArticleProps) {
+function EditorialArticle({ icon, title, summary, rows, loading, editable, expanded, onEdit, children }: EditorialArticleProps) {
   return (
     <article className="ds-article">
       <button
@@ -502,6 +529,7 @@ function EditorialArticle({ icon, summary, rows, loading, editable, expanded, on
       >
         <span className="ds-article__head-icon">{icon}</span>
         <span className="ds-article__head-body">
+          {title && <span className="ds-article__head-title">{title}</span>}
           <span className="ds-article__head-sub">{summary}</span>
         </span>
         {editable && (

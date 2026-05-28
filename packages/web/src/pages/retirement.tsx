@@ -222,8 +222,8 @@ function ReadinessRing({ pct }: { pct: number }) {
   const dash = (pct / 100) * circ;
   const color = pct >= 80 ? 'var(--lf-basil)' : pct >= 50 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
   return (
-    <div style={{ position: 'relative', width: 140, height: 140 }}>
-      <svg viewBox="0 0 120 120" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+    <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
+      <svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block', transform: 'rotate(-90deg)' }}>
         <circle cx="60" cy="60" r={r} fill="none" stroke="var(--lf-rule)" strokeWidth={8} />
         <circle cx="60" cy="60" r={r} fill="none" stroke={color} strokeWidth={8}
           strokeLinecap="round" strokeDasharray={`${dash} ${circ}`}
@@ -325,14 +325,15 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
 
 function DistributionBar({ finalValues }: { finalValues: number[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
+  // Compact labels so the x-axis doesn't overlap on mobile (audit R4).
   const BINS = [
-    { label: 'Depleted', min: -Infinity, max: 0, success: false },
-    { label: '<$500k', min: 0, max: 500_000, success: false },
-    { label: '$500k–1M', min: 500_000, max: 1_000_000, success: true },
-    { label: '$1–2M', min: 1_000_000, max: 2_000_000, success: true },
-    { label: '$2–4M', min: 2_000_000, max: 4_000_000, success: true },
-    { label: '$4–8M', min: 4_000_000, max: 8_000_000, success: true },
-    { label: '$8M+', min: 8_000_000, max: Infinity, success: true },
+    { label: '$0', min: -Infinity, max: 0, success: false },
+    { label: '0–.5M', min: 0, max: 500_000, success: false },
+    { label: '.5–1M', min: 500_000, max: 1_000_000, success: true },
+    { label: '1–2M', min: 1_000_000, max: 2_000_000, success: true },
+    { label: '2–4M', min: 2_000_000, max: 4_000_000, success: true },
+    { label: '4–8M', min: 4_000_000, max: 8_000_000, success: true },
+    { label: '8M+', min: 8_000_000, max: Infinity, success: true },
   ];
   const total = finalValues.length || 1;
   const histogram = BINS.map(bin => ({
@@ -825,20 +826,24 @@ function SimulateView({
             </button>
           ))}
         </div>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', lineHeight: 1.6, marginBottom: 20 }}>
+        {/* Body copy → Geist (mono only for numeric displays). */}
+        <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 14, color: 'var(--lf-ink-soft)', lineHeight: 1.55, marginBottom: 20 }}>
           {strategyDescriptions[strategy]}
         </div>
         <div className="ret-withdrawal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28, width: '100%' }}>
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <label style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500, fontFamily: "'Geist', system-ui, sans-serif" }}>
                 Monthly spending
               </label>
               <input
-                type="number" min={500} max={50000} step={500} value={monthlySpendStr}
+                type="text"
+                inputMode="numeric"
+                value={`$${Number(monthlySpendStr || 0).toLocaleString('en-US')}`}
                 onChange={e => {
-                  setMonthlySpendStr(e.target.value);
-                  const v = parseInt(e.target.value, 10);
+                  const raw = e.target.value.replace(/[^0-9]/g, '');
+                  setMonthlySpendStr(raw);
+                  const v = parseInt(raw, 10);
                   if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlySpend(v);
                 }}
                 onBlur={() => {
@@ -847,7 +852,7 @@ function SimulateView({
                   setMonthlySpend(clamped);
                   setMonthlySpendStr(String(clamped));
                 }}
-                style={{ width: 80, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#C9543A', fontWeight: 600, background: 'transparent' }}
+                style={{ width: 100, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#C9543A', fontWeight: 600, background: 'transparent' }}
               />
             </div>
             <input type="range" min={2000} max={20000} step={500} value={monthlySpend}
@@ -1410,7 +1415,10 @@ export function Retirement() {
             <DSLede.Num>{formatMoney(portfolioAtRetirement, true)}</DSLede.Num>
             {' '}by age {retirementAge} — that lasts{' '}
             <DSLede.Num highlight>
-              {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+ years` : `${yearsMoneyLasts} year${yearsMoneyLasts === 1 ? '' : 's'}`}
+              {/* Non-breaking space keeps "52+ years" on one line so the highlight
+                  is continuous (and box-decoration-break: clone handles the case
+                  when it does wrap). */}
+              {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+ years` : `${yearsMoneyLasts} year${yearsMoneyLasts === 1 ? '' : 's'}`}
             </DSLede.Num>
             {' '}at{' '}
             <DSLede.Num>{formatMoney(monthlyRetirementSpend, true)}/month</DSLede.Num>.
@@ -1507,7 +1515,9 @@ export function Retirement() {
               style={{ gridTemplateColumns: view === 'simple' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}
             >
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                {/* Label + value chip as a tight inline pair (left-aligned) so the
+                    chip doesn't sit visually above the slider's right end-label. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <label className="ret-slider-label">Retirement age</label>
                   <input
                     type="number" min={currentAge} max={100} value={retAgeStr}
@@ -1534,7 +1544,7 @@ export function Retirement() {
                 </div>
               </div>
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <label className="ret-slider-label">Life expectancy</label>
                   <input
                     type="number" min={retirementAge + 1} max={120} value={lifeExpStr}
@@ -1562,13 +1572,22 @@ export function Retirement() {
               </div>
               {view === 'simple' && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                     <label className="ret-slider-label">Monthly spending</label>
                     <input
-                      type="number" min={500} max={50000} step={500} value={monthlySpendStr}
+                      type="text"
+                      inputMode="numeric"
+                      value={
+                        // While editing, show raw draft. On blur the canonical value reflows
+                        // through monthlySpendStr → setMonthlySpendStr below.
+                        monthlySpendStr.startsWith('$')
+                          ? monthlySpendStr
+                          : `$${Number(monthlySpendStr || 0).toLocaleString('en-US')}`
+                      }
                       onChange={e => {
-                        setMonthlySpendStr(e.target.value);
-                        const v = parseInt(e.target.value, 10);
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        setMonthlySpendStr(raw);
+                        const v = parseInt(raw, 10);
                         if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlyRetirementSpend(v);
                       }}
                       onBlur={() => {
@@ -1578,7 +1597,7 @@ export function Retirement() {
                         setMonthlySpendStr(String(clamped));
                       }}
                       className="ret-slider-input ds-num"
-                      style={{ width: 80 }}
+                      style={{ width: 96 }}
                     />
                   </div>
                   <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
@@ -1624,7 +1643,7 @@ export function Retirement() {
                       : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))} short of plan`}
                   </p>
                 </DSCard>
-                <DSCard style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 200 }}>
+                <DSCard style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 220, padding: 24 }}>
                   <ReadinessRing pct={readiness} />
                   <p className="ds-caption" style={{ textAlign: 'center', margin: 0 }}>
                     {readinessLabel}

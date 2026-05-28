@@ -32,6 +32,13 @@ const FILING_LABELS: Record<string, string> = {
   head_of_household: "Head of Household",
 };
 
+const FILING_ABBR: Record<string, string> = {
+  single: "Single",
+  married_joint: "MFJ",
+  married_separate: "MFS",
+  head_of_household: "HoH",
+};
+
 function formatMoney(n: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -272,6 +279,9 @@ export function TaxStrategy() {
   const filingLabel = profile?.filingStatus
     ? FILING_LABELS[profile.filingStatus] ?? profile.filingStatus
     : null;
+  const filingAbbr = profile?.filingStatus
+    ? FILING_ABBR[profile.filingStatus] ?? filingLabel
+    : null;
 
   const estimatedSavings = useMemo(() => {
     if (documents.length === 0 || insights.length === 0) return null;
@@ -299,7 +309,7 @@ export function TaxStrategy() {
       key: 'name',
       header: 'Name',
       cell: (doc) => {
-        const { label } = getDocLabel(doc);
+        const { label, formType } = getDocLabel(doc);
         const isSelected = selectedDoc?.id === doc.id;
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -314,6 +324,12 @@ export function TaxStrategy() {
               <div style={{ fontSize: 12, color: 'var(--lf-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {doc.fileName}
               </div>
+              {/* Mobile-only inline type pill (Type column is hidden on mobile) */}
+              {formType && (
+                <span className="tax-doc-type-mobile" style={{ marginTop: 6 }}>
+                  <Pill tone="cream">{formType}</Pill>
+                </span>
+              )}
             </div>
           </div>
         );
@@ -387,7 +403,7 @@ export function TaxStrategy() {
     },
   ];
 
-  const uploadBtn = import.meta.env.VITE_DEMO_MODE !== "true" ? (
+  const renderUploadBtn = () => (
     <Button
       variant="primary"
       icon={<Upload size={14} />}
@@ -398,13 +414,42 @@ export function TaxStrategy() {
     >
       Upload documents
     </Button>
-  ) : null;
+  );
+  const showUpload = import.meta.env.VITE_DEMO_MODE !== "true";
 
   return (
     <Page>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         .tax-strip { margin: 32px 0 48px; }
+        .tax-upload-mobile { display: none; }
+        .tax-upload-desktop { display: inline-flex; }
+        .tax-refresh-btn { min-height: 44px; min-width: 44px; padding: 0 12px; }
+        .tax-doc-type-mobile { display: none; }
+        /* iOS Safari auto-zooms inputs <16px; force 16px on mobile inside tax input panel */
+        @media (max-width: 640px) {
+          .tax-input-wrap input[type="text"],
+          .tax-input-wrap input[type="url"],
+          .tax-input-wrap input[type="number"],
+          .tax-input-wrap input:not([type]),
+          .tax-input-wrap textarea,
+          .tax-input-wrap select {
+            font-size: 16px !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .tax-strip { margin: 16px 0 24px; }
+          .tax-upload-mobile {
+            display: block;
+            margin: 0 0 20px;
+          }
+          .tax-upload-mobile > * { width: 100%; }
+          .tax-upload-desktop { display: none; }
+          /* Hide type-pill column on mobile DataTable for documents */
+          .tax-doc-table th:nth-child(2),
+          .tax-doc-table td:nth-child(2) { display: none; }
+          .tax-doc-type-mobile { display: inline-flex; }
+        }
         .tax-feed { list-style: none; margin: 0; padding: 0; }
         .tax-feed li {
           padding: 22px 0;
@@ -482,8 +527,15 @@ export function TaxStrategy() {
       <PageHeader
         eyebrow={`${FILING_YEAR} filing year`}
         title="Tax"
-        actions={uploadBtn}
+        actions={showUpload ? <span className="tax-upload-desktop">{renderUploadBtn()}</span> : undefined}
       />
+
+      {/* Mobile-only: stacked full-width Upload below header */}
+      {showUpload && (
+        <div className="tax-upload-mobile">
+          {renderUploadBtn()}
+        </div>
+      )}
 
       {/* Editorial lede */}
       <div style={{ marginBottom: 8 }}>
@@ -515,8 +567,10 @@ export function TaxStrategy() {
           },
           {
             label: 'Filing status',
-            value: filingLabel ?? '—',
-            sub: profile?.stateOfResidence ?? undefined,
+            value: filingAbbr ?? '—',
+            sub: filingLabel
+              ? (profile?.stateOfResidence ? `${filingLabel} · ${profile.stateOfResidence}` : filingLabel)
+              : (profile?.stateOfResidence ?? undefined),
           },
           {
             label: 'Documents',
@@ -608,7 +662,9 @@ export function TaxStrategy() {
         >
           <div id="tax-documents-section">
             <Card>
-              <TaxInputPanel onSuccess={handleInputSuccess} />
+              <div className="tax-input-wrap">
+                <TaxInputPanel onSuccess={handleInputSuccess} />
+              </div>
             </Card>
           </div>
         </Section>
@@ -620,8 +676,15 @@ export function TaxStrategy() {
           title="Recommended actions"
           eyebrow={estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} action${insights.length === 1 ? '' : 's'}`}
           actions={
-            <Button variant="link" size="sm" onClick={handleRefreshInsights} disabled={refreshingInsights}>
-              {refreshingInsights ? "↻ Refreshing…" : "↻ Refresh"}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<RefreshCw size={13} style={refreshingInsights ? { animation: "spin 1s linear infinite" } : undefined} />}
+              onClick={handleRefreshInsights}
+              disabled={refreshingInsights}
+              className="tax-refresh-btn"
+            >
+              {refreshingInsights ? "Refreshing…" : "Refresh"}
             </Button>
           }
         >
@@ -690,7 +753,7 @@ export function TaxStrategy() {
         ) : (
           <Card flush>
             <div className={`tax-doc-layout ${selectedDoc ? 'is-split' : ''}`}>
-              <div>
+              <div className="tax-doc-table">
                 <DataTable
                   columns={docCols}
                   rows={documents}

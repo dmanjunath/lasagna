@@ -426,7 +426,7 @@ export function NetWorth() {
       {/* Editorial lede */}
       <div style={{ marginBottom: 40 }}>
         <Lede>
-          Your portfolio is worth <Lede.Num highlight>{formatMoney(totalValue)}</Lede.Num> —{' '}
+          Your portfolio is worth <Lede.Num highlight>{formatMoney(totalValue, true)}</Lede.Num> —{' '}
           <Lede.Num>{assetClasses.length}</Lede.Num> asset {assetClasses.length === 1 ? 'class' : 'classes'} across{' '}
           <Lede.Num>{accountCount}</Lede.Num> account{accountCount === 1 ? '' : 's'}.
           {biggest && (
@@ -506,12 +506,12 @@ export function NetWorth() {
           ) : 'Total portfolio'
         }
         actions={
-          <div style={{ display: 'inline-flex', gap: 6 }}>
+          <div className="ds-nw-pills">
             {(['assetClass', 'category', 'holding'] as GroupingLevel[]).map((g) => (
               <button
                 key={g}
                 onClick={() => { setGroupingLevel(g); setDrillLevel1(null); }}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                className="ds-nw-pill-btn"
               >
                 <Pill tone={groupingLevel === g ? 'ink' : 'ghost'}>{GROUPING_LABELS[g]}</Pill>
               </button>
@@ -531,7 +531,9 @@ export function NetWorth() {
               <div className="ds-nw-grid">
                 {/* Donut + central total */}
                 <div className="ds-nw-grid__chart">
-                  <DonutChart data={donutData} size={260} />
+                  <div className="ds-nw-donut" key={`donut-${groupingLevel}-${drillLevel1 ?? 'root'}`}>
+                    <DonutChart data={donutData} size={240} showLabels={false} />
+                  </div>
                   <div style={{ marginTop: 20, textAlign: 'center' }}>
                     <Eyebrow>{drillLevel1 ? drillLevel1 : 'Total portfolio'}</Eyebrow>
                     <div className="ds-display ds-num" style={{ marginTop: 8 }}>{formatMoney(currentTotal)}</div>
@@ -579,12 +581,55 @@ export function NetWorth() {
           flex-direction: column;
           align-items: center;
           min-width: 0;
+          min-height: 280px;
         }
         .ds-nw-grid__table { min-width: 0; overflow-x: auto; }
         @media (min-width: 820px) {
           .ds-nw-grid {
             grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
             gap: 40px;
+          }
+        }
+        /* N1+N2 — donut: stable size, cap at 240 on mobile, prevent collapse */
+        .ds-nw-donut {
+          width: 240px;
+          height: 240px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .ds-nw-donut > div,
+        .ds-nw-donut svg {
+          width: 240px !important;
+          height: 240px !important;
+          max-width: 240px;
+          max-height: 240px;
+        }
+        /* N5 — horizontally scrollable grouping pills, 44px tap targets */
+        .ds-nw-pills {
+          display: flex;
+          gap: 6px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          max-width: 100%;
+        }
+        .ds-nw-pills::-webkit-scrollbar { display: none; }
+        .ds-nw-pill-btn {
+          background: none;
+          border: 0;
+          padding: 0;
+          cursor: pointer;
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+          flex-shrink: 0;
+        }
+        /* N3 — composition ribbon legend: 1 column on mobile (fallback) */
+        @media (max-width: 640px) {
+          .ds-comp-ribbon__legend,
+          .ds-comp__legend {
+            grid-template-columns: 1fr !important;
           }
         }
       `}</style>
