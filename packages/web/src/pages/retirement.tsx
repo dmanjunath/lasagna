@@ -13,7 +13,6 @@ import {
 } from '../lib/retirement-engine';
 import {
   Page as DSPage,
-  PageHeader as DSPageHeader,
   Section as DSSection,
   Card as DSCard,
   Button as DSButton,
@@ -21,7 +20,10 @@ import {
   EmptyState as DSEmptyState,
   StatStrip as DSStatStrip,
   CompositionRibbon as DSCompositionRibbon,
-  Lede as DSLede,
+  PageSubToolbar,
+  ChartHover,
+  SkeletonChart,
+  SkeletonLine,
 } from '../components/ds';
 
 // ── MC constants ─────────────────────────────────────────────────────────────
@@ -64,28 +66,6 @@ function getExpectedReturn(allocation: Record<string, number>): number {
   return weighted / total;
 }
 
-function buildProjectionData(
-  currentAge: number,
-  retirementAge: number,
-  portfolioValue: number,
-  annualContribution: number,
-  expectedReturn: number
-) {
-  const data: { age: number; value: number; label?: string }[] = [];
-  let value = portfolioValue;
-  const rate = expectedReturn / 100;
-  for (let age = currentAge; age <= Math.max(retirementAge + 20, 90); age++) {
-    data.push({ age, value: Math.round(value), label: age === retirementAge ? 'Retirement' : undefined });
-    if (age < retirementAge) {
-      value = value * (1 + rate) + annualContribution;
-    } else {
-      value = value * (1 + rate * 0.6);
-    }
-    if (value < 0) value = 0;
-  }
-  return data;
-}
-
 // ── Sub-components ────────────────────────────────────────────────────────────
 function Eyebrow({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
@@ -112,60 +92,78 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   );
 }
 
-function ProjectionLine({ data }: { data: { age: number; value: number; label?: string }[] }) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  if (!data.length) return null;
+/**
+ * ProjectionFan — Plan-tab projection, now showing Monte Carlo bands instead
+ * of a single deterministic orange line. Reuses the same `buildBands` engine
+ * as the advanced Monte Carlo tab, so the Plan view tells the same story:
+ *   • outer band  p5–p95  — basil at 8% opacity (range of plausible outcomes)
+ *   • inner band  p25–p75 — basil at 18% opacity (likely outcomes)
+ *   • median line p50     — ink-soft dashed (reads as guidance, not "the answer")
+ *
+ * Note: bands are SVG <path> filled regions, NOT 1000 individual paths — we
+ * compute once via buildBands (memoized by caller) and just paint quantiles.
+ */
+function ProjectionFan({
+  bands,
+  currentAge,
+  retirementAge,
+}: {
+  bands: { p5: number[]; p25: number[]; p50: number[]; p75: number[]; p95: number[] };
+  currentAge: number;
+  retirementAge: number;
+}) {
+  const n = bands.p50.length;
+  if (n === 0) return null;
 
   const W = 760; const H = 220;
   const PL = 52; const PR = 16; const PT = 14; const PB = 28;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
 
-  const maxV = Math.max(...data.map(d => d.value));
-  const xf = (i: number) => PL + (i / (data.length - 1)) * chartW;
-  const yf = (v: number) => PT + chartH - (v / Math.max(maxV, 1)) * chartH;
-
-  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => ({ pct, val: maxV * pct, y: yf(maxV * pct) }));
-  const retireIdx = data.findIndex(d => d.label === 'Retirement');
-  const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1000)}k`;
-
-  const areaPath = [
-    `M ${xf(0)},${yf(0)}`,
-    ...data.map((d, i) => `L ${xf(i)},${yf(d.value)}`),
-    `L ${xf(data.length - 1)},${yf(0)}`, 'Z',
-  ].join(' ');
-  const linePath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${xf(i)},${yf(d.value)}`).join(' ');
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    const idx = Math.round(((svgX - PL) / chartW) * (data.length - 1));
-    setHoverIdx(Math.max(0, Math.min(data.length - 1, idx)));
+  // Iter 6: log y-axis so the early years (small absolute $) don't flatten
+  // the whole curve to a horizontal line. Iter 5's linear scale made the
+  // chart hug $0 for ~80% of the x-axis because p95 at age 90 is several
+  // orders of magnitude larger than the starting portfolio. With log
+  // scaling, the relative shape of all bands is preserved across the span.
+  const maxV = Math.max(...bands.p95, 1);
+  const startMin = Math.max(1000, Math.min(...bands.p5.filter(v => v > 0), bands.p50[0] || 1000));
+  const lnMin = Math.log(Math.max(1000, startMin));
+  const lnMax = Math.log(Math.max(maxV, startMin * 10));
+  const lnRange = Math.max(1e-6, lnMax - lnMin);
+  const xf = (i: number) => PL + (i / (n - 1)) * chartW;
+  const yf = (v: number) => {
+    const safe = Math.max(1000, v);
+    const t = (Math.log(safe) - lnMin) / lnRange;
+    return PT + chartH - Math.min(1, Math.max(0, t)) * chartH;
   };
 
-  const hx = hoverIdx !== null ? xf(hoverIdx) : null;
-  const hData = hoverIdx !== null ? data[hoverIdx] : null;
-  const ttX = hx !== null ? Math.min(hx, W - PR - 140) : 0;
+  // Log gridlines: 4 evenly-spaced ticks in log space.
+  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => {
+    const lnV = lnMin + pct * lnRange;
+    const val = Math.exp(lnV);
+    return { pct, val, y: yf(val) };
+  });
+  const retireIdx = Math.max(0, retirementAge - currentAge);
+  const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1000)}k`;
+
+  // Banded path: upper edge forward, lower edge back, closed.
+  const band = (upper: number[], lower: number[]) => {
+    let d = `M ${xf(0)},${yf(upper[0])}`;
+    for (let i = 1; i < n; i++) d += ` L ${xf(i)},${yf(upper[i])}`;
+    for (let i = n - 1; i >= 0; i--) d += ` L ${xf(i)},${yf(lower[i])}`;
+    return d + ' Z';
+  };
+  const linePath = (arr: number[]) => {
+    let d = `M ${xf(0)},${yf(arr[0])}`;
+    for (let i = 1; i < n; i++) d += ` L ${xf(i)},${yf(arr[i])}`;
+    return d;
+  };
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', cursor: 'crosshair' }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setHoverIdx(null)}
-      onTouchMove={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const svgX = ((e.touches[0].clientX - rect.left) / rect.width) * W;
-        const idx = Math.round(((svgX - PL) / chartW) * (data.length - 1));
-        setHoverIdx(Math.max(0, Math.min(data.length - 1, idx)));
-      }}
-      onTouchEnd={() => setHoverIdx(null)}
+    <div style={{ position: 'relative' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', pointerEvents: 'none' }}
+      data-testid="projection-fan"
     >
-      <defs>
-        <linearGradient id="projFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--lf-sauce)" stopOpacity={0.22} />
-          <stop offset="100%" stopColor="var(--lf-sauce)" stopOpacity={0.02} />
-        </linearGradient>
-      </defs>
-
       {/* Gridlines + Y-axis labels */}
       {yTicks.map(({ pct, val, y }) => (
         <g key={pct}>
@@ -177,42 +175,48 @@ function ProjectionLine({ data }: { data: { age: number; value: number; label?: 
       ))}
 
       {/* Retirement marker */}
-      {retireIdx >= 0 && (
+      {retireIdx > 0 && retireIdx < n && (
         <>
           <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={H - PB}
             stroke="var(--lf-basil)" strokeDasharray="4 4" strokeWidth={1} />
           <text x={xf(retireIdx) + 5} y={PT + 14} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-basil)">
-            retire {data[retireIdx].age}
+            retire {retirementAge}
           </text>
         </>
       )}
 
-      {/* Area + Line */}
-      <path d={areaPath} fill="url(#projFill)" />
-      <path d={linePath} fill="none" stroke="var(--lf-sauce)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      {/* MC bands — outer (p5–p95) under inner (p25–p75), then median.
+          Iter 6: switch from CSS `opacity` (which some renderers cache) to the
+          SVG `fill-opacity` attribute so the values stick. */}
+      <path d={band(bands.p95, bands.p5)} fill="var(--lf-data-2)" fillOpacity={0.08} data-band="p5-p95" />
+      <path d={band(bands.p75, bands.p25)} fill="var(--lf-data-2)" fillOpacity={0.18} data-band="p25-p75" />
+      <path d={linePath(bands.p50)} fill="none" stroke="var(--lf-ink-soft)" strokeWidth={1.5}
+        strokeDasharray="5 4" strokeLinecap="round" data-band="p50" />
 
       {/* X-axis age labels */}
       <text x={xf(0)} y={H - 6} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)">
-        {data[0].age}
+        {currentAge}
       </text>
-      <text x={xf(Math.floor((data.length - 1) / 2))} y={H - 6} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)" textAnchor="middle">
-        {data[Math.floor((data.length - 1) / 2)]?.age}
+      <text x={xf(Math.floor((n - 1) / 2))} y={H - 6} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)" textAnchor="middle">
+        {currentAge + Math.floor((n - 1) / 2)}
       </text>
-      <text x={xf(data.length - 1)} y={H - 6} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)" textAnchor="end">
-        {data[data.length - 1].age}
+      <text x={xf(n - 1)} y={H - 6} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)" textAnchor="end">
+        {currentAge + n - 1}
       </text>
 
-      {/* Hover crosshair + tooltip */}
-      {hx !== null && hData !== null && (
-        <g>
-          <line x1={hx} x2={hx} y1={PT} y2={H - PB} stroke="var(--lf-ink)" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
-          <circle cx={hx} cy={yf(hData.value)} r={4} fill="var(--lf-sauce)" />
-          <rect x={ttX} y={PT + 4} width={130} height={44} rx={6} fill="var(--lf-ink)" opacity={0.92} />
-          <text x={ttX + 10} y={PT + 22} fontFamily="'JetBrains Mono', monospace" fontSize={10} fill="var(--lf-cheese)">age {hData.age}</text>
-          <text x={ttX + 10} y={PT + 38} fontFamily="'JetBrains Mono', monospace" fontSize={10} fill="var(--lf-paper)">{fmt(hData.value)}</text>
-        </g>
-      )}
     </svg>
+    <ChartHover
+      width={W}
+      height={H}
+      paddingLeft={PL}
+      paddingRight={PR}
+      count={n}
+      getValue={(i) => `${fmt(bands.p50[i])} @ ${currentAge + i}`}
+      getLabel={(i) => `median (p50) at age ${currentAge + i}`}
+      getSubline={(i) => `p5 ${fmt(bands.p5[i])} · p95 ${fmt(bands.p95[i])}`}
+      getCurvePoint={(i) => ({ x: xf(i), y: yf(bands.p50[i]) })}
+    />
+    </div>
   );
 }
 
@@ -242,7 +246,6 @@ function ReadinessRing({ pct }: { pct: number }) {
 }
 
 function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof buildBands>; retireAge: number; currentAge: number }) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const W = 760; const H = 200;
   const n = bands.p50.length;
   const max = Math.max(...bands.p95) || 1;
@@ -262,41 +265,17 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
 
   const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1000)}k`;
 
-  const hx = hoverIdx !== null ? xf(hoverIdx) : null;
-  const hAge = hoverIdx !== null ? currentAge + hoverIdx : null;
-  const hp50 = hoverIdx !== null ? bands.p50[hoverIdx] : null;
-  const hp25 = hoverIdx !== null ? bands.p25[hoverIdx] : null;
-  const hp75 = hoverIdx !== null ? bands.p75[hoverIdx] : null;
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    const idx = Math.round((svgX / W) * (n - 1));
-    setHoverIdx(Math.max(0, Math.min(n - 1, idx)));
-  };
-
-  // Tooltip position
-  const ttX = hx !== null ? Math.min(hx, W - 140) : 0;
-  const ttY = 10;
-
   return (
-    <svg viewBox={`0 0 ${W} ${H + 20}`} width="100%" style={{ display: 'block', cursor: 'crosshair' }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setHoverIdx(null)}
-      onTouchMove={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const svgX = ((e.touches[0].clientX - rect.left) / rect.width) * W;
-        const idx = Math.round((svgX / W) * (n - 1));
-        setHoverIdx(Math.max(0, Math.min(n - 1, idx)));
-      }}
-      onTouchEnd={() => setHoverIdx(null)}
+    <div style={{ position: 'relative' }}>
+    <svg viewBox={`0 0 ${W} ${H + 20}`} width="100%" style={{ display: 'block', pointerEvents: 'none' }}
+      data-testid="fan-chart"
     >
       {[0, 1, 2, 3, 4].map(i => (
         <line key={i} x1={0} x2={W} y1={i * H / 4} y2={i * H / 4} stroke="var(--lf-rule)" strokeDasharray="2 4" />
       ))}
-      <path d={path(bands.p95, bands.p5)} fill="var(--lf-sauce)" opacity="0.08" />
-      <path d={path(bands.p75, bands.p25)} fill="var(--lf-sauce)" opacity="0.16" />
-      <path d={path(bands.p50)} stroke="var(--lf-sauce)" strokeWidth="2" fill="none" />
+      <path d={path(bands.p95, bands.p5)} fill="var(--lf-data-2)" fillOpacity="0.08" data-band="p5-p95" />
+      <path d={path(bands.p75, bands.p25)} fill="var(--lf-data-2)" fillOpacity="0.18" data-band="p25-p75" />
+      <path d={path(bands.p50)} stroke="var(--lf-ink-soft)" strokeWidth="1.5" strokeDasharray="5 4" fill="none" data-band="p50" />
       <line x1={retirePos} x2={retirePos} y1={0} y2={H} stroke="var(--lf-basil)" strokeDasharray="4 4" />
       <text x={retirePos + 6} y={16} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-basil)">
         retire {retireAge}
@@ -310,16 +289,19 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
       <text x={W} y={H + 14} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-muted)" textAnchor="end">
         age {currentAge + n - 1}
       </text>
-      {hx !== null && hAge !== null && hp50 !== null && (
-        <g>
-          <line x1={hx} x2={hx} y1={0} y2={H} stroke="var(--lf-ink)" strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-          <rect x={ttX} y={ttY} width={136} height={58} rx={6} fill="var(--lf-ink)" opacity="0.92" />
-          <text x={ttX + 8} y={ttY + 16} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-cheese)">age {hAge}</text>
-          <text x={ttX + 8} y={ttY + 30} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-paper)">p50 {fmt(hp50)}</text>
-          <text x={ttX + 8} y={ttY + 42} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="rgba(251,246,236,0.6)">p25 {hp25 ? fmt(hp25) : '—'} · p75 {hp75 ? fmt(hp75) : '—'}</text>
-        </g>
-      )}
     </svg>
+    <ChartHover
+      width={W}
+      height={H + 20}
+      paddingLeft={0}
+      paddingRight={0}
+      count={n}
+      getValue={(i) => `${fmt(bands.p50[i])} @ ${currentAge + i}`}
+      getLabel={(i) => `median (p50) at age ${currentAge + i}`}
+      getSubline={(i) => `p25 ${fmt(bands.p25[i])} · p75 ${fmt(bands.p75[i])}`}
+      getCurvePoint={(i) => ({ x: xf(i), y: yf(bands.p50[i]) })}
+    />
+    </div>
   );
 }
 
@@ -1072,9 +1054,9 @@ function SimulateView({
             </div>
             <FanChart bands={displayBands} retireAge={retirementAge} currentAge={currentAge} />
             <div style={{ display: 'flex', gap: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 12, flexWrap: 'wrap' }}>
-              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-sauce)', opacity: 0.1, marginRight: 6, verticalAlign: 'middle' }}></span>p5–p95</span>
-              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-sauce)', opacity: 0.28, marginRight: 6, verticalAlign: 'middle' }}></span>p25–p75</span>
-              <span style={{ color: 'var(--lf-sauce)' }}><span style={{ display: 'inline-block', width: 12, height: 2, background: 'var(--lf-sauce)', marginRight: 6, verticalAlign: 'middle' }}></span>median (p50)</span>
+              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-data-2)', opacity: 0.18, marginRight: 6, verticalAlign: 'middle' }}></span>p5–p95</span>
+              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-data-2)', opacity: 0.36, marginRight: 6, verticalAlign: 'middle' }}></span>p25–p75</span>
+              <span><span style={{ display: 'inline-block', width: 12, height: 2, background: 'var(--lf-ink-soft)', marginRight: 6, verticalAlign: 'middle' }}></span>median (p50)</span>
               <span style={{ marginLeft: 'auto' }}>
                 median @ age {lifeExp}: <strong>{formatMoney(displayBands.p50[displayBands.p50.length - 1] || 0, true)}</strong>
                 &nbsp;·&nbsp; worst 5%: <strong style={{ color: displayBands.p5[displayBands.p5.length - 1] === 0 ? 'var(--lf-sauce)' : undefined }}>
@@ -1282,18 +1264,61 @@ export function Retirement() {
     readiness >= 80 ? "You're on track!" :
     readiness >= 50 ? 'Getting there — keep saving.' :
     'More savings needed.';
-  const projectionData = buildProjectionData(currentAge, retirementAge, portfolioValue, annualSavings, expectedReturn);
 
-  if (loading) return null;
+  // Monte Carlo bands for the Plan-tab projection. We derive equityFraction
+  // from the live portfolio allocation (us + intl + reits) so the band width
+  // tracks the user's actual risk exposure. Memoized to avoid re-running 1000
+  // paths on every render (slider tweaks already invalidate the deps).
+  const planEquityFraction = useMemo(() => {
+    if (!Object.keys(allocation).length) return 0.7;
+    const eq = (allocation.usStocks ?? 0) + (allocation.intlStocks ?? 0) + (allocation.reits ?? 0);
+    const total = Object.values(allocation).reduce((s, v) => s + v, 0);
+    return total > 0 ? eq / total : 0.7;
+  }, [allocation]);
+  const planBands = useMemo(
+    () => buildBands(
+      portfolioValue,
+      annualSavings,
+      retirementAge,
+      currentAge,
+      expectedReturn,
+      annualExpenses,
+      planEquityFraction,
+      false, // nominal $ — matches the existing "Portfolio projection · nominal $" eyebrow
+      'constant_dollar',
+    ),
+    [portfolioValue, annualSavings, retirementAge, currentAge, expectedReturn, annualExpenses, planEquityFraction],
+  );
+
+  if (loading) {
+    // Iter 7 D: cached shell so first paint isn't blank ~300ms while the
+    // accounts query + MC compute spin up. Same outline as the loaded page
+    // (page-bar + projection fan height) so swap-in doesn't jolt.
+    return (
+      <DSPage>
+        <header className="ds-page-bar">
+          <div className="ds-page-bar__title-group">
+            <h1 className="ds-page-bar__title">Retirement</h1>
+            <SkeletonLine width="200px" height={12} style={{ marginTop: 4 }} />
+          </div>
+        </header>
+        <div style={{ marginBottom: 16 }}>
+          <SkeletonLine width="120px" height={11} />
+        </div>
+        <SkeletonChart height={320} />
+      </DSPage>
+    );
+  }
 
   if (!hasAccounts) {
     return (
       <DSPage>
-        <DSPageHeader
-          eyebrow="Get started"
-          title="Retirement"
-          lede="Project your portfolio, withdrawals, and timeline."
-        />
+        <header className="ds-page-bar">
+          <div className="ds-page-bar__title-group">
+            <h1 className="ds-page-bar__title">Retirement</h1>
+            <span className="ds-page-bar__caption">Link accounts to project your timeline</span>
+          </div>
+        </header>
         <DSEmptyState
           title="No accounts linked"
           body="Connect your bank and investment accounts to see your retirement projections based on real data."
@@ -1376,9 +1401,60 @@ export function Retirement() {
           padding: 2px 6px;
           font-family: 'JetBrains Mono', ui-monospace, monospace;
           font-size: 13px;
-          color: var(--lf-sauce);
+          /* Typed value reads as content (the user's choice), not a CTA. */
+          color: var(--lf-ink);
           font-weight: 600;
           background: transparent;
+        }
+        /* Iter 4: decouple slider track fill from brand sauce so the slider
+           stops reading as a data fill. Thumb stays sauce (carries the "you
+           are here" signal); the track is a neutral ink/12% rail. We can't
+           split thumb-vs-track with the native accentColor property, so we
+           hand-roll the appearance. */
+        .ret-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          height: 4px;
+          border-radius: 999px;
+          background: rgba(31, 26, 22, 0.12);
+          outline: none;
+          margin: 8px 0;
+          cursor: pointer;
+        }
+        .ret-slider::-webkit-slider-runnable-track {
+          height: 4px;
+          background: transparent;
+          border-radius: 999px;
+        }
+        .ret-slider::-moz-range-track {
+          height: 4px;
+          background: rgba(31, 26, 22, 0.12);
+          border-radius: 999px;
+        }
+        .ret-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: var(--lf-sauce);
+          border: 2px solid var(--lf-paper);
+          box-shadow: 0 1px 3px rgba(31, 26, 22, 0.18);
+          margin-top: -6px;
+          cursor: pointer;
+        }
+        .ret-slider::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: var(--lf-sauce);
+          border: 2px solid var(--lf-paper);
+          box-shadow: 0 1px 3px rgba(31, 26, 22, 0.18);
+          cursor: pointer;
+        }
+        .ret-slider:focus-visible::-webkit-slider-thumb {
+          box-shadow: 0 0 0 4px rgba(201, 84, 58, 0.18);
         }
         .ret-stats { margin: 0 0 40px; }
       `}</style>
@@ -1388,10 +1464,22 @@ export function Retirement() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
       >
-        <DSPageHeader
-          eyebrow={`retire at ${retirementAge} · ${Math.max(0, retirementAge - currentAge)} years away`}
-          title="Retirement"
-          actions={
+        {/* Page-bar locked: title + caption only. View toggle moves to
+            PageSubToolbar so the masthead stays a one-row primitive. */}
+        <header className="ds-page-bar">
+          <div className="ds-page-bar__title-group">
+            <h1 className="ds-page-bar__title">
+              On track to {formatMoney(portfolioAtRetirement, true)} by {retirementAge}
+            </h1>
+            <span className="ds-page-bar__caption ds-num">
+              {Math.max(0, retirementAge - currentAge)} years away · lasts{' '}
+              {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+ yrs` : `${yearsMoneyLasts} yr${yearsMoneyLasts === 1 ? '' : 's'}`}
+              {'  ·  '}{formatMoney(monthlyRetirementSpend, true)}/mo
+            </span>
+          </div>
+        </header>
+        <PageSubToolbar
+          left={
             <div className="ret-view-toggle" role="tablist" aria-label="View mode">
               {(['simple', 'advanced'] as const).map(v => (
                 <button
@@ -1408,22 +1496,7 @@ export function Retirement() {
           }
         />
 
-        {/* Editorial lede — addresses the user with inline tabular numbers */}
-        <div style={{ marginBottom: 32 }}>
-          <DSLede>
-            On your current path, you'll have{' '}
-            <DSLede.Num>{formatMoney(portfolioAtRetirement, true)}</DSLede.Num>
-            {' '}by age {retirementAge} — that lasts{' '}
-            <DSLede.Num highlight>
-              {/* Non-breaking space keeps "52+ years" on one line so the highlight
-                  is continuous (and box-decoration-break: clone handles the case
-                  when it does wrap). */}
-              {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+ years` : `${yearsMoneyLasts} year${yearsMoneyLasts === 1 ? '' : 's'}`}
-            </DSLede.Num>
-            {' '}at{' '}
-            <DSLede.Num>{formatMoney(monthlyRetirementSpend, true)}/month</DSLede.Num>.
-          </DSLede>
-        </div>
+        {/* Editorial lede removed in iter 2 — page-bar carries the signal. */}
 
         {/* Composition ribbon — only when we have a real allocation to show */}
         {Object.keys(allocation).length > 0 && portfolioValue > 0 && (() => {
@@ -1437,19 +1510,15 @@ export function Retirement() {
             reits: 'REITs', reit: 'REITs',
             cash: 'Cash',
           };
-          const colorMap: Record<string, string> = {
-            usStocks: 'var(--lf-sauce)', us: 'var(--lf-sauce)',
-            intlStocks: 'var(--lf-cheese)', intl: 'var(--lf-cheese)', international: 'var(--lf-cheese)',
-            bonds: 'var(--lf-basil)', bond: 'var(--lf-basil)',
-            reits: 'var(--lf-noodle)', reit: 'var(--lf-noodle)',
-            cash: 'var(--lf-crust)',
-          };
+          // CompositionRibbon owns the palette — passing `color` here is
+          // intentionally redundant; the component reassigns from the
+          // sauce-free data palette so adjacent segments stay distinct
+          // without re-introducing brand orange as a data fill.
           const segments = Object.entries(allocation)
             .filter(([, v]) => v > 0)
             .map(([k, v]) => ({
               label: labelMap[k] ?? k,
               value: Math.round((v / total) * portfolioValue),
-              color: colorMap[k] ?? 'var(--lf-rule)',
             }));
           if (segments.length === 0) return null;
           return (
@@ -1506,7 +1575,7 @@ export function Retirement() {
         <PageActions types="retirement" />
 
         {/* Assumptions sliders */}
-        <DSSection title="Assumptions" eyebrow="Tune the inputs">
+        <DSSection title="Assumptions" eyebrow="tune the inputs">
           <DSCard>
             <div
               className="ret-slider-row ret-sliders-grid"
@@ -1535,7 +1604,7 @@ export function Retirement() {
                 </div>
                 <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
                   onChange={e => setRetirementAge(+e.target.value)}
-                  style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
+                  className="ret-slider" />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                   <span className="ds-caption ds-num">{currentAge}</span>
                   <span className="ds-caption ds-num">100</span>
@@ -1562,7 +1631,7 @@ export function Retirement() {
                 </div>
                 <input type="range" min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
                   onChange={e => setLifeExpectancy(+e.target.value)}
-                  style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
+                  className="ret-slider" />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                   <span className="ds-caption ds-num">{retirementAge + 1}</span>
                   <span className="ds-caption ds-num">120</span>
@@ -1600,7 +1669,7 @@ export function Retirement() {
                   </div>
                   <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
                     onChange={e => setMonthlyRetirementSpend(+e.target.value)}
-                    style={{ width: '100%', accentColor: 'var(--lf-sauce)' }} />
+                    className="ret-slider" />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                     <span className="ds-caption ds-num">$2k</span>
                     <span className="ds-caption ds-num">$20k</span>
@@ -1615,7 +1684,7 @@ export function Retirement() {
         {view === 'simple' && (
           <>
             {/* Readiness + Income sub-cards */}
-            <DSSection title="Income & longevity" eyebrow="What you can spend, and for how long">
+            <DSSection title="Income & longevity" eyebrow="what you can spend, and for how long">
               <div
                 className="ret-3col"
                 style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}
@@ -1650,21 +1719,28 @@ export function Retirement() {
               </div>
             </DSSection>
 
-            {/* Projection chart */}
+            {/* Projection chart — Monte Carlo bands (1,000 randomized paths).
+                Plan tab now shows the same uncertainty as the Advanced tab so
+                users don't read a single deterministic line as a guarantee. */}
             <DSSection title="Projection" eyebrow={`Age ${currentAge} → ${Math.max(retirementAge + 20, 90)}`}>
               <DSCard flush>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 20px 12px', gap: 16, flexWrap: 'wrap' }}>
                   <div>
-                    <DSEyebrow>Portfolio projection · nominal $</DSEyebrow>
+                    <DSEyebrow>Portfolio projection · 1,000 randomized runs</DSEyebrow>
                     <p className="ds-body ds-body--sm" style={{ marginTop: 6 }}>
                       At {expectedReturn.toFixed(1)}% avg return · {annualSavings > 0 ? `${formatMoney(annualSavings, true)}/yr contributions` : 'no contributions estimated'}
                     </p>
                     <p className="ds-caption" style={{ marginTop: 4, opacity: 0.7 }}>
-                      Not inflation-adjusted — real purchasing power will be lower
+                      Bands show the range across 1,000 simulated market outcomes — not a guarantee.
                     </p>
                   </div>
                 </div>
-                <ProjectionLine data={projectionData} />
+                <ProjectionFan bands={planBands} currentAge={currentAge} retirementAge={retirementAge} />
+                <div style={{ display: 'flex', gap: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--lf-muted)', padding: '4px 20px 20px', flexWrap: 'wrap' }}>
+                  <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-data-2)', opacity: 0.18, marginRight: 6, verticalAlign: 'middle' }} />p5–p95 range</span>
+                  <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-data-2)', opacity: 0.36, marginRight: 6, verticalAlign: 'middle' }} />p25–p75 likely</span>
+                  <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'var(--lf-ink-soft)', marginRight: 6, verticalAlign: 'middle' }} />median (p50)</span>
+                </div>
               </DSCard>
             </DSSection>
           </>

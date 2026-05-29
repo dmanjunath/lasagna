@@ -12,16 +12,15 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   Page,
-  PageHeader,
   Section,
   Button,
   Pill,
   Eyebrow,
   EmptyState,
-  Lede,
   useConfirm,
 } from "../components/ds";
 import { api } from "../lib/api.js";
@@ -158,6 +157,28 @@ export function Accounts() {
   const [addingAccount, setAddingAccount] = useState(false);
   const [linkedBanner, setLinkedBanner] = useState<{ message: string; actionLabel: string; onAction: () => void } | null>(null);
   const [pendingLinkedId, setPendingLinkedId] = useState<string | null>(null);
+  // Iter 8 P1: mobile overflow menu state for the page-bar actions.
+  // <520px collapses Sync all + Add manual into a "···" sheet so Connect a
+  // bank (primary) stays inline. Sheet closes on click-outside / Escape.
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const overflowRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!overflowOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setOverflowOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOverflowOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [overflowOpen]);
 
   const loadItems = (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -400,39 +421,99 @@ export function Accounts() {
   // Render
   // ---------------------------------------------------------------------------
 
+  // Iter 7 A: compact ds-page-bar replaces the serif PageHeader + editorial
+  // Lede. Caption inline carries the "N institutions · M accounts · total"
+  // line that the Lede block used to own.
+  const lastSync = items
+    .map((i) => i.lastSyncedAt)
+    .filter((v): v is string => !!v)
+    .sort()
+    .pop();
+  const captionParts: string[] = [];
+  if (items.length > 0) captionParts.push(`${items.length} institution${items.length !== 1 ? "s" : ""}`);
+  if (totalAccounts > 0) captionParts.push(`${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`);
+  if (totalTracked > 0) captionParts.push(formatTotal(totalTracked));
+  if (lastSync) captionParts.push(`last sync ${formatRelativeTime(lastSync)}`);
+
   return (
     <Page>
-      <PageHeader
-        eyebrow={loading ? null : `${items.length} institution${items.length !== 1 ? "s" : ""} · ${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`}
-        title="Accounts"
-        actions={!isDemoMode ? (
-          <span className="ds-accounts-header-actions">
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Accounts</h1>
+          {!loading && captionParts.length > 0 && (
+            <span className="ds-page-bar__caption">{captionParts.join(' · ')}</span>
+          )}
+        </div>
+        {!isDemoMode && (
+          <span className="ds-page-bar__actions ds-accounts-header-actions">
+            {/* Primary action stays inline on every breakpoint. */}
+            <Button variant="ink" size="sm" onClick={handleLink} disabled={linking || syncing} icon={linking ? <Spinner size={13} /> : <Plus size={14} />} className="ds-accounts-cta-primary">
+              {linking ? "Connecting…" : "Connect a bank"}
+            </Button>
+            {/* Secondaries collapse into the "···" sheet at <=520px via the
+                .ds-page-bar__action--overflow utility. */}
             {items.length > 0 && (
-              <Button variant="ghost" onClick={handleSyncAll} disabled={syncing || linking} icon={syncing ? <Spinner size={13} /> : <RefreshCw size={14} />} className="ds-accounts-cta-secondary">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSyncAll}
+                disabled={syncing || linking}
+                icon={syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}
+                className="ds-accounts-cta-secondary ds-page-bar__action--overflow"
+              >
                 {syncing ? "Syncing…" : "Sync all"}
               </Button>
             )}
-            <Button variant="ghost" onClick={() => setShowManualModal(true)} icon={<Pencil size={14} />} className="ds-accounts-cta-secondary">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowManualModal(true)}
+              icon={<Pencil size={14} />}
+              className="ds-accounts-cta-secondary ds-page-bar__action--overflow"
+            >
               Add manual
             </Button>
-            <Button variant="primary" onClick={handleLink} disabled={linking || syncing} icon={linking ? <Spinner size={13} /> : <Plus size={14} />} className="ds-accounts-cta-primary">
-              {linking ? "Connecting…" : "Connect a bank"}
-            </Button>
+            {/* Overflow trigger — only shown at <=520px via CSS. */}
+            <span className="ds-page-bar__overflow" ref={overflowRef}>
+              <button
+                type="button"
+                className="ds-page-bar__overflow-btn"
+                aria-label="More actions"
+                aria-haspopup="menu"
+                aria-expanded={overflowOpen}
+                onClick={() => setOverflowOpen((v) => !v)}
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {overflowOpen && (
+                <div className="ds-page-bar__overflow-menu" role="menu">
+                  {items.length > 0 && (
+                    <button
+                      type="button"
+                      className="ds-page-bar__overflow-item"
+                      role="menuitem"
+                      disabled={syncing || linking}
+                      onClick={() => { setOverflowOpen(false); handleSyncAll(); }}
+                    >
+                      {syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}
+                      {syncing ? "Syncing…" : "Sync all"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="ds-page-bar__overflow-item"
+                    role="menuitem"
+                    onClick={() => { setOverflowOpen(false); setShowManualModal(true); }}
+                  >
+                    <Pencil size={14} />
+                    Add manual
+                  </button>
+                </div>
+              )}
+            </span>
           </span>
-        ) : undefined}
-      />
-
-      {/* Editorial lede */}
-      {!loading && items.length > 0 && (
-        <div style={{ marginBottom: 40 }}>
-          <Lede>
-            <Lede.Num>{items.length}</Lede.Num> institution{items.length !== 1 ? "s" : ""} linked.
-            Total tracked:{' '}
-            <Lede.Num highlight>{formatTotal(totalTracked)}</Lede.Num>{' '}
-            across <Lede.Num>{totalAccounts}</Lede.Num> account{totalAccounts !== 1 ? "s" : ""}.
-          </Lede>
-        </div>
-      )}
+        )}
+      </header>
 
       {/* Quick Import CTA — kept as a soft inline marginalia line */}
       <Link href="/quick-import" className="ds-accounts-quickimport">
@@ -758,25 +839,13 @@ export function Accounts() {
           border-bottom: 1px solid var(--lf-rule-soft);
         }
         .ds-accounts-header-actions {
-          display: inline-flex; gap: 8px; flex-wrap: wrap;
+          display: inline-flex; gap: 8px; flex-wrap: nowrap;
           align-items: center;
         }
-        @media (max-width: 640px) {
-          /* Mobile: Plaid primary on its own full-width row;
-             Sync all + Add manual share a row of ghost buttons */
-          .ds-accounts-header-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            width: 100%;
-          }
-          .ds-accounts-cta-secondary { grid-column: span 1; }
-          .ds-accounts-cta-primary {
-            grid-column: 1 / -1;
-            width: 100%;
-            justify-content: center;
-          }
-        }
+        /* Iter 8: on small screens the secondaries collapse into the
+           .ds-page-bar__overflow menu (handled by the design-system primitive),
+           so the page-scoped grid is no longer needed here. The primary
+           "Connect a bank" stays inline next to the overflow "···" button. */
         .ds-accounts-quickimport {
           display: inline-flex; align-items: center; gap: 8px;
           padding: 6px 0;

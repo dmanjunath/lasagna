@@ -23,7 +23,7 @@ export function AppHeader({
         <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
           <div className="lf-mark"><span /><span /><span /></div>
           <span className="text-[15px] font-semibold text-text tracking-tight leading-none">
-            Lasagna<span className="text-accent">Fi</span>
+            Lasagna<span className="text-text-muted font-medium">Fi</span>
           </span>
         </div>
         <div className="w-11 -mr-2 shrink-0" aria-hidden="true" />

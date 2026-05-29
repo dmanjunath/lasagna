@@ -35,23 +35,28 @@ interface CompositionRibbonProps {
 const fmtUsd = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
-/** Curated set of visually distinct brand tokens. Order is chosen so the
- *  most common 3–5 segment cases (which is most pages) get maximally
- *  different hues: red → gold → green → brown → grey → ink → cream.
- *  Burgundy and noodle are at the end because they're close to sauce and
- *  cheese respectively — only used when 7+ segments are present. */
+/** Warm-neutral DATA palette (iter 4). The brand sauce/cheese tokens are
+ *  reserved for CTAs, focus rings, and "you are here" markers — they must
+ *  never appear in data fills, or the whole product reads as "one orange
+ *  blob" (iter 3 critic, correct).
+ *
+ *  Order: ink-deep → basil → taupe → dust-blue → ochre-muted, then we wrap
+ *  to muted/ink-soft for 6+-segment overflow. None of these hues collide
+ *  with sauce so the ribbon now reads as "earth tones" not "brand fill". */
 const DISTINCT_PALETTE = [
-  'var(--lf-sauce)',     // warm red
-  'var(--lf-cheese)',    // gold
-  'var(--lf-basil)',     // olive green
-  'var(--lf-crust)',     // saddle brown
-  'var(--lf-muted)',     // warm grey
-  'var(--lf-ink-soft)',  // dark ink
-  'var(--lf-noodle)',    // cream gold
-  'var(--lf-burgundy)',  // deep red
+  'var(--lf-data-1)',    // ink-deep
+  'var(--lf-data-2)',    // basil
+  'var(--lf-data-3)',    // taupe
+  'var(--lf-data-4)',    // dust-blue
+  'var(--lf-data-5)',    // ochre-muted
+  'var(--lf-muted)',     // warm grey (overflow)
+  'var(--lf-ink-soft)',  // dark ink (overflow)
+  'var(--lf-crust)',     // saddle brown (overflow)
 ];
 /** Debt segments always render in sauce-deep regardless of palette order
- *  so debt stays semantically red across every page. */
+ *  so debt stays semantically red across every page — this is the ONE
+ *  place sauce-deep is allowed in data fills, because it carries meaning
+ *  ("this segment is a liability") that no warm-neutral can express. */
 const DEBT_COLOR = 'var(--lf-sauce-deep)';
 
 /** Always assign colors from the distinct palette in order. Caller-provided
@@ -67,10 +72,11 @@ function assignDistinctColors(segments: CompositionSegment[]): CompositionSegmen
   const hasDebt = segments.some((s) => s.negative);
   const mixedSign = hasPositive && hasDebt;
 
-  // When the bar mixes signs, reserve sauce (red) for debt so the red on
-  // the bar reads as "this is debt" and isn't confused with an asset class.
-  // Positives start one slot in (gold first).
-  let paletteIdx = mixedSign ? 1 : 0;
+  // Data palette is sauce-free, so positives start at slot 0 regardless
+  // of whether debt is also on the bar. Debts always get sauce-deep so the
+  // red on the bar reads as "this is a liability" — the only place sauce
+  // appears in any data fill.
+  let paletteIdx = 0;
   return segments.map((seg) => {
     if (mixedSign && seg.negative) {
       return { ...seg, color: DEBT_COLOR };

@@ -7,7 +7,6 @@ import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
 import {
   Page,
-  PageHeader,
   Section,
   Card,
   Button,
@@ -17,7 +16,6 @@ import {
   EmptyState,
   CompositionRibbon,
   StatStrip,
-  Lede,
 } from '../components/ds';
 import type { DataTableColumn } from '../components/ds/DataTable';
 import type { CompositionSegment } from '../components/ds/CompositionRibbon';
@@ -235,10 +233,13 @@ export function Debt() {
 function NoAccountsView() {
   return (
     <>
-      <PageHeader
-        eyebrow="0 accounts"
-        title="Debt"
-      />
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Debt</h1>
+          <span className="ds-page-bar__subtitle">No accounts linked</span>
+        </div>
+      </header>
+      <div className="ds-page-bar__subtitle-mobile">No accounts linked</div>
       <Section>
         <EmptyState
           icon={<CreditCard size={40} />}
@@ -561,24 +562,24 @@ function HasDebtView({
         }
       `}</style>
 
-      <PageHeader
-        eyebrow={`${debts.length} account${debts.length !== 1 ? 's' : ''}`}
-        title="Debt"
-      />
-
-      {/* Editorial lede */}
-      <div style={{ marginBottom: 8 }}>
-        <Lede>
-          You owe{' '}
-          <Lede.Num tone="neg">{formatCurrency(totalDebt)}</Lede.Num>
-          {' '}across{' '}
-          <Lede.Num>{debts.length}</Lede.Num> account{debts.length === 1 ? '' : 's'}{' '}
-          at a blended rate of{' '}
-          <Lede.Num tone={apr > 15 ? 'neg' : 'default'}>{apr}%</Lede.Num>.
-          {' '}At your current pace, you'll be debt-free{' '}
-          <Lede.Num highlight>{debtFreeDate}</Lede.Num>.
-        </Lede>
-      </div>
+      {/* Iter 8: ds-page-bar replaces editorial PageHeader + Lede. Live
+          monetary data stays out of the H1; subtitle carries the totals
+          (inline on desktop, dropped below on mobile). */}
+      {(() => {
+        const subtitleText = `${formatCurrency(totalDebt)} across ${debts.length} account${debts.length === 1 ? '' : 's'} · ${apr}% blended`;
+        const subtitleMobile = `${debts.length} account${debts.length === 1 ? '' : 's'} · ${apr}% blended`;
+        return (
+          <>
+            <header className="ds-page-bar">
+              <div className="ds-page-bar__title-group">
+                <h1 className="ds-page-bar__title">Debt</h1>
+                <span className="ds-page-bar__subtitle">{subtitleText}</span>
+              </div>
+            </header>
+            <div className="ds-page-bar__subtitle-mobile">{subtitleMobile}</div>
+          </>
+        );
+      })()}
 
       {/* Composition ribbon */}
       {compositionSegments.length > 0 && (() => {
@@ -616,7 +617,7 @@ function HasDebtView({
       {/* Payoff strategy — editorial comparison */}
       <Section
         title="Payoff strategy"
-        eyebrow="Choose your approach"
+        eyebrow="choose your approach"
         actions={
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
             <span
@@ -963,20 +964,15 @@ function LoanDetailsModal({
 function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
-      <PageHeader
-        eyebrow="0 accounts"
-        title="Debt"
-      />
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Debt</h1>
+          <span className="ds-page-bar__subtitle ds-pos">$0 — debt-free</span>
+        </div>
+      </header>
+      <div className="ds-page-bar__subtitle-mobile"><span className="ds-pos">$0 — debt-free</span></div>
 
-      <div style={{ marginBottom: 8 }}>
-        <Lede>
-          You owe{' '}
-          <Lede.Num tone="pos">$0</Lede.Num>.
-          {' '}Every dollar you earn stays in your pocket — <Lede.Num highlight>now build the safety net</Lede.Num>.
-        </Lede>
-      </div>
-
-      <Section title="What's next?" eyebrow="Now that you're debt-free">
+      <Section title="What's next?" eyebrow="now that you're debt-free">
         <Card>
           <p className="ds-body">
             Redirect those payments into investments and savings.

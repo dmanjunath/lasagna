@@ -10,7 +10,6 @@ import { useChatStore } from "../lib/chat-store.js";
 import { LegalDisclaimer } from "../components/common/legal-disclaimer.js";
 import {
   Page,
-  PageHeader,
   Section,
   Card,
   Button,
@@ -19,7 +18,6 @@ import {
   DataTable,
   EmptyState,
   StatStrip,
-  Lede,
 } from "../components/ds";
 import type { DataTableColumn } from "../components/ds/DataTable";
 
@@ -524,11 +522,28 @@ export function TaxStrategy() {
         }
       `}</style>
 
-      <PageHeader
-        eyebrow={`${FILING_YEAR} filing year`}
-        title="Tax"
-        actions={showUpload ? <span className="tax-upload-desktop">{renderUploadBtn()}</span> : undefined}
-      />
+      {/* Iter 8: ds-page-bar replaces the editorial PageHeader + Lede.
+          Filing year + document/insight counts ride the subtitle slot. */}
+      {(() => {
+        const subBits: string[] = [`${FILING_YEAR} filing year`];
+        if (documents.length > 0) subBits.push(`${documents.length} doc${documents.length === 1 ? '' : 's'}`);
+        if (insights.length > 0) subBits.push(`${insights.length} action${insights.length === 1 ? '' : 's'}`);
+        const subtitleText = subBits.join(' · ');
+        return (
+          <>
+            <header className="ds-page-bar">
+              <div className="ds-page-bar__title-group">
+                <h1 className="ds-page-bar__title">Tax</h1>
+                <span className="ds-page-bar__subtitle">{subtitleText}</span>
+              </div>
+              {showUpload && (
+                <span className="tax-upload-desktop">{renderUploadBtn()}</span>
+              )}
+            </header>
+            <div className="ds-page-bar__subtitle-mobile">{subtitleText}</div>
+          </>
+        );
+      })()}
 
       {/* Mobile-only: stacked full-width Upload below header */}
       {showUpload && (
@@ -536,24 +551,6 @@ export function TaxStrategy() {
           {renderUploadBtn()}
         </div>
       )}
-
-      {/* Editorial lede */}
-      <div style={{ marginBottom: 8 }}>
-        <Lede>
-          We see{' '}
-          <Lede.Num>{documents.length}</Lede.Num>
-          {' '}tax document{documents.length === 1 ? '' : 's'} and{' '}
-          <Lede.Num tone={insights.length > 0 ? 'pos' : 'default'}>{insights.length}</Lede.Num>
-          {' '}open opportunit{insights.length === 1 ? 'y' : 'ies'}
-          {estimatedSavings && (
-            <>
-              {' '}worth roughly{' '}
-              <Lede.Num highlight>{formatMoney(estimatedSavings)}/yr</Lede.Num>
-            </>
-          )}
-          .
-        </Lede>
-      </div>
 
       {/* Stat strip */}
       <StatStrip

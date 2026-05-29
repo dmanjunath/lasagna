@@ -87,7 +87,7 @@ export function Sidebar({ className }: SidebarProps) {
             <span /><span /><span />
           </div>
           <span className="text-lg font-semibold text-text tracking-tight">
-            Lasagna<span className="text-accent">Fi</span>
+            Lasagna<span className="text-text-muted font-medium">Fi</span>
           </span>
         </div>
       </div>

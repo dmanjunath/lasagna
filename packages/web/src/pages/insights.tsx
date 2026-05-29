@@ -8,14 +8,12 @@ import { formatRelativeTime } from '../lib/utils';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import {
   Page,
-  PageHeader,
   Section,
   Button,
   Pill,
   Eyebrow,
   EmptyState,
   StatStrip,
-  Lede,
 } from '../components/ds';
 
 // ---------------------------------------------------------------------------
@@ -283,33 +281,31 @@ export function Insights() {
   const showCompleted =
     activeFilter === null || activeFilter === 'completed';
 
+  // Iter 8: ds-page-bar replaces the editorial PageHeader + Lede. Title is
+  // always terse; the live action count rides the subtitle slot (inline on
+  // desktop, dropped to a sub-row on mobile).
+  const captionBits: string[] = [];
+  if (!isLoading && totalCount > 0) {
+    captionBits.push(`${totalCount} open`);
+    if (doNowCount > 0) captionBits.push(`${doNowCount} urgent`);
+  }
+  const subtitleText = captionBits.length > 0 ? captionBits.join(' · ') : null;
+
   return (
     <Page>
-      <PageHeader title="Actions" />
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Actions</h1>
+          {subtitleText && (
+            <span className="ds-page-bar__subtitle">{subtitleText}</span>
+          )}
+        </div>
+      </header>
+      {subtitleText && (
+        <div className="ds-page-bar__subtitle-mobile">{subtitleText}</div>
+      )}
 
       <LegalDisclaimer variant="insights" />
-
-      {!isLoading && totalCount > 0 && (
-        <div style={{ marginBottom: 32 }}>
-          <Lede>
-            <Lede.Num>{totalCount}</Lede.Num> action{totalCount === 1 ? '' : 's'} for you today.
-            {doNowCount > 0 && (
-              <>
-                {' '}
-                <Lede.Num tone="neg">{doNowCount}</Lede.Num>{' '}
-                {doNowCount === 1 ? 'is' : 'are'} time-sensitive
-                {topAction && (
-                  <>
-                    {' — start with '}
-                    <Lede.Num highlight>{topAction.title}</Lede.Num>
-                  </>
-                )}
-              </>
-            )}
-            .
-          </Lede>
-        </div>
-      )}
 
       {!isLoading && totalCount > 0 && (
         <StatStrip

@@ -8,19 +8,20 @@ import { useLocation } from 'wouter';
 import { PageActions } from '../components/common/page-actions';
 import {
   Page,
-  PageHeader,
   Section,
   Card,
   Button,
   Pill,
   Eyebrow,
-  DataTable,
   EmptyState,
   CompositionRibbon,
   StatStrip,
-  Lede,
+  Favicon,
+  SkeletonChart,
+  SkeletonRow,
+  SkeletonLine,
 } from '../components/ds';
-import type { DataTableColumn } from '../components/ds/DataTable';
+import { faviconUrl, tickerToIssuer } from '../components/ds/institutions';
 import type { CompositionSegment } from '../components/ds/CompositionRibbon';
 
 // ---------------------------------------------------------------------------
@@ -57,25 +58,28 @@ interface Holding {
 // Asset class color mapping — LasagnaFi palette
 // ---------------------------------------------------------------------------
 
+// Iter 4: sauce-free data palette. Asset-class colors are still mapped
+// (so US Equity is always the same hue) but they're drawn from the
+// neutral data palette — no more "one orange blob" donuts.
 const ASSET_CLASS_COLORS: Record<string, string> = {
-  'US Equity':         'var(--lf-sauce)',
-  'Intl Equity':       'var(--lf-cheese)',
-  'International Equity': 'var(--lf-cheese)',
-  'Bonds':             'var(--lf-basil)',
-  'Fixed Income':      'var(--lf-basil)',
-  'REITs':             'var(--lf-noodle)',
-  'Real Estate':       'var(--lf-noodle)',
-  'Alt':               'var(--lf-crust)',
-  'Alternative':       'var(--lf-crust)',
-  'Commodity':         'var(--lf-crust)',
-  'Cash':              '#8B7E6F',
-  'Cash & Equivalents':'#8B7E6F',
+  'US Equity':         'var(--lf-data-1)',
+  'Intl Equity':       'var(--lf-data-4)',
+  'International Equity': 'var(--lf-data-4)',
+  'Bonds':             'var(--lf-data-2)',
+  'Fixed Income':      'var(--lf-data-2)',
+  'REITs':             'var(--lf-data-5)',
+  'Real Estate':       'var(--lf-data-5)',
+  'Alt':               'var(--lf-data-3)',
+  'Alternative':       'var(--lf-data-3)',
+  'Commodity':         'var(--lf-data-3)',
+  'Cash':              'var(--lf-muted)',
+  'Cash & Equivalents':'var(--lf-muted)',
 };
 
 const FALLBACK_COLORS = [
-  'var(--lf-sauce)', 'var(--lf-cheese)', 'var(--lf-basil)',
-  'var(--lf-noodle)', 'var(--lf-crust)', '#8B7E6F',
-  'var(--lf-burgundy)', 'var(--lf-muted)',
+  'var(--lf-data-1)', 'var(--lf-data-2)', 'var(--lf-data-3)',
+  'var(--lf-data-4)', 'var(--lf-data-5)', 'var(--lf-muted)',
+  'var(--lf-ink-soft)', 'var(--lf-crust)',
 ];
 
 function colorForAssetClass(name: string, index: number): string {
@@ -724,7 +728,28 @@ export default function PortfolioComposition() {
   // Loading
   // ---------------------------------------------------------------------------
 
-  if (loading) return null;
+  if (loading) {
+    // Iter 7 D: cached shell. Matches the loaded layout — page-bar + donut +
+    // 6 holding rows — so first paint reserves space without jolt.
+    return (
+      <Page>
+        <header className="ds-page-bar">
+          <div className="ds-page-bar__title-group">
+            <h1 className="ds-page-bar__title">Portfolio</h1>
+            <SkeletonLine width="180px" height={12} style={{ marginTop: 4 }} />
+          </div>
+        </header>
+        <div style={{ marginBottom: 28 }}>
+          <SkeletonChart height={240} />
+        </div>
+        <Section>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <SkeletonRow key={i} />
+          ))}
+        </Section>
+      </Page>
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Empty — no holdings, but accounts exist → account-level fallback
@@ -737,16 +762,16 @@ export default function PortfolioComposition() {
 
     return (
       <Page>
-        <PageHeader
-          title="Portfolio"
-          eyebrow={`${accountAllocation.length} account${accountAllocation.length === 1 ? '' : 's'}`}
-        />
-
-        <div style={{ marginBottom: 40 }}>
-          <Lede>
-            No individual holdings found — showing your <Lede.Num highlight>{formatMoney(accountTotal, true)}</Lede.Num> spread across{' '}
-            <Lede.Num>{accountAllocation.length}</Lede.Num> account{accountAllocation.length === 1 ? '' : 's'}.
-          </Lede>
+        <header className="ds-page-bar">
+          <div className="ds-page-bar__title-group">
+            <h1 className="ds-page-bar__title">Portfolio</h1>
+            <span className="ds-page-bar__subtitle">
+              {formatMoney(accountTotal, true)} · {accountAllocation.length} account{accountAllocation.length === 1 ? '' : 's'} · no holdings yet
+            </span>
+          </div>
+        </header>
+        <div className="ds-page-bar__subtitle-mobile">
+          {formatMoney(accountTotal, true)} · {accountAllocation.length} account{accountAllocation.length === 1 ? '' : 's'} · no holdings yet
         </div>
 
         <Section title="Asset allocation">
@@ -797,10 +822,12 @@ export default function PortfolioComposition() {
   if (assetClasses.length === 0) {
     return (
       <Page>
-        <PageHeader
-          title="Portfolio"
-          lede="Asset allocation across your investment accounts."
-        />
+        <header className="ds-page-bar">
+          <div className="ds-page-bar__title-group">
+            <h1 className="ds-page-bar__title">Portfolio</h1>
+            <span className="ds-page-bar__caption">No accounts linked</span>
+          </div>
+        </header>
         <Section>
           <EmptyState
             icon={<Building2 size={32} />}
@@ -820,50 +847,6 @@ export default function PortfolioComposition() {
   // ---------------------------------------------------------------------------
   // Main render — full holdings view
   // ---------------------------------------------------------------------------
-
-  // Holdings table columns
-  const holdingColumns: DataTableColumn<HoldingRow>[] = [
-    {
-      key: 'ticker',
-      header: 'Ticker',
-      cell: (t) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)' }}>
-            {t.ticker}
-          </span>
-        </div>
-      ),
-    },
-    { key: 'account', header: 'Account', muted: true, className: 'td--wrap', cell: (t) => cleanAccountLabel(t.accountLabel) },
-    {
-      key: 'class',
-      header: 'Class',
-      // If the backend tagged a holding's class as "Other", surface its
-      // sub-category instead so the table doesn't show a generic bucket label.
-      cell: (t) => {
-        const isOther = /^other$/i.test(t.assetClass.trim());
-        const display = isOther && t.category ? t.category : t.assetClass;
-        return <span style={{ color: colorForAssetClass(t.assetClass, 0) }}>{display}</span>;
-      },
-    },
-    { key: 'category', header: 'Category', muted: true, cell: (t) => t.category },
-    { key: 'value', header: 'Value', num: true, cell: (t) => <span className="ds-num">{formatMoney(t.totalValue, true)}</span> },
-    { key: 'pct', header: '%', num: true, muted: true, cell: (t) => <span className="ds-num">{t.percentage.toFixed(1)}%</span> },
-    {
-      key: 'hist',
-      header: 'Hist. Ret.',
-      num: true,
-      cell: (t) =>
-        t.historicalReturn !== null ? (
-          <span className={`ds-num ${t.historicalReturn >= 0 ? 'ds-pos' : 'ds-neg'}`}>
-            {t.historicalReturn.toFixed(1)}%
-          </span>
-        ) : (
-          <span className="ds-num" style={{ color: 'var(--lf-muted)' }}>—</span>
-        ),
-    },
-  ];
 
   // ── Composition ribbon: enumerate every asset class. If the backend
   // returned a class literally named "Other", drill in and replace it with
@@ -896,24 +879,35 @@ export default function PortfolioComposition() {
 
   return (
     <Page>
-      <PageHeader
-        title="Portfolio"
-        eyebrow={`${positionCount} position${positionCount !== 1 ? 's' : ''} · ${accountCount} account${accountCount !== 1 ? 's' : ''}`}
-      />
-
-      {/* Editorial lede */}
-      <div style={{ marginBottom: 40 }}>
-        <Lede>
-          Your portfolio is worth <Lede.Num highlight>{formatMoney(filteredTotal, true)}</Lede.Num>.
-          {blendedReturn !== null && (
-            <>
-              {' '}Blended historical return:{' '}
-              <Lede.Num tone={blendedReturn >= 0 ? 'pos' : 'neg'}>
-                {blendedReturn.toFixed(1)}%
-              </Lede.Num>{' '}per year.
-            </>
-          )}
-        </Lede>
+      {/* Iter 8 P1: title-only H1 + subtitle slot. Money never lives in the
+          H1, so mobile (<520px) shows only "Portfolio" while desktop and the
+          dropped-below mobile sub-row carry the dollar total. */}
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Portfolio</h1>
+          <span className="ds-page-bar__subtitle ds-num">
+            {formatMoney(filteredTotal, true)} · {positionCount} position{positionCount !== 1 ? 's' : ''} · {accountCount} account{accountCount !== 1 ? 's' : ''}
+            {blendedReturn !== null && (
+              <>
+                {'  ·  '}
+                <span className={blendedReturn >= 0 ? 'ds-pos' : 'ds-neg'}>
+                  {blendedReturn.toFixed(1)}% blended return
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+      </header>
+      <div className="ds-page-bar__subtitle-mobile ds-num">
+        {formatMoney(filteredTotal, true)} · {positionCount} position{positionCount !== 1 ? 's' : ''} · {accountCount} account{accountCount !== 1 ? 's' : ''}
+        {blendedReturn !== null && (
+          <>
+            {'  ·  '}
+            <span className={blendedReturn >= 0 ? 'ds-pos' : 'ds-neg'}>
+              {blendedReturn.toFixed(1)}% blended return
+            </span>
+          </>
+        )}
       </div>
 
       {/* Composition ribbon */}
@@ -922,6 +916,7 @@ export default function PortfolioComposition() {
           <CompositionRibbon
             leadDelta={`${positionCount} position${positionCount === 1 ? '' : 's'}`}
             segments={ribbonSegments}
+            groupBelowPct={2}
           />
         </Section>
       )}
@@ -963,7 +958,7 @@ export default function PortfolioComposition() {
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <button
                 onClick={() => setDrillLevel1(null)}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--lf-sauce)', fontFamily: 'inherit', fontSize: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--lf-ink-soft)', fontFamily: 'inherit', fontSize: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3 }}
               >
                 {labelFor(groupBy)}
               </button>
@@ -1045,21 +1040,54 @@ export default function PortfolioComposition() {
         </Card>
       </Section>
 
-      {/* ── Holdings ── */}
+      {/* ── Holdings — HoldingRow primitive built on `.ds-row`.
+          Mobile rule (iter 2 P0): value, %, and historical return ALL stay
+          visible. Ticker is the primary line, class+account is the eyebrow,
+          right-rail shows value + %, with hist.ret as a delta under the value. */}
       <Section
         title="Holdings"
         eyebrow={`${holdingsByTicker.length} position${holdingsByTicker.length === 1 ? '' : 's'}`}
       >
         <Card flush>
-          <div style={{ overflowX: 'auto' }}>
-            <DataTable
-              columns={holdingColumns}
-              rows={holdingsByTicker}
-              rowKey={(t) => t.ticker}
-              hover
-              emptyMessage="No holdings match the current filter."
-            />
-          </div>
+          {holdingsByTicker.length === 0 ? (
+            <div className="ds-caption" style={{ padding: '32px 16px', textAlign: 'center' }}>
+              No holdings match the current filter.
+            </div>
+          ) : (
+            holdingsByTicker.map((h) => {
+              const isOther = /^other$/i.test(h.assetClass.trim());
+              const classLabel = isOther && h.category ? h.category : h.assetClass;
+              const account = cleanAccountLabel(h.accountLabel);
+              const meta = `${classLabel}${account ? ` · ${account}` : ''}`;
+              const issuerDomain = tickerToIssuer(h.ticker);
+              const tickerIcon = faviconUrl(issuerDomain, 64);
+              return (
+                <div key={h.ticker} className="ds-row ds-row--holding">
+                  <Favicon icon={tickerIcon} monogram={h.ticker.slice(0, 2).toUpperCase()} alt={h.ticker} size={28} />
+                  <div className="ds-row__main">
+                    <div className="ds-row__primary" title={h.ticker}>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{h.ticker}</span>
+                    </div>
+                    <div className="ds-row__meta" title={meta}>{meta}</div>
+                  </div>
+                  <div className="ds-row__right">
+                    <span className="ds-row__value ds-num">{formatMoney(h.totalValue, true)}</span>
+                    <span className="ds-row__delta ds-num">
+                      {h.percentage.toFixed(1)}%
+                      {h.historicalReturn !== null && (
+                        <>
+                          {'  ·  '}
+                          <span className={h.historicalReturn >= 0 ? 'ds-pos' : 'ds-neg'}>
+                            {h.historicalReturn.toFixed(1)}%
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </Card>
       </Section>
 
@@ -1068,11 +1096,13 @@ export default function PortfolioComposition() {
   );
 }
 
+// Iter 7 F: sentence-case lowercase so eyebrow ("by asset class") + pill
+// chip labels read with the same voice across the page.
 function labelFor(g: GroupBy): string {
-  return g === 'assetClass' ? 'Asset Class'
-    : g === 'category' ? 'Category'
-    : g === 'holding' ? 'Holdings'
-    : 'Account';
+  return g === 'assetClass' ? 'asset class'
+    : g === 'category' ? 'category'
+    : g === 'holding' ? 'holdings'
+    : 'account';
 }
 
 function PortfolioStyles() {

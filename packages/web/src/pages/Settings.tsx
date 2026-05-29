@@ -15,11 +15,9 @@ import {
 } from "lucide-react";
 import {
   Page,
-  PageHeader,
   Section,
   Button,
   Eyebrow,
-  Lede,
 } from "../components/ds";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -222,22 +220,35 @@ export function Settings() {
     { label: "Retirement age", value: retirementAge, muted: retirementAge === "Not set" },
   ];
 
+  // Iter 7 A: ds-page-bar replaces the editorial PageHeader + Lede so
+  // /profile lives inside the same chrome as the rest of the product.
+  const captionBits: string[] = [];
+  if (email) captionBits.push(email);
+  if (state !== "Not set") captionBits.push(state);
+  if (age !== "Not set") captionBits.push(`age ${age}`);
+
   return (
     <Page width="narrow">
-      <PageHeader
-        eyebrow="Account"
-        title={firstName}
-      />
-
-      <div className="ds-settings-lede">
-        <Lede>
-          Your profile, household, and financial preferences. Lasagna uses
-          these to personalize advice.
-        </Lede>
-      </div>
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Profile · {firstName}</h1>
+          {captionBits.length > 0 && (
+            <span className="ds-page-bar__caption">{captionBits.join(' · ')}</span>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => logout()}
+          icon={<LogOut size={13} />}
+          className="ds-settings-signout"
+        >
+          Sign out
+        </Button>
+      </header>
 
       {/* ── Personal info ─────────────────────────────────────── */}
-      <Section eyebrow="Who you are">
+      <Section eyebrow="who you are">
         <EditorialArticle
           icon={<User size={16} />}
           title="Personal info"
@@ -261,7 +272,7 @@ export function Settings() {
       </Section>
 
       {/* ── Income & employment ───────────────────────────────── */}
-      <Section eyebrow="What you earn">
+      <Section eyebrow="what you earn">
         <EditorialArticle
           icon={<Briefcase size={16} />}
           title="Income & employment"
@@ -285,7 +296,7 @@ export function Settings() {
       </Section>
 
       {/* ── Linked accounts ───────────────────────────────────── */}
-      <Section title="Linked accounts" eyebrow="What's connected">
+      <Section title="Linked accounts" eyebrow="what's connected">
         <NavLine
           icon={<Building2 size={16} />}
           label="Manage accounts"
@@ -295,7 +306,7 @@ export function Settings() {
       </Section>
 
       {/* ── Financial goals ───────────────────────────────────── */}
-      <Section title="Financial goals" eyebrow="What you're working toward">
+      <Section title="Financial goals" eyebrow="what you're working toward">
         <NavLine
           icon={<Target size={16} />}
           label="Manage goals"
@@ -304,19 +315,8 @@ export function Settings() {
         />
       </Section>
 
-      {/* ── Account ───────────────────────────────────────────── */}
-      <Section title="Account" eyebrow="Session">
-        <div style={{ display: 'flex', justifyContent: 'flex-start', paddingTop: 4 }}>
-          <Button
-            variant="ghost"
-            onClick={() => logout()}
-            icon={<LogOut size={14} />}
-            className="ds-settings-signout"
-          >
-            Sign out
-          </Button>
-        </div>
-      </Section>
+      {/* Sign-out now lives in the page-bar action slot (iter 7 A) so the
+          page no longer needs a redundant "Account / Session" section. */}
 
       <p className="ds-caption" style={{
         textAlign: 'center',

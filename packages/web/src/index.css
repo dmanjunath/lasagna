@@ -11,7 +11,8 @@
 @layer base {
   :root {
     /* ── LasagnaFi raw brand tokens ── */
-    --lf-paper:      #FBF6EC;
+    --lf-paper:      #FAF8F3;
+    --lf-surface:    #FFFFFF;
     --lf-cream:      #F5EDE0;
     --lf-cream-deep: #EDE1CE;
     --lf-ink:        #1F1A16;
@@ -19,6 +20,7 @@
     --lf-muted:      #8B7E6F;
     --lf-rule:       #E3D6BF;
     --lf-rule-soft:  #EADFC9;
+    --lf-rule-neutral: rgba(31, 26, 22, 0.06);
     --lf-sauce:      #C9543A;
     --lf-sauce-deep: #A23F29;
     --lf-cheese:     #E6B85C;
@@ -29,14 +31,30 @@
     --lf-pos:        #4C7A3E;
     --lf-neg:        #A23F29;
 
+    /* ── Data palette ──
+       Warm-neutral tints for chart fills. Reserved for DATA only — they
+       must not collide with brand sauce (which is reserved for CTAs, focus
+       rings, and "you are here" markers). Used by CompositionRibbon, the
+       /spending donut, retirement slider track, etc.
+
+       The hues are intentionally close to neutral so 5+ segments read as
+       "muted earth tones" rather than as one orange blob. Order is most
+       common → tertiary, so 3-segment charts (cash / invest / debt) max
+       out their contrast on the first three. */
+    --lf-data-1: #C9543A;  /* sauce  — primary stack */
+    --lf-data-2: #5A6B3F;  /* basil  — secondary */
+    --lf-data-3: #E6B85C;  /* cheese — tertiary */
+    --lf-data-4: #8B4A2B;  /* crust  — quaternary */
+    --lf-data-5: #E8C789;  /* noodle — quinary */
+
     /* ── Backgrounds (RGB triplets for Tailwind alpha modifiers) ── */
-    --color-bg:          251 246 236;   /* paper  #FBF6EC */
-    --color-bg-elevated: 245 237 224;   /* cream  #F5EDE0 */
+    --color-bg:          250 248 243;   /* paper      #FAF8F3 */
+    --color-bg-elevated: 245 241 232;   /* sidebar    #F5F1E8 */
     --color-bg-subtle:   237 225 206;   /* cream-deep #EDE1CE */
 
     /* ── Surfaces ── */
-    --color-surface:       251 246 236;
-    --color-surface-hover: 245 237 224;
+    --color-surface:       255 255 255;
+    --color-surface-hover: 250 248 243;
 
     /* ── Text ── */
     --color-text:           31 26 22;    /* ink      #1F1A16 */
@@ -68,8 +86,8 @@
     --card-glow:         rgba(201, 84, 58, 0.03);
 
     /* ── Shadows ── */
-    --shadow-card:       0 1px 3px rgba(31, 26, 22, 0.06), 0 0 0 1px rgba(227, 214, 191, 0.9);
-    --shadow-card-hover: 0 4px 16px rgba(31, 26, 22, 0.10), 0 0 0 1px rgba(201, 84, 58, 0.20);
+    --shadow-card:       0 1px 2px rgba(31, 26, 22, 0.04);
+    --shadow-card-hover: 0 4px 12px rgba(31, 26, 22, 0.08);
     --shadow-accent-glow: 0 0 16px rgba(201, 84, 58, 0.15);
     --shadow-accent-glow-hover: 0 0 20px rgba(201, 84, 58, 0.25);
   }
@@ -261,21 +279,10 @@
    ============================================================ */
 @layer components {
   .surface-card {
-    background: var(--lf-paper);
-    border: 1px solid var(--lf-rule);
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-rule-neutral);
     border-radius: 14px;
     box-shadow: var(--shadow-card);
-    position: relative;
-  }
-
-  .surface-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0;
-    width: 160px; height: 110px;
-    background: radial-gradient(ellipse at top left, var(--card-glow) 0%, transparent 65%);
-    pointer-events: none;
-    border-radius: inherit;
   }
 
   .surface-card-hover {
@@ -289,20 +296,10 @@
 
   /* backward compat alias */
   .glass-card {
-    background: var(--lf-paper);
-    border: 1px solid var(--lf-rule);
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-rule-neutral);
     border-radius: 14px;
     box-shadow: var(--shadow-card);
-    position: relative;
-  }
-  .glass-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0;
-    width: 160px; height: 110px;
-    background: radial-gradient(ellipse at top left, var(--card-glow) 0%, transparent 65%);
-    pointer-events: none;
-    border-radius: inherit;
   }
   .glass-card-hover {
     @apply transition-all duration-300;
@@ -314,8 +311,8 @@
   }
 
   .stat-card {
-    background: var(--lf-paper);
-    border: 1px solid var(--lf-rule);
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-rule-neutral);
     border-radius: 14px;
     box-shadow: var(--shadow-card);
   }
@@ -577,10 +574,384 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: clamp(20px, 4vw, 48px) clamp(16px, 4vw, 40px);
-  padding-bottom: clamp(80px, 12vw, 64px);
+  /* Bottom padding must clear the 56px mobile tab bar (+safe area) plus
+     a comfortable breathing gap; desktop has no bottom nav so a smaller
+     value is fine. Critic flagged content sitting beneath the nav on /. */
+  padding-bottom: 64px;
+}
+@media (max-width: 767px) {
+  /* Iter 6: bumped to 112px so the last row's bottom edge clears the
+     fixed 56px MobileTabBar (+safe-area) with a comfortable visual gap.
+     Iter 5 was 88px; critic measured overlap on /money where the trailing
+     row sat beneath the MONEY pill of the bottom nav. */
+  .ds-page {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+  }
 }
 .ds-page--narrow { max-width: 880px; }
 .ds-page--wide   { max-width: 1400px; }
+
+/* ── Compact page bar — LOCKED PRIMITIVE.
+   Height: 56px desktop, 48px mobile. Single row, no wrap.
+   Slots: title-group (h1 + optional inline caption) on the LEFT, ONE action
+   on the right (button OR icon menu). Tabs/segmented/month-nav/view-toggles
+   move to <PageSubToolbar>; do NOT add a second action button in here.
+   The iter 2 critic measured 49-69px desktop / 43-120px mobile — that's a
+   ribbon, not a primitive. This selector now defines the contract. */
+.ds-page-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 16px;
+  height: 56px;
+  padding: 0;
+  border-bottom: 1px solid var(--lf-rule);
+  margin-bottom: 20px;
+}
+.ds-page-bar__title-group {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 14px;
+  min-width: 0;
+  overflow: hidden;
+}
+.ds-page-bar__title {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  /* Iter 6: bumped 18 → 24 so page H1 always reads as MORE prominent than
+     section H2 (22px). Iter 5 critic flagged the typographic inversion. */
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  color: var(--lf-ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.ds-page-bar__caption {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--lf-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+/* Subtitle — same slot as caption on desktop (inline, after the title), but
+   on mobile renders as a separate row BELOW the page-bar so the H1 stays
+   terse ("Goals" not "Goals — $0 of $6,025,..."). Use this when the
+   secondary line carries live monetary data that would truncate at 390px. */
+.ds-page-bar__subtitle {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--lf-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+/* Mobile subtitle slot lives below the page-bar; hidden on desktop so the
+   inline .ds-page-bar__subtitle carries it. */
+.ds-page-bar__subtitle-mobile {
+  display: none;
+}
+/* Actions wrapper — host for the primary action + overflow on small screens. */
+.ds-page-bar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ds-page-bar__overflow {
+  display: none;
+  position: relative;
+}
+.ds-page-bar__overflow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
+  color: var(--lf-ink);
+  cursor: pointer;
+  padding: 0;
+}
+.ds-page-bar__overflow-btn:hover {
+  background: var(--lf-cream);
+}
+.ds-page-bar__overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 200px;
+  background: var(--lf-paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ds-page-bar__overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--lf-ink);
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.ds-page-bar__overflow-item:hover {
+  background: var(--lf-cream);
+}
+.ds-page-bar__overflow-item:disabled {
+  color: var(--lf-muted);
+  cursor: not-allowed;
+}
+@media (max-width: 640px) {
+  .ds-page-bar {
+    height: 48px;
+    min-height: 48px;
+    max-height: 48px;
+    padding: 0;
+    margin-bottom: 14px;
+    box-sizing: border-box;
+  }
+  .ds-page-bar__title { font-size: 20px; line-height: 1.15; }
+  .ds-page-bar__caption { font-size: 12px; }
+  /* Mobile collapses the caption — too dense for 48px. Page body re-states
+     the signal anyway (figure label, stat strip, etc.). */
+  .ds-page-bar__caption { display: none; }
+  /* Inline subtitle hidden on mobile — its content reappears in the
+     subtitle-mobile slot rendered below the page-bar. */
+  .ds-page-bar__subtitle { display: none; }
+  .ds-page-bar__subtitle-mobile {
+    display: block;
+    font-family: 'Geist', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--lf-muted);
+    line-height: 1.4;
+    margin: -8px 0 14px;
+  }
+}
+/* Mobile overflow rule — 520px breakpoint per iter 8 mandate. When two or
+   more actions are present, the consumer marks all-but-the-first with
+   .ds-page-bar__action--overflow and the overflow button becomes visible. */
+@media (max-width: 520px) {
+  .ds-page-bar__action--overflow { display: none !important; }
+  .ds-page-bar__overflow { display: inline-block; }
+}
+
+/* ── Money grid alignment ──
+   Locks the dollar column to a fixed character width with right alignment
+   and tabular numerics so the stat-strip total, section header total, and
+   every row value below share a single right edge. Iter 3 measured 60px
+   drift; this primitive eliminates it.
+
+   Usage: wrap a row in `.ds-money-grid` and put the $ value in a child with
+   `.ds-money-grid__value`. The label/content fills the remaining 1fr. */
+.ds-money-grid {
+  display: grid;
+  grid-template-columns: 1fr 12ch;
+  column-gap: 16px;
+  align-items: center;
+}
+.ds-money-grid__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-feature-settings: "tnum";
+}
+
+/* ── PageSubToolbar — 40px row below the page-bar hairline.
+   This is where tabs / segmented controls / month nav / sync chip live now
+   so the page-bar stays one row, one action. */
+.ds-page-subtoolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 40px;
+  margin: -16px 0 20px;  /* pull up to sit flush under the page-bar */
+  padding: 0;
+  border-bottom: 1px solid var(--lf-rule-soft);
+}
+.ds-page-subtoolbar__left,
+.ds-page-subtoolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ds-page-subtoolbar__left { flex: 1; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.ds-page-subtoolbar__left::-webkit-scrollbar { display: none; }
+@media (max-width: 640px) {
+  .ds-page-subtoolbar { height: 40px; margin-top: -10px; }
+}
+
+/* ── Borderless figure — chart with internal value label, no Card chrome.
+   Headline number lives in the figure head, not in a section H2 above. */
+.ds-figure {
+  margin: 0 0 28px;
+  padding: 0;
+}
+.ds-figure__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 12px;
+}
+.ds-figure__lead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-width: 0;
+}
+.ds-figure__label {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+  display: block;
+  width: 100%;
+  margin-bottom: 2px;
+}
+.ds-figure__value {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(28px, 3.4vw, 36px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--lf-ink);
+  font-variant-numeric: tabular-nums;
+}
+.ds-figure__delta {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ds-figure__range {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.ds-figure__range-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ── Ask Lasagna composer strip — compact tool, not hero ──── */
+.ds-ask-strip {
+  margin: 0 0 36px;
+}
+.ds-ask-strip__form { margin: 0; }
+.ds-ask-strip__box {
+  display: flex;
+  align-items: stretch;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--shadow-card);
+}
+.ds-ask-strip__box:focus-within {
+  border-color: var(--lf-sauce);
+  box-shadow: 0 0 0 3px rgba(201, 84, 58, 0.10);
+}
+.ds-ask-strip__input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--lf-ink);
+  padding: 14px 16px;
+  min-width: 0;
+  min-height: 52px;
+}
+.ds-ask-strip__input::placeholder { color: var(--lf-muted); }
+.ds-ask-strip__submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  border: 0;
+  padding: 0 18px;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-width: 72px;
+  justify-content: center;
+}
+.ds-ask-strip__submit:hover:not(:disabled) { background: var(--lf-sauce-deep); }
+.ds-ask-strip__submit:disabled { opacity: 0.45; cursor: not-allowed; }
+.ds-ask-strip__chips {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ds-ask-strip__chip {
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  color: var(--lf-ink-soft);
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+  line-height: 1.3;
+}
+.ds-ask-strip__chip:hover {
+  border-color: var(--lf-ink-soft);
+  color: var(--lf-ink);
+}
 
 /* ── Page header: eyebrow / h1 / lede / actions ─────────────── */
 .ds-page-header {
@@ -589,9 +960,12 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  margin-bottom: 40px;
-  padding-bottom: 24px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--lf-rule);
+}
+@media (max-width: 640px) {
+  .ds-page-header { margin-bottom: 18px; padding-bottom: 12px; }
 }
 .ds-page-header__title-block { flex: 1 1 auto; min-width: 0; }
 .ds-page-header__actions     { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -680,12 +1054,13 @@
 
 /* ── Cards ──────────────────────────────────────────────────── */
 .ds-card {
-  background: var(--lf-paper);
-  border: 1px solid var(--lf-rule);
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
   border-radius: 14px;
-  padding: 24px;
+  padding: 20px;
+  box-shadow: var(--shadow-card);
 }
-.ds-card--tight   { padding: 16px; }
+.ds-card--tight   { padding: 14px; }
 .ds-card--flush   { padding: 0; }
 .ds-card--dark {
   background: var(--lf-ink);
@@ -706,7 +1081,7 @@
   border-color: var(--lf-rule-soft);
 }
 .ds-card--accent {
-  background: var(--lf-paper);
+  background: var(--lf-surface);
   border-color: var(--lf-cheese);
   border-top-width: 3px;
 }
@@ -715,13 +1090,14 @@
   transition: border-color 0.15s, transform 0.15s;
 }
 .ds-card--linkable:hover {
-  border-color: var(--lf-sauce);
+  border-color: var(--lf-ink-soft);
   transform: translateY(-1px);
 }
 
 /* ── Section ────────────────────────────────────────────────── */
-.ds-section { margin-bottom: 40px; }
+.ds-section { margin-bottom: 28px; }
 .ds-section:last-child { margin-bottom: 0; }
+@media (max-width: 640px) { .ds-section { margin-bottom: 20px; } }
 .ds-section__header {
   display: flex;
   align-items: baseline;
@@ -817,15 +1193,15 @@
   text-transform: uppercase;
   font-weight: 600;
   color: var(--lf-muted);
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--lf-rule);
 }
 .ds-table th--num { text-align: right; }
 .ds-table td {
-  padding: 14px 16px;
+  padding: 10px 14px;
   font-size: 14px;
   color: var(--lf-ink);
-  border-bottom: 1px solid var(--lf-rule-soft);
+  border-bottom: 1px solid var(--lf-rule-neutral);
   vertical-align: middle;
   /* Long cell content (account names, merchant strings) shouldn't blow
      out the table — let it truncate with ellipsis. Wrap individual cells
@@ -839,7 +1215,7 @@
 .ds-table td--num { text-align: right; font-variant-numeric: tabular-nums; }
 .ds-table td--muted { color: var(--lf-muted); }
 .ds-table tr:last-child td { border-bottom: none; }
-.ds-table tr.ds-table__row--hover:hover td { background: var(--lf-cream); }
+.ds-table tr.ds-table__row--hover:hover td { background: rgba(31, 26, 22, 0.03); }
 
 /* ── Buttons ────────────────────────────────────────────────── */
 .ds-btn {
@@ -893,6 +1269,9 @@
 .ds-btn--danger:hover:not(:disabled) { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
 .ds-btn--sm  { padding: 7px 12px; font-size: 12px; min-height: 32px; }
 .ds-btn--lg  { padding: 14px 24px; font-size: 14px; min-height: 48px; }
+/* Inline link button — sauce for the small "→" / "All actions →" accent
+   moments. Primary CTAs stay ink so the page has one decisive register
+   and one warm directional register. */
 .ds-btn--link {
   background: none;
   border: none;
@@ -1034,7 +1413,7 @@
   margin: 0;
 }
 .ds-strip__item {
-  padding: 20px 20px;
+  padding: 14px 16px;
   border-left: 1px solid var(--lf-rule);
   min-width: 0;
 }
@@ -1062,15 +1441,15 @@
   text-transform: uppercase;
   font-weight: 600;
   color: var(--lf-muted);
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 .ds-strip__value {
   display: block;
   font-family: 'Geist', system-ui, sans-serif;
   font-weight: 600;
-  font-size: clamp(20px, 2.4vw, 26px);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-size: clamp(17px, 1.6vw, 20px);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
   color: var(--lf-ink);
   font-variant-numeric: tabular-nums;
   /* Wrap (don't silently truncate). Numeric values are short and won't
@@ -1078,6 +1457,24 @@
      second line, which is readable. */
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+/* Iter 5: opt-in $ alignment for money pages. Each strip cell right-aligns
+   its content so values land at the cell's right edge. Combined with the
+   strip's last cell having the same right padding as `.ds-row` (16px), the
+   last stat-strip value shares its right edge with the AccountRow values
+   below — closing one of the iter-4 alignment clusters.
+   Note: middle strip cells are in their own grid columns and cannot share
+   an absolute right edge with the rows by definition; their values just
+   right-align inside their cells for tabular-num consistency. */
+.ds-strip--money .ds-strip__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.ds-strip--money .ds-strip__item:last-child { padding-right: 16px; }
+.ds-strip--money .ds-strip__value {
+  font-variant-numeric: tabular-nums;
 }
 .ds-strip__value--pos { color: var(--lf-basil); }
 .ds-strip__value--neg { color: var(--lf-sauce-deep); }
@@ -1087,7 +1484,7 @@
   font-family: 'Geist', system-ui, sans-serif;
   font-size: 12px;
   color: var(--lf-muted);
-  margin-top: 8px;
+  margin-top: 4px;
   font-variant-numeric: tabular-nums;
   line-height: 1.4;
   white-space: nowrap;
@@ -1098,7 +1495,15 @@
 /* Composition Ribbon ── single proportional horizontal bar.
    You SEE the makeup of your finances as one visual instead
    of reading four KPI cards. */
-.ds-ribbon { display: block; }
+.ds-ribbon {
+  display: block;
+  /* iter 8 P1: prevent any segment, legend item, or long label from forcing
+     horizontal scroll on mobile. The ribbon must always live inside its
+     container width. */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
 .ds-ribbon__head {
   display: flex;
   align-items: baseline;
@@ -1345,4 +1750,296 @@
 .animate-loading-bar-3 {
   animation: loading-bar 1.2s ease-in-out 0.3s infinite;
   transform-origin: left center;
+}
+
+/* ============================================================
+   .ds-row — SHARED ROW PRIMITIVE
+   Used by AccountRow / TransactionRow. Single contract for:
+   - Always-visible $ value (mobile rule: never drop the money)
+   - Truncated name with title attr (no 6-line wraps)
+   - Neutral grayscale favicon fallback (no shouting monograms)
+   - No decorative vertical accent stripes
+   ============================================================ */
+.ds-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 52px;
+  min-height: 52px;
+  box-sizing: border-box;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+}
+/* TransactionRow is denser (44px desktop, no delta line under the amount) */
+.ds-row--tx {
+  height: 44px;
+  min-height: 44px;
+}
+.ds-row + .ds-row { border-top: 1px solid var(--lf-rule-soft); }
+.ds-row--clickable { cursor: pointer; transition: background 0.12s; }
+.ds-row--clickable:hover { background: rgba(31, 26, 22, 0.025); }
+
+.ds-row__favicon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.ds-row--tx .ds-row__favicon { width: 24px; height: 24px; border-radius: 4px; }
+
+/* Monogram fallback: iter 5 upgrade — dark-ink chip with paper text reads
+   as a deliberate "brand mark" for non-ticker holdings (Bonds, Cash, Int'l
+   funds, etc.) instead of a "favicon failed" sentinel. Cream-deep was too
+   close to the rule color and made the chip vanish; ink gives the holding
+   a real visual anchor that matches the favicons next to it.
+   Iter 2 critic concern about "shouting louder than value" still holds —
+   ink is intentionally NOT sauce/cheese/teal, so it carries presence
+   without carrying brand color. */
+.ds-row__monogram {
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  border: 1px solid var(--lf-ink);
+  flex-shrink: 0;
+  letter-spacing: 0.01em;
+}
+.ds-row--tx .ds-row__monogram { border-radius: 4px; }
+
+.ds-row__catglyph {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--lf-cream-deep);
+  color: var(--lf-ink-soft);
+  flex-shrink: 0;
+}
+
+.ds-row__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ds-row__primary {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lf-ink);
+  line-height: 1.3;
+  /* Truncate. Never wrap to a 6-line block. Full name in title attr. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ds-row__meta {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--lf-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+}
+.ds-row__meta--tx {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.ds-row__cat {
+  color: var(--lf-ink-soft);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+.ds-row__sep { color: var(--lf-rule); }
+.ds-row__extra { display: inline-flex; align-items: center; }
+
+.ds-row__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  flex-shrink: 0;
+  /* Fixed-width value column so every row in a list shares a right edge
+     with the section header total (which uses the same 12ch width). */
+  width: 12ch;
+  min-width: 12ch;
+}
+.ds-row__value {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lf-ink);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.ds-row__delta {
+  font-size: 11px;
+  color: var(--lf-muted);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.ds-row__amount {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lf-ink);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  flex-shrink: 0;
+  white-space: nowrap;
+  /* Fixed-width column locks the right edge of every $ amount so
+     short $373 and long $4,453 share the same right boundary.
+     Iter 3 measured 60px row-to-row drift; this kills it. */
+  display: inline-block;
+  width: 12ch;
+  text-align: right;
+}
+.ds-row__amount--muted { color: var(--lf-muted); font-weight: 500; }
+
+/* Iter 6 — number color consistency across contexts.
+   .ds-pos / .ds-neg are defined earlier (line ~943) but the row classes
+   (.ds-row__delta, .ds-row__amount, .ds-row__value) come LATER and override
+   the status color via plain specificity. The critic measured a basil
+   ds-pos in the stat-strip and an INK ds-pos in row deltas because the
+   row rule won. These specific combinators put the status color back on
+   top of the row rules so a positive/negative delta reads basil/sauce-deep
+   wherever it appears. */
+.ds-row__delta.ds-pos,
+.ds-row__amount.ds-pos,
+.ds-row__value.ds-pos { color: var(--lf-basil); }
+.ds-row__delta.ds-neg,
+.ds-row__amount.ds-neg,
+.ds-row__value.ds-neg { color: var(--lf-sauce-deep); }
+
+/* Hover-only sync control (desktop). Hidden until row hover so the resting
+   state is calm — three icons in every row was noise.
+   Iter 5: positioned ABSOLUTELY so it doesn't push the value column when
+   present and doesn't disappear from the value column when absent. The
+   row's right padding (16px) is the SAME whether sync renders or not, so
+   AccountRow values + TransactionRow values + HoldingRow values now share
+   one right edge (iter 4 measured 60px drift between them). The icon sits
+   in the row's right-margin guttering (right: 16px → 48px) instead of
+   stealing flex space. */
+.ds-row { position: relative; }
+.ds-row__sync {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  /* When visible (hover/focus/touch) it gets the row paper background so
+     it occludes the value behind it instead of overlapping mid-air. */
+  background: var(--lf-paper);
+  border: 0;
+  color: var(--lf-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+  pointer-events: none;
+}
+.ds-row:hover .ds-row__sync,
+.ds-row__sync:focus-visible,
+.ds-row__sync:disabled { opacity: 1; pointer-events: auto; }
+.ds-row__sync:hover { background: var(--lf-cream); color: var(--lf-ink); }
+.ds-row__sync:disabled { cursor: not-allowed; }
+/* Touch: hide the row-level sync icon entirely. The per-section Sync button
+   in the page header + global pull-to-refresh cover the same affordance and
+   we don't want the icon to permanently overlap the $ value on mobile. */
+@media (hover: none) and (pointer: coarse) {
+  .ds-row__sync { display: none; }
+}
+
+/* Mobile: 56px exact for both account and transaction rows.
+   Padding is fixed (not flex) so heights don't drift with longer copy. */
+@media (max-width: 640px) {
+  .ds-row {
+    height: 56px;
+    min-height: 56px;
+    padding: 0 14px;
+  }
+  .ds-row--tx {
+    height: 56px;
+    min-height: 56px;
+  }
+  .ds-row--tx .ds-row__amount { font-size: 14px; }
+  .ds-row__cat { max-width: 96px; }
+  /* Sync icons always-visible on mobile (no hover affordance) */
+  .ds-row__sync { opacity: 0.7; }
+}
+
+/* ============================================================
+   .ds-skeleton — iter 7 D
+   CSS-only shimmer that the page can render at first paint while
+   the data query is in flight. Two-stop linear gradient slid via
+   `background-position` keyframe — no JS, no extra DOM, costs
+   essentially nothing to mount.
+
+   Tints are neutral grayscale (NOT cream or sauce) so the shimmer
+   reads as "loading" rather than as a styled element.
+   ============================================================ */
+@keyframes ds-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.ds-skeleton {
+  background-color: rgba(31, 26, 22, 0.04);
+  background-image: linear-gradient(
+    90deg,
+    rgba(31, 26, 22, 0.0)  0%,
+    rgba(31, 26, 22, 0.06) 50%,
+    rgba(31, 26, 22, 0.0)  100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: ds-skeleton-shimmer 1.4s linear infinite;
+}
+/* Row-skeleton: matches the 52px (mobile 56px) standard row height so
+   when real rows swap in, vertical position doesn't jolt. */
+.ds-row--skeleton {
+  background: none;
+  cursor: default;
+}
+.ds-row--skeleton .ds-row__main,
+.ds-row--skeleton .ds-row__right {
+  display: flex;
+  flex-direction: column;
+}
+.ds-row--skeleton .ds-row__right { align-items: flex-end; }
+/* Chart-skeleton: subtle baseline tint behind the shimmer so the area
+   reads as "axis + fan" rather than "empty rectangle". */
+.ds-skeleton--chart {
+  background-color: rgba(31, 26, 22, 0.025);
+}
+
+/* prefers-reduced-motion — drop the keyframe but keep the tinted
+   surface so the skeleton still reserves space without movement. */
+@media (prefers-reduced-motion: reduce) {
+  .ds-skeleton { animation: none; }
 }

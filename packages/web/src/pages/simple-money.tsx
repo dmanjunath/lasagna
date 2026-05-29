@@ -9,16 +9,17 @@ import {
 import { api } from '../lib/api';
 import {
   Page,
-  PageHeader,
   Section,
   Card,
   Button,
   Pill,
-  DataTable,
   EmptyState,
-  Lede,
+  AccountRow,
+  TransactionRow,
+  ChartHover,
+  SkeletonChart,
+  SkeletonRow,
 } from '../components/ds';
-import type { DataTableColumn } from '../components/ds/DataTable';
 
 type Range = '1M' | '6M' | '1Y' | 'All';
 
@@ -89,6 +90,10 @@ export function SimpleMoney() {
   }, []);
 
   const [syncingAll, setSyncingAll] = useState(false);
+  // Iter 7 G: lift chart hover up so the static figure-head HUD can fade
+  // out while the ChartHover pill is visible (avoid double-printing the same
+  // date/value).
+  const [chartHovering, setChartHovering] = useState(false);
 
   async function handleSync(itemId: string) {
     setSyncing(itemId);
@@ -135,9 +140,6 @@ export function SimpleMoney() {
   const assetsTotal = realEstateTotal + altTotal;
   const debtTotal = debtAccounts.reduce((s, a) => s + Math.abs(parseFloat(a.balance ?? '0')), 0);
   const netWorth = cashTotal + investTotal + assetsTotal - debtTotal;
-  const assetsLabelText =
-    realEstateTotal > 0 && altTotal > 0 ? 'Other assets' :
-    realEstateTotal > 0 ? 'Property' : 'Alternatives';
 
   const monthChange = computeDelta(history, 30);
   const chartPoints = useMemo(() => filterByRange(history, range), [history, range]);
@@ -147,120 +149,41 @@ export function SimpleMoney() {
     ['portfolio', 'cash', 'debt', 'savings', 'investment'].some((k) => (i.category + (i.type || '')).toLowerCase().includes(k))
   );
 
-  // Transactions for DataTable
-  const txColumns: DataTableColumn<Transaction>[] = [
-    {
-      key: 'merchant',
-      header: 'Merchant',
-      className: 'td--wrap',
-      cell: (t) => (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
-          <span style={{
-            width: 28, height: 28, borderRadius: 999,
-            background: parseFloat(t.amount) < 0 ? 'rgba(90,107,63,0.12)' : 'var(--lf-cream)',
-            display: 'grid', placeItems: 'center', flexShrink: 0,
-            color: parseFloat(t.amount) < 0 ? 'var(--lf-basil)' : 'var(--lf-muted)',
-            marginTop: 1,
-          }}>
-            {categoryIcon[t.category] || <Banknote size={14} />}
-          </span>
-          {/* Wraps to 2 lines instead of ellipsing so the Amount column stays visible
-              without horizontal scroll on narrow viewports. */}
-          <span style={{
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            wordBreak: 'break-word',
-          }}>
-            {t.merchantName || t.name}
-          </span>
-        </div>
-      ),
-    },
-    { key: 'category', header: 'Category', muted: true, cell: (t) => humanCategory(t.category) },
-    { key: 'date', header: 'Date', muted: true, className: 'hidden md:table-cell', cell: (t) => formatDate(t.date) },
-    {
-      key: 'amount',
-      header: 'Amount',
-      num: true,
-      cell: (t) => {
-        const amt = parseFloat(t.amount);
-        const isIncome = amt < 0;
-        return (
-          <span className={isIncome ? 'ds-pos ds-num' : 'ds-num'}>
-            {isIncome ? '+' : '−'}{fmtUsd(Math.abs(amt), 2)}
-          </span>
-        );
-      },
-    },
-  ];
-
   const totalAccountCount = cashAccounts.length + investAccounts.length + realEstateAccounts.length + altAccounts.length + debtAccounts.length;
+
+  const hasMoney = !loading && totalAccountCount > 0;
 
   return (
     <Page>
-      <PageHeader
-        eyebrow={formatDateLong(new Date())}
-        title="Money"
-        actions={
-          !loading && items.length > 0 ? (
-            <div className="ds-money-header-actions">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSyncAll}
-                disabled={syncingAll}
-                icon={<RefreshCw size={12} className={syncingAll ? 'animate-spin' : ''} />}
-              >
-                {syncingAll ? 'Syncing…' : 'Sync all'}
-              </Button>
-              <Link href="/accounts">
-                <Button variant="ink" size="sm" icon={<Plus size={12} />}>Add account</Button>
-              </Link>
-            </div>
-          ) : null
-        }
-      />
-
-      {/* Editorial lede — addresses the user directly with inline tabular money */}
-      {!loading && totalAccountCount > 0 && (
-        <div style={{ marginBottom: 40 }}>
-          <Lede>
-            You have <Lede.Num>{fmtUsd(cashTotal)}</Lede.Num> in cash,{' '}
-            <Lede.Num>{fmtUsd(investTotal)}</Lede.Num> invested
-            {assetsTotal > 0 && (
-              <>
-                {', '}
-                <Lede.Num>{fmtUsd(assetsTotal)}</Lede.Num> in {assetsLabelText.toLowerCase()}
-              </>
-            )}
-            {debtTotal > 0 && (
-              <>
-                {', '}and <Lede.Num tone="neg">−{fmtUsd(debtTotal)}</Lede.Num> in debt
-              </>
-            )}
-            {' — for a net worth of '}
-            <Lede.Num highlight>{fmtUsd(netWorth)}</Lede.Num>
-            {monthChange !== null && (
-              <>
-                {' ('}
-                <Lede.Num tone={monthChange >= 0 ? 'pos' : 'neg'}>
-                  {monthChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthChange))}
-                </Lede.Num>
-                {' this month)'}
-              </>
-            )}.
-          </Lede>
+      {/* Compact page bar — small H1 + actions only. Net worth + delta are
+          dropped from the caption because the figure below already shows them
+          with proper typographic hierarchy (iter 2 dedupe). On <640px the
+          action buttons hide to keep the bar a single short row — the same
+          actions remain available via the account sections and the "+" route. */}
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Money</h1>
+          {!hasMoney && (
+            <span className="ds-page-bar__caption">{formatDateLong(new Date())}</span>
+          )}
         </div>
-      )}
-
-      {/* Composition ribbon removed — the account sections below already
-          enumerate every category (Cash / Investments / Property / Debt)
-          with a header total and the individual account rows. The ribbon
-          was a summary visualization of data the page subsequently shows
-          in full. The lede above carries the headline numbers; the
-          sections carry the detail; the line chart adds time. */}
+        {hasMoney && (
+          <div className="ds-money-header-actions">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSyncAll}
+              disabled={syncingAll}
+              icon={<RefreshCw size={12} className={syncingAll ? 'animate-spin' : ''} />}
+            >
+              {syncingAll ? 'Syncing…' : 'Sync all'}
+            </Button>
+            <Link href="/accounts">
+              <Button variant="ink" size="sm" icon={<Plus size={12} />}>Add account</Button>
+            </Link>
+          </div>
+        )}
+      </header>
 
       {/* Sync error banner */}
       {syncError && (
@@ -274,39 +197,52 @@ export function SimpleMoney() {
         </Section>
       )}
 
-      {/* ── Chart ── */}
+      {/* ── Net worth figure — borderless chart with internal value label.
+          No section H2 above it (the value lives inside the figure). */}
       {chartPoints.length >= 2 && (
-        <Section
-          title="Net worth over time"
-          actions={
-            <div role="radiogroup" aria-label="Time range" style={{ display: 'inline-flex', gap: 6 }}>
+        <figure className="ds-figure" data-hovering={chartHovering ? 'true' : 'false'}>
+          <div className="ds-figure__head">
+            <div
+              className="ds-figure__lead"
+              style={{
+                opacity: chartHovering ? 0 : 1,
+                transition: 'opacity 0.18s ease',
+              }}
+              aria-hidden={chartHovering}
+            >
+              <span className="ds-figure__label">Net worth</span>
+              <span className="ds-figure__value ds-num">{fmtUsd(netWorth)}</span>
+              {monthChange !== null && (
+                <span className={`ds-figure__delta ds-num ${monthChange >= 0 ? 'ds-pos' : 'ds-neg'}`}>
+                  {monthChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthChange))} · 30d
+                </span>
+              )}
+            </div>
+            <div role="radiogroup" aria-label="Time range" className="ds-figure__range">
               {(['1M', '6M', '1Y', 'All'] as Range[]).map((r) => (
                 <button
                   key={r}
                   onClick={() => setRange(r)}
                   role="radio"
                   aria-checked={range === r}
-                  className="min-w-[44px] min-h-[44px]"
-                  style={{
-                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  }}
+                  className="ds-figure__range-btn"
                 >
                   <Pill tone={range === r ? 'ink' : 'ghost'}>{r}</Pill>
                 </button>
               ))}
             </div>
-          }
-        >
-          <Card tight>
-            <NetWorthChart points={chartPoints} range={range} />
-          </Card>
-        </Section>
+          </div>
+          <NetWorthChart
+            points={chartPoints}
+            range={range}
+            onHoverChange={(i) => setChartHovering(i !== null)}
+          />
+        </figure>
       )}
 
       {/* ── Chart placeholder ── */}
       {!loading && chartPoints.length < 2 && allAccounts.length > 0 && (
-        <Section title="Net worth over time">
+        <Section>
           <Card variant="ghost">
             <div style={{ display: 'grid', placeItems: 'center', padding: '36px 12px', textAlign: 'center' }}>
               <TrendingUp size={20} className="text-text-muted" style={{ marginBottom: 8 }} />
@@ -317,30 +253,21 @@ export function SimpleMoney() {
         </Section>
       )}
 
-      {/* ── Loading skeleton ── */}
+      {/* ── Loading skeleton — iter 7 D: matched outline (chart + 2 rows ×
+          2 sections) so first paint reserves the same space the loaded
+          page consumes. */}
       {loading && (
-        <Section>
-          <div className="animate-pulse" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {[1, 2].map((n) => (
-              <Card key={n} flush>
-                {[1, 2].map((r) => (
-                  <div key={r} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '14px 20px',
-                    borderTop: r > 1 ? '1px solid var(--lf-rule-soft)' : 'none',
-                  }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--lf-rule)' }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ height: 14, width: 140, background: 'var(--lf-rule)', borderRadius: 4, marginBottom: 6 }} />
-                      <div style={{ height: 11, width: 100, background: 'var(--lf-rule-soft)', borderRadius: 4 }} />
-                    </div>
-                    <div style={{ height: 14, width: 64, background: 'var(--lf-rule)', borderRadius: 4 }} />
-                  </div>
-                ))}
-              </Card>
-            ))}
+        <>
+          <div style={{ marginBottom: 28 }}>
+            <SkeletonChart height={240} />
           </div>
-        </Section>
+          {[1, 2].map((g) => (
+            <Section key={g}>
+              <SkeletonRow />
+              <SkeletonRow />
+            </Section>
+          ))}
+        </>
       )}
 
       {/* ── Empty state ── */}
@@ -452,18 +379,28 @@ export function SimpleMoney() {
         </Section>
       )}
 
-      {/* ── Recent activity ── */}
+      {/* ── Recent activity — TransactionRow primitive.
+          Mobile rule: $ amount is ALWAYS visible. Category + date stay on
+          the sub-row, never drop. (Iter 2 P0.) */}
       {transactions.length > 0 && (
         <Section
           title="Recent activity"
           actions={<Link href="/spending" className="ds-btn ds-btn--link">All spending →</Link>}
         >
           <Card flush>
-            <DataTable
-              columns={txColumns}
-              rows={transactions}
-              rowKey={(t) => t.id}
-            />
+            {transactions.map((t) => {
+              const amt = parseFloat(t.amount);
+              return (
+                <TransactionRow
+                  key={t.id}
+                  merchant={t.merchantName || t.name}
+                  category={humanCategory(t.category)}
+                  date={t.date}
+                  amount={amt}
+                  fallbackIcon={categoryIcon[t.category] || <Banknote size={14} />}
+                />
+              );
+            })}
           </Card>
         </Section>
       )}
@@ -471,23 +408,20 @@ export function SimpleMoney() {
       <style>{`
         .ds-money-stats { margin: 32px 0 56px; }
 
-        /* Page-header actions: stack vertically on mobile, inline at md+. */
+        /* Page-bar actions: hidden on <640px so the bar stays a single short
+           row (iter 2 fix — was wrapping into a 128px tall double-stack). The
+           same actions live in the per-section "+ Add account" empty states
+           and the global accounts page. */
         .ds-money-header-actions {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          align-items: stretch;
+          display: none;
         }
-        .ds-money-header-actions > * { width: 100%; }
-        .ds-money-header-actions a { display: block; }
-        @media (min-width: 768px) {
+        @media (min-width: 640px) {
           .ds-money-header-actions {
+            display: flex;
             flex-direction: row;
             align-items: center;
             gap: 10px;
           }
-          .ds-money-header-actions > * { width: auto; }
-          .ds-money-header-actions a { display: inline-block; }
         }
 
         /* Composition ribbon legend: stack to one column on mobile with a
@@ -509,50 +443,6 @@ export function SimpleMoney() {
             min-width: 64px;
           }
         }
-
-        .ds-money-account-row {
-          display: flex; align-items: center; gap: 12px;
-          padding: 14px 20px;
-        }
-        .ds-money-account-row + .ds-money-account-row {
-          border-top: 1px solid var(--lf-rule-soft);
-        }
-        .ds-money-account-row__badge {
-          width: 32px; height: 32px; border-radius: 8px;
-          display: grid; place-items: center;
-          color: var(--lf-paper); font-weight: 600; font-size: 13px;
-          flex-shrink: 0;
-        }
-        .ds-money-account-row__main { flex: 1; min-width: 0; }
-        .ds-money-account-row__name {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px; font-weight: 500;
-          color: var(--lf-ink);
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .ds-money-account-row__meta {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 11px; letter-spacing: 0.05em;
-          color: var(--lf-muted);
-          margin-top: 2px;
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .ds-money-account-row__balance {
-          font-size: 14px; font-weight: 500;
-          color: var(--lf-ink);
-          flex-shrink: 0;
-        }
-        .ds-money-account-row__sync {
-          width: 36px; height: 36px;
-          display: grid; place-items: center;
-          border-radius: 8px;
-          background: none; border: none;
-          color: var(--lf-muted); cursor: pointer;
-          flex-shrink: 0;
-          transition: background 0.12s, color 0.12s;
-        }
-        .ds-money-account-row__sync:hover { background: var(--lf-cream); color: var(--lf-ink); }
-        .ds-money-account-row__sync:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* Editorial action feed — same family as ds-home-feed on Home */
         .ds-money-feed { list-style: none; margin: 0; padding: 0; }
@@ -637,7 +527,15 @@ function AccountSection({
       title={title}
       eyebrow={eyebrow}
       actions={
-        <span className={`ds-num ${totalTone === 'neg' ? 'ds-neg' : ''}`} style={{ fontSize: 18, fontWeight: 500 }}>
+        // Iter 5: sync icon is now absolutely positioned and no longer takes
+        // flex space, so AccountRow's value column ends 16px inside the card
+        // right edge (matches `.ds-row` padding-right). Subtotal uses the
+        // same offset so $ values share a single right edge with the rows
+        // below, and with all other section subtotals across the page.
+        <span
+          className={`ds-money-grid__value ds-num ${totalTone === 'neg' ? 'ds-neg' : ''}`}
+          style={{ fontSize: 18, fontWeight: 500, width: '12ch', marginRight: 16 }}
+        >
           {totalTone === 'neg' ? '−' : ''}{fmtUsd(total)}
         </span>
       }
@@ -662,34 +560,24 @@ function AccountSection({
       <Card flush>
         {accounts.map((acct) => {
           const bal = parseFloat(acct.balance ?? '0');
+          const institution = acct.item.institutionName || 'Manual';
+          const metaParts: string[] = [];
+          metaParts.push(institution);
+          if (acct.subtype) metaParts.push(titleCase(acct.subtype));
+          if (acct.mask) metaParts.push(`··${acct.mask}`);
+          if (acct.item.lastSyncedAt) metaParts.push(relativeTime(acct.item.lastSyncedAt));
           return (
-            <div key={acct.id} className="ds-money-account-row">
-              <div
-                className="ds-money-account-row__badge"
-                style={{ background: institutionColor(acct.item.institutionName || '') }}
-              >
-                {(acct.item.institutionName || '?')[0].toUpperCase()}
-              </div>
-              <div className="ds-money-account-row__main">
-                <div className="ds-money-account-row__name">{titleCase(acct.name)}</div>
-                <div className="ds-money-account-row__meta">
-                  {acct.item.institutionName || 'Manual'}
-                  {acct.subtype && <span> · {titleCase(acct.subtype)}</span>}
-                  {acct.mask && <span> · ··{acct.mask}</span>}
-                  {acct.item.lastSyncedAt && <span> · {relativeTime(acct.item.lastSyncedAt)}</span>}
-                </div>
-              </div>
-              <span className="ds-money-account-row__balance ds-num">{fmtUsd(Math.abs(bal))}</span>
-              <button
-                onClick={() => onSync(acct.item.id)}
-                disabled={syncing === acct.item.id}
-                className="ds-money-account-row__sync"
-                title={`Sync ${acct.item.institutionName || ''}`}
-                aria-label={`Sync ${acct.item.institutionName || 'account'}`}
-              >
-                <RefreshCw size={14} className={syncing === acct.item.id ? 'animate-spin' : ''} />
-              </button>
-            </div>
+            <AccountRow
+              key={acct.id}
+              institution={institution}
+              name={titleCase(acct.name)}
+              meta={metaParts.join(' · ')}
+              value={bal}
+              negative={totalTone === 'neg'}
+              onSync={() => onSync(acct.item.id)}
+              syncing={syncing === acct.item.id}
+              formatValue={(n) => fmtUsd(n)}
+            />
           );
         })}
       </Card>
@@ -727,31 +615,12 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-/** Deterministic color from institution name — warm palette for visual distinction. */
-const INST_COLORS = ['#8B4A2B', '#5A6B3F', '#6B2420', '#3D7A35', '#C25030', '#1E5C50', '#B87A1E', '#7A5C3F', '#A23F29', '#185248'];
-function institutionColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
-  return INST_COLORS[Math.abs(hash) % INST_COLORS.length];
-}
-
 function titleCase(raw: string): string {
   return raw.split(/\s+/).map((w) =>
     w.length <= 3 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
   ).join(' ');
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-  if (sameDay(d, today)) return 'Today';
-  if (sameDay(d, yesterday)) return 'Yesterday';
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-}
-function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
 function humanCategory(c: string) {
   return c.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 }
@@ -808,10 +677,13 @@ function smoothLinePath(pts: Array<[number, number]>): string {
   return out;
 }
 
-function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Range }) {
+function NetWorthChart({ points, range, onHoverChange }: { points: NetWorthPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
+  const setHoverIdx = (i: number | null) => {
+    setHoverIdxRaw(i);
+    onHoverChange?.(i);
+  };
   const [chartW, setChartW] = useState(600);
 
   useEffect(() => {
@@ -850,21 +722,11 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
     ? `${linePath} L ${xAt(points.length - 1).toFixed(2)} ${baseY} L ${xAt(0).toFixed(2)} ${baseY} Z`
     : '';
 
-  function pointerToIdx(clientX: number): number | null {
-    const svg = svgRef.current;
-    if (!svg) return null;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return null;
-    const pt = svg.createSVGPoint();
-    pt.x = clientX; pt.y = 0;
-    const { x } = pt.matrixTransform(ctm.inverse());
-    const ratio = (x - CHART_M.left) / innerW;
-    return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
-  }
-
   const hover = hoverIdx !== null ? points[hoverIdx] : null;
   const xLabels = useMemo(() => pickXLabels(points, range), [points, range]);
 
+  // Reserve a 28px header row so the value pill (rendered inside the overlay's
+  // top region) never overlaps the line.
   return (
     <div ref={wrapperRef} className="relative select-none" style={{ color: CHART_COLOR }}>
       <div className="h-7 flex items-baseline justify-end gap-2 px-1 mb-1 tabular-nums" aria-live="polite">
@@ -875,17 +737,13 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
           </>
         ) : <span aria-hidden="true">&nbsp;</span>}
       </div>
+      <div style={{ position: 'relative' }}>
       <svg
-        ref={svgRef}
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
         role="img"
         aria-label="Net worth trend chart"
         className="w-full block touch-none"
-        onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
-        onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
-        onPointerLeave={() => setHoverIdx(null)}
-        onPointerUp={() => setHoverIdx(null)}
-        onPointerCancel={() => setHoverIdx(null)}
+        style={{ pointerEvents: 'none' }}
       >
         <defs>
           <linearGradient id="nw-area" x1="0" y1="0" x2="0" y2="1">
@@ -951,6 +809,22 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
           <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 12} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
         ))}
       </svg>
+      {points.length > 0 && (
+        <ChartHover
+          width={CHART_W}
+          height={CHART_H}
+          paddingLeft={CHART_M.left}
+          paddingRight={CHART_M.right}
+          count={points.length}
+          onHoverChange={setHoverIdx}
+          getValue={(i) => fmtUsd(points[i].value)}
+          getLabel={(i) =>
+            new Date(points[i].date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          }
+          getCurvePoint={(i) => ({ x: xAt(i), y: yAt(points[i].value) })}
+        />
+      )}
+      </div>
     </div>
   );
 }

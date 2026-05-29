@@ -146,7 +146,7 @@ export function ActionItem({
                       `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
                     );
                   }}
-                  className="text-xs text-accent hover:text-accent/80 font-medium transition-colors"
+                  className="text-xs text-text-secondary hover:text-text font-medium transition-colors"
                 >
                   Walk me through this &rarr;
                 </button>
@@ -154,7 +154,7 @@ export function ActionItem({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onContextClick(); }}
-                    className="text-xs text-text-secondary hover:text-accent transition-colors ml-auto"
+                    className="text-xs text-text-secondary hover:text-text transition-colors ml-auto"
                   >
                     See in context &rarr;
                   </button>

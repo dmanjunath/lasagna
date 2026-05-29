@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ComponentType, ReactElement } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Check, X, Trash2, ArrowRight } from 'lucide-react';
+import {
+  Plus, Check, X, Trash2, ArrowRight,
+  Target, Shield, Home as HomeIcon, Plane, Car, Heart,
+  GraduationCap, Hammer, Sparkles, Palmtree, CreditCard, Wallet, Wrench,
+} from 'lucide-react';
 import { api } from '../lib/api';
 import { PageActions } from '../components/common/page-actions';
 import {
   Page,
-  PageHeader,
   Section,
   Card,
   Button,
   Eyebrow,
   EmptyState,
-  StatStrip,
-  Lede,
   useConfirm,
 } from '../components/ds';
 
@@ -50,19 +51,39 @@ function goalColor(category: string): string {
 // Presets
 // ---------------------------------------------------------------------------
 
-const GOAL_PRESETS = [
-  { name: 'Emergency Fund', category: 'emergency_fund', icon: '🛡️', suggestedTarget: 25000 },
-  { name: 'Home Purchase', category: 'home_purchase', icon: '🏠', suggestedTarget: 80000 },
-  { name: 'Vacation / Travel', category: 'vacation', icon: '✈️', suggestedTarget: 5000 },
-  { name: 'Vehicle Purchase', category: 'car', icon: '🚗', suggestedTarget: 30000 },
-  { name: 'Wedding Fund', category: 'wedding', icon: '💍', suggestedTarget: 30000 },
-  { name: 'Education / 529', category: 'education', icon: '🎓', suggestedTarget: 50000 },
-  { name: 'Home Repair', category: 'home_repair', icon: '🔧', suggestedTarget: 15000 },
-  { name: 'Major Purchase', category: 'major_purchase', icon: '🛍️', suggestedTarget: 10000 },
-  { name: 'Life Event', category: 'life_event', icon: '🎉', suggestedTarget: 10000 },
-  { name: 'Retirement', category: 'retirement', icon: '🌴', suggestedTarget: 1000000 },
-  { name: 'Debt Payoff', category: 'debt_payoff', icon: '💳', suggestedTarget: 20000 },
-  { name: 'General Savings', category: 'savings', icon: '💰', suggestedTarget: 10000 },
+// Lucide icon registry — neutral monochrome glyphs replace emoji per iter 2
+// critic. Stored as a stable string key so we can persist the choice (still
+// `goal.icon: string`) but render a real SVG via `iconFor()`.
+type IconKey =
+  | 'shield' | 'home' | 'plane' | 'car' | 'heart' | 'graduationCap'
+  | 'wrench' | 'sparkles' | 'palmtree' | 'creditCard' | 'wallet'
+  | 'target' | 'hammer';
+
+const ICON_REGISTRY: Record<IconKey, ComponentType<{ size?: number; className?: string }>> = {
+  shield: Shield, home: HomeIcon, plane: Plane, car: Car, heart: Heart,
+  graduationCap: GraduationCap, wrench: Wrench, sparkles: Sparkles,
+  palmtree: Palmtree, creditCard: CreditCard, wallet: Wallet,
+  target: Target, hammer: Hammer,
+};
+
+function iconFor(key: string | null | undefined, size = 20): ReactElement {
+  const Cmp = (key && ICON_REGISTRY[key as IconKey]) || Target;
+  return <Cmp size={size} />;
+}
+
+const GOAL_PRESETS: Array<{ name: string; category: string; icon: IconKey; suggestedTarget: number }> = [
+  { name: 'Emergency Fund', category: 'emergency_fund', icon: 'shield', suggestedTarget: 25000 },
+  { name: 'Home Purchase', category: 'home_purchase', icon: 'home', suggestedTarget: 80000 },
+  { name: 'Vacation / Travel', category: 'vacation', icon: 'plane', suggestedTarget: 5000 },
+  { name: 'Vehicle Purchase', category: 'car', icon: 'car', suggestedTarget: 30000 },
+  { name: 'Wedding Fund', category: 'wedding', icon: 'heart', suggestedTarget: 30000 },
+  { name: 'Education / 529', category: 'education', icon: 'graduationCap', suggestedTarget: 50000 },
+  { name: 'Home Repair', category: 'home_repair', icon: 'wrench', suggestedTarget: 15000 },
+  { name: 'Major Purchase', category: 'major_purchase', icon: 'sparkles', suggestedTarget: 10000 },
+  { name: 'Life Event', category: 'life_event', icon: 'sparkles', suggestedTarget: 10000 },
+  { name: 'Retirement', category: 'retirement', icon: 'palmtree', suggestedTarget: 1000000 },
+  { name: 'Debt Payoff', category: 'debt_payoff', icon: 'creditCard', suggestedTarget: 20000 },
+  { name: 'General Savings', category: 'savings', icon: 'wallet', suggestedTarget: 10000 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -97,7 +118,7 @@ export function Goals() {
   // Create form state
   const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState('');
-  const [newIcon, setNewIcon] = useState('🎯');
+  const [newIcon, setNewIcon] = useState<string>('target');
   const [newDeadline, setNewDeadline] = useState('');
   const [newCategory, setNewCategory] = useState('savings');
 
@@ -124,7 +145,7 @@ export function Goals() {
       setShowCreate(false);
       setNewName('');
       setNewTarget('');
-      setNewIcon('🎯');
+      setNewIcon('target');
       setNewDeadline('');
       setNewCategory('savings');
     } catch (err) {
@@ -185,18 +206,6 @@ export function Goals() {
 
   const totalTarget = activeGoals.reduce((s, g) => s + parseFloat(g.targetAmount), 0);
   const totalSaved = activeGoals.reduce((s, g) => s + parseFloat(g.currentAmount), 0);
-  const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
-  const avgPct = activeGoals.length > 0
-    ? Math.round(
-        activeGoals
-          .map((g) => {
-            const t = parseFloat(g.targetAmount);
-            const c = parseFloat(g.currentAmount);
-            return t > 0 ? Math.min(100, (c / t) * 100) : 0;
-          })
-          .reduce((s, v) => s + v, 0) / activeGoals.length,
-      )
-    : 0;
 
   const newGoalBtn = import.meta.env.VITE_DEMO_MODE !== 'true' ? (
     <Button variant="ink" onClick={() => setShowCreate(v => !v)} icon={<Plus size={14} />}>
@@ -274,6 +283,20 @@ export function Goals() {
           color: var(--lf-muted); cursor: pointer;
         }
         .goals-feed__iconbtn:hover { background: var(--lf-cream); color: var(--lf-ink); }
+        /* Destructive trash icon hides until row hover (desktop). Touch
+           devices keep it semi-visible so users can find it. */
+        .goals-feed__iconbtn--destructive {
+          opacity: 0;
+          transition: opacity 0.12s, background 0.12s, color 0.12s;
+        }
+        .goals-feed li:hover .goals-feed__iconbtn--destructive,
+        .goals-feed__iconbtn--destructive:focus-visible {
+          opacity: 1;
+        }
+        .goals-feed__iconbtn--destructive:hover { color: var(--lf-sauce-deep); }
+        @media (hover: none) and (pointer: coarse) {
+          .goals-feed__iconbtn--destructive { opacity: 0.55; }
+        }
         .goals-feed__open {
           display: inline-flex; align-items: center; justify-content: center;
           min-width: 44px; min-height: 44px;
@@ -317,45 +340,210 @@ export function Goals() {
           transition: all 0.15s;
         }
         .goals-preset:hover { color: var(--lf-ink); }
+
+        /* ── Iter 7 B: "Saving this month" strip ──
+           Three KPI cards, same neutral surface as .ds-card but flattened
+           into a 3-up grid. Drops to single column under 640px. */
+        .goals-strip-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+          margin: 0 0 36px;
+        }
+        .goals-strip-card {
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 10px;
+          padding: 16px 18px;
+          box-shadow: var(--shadow-card);
+          display: flex; flex-direction: column; gap: 6px;
+        }
+        .goals-strip-card__eyebrow {
+          /* sentence-case lowercase per iter 7 F */
+          text-transform: lowercase;
+          letter-spacing: 0.10em;
+        }
+        .goals-strip-card__value {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-weight: 600;
+          font-size: 22px;
+          line-height: 1.05;
+          letter-spacing: -0.01em;
+          color: var(--lf-ink);
+          font-variant-numeric: tabular-nums;
+        }
+        .goals-strip-card__caption {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          color: var(--lf-muted);
+        }
+        @media (max-width: 640px) {
+          .goals-strip-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+          }
+          .goals-strip-card { padding: 12px 14px; }
+          .goals-strip-card__value { font-size: 18px; }
+        }
+
+        /* ── Iter 7 B: Suggested goals gallery ── */
+        .goals-suggested-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+        @media (max-width: 900px) {
+          .goals-suggested-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 520px) {
+          .goals-suggested-grid { grid-template-columns: 1fr; }
+        }
+        .goals-suggested-card {
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 10px;
+          padding: 14px 16px;
+          display: flex; gap: 12px; align-items: center;
+          text-align: left;
+          cursor: pointer;
+          font-family: inherit;
+          transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+          box-shadow: var(--shadow-card);
+        }
+        .goals-suggested-card:hover {
+          border-color: var(--lf-rule);
+          background: var(--lf-paper);
+        }
+        .goals-suggested-card__icon {
+          width: 36px; height: 36px;
+          border-radius: 8px;
+          display: grid; place-items: center;
+          flex-shrink: 0;
+        }
+        .goals-suggested-card__body { flex: 1; min-width: 0; }
+        .goals-suggested-card__title {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-weight: 500;
+          font-size: 14px;
+          line-height: 1.2;
+          color: var(--lf-ink);
+          display: block;
+          margin-bottom: 2px;
+        }
+        .goals-suggested-card__sub {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          color: var(--lf-muted);
+        }
+        .goals-suggested-card__arrow {
+          color: var(--lf-muted);
+          flex-shrink: 0;
+          transition: transform 0.12s, color 0.12s;
+        }
+        .goals-suggested-card:hover .goals-suggested-card__arrow {
+          color: var(--lf-sauce);
+          transform: translateX(2px);
+        }
+
+        /* ── Iter 7 B: Completed-goals archive (ghost styling) ── */
+        .goals-archive {
+          list-style: none; margin: 0; padding: 0;
+        }
+        .goals-archive li {
+          padding: 14px 0;
+          border-top: 1px solid var(--lf-rule-soft);
+          display: flex; align-items: center; gap: 12px;
+        }
+        .goals-archive__icon {
+          width: 32px; height: 32px;
+          border-radius: 6px;
+          display: grid; place-items: center;
+          background: rgba(90, 107, 63, 0.10);
+          color: var(--lf-basil);
+          flex-shrink: 0;
+        }
+        .goals-archive__body { flex: 1; min-width: 0; }
+        .goals-archive__name {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px; font-weight: 500;
+          color: var(--lf-muted);
+          text-decoration: line-through;
+          display: block;
+        }
+        .goals-archive__meta {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          color: var(--lf-muted);
+        }
+        .goals-archive__value {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 13px;
+          color: var(--lf-muted);
+          font-variant-numeric: tabular-nums;
+        }
       `}</style>
 
-      <PageHeader
-        eyebrow={!loading ? `${activeGoals.length} active · ${completedGoals.length} complete` : undefined}
-        title="Goals"
-        actions={newGoalBtn}
-      />
-
-      {/* Editorial lede */}
+      {/* Iter 8 P1: title is the page name only. Live monetary data lives in
+          the subtitle slot — inline on desktop, dropped to a sub-row on
+          mobile where the H1 would otherwise truncate mid-dollar-amount. */}
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Goals</h1>
+          {!loading && activeGoals.length > 0 && (
+            <span className="ds-page-bar__subtitle">
+              {formatCurrency(totalSaved)} of {formatCurrency(totalTarget)} · {activeGoals.length} active
+              {completedGoals.length > 0 && (
+                <> · <span className="ds-pos">{completedGoals.length} complete</span></>
+              )}
+            </span>
+          )}
+        </div>
+        {newGoalBtn}
+      </header>
       {!loading && activeGoals.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <Lede>
-            You've saved{' '}
-            <Lede.Num tone="pos">{formatCurrency(totalSaved)}</Lede.Num>
-            {' '}of{' '}
-            <Lede.Num>{formatCurrency(totalTarget)}</Lede.Num>
-            {' '}across{' '}
-            <Lede.Num highlight>{activeGoals.length} active</Lede.Num>
-            {activeGoals.length === 1 ? ' goal' : ' goals'}
-            {completedGoals.length > 0 && (
-              <>
-                , with <Lede.Num tone="pos">{completedGoals.length} complete</Lede.Num>
-              </>
-            )}.
-          </Lede>
+        <div className="ds-page-bar__subtitle-mobile">
+          {formatCurrency(totalSaved)} of {formatCurrency(totalTarget)} · {activeGoals.length} active
+          {completedGoals.length > 0 && (
+            <> · <span className="ds-pos">{completedGoals.length} complete</span></>
+          )}
         </div>
       )}
 
-      {/* Stat strip */}
+      {/* Iter 7 B: "Saving this month" KPI strip. Built from the active-goal
+          aggregates we already have — total saved against total target, with
+          a coarse "added this month" derived from delta-against-target as a
+          proxy until we wire per-goal monthly contribution history. */}
       {!loading && activeGoals.length > 0 && (
-        <StatStrip
-          className="goals-strip"
-          items={[
-            { label: 'Saved', value: <span className="ds-num">{formatCurrency(totalSaved)}</span>, sub: 'across active', tone: 'pos' },
-            { label: 'Total target', value: <span className="ds-num">{formatCurrency(totalTarget)}</span>, sub: `${overallPct}% reached` },
-            { label: 'Active', value: <span className="ds-num">{activeGoals.length}</span>, sub: `${completedGoals.length} complete` },
-            { label: 'Avg progress', value: <span className="ds-num">{avgPct}%</span>, sub: 'per goal' },
-          ]}
-        />
+        <section className="goals-strip-grid" aria-label="Saving this month">
+          <div className="goals-strip-card">
+            <span className="ds-eyebrow goals-strip-card__eyebrow">saved so far</span>
+            <span className="goals-strip-card__value ds-num">{formatCurrency(totalSaved)}</span>
+            <span className="goals-strip-card__caption">
+              {totalTarget > 0
+                ? `${Math.round((totalSaved / totalTarget) * 100)}% of total target`
+                : 'across all active goals'}
+            </span>
+          </div>
+          <div className="goals-strip-card">
+            <span className="ds-eyebrow goals-strip-card__eyebrow">still to go</span>
+            <span className="goals-strip-card__value ds-num">
+              {formatCurrency(Math.max(0, totalTarget - totalSaved))}
+            </span>
+            <span className="goals-strip-card__caption">
+              across {activeGoals.length} active goal{activeGoals.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="goals-strip-card">
+            <span className="ds-eyebrow goals-strip-card__eyebrow">avg / goal</span>
+            <span className="goals-strip-card__value ds-num">
+              {formatCurrency(activeGoals.length > 0 ? totalSaved / activeGoals.length : 0)}
+            </span>
+            <span className="goals-strip-card__caption">
+              {completedGoals.length} reached lifetime
+            </span>
+          </div>
+        </section>
       )}
 
       {/* Savings insights */}
@@ -386,14 +574,18 @@ export function Goals() {
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <Eyebrow>Goal name</Eyebrow>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      type="text"
-                      value={newIcon}
-                      onChange={e => setNewIcon(e.target.value)}
-                      maxLength={4}
+                    {/* Icon preview — chosen via the category chip below. */}
+                    <div
                       aria-label="Icon"
-                      style={{ ...inputStyle, width: 56, textAlign: 'center', flexShrink: 0 }}
-                    />
+                      style={{
+                        ...inputStyle,
+                        width: 56, flexShrink: 0,
+                        display: 'grid', placeItems: 'center',
+                        color: 'var(--lf-ink-soft)',
+                      }}
+                    >
+                      {iconFor(newIcon, 20)}
+                    </div>
                     <input
                       type="text"
                       value={newName}
@@ -447,9 +639,11 @@ export function Goals() {
                         style={{
                           borderColor: active ? color : 'var(--lf-rule)',
                           color: active ? color : 'var(--lf-muted)',
+                          display: 'inline-flex', alignItems: 'center', gap: 8,
                         }}
                       >
-                        {preset.icon} {preset.name}
+                        {iconFor(preset.icon, 14)}
+                        <span>{preset.name}</span>
                       </button>
                     );
                   })}
@@ -478,7 +672,7 @@ export function Goals() {
         activeGoals.length === 0 && !showCreate ? (
           <Section>
             <EmptyState
-              icon={<span style={{ fontSize: 40 }}>🎯</span>}
+              icon={<Target size={32} />}
               title="No goals yet"
               body="Setting financial goals is the first step toward achieving them. Create a goal to start tracking your progress."
               cta={import.meta.env.VITE_DEMO_MODE !== 'true' ? (
@@ -511,9 +705,9 @@ export function Goals() {
                     <div className="goals-feed__row">
                       <div
                         className="goals-feed__icon"
-                        style={{ background: color + '18', border: `1px solid ${color}30` }}
+                        style={{ background: color + '18', border: `1px solid ${color}30`, color }}
                       >
-                        {goal.icon || '🎯'}
+                        {iconFor(goal.icon, 22)}
                       </div>
                       <div className="goals-feed__main">
                         <div className="goals-feed__head">
@@ -554,11 +748,26 @@ export function Goals() {
                         </div>
 
                         <div className="goals-feed__bar">
-                          <div style={{ width: `${pct}%`, background: color }} />
+                          {/* Iter 5: at 0% the fill width is 0, leaving only
+                              the cream track visible — which on some category
+                              colors was indistinguishable from the track. We
+                              render a tiny basil tick at the start whenever
+                              progress is 0 so the rail reads as "alive but
+                              empty" rather than "rail not even rendered". */}
+                          {pct > 0 ? (
+                            <div style={{ width: `${pct}%`, background: 'var(--lf-data-2)' }} />
+                          ) : (
+                            <div style={{ width: 4, background: 'var(--lf-data-2)' }} />
+                          )}
                         </div>
 
                         <div className="goals-feed__meta">
-                          <span style={{ color: pct >= 100 ? 'var(--lf-basil)' : color }}>
+                          {/* Iter 6: pct number reads as a STATUS, not a
+                              category badge. Use basil at 100%, neutral
+                              ink-soft otherwise so the "0%" eyebrow stops
+                              rendering as sauce (which was a sauce-purge
+                              violation on home_purchase goals). */}
+                          <span style={{ color: pct >= 100 ? 'var(--lf-basil)' : 'var(--lf-ink-soft)' }}>
                             {Math.round(pct)}%
                           </span>
                           <span className="goals-feed__meta-sep">·</span>
@@ -585,8 +794,12 @@ export function Goals() {
                             <Check size={14} />
                           </button>
                         )}
+                        {/* Destructive action: hover-reveal (and always-visible on touch).
+                            Keeps the destructive control off the resting nav rail next
+                            to the open-chevron — iter 2 critic flagged it as too easy
+                            to mis-tap. Confirm dialog already wraps the action. */}
                         {import.meta.env.VITE_DEMO_MODE !== 'true' && (
-                          <button onClick={() => handleDelete(goal.id)} title="Delete" className="goals-feed__iconbtn">
+                          <button onClick={() => handleDelete(goal.id)} title="Delete" className="goals-feed__iconbtn goals-feed__iconbtn--destructive">
                             <Trash2 size={14} />
                           </button>
                         )}
@@ -611,43 +824,90 @@ export function Goals() {
         ) : null
       )}
 
-      {/* Completed goals */}
-      {completedGoals.length > 0 && (
-        <Section title="Completed" eyebrow={`${completedGoals.length} reached`}>
-          <ul className="goals-feed">
-            {completedGoals.map((goal) => (
-              <li key={goal.id}>
-                <div className="goals-feed__row">
-                  <div
-                    className="goals-feed__icon"
-                    style={{ background: 'rgba(90,107,63,0.15)', border: '1px solid rgba(90,107,63,0.30)' }}
-                  >
-                    {goal.icon || '🎯'}
+      {/* Iter 7 B: Completed-goals archive — compact ghost rows.
+          When the user has none, show a single example "empty" row so the
+          section reads as "this exists, you just haven't filled it" instead
+          of being skipped entirely. */}
+      {!loading && (
+        <Section
+          title="Completed"
+          eyebrow={completedGoals.length > 0 ? `${completedGoals.length} reached` : 'archive'}
+        >
+          {completedGoals.length > 0 ? (
+            <ul className="goals-archive">
+              {completedGoals.map((goal) => (
+                <li key={goal.id}>
+                  <div className="goals-archive__icon">{iconFor(goal.icon, 16)}</div>
+                  <div className="goals-archive__body">
+                    <span className="goals-archive__name">{goal.name}</span>
+                    <span className="goals-archive__meta">
+                      reached
+                      {goal.category && <> · {goal.category.replace(/_/g, ' ')}</>}
+                    </span>
                   </div>
-                  <div className="goals-feed__main">
-                    <div className="goals-feed__head">
-                      <h3 className="goals-feed__title" style={{ textDecoration: 'line-through', color: 'var(--lf-muted)' }}>
-                        {goal.name}
-                      </h3>
-                      <span className="goals-feed__amount">
-                        {formatCurrency(parseFloat(goal.targetAmount))}
-                      </span>
-                    </div>
-                    <div className="goals-feed__meta">
-                      <span style={{ color: 'var(--lf-basil)' }}>Reached ✓</span>
-                      {goal.category && (
-                        <>
-                          <span className="goals-feed__meta-sep">·</span>
-                          <span>{goal.category.replace(/_/g, ' ')}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="goals-feed__actions" />
+                  <span className="goals-archive__value">
+                    {formatCurrency(parseFloat(goal.targetAmount))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <ul className="goals-archive">
+              <li style={{ opacity: 0.6 }}>
+                <div className="goals-archive__icon" style={{ background: 'var(--lf-cream)', color: 'var(--lf-muted)' }}>
+                  <Target size={16} />
+                </div>
+                <div className="goals-archive__body">
+                  <span className="goals-archive__name" style={{ textDecoration: 'none' }}>
+                    No completed goals yet
+                  </span>
+                  <span className="goals-archive__meta">
+                    finished goals will land here as a record
+                  </span>
                 </div>
               </li>
-            ))}
-          </ul>
+            </ul>
+          )}
+        </Section>
+      )}
+
+      {/* Iter 7 B: Suggested-goals template gallery. 6 cards keyed off the
+          existing GOAL_PRESETS so we don't duplicate that list. Clicking a
+          card pre-fills the New-goal form so the user can review/edit
+          before committing — same flow as selectPreset() in the form. */}
+      {!loading && import.meta.env.VITE_DEMO_MODE !== 'true' && (
+        <Section title="Suggested" eyebrow="popular templates">
+          <div className="goals-suggested-grid">
+            {GOAL_PRESETS.slice(0, 6).map((preset) => {
+              const color = goalColor(preset.category);
+              return (
+                <button
+                  key={preset.category}
+                  type="button"
+                  className="goals-suggested-card"
+                  onClick={() => {
+                    selectPreset(preset);
+                    setShowCreate(true);
+                  }}
+                  aria-label={`Add ${preset.name} goal · suggested target ${formatCurrency(preset.suggestedTarget)}`}
+                >
+                  <span
+                    className="goals-suggested-card__icon"
+                    style={{ background: color + '18', color }}
+                  >
+                    {iconFor(preset.icon, 18)}
+                  </span>
+                  <span className="goals-suggested-card__body">
+                    <span className="goals-suggested-card__title">{preset.name}</span>
+                    <span className="goals-suggested-card__sub">
+                      suggested {formatCurrency(preset.suggestedTarget)}
+                    </span>
+                  </span>
+                  <ArrowRight size={14} className="goals-suggested-card__arrow" />
+                </button>
+              );
+            })}
+          </div>
         </Section>
       )}
     </Page>

@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Lightbulb, Calendar, MessageSquare } from 'lucide-react';
+import { Lightbulb, Calendar } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
 import {
   Page,
-  PageHeader,
   Section,
   Card,
   Button,
   Eyebrow,
   CompositionRibbon,
-  Lede,
 } from '../components/ds';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -250,56 +248,47 @@ export function SimpleHome() {
     return last - prior.value;
   }, [nwHistory]);
 
+  // Chip suggestions stay ≤4 words each — they're nav, not the question.
+  // The full question gets composed in /chat from the chip's intent.
   const suggestedPrompts = useMemo(() => {
     const prompts: string[] = [];
     if (breakdown) {
-      if (breakdown.debts > 0 && breakdown.investments > 0)
-        prompts.push(`Should I pay off ${formatMoneyShort(breakdown.debts)} in debt or keep investing?`);
-      else if (breakdown.debts > 0)
-        prompts.push(`Fastest way to pay off ${formatMoneyShort(breakdown.debts)} in debt?`);
-      if (breakdown.investments > 0)
-        prompts.push(`Can I retire on ${formatMoneyShort(breakdown.investments)}?`);
+      if (breakdown.debts > 0) prompts.push('Pay off debt?');
+      if (breakdown.investments > 0) prompts.push('Retire at 65?');
     }
-    if (topGoal) prompts.push(`How can I reach ${topGoal.name} faster?`);
-    if (currentStep) prompts.push(`Help me with: ${currentStep.title}`);
-    if (prompts.length < 2) prompts.push('What should I focus on first?');
-    if (prompts.length < 3) prompts.push('Am I on track for retirement?');
-    return prompts.slice(0, 3);
-  }, [breakdown, topGoal, currentStep]);
+    if (topGoal) prompts.push('Reach goal faster?');
+    prompts.push('Tax-loss harvest?');
+    prompts.push('Withdraw safely?');
+    return prompts.slice(0, 4);
+  }, [breakdown, topGoal]);
 
   return (
     <Page>
-      {/* Masthead — date eyebrow, greeting (chat is now a full section below) */}
-      <PageHeader
-        eyebrow={formatDateLong(new Date())}
-        title={<>Good morning, {firstName}.</>}
-      />
-
-      {/* Editorial lede — directly addresses the user with inline tabular numbers */}
-      {breakdown && (
-        <div style={{ marginBottom: 40 }}>
-          <Lede>
-            You're worth{' '}
-            <Lede.Num>{fmtUsd(breakdown.netWorth)}</Lede.Num>
-            {monthDelta !== null && (
-              <>
-                {' — '}
-                <Lede.Num tone={monthDelta >= 0 ? 'pos' : 'neg'}>
-                  {monthDelta >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthDelta))}
-                </Lede.Num>{' '}this month
-              </>
-            )}.
-            {currentStep && (
-              <>
-                {' '}Today, focus on{' '}
-                <Lede.Num highlight>{currentStep.title}</Lede.Num>.
-              </>
-            )}
-          </Lede>
+      {/* Compact masthead — single row: greeting + inline net-worth caption.
+          Date moves to a tiny subline; no separate eyebrow band. Saves ~80px
+          of vertical real estate vs the old PageHeader + Lede stack. */}
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Good morning, {firstName}.</h1>
+          <span className="ds-page-bar__caption ds-num">
+            {breakdown
+              ? <>
+                  Net worth {fmtUsd(breakdown.netWorth)}
+                  {monthDelta !== null && (
+                    <>
+                      {'  ·  '}
+                      <span className={monthDelta >= 0 ? 'ds-pos' : 'ds-neg'}>
+                        {monthDelta >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthDelta))} this month
+                      </span>
+                    </>
+                  )}
+                </>
+              : formatDateLong(new Date())}
+          </span>
         </div>
-      )}
+      </header>
 
-      {/* Composition ribbon — money status first; AskHero follows */}
+      {/* Composition ribbon — visual KPI strip, primary signal at top */}
       {breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0) && (() => {
         const totalAccounts = breakdown.cashCount + breakdown.investmentsCount + breakdown.assetsCount + breakdown.debtsCount;
         return (
@@ -317,17 +306,8 @@ export function SimpleHome() {
         );
       })()}
 
-      {/* Ask Lasagna — full-width editorial hero with composer + contextual prompts */}
-      <AskHero
-        value={askDraft}
-        onChange={setAskDraft}
-        onSubmit={submitAsk}
-        prompts={suggestedPrompts}
-        onPick={(q) => setLocation(`/chat?prompt=${encodeURIComponent(q)}`)}
-      />
-
-      {/* Today's focus — unified editorial article (no separate Section header
-          above it; the article carries its own eyebrow/title/actions) */}
+      {/* Today's focus — primary editorial signal, above the fold on 1440×900.
+          Article carries its own eyebrow/title; no preceding Section H2. */}
       {levelLoading ? (
         <div className="ds-focus-wrap"><div style={{ height: 140 }} className="animate-pulse" /></div>
       ) : currentStep ? (
@@ -355,7 +335,7 @@ export function SimpleHome() {
       ) : (
         <div className="ds-focus-wrap">
           <Card variant="ghost">
-            <Eyebrow>Get started</Eyebrow>
+            <Eyebrow>get started</Eyebrow>
             <h3 className="ds-h2" style={{ marginTop: 8 }}>Set up your financial profile</h3>
             <p className="ds-body" style={{ marginTop: 8, marginBottom: 16 }}>
               Tell us the basics and we'll show you exactly what to do next.
@@ -364,6 +344,17 @@ export function SimpleHome() {
           </Card>
         </div>
       )}
+
+      {/* Ask Lasagna — compact composer strip. Single ~52px input row + chip
+          suggestions below. No big serif headline, no sauce card chrome —
+          treated as a tool, not the page hero. */}
+      <AskStrip
+        value={askDraft}
+        onChange={setAskDraft}
+        onSubmit={submitAsk}
+        prompts={suggestedPrompts}
+        onPick={(q) => setLocation(`/chat?prompt=${encodeURIComponent(q)}`)}
+      />
 
       {/* Two-column body */}
       <div className="ds-home-twocol">
@@ -406,7 +397,10 @@ export function SimpleHome() {
         </aside>
       </div>
 
-      {/* Local layout helpers — page-specific grid only, no typography tokens */}
+      {/* Local layout helpers — page-specific grid only, no typography tokens.
+          NOTE: AskStrip mobile-hide is owned by the <AskStrip> component
+          (Tailwind hidden md:flex). The injected <style> hack from iter 2
+          is gone — duct tape removed. */}
       <style>{`
         .ds-home-stats { margin: 32px 0 56px; }
         .ds-home-twocol {
@@ -499,17 +493,9 @@ function FocusEditorial({
 
   return (
     <article className="ds-focus">
-      <div className="ds-focus__eyebrow">
-        Today's focus <span aria-hidden="true">·</span> Level {step.order} of 12
-      </div>
+      <div className="ds-focus__eyebrow">today's focus</div>
       <h2 className="ds-focus__title">{step.title}</h2>
       {body && <p className="ds-focus__body">{body}</p>}
-      {step.action && (
-        <p className="ds-focus__nextstep">
-          <span className="ds-focus__nextstep-label">Next step.</span>{' '}
-          {step.action}
-        </p>
-      )}
       {hasProgress && (
         <div className="ds-focus__progress">
           <div className="ds-focus__progress-meta">
@@ -528,15 +514,27 @@ function FocusEditorial({
           <Button
             variant="ink"
             disabled={busy}
-            onClick={async () => { setBusy(true); try { await onDone(); } finally { setBusy(false); } }}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                // Mark done in the background but route the user straight
+                // into the walk-through — merging the two CTAs into one.
+                await Promise.all([
+                  Promise.resolve().then(() => onHelp()),
+                  onDone(),
+                ]);
+              } finally {
+                setBusy(false);
+              }
+            }}
           >
-            {busy ? '…' : 'Mark done ✓'}
+            {busy ? '…' : 'Start →'}
           </Button>
-          <Button variant="ghost" disabled={busy} onClick={onHelp}>
-            Walk me through this →
+          <Button variant="ghost" disabled={busy} onClick={async () => { setBusy(true); try { await onDone(); } finally { setBusy(false); } }}>
+            Skip
           </Button>
         </div>
-        <Link href="/insights" className="ds-focus__all">All actions →</Link>
+        <Link href="/insights" className="ds-focus__all">View all actions</Link>
       </div>
       <style>{`
         .ds-focus {
@@ -558,13 +556,15 @@ function FocusEditorial({
           margin: 0 6px;
         }
         .ds-focus__title {
+          /* Iter 7 H1/H2: focus title was 26px > page-bar H1 24px. Drop to
+             22px so page-bar stays dominant on home. */
           font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 500;
-          font-size: clamp(30px, 4.5vw, 44px);
-          line-height: 1.05;
-          letter-spacing: -0.015em;
+          font-weight: 600;
+          font-size: 22px;
+          line-height: 1.2;
+          letter-spacing: -0.01em;
           color: var(--lf-ink);
-          margin: 0 0 18px;
+          margin: 0 0 14px;
         }
         .ds-focus__body {
           font-family: 'Geist', system-ui, sans-serif;
@@ -573,22 +573,6 @@ function FocusEditorial({
           color: var(--lf-ink-soft);
           max-width: 60ch;
           margin: 0 0 18px;
-        }
-        .ds-focus__nextstep {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
-          line-height: 1.55;
-          color: var(--lf-ink-soft);
-          background: var(--lf-cream);
-          border-left: 3px solid var(--lf-cheese);
-          padding: 12px 14px;
-          border-radius: 0 8px 8px 0;
-          margin: 0 0 22px;
-          max-width: 60ch;
-        }
-        .ds-focus__nextstep-label {
-          color: var(--lf-ink);
-          font-weight: 600;
         }
         .ds-focus__progress { margin-bottom: 22px; max-width: 480px; }
         .ds-focus__progress-meta {
@@ -658,12 +642,12 @@ function ActionEditorial({
 }) {
   const [busy, setBusy] = useState(false);
   const urgencyLabel =
-    insight.urgency === 'critical' || insight.urgency === 'high' ? 'High priority' :
-    insight.urgency === 'medium' ? 'This week' : 'Watch';
+    insight.urgency === 'critical' || insight.urgency === 'high' ? 'high priority' :
+    insight.urgency === 'medium' ? 'this week' : 'watch';
   return (
     <article className="ds-focus">
       <div className="ds-focus__eyebrow">
-        Today's focus <span aria-hidden="true">·</span> {urgencyLabel}
+        today's focus <span aria-hidden="true">·</span> {urgencyLabel}
       </div>
       <h2 className="ds-focus__title">{insight.title}</h2>
       {insight.description && <p className="ds-focus__body">{insight.description}</p>}
@@ -691,7 +675,7 @@ function ActionEditorial({
 function MarginaliaGoal({ goal, progress }: { goal: Goal; progress: number }) {
   return (
     <div className="ds-margin">
-      <Eyebrow>Active goal</Eyebrow>
+      <Eyebrow>active goal</Eyebrow>
       <div className="ds-margin__title">{goal.name}</div>
       <div className="ds-margin__bar">
         <div style={{ width: `${progress}%` }} />
@@ -768,13 +752,12 @@ function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: st
   );
 }
 
-// ─── Ask Lasagna hero ──────────────────────────────────────────────────────
-// Lasagna's signature feature is chat — surface it prominently as an
-// editorial centerpiece, not a sidebar widget. The input is large; suggested
-// questions render below as serif headlines (hairline-separated) like
-// "today's questions" in a magazine.
+// ─── Ask Lasagna — compact composer strip ──────────────────────────────────
+// Treated as a tool, not the hero. Single input row (~52px) with inline send,
+// then a horizontal row of chip-style suggestions. No headline, no card chrome.
+// The page-level voice lives elsewhere (the page bar caption, Today's focus).
 
-function AskHero({
+function AskStrip({
   value, onChange, onSubmit, prompts, onPick,
 }: {
   value: string;
@@ -784,33 +767,25 @@ function AskHero({
   onPick: (q: string) => void;
 }) {
   return (
-    <section className="ds-askhero" aria-labelledby="ds-askhero-title">
-      <div className="ds-askhero__head">
-        <MessageSquare size={20} className="ds-askhero__icon" />
-        <div>
-          <h2 id="ds-askhero-title" className="ds-askhero__title">
-            Ask Lasagna anything.
-          </h2>
-          <p className="ds-askhero__sub">
-            Lasagna sees your accounts, goals, and history.
-          </p>
-        </div>
-      </div>
-
-      <form onSubmit={onSubmit} className="ds-askhero__form">
-        <div className="ds-askhero__box">
+    // hidden md:block — mobile users get the global chat tab in the bottom
+    // nav; the strip lands far below-fold on phones. Owned by the component,
+    // not a sibling <style> tag.
+    <section className="ds-ask-strip hidden md:block" aria-label="Ask Lasagna">
+      <form onSubmit={onSubmit} className="ds-ask-strip__form">
+        <div className="ds-ask-strip__box">
           <input
             type="text"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Ask anything…"
-            className="ds-askhero__input"
+            placeholder="Ask Lasagna anything…"
+            className="ds-ask-strip__input"
             autoComplete="off"
+            aria-label="Ask Lasagna a question"
           />
           <button
             type="submit"
             disabled={!value.trim()}
-            className="ds-askhero__submit"
+            className="ds-ask-strip__submit"
             aria-label="Send question"
           >
             Ask <span aria-hidden="true">→</span>
@@ -819,130 +794,16 @@ function AskHero({
       </form>
 
       {prompts.length > 0 && (
-        <ul className="ds-askhero__prompts">
+        <ul className="ds-ask-strip__chips">
           {prompts.map((q) => (
             <li key={q}>
-              <button type="button" onClick={() => onPick(q)} className="ds-askhero__prompt">
+              <button type="button" onClick={() => onPick(q)} className="ds-ask-strip__chip">
                 {q}
               </button>
             </li>
           ))}
         </ul>
       )}
-
-      <style>{`
-        .ds-askhero {
-          position: relative;
-          background: var(--lf-cream);
-          border: 1px solid var(--lf-rule);
-          border-top: 3px solid var(--lf-sauce);
-          border-radius: 14px;
-          padding: 28px clamp(20px, 3vw, 32px) 24px;
-          margin-bottom: 48px;
-        }
-        .ds-askhero__head {
-          display: flex;
-          align-items: flex-start;
-          gap: 14px;
-          margin-bottom: 20px;
-        }
-        .ds-askhero__icon {
-          flex-shrink: 0;
-          padding: 8px;
-          background: var(--lf-sauce);
-          color: var(--lf-paper);
-          border-radius: 10px;
-          width: 36px;
-          height: 36px;
-        }
-        .ds-askhero__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 500;
-          font-size: clamp(24px, 3.4vw, 32px);
-          line-height: 1.1;
-          letter-spacing: -0.015em;
-          color: var(--lf-ink);
-          margin: 0;
-        }
-        .ds-askhero__sub {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-          color: var(--lf-ink-soft);
-          margin: 6px 0 0;
-        }
-        .ds-askhero__form { margin: 0 0 16px; }
-        .ds-askhero__box {
-          display: flex;
-          align-items: stretch;
-          background: var(--lf-paper);
-          border: 1px solid var(--lf-rule);
-          border-radius: 10px;
-          transition: border-color 0.15s, box-shadow 0.15s;
-          overflow: hidden;
-        }
-        .ds-askhero__box:focus-within {
-          border-color: var(--lf-sauce);
-          box-shadow: 0 0 0 3px rgba(201,84,58,0.12);
-        }
-        .ds-askhero__input {
-          flex: 1;
-          background: transparent;
-          border: 0;
-          outline: 0;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 15px;
-          color: var(--lf-ink);
-          padding: 14px 18px;
-          min-width: 0;
-        }
-        .ds-askhero__input::placeholder { color: var(--lf-muted); }
-        .ds-askhero__submit {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: var(--lf-sauce);
-          color: var(--lf-paper);
-          border: 0;
-          padding: 0 22px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 600;
-          font-size: 14px;
-          cursor: pointer;
-          transition: background 0.15s;
-        }
-        .ds-askhero__submit:hover:not(:disabled) { background: var(--lf-sauce-deep); }
-        .ds-askhero__submit:disabled { opacity: 0.5; cursor: not-allowed; }
-        .ds-askhero__prompts {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-        }
-        .ds-askhero__prompts li {
-          border-top: 1px solid var(--lf-rule-soft);
-        }
-        .ds-askhero__prompt {
-          width: 100%;
-          background: none;
-          border: 0;
-          padding: 14px 0;
-          min-height: 44px;
-          text-align: left;
-          cursor: pointer;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--lf-ink-soft);
-          line-height: 1.4;
-          transition: color 0.15s;
-          /* Single line, ellipsis if too long — keeps every row uniform */
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .ds-askhero__prompt:hover { color: var(--lf-sauce); }
-      `}</style>
     </section>
   );
 }

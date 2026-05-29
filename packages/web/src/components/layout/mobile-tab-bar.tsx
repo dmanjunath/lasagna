@@ -28,21 +28,27 @@ export function MobileTabBar() {
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = isActive(tab);
+          // Active state = ONE signal: icon + label in ink, a single 4px
+          // sauce dot under the label as the "you are here" marker. Sauce
+          // gives the warm accent moment without three competing signals.
           return (
             <button
               key={tab.name}
               aria-current={active ? 'page' : undefined}
               onClick={() => navigate(tab.path)}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 h-14 relative
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-14 relative
                          transition-all duration-200 active:scale-95 min-w-[44px] min-h-[44px]
-                         ${active ? 'text-accent' : 'text-text-muted'}`}
+                         ${active ? 'text-text' : 'text-text-muted'}`}
             >
               <Icon size={20} strokeWidth={active ? 2.2 : 1.5} />
               <span className="font-mono text-[10px] tracking-wide uppercase">
                 {tab.name}
               </span>
               {active && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-b-sm bg-accent" />
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent"
+                />
               )}
             </button>
           );

@@ -11,14 +11,12 @@ import { useChatStore } from '../lib/chat-store';
 import type { LucideIcon } from 'lucide-react';
 import {
   Page,
-  PageHeader,
   Section,
   Button,
   Pill,
   Eyebrow,
   EmptyState,
   StatStrip,
-  Lede,
 } from '../components/ds';
 
 // ── constants ────────────────────────────────────────────────────────────────
@@ -447,10 +445,13 @@ export function FinancialLevel() {
   const hasNoData = summary.monthlyIncome === 0 && summary.totalCash === 0 && summary.totalInvested === 0;
   if (hasNoData) return (
     <Page>
-      <PageHeader
-        eyebrow="Get started"
-        title="Financial Level"
-      />
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Financial Level</h1>
+          <span className="ds-page-bar__subtitle">Get started</span>
+        </div>
+      </header>
+      <div className="ds-page-bar__subtitle-mobile">Get started</div>
       <EmptyState
         icon={<Rocket size={32} />}
         title="Let's build your plan"
@@ -476,34 +477,23 @@ export function FinancialLevel() {
   const investedOrCash = summary.totalInvested > 0 ? summary.totalInvested : summary.totalCash;
   const investedLabel = summary.totalInvested > 0 ? 'total portfolio' : summary.totalCash > 0 ? 'cash holdings' : 'link accounts';
 
-  // Build action snippet for the lede. Replace ambiguous "open" → "set up and fund"
-  // (e.g. "Open a Roth IRA and start contributing" → "set up and fund a Roth IRA…").
-  const actionSnippet = currentStep?.action
-    ? (currentStep.action.length > 90 ? currentStep.action.slice(0, 90) + '…' : currentStep.action)
-        .toLowerCase()
-        .replace(/\.$/, '')
-        .replace(/\bopen and start contributing\b/, 'set up and fund')
-        .replace(/^open\b/, 'set up and fund')
-    : null;
+  // Iter 8: ds-page-bar replaces editorial PageHeader + Lede. The "you are on
+  // Level N" line moves to the subtitle slot (truncated on mobile to just
+  // progress count).
+  const subtitleText = currentStep && !allComplete
+    ? `Level ${currentStep.order} of 12 · ${currentStep.title}`
+    : `${completeCount} of ${steps.length} complete`;
+  const subtitleMobile = `${completeCount} of ${steps.length} complete`;
 
   return (
     <Page>
-      <PageHeader
-        eyebrow={`${completeCount} of ${steps.length} complete`}
-        title="Financial Level"
-      />
-
-      {currentStep && !allComplete && (
-        <div style={{ marginBottom: 32 }}>
-          <Lede>
-            You're on <Lede.Num>Level {currentStep.order}</Lede.Num> of 12 —{' '}
-            <Lede.Num highlight>{currentStep.title}</Lede.Num>
-            {actionSnippet && (
-              <>. To get there, {actionSnippet}</>
-            )}.
-          </Lede>
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Financial Level</h1>
+          <span className="ds-page-bar__subtitle">{subtitleText}</span>
         </div>
-      )}
+      </header>
+      <div className="ds-page-bar__subtitle-mobile">{subtitleMobile}</div>
 
       <StatStrip
         className="fl-stats"

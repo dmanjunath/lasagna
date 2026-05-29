@@ -7,23 +7,21 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { formatMoney } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
 import { PageActions } from '../components/common/page-actions';
 import {
   Page,
-  PageHeader,
   Section,
   Card,
   Button,
   Pill,
   Eyebrow,
-  DataTable,
   EmptyState,
   StatStrip,
-  Lede,
+  TransactionRow,
+  PageSubToolbar,
+  SkeletonRow,
 } from '../components/ds';
-import type { DataTableColumn } from '../components/ds/DataTable';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,31 +62,51 @@ function endOfMonth(d: Date): string {
 // Category config — LasagnaFi color mapping
 // ---------------------------------------------------------------------------
 
-const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
-  income:             { label: 'Income',              icon: '💰', color: 'var(--lf-pos)' },
-  housing:            { label: 'Housing',              icon: '🏠', color: 'var(--lf-sauce)' },
-  transportation:     { label: 'Transportation',       icon: '🚗', color: 'var(--lf-basil)' },
-  food_dining:        { label: 'Dining Out',           icon: '🍽️', color: 'var(--lf-cheese)' },
-  groceries:          { label: 'Groceries',            icon: '🛒', color: 'var(--lf-noodle)' },
-  utilities:          { label: 'Utilities',            icon: '⚡', color: 'var(--lf-burgundy)' },
-  healthcare:         { label: 'Healthcare',           icon: '🏥', color: '#A68965' },
-  insurance:          { label: 'Insurance',            icon: '🛡️', color: '#7A5C3F' },
-  entertainment:      { label: 'Entertainment',        icon: '🎬', color: 'var(--lf-crust)' },
-  shopping:           { label: 'Shopping',             icon: '🛍️', color: 'var(--lf-noodle)' },
-  personal_care:      { label: 'Personal Care',        icon: '💇', color: '#B8956A' },
-  education:          { label: 'Education',            icon: '📚', color: 'var(--lf-basil)' },
-  travel:             { label: 'Travel',               icon: '✈️', color: '#5A7A8A' },
-  subscriptions:      { label: 'Subscriptions',        icon: '📱', color: 'var(--lf-crust)' },
-  savings_investment: { label: 'Savings & Investment', icon: '📈', color: 'var(--lf-pos)' },
-  debt_payment:       { label: 'Debt Payment',         icon: '💳', color: 'var(--lf-sauce)' },
-  gifts_donations:    { label: 'Gifts & Donations',    icon: '🎁', color: '#B86A40' },
-  taxes:              { label: 'Taxes',                icon: '🏛️', color: 'var(--lf-muted)' },
-  transfer:           { label: 'Transfers',            icon: '↔️', color: 'var(--lf-muted)' },
-  other:              { label: 'Other',                icon: '📋', color: '#7A5C3F' },
+// Category label + icon are semantic; category color is assigned at render
+// time from the data palette so the donut + legend never look like one
+// orange blob. (Iter 3 critic: sauce dominated every chart.)
+const CATEGORY_CONFIG: Record<string, { label: string; icon: string }> = {
+  income:             { label: 'Income',              icon: '💰' },
+  housing:            { label: 'Housing',             icon: '🏠' },
+  transportation:     { label: 'Transportation',      icon: '🚗' },
+  food_dining:        { label: 'Dining Out',          icon: '🍽️' },
+  groceries:          { label: 'Groceries',           icon: '🛒' },
+  utilities:          { label: 'Utilities',           icon: '⚡' },
+  healthcare:         { label: 'Healthcare',          icon: '🏥' },
+  insurance:          { label: 'Insurance',           icon: '🛡️' },
+  entertainment:      { label: 'Entertainment',       icon: '🎬' },
+  shopping:           { label: 'Shopping',            icon: '🛍️' },
+  personal_care:      { label: 'Personal Care',       icon: '💇' },
+  education:          { label: 'Education',           icon: '📚' },
+  travel:             { label: 'Travel',              icon: '✈️' },
+  subscriptions:      { label: 'Subscriptions',       icon: '📱' },
+  savings_investment: { label: 'Savings & Investment', icon: '📈' },
+  debt_payment:       { label: 'Debt Payment',        icon: '💳' },
+  gifts_donations:    { label: 'Gifts & Donations',   icon: '🎁' },
+  taxes:              { label: 'Taxes',               icon: '🏛️' },
+  transfer:           { label: 'Transfers',           icon: '↔️' },
+  other:              { label: 'Other',               icon: '📋' },
 };
 
+// Sauce-free warm-neutral palette for spending categories. Order matches
+// CompositionRibbon's DISTINCT_PALETTE so the look is consistent across
+// pages.
+const DATA_PALETTE = [
+  'var(--lf-data-1)',
+  'var(--lf-data-2)',
+  'var(--lf-data-3)',
+  'var(--lf-data-4)',
+  'var(--lf-data-5)',
+  'var(--lf-muted)',
+  'var(--lf-ink-soft)',
+  'var(--lf-crust)',
+];
+
 function getCategoryDisplay(key: string) {
-  return CATEGORY_CONFIG[key] ?? { label: key, icon: '📋', color: '#7A5C3F' };
+  return CATEGORY_CONFIG[key] ?? { label: key, icon: '📋' };
+}
+function colorForIndex(i: number): string {
+  return DATA_PALETTE[i % DATA_PALETTE.length];
 }
 
 // ---------------------------------------------------------------------------
@@ -123,8 +141,26 @@ interface MonthlyTrendEntry {
 // DonutMini — inline SVG, no Recharts
 // ---------------------------------------------------------------------------
 
-function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number; color: string }>; total: number }) {
-  const [hovered, setHovered] = useState<number | null>(null);
+function DonutMini({
+  cats,
+  total,
+  onHoverChange,
+  hovered: hoveredProp,
+  fmtAmount,
+}: {
+  cats: Array<{ name: string; amount: number; color: string; label?: string }>;
+  total: number;
+  onHoverChange?: (i: number | null) => void;
+  hovered?: number | null;
+  fmtAmount?: (n: number) => string;
+}) {
+  const [hoveredLocal, setHoveredLocal] = useState<number | null>(null);
+  // Allow parent to control hover (so legend row hover dims donut too).
+  const hovered = hoveredProp !== undefined ? hoveredProp : hoveredLocal;
+  const setHovered = (i: number | null) => {
+    setHoveredLocal(i);
+    onHoverChange?.(i);
+  };
   const r = 34, R = 52, cx = 60, cy = 60;
   let a0 = -Math.PI / 2;
   const paths = cats.map((c, idx) => {
@@ -137,40 +173,61 @@ function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number
     const x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
     const d = `M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 ${large} 0 ${x3} ${y3} Z`;
     a0 = a1;
-    return { d, color: c.color, name: c.name, pct: Math.round(frac * 100), idx };
+    return { d, color: c.color, name: c.name, label: c.label ?? c.name, amount: c.amount, pct: Math.round(frac * 100), idx };
   });
-  const hp = hovered !== null ? paths[hovered] : null;
-  // viewBox stays at 120 but the SVG scales to its container (CSS sets
-  // width: 100%, max-width 360px). Text sizes use viewBox units, so a value
-  // of 8 here renders at ~24px when the SVG fills a 360px column on desktop
-  // and stays readable when the column is narrower on tablet/mobile.
+  const hp = hovered !== null && hovered >= 0 && hovered < paths.length ? paths[hovered] : null;
   return (
-    <svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet" style={{ cursor: 'pointer' }}>
-      {paths.map((p) => (
-        <path key={p.idx} d={p.d} fill={p.color}
-          opacity={hovered === null ? 1 : hovered === p.idx ? 1 : 0.4}
-          style={{ transition: 'opacity 0.15s' }}
-          onMouseEnter={() => setHovered(p.idx)}
-          onMouseLeave={() => setHovered(null)}
-          onTouchStart={() => setHovered(hovered === p.idx ? null : p.idx)}
-        />
-      ))}
-      {hp ? (
-        <>
-          <text x="60" y="58" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="5" letterSpacing="0.06em" fill="var(--lf-muted)">{hp.name.slice(0, 14).toUpperCase()}</text>
-          <text x="60" y="70" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="9" fill="var(--lf-ink)">{hp.pct}%</text>
-        </>
-      ) : (
-        <>
-          <text x="60" y="62" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="9" fill="var(--lf-ink)">
-            {formatMoney(total, true)}
-          </text>
-          <text x="60" y="72" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontSize="4" letterSpacing="0.1em" fill="var(--lf-muted)">
-            MONTHLY
-          </text>
-        </>
+    <div style={{ position: 'relative' }} data-testid="spending-donut-wrap">
+      <svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet" style={{ cursor: 'pointer', width: '100%', height: '100%', display: 'block' }} data-testid="spending-donut">
+        {paths.map((p) => (
+          <path key={p.idx} d={p.d} fill={p.color}
+            opacity={hovered === null ? 1 : hovered === p.idx ? 1 : 0.4}
+            style={{ transition: 'opacity 0.15s' }}
+            onMouseEnter={() => setHovered(p.idx)}
+            onMouseLeave={() => setHovered(null)}
+            onTouchStart={() => setHovered(hovered === p.idx ? null : p.idx)}
+            data-slice-idx={p.idx}
+          />
+        ))}
+        {hp && (
+          <>
+            <text x="60" y="58" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="5" letterSpacing="0.06em" fill="var(--lf-muted)">{hp.label.slice(0, 14).toUpperCase()}</text>
+            <text x="60" y="70" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="9" fill="var(--lf-ink)">{hp.pct}%</text>
+          </>
+        )}
+      </svg>
+      {hp && (
+        <div
+          data-chart-hover="pill"
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: -6,
+            transform: 'translate(-50%, -100%)',
+            padding: '6px 10px',
+            background: 'var(--lf-ink)',
+            color: 'var(--lf-paper)',
+            borderRadius: 6,
+            boxShadow: '0 2px 10px rgba(31,26,22,0.18)',
+            fontFamily: 'Geist, system-ui, sans-serif',
+            fontVariantNumeric: 'tabular-nums',
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+            zIndex: 5,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
+            {fmtAmount ? fmtAmount(hp.amount) : hp.amount.toLocaleString()}
+          </span>
+          <span style={{ fontSize: 10, opacity: 0.7, lineHeight: 1.3 }}>
+            {hp.label} · {hp.pct}%
+          </span>
+        </div>
       )}
-    </svg>
+    </div>
   );
 }
 
@@ -212,7 +269,8 @@ export function Spending() {
   const [hasLinkedAccounts, setHasLinkedAccounts] = useState(false);
   const [creditCardTotal, setCreditCardTotal] = useState(0);
 
-  const [showAllCategories, setShowAllCategories] = useState(false);
+  // Donut hover index (kept in parent so legend rows can also drive it).
+  const [donutHover, setDonutHover] = useState<number | null>(null);
 
   // Sync
   const [syncing, setSyncing] = useState(false);
@@ -330,16 +388,71 @@ export function Spending() {
     [categories],
   );
 
-  // DonutMini data — LasagnaFi color mapping
-  const donutCats = useMemo(
-    () =>
-      spendingCategories.map((c) => ({
+  // DonutMini data — sauce-free data palette, color assigned by SORTED
+  // position so the largest slice always gets the same hue across renders
+  // (instead of varying with category ordering from the API).
+  // Iter 5: bin sub-5% categories into a single "Other" slice. The previous
+  // version drew 4-5 unreadable 1-3px arcs at the tail; collapsing them into
+  // one slice keeps the donut scannable while preserving 100% of the total.
+  // Iter 6: donutCats also drives the legend. Each entry carries its display
+  // label (via getCategoryDisplay) and, for the "Other" bin, the list of
+  // tail categories that were rolled in so the legend can show them as
+  // fine print under the row.
+  const donutCats = useMemo(() => {
+    const sorted = [...spendingCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+    const total = sorted.reduce((s, c) => s + Math.abs(c.total), 0);
+    if (total <= 0) {
+      return sorted.map((c, i) => ({
         name: c.category,
+        label: getCategoryDisplay(c.category).label,
         amount: Math.abs(c.total),
-        color: getCategoryDisplay(c.category).color,
-      })),
-    [spendingCategories],
-  );
+        color: colorForIndex(i),
+        children: [] as Array<{ name: string; label: string; amount: number }>,
+      }));
+    }
+    const SMALL_THRESHOLD = 0.05; // 5% of total
+    const big: typeof sorted = [];
+    const small: typeof sorted = [];
+    for (const c of sorted) {
+      if (Math.abs(c.total) / total >= SMALL_THRESHOLD) big.push(c);
+      else small.push(c);
+    }
+    const bigSlices = big.map((c, i) => ({
+      name: c.category,
+      label: getCategoryDisplay(c.category).label,
+      amount: Math.abs(c.total),
+      color: colorForIndex(i),
+      children: [] as Array<{ name: string; label: string; amount: number }>,
+    }));
+    if (small.length >= 2) {
+      const otherTotal = small.reduce((s, c) => s + Math.abs(c.total), 0);
+      // Iter 7 E: the existing "Other" CATEGORY (lit. `other` in
+      // CATEGORY_CONFIG) can coexist as a >5% slice. Naming the tail-bin
+      // "Other" too produces two "Other" rows in the legend with different
+      // meanings. Rename the tail-bin to "Smaller categories" so it reads
+      // as the long-tail aggregate it is.
+      bigSlices.push({
+        name: '__tailbin__',
+        label: 'Smaller categories',
+        amount: otherTotal,
+        color: 'var(--lf-muted)',
+        children: small.map((c) => ({
+          name: c.category,
+          label: getCategoryDisplay(c.category).label,
+          amount: Math.abs(c.total),
+        })),
+      });
+    } else if (small.length === 1) {
+      bigSlices.push({
+        name: small[0].category,
+        label: getCategoryDisplay(small[0].category).label,
+        amount: Math.abs(small[0].total),
+        color: colorForIndex(bigSlices.length),
+        children: [],
+      });
+    }
+    return bigSlices;
+  }, [spendingCategories]);
   const donutTotal = useMemo(
     () => donutCats.reduce((s, c) => s + c.amount, 0),
     [donutCats],
@@ -393,106 +506,36 @@ export function Spending() {
     </div>
   );
 
-  // Transaction table columns
-  // S1 — Merchant | Amount | Category. Date hidden on mobile. Merchant wraps,
-  // amount right-aligned and never truncated.
-  const txColumns: DataTableColumn<Transaction>[] = [
-    {
-      key: 'merchant',
-      header: 'Merchant',
-      className: 'td--wrap',
-      cell: (tx) => {
-        const display = getCategoryDisplay(tx.category);
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <span style={{
-              width: 4, height: 24, borderRadius: 2, flexShrink: 0,
-              background: display.color,
-            }} />
-            <span style={{
-              color: 'var(--lf-ink)', fontWeight: 500,
-              wordBreak: 'break-word',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}>
-              {tx.merchantName || tx.name}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'amount',
-      header: 'Amount',
-      num: true,
-      className: 'tx-col-amount',
-      cell: (tx) => {
-        const amount = parseFloat(tx.amount);
-        const isIncome = amount < 0;
-        return (
-          <span className={`ds-num ${isIncome ? 'ds-pos' : ''}`} style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-            {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'date',
-      header: 'Date',
-      muted: true,
-      className: 'hidden md:table-cell',
-      cell: (tx) => (
-        <span className="ds-num">
-          {new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </span>
-      ),
-    },
-    {
-      key: 'category',
-      header: 'Category',
-      cell: (tx) => {
-        const display = getCategoryDisplay(tx.category);
-        const isEditing = editingTxId === tx.id;
-        if (isEditing) {
-          return (
-            <select
-              autoFocus
-              value={tx.category}
-              onBlur={() => setEditingTxId(null)}
-              onChange={async (e) => {
-                const newCat = e.target.value;
-                setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, category: newCat } : t));
-                setEditingTxId(null);
-                await api.updateTransactionCategory(tx.id, newCat).catch(console.error);
-                setRefreshKey(k => k + 1);
-              }}
-              style={{
-                height: 28, padding: '0 6px', borderRadius: 6,
-                border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
-                color: 'var(--lf-ink)', fontSize: 12,
-                fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-              }}
-            >
-              {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-                <option key={key} value={key}>{cfg.label}</option>
-              ))}
-            </select>
-          );
-        }
-        return (
-          <button
-            onClick={(e) => { e.stopPropagation(); setEditingTxId(tx.id); }}
-            title="Click to recategorize"
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-          >
-            <Pill tone="cream">{display.label}</Pill>
-          </button>
-        );
-      },
-    },
-  ];
+  // Inline category editor — shown in TransactionRow's `extra` slot when the
+  // row's category chip is clicked. Returns a hidden node when not editing.
+  function categoryEditorFor(tx: Transaction) {
+    if (editingTxId !== tx.id) return null;
+    return (
+      <select
+        autoFocus
+        value={tx.category}
+        onBlur={() => setEditingTxId(null)}
+        onChange={async (e) => {
+          const newCat = e.target.value;
+          setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, category: newCat } : t));
+          setEditingTxId(null);
+          await api.updateTransactionCategory(tx.id, newCat).catch(console.error);
+          setRefreshKey(k => k + 1);
+        }}
+        style={{
+          height: 24, padding: '0 6px', borderRadius: 4,
+          border: '1px solid var(--lf-rule)', background: 'var(--lf-paper)',
+          color: 'var(--lf-ink)', fontSize: 11,
+          fontFamily: 'inherit', cursor: 'pointer',
+          marginLeft: 6,
+        }}
+      >
+        {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+          <option key={key} value={key}>{cfg.label}</option>
+        ))}
+      </select>
+    );
+  }
 
   // Filter controls in the transactions section header
   // S2 — stack vertically on mobile; search input shouldn't clip.
@@ -655,37 +698,35 @@ export function Spending() {
         }
       `}</style>
 
-      <PageHeader
-        eyebrow={monthLabel(currentMonth).toUpperCase()}
-        title="Spending"
-        actions={monthNav}
-      />
-
-      {/* Editorial lede */}
-      {!loadingSummary && (
-        <div style={{ marginBottom: 8 }}>
-          <Lede>
-            You spent{' '}
-            <Lede.Num tone={totalSpending > 0 ? 'neg' : 'default'}>{formatCurrency(totalSpending)}</Lede.Num>
-            {' '}in {monthLabel(currentMonth)}
-            {lastMonthDelta !== null && (
-              <>
-                {' — '}
-                <Lede.Num tone={lastMonthDelta <= 0 ? 'pos' : 'neg'}>
-                  {deltaSign} {Math.abs(lastMonthDelta)}%
-                </Lede.Num>
-                {' '}vs last month
-              </>
-            )}
-            .
-            {topCategoryLabel && (
-              <>
-                {' '}<Lede.Num highlight>{topCategoryLabel}</Lede.Num> was your biggest line.
-              </>
-            )}
-          </Lede>
+      {/* Page-bar locked to single row + single action. Month-nav & sync
+          move to the sub-toolbar — too many controls in the masthead was the
+          iter 2 P1. */}
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">
+            {loadingSummary
+              ? `Spending — ${monthLabel(currentMonth)}`
+              : `${monthLabel(currentMonth)} spent ${formatCurrency(totalSpending)}`}
+          </h1>
+          {!loadingSummary && (
+            <span className="ds-page-bar__caption ds-num">
+              {lastMonthDelta !== null && (
+                <span className={lastMonthDelta <= 0 ? 'ds-pos' : 'ds-neg'}>
+                  {deltaSign} {Math.abs(lastMonthDelta)}% vs last month
+                </span>
+              )}
+              {topCategoryLabel && (
+                <>
+                  {lastMonthDelta !== null ? '  ·  ' : ''}
+                  Top: {topCategoryLabel}
+                </>
+              )}
+            </span>
+          )}
         </div>
-      )}
+      </header>
+      <PageSubToolbar left={monthNav} />
+
 
       {/* Composition ribbon removed — for long-tail spending data the
           pie/donut chart in the "By category" section below reads more
@@ -693,10 +734,12 @@ export function Spending() {
           rule, and the user's preference: pie for long-tail composition,
           ribbon for short-tail like net-worth class buckets). */}
 
-      {/* Stat strip */}
+      {/* Stat strip — `ds-strip--money` opts in to right-aligned tabular
+          values so the rightmost cell shares its right edge with the
+          TransactionRow values below (iter 5 $ alignment). */}
       {!loadingSummary && (
         <StatStrip
-          className="spend-strip"
+          className="spend-strip ds-strip--money"
           items={[
             { label: 'Spent', value: <span className="ds-num">{formatCurrency(totalSpending)}</span>, sub: monthLabel(currentMonth) },
             { label: 'Income', value: <span className="ds-num">{formatCurrency(totalIncome)}</span>, sub: 'this month' },
@@ -743,61 +786,86 @@ export function Spending() {
 
       {/* By category */}
       {!loadingSummary && spendingCategories.length > 0 && (
-        <Section title="By category" eyebrow="Breakdown">
+        <Section title="By category" eyebrow="breakdown">
           <Card>
             <div className="spend-by-cat">
               <div className="spend-by-cat__donut">
-                <DonutMini cats={donutCats} total={donutTotal} />
+                <DonutMini
+                  cats={donutCats}
+                  total={donutTotal}
+                  hovered={donutHover}
+                  onHoverChange={setDonutHover}
+                  fmtAmount={formatCurrency}
+                />
               </div>
               <div style={{ minWidth: 0 }}>
-                {(() => {
-                  const visible = showAllCategories ? spendingCategories : spendingCategories.slice(0, 6);
-                  const hiddenCount = spendingCategories.length - 6;
-                  const showMore = !showAllCategories && hiddenCount > 0;
-                  return visible.map((cat, idx) => {
-                    const display = getCategoryDisplay(cat.category);
-                    const isSelected = selectedCategory === cat.category;
-                    const isLast = idx === visible.length - 1;
-                    return (
-                      <div
-                        key={cat.category}
+                {/* Iter 6: legend now mirrors the donut slices (binned) so the
+                    rows + donut count stays in sync. Tail categories under the
+                    5% threshold roll into a single "Other" entry whose
+                    children are listed as fine print. No more "+N more". */}
+                {donutCats.map((cat, idx) => {
+                  const pct = donutTotal > 0 ? (cat.amount / donutTotal) * 100 : 0;
+                  // For named categories: clicking filters tx list to that category.
+                  // For the tail-bin: clicking just emits a no-op (tail is heterogeneous).
+                  const isOther = cat.name === '__tailbin__';
+                  const isSelected = !isOther && selectedCategory === cat.name;
+                  const dimmed = donutHover !== null && donutHover !== idx;
+                  return (
+                    <div
+                      key={cat.name}
+                      style={{
+                        display: 'flex', flexDirection: 'column',
+                        borderTop: '1px solid var(--lf-rule)',
+                        opacity: dimmed ? 0.5 : 1,
+                        transition: 'opacity 0.15s',
+                      }}
+                      onMouseEnter={() => setDonutHover(idx)}
+                      onMouseLeave={() => setDonutHover(null)}
+                    >
+                      <button
+                        onClick={
+                          isOther
+                            ? undefined
+                            : () => setSelectedCategory(isSelected ? null : cat.name)
+                        }
                         style={{
                           display: 'flex', alignItems: 'center', gap: 10,
-                          borderTop: '1px solid var(--lf-rule)',
+                          flex: 1, minWidth: 0, padding: '10px 0',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: isOther ? 'default' : 'pointer',
+                          textAlign: 'left',
+                          fontFamily: 'inherit',
+                          color: isSelected ? 'var(--lf-sauce)' : 'inherit',
                         }}
                       >
-                        <button
-                          onClick={() => setSelectedCategory(isSelected ? null : cat.category)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            flex: 1, minWidth: 0, padding: '10px 0',
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer', textAlign: 'left',
-                            fontFamily: 'inherit',
-                            color: isSelected ? 'var(--lf-sauce)' : 'inherit',
-                          }}
-                        >
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: display.color }} />
-                          <span style={{ flex: 1, fontSize: 14, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {display.label}
-                          </span>
-                          <span className="ds-num" style={{ fontSize: 13, color: 'var(--lf-ink-soft)', flexShrink: 0 }}>
-                            {formatCurrency(Math.abs(cat.total))}
-                          </span>
-                          <span className="ds-num" style={{ fontSize: 12, color: 'var(--lf-muted)', flexShrink: 0, marginLeft: 4, minWidth: 36, textAlign: 'right' }}>
-                            {cat.percentage.toFixed(0)}%
-                          </span>
-                        </button>
-                        {isLast && (showMore || showAllCategories) && (
-                          <Button variant="link" size="sm" onClick={() => setShowAllCategories((v) => !v)}>
-                            {showAllCategories ? 'Show less' : `+${hiddenCount} more`}
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: cat.color }} />
+                        <span style={{ flex: 1, fontSize: 14, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {cat.label}
+                        </span>
+                        <span className="ds-num" style={{ fontSize: 13, color: 'var(--lf-ink-soft)', flexShrink: 0 }}>
+                          {formatCurrency(cat.amount)}
+                        </span>
+                        <span className="ds-num" style={{ fontSize: 12, color: 'var(--lf-muted)', flexShrink: 0, marginLeft: 4, minWidth: 36, textAlign: 'right' }}>
+                          {pct.toFixed(0)}%
+                        </span>
+                      </button>
+                      {isOther && cat.children.length > 0 && (
+                        <div style={{
+                          fontSize: 11, color: 'var(--lf-muted)', paddingLeft: 18, paddingBottom: 8,
+                          lineHeight: 1.5,
+                        }}>
+                          {cat.children.map((c, j) => (
+                            <span key={c.name}>
+                              {c.label} {formatCurrency(c.amount)}
+                              {j < cat.children.length - 1 ? ' · ' : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </Card>
@@ -833,16 +901,47 @@ export function Spending() {
 
         <Card flush>
           {loadingTx ? (
-            <div className="ds-caption" style={{ padding: '32px 16px', textAlign: 'center' }}>Loading…</div>
+            // Iter 7 D: matched-outline skeleton so the tx table reserves
+            // its space at first paint instead of collapsing into a single
+            // "Loading…" line that then jumps to 8 rows tall.
+            <div>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <SkeletonRow key={i} />
+              ))}
+            </div>
           ) : transactions.length === 0 ? (
             <EmptyState title="No transactions found" body="Try adjusting your filters or month." />
           ) : (
-            <DataTable
-              columns={txColumns}
-              rows={transactions}
-              rowKey={(t) => t.id}
-              hover
-            />
+            <div>
+              {transactions.map((tx) => {
+                const amount = parseFloat(tx.amount);
+                const display = getCategoryDisplay(tx.category);
+                const editor = categoryEditorFor(tx);
+                const categoryNode = editor ?? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEditingTxId(tx.id); }}
+                    title="Click to recategorize"
+                    style={{
+                      background: 'none', border: 'none', padding: 0,
+                      cursor: 'pointer', font: 'inherit', color: 'inherit',
+                      letterSpacing: 'inherit',
+                    }}
+                  >
+                    {display.label}
+                  </button>
+                );
+                return (
+                  <TransactionRow
+                    key={tx.id}
+                    merchant={tx.merchantName || tx.name}
+                    category={categoryNode}
+                    date={tx.date}
+                    amount={amount}
+                    formatAmount={formatCurrencyExact}
+                  />
+                );
+              })}
+            </div>
           )}
 
           {txTotal > PAGE_SIZE && (
