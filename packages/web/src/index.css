@@ -809,11 +809,17 @@
   .ds-page-subtoolbar { height: 40px; margin-top: -10px; }
 }
 
-/* ── Borderless figure — chart with internal value label, no Card chrome.
-   Headline number lives in the figure head, not in a section H2 above. */
+/* ── Figure — chart with internal value label. Sits on a white card surface
+   so it matches the AccountSection card-flush treatment below; the page reads
+   as a coherent stack of elevated data surfaces. Headline number lives in
+   the figure head, not in a section H2 above. */
 .ds-figure {
   margin: 0 0 28px;
-  padding: 0;
+  padding: 20px 20px 16px;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
 }
 .ds-figure__head {
   display: flex;
@@ -1945,7 +1951,7 @@
 .ds-row { position: relative; }
 .ds-row__sync {
   position: absolute;
-  right: 16px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   width: 32px;
@@ -1953,9 +1959,13 @@
   display: grid;
   place-items: center;
   border-radius: 6px;
-  /* When visible (hover/focus/touch) it gets the row paper background so
-     it occludes the value behind it instead of overlapping mid-air. */
-  background: var(--lf-paper);
+  /* Background MUST match the card surface (white) — not page paper — so
+     when the icon reveals on hover it cleanly occludes the value behind it
+     instead of showing a slightly-off tint patch. The box-shadow halo of
+     the same color extends the occlusion a few px past the icon edge so
+     no edge-bleed of the $ value pokes through. */
+  background: var(--lf-surface);
+  box-shadow: 0 0 0 4px var(--lf-surface);
   border: 0;
   color: var(--lf-muted);
   cursor: pointer;
@@ -1967,7 +1977,11 @@
 .ds-row:hover .ds-row__sync,
 .ds-row__sync:focus-visible,
 .ds-row__sync:disabled { opacity: 1; pointer-events: auto; }
-.ds-row__sync:hover { background: var(--lf-cream); color: var(--lf-ink); }
+.ds-row__sync:hover {
+  background: var(--lf-cream);
+  color: var(--lf-ink);
+  box-shadow: 0 0 0 4px var(--lf-cream);
+}
 .ds-row__sync:disabled { cursor: not-allowed; }
 /* Touch: hide the row-level sync icon entirely. The per-section Sync button
    in the page header + global pull-to-refresh cover the same affordance and

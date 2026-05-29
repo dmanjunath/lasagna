@@ -99,7 +99,7 @@ export function Sidebar({ className }: SidebarProps) {
             return (
               <div
                 key={i}
-                className="font-mono text-[11px] tracking-[0.14em] uppercase text-text-muted px-3 mt-5 mb-2"
+                className="text-[11px] font-semibold tracking-[0.14em] uppercase text-text-muted px-4 mt-5 mb-1.5"
               >
                 {entry.section}
               </div>
@@ -202,17 +202,23 @@ function NavButton({ active, icon: Icon, label, onClick }: {
       onClick={onClick}
       whileTap={{ scale: 0.98 }}
       className={cn(
-        'flex items-center gap-2.5 w-full text-left px-3 py-2.5 rounded-xl mb-0.5 border-0 cursor-pointer text-sm transition-colors',
+        'relative flex items-center gap-2.5 w-full text-left pl-4 pr-3 py-2 rounded-lg mb-0.5 border-0 cursor-pointer text-[14px] transition-colors',
         active
-          ? 'bg-text text-white'
-          : 'text-text-secondary hover:bg-bg-subtle',
+          ? 'bg-accent/10 text-accent font-semibold'
+          : 'text-text-secondary font-medium hover:bg-bg-subtle hover:text-text',
       )}
     >
+      {active && (
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-sm bg-accent"
+        />
+      )}
       <Icon
         size={16}
         className={cn(
           'shrink-0',
-          active ? 'text-cheese opacity-100' : 'opacity-60',
+          active ? 'text-accent opacity-100' : 'opacity-60',
         )}
       />
       <span className="flex-1">{label}</span>

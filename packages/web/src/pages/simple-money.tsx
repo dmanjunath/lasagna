@@ -286,11 +286,16 @@ export function SimpleMoney() {
         </Section>
       )}
 
+      {/* Section insights — short personalized callouts that surface the
+          "what does this mean" question per section. Computed once from the
+          breakdown so changing data updates the captions automatically. */}
+      {(() => null)()}
       {/* ── Cash section ── */}
       {cashAccounts.length > 0 && (
         <AccountSection
           title="Cash"
           eyebrow={`${cashAccounts.length} account${cashAccounts.length === 1 ? '' : 's'}`}
+          insight={netWorth > 0 ? `${Math.round((cashTotal / netWorth) * 100)}% of net worth · ready to deploy` : 'ready to deploy'}
           total={cashTotal}
           items={items}
           filterType="depository"
@@ -304,6 +309,9 @@ export function SimpleMoney() {
         <AccountSection
           title="Investments"
           eyebrow={`${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`}
+          insight={netWorth > 0
+            ? `${Math.round((investTotal / netWorth) * 100)}% of net worth · across ${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`
+            : `across ${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`}
           total={investTotal}
           items={items}
           filterType="investment"
@@ -317,6 +325,9 @@ export function SimpleMoney() {
         <AccountSection
           title="Property"
           eyebrow={`${realEstateAccounts.length} ${realEstateAccounts.length === 1 ? 'property' : 'properties'}`}
+          insight={netWorth > 0
+            ? `${Math.round((realEstateTotal / netWorth) * 100)}% of net worth · real estate`
+            : 'real estate'}
           total={realEstateTotal}
           items={items}
           filterType="real_estate"
@@ -330,6 +341,9 @@ export function SimpleMoney() {
         <AccountSection
           title="Other assets"
           eyebrow={`${altAccounts.length} item${altAccounts.length === 1 ? '' : 's'}`}
+          insight={netWorth > 0
+            ? `${Math.round((altTotal / netWorth) * 100)}% of net worth · alternative holdings`
+            : 'alternative holdings'}
           total={altTotal}
           items={items}
           filterType="alternative"
@@ -343,6 +357,12 @@ export function SimpleMoney() {
         <AccountSection
           title="Debt"
           eyebrow={`${debtAccounts.length} account${debtAccounts.length === 1 ? '' : 's'}`}
+          insight={(() => {
+            const grossAssets = cashTotal + investTotal + assetsTotal;
+            if (grossAssets <= 0) return `${debtAccounts.length} loan${debtAccounts.length === 1 ? '' : 's'}`;
+            const dti = Math.round((debtTotal / grossAssets) * 100);
+            return `${dti}% debt-to-assets · ${debtAccounts.length} loan${debtAccounts.length === 1 ? '' : 's'}`;
+          })()}
           total={debtTotal}
           totalTone="neg"
           items={items}
@@ -498,10 +518,11 @@ export function SimpleMoney() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function AccountSection({
-  title, eyebrow, total, totalTone, items, filterType, syncing, onSync,
+  title, eyebrow, insight, total, totalTone, items, filterType, syncing, onSync,
 }: {
   title: string;
   eyebrow: string;
+  insight?: string;
   total: number;
   totalTone?: 'neg' | 'default';
   items: Item[];
@@ -540,6 +561,19 @@ function AccountSection({
         </span>
       }
     >
+      {/* Per-section personalized insight — short caption that frames what
+          the user is looking at (e.g. "12% of net worth · ready to deploy").
+          Sits between the section header and the row list so it reads as
+          context, not chrome. */}
+      {insight && (
+        <p
+          className="ds-caption"
+          style={{ margin: '-8px 0 12px', color: 'var(--lf-muted)' }}
+        >
+          {insight}
+        </p>
+      )}
+
       {/* Sync error banners */}
       {errorItems.map((item) => (
         <Card key={item.id} variant="ghost" tight style={{ marginBottom: 12 }}>

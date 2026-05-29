@@ -248,15 +248,32 @@ export function SimpleHome() {
     return last - prior.value;
   }, [nwHistory]);
 
-  // Chip suggestions stay ≤4 words each — they're nav, not the question.
-  // The full question gets composed in /chat from the chip's intent.
+  // Chip suggestions are personalized to the user's actual numbers. The chip
+  // is nav, the full question gets composed in /chat from the chip's intent.
+  // Short USD format for chip-width: $1.7M, $250k, $40k.
   const suggestedPrompts = useMemo(() => {
+    const shortUsd = (n: number) => {
+      const abs = Math.abs(n);
+      if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+      if (abs >= 1_000) return `$${Math.round(abs / 1_000)}k`;
+      return `$${Math.round(abs)}`;
+    };
     const prompts: string[] = [];
-    if (breakdown) {
-      if (breakdown.debts > 0) prompts.push('Pay off debt?');
-      if (breakdown.investments > 0) prompts.push('Retire at 65?');
+    if (breakdown && breakdown.debts > 0) {
+      prompts.push(`Pay off ${shortUsd(breakdown.debts)} debt?`);
     }
-    if (topGoal) prompts.push('Reach goal faster?');
+    if (topGoal) {
+      const target = parseFloat(topGoal.targetAmount);
+      const current = parseFloat(topGoal.currentAmount || '0');
+      const remaining = Math.max(0, target - current);
+      const label = (topGoal.name || 'goal').split(' ').slice(0, 2).join(' ').toLowerCase();
+      if (target > 0) {
+        prompts.push(remaining > 0 ? `Reach ${shortUsd(remaining)} ${label}?` : `Beyond ${label}?`);
+      }
+    }
+    if (breakdown && breakdown.netWorth > 0) {
+      prompts.push(`Retire on ${shortUsd(breakdown.netWorth)}?`);
+    }
     prompts.push('Tax-loss harvest?');
     prompts.push('Withdraw safely?');
     return prompts.slice(0, 4);
