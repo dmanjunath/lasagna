@@ -82,6 +82,16 @@ function colorForAssetClass(name: string, index: number): string {
   return ASSET_CLASS_COLORS[name] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
+/** Pick a human-readable label for a holding. The backend sometimes stores
+ *  the literal string "UNKNOWN" in the `ticker` field for items it couldn't
+ *  match to a market symbol — fall through to the holding name (e.g.
+ *  "Vanguard 500 Index Portfolio") rather than render "UNKNOWN". */
+function holdingLabel(h: { ticker?: string; name?: string }): string {
+  const t = (h.ticker ?? '').trim();
+  if (t && t.toUpperCase() !== 'UNKNOWN') return t;
+  return (h.name ?? '').trim() || 'Holding';
+}
+
 // Strip trailing account-id suffixes like "-242726519-01" and collapse comma-
 // joined dupes ("Suhana - 529, Dheeraj - 242726519-01") to just the first.
 function cleanAccountLabel(raw: string): string {
@@ -172,7 +182,7 @@ function PortfolioDonut({
           <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fill: 'var(--lf-muted)' }}>
             {hp.name}
           </text>
-          <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, fill: 'var(--lf-ink)' }}>
+          <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontSize: 22, fill: 'var(--lf-ink)' }}>
             {formatMoney(hp.value, true)}
           </text>
           <text x={cx} y={cy + 22} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fill: hp.color }}>
@@ -181,7 +191,7 @@ function PortfolioDonut({
         </>
       ) : (
         <>
-          <text x={cx} y={cy - 6} textAnchor="middle" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 26, fill: 'var(--lf-ink)' }}>
+          <text x={cx} y={cy - 6} textAnchor="middle" style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontSize: 26, fill: 'var(--lf-ink)' }}>
             {formatMoney(total, true)}
           </text>
           <text x={cx} y={cy + 16} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', fill: 'var(--lf-muted)' }}>
@@ -590,12 +600,31 @@ export default function PortfolioComposition() {
           }))
           .sort((a, b) => b.value - a.value);
       }
-      return filteredAssetClasses.map((ac, i) => ({
-        name: ac.name,
-        value: ac.value,
-        pct: ac.percentage,
-        color: colorForAssetClass(ac.name, i),
-      }));
+      // Mirror the ribbon's behaviour: when the backend returned a class
+      // literally named "Other", expand it into its constituent holdings
+      // so the donut + legend never show the word "Other".
+      return filteredAssetClasses.flatMap<DonutSlice>((ac, i) => {
+        if (/^other$/i.test(ac.name.trim())) {
+          const holdings = (ac.categories ?? [])
+            .flatMap((sc) => sc.holdings)
+            .filter((h) => h.value > 0)
+            .sort((a, b) => b.value - a.value);
+          if (holdings.length > 0) {
+            return holdings.map((h, j) => ({
+              name: holdingLabel(h),
+              value: h.value,
+              pct: filteredTotal > 0 ? (h.value / filteredTotal) * 100 : 0,
+              color: FALLBACK_COLORS[(i + j) % FALLBACK_COLORS.length],
+            }));
+          }
+        }
+        return [{
+          name: ac.name,
+          value: ac.value,
+          pct: ac.percentage,
+          color: colorForAssetClass(ac.name, i),
+        }];
+      });
     }
 
     if (groupBy === 'category') {
@@ -807,7 +836,17 @@ export default function PortfolioComposition() {
       ),
     },
     { key: 'account', header: 'Account', muted: true, className: 'td--wrap', cell: (t) => cleanAccountLabel(t.accountLabel) },
-    { key: 'class', header: 'Class', cell: (t) => <span style={{ color: colorForAssetClass(t.assetClass, 0) }}>{t.assetClass}</span> },
+    {
+      key: 'class',
+      header: 'Class',
+      // If the backend tagged a holding's class as "Other", surface its
+      // sub-category instead so the table doesn't show a generic bucket label.
+      cell: (t) => {
+        const isOther = /^other$/i.test(t.assetClass.trim());
+        const display = isOther && t.category ? t.category : t.assetClass;
+        return <span style={{ color: colorForAssetClass(t.assetClass, 0) }}>{display}</span>;
+      },
+    },
     { key: 'category', header: 'Category', muted: true, cell: (t) => t.category },
     { key: 'value', header: 'Value', num: true, cell: (t) => <span className="ds-num">{formatMoney(t.totalValue, true)}</span> },
     { key: 'pct', header: '%', num: true, muted: true, cell: (t) => <span className="ds-num">{t.percentage.toFixed(1)}%</span> },
@@ -826,21 +865,32 @@ export default function PortfolioComposition() {
     },
   ];
 
-  // ── Composition ribbon: top 5 asset classes + Other ──
-  const sortedClasses = [...filteredAssetClasses].sort((a, b) => b.value - a.value);
-  const topClasses = sortedClasses.slice(0, 5);
-  const restClasses = sortedClasses.slice(5);
-  const restSum = restClasses.reduce((s, c) => s + c.value, 0);
-  const ribbonSegments: CompositionSegment[] = [
-    ...topClasses.map((ac, i) => ({
-      label: abbreviateClassLabel(ac.name),
-      value: ac.value,
-      color: colorForAssetClass(ac.name, i),
-    })),
-    ...(restSum > 0
-      ? [{ label: 'Other', value: restSum, color: FALLBACK_COLORS[6 % FALLBACK_COLORS.length] }]
-      : []),
-  ];
+  // ── Composition ribbon: enumerate every asset class. If the backend
+  // returned a class literally named "Other", drill in and replace it with
+  // its constituent holdings so the bar never shows the word "Other".
+  // CompositionRibbon owns the palette so `color` here is ignored.
+  const ribbonSegments: CompositionSegment[] = [...filteredAssetClasses]
+    .sort((a, b) => b.value - a.value)
+    .flatMap<CompositionSegment>((ac, i) => {
+      if (/^other$/i.test(ac.name.trim())) {
+        const holdings = (ac.categories ?? [])
+          .flatMap((sc) => sc.holdings)
+          .filter((h) => h.value > 0)
+          .sort((a, b) => b.value - a.value);
+        if (holdings.length > 0) {
+          return holdings.map((h) => ({
+            label: holdingLabel(h),
+            value: h.value,
+            color: '',
+          }));
+        }
+      }
+      return [{
+        label: abbreviateClassLabel(ac.name),
+        value: ac.value,
+        color: colorForAssetClass(ac.name, i),
+      }];
+    });
 
   const biggestHolding = holdingsByTicker[0];
 
@@ -870,8 +920,6 @@ export default function PortfolioComposition() {
       {ribbonSegments.length > 0 && (
         <Section>
           <CompositionRibbon
-            leadLabel="Allocation"
-            leadValue={formatMoney(filteredTotal)}
             leadDelta={`${positionCount} position${positionCount === 1 ? '' : 's'}`}
             segments={ribbonSegments}
           />

@@ -20,7 +20,9 @@ const S = {
     color: 'var(--lf-muted)',
   } as React.CSSProperties,
   serif: {
-    fontFamily: "'Instrument Serif', Georgia, serif",
+    fontFamily: "'Geist', system-ui, sans-serif",
+    fontWeight: 600,
+    letterSpacing: '-0.01em',
   } as React.CSSProperties,
 };
 

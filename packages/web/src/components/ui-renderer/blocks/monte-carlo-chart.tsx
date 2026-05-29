@@ -41,7 +41,7 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
     <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-4">
         {title && (
-          <h3 className="text-lg font-display font-semibold text-text">{title}</h3>
+          <h3 className="text-base font-semibold tracking-tight text-text">{title}</h3>
         )}
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-secondary">Success Rate:</span>
@@ -182,7 +182,7 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
     <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-4">
         {title && (
-          <h3 className="text-lg font-display font-semibold text-text">{title}</h3>
+          <h3 className="text-base font-semibold tracking-tight text-text">{title}</h3>
         )}
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-secondary">Success Rate:</span>

@@ -305,7 +305,6 @@ export function SimpleHome() {
         return (
           <Section>
             <CompositionRibbon
-              leadValue={fmtUsd(breakdown.netWorth)}
               leadDelta={totalAccounts > 0 ? `${totalAccounts} account${totalAccounts === 1 ? '' : 's'}` : undefined}
               segments={[
                 ...(breakdown.cash > 0 ? [{ label: 'Cash', value: breakdown.cash, color: 'var(--lf-basil)' }] : []),
@@ -449,7 +448,7 @@ export function SimpleHome() {
           margin-top: 2px;
         }
         .ds-home-feed__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 17px;
           font-weight: 500;
           color: var(--lf-ink);
@@ -559,7 +558,7 @@ function FocusEditorial({
           margin: 0 6px;
         }
         .ds-focus__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-weight: 500;
           font-size: clamp(30px, 4.5vw, 44px);
           line-height: 1.05;
@@ -704,7 +703,7 @@ function MarginaliaGoal({ goal, progress }: { goal: Goal; progress: number }) {
       <style>{`
         .ds-margin { border-top: 1px solid var(--lf-ink); padding-top: 20px; }
         .ds-margin__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 22px;
           font-weight: 500;
           color: var(--lf-ink);
@@ -857,7 +856,7 @@ function AskHero({
           height: 36px;
         }
         .ds-askhero__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-weight: 500;
           font-size: clamp(24px, 3.4vw, 32px);
           line-height: 1.1;

@@ -18,7 +18,7 @@ export function SequenceRiskChartRenderer({ block }: { block: SequenceRiskChartB
   return (
     <div className="glass-card p-6">
       {block.title && (
-        <h3 className="text-lg font-display font-semibold text-text mb-4">
+        <h3 className="text-base font-semibold tracking-tight text-text mb-4">
           {block.title}
         </h3>
       )}

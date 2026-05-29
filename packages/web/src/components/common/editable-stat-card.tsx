@@ -49,7 +49,7 @@ export function EditableStatCard({
           const v = parseInt(draft, 10);
           if (isNaN(v) || v < min || v > max) setDraft(String(value));
         }}
-        className="font-display text-2xl font-semibold tabular-nums bg-transparent border-b-2 border-accent focus:outline-none w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className="text-2xl font-semibold tabular-nums tracking-tight bg-transparent border-b-2 border-accent focus:outline-none w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
     </div>
   );

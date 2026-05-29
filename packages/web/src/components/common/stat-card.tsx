@@ -44,7 +44,7 @@ export function StatCard({ label, value, description, icon, status = 'default', 
         </div>
       )}
       {!icon && <p className="text-text-secondary text-sm mb-2">{label}</p>}
-      <div className={cn('font-display text-2xl font-semibold tabular-nums', statusColors[status])}>
+      <div className={cn('text-2xl font-semibold tabular-nums tracking-tight', statusColors[status])}>
         {value}
       </div>
       {description && (

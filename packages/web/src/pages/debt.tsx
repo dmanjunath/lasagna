@@ -504,7 +504,7 @@ function HasDebtView({
           margin-bottom: 6px;
         }
         .debt-strategy__amount {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-weight: 500;
           font-size: clamp(28px, 3.4vw, 36px);
           line-height: 1.1;
@@ -513,7 +513,7 @@ function HasDebtView({
           letter-spacing: -0.01em;
         }
         .debt-strategy__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-weight: 500;
           font-size: 22px;
           color: var(--lf-ink);
@@ -594,8 +594,6 @@ function HasDebtView({
           <Section>
             <div className="debt-ribbon-wrap" data-tiny={tinyCount}>
               <CompositionRibbon
-                leadLabel="By account"
-                leadValue={formatCurrency(totalDebt)}
                 leadDelta={`${debts.length} account${debts.length === 1 ? '' : 's'}`}
                 segments={compositionSegments}
               />

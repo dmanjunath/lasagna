@@ -364,7 +364,7 @@ export function Settings() {
         }
         .ds-article__head-title {
           display: block;
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 20px;
           font-weight: 500;
           color: var(--lf-ink);
@@ -450,7 +450,7 @@ export function Settings() {
         }
         .ds-navline-title {
           display: block;
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 20px;
           font-weight: 500;
           color: var(--lf-ink);

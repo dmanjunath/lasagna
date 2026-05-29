@@ -5,7 +5,7 @@ export function FailureAnalysisRenderer({ block }: { block: FailureAnalysisBlock
   return (
     <div className="glass-card p-6 col-span-full">
       {block.title && (
-        <h3 className="text-lg font-display font-semibold text-text mb-4 flex items-center gap-2">
+        <h3 className="text-base font-semibold tracking-tight text-text mb-4 flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-warning" />
           {block.title}
         </h3>

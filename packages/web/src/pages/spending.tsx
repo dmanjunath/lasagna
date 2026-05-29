@@ -20,12 +20,10 @@ import {
   Eyebrow,
   DataTable,
   EmptyState,
-  CompositionRibbon,
   StatStrip,
   Lede,
 } from '../components/ds';
 import type { DataTableColumn } from '../components/ds/DataTable';
-import type { CompositionSegment } from '../components/ds/CompositionRibbon';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -142,8 +140,12 @@ function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number
     return { d, color: c.color, name: c.name, pct: Math.round(frac * 100), idx };
   });
   const hp = hovered !== null ? paths[hovered] : null;
+  // viewBox stays at 120 but the SVG scales to its container (CSS sets
+  // width: 100%, max-width 360px). Text sizes use viewBox units, so a value
+  // of 8 here renders at ~24px when the SVG fills a 360px column on desktop
+  // and stays readable when the column is narrower on tablet/mobile.
   return (
-    <svg width="120" height="120" viewBox="0 0 120 120" style={{ cursor: 'pointer' }}>
+    <svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet" style={{ cursor: 'pointer' }}>
       {paths.map((p) => (
         <path key={p.idx} d={p.d} fill={p.color}
           opacity={hovered === null ? 1 : hovered === p.idx ? 1 : 0.4}
@@ -155,16 +157,16 @@ function DonutMini({ cats, total }: { cats: Array<{ name: string; amount: number
       ))}
       {hp ? (
         <>
-          <text x="60" y="54" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="9" fill="var(--lf-muted)">{hp.name.slice(0, 10)}</text>
-          <text x="60" y="66" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="14" fill="var(--lf-ink)">{hp.pct}%</text>
+          <text x="60" y="58" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="5" letterSpacing="0.06em" fill="var(--lf-muted)">{hp.name.slice(0, 14).toUpperCase()}</text>
+          <text x="60" y="70" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="9" fill="var(--lf-ink)">{hp.pct}%</text>
         </>
       ) : (
         <>
-          <text x="60" y="58" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="16" fill="var(--lf-ink)">
+          <text x="60" y="62" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="9" fill="var(--lf-ink)">
             {formatMoney(total, true)}
           </text>
-          <text x="60" y="72" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="9" fill="var(--lf-muted)">
-            monthly
+          <text x="60" y="72" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontSize="4" letterSpacing="0.1em" fill="var(--lf-muted)">
+            MONTHLY
           </text>
         </>
       )}
@@ -342,27 +344,6 @@ export function Spending() {
     () => donutCats.reduce((s, c) => s + c.amount, 0),
     [donutCats],
   );
-
-  // Composition segments — top 5 + Other
-  const compositionSegments = useMemo<CompositionSegment[]>(() => {
-    if (spendingCategories.length === 0) return [];
-    const sorted = [...spendingCategories]
-      .map((c) => ({ ...c, abs: Math.abs(c.total) }))
-      .sort((a, b) => b.abs - a.abs);
-    const top = sorted.slice(0, 5);
-    const rest = sorted.slice(5);
-    const segs: CompositionSegment[] = top.map((c) => {
-      const d = getCategoryDisplay(c.category);
-      return { label: d.label, value: c.abs, color: d.color };
-    });
-    if (rest.length > 0) {
-      const otherTotal = rest.reduce((s, c) => s + c.abs, 0);
-      if (otherTotal > 0) {
-        segs.push({ label: 'Other', value: otherTotal, color: 'var(--lf-muted)' });
-      }
-    }
-    return segs;
-  }, [spendingCategories]);
 
   // Top category (for lede)
   const topCategoryLabel = useMemo(() => {
@@ -566,10 +547,23 @@ export function Spending() {
           display: grid;
           grid-template-columns: 1fr;
           gap: 24px;
-          align-items: flex-start;
+          align-items: center;
         }
-        @media (min-width: 720px) {
-          .spend-by-cat { grid-template-columns: 140px minmax(0, 1fr); gap: 32px; }
+        /* Desktop (>= 900px): donut left, list right, ~50/50. Tablet
+           (720–899px) and mobile stack into a single column. */
+        @media (min-width: 900px) {
+          .spend-by-cat { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
+        }
+        .spend-by-cat__donut {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          width: 100%;
+        }
+        .spend-by-cat__donut svg {
+          width: 100%;
+          height: auto;
+          max-width: 360px;
         }
         .spend-strip { margin: 32px 0 48px; }
 
@@ -693,17 +687,11 @@ export function Spending() {
         </div>
       )}
 
-      {/* Composition ribbon */}
-      {!loadingSummary && compositionSegments.length > 0 && (
-        <Section>
-          <CompositionRibbon
-            leadLabel="By category"
-            leadValue={formatCurrency(totalSpending)}
-            leadDelta={`${spendingCategories.length} categories`}
-            segments={compositionSegments}
-          />
-        </Section>
-      )}
+      {/* Composition ribbon removed — for long-tail spending data the
+          pie/donut chart in the "By category" section below reads more
+          clearly than a proportional bar (per the Two-charts-back-to-back
+          rule, and the user's preference: pie for long-tail composition,
+          ribbon for short-tail like net-worth class buckets). */}
 
       {/* Stat strip */}
       {!loadingSummary && (
@@ -758,7 +746,7 @@ export function Spending() {
         <Section title="By category" eyebrow="Breakdown">
           <Card>
             <div className="spend-by-cat">
-              <div>
+              <div className="spend-by-cat__donut">
                 <DonutMini cats={donutCats} total={donutTotal} />
               </div>
               <div style={{ minWidth: 0 }}>

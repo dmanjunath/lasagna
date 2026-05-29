@@ -89,7 +89,7 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
   return (
     <div className="glass-card p-6 col-span-full">
       {block.title && (
-        <h3 className="text-lg font-display font-semibold text-text mb-2">
+        <h3 className="text-base font-semibold tracking-tight text-text mb-2">
           {block.title}
         </h3>
       )}

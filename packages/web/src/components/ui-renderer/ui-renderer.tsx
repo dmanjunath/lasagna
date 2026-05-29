@@ -37,7 +37,7 @@ function ProjectionBlockRenderer({ block }: { block: UIBlock & { type: "projecti
   return (
     <div className="glass-card p-6 col-span-full">
       {block.title && (
-        <h3 className="text-lg font-display font-semibold text-text mb-2">
+        <h3 className="text-base font-semibold tracking-tight text-text mb-2">
           {block.title}
         </h3>
       )}
@@ -76,7 +76,7 @@ function ActionBlockRenderer({ block }: { block: UIBlock & { type: "action" } })
   return (
     <div className="glass-card p-6 col-span-full">
       {title && (
-        <h3 className="text-lg font-display font-semibold text-text mb-2">
+        <h3 className="text-base font-semibold tracking-tight text-text mb-2">
           {title}
         </h3>
       )}

@@ -1056,7 +1056,7 @@ function InstitutionArticle({
         }
         .ds-inst__head-body { flex: 1; min-width: 0; }
         .ds-inst__head-name {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 22px;
           font-weight: 500;
           color: var(--lf-ink);

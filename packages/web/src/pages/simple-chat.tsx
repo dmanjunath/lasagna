@@ -749,9 +749,10 @@ function HistoryListView({
           margin-bottom: 6px;
         }
         .ds-chat-history__title {
-          font-family: 'Instrument Serif', Georgia, serif;
-          font-size: 19px;
-          font-weight: 500;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 15px;
+          font-weight: 600;
+          letter-spacing: -0.01em;
           color: var(--lf-ink);
           line-height: 1.3;
           transition: color 0.15s;

@@ -16,7 +16,6 @@ import {
   Pill,
   DataTable,
   EmptyState,
-  CompositionRibbon,
   Lede,
 } from '../components/ds';
 import type { DataTableColumn } from '../components/ds/DataTable';
@@ -256,30 +255,12 @@ export function SimpleMoney() {
         </div>
       )}
 
-      {/* Composition ribbon — single proportional bar */}
-      {!loading && (cashTotal > 0 || investTotal > 0 || assetsTotal > 0 || debtTotal > 0) && (
-        <Section>
-          <CompositionRibbon
-            leadValue={fmtUsd(netWorth)}
-            leadDelta={
-              totalAccountCount > 0
-                ? `${totalAccountCount} account${totalAccountCount === 1 ? '' : 's'}`
-                : undefined
-            }
-            segments={[
-              ...(cashTotal > 0 ? [{ label: 'Cash', value: cashTotal, color: 'var(--lf-basil)' }] : []),
-              ...(investTotal > 0 ? [{ label: 'Investments', value: investTotal, color: 'var(--lf-cheese)' }] : []),
-              ...(assetsTotal > 0 ? [{ label: assetsLabelText, value: assetsTotal, color: 'var(--lf-crust)' }] : []),
-              ...(debtTotal > 0 ? [{ label: 'Debt', value: debtTotal, color: 'var(--lf-sauce)', negative: true }] : []),
-            ]}
-          />
-        </Section>
-      )}
-
-      {/* Stat strip removed — Cash/Investments/Property/Debt all duplicated
-          the composition ribbon directly above. The 30-day change is
-          already in the lede ("$X this month"). Per-category account
-          counts live in each AccountSection's header below. */}
+      {/* Composition ribbon removed — the account sections below already
+          enumerate every category (Cash / Investments / Property / Debt)
+          with a header total and the individual account rows. The ribbon
+          was a summary visualization of data the page subsequently shows
+          in full. The lede above carries the headline numbers; the
+          sections carry the detail; the line chart adds time. */}
 
       {/* Sync error banner */}
       {syncError && (
@@ -597,7 +578,7 @@ export function SimpleMoney() {
           margin-top: 2px;
         }
         .ds-money-feed__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 17px;
           font-weight: 500;
           color: var(--lf-ink);
@@ -890,7 +871,7 @@ function NetWorthChart({ points, range }: { points: NetWorthPoint[]; range: Rang
         {hover ? (
           <>
             <span className="text-sm text-text-muted">{new Date(hover.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-            <span className="font-serif text-lg font-medium text-text leading-none">{fmtUsd(hover.value)}</span>
+            <span className="text-lg font-semibold text-text leading-none tabular-nums tracking-tight">{fmtUsd(hover.value)}</span>
           </>
         ) : <span aria-hidden="true">&nbsp;</span>}
       </div>

@@ -14,7 +14,6 @@ const Shell = lazy(() => import('./components/layout/shell').then(m => ({ defaul
 
 // Lazy-load all authenticated pages
 const Accounts = lazy(() => import('./pages/Accounts').then(m => ({ default: m.Accounts })));
-const NetWorth = lazy(() => import('./pages/net-worth').then(m => ({ default: m.NetWorth })));
 const TaxStrategy = lazy(() => import('./pages/tax-strategy').then(m => ({ default: m.TaxStrategy })));
 const Retirement = lazy(() => import('./pages/retirement').then(m => ({ default: m.Retirement })));
 const SavingsGoal = lazy(() => import('./pages/savings-goal').then(m => ({ default: m.SavingsGoal })));
@@ -91,7 +90,6 @@ function AppRoutes() {
                     <Route path="/insights" component={Insights} />
                     <Route path="/retirement" component={Retirement} />
                     <Route path="/probability" component={ProbabilityOfSuccess} />
-                    <Route path="/net-worth" component={NetWorth} />
                     <Route path="/profile" component={Settings} />
                     <Route path="/accounts" component={Accounts} />
                     <Route path="/quick-import" component={QuickImport} />

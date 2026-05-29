@@ -104,7 +104,7 @@ export function ConfirmDialog({
         aria-describedby={messageId}
         className="w-full max-w-sm bg-bg-elevated border border-rule rounded-t-2xl sm:rounded-2xl shadow-xl p-5 flex flex-col gap-3"
       >
-        <h2 id={`${messageId}-title`} className="text-lg font-serif font-medium">
+        <h2 id={`${messageId}-title`} className="text-lg font-semibold tracking-tight">
           {title}
         </h2>
         <p id={messageId} className="text-sm text-text-secondary leading-relaxed">

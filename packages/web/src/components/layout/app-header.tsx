@@ -22,8 +22,8 @@ export function AppHeader({
         <div className="w-11 -ml-2 shrink-0 flex items-center">{leadingSlot}</div>
         <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
           <div className="lf-mark"><span /><span /><span /></div>
-          <span className="font-serif text-[17px] text-text tracking-tight leading-none">
-            Lasagna<em className="italic text-accent">Fi</em>
+          <span className="text-[15px] font-semibold text-text tracking-tight leading-none">
+            Lasagna<span className="text-accent">Fi</span>
           </span>
         </div>
         <div className="w-11 -mr-2 shrink-0" aria-hidden="true" />

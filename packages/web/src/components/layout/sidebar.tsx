@@ -86,8 +86,8 @@ export function Sidebar({ className }: SidebarProps) {
           <div className="lf-mark">
             <span /><span /><span />
           </div>
-          <span className="font-serif text-xl text-text tracking-tight">
-            Lasagna<em className="italic text-accent">Fi</em>
+          <span className="text-lg font-semibold text-text tracking-tight">
+            Lasagna<span className="text-accent">Fi</span>
           </span>
         </div>
       </div>

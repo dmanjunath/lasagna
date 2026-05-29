@@ -230,7 +230,7 @@ function ReadinessRing({ pct }: { pct: number }) {
           style={{ transition: 'stroke-dasharray 0.8s ease' }} />
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, color, lineHeight: 1 }}>
+        <span style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 24, color, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
           {pct.toFixed(0)}%
         </span>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginTop: 2 }}>
@@ -1455,8 +1455,6 @@ export function Retirement() {
           return (
             <DSSection>
               <DSCompositionRibbon
-                leadLabel="Portfolio today"
-                leadValue={<span className="ds-num">{formatMoney(portfolioValue, true)}</span>}
                 leadDelta={`${expectedReturn.toFixed(1)}% blended return`}
                 segments={segments}
               />
@@ -1624,7 +1622,7 @@ export function Retirement() {
               >
                 <DSCard>
                   <DSEyebrow>Sustainable monthly income</DSEyebrow>
-                  <div className="ds-num" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 32, color: 'var(--lf-ink)', lineHeight: 1, marginTop: 8 }}>
+                  <div className="ds-num" style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 26, color: 'var(--lf-ink)', lineHeight: 1.1, marginTop: 8, letterSpacing: '-0.02em' }}>
                     {formatMoney(monthlyRetirementIncome)}
                   </div>
                   <p className="ds-caption" style={{ marginTop: 6 }}>4% rule from projected portfolio</p>

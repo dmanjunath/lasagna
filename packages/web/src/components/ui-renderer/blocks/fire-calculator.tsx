@@ -14,7 +14,7 @@ export function FireCalculatorRenderer({ block }: { block: FireCalculatorBlock }
     <div className="glass-card p-6">
       <div className="text-center mb-6">
         <div className="text-sm text-text-secondary">FIRE Number</div>
-        <div className="text-3xl font-display font-bold text-accent">
+        <div className="text-3xl font-bold tabular-nums tracking-tight text-accent">
           {formatCurrency(block.targetNumber)}
         </div>
         <div className="text-xs text-text-secondary mt-1">

@@ -89,8 +89,19 @@
 
 /* ============================================================
    BRAND TYPOGRAPHY HELPERS
+
+   Instrument Serif is reserved for editorial moments — page H1,
+   the opening lede, the single hero number per page, empty-state
+   titles, and the brand wordmark. Everything else (section
+   headings, KPI strips, dialog titles, repeated metrics) uses
+   Geist sans so the serif keeps its weight when it appears.
    ============================================================ */
 .lf-serif {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.lf-serif--display {
   font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
   font-weight: 400;
   letter-spacing: -0.01em;
@@ -133,19 +144,20 @@
 @media (min-width: 768px) { .lf-h1 { font-size: 36px; } }
 
 .lf-h2 {
-  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
-  font-weight: 500;
-  font-size: 22px;
-  line-height: 1.2;
-  letter-spacing: -0.005em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
   color: var(--lf-ink);
 }
 
 .lf-h3 {
-  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
-  font-weight: 500;
-  font-size: 18px;
-  line-height: 1.25;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
   color: var(--lf-ink);
 }
 
@@ -612,19 +624,20 @@
   margin: 0;
 }
 .ds-h2 {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(20px, 2.4vw, 26px);
-  line-height: 1.2;
-  letter-spacing: -0.005em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
   color: var(--lf-ink);
   margin: 0;
 }
 .ds-h3 {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-weight: 500;
-  font-size: 17px;
-  line-height: 1.3;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
   color: var(--lf-ink);
   margin: 0;
 }
@@ -756,11 +769,11 @@
   margin-bottom: 8px;
 }
 .ds-kpi__value {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(28px, 3.5vw, 40px);
-  line-height: 1;
-  letter-spacing: -0.015em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(22px, 2.6vw, 28px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   color: var(--lf-ink);
   font-variant-numeric: tabular-nums;
   display: block;
@@ -984,11 +997,11 @@
   to   { transform: translateY(0) scale(1); opacity: 1; }
 }
 .ds-confirm__title {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-weight: 500;
-  font-size: 22px;
-  line-height: 1.2;
-  letter-spacing: -0.005em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   color: var(--lf-ink);
   margin: 0 0 12px;
 }
@@ -1053,11 +1066,11 @@
 }
 .ds-strip__value {
   display: block;
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(24px, 3vw, 34px);
-  line-height: 1.05;
-  letter-spacing: -0.015em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(20px, 2.4vw, 26px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: var(--lf-ink);
   font-variant-numeric: tabular-nums;
   /* Wrap (don't silently truncate). Numeric values are short and won't
@@ -1109,11 +1122,11 @@
   color: var(--lf-muted);
 }
 .ds-ribbon__lead-value {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(34px, 4.5vw, 48px);
-  line-height: 1;
-  letter-spacing: -0.02em;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(28px, 3.5vw, 38px);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
   color: var(--lf-ink);
   font-variant-numeric: tabular-nums;
 }
@@ -1130,15 +1143,79 @@
   background: var(--lf-cream-deep);
   border: 1px solid var(--lf-rule);
   border-radius: 4px;
-  overflow: hidden;
+  /* Allow the tooltip to pop above the bar without being clipped. */
+  position: relative;
+  overflow: visible;
 }
+/* Inner clip so segments respect the rounded corners without cutting the tooltip. */
+.ds-ribbon__bar > .ds-ribbon__seg:first-of-type { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
+.ds-ribbon__bar > .ds-ribbon__seg:last-of-type  { border-top-right-radius: 3px; border-bottom-right-radius: 3px; }
 .ds-ribbon__seg {
   height: 100%;
-  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.15s, transform 0.15s;
   min-width: 2px;
   position: relative;
+  cursor: pointer;
+  /* Prevents iOS from interpreting the touch as a scroll while scrubbing. */
+  touch-action: none;
 }
 .ds-ribbon__seg + .ds-ribbon__seg { border-left: 1px solid rgba(31,26,22,0.15); }
+.ds-ribbon__seg:hover,
+.ds-ribbon__seg--active {
+  filter: brightness(1.08) saturate(1.05);
+}
+
+/* Tooltip — floats above the hovered segment with label + value + %. */
+.ds-ribbon__tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-family: 'Geist', system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  box-shadow: 0 6px 18px rgba(31, 26, 22, 0.22);
+  z-index: 3;
+  animation: ds-ribbon-tip-in 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ds-ribbon__tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--lf-ink);
+}
+@keyframes ds-ribbon-tip-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.ds-ribbon__tooltip-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lf-cheese);
+  font-weight: 600;
+}
+.ds-ribbon__tooltip-value {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.ds-ribbon__tooltip-pct {
+  font-size: 11px;
+  color: rgba(251, 246, 236, 0.7);
+  font-variant-numeric: tabular-nums;
+}
 .ds-ribbon__legend {
   display: flex;
   flex-wrap: wrap;

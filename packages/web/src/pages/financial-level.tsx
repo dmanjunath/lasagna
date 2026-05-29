@@ -653,7 +653,7 @@ export function FinancialLevel() {
           gap: 6px;
         }
         .fl-row__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 19px;
           font-weight: 500;
           color: var(--lf-ink);
@@ -709,7 +709,7 @@ export function FinancialLevel() {
           flex-shrink: 0;
         }
         .fl-focus__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-weight: 500;
           font-size: clamp(28px, 4vw, 40px);
           line-height: 1.05;

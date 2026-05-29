@@ -118,7 +118,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                   {initial}
                 </div>
                 <div className="flex-1 text-left">
-                  <div className="text-base font-serif font-medium leading-tight">{firstName}</div>
+                  <div className="text-base font-semibold leading-tight tracking-tight">{firstName}</div>
                   <div className="text-xs text-text-muted mt-1">View profile &amp; settings</div>
                 </div>
                 <div className="text-text-muted text-xs">›</div>

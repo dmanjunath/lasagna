@@ -5,7 +5,7 @@ export function ImprovementActionsRenderer({ block }: { block: ImprovementAction
   return (
     <div className="glass-card p-6 col-span-full">
       {block.title && (
-        <h3 className="text-lg font-display font-semibold text-text mb-4">
+        <h3 className="text-base font-semibold tracking-tight text-text mb-4">
           {block.title}
         </h3>
       )}

@@ -8,7 +8,7 @@ export function TableBlockRenderer({ block }: { block: TableBlockType }) {
   return (
     <div className="overflow-x-auto glass-card p-4 col-span-full">
       {block.title && (
-        <h4 className="text-lg font-display font-semibold text-text mb-4">
+        <h4 className="text-base font-semibold tracking-tight text-text mb-4">
           {block.title}
         </h4>
       )}

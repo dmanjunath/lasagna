@@ -582,7 +582,7 @@ export function Insights() {
         .ins-row__btn:hover .ins-row__title { color: var(--lf-sauce); }
         .ins-row__title {
           flex: 1;
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 19px;
           font-weight: 500;
           color: var(--lf-ink);

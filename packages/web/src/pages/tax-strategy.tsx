@@ -468,7 +468,7 @@ export function TaxStrategy() {
           margin-bottom: 8px;
         }
         .tax-feed__title {
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           font-weight: 500;
           font-size: clamp(20px, 2.2vw, 26px);
           line-height: 1.15;

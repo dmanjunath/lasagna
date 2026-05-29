@@ -39,7 +39,9 @@ const S = {
     color: 'var(--lf-muted)',
   } as React.CSSProperties,
   serif: {
-    fontFamily: "'Instrument Serif', Georgia, serif",
+    fontFamily: "'Geist', system-ui, sans-serif",
+    fontWeight: 600,
+    letterSpacing: '-0.01em',
   } as React.CSSProperties,
 };
 
@@ -258,12 +260,12 @@ function DonutMini({ cats, totalLabel }: {
       ))}
       {hp ? (
         <>
-          <text x="60" y="54" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="9" fill="var(--lf-muted)">{hp.name.slice(0, 10)}</text>
-          <text x="60" y="66" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="14" fill="var(--lf-ink)">{hp.pct}%</text>
+          <text x="60" y="54" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="9" fill="var(--lf-muted)">{hp.name.slice(0, 10)}</text>
+          <text x="60" y="66" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="14" fill="var(--lf-ink)">{hp.pct}%</text>
         </>
       ) : (
         <>
-          <text x="60" y="58" textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize="15" fill="var(--lf-ink)">{totalLabel}</text>
+          <text x="60" y="58" textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize="15" fill="var(--lf-ink)">{totalLabel}</text>
           <text x="60" y="72" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="8" fill="var(--lf-muted)">monthly</text>
         </>
       )}
@@ -285,7 +287,7 @@ function HealthRing({ score, color, size = 40 }: { score: number; color: string;
         strokeDasharray={C} strokeDashoffset={off} strokeLinecap="round"
         transform={`rotate(-90 ${cx} ${cy})`} style={{ transition: 'stroke-dashoffset 0.5s ease' }}
       />
-      <text x={cx} y={cy + 3} textAnchor="middle" fontFamily="Instrument Serif, serif" fontSize={size > 44 ? 14 : 11} fill="var(--lf-ink)">{score}</text>
+      <text x={cx} y={cy + 3} textAnchor="middle" fontFamily="Geist, system-ui, sans-serif" fontWeight="600" fontSize={size > 44 ? 14 : 11} fill="var(--lf-ink)">{score}</text>
     </svg>
   );
 }
@@ -565,7 +567,7 @@ export function LayerHomeScreen({
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)' }}>
                 Level {primaryLayer.order} · Current focus
               </div>
-              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 'clamp(24px, 4vw, 32px)', lineHeight: 1.1, color: 'var(--lf-paper)', marginTop: 2 }}>
+              <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 'clamp(20px, 3vw, 26px)', lineHeight: 1.2, letterSpacing: '-0.015em', color: 'var(--lf-paper)', marginTop: 2 }}>
                 {primaryLayer.title}
               </div>
             </div>
@@ -956,7 +958,7 @@ export function LayerHomeScreen({
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginBottom: 4 }}>
                     Total Spend
                   </div>
-                  <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28, lineHeight: 1, color: 'var(--lf-ink)' }}>
+                  <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 22, lineHeight: 1.15, letterSpacing: '-0.02em', color: 'var(--lf-ink)', fontVariantNumeric: 'tabular-nums' }}>
                     {fmt(totalSpending)}
                   </div>
                   {totalIncome > 0 && (
