@@ -85,9 +85,12 @@
     --color-gold-dim:    rgba(230, 184, 92, 0.15);
     --card-glow:         rgba(201, 84, 58, 0.03);
 
-    /* ── Shadows ── */
-    --shadow-card:       0 1px 2px rgba(31, 26, 22, 0.04);
-    --shadow-card-hover: 0 4px 12px rgba(31, 26, 22, 0.08);
+    /* ── Shadows — two-stop for depth: a sharp 1px boundary + a longer
+       ambient bloom. Single-stop shadows read flat against the warm page
+       bg; the ambient stop creates a "floating panel" effect that gives
+       every card visible depth without going heavy. */
+    --shadow-card:       0 1px 2px rgba(31, 26, 22, 0.05), 0 4px 16px rgba(31, 26, 22, 0.05);
+    --shadow-card-hover: 0 2px 4px rgba(31, 26, 22, 0.06), 0 8px 24px rgba(31, 26, 22, 0.08);
     --shadow-accent-glow: 0 0 16px rgba(201, 84, 58, 0.15);
     --shadow-accent-glow-hover: 0 0 20px rgba(201, 84, 58, 0.25);
   }
@@ -1408,14 +1411,18 @@
    Not lifted from generic dashboards.
    ──────────────────────────────────────────────────────────── */
 
-/* Stat Strip ── horizontal type-only stat row.
-   No card chrome. Hairline rules between cells. Reads like a
-   masthead's stats line in a newspaper. */
+/* Stat Strip ── horizontal stat row. Now sits on the unified card surface
+   so every page reads as a coherent stack of elevated panels. Internal
+   hairline rules separate cells; outer border + radius + shadow live on
+   the card surface itself. */
 .ds-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  border-top: 1px solid var(--lf-ink);
-  border-bottom: 1px solid var(--lf-rule);
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
   margin: 0;
 }
 .ds-strip__item {
@@ -1423,21 +1430,18 @@
   border-left: 1px solid var(--lf-rule);
   min-width: 0;
 }
-.ds-strip__item:first-child {
-  border-left: 0;
-  padding-left: 0;
-}
+.ds-strip__item:first-child { border-left: 0; }
+.ds-strip__item:last-child { padding-right: 16px; }
 /* On 2-col mobile fallback, the items that wrap to row 2 still need a top
    hairline so the grid reads correctly; auto-fit grid + repeat-pattern via
    nth-child can't know how many columns are active, so we lean on the
    border-top trick which is harmless if it's never visually crossed. */
 @media (max-width: 540px) {
   .ds-strip { grid-template-columns: repeat(2, 1fr); }
-  .ds-strip__item { padding: 16px 14px; border-top: 1px solid var(--lf-rule); }
+  .ds-strip__item { padding: 14px; border-top: 1px solid var(--lf-rule); }
   .ds-strip__item:nth-child(1),
   .ds-strip__item:nth-child(2) { border-top: 0; }
-  .ds-strip__item:nth-child(odd) { border-left: 0; padding-left: 0; }
-  .ds-strip__item:nth-child(even) { padding-right: 0; }
+  .ds-strip__item:nth-child(odd) { border-left: 0; }
 }
 .ds-strip__label {
   display: block;
@@ -1500,7 +1504,9 @@
 
 /* Composition Ribbon ── single proportional horizontal bar.
    You SEE the makeup of your finances as one visual instead
-   of reading four KPI cards. */
+   of reading four KPI cards. Sits on the unified card surface so the page
+   reads as a coherent stack of elevated panels (matches .ds-card, .ds-strip,
+   .ds-figure, .ds-focus). */
 .ds-ribbon {
   display: block;
   /* iter 8 P1: prevent any segment, legend item, or long label from forcing
@@ -1509,6 +1515,11 @@
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: var(--shadow-card);
 }
 .ds-ribbon__head {
   display: flex;

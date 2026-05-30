@@ -464,14 +464,22 @@ export function SimpleMoney() {
           }
         }
 
-        /* Editorial action feed — same family as ds-home-feed on Home */
-        .ds-money-feed { list-style: none; margin: 0; padding: 0; }
-        .ds-money-feed li {
-          padding: 18px 0;
-          border-top: 1px solid var(--lf-rule);
+        /* Action feed — sits on the unified card surface so the page reads
+           as a coherent stack of elevated panels. */
+        .ds-money-feed {
+          list-style: none;
+          margin: 0;
+          padding: 4px 20px;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 14px;
+          box-shadow: var(--shadow-card);
         }
-        .ds-money-feed li:first-child { border-top: 0; padding-top: 0; }
-        .ds-money-feed li:last-child { padding-bottom: 0; }
+        .ds-money-feed li {
+          padding: 16px 0;
+          border-top: 1px solid var(--lf-rule-neutral);
+        }
+        .ds-money-feed li:first-child { border-top: 0; }
         .ds-money-feed__link {
           display: flex;
           gap: 14px;

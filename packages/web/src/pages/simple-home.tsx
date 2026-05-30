@@ -435,14 +435,17 @@ export function SimpleHome() {
         .ds-home-feed {
           list-style: none;
           margin: 0;
-          padding: 0;
+          padding: 4px 20px;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 14px;
+          box-shadow: var(--shadow-card);
         }
         .ds-home-feed li {
-          padding: 18px 0;
-          border-top: 1px solid var(--lf-rule);
+          padding: 16px 0;
+          border-top: 1px solid var(--lf-rule-neutral);
         }
-        .ds-home-feed li:first-child { border-top: 0; padding-top: 0; }
-        .ds-home-feed li:last-child { padding-bottom: 0; }
+        .ds-home-feed li:first-child { border-top: 0; }
         .ds-home-feed__link {
           display: flex;
           gap: 14px;
@@ -555,9 +558,12 @@ function FocusEditorial({
       </div>
       <style>{`
         .ds-focus {
-          padding: 28px 0 8px;
-          border-top: 3px solid var(--lf-ink);
-          margin-bottom: 56px;
+          padding: 24px;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 14px;
+          box-shadow: var(--shadow-card);
+          margin-bottom: 32px;
         }
         .ds-focus__eyebrow {
           font-family: 'Geist', system-ui, sans-serif;
