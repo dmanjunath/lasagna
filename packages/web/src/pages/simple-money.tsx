@@ -95,6 +95,11 @@ export function SimpleMoney() {
   // date/value).
   const [chartHovering, setChartHovering] = useState(false);
 
+  async function refreshItems() {
+    const fresh = await api.getItems();
+    setItems(fresh.items);
+  }
+
   async function handleSync(itemId: string) {
     setSyncing(itemId);
     setSyncError(null);
@@ -301,6 +306,7 @@ export function SimpleMoney() {
           filterType="depository"
           syncing={syncing}
           onSync={handleSync}
+          onRefresh={refreshItems}
         />
       )}
 
@@ -317,6 +323,7 @@ export function SimpleMoney() {
           filterType="investment"
           syncing={syncing}
           onSync={handleSync}
+          onRefresh={refreshItems}
         />
       )}
 
@@ -333,6 +340,7 @@ export function SimpleMoney() {
           filterType="real_estate"
           syncing={syncing}
           onSync={handleSync}
+          onRefresh={refreshItems}
         />
       )}
 
@@ -349,6 +357,7 @@ export function SimpleMoney() {
           filterType="alternative"
           syncing={syncing}
           onSync={handleSync}
+          onRefresh={refreshItems}
         />
       )}
 
@@ -369,6 +378,7 @@ export function SimpleMoney() {
           filterType={['credit', 'loan']}
           syncing={syncing}
           onSync={handleSync}
+          onRefresh={refreshItems}
         />
       )}
 
@@ -526,7 +536,7 @@ export function SimpleMoney() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function AccountSection({
-  title, eyebrow, insight, total, totalTone, items, filterType, syncing, onSync,
+  title, eyebrow, insight, total, totalTone, items, filterType, syncing, onSync, onRefresh,
 }: {
   title: string;
   eyebrow: string;
@@ -537,6 +547,7 @@ function AccountSection({
   filterType: string | string[];
   syncing: string | null;
   onSync: (itemId: string) => void;
+  onRefresh: () => Promise<void> | void;
 }) {
   const types = Array.isArray(filterType) ? filterType : [filterType];
   const accounts = items.flatMap((item) =>
@@ -608,6 +619,7 @@ function AccountSection({
           if (acct.subtype) metaParts.push(titleCase(acct.subtype));
           if (acct.mask) metaParts.push(`··${acct.mask}`);
           if (acct.item.lastSyncedAt) metaParts.push(relativeTime(acct.item.lastSyncedAt));
+          const isManual = acct.item.institutionId === 'manual';
           return (
             <AccountRow
               key={acct.id}
@@ -616,8 +628,24 @@ function AccountSection({
               meta={metaParts.join(' · ')}
               value={bal}
               negative={totalTone === 'neg'}
-              onSync={() => onSync(acct.item.id)}
+              // Plaid accounts get sync only; manual accounts get rename/
+              // delete (no Plaid item to sync). The action group surfaces
+              // only the applicable buttons per account.
+              onSync={isManual ? undefined : () => onSync(acct.item.id)}
               syncing={syncing === acct.item.id}
+              onEdit={isManual ? async () => {
+                const next = window.prompt('Rename account', acct.name);
+                if (next && next.trim() && next.trim() !== acct.name) {
+                  await api.updateManualAccount(acct.id, { name: next.trim() });
+                  await onRefresh();
+                }
+              } : undefined}
+              onDelete={isManual ? async () => {
+                if (window.confirm(`Delete "${acct.name}"? This can't be undone.`)) {
+                  await api.deleteManualAccount(acct.id);
+                  await onRefresh();
+                }
+              } : undefined}
               formatValue={(n) => fmtUsd(n)}
             />
           );

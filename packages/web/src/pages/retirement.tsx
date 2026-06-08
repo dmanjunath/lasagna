@@ -20,7 +20,6 @@ import {
   EmptyState as DSEmptyState,
   StatStrip as DSStatStrip,
   CompositionRibbon as DSCompositionRibbon,
-  PageSubToolbar,
   ChartHover,
   SkeletonChart,
   SkeletonLine,
@@ -1464,8 +1463,6 @@ export function Retirement() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
       >
-        {/* Page-bar locked: title + caption only. View toggle moves to
-            PageSubToolbar so the masthead stays a one-row primitive. */}
         <header className="ds-page-bar">
           <div className="ds-page-bar__title-group">
             <h1 className="ds-page-bar__title">
@@ -1477,24 +1474,20 @@ export function Retirement() {
               {'  ·  '}{formatMoney(monthlyRetirementSpend, true)}/mo
             </span>
           </div>
+          <div className="ret-view-toggle" role="tablist" aria-label="View mode">
+            {(['simple', 'advanced'] as const).map(v => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={view === v}
+                className={view === v ? 'is-active' : ''}
+                onClick={() => setView(v)}
+              >
+                {v === 'simple' ? 'Overview' : 'Detailed'}
+              </button>
+            ))}
+          </div>
         </header>
-        <PageSubToolbar
-          left={
-            <div className="ret-view-toggle" role="tablist" aria-label="View mode">
-              {(['simple', 'advanced'] as const).map(v => (
-                <button
-                  key={v}
-                  role="tab"
-                  aria-selected={view === v}
-                  className={view === v ? 'is-active' : ''}
-                  onClick={() => setView(v)}
-                >
-                  {v === 'simple' ? 'Overview' : 'Detailed'}
-                </button>
-              ))}
-            </div>
-          }
-        />
 
         {/* Editorial lede removed in iter 2 — page-bar carries the signal. */}
 
@@ -1575,7 +1568,7 @@ export function Retirement() {
         <PageActions types="retirement" />
 
         {/* Assumptions sliders */}
-        <DSSection title="Assumptions" eyebrow="tune the inputs">
+        <DSSection title="Assumptions">
           <DSCard>
             <div
               className="ret-slider-row ret-sliders-grid"
@@ -1684,7 +1677,7 @@ export function Retirement() {
         {view === 'simple' && (
           <>
             {/* Readiness + Income sub-cards */}
-            <DSSection title="Income & longevity" eyebrow="what you can spend, and for how long">
+            <DSSection title="Income & longevity">
               <div
                 className="ret-3col"
                 style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}

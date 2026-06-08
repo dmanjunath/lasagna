@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import { faviconUrl, institutionDomainFor } from './institutions';
 
 export interface AccountRowProps {
@@ -19,6 +19,10 @@ export interface AccountRowProps {
   onSync?: () => void;
   /** Whether the sync action is currently in flight. */
   syncing?: boolean;
+  /** Optional rename callback — shown when provided (manual accounts only). */
+  onEdit?: () => void;
+  /** Optional delete callback — shown when provided (manual accounts only). */
+  onDelete?: () => void;
   /** Format the value (caller-controlled so currency formatting stays consistent). */
   formatValue?: (n: number) => string;
   /** Render value as negative (e.g. debt totals shown as positive absolute with leading −). */
@@ -50,6 +54,8 @@ export function AccountRow({
   delta,
   onSync,
   syncing,
+  onEdit,
+  onDelete,
   formatValue = defaultFmt,
   negative,
 }: AccountRowProps) {
@@ -58,9 +64,13 @@ export function AccountRow({
   const monogram = (institution || '?').trim().charAt(0).toUpperCase();
   const formatted = formatValue(Math.abs(value));
   const display = negative ? `−${formatted}` : formatted;
+  const actionCount = (onEdit ? 1 : 0) + (onSync ? 1 : 0) + (onDelete ? 1 : 0);
 
   return (
-    <div className="ds-row ds-row--account">
+    <div
+      className="ds-row ds-row--account"
+      data-actions={actionCount > 0 ? actionCount : undefined}
+    >
       <Favicon icon={icon} monogram={monogram} alt={institution} />
       <div className="ds-row__main">
         <div className="ds-row__primary" title={name}>{name}</div>
@@ -70,17 +80,43 @@ export function AccountRow({
         <span className={`ds-row__value ds-num${negative ? ' ds-neg' : ''}`}>{display}</span>
         {delta && <span className="ds-row__delta ds-num">{delta}</span>}
       </div>
-      {onSync && (
-        <button
-          type="button"
-          className="ds-row__sync"
-          onClick={onSync}
-          disabled={syncing}
-          title={`Sync ${institution}`}
-          aria-label={`Sync ${institution}`}
-        >
-          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-        </button>
+      {actionCount > 0 && (
+        <div className="ds-row__actions" role="group" aria-label={`Actions for ${name}`}>
+          {onEdit && (
+            <button
+              type="button"
+              className="ds-row__action"
+              onClick={onEdit}
+              title="Rename"
+              aria-label={`Rename ${name}`}
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+          {onSync && (
+            <button
+              type="button"
+              className="ds-row__action"
+              onClick={onSync}
+              disabled={syncing}
+              title={`Sync ${institution}`}
+              aria-label={`Sync ${institution}`}
+            >
+              <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className="ds-row__action ds-row__action--danger"
+              onClick={onDelete}
+              title="Delete"
+              aria-label={`Delete ${name}`}
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

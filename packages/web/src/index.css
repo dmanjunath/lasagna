@@ -1514,7 +1514,14 @@
      container width. */
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  /* Horizontal: clip to container width so long labels can't force scroll.
+     Vertical: visible so the segment hover tooltip can pop above the bar
+     without being clipped by the card boundary. `overflow: clip` is the
+     modern value that allows axis-independent clipping (Chrome 90+ /
+     Firefox 81+ / Safari 16+), whereas `overflow: hidden` would force
+     both axes to compute to a scrolling context and trap the tooltip. */
+  overflow-x: clip;
+  overflow-y: visible;
   background: var(--lf-surface);
   border: 1px solid var(--lf-rule-neutral);
   border-radius: 14px;
@@ -1782,8 +1789,8 @@
   align-items: center;
   gap: 12px;
   padding: 0 16px;
-  height: 52px;
-  min-height: 52px;
+  height: 60px;
+  min-height: 60px;
   box-sizing: border-box;
   width: 100%;
   text-align: left;
@@ -1792,10 +1799,10 @@
   font: inherit;
   color: inherit;
 }
-/* TransactionRow is denser (44px desktop, no delta line under the amount) */
+/* TransactionRow is denser (48px desktop, no delta line under the amount) */
 .ds-row--tx {
-  height: 44px;
-  min-height: 44px;
+  height: 48px;
+  min-height: 48px;
 }
 .ds-row + .ds-row { border-top: 1px solid var(--lf-rule-soft); }
 .ds-row--clickable { cursor: pointer; transition: background 0.12s; }
@@ -1950,73 +1957,84 @@
 .ds-row__amount.ds-neg,
 .ds-row__value.ds-neg { color: var(--lf-sauce-deep); }
 
-/* Hover-only sync control (desktop). Hidden until row hover so the resting
-   state is calm — three icons in every row was noise.
-   Iter 5: positioned ABSOLUTELY so it doesn't push the value column when
-   present and doesn't disappear from the value column when absent. The
-   row's right padding (16px) is the SAME whether sync renders or not, so
-   AccountRow values + TransactionRow values + HoldingRow values now share
-   one right edge (iter 4 measured 60px drift between them). The icon sits
-   in the row's right-margin guttering (right: 16px → 48px) instead of
-   stealing flex space. */
+/* Hover-revealed action group (desktop). On hover the value column slides
+   left to make room for an explicit group of 32×32 buttons (Edit / Sync /
+   Delete) at the row's right edge. No occlusion of the balance — when
+   actions appear, the value visibly moves out of the way. The slide is
+   sized by the row's `data-actions` count so 1-button rows reserve less
+   space than 3-button rows. */
 .ds-row { position: relative; }
-.ds-row__sync {
+.ds-row__right {
+  transition: transform 0.18s ease, opacity 0.15s ease;
+}
+.ds-row__actions {
   position: absolute;
   right: 12px;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translateY(-50%) translateX(8px);
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.18s ease;
+}
+.ds-row:hover .ds-row__actions,
+.ds-row__actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) translateX(0);
+}
+/* Reserve slide-distance based on action count. 36px per button (32px + 4
+   gap). The value slides left exactly enough to clear the action group;
+   the value column itself stays right-aligned inside its 12ch box. */
+.ds-row[data-actions="1"]:hover .ds-row__right { transform: translateX(-44px); }
+.ds-row[data-actions="2"]:hover .ds-row__right { transform: translateX(-80px); }
+.ds-row[data-actions="3"]:hover .ds-row__right { transform: translateX(-116px); }
+
+.ds-row__action {
   width: 32px;
   height: 32px;
   display: grid;
   place-items: center;
   border-radius: 6px;
-  /* Background MUST match the card surface (white) — not page paper — so
-     when the icon reveals on hover it cleanly occludes the value behind it
-     instead of showing a slightly-off tint patch. The box-shadow halo of
-     the same color extends the occlusion a few px past the icon edge so
-     no edge-bleed of the $ value pokes through. */
   background: var(--lf-surface);
-  box-shadow: 0 0 0 4px var(--lf-surface);
-  border: 0;
+  border: 1px solid var(--lf-rule-neutral);
   color: var(--lf-muted);
   cursor: pointer;
   flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.12s, background 0.12s, color 0.12s;
-  pointer-events: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.ds-row:hover .ds-row__sync,
-.ds-row__sync:focus-visible,
-.ds-row__sync:disabled { opacity: 1; pointer-events: auto; }
-.ds-row__sync:hover {
+.ds-row__action:hover:not(:disabled) {
   background: var(--lf-cream);
   color: var(--lf-ink);
-  box-shadow: 0 0 0 4px var(--lf-cream);
+  border-color: var(--lf-rule);
 }
-.ds-row__sync:disabled { cursor: not-allowed; }
-/* Touch: hide the row-level sync icon entirely. The per-section Sync button
-   in the page header + global pull-to-refresh cover the same affordance and
-   we don't want the icon to permanently overlap the $ value on mobile. */
+.ds-row__action:disabled { cursor: not-allowed; opacity: 0.4; }
+.ds-row__action--danger:hover:not(:disabled) {
+  color: var(--lf-sauce-deep);
+  border-color: var(--lf-sauce);
+  background: rgba(201, 84, 58, 0.06);
+}
+/* Touch: hide the row-level action group. Per-section Sync button + the
+   /accounts page handle rename/delete on mobile. */
 @media (hover: none) and (pointer: coarse) {
-  .ds-row__sync { display: none; }
+  .ds-row__actions { display: none; }
 }
 
-/* Mobile: 56px exact for both account and transaction rows.
-   Padding is fixed (not flex) so heights don't drift with longer copy. */
+/* Mobile: 64px account rows / 60px tx rows. Padding is fixed (not flex)
+   so heights don't drift with longer copy. */
 @media (max-width: 640px) {
   .ds-row {
-    height: 56px;
-    min-height: 56px;
+    height: 64px;
+    min-height: 64px;
     padding: 0 14px;
   }
   .ds-row--tx {
-    height: 56px;
-    min-height: 56px;
+    height: 60px;
+    min-height: 60px;
   }
   .ds-row--tx .ds-row__amount { font-size: 14px; }
   .ds-row__cat { max-width: 96px; }
-  /* Sync icons always-visible on mobile (no hover affordance) */
-  .ds-row__sync { opacity: 0.7; }
 }
 
 /* ============================================================

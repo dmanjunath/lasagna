@@ -535,31 +535,6 @@ function HasDebtView({
           letter-spacing: 0.14em;
           text-transform: uppercase;
         }
-        .debt-pill-toggle {
-          display: inline-flex;
-          gap: 4px;
-          padding: 3px;
-          border-radius: 999px;
-          border: 1px solid var(--lf-rule);
-          background: var(--lf-paper);
-        }
-        .debt-pill-toggle button {
-          padding: 5px 14px;
-          border-radius: 999px;
-          border: none;
-          background: transparent;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 10px;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-          color: var(--lf-muted);
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-        .debt-pill-toggle button[data-active="true"] {
-          background: var(--lf-ink);
-          color: var(--lf-paper);
-        }
       `}</style>
 
       {/* Iter 8: ds-page-bar replaces editorial PageHeader + Lede. Live
@@ -617,26 +592,19 @@ function HasDebtView({
       {/* Payoff strategy — editorial comparison */}
       <Section
         title="Payoff strategy"
-        eyebrow="choose your approach"
         actions={
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-            <span
-              style={{
-                fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                fontSize: 10,
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                color: 'var(--lf-muted)',
-              }}
-              aria-live="polite"
-            >
-              Sorted · {strategy}
-            </span>
-            <div className="debt-pill-toggle">
-              <button data-active={strategy === 'avalanche'} onClick={() => onStrategyChange('avalanche')}>Avalanche</button>
-              <button data-active={strategy === 'snowball'} onClick={() => onStrategyChange('snowball')}>Snowball</button>
-            </div>
-          </div>
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+              fontSize: 10,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: 'var(--lf-muted)',
+            }}
+            aria-live="polite"
+          >
+            Sorted · {strategy}
+          </span>
         }
       >
         <div className="debt-strategy">

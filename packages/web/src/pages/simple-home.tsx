@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Lightbulb, Calendar } from 'lucide-react';
+import { Lightbulb } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
@@ -9,7 +9,6 @@ import {
   Section,
   Card,
   Button,
-  Eyebrow,
   CompositionRibbon,
 } from '../components/ds';
 
@@ -248,9 +247,6 @@ export function SimpleHome() {
     return last - prior.value;
   }, [nwHistory]);
 
-  // Chip suggestions are personalized to the user's actual numbers. The chip
-  // is nav, the full question gets composed in /chat from the chip's intent.
-  // Short USD format for chip-width: $1.7M, $250k, $40k.
   const suggestedPrompts = useMemo(() => {
     const shortUsd = (n: number) => {
       const abs = Math.abs(n);
@@ -260,7 +256,7 @@ export function SimpleHome() {
     };
     const prompts: string[] = [];
     if (breakdown && breakdown.debts > 0) {
-      prompts.push(`Pay off ${shortUsd(breakdown.debts)} debt?`);
+      prompts.push(`How fast can I pay off my ${shortUsd(breakdown.debts)} in debt?`);
     }
     if (topGoal) {
       const target = parseFloat(topGoal.targetAmount);
@@ -268,14 +264,18 @@ export function SimpleHome() {
       const remaining = Math.max(0, target - current);
       const label = (topGoal.name || 'goal').split(' ').slice(0, 2).join(' ').toLowerCase();
       if (target > 0) {
-        prompts.push(remaining > 0 ? `Reach ${shortUsd(remaining)} ${label}?` : `Beyond ${label}?`);
+        prompts.push(
+          remaining > 0
+            ? `What's the fastest path to ${shortUsd(remaining)} for ${label}?`
+            : `What should I focus on after hitting my ${label}?`
+        );
       }
     }
     if (breakdown && breakdown.netWorth > 0) {
-      prompts.push(`Retire on ${shortUsd(breakdown.netWorth)}?`);
+      prompts.push(`Can I retire by 65 on ${shortUsd(breakdown.netWorth)}?`);
     }
-    prompts.push('Tax-loss harvest?');
-    prompts.push('Withdraw safely?');
+    prompts.push('Should I tax-loss harvest before year-end?');
+    prompts.push('What is my safe withdrawal rate?');
     return prompts.slice(0, 4);
   }, [breakdown, topGoal]);
 
@@ -352,8 +352,7 @@ export function SimpleHome() {
       ) : (
         <div className="ds-focus-wrap">
           <Card variant="ghost">
-            <Eyebrow>get started</Eyebrow>
-            <h3 className="ds-h2" style={{ marginTop: 8 }}>Set up your financial profile</h3>
+            <h3 className="ds-h2">Set up your financial profile</h3>
             <p className="ds-body" style={{ marginTop: 8, marginBottom: 16 }}>
               Tell us the basics and we'll show you exactly what to do next.
             </p>
@@ -513,7 +512,6 @@ function FocusEditorial({
 
   return (
     <article className="ds-focus">
-      <div className="ds-focus__eyebrow">today's focus</div>
       <h2 className="ds-focus__title">{step.title}</h2>
       {body && <p className="ds-focus__body">{body}</p>}
       {hasProgress && (
@@ -564,19 +562,6 @@ function FocusEditorial({
           border-radius: 14px;
           box-shadow: var(--shadow-card);
           margin-bottom: 32px;
-        }
-        .ds-focus__eyebrow {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          font-weight: 600;
-          color: var(--lf-sauce);
-          margin-bottom: 14px;
-        }
-        .ds-focus__eyebrow > span {
-          color: var(--lf-muted);
-          margin: 0 6px;
         }
         .ds-focus__title {
           /* Iter 7 H1/H2: focus title was 26px > page-bar H1 24px. Drop to
@@ -664,14 +649,8 @@ function ActionEditorial({
   onDone: (id: string) => void | Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const urgencyLabel =
-    insight.urgency === 'critical' || insight.urgency === 'high' ? 'high priority' :
-    insight.urgency === 'medium' ? 'this week' : 'watch';
   return (
     <article className="ds-focus">
-      <div className="ds-focus__eyebrow">
-        today's focus <span aria-hidden="true">·</span> {urgencyLabel}
-      </div>
       <h2 className="ds-focus__title">{insight.title}</h2>
       {insight.description && <p className="ds-focus__body">{insight.description}</p>}
       <div className="ds-focus__footer">
@@ -698,7 +677,6 @@ function ActionEditorial({
 function MarginaliaGoal({ goal, progress }: { goal: Goal; progress: number }) {
   return (
     <div className="ds-margin">
-      <Eyebrow>active goal</Eyebrow>
       <div className="ds-margin__title">{goal.name}</div>
       <div className="ds-margin__bar">
         <div style={{ width: `${progress}%` }} />
@@ -747,7 +725,6 @@ function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: st
   const covered = account ? account.balance >= bill.amount : null;
   return (
     <div className="ds-margin">
-      <Eyebrow><Calendar size={11} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />Coming up</Eyebrow>
       <div className="ds-margin__title" style={{ fontSize: 18 }}>
         {bill.name} · <span className="ds-num">{fmtUsd(bill.amount)}</span>
       </div>

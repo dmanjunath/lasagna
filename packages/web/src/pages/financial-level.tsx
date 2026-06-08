@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
@@ -373,7 +373,15 @@ export function FinancialLevel() {
   const [error, setError] = useState<string | null>(null);
   const [skippedStepIds, setSkippedStepIds] = useState<Set<string>>(new Set());
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const focusRef = useRef<HTMLDivElement>(null);
   const { openChat } = useChatStore();
+
+  const handleSelectStep = (stepId: string) => {
+    setSelectedStepId(stepId);
+    requestAnimationFrame(() => {
+      focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   const handleSkipStep = async (stepId: string) => {
     const isCurrentlySkipped = skippedStepIds.has(stepId);
@@ -524,7 +532,6 @@ export function FinancialLevel() {
 
       <Section
         title={allComplete ? 'All levels complete' : 'The 12 levels'}
-        eyebrow={allComplete ? 'You did it' : 'Each layer builds on the one below it'}
         actions={!allComplete ? <WhyThisOrderPopover /> : undefined}
       >
         {allComplete ? (
@@ -546,7 +553,7 @@ export function FinancialLevel() {
                 isComplete={step.status === 'complete'}
                 isSkipped={skippedStepIds.has(step.id)}
                 isSelected={selectedStepId === step.id}
-                onSelect={() => setSelectedStepId(step.id)}
+                onSelect={() => handleSelectStep(step.id)}
               />
             ))}
           </motion.ul>
@@ -554,9 +561,9 @@ export function FinancialLevel() {
       </Section>
 
       {!allComplete && selectedStep && (
+        <div ref={focusRef}>
         <Section
           title="Current focus"
-          eyebrow={`Level ${selectedStep.order} · ${selectedStep.status === 'complete' ? 'Complete' : 'In play'}`}
         >
           <motion.div
             key={selectedStep.id}
@@ -576,6 +583,7 @@ export function FinancialLevel() {
             />
           </motion.div>
         </Section>
+        </div>
       )}
 
       {/* Page-scoped layout — no typography tokens here. */}
