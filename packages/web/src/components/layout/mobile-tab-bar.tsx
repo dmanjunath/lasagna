@@ -1,5 +1,5 @@
 import { useLocation } from 'wouter';
-import { Home, Wallet, MessageSquare, Target } from 'lucide-react';
+import { Home, Wallet, MessageSquare, Zap, Target } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface TabItem {
@@ -9,10 +9,11 @@ interface TabItem {
 }
 
 const tabs: TabItem[] = [
-  { name: 'Home',  icon: Home,          path: '/' },
-  { name: 'Money', icon: Wallet,        path: '/money' },
-  { name: 'Chat',  icon: MessageSquare, path: '/chat' },
-  { name: 'Goals', icon: Target,        path: '/goals' },
+  { name: 'Home',    icon: Home,          path: '/' },
+  { name: 'Money',   icon: Wallet,        path: '/money' },
+  { name: 'Chat',    icon: MessageSquare, path: '/chat' },
+  { name: 'Actions', icon: Zap,           path: '/insights' },
+  { name: 'Goals',   icon: Target,        path: '/goals' },
 ];
 
 export function MobileTabBar() {
@@ -47,7 +48,7 @@ export function MobileTabBar() {
               {active && (
                 <span
                   aria-hidden="true"
-                  className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent"
+                  className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-accent"
                 />
               )}
             </button>

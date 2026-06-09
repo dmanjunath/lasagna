@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Zap, Layers, TrendingUp, PieChart, Wallet,
   CreditCard, AlertCircle, Receipt, Target, Building2,
-  User, MessageSquare, ChevronUp, type LucideIcon,
+  User, MessageSquare, ChevronUp, ChevronDown, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
 import { useChatStore } from '../../lib/chat-store';
+import { SidebarThemePicker } from './sidebar-theme-picker';
 
 interface NavItem {
   id: string;
@@ -17,33 +18,29 @@ interface NavItem {
   path: string;
 }
 
-interface NavSection {
-  section: string;
-}
-
-type NavEntry = NavItem | NavSection;
-
-const NAV: NavEntry[] = [
-  { section: 'OVERVIEW' },
-  { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
-  { id: 'money',      label: 'Money',      icon: Wallet,          path: '/money' },
-  { id: 'actions',    label: 'Actions',    icon: Zap,             path: '/insights' },
-  { id: 'financial-level', label: 'Financial Level', icon: Layers, path: '/financial-level' },
-  { section: 'INSIGHTS' },
-  { id: 'retirement', label: 'Retirement', icon: TrendingUp,      path: '/retirement' },
-  { id: 'portfolio',  label: 'Portfolio',  icon: PieChart,        path: '/portfolio' },
-  { id: 'spending',   label: 'Spending',   icon: CreditCard,      path: '/spending' },
-  { id: 'debt',       label: 'Debt',       icon: AlertCircle,     path: '/debt' },
-  { id: 'tax',        label: 'Tax',        icon: Receipt,         path: '/tax' },
-  { id: 'goals',      label: 'Goals',      icon: Target,          path: '/goals' },
-  { section: 'SETUP' },
-  { id: 'accounts',   label: 'Accounts',   icon: Building2,       path: '/accounts' },
-  { id: 'profile',    label: 'Profile',    icon: User,            path: '/profile' },
+const PRIMARY_NAV: NavItem[] = [
+  { id: 'dashboard',        label: 'Dashboard',       icon: LayoutDashboard, path: '/' },
+  { id: 'money',            label: 'Money',           icon: Wallet,          path: '/money' },
+  { id: 'actions',          label: 'Actions',         icon: Zap,             path: '/insights' },
+  { id: 'financial-level',  label: 'Financial Level', icon: Layers,          path: '/financial-level' },
+  { id: 'goals',            label: 'Goals',           icon: Target,          path: '/goals' },
 ];
 
-function isSection(entry: NavEntry): entry is NavSection {
-  return 'section' in entry;
-}
+const ADVANCED_NAV: NavItem[] = [
+  { id: 'retirement', label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
+  { id: 'portfolio',  label: 'Portfolio',  icon: PieChart,    path: '/portfolio' },
+  { id: 'spending',   label: 'Spending',   icon: CreditCard,  path: '/spending' },
+  { id: 'debt',       label: 'Debt',       icon: AlertCircle, path: '/debt' },
+  { id: 'tax',        label: 'Tax',        icon: Receipt,     path: '/tax' },
+];
+
+const SETUP_NAV: NavItem[] = [
+  { id: 'accounts', label: 'Accounts', icon: Building2, path: '/accounts' },
+  { id: 'profile',  label: 'Profile',  icon: User,      path: '/profile' },
+];
+
+const ADVANCED_OPEN_KEY = 'lasagna-sidebar-advanced-open';
+const ADVANCED_TOUCHED_KEY = 'lasagna-sidebar-advanced-touched';
 
 interface SidebarProps {
   onNewPlan?: () => void;
@@ -56,6 +53,24 @@ export function Sidebar({ className }: SidebarProps) {
   const { openChat } = useChatStore();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Default-open on first visit so users can see the section exists. After
+  // they explicitly toggle it once we remember their preference.
+  const [advancedOpen, setAdvancedOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const touched = window.localStorage.getItem(ADVANCED_TOUCHED_KEY) === '1';
+    if (!touched) return true;
+    return window.localStorage.getItem(ADVANCED_OPEN_KEY) === '1';
+  });
+
+  const toggleAdvanced = () => {
+    setAdvancedOpen((v) => {
+      const next = !v;
+      window.localStorage.setItem(ADVANCED_OPEN_KEY, next ? '1' : '0');
+      window.localStorage.setItem(ADVANCED_TOUCHED_KEY, '1');
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -73,6 +88,18 @@ export function Sidebar({ className }: SidebarProps) {
     if (path === '/') return location === '/';
     return location.startsWith(path);
   };
+
+  // Auto-open "More" when the user navigates to a route inside it (e.g. from
+  // chat or a deep link). Don't auto-open if the user explicitly closed it
+  // during this session — respect their intent.
+  useEffect(() => {
+    if (ADVANCED_NAV.some((item) => isActive(item.path)) && !advancedOpen) {
+      const touched = window.localStorage.getItem(ADVANCED_TOUCHED_KEY) === '1';
+      const userClosed = touched && window.localStorage.getItem(ADVANCED_OPEN_KEY) === '0';
+      if (!userClosed) setAdvancedOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
 
   const rawName = tenant?.name || '';
   const firstName = rawName.startsWith('Seed ') ? 'User' : (rawName.split(' ')[0] || 'User');
@@ -94,29 +121,16 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 overflow-y-auto scrollbar-thin">
-        {NAV.map((entry, i) => {
-          if (isSection(entry)) {
-            return (
-              <div
-                key={i}
-                className="text-[11px] font-semibold tracking-[0.14em] uppercase text-text-muted px-4 mt-5 mb-1.5"
-              >
-                {entry.section}
-              </div>
-            );
-          }
-
-          const active = isActive(entry.path);
-          return (
-            <NavButton
-              key={entry.id}
-              active={active}
-              icon={entry.icon}
-              label={entry.label}
-              onClick={() => navigate(entry.path)}
-            />
-          );
-        })}
+        {/* Primary nav */}
+        {PRIMARY_NAV.map((entry) => (
+          <NavButton
+            key={entry.id}
+            active={isActive(entry.path)}
+            icon={entry.icon}
+            label={entry.label}
+            onClick={() => navigate(entry.path)}
+          />
+        ))}
 
         {/* AI Chat button */}
         <NavButton
@@ -125,7 +139,64 @@ export function Sidebar({ className }: SidebarProps) {
           label="AI Chat"
           onClick={() => openChat()}
         />
+
+        {/* More — collapsible group of secondary finance areas */}
+        <button
+          type="button"
+          onClick={toggleAdvanced}
+          aria-expanded={advancedOpen}
+          className="w-full flex items-center justify-between gap-2 pl-4 pr-3 py-1.5 mt-4 mb-0.5 rounded-lg cursor-pointer hover:bg-bg-subtle transition-colors group"
+        >
+          <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-text-muted group-hover:text-text-secondary transition-colors">
+            More
+          </span>
+          <ChevronDown
+            size={13}
+            className={cn(
+              'text-text-muted group-hover:text-text-secondary transition-transform duration-200',
+              !advancedOpen && '-rotate-90',
+            )}
+          />
+        </button>
+        <AnimatePresence initial={false}>
+          {advancedOpen && (
+            <motion.div
+              key="advanced"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              style={{ overflow: 'hidden' }}
+            >
+              {ADVANCED_NAV.map((entry) => (
+                <NavButton
+                  key={entry.id}
+                  active={isActive(entry.path)}
+                  icon={entry.icon}
+                  label={entry.label}
+                  onClick={() => navigate(entry.path)}
+                />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Setup — no eyebrow; two items don't need labelling and avoid
+            visual confusion with the Advanced collapse above. */}
+        <div className="mt-4 mb-1 mx-4 h-px" style={{ background: 'var(--lf-rule-neutral)' }} />
+        {SETUP_NAV.map((entry) => (
+          <NavButton
+            key={entry.id}
+            active={isActive(entry.path)}
+            icon={entry.icon}
+            label={entry.label}
+            onClick={() => navigate(entry.path)}
+          />
+        ))}
       </nav>
+
+      {/* Theme picker — compact swatch row above the account chip */}
+      <SidebarThemePicker />
 
       {/* Account chip */}
       <div className="px-3 py-3 relative" ref={userMenuRef}>
@@ -138,24 +209,12 @@ export function Sidebar({ className }: SidebarProps) {
               transition={{ duration: 0.15 }}
               className="absolute bottom-full left-3 right-3 mb-1.5 bg-bg border border-rule rounded-xl overflow-hidden shadow-lg z-50"
             >
-              {[
-                { label: 'Accounts', path: '/accounts' },
-                { label: 'Profile', path: '/profile' },
-              ].map(({ label, path }, i) => (
-                <button
-                  key={path}
-                  onClick={() => { setUserMenuOpen(false); navigate(path); }}
-                  className={cn(
-                    'w-full text-left px-4 py-2.5 text-sm hover:bg-bg-elevated transition-colors cursor-pointer',
-                    i > 0 && 'border-t border-rule',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+              {/* Accounts + Profile are now in the main nav (below the divider),
+                  so the popover only carries Sign out. Keeps a single canonical
+                  path to each destination. */}
               <button
                 onClick={() => { setUserMenuOpen(false); logout(); }}
-                className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-bg-elevated border-t border-rule transition-colors cursor-pointer"
+                className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-bg-elevated transition-colors cursor-pointer"
               >
                 Sign out
               </button>

@@ -9,91 +9,390 @@
    ============================================================ */
 
 @layer base {
-  :root {
-    /* ── LasagnaFi raw brand tokens ── */
-    --lf-paper:      #FAF8F3;
+  /* ─────────────────────────────────────────────────────────────
+     THEME: MINTY (default)
+     Fresh emerald primary on pure white. Classic clean fintech.
+     ───────────────────────────────────────────────────────────── */
+  :root,
+  :root[data-theme="minty"] {
+    --lf-paper:      #FFFFFF;
     --lf-surface:    #FFFFFF;
-    --lf-cream:      #F5EDE0;
-    --lf-cream-deep: #EDE1CE;
-    --lf-ink:        #1F1A16;
-    --lf-ink-soft:   #3A322C;
-    --lf-muted:      #8B7E6F;
-    --lf-rule:       #E3D6BF;
-    --lf-rule-soft:  #EADFC9;
-    --lf-rule-neutral: rgba(31, 26, 22, 0.06);
-    --lf-sauce:      #C9543A;
-    --lf-sauce-deep: #A23F29;
-    --lf-cheese:     #E6B85C;
-    --lf-basil:      #5A6B3F;
-    --lf-noodle:     #E8C789;
-    --lf-crust:      #8B4A2B;
-    --lf-burgundy:   #6B2420;
-    --lf-pos:        #4C7A3E;
-    --lf-neg:        #A23F29;
+    --lf-cream:      #F4F7F5;
+    --lf-cream-deep: #E2EDE7;
+    --lf-ink:        #0F172A;
+    --lf-ink-soft:   #334155;
+    --lf-muted:      #64748B;
+    --lf-rule:       #E5E7EB;
+    --lf-rule-soft:  #EEF0F4;
+    --lf-rule-neutral: rgba(15, 23, 42, 0.06);
+    --lf-sauce:      #10B981;   /* brand accent → emerald */
+    --lf-sauce-deep: #059669;
+    --lf-cheese:     #F59E0B;
+    --lf-basil:      #10B981;
+    --lf-noodle:     #94A3B8;
+    --lf-crust:      #475569;
+    --lf-burgundy:   #B91C1C;
+    --lf-pos:        #10B981;
+    --lf-neg:        #EF4444;
 
-    /* ── Data palette ──
-       Warm-neutral tints for chart fills. Reserved for DATA only — they
-       must not collide with brand sauce (which is reserved for CTAs, focus
-       rings, and "you are here" markers). Used by CompositionRibbon, the
-       /spending donut, retirement slider track, etc.
+    --lf-data-1: #10B981;
+    --lf-data-2: #3B82F6;
+    --lf-data-3: #8B5CF6;
+    --lf-data-4: #F59E0B;
+    --lf-data-5: #EC4899;
 
-       The hues are intentionally close to neutral so 5+ segments read as
-       "muted earth tones" rather than as one orange blob. Order is most
-       common → tertiary, so 3-segment charts (cash / invest / debt) max
-       out their contrast on the first three. */
-    --lf-data-1: #C9543A;  /* sauce  — primary stack */
-    --lf-data-2: #5A6B3F;  /* basil  — secondary */
-    --lf-data-3: #E6B85C;  /* cheese — tertiary */
-    --lf-data-4: #8B4A2B;  /* crust  — quaternary */
-    --lf-data-5: #E8C789;  /* noodle — quinary */
+    --data-cash:        #10B981;
+    --data-investments: #3B82F6;
+    --data-assets:      #8B5CF6;
+    --data-debt:        #EF4444;
 
-    /* ── Backgrounds (RGB triplets for Tailwind alpha modifiers) ── */
-    --color-bg:          250 248 243;   /* paper      #FAF8F3 */
-    --color-bg-elevated: 245 241 232;   /* sidebar    #F5F1E8 */
-    --color-bg-subtle:   237 225 206;   /* cream-deep #EDE1CE */
+    --color-bg:          255 255 255;
+    --color-bg-elevated: 249 250 251;
+    --color-bg-subtle:   226 237 231;
 
-    /* ── Surfaces ── */
     --color-surface:       255 255 255;
-    --color-surface-hover: 250 248 243;
+    --color-surface-hover: 249 251 250;
 
-    /* ── Text ── */
-    --color-text:           31 26 22;    /* ink      #1F1A16 */
-    --color-text-secondary: 58 50 44;    /* ink-soft #3A322C */
-    --color-text-muted:     139 126 111; /* muted    #8B7E6F */
-    --color-text-disabled:  196 182 168;
+    --color-text:           15 23 42;
+    --color-text-secondary: 51 65 85;
+    --color-text-muted:     100 116 139;
+    --color-text-disabled:  203 213 225;
 
-    /* ── Brand accent = sauce / terracotta ── */
-    --color-accent:     201 84 58;   /* sauce      #C9543A */
-    --color-accent-dim: 162 63 41;   /* sauce-deep #A23F29 */
+    --color-accent:     16 185 129;
+    --color-accent-dim:  5 150 105;
 
-    /* ── Secondary accent = cheese / ochre ── */
-    --color-gold:       230 184 92;  /* cheese #E6B85C */
+    --color-gold:       245 158 11;
 
-    /* ── Feedback ── */
-    --color-success: 76 122 62;      /* basil/pos  #4C7A3E */
-    --color-warning: 230 184 92;     /* cheese */
-    --color-danger:  201 84 58;      /* sauce */
+    --color-success:    16 185 129;
+    --color-warning:    245 158 11;
+    --color-danger:     239 68 68;
 
-    /* ── Borders ── */
-    --color-border:        rgba(227, 214, 191, 1);
-    --color-border-light:  rgba(234, 223, 201, 1);
-    --color-border-strong: rgba(212, 198, 169, 1);
-    --color-border-accent: rgba(201, 84, 58, 0.25);
+    --color-border:        rgba(15, 23, 42, 0.08);
+    --color-border-light:  rgba(15, 23, 42, 0.04);
+    --color-border-strong: rgba(15, 23, 42, 0.14);
+    --color-border-accent: rgba(16, 185, 129, 0.30);
 
-    /* ── Glows & tints ── */
-    --color-accent-glow: rgba(201, 84, 58, 0.08);
-    --color-gold-dim:    rgba(230, 184, 92, 0.15);
-    --card-glow:         rgba(201, 84, 58, 0.03);
+    --color-accent-glow: rgba(16, 185, 129, 0.10);
+    --color-gold-dim:    rgba(245, 158, 11, 0.15);
+    --card-glow:         rgba(15, 23, 42, 0.03);
 
-    /* ── Shadows — two-stop for depth: a sharp 1px boundary + a longer
-       ambient bloom. Single-stop shadows read flat against the warm page
-       bg; the ambient stop creates a "floating panel" effect that gives
-       every card visible depth without going heavy. */
-    --shadow-card:       0 1px 2px rgba(31, 26, 22, 0.05), 0 4px 16px rgba(31, 26, 22, 0.05);
-    --shadow-card-hover: 0 2px 4px rgba(31, 26, 22, 0.06), 0 8px 24px rgba(31, 26, 22, 0.08);
-    --shadow-accent-glow: 0 0 16px rgba(201, 84, 58, 0.15);
-    --shadow-accent-glow-hover: 0 0 20px rgba(201, 84, 58, 0.25);
+    --shadow-card:       0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.05);
+    --shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08);
+    --shadow-accent-glow: 0 0 16px rgba(16, 185, 129, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(16, 185, 129, 0.28);
   }
+
+  /* ─────────────────────────────────────────────────────────────
+     THEME: ROCKET — vibrant green + violet, punchy
+     ───────────────────────────────────────────────────────────── */
+  :root[data-theme="rocket"] {
+    --lf-paper:      #FFFFFF;
+    --lf-surface:    #FFFFFF;
+    --lf-cream:      #F4F2FA;
+    --lf-cream-deep: #E7E2F4;
+    --lf-ink:        #0F0F23;
+    --lf-ink-soft:   #3F3F5C;
+    --lf-muted:      #71717A;
+    --lf-rule:       #E5E1F0;
+    --lf-rule-soft:  #EFEAF6;
+    --lf-rule-neutral: rgba(15, 15, 35, 0.06);
+    --lf-sauce:      #7C3AED;   /* vibrant violet primary */
+    --lf-sauce-deep: #6D28D9;
+    --lf-cheese:     #00C896;   /* cyan-green secondary */
+    --lf-basil:      #22C55E;
+    --lf-noodle:     #A1A1AA;
+    --lf-crust:      #00C896;
+    --lf-burgundy:   #BE123C;
+    --lf-pos:        #22C55E;
+    --lf-neg:        #F43F5E;
+
+    --lf-data-1: #7C3AED;
+    --lf-data-2: #00C896;
+    --lf-data-3: #0EA5E9;
+    --lf-data-4: #F97316;
+    --lf-data-5: #EC4899;
+
+    --data-cash:        #22C55E;
+    --data-investments: #7C3AED;
+    --data-assets:      #0EA5E9;
+    --data-debt:        #F43F5E;
+
+    --color-bg:          255 255 255;
+    --color-bg-elevated: 249 250 251;
+    --color-bg-subtle:   231 226 244;
+
+    --color-surface:       255 255 255;
+    --color-surface-hover: 250 248 255;
+
+    --color-text:           15 15 35;
+    --color-text-secondary: 63 63 92;
+    --color-text-muted:     113 113 122;
+    --color-text-disabled:  212 212 216;
+
+    --color-accent:        124 58 237;
+    --color-accent-dim:    109 40 217;
+
+    --color-gold:        0 200 150;
+
+    --color-success:      34 197 94;
+    --color-warning:     245 158 11;
+    --color-danger:      244 63 94;
+
+    --color-border:        rgba(15, 15, 35, 0.08);
+    --color-border-light:  rgba(15, 15, 35, 0.04);
+    --color-border-strong: rgba(15, 15, 35, 0.14);
+    --color-border-accent: rgba(124, 58, 237, 0.32);
+
+    --color-accent-glow: rgba(124, 58, 237, 0.12);
+    --color-gold-dim:    rgba(0, 200, 150, 0.15);
+    --card-glow:         rgba(15, 15, 35, 0.03);
+
+    --shadow-card:       0 1px 2px rgba(15, 15, 35, 0.04), 0 4px 16px rgba(15, 15, 35, 0.06);
+    --shadow-card-hover: 0 2px 4px rgba(15, 15, 35, 0.06), 0 8px 24px rgba(15, 15, 35, 0.10);
+    --shadow-accent-glow: 0 0 16px rgba(124, 58, 237, 0.22);
+    --shadow-accent-glow-hover: 0 0 20px rgba(124, 58, 237, 0.32);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     THEME: COBALT — confident deep blue primary on white.
+     Brex/Ramp-leaning. No purple, no green chrome — sits alongside
+     Minty and Rocket as a third, clearly differentiated hue.
+     ───────────────────────────────────────────────────────────── */
+  :root[data-theme="cobalt"] {
+    --lf-paper:      #FFFFFF;
+    --lf-surface:    #FFFFFF;
+    --lf-cream:      #F1F5FB;
+    --lf-cream-deep: #DDE6F4;
+    --lf-ink:        #0B1220;
+    --lf-ink-soft:   #1E2A44;
+    --lf-muted:      #5B6478;
+    --lf-rule:       #E2E8F0;
+    --lf-rule-soft:  #EDF1F7;
+    --lf-rule-neutral: rgba(11, 18, 32, 0.06);
+    --lf-sauce:      #2563EB;   /* brand accent → cobalt blue */
+    --lf-sauce-deep: #1D4ED8;
+    --lf-cheese:     #F59E0B;   /* warm amber secondary, balances cool primary */
+    --lf-basil:      #10B981;
+    --lf-noodle:     #94A3B8;
+    --lf-crust:      #475569;
+    --lf-burgundy:   #B91C1C;
+    --lf-pos:        #10B981;
+    --lf-neg:        #EF4444;
+
+    --lf-data-1: #2563EB;
+    --lf-data-2: #0EA5E9;
+    --lf-data-3: #F59E0B;
+    --lf-data-4: #14B8A6;
+    --lf-data-5: #EC4899;
+
+    --data-cash:        #10B981;
+    --data-investments: #0EA5E9;   /* sky — distinct from cobalt primary chrome */
+    --data-assets:      #F59E0B;
+    --data-debt:        #EF4444;
+
+    --color-bg:          255 255 255;
+    --color-bg-elevated: 249 250 251;
+    --color-bg-subtle:   221 230 244;
+
+    --color-surface:       255 255 255;
+    --color-surface-hover: 248 250 253;
+
+    --color-text:           11 18 32;
+    --color-text-secondary: 30 42 68;
+    --color-text-muted:     91 100 120;
+    --color-text-disabled:  198 207 222;
+
+    --color-accent:     37 99 235;
+    --color-accent-dim: 29 78 216;
+
+    --color-gold:       245 158 11;
+
+    --color-success:    16 185 129;
+    --color-warning:    245 158 11;
+    --color-danger:     239 68 68;
+
+    --color-border:        rgba(11, 18, 32, 0.08);
+    --color-border-light:  rgba(11, 18, 32, 0.04);
+    --color-border-strong: rgba(11, 18, 32, 0.14);
+    --color-border-accent: rgba(37, 99, 235, 0.30);
+
+    --color-accent-glow: rgba(37, 99, 235, 0.10);
+    --color-gold-dim:    rgba(245, 158, 11, 0.15);
+    --card-glow:         rgba(11, 18, 32, 0.03);
+
+    --shadow-card:       0 1px 2px rgba(11, 18, 32, 0.04), 0 4px 16px rgba(11, 18, 32, 0.05);
+    --shadow-card-hover: 0 2px 4px rgba(11, 18, 32, 0.06), 0 8px 24px rgba(11, 18, 32, 0.08);
+    --shadow-accent-glow: 0 0 16px rgba(37, 99, 235, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(37, 99, 235, 0.28);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     Additional preset themes — each only overrides the accent
+     family. Neutrals (text, surface, border) inherit from the
+     default Minty :root block, so all themes share a near-white
+     base with one accent hue varying.
+     ───────────────────────────────────────────────────────────── */
+
+  /* Sidebar background (--color-bg-elevated) is intentionally left to the
+     :root default in every preset below — the sidebar stays an off-white
+     neutral regardless of the chosen accent. Only the hover-state token
+     (--color-bg-subtle), progress tracks, and tinted neutrals (--lf-cream*)
+     pick up the theme. */
+
+  :root[data-theme="rose"] {
+    --lf-sauce:      #EC4899;
+    --lf-sauce-deep: #DB2777;
+    --color-accent:        236 72 153;
+    --color-accent-dim:    219 39 119;
+    --color-border-accent: rgba(236, 72, 153, 0.30);
+    --color-accent-glow:   rgba(236, 72, 153, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(236, 72, 153, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(236, 72, 153, 0.28);
+    --color-bg-subtle:   253 226 240;
+    --lf-cream:      #FCE7F0;
+    --lf-cream-deep: #F9C8DD;
+  }
+
+  :root[data-theme="coral"] {
+    --lf-sauce:      #F97316;
+    --lf-sauce-deep: #EA580C;
+    --color-accent:        249 115 22;
+    --color-accent-dim:    234 88 12;
+    --color-border-accent: rgba(249, 115, 22, 0.30);
+    --color-accent-glow:   rgba(249, 115, 22, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(249, 115, 22, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(249, 115, 22, 0.28);
+    --color-bg-subtle:   254 232 213;
+    --lf-cream:      #FEE9D5;
+    --lf-cream-deep: #FAD0A8;
+  }
+
+  :root[data-theme="honey"] {
+    --lf-sauce:      #D97706;
+    --lf-sauce-deep: #B45309;
+    --color-accent:        217 119 6;
+    --color-accent-dim:    180 83 9;
+    --color-border-accent: rgba(217, 119, 6, 0.30);
+    --color-accent-glow:   rgba(217, 119, 6, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(217, 119, 6, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(217, 119, 6, 0.28);
+    --color-bg-subtle:   251 232 209;
+    --lf-cream:      #FBEDD2;
+    --lf-cream-deep: #F4D49C;
+  }
+
+  :root[data-theme="marina"] {
+    --lf-sauce:      #0D9488;
+    --lf-sauce-deep: #0F766E;
+    --color-accent:        13 148 136;
+    --color-accent-dim:    15 118 110;
+    --color-border-accent: rgba(13, 148, 136, 0.30);
+    --color-accent-glow:   rgba(13, 148, 136, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(13, 148, 136, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(13, 148, 136, 0.28);
+    --color-bg-subtle:   215 240 237;
+    --lf-cream:      #D8F1ED;
+    --lf-cream-deep: #A8DDD6;
+  }
+
+  :root[data-theme="fireside"] {
+    --lf-sauce:      #DC2626;
+    --lf-sauce-deep: #B91C1C;
+    --color-accent:        220 38 38;
+    --color-accent-dim:    185 28 28;
+    --color-border-accent: rgba(220, 38, 38, 0.30);
+    --color-accent-glow:   rgba(220, 38, 38, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(220, 38, 38, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(220, 38, 38, 0.28);
+    --color-bg-subtle:   253 218 218;
+    --lf-cream:      #FDDADA;
+    --lf-cream-deep: #F8B0B0;
+  }
+
+  :root[data-theme="graphite"] {
+    --lf-sauce:      #374151;
+    --lf-sauce-deep: #1F2937;
+    --color-accent:        55 65 81;
+    --color-accent-dim:    31 41 55;
+    --color-border-accent: rgba(55, 65, 81, 0.30);
+    --color-accent-glow:   rgba(55, 65, 81, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(55, 65, 81, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(55, 65, 81, 0.28);
+    --color-bg-subtle:   229 231 235;
+    --lf-cream:      #E5E7EB;
+    --lf-cream-deep: #C5CAD2;
+  }
+
+  :root[data-theme="hot-topic"] {
+    --lf-sauce:      #F54772;
+    --lf-sauce-deep: #DB2160;
+    --color-accent:        245 71 114;
+    --color-accent-dim:    219 33 96;
+    --color-border-accent: rgba(245, 71, 114, 0.30);
+    --color-accent-glow:   rgba(245, 71, 114, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(245, 71, 114, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(245, 71, 114, 0.28);
+    --color-bg-subtle:   254 224 233;
+    --lf-cream:      #FEE3EA;
+    --lf-cream-deep: #FAC2D0;
+  }
+
+  :root[data-theme="sapphire"] {
+    --lf-sauce:      #1E3A8A;
+    --lf-sauce-deep: #1E40AF;
+    --color-accent:        30 58 138;
+    --color-accent-dim:    30 64 175;
+    --color-border-accent: rgba(30, 58, 138, 0.30);
+    --color-accent-glow:   rgba(30, 58, 138, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(30, 58, 138, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(30, 58, 138, 0.28);
+    --color-bg-subtle:   216 222 240;
+    --lf-cream:      #DAE0F0;
+    --lf-cream-deep: #A8B4D9;
+  }
+
+  :root[data-theme="amethyst"] {
+    --lf-sauce:      #9333EA;
+    --lf-sauce-deep: #7E22CE;
+    --color-accent:        147 51 234;
+    --color-accent-dim:    126 34 206;
+    --color-border-accent: rgba(147, 51, 234, 0.30);
+    --color-accent-glow:   rgba(147, 51, 234, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(147, 51, 234, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(147, 51, 234, 0.28);
+    --color-bg-subtle:   239 224 252;
+    --lf-cream:      #F1E2FC;
+    --lf-cream-deep: #DDB8F7;
+  }
+
+  :root[data-theme="sunshine"] {
+    --lf-sauce:      #EAB308;
+    --lf-sauce-deep: #CA8A04;
+    --color-accent:        234 179 8;
+    --color-accent-dim:    202 138 4;
+    --color-border-accent: rgba(234, 179, 8, 0.30);
+    --color-accent-glow:   rgba(234, 179, 8, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(234, 179, 8, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(234, 179, 8, 0.28);
+    --color-bg-subtle:   253 245 209;
+    --lf-cream:      #FDF6D5;
+    --lf-cream-deep: #F4E59E;
+  }
+
+  :root[data-theme="aqua"] {
+    --lf-sauce:      #06B6D4;
+    --lf-sauce-deep: #0891B2;
+    --color-accent:        6 182 212;
+    --color-accent-dim:    8 145 178;
+    --color-border-accent: rgba(6, 182, 212, 0.30);
+    --color-accent-glow:   rgba(6, 182, 212, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(6, 182, 212, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(6, 182, 212, 0.28);
+    --color-bg-subtle:   215 240 248;
+    --lf-cream:      #D7F1F8;
+    --lf-cream-deep: #A8DEEA;
+  }
+
 
   * {
     @apply border-border;
@@ -1057,8 +1356,8 @@
 .ds-num { font-variant-numeric: tabular-nums; }
 
 /* Status colors */
-.ds-pos  { color: var(--lf-basil); }
-.ds-neg  { color: var(--lf-sauce-deep); }
+.ds-pos  { color: var(--lf-pos); }
+.ds-neg  { color: var(--lf-neg); }
 .ds-warn { color: #B8801E; }
 
 /* ── Cards ──────────────────────────────────────────────────── */
@@ -1952,10 +2251,10 @@
    wherever it appears. */
 .ds-row__delta.ds-pos,
 .ds-row__amount.ds-pos,
-.ds-row__value.ds-pos { color: var(--lf-basil); }
+.ds-row__value.ds-pos { color: var(--lf-pos); }
 .ds-row__delta.ds-neg,
 .ds-row__amount.ds-neg,
-.ds-row__value.ds-neg { color: var(--lf-sauce-deep); }
+.ds-row__value.ds-neg { color: var(--lf-neg); }
 
 /* Hover-revealed action group (desktop). On hover the value column slides
    left to make room for an explicit group of 32×32 buttons (Edit / Sync /

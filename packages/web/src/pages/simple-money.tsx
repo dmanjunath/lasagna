@@ -90,10 +90,9 @@ export function SimpleMoney() {
   }, []);
 
   const [syncingAll, setSyncingAll] = useState(false);
-  // Iter 7 G: lift chart hover up so the static figure-head HUD can fade
-  // out while the ChartHover pill is visible (avoid double-printing the same
-  // date/value).
-  const [chartHovering, setChartHovering] = useState(false);
+  // Hover index bubbled up from the chart so the top-left lead can swap its
+  // value/delta for the hovered point's value/date.
+  const [chartHoverIdx, setChartHoverIdx] = useState<number | null>(null);
 
   async function refreshItems() {
     const fresh = await api.getItems();
@@ -204,46 +203,43 @@ export function SimpleMoney() {
 
       {/* ── Net worth figure — borderless chart with internal value label.
           No section H2 above it (the value lives inside the figure). */}
-      {chartPoints.length >= 2 && (
-        <figure className="ds-figure" data-hovering={chartHovering ? 'true' : 'false'}>
-          <div className="ds-figure__head">
-            <div
-              className="ds-figure__lead"
-              style={{
-                opacity: chartHovering ? 0 : 1,
-                transition: 'opacity 0.18s ease',
-              }}
-              aria-hidden={chartHovering}
-            >
-              <span className="ds-figure__label">Net worth</span>
-              <span className="ds-figure__value ds-num">{fmtUsd(netWorth)}</span>
-              {monthChange !== null && (
-                <span className={`ds-figure__delta ds-num ${monthChange >= 0 ? 'ds-pos' : 'ds-neg'}`}>
-                  {monthChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthChange))} · 30d
-                </span>
-              )}
+      {chartPoints.length >= 2 && (() => {
+        const hoveredPoint = chartHoverIdx !== null ? chartPoints[chartHoverIdx] : null;
+        const displayValue = hoveredPoint ? hoveredPoint.value : netWorth;
+        return (
+          <figure className="ds-figure">
+            <div className="ds-figure__head">
+              <div className="ds-figure__lead">
+                <span className="ds-figure__label">Net worth</span>
+                <span className="ds-figure__value ds-num">{fmtUsd(displayValue)}</span>
+                {hoveredPoint ? (
+                  <span className="ds-figure__delta ds-num" style={{ color: 'var(--lf-muted)' }}>
+                    {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                ) : monthChange !== null && (
+                  <span className={`ds-figure__delta ds-num ${monthChange >= 0 ? 'ds-pos' : 'ds-neg'}`}>
+                    {monthChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthChange))} · 30d
+                  </span>
+                )}
+              </div>
+              <div role="radiogroup" aria-label="Time range" className="ds-figure__range">
+                {(['1M', '6M', '1Y', 'All'] as Range[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRange(r)}
+                    role="radio"
+                    aria-checked={range === r}
+                    className="ds-figure__range-btn"
+                  >
+                    <Pill tone={range === r ? 'ink' : 'ghost'}>{r}</Pill>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div role="radiogroup" aria-label="Time range" className="ds-figure__range">
-              {(['1M', '6M', '1Y', 'All'] as Range[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  role="radio"
-                  aria-checked={range === r}
-                  className="ds-figure__range-btn"
-                >
-                  <Pill tone={range === r ? 'ink' : 'ghost'}>{r}</Pill>
-                </button>
-              ))}
-            </div>
-          </div>
-          <NetWorthChart
-            points={chartPoints}
-            range={range}
-            onHoverChange={(i) => setChartHovering(i !== null)}
-          />
-        </figure>
-      )}
+            <NetWorthChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+          </figure>
+        );
+      })()}
 
       {/* ── Chart placeholder ── */}
       {!loading && chartPoints.length < 2 && allAccounts.length > 0 && (
@@ -795,18 +791,8 @@ function NetWorthChart({ points, range, onHoverChange }: { points: NetWorthPoint
   const hover = hoverIdx !== null ? points[hoverIdx] : null;
   const xLabels = useMemo(() => pickXLabels(points, range), [points, range]);
 
-  // Reserve a 28px header row so the value pill (rendered inside the overlay's
-  // top region) never overlaps the line.
   return (
     <div ref={wrapperRef} className="relative select-none" style={{ color: CHART_COLOR }}>
-      <div className="h-7 flex items-baseline justify-end gap-2 px-1 mb-1 tabular-nums" aria-live="polite">
-        {hover ? (
-          <>
-            <span className="text-sm text-text-muted">{new Date(hover.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-            <span className="text-lg font-semibold text-text leading-none tabular-nums tracking-tight">{fmtUsd(hover.value)}</span>
-          </>
-        ) : <span aria-hidden="true">&nbsp;</span>}
-      </div>
       <div style={{ position: 'relative' }}>
       <svg
         viewBox={`0 0 ${CHART_W} ${CHART_H}`}
@@ -892,6 +878,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: NetWorthPoint
             new Date(points[i].date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           }
           getCurvePoint={(i) => ({ x: xAt(i), y: yAt(points[i].value) })}
+          hidePill
         />
       )}
       </div>

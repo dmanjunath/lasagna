@@ -35,52 +35,39 @@ interface CompositionRibbonProps {
 const fmtUsd = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
-/** Warm-neutral DATA palette (iter 4). The brand sauce/cheese tokens are
- *  reserved for CTAs, focus rings, and "you are here" markers — they must
- *  never appear in data fills, or the whole product reads as "one orange
- *  blob" (iter 3 critic, correct).
- *
- *  Order: ink-deep → basil → taupe → dust-blue → ochre-muted, then we wrap
- *  to muted/ink-soft for 6+-segment overflow. None of these hues collide
- *  with sauce so the ribbon now reads as "earth tones" not "brand fill". */
+/** Fallback DATA palette — themed, visually distinct, semantically friendly.
+ *  Used when the caller doesn't pass a `color`. Order: green → blue → purple →
+ *  amber → pink, then neutrals for overflow. */
 const DISTINCT_PALETTE = [
-  'var(--lf-data-1)',    // ink-deep
-  'var(--lf-data-2)',    // basil
-  'var(--lf-data-3)',    // taupe
-  'var(--lf-data-4)',    // dust-blue
-  'var(--lf-data-5)',    // ochre-muted
-  'var(--lf-muted)',     // warm grey (overflow)
-  'var(--lf-ink-soft)',  // dark ink (overflow)
-  'var(--lf-crust)',     // saddle brown (overflow)
+  'var(--data-cash)',
+  'var(--data-investments)',
+  'var(--data-assets)',
+  'var(--lf-data-4)',
+  'var(--lf-data-5)',
+  'var(--lf-muted)',
+  'var(--lf-ink-soft)',
+  'var(--lf-crust)',
 ];
-/** Debt segments always render in sauce-deep regardless of palette order
- *  so debt stays semantically red across every page — this is the ONE
- *  place sauce-deep is allowed in data fills, because it carries meaning
- *  ("this segment is a liability") that no warm-neutral can express. */
-const DEBT_COLOR = 'var(--lf-sauce-deep)';
 
-/** Always assign colors from the distinct palette in order. Caller-provided
- *  `color` props are intentionally ignored — page-level color logic used to
- *  produce visually similar tokens (sauce vs burgundy both read as "red"),
- *  so the component owns the palette to keep adjacent segments distinct.
- *  Exception: when the bar mixes positives and debts, debts share a single
- *  red so "this is debt" reads semantically; on a debt-only bar (e.g.
- *  /debt) every account gets its own palette color since there's no
- *  asset/liability contrast to encode. */
+/** Debt segments always render in the semantic debt color so "this is debt"
+ *  reads at a glance, regardless of palette order. */
+const DEBT_COLOR = 'var(--data-debt)';
+
+/** Respect caller-provided colors when present (so the ribbon is semantic on
+ *  pages with known categories like net-worth breakdown). Fall back to the
+ *  distinct palette when no color is supplied. Debt segments always get the
+ *  semantic debt red so liability vs asset is unmistakable. */
 function assignDistinctColors(segments: CompositionSegment[]): CompositionSegment[] {
   const hasPositive = segments.some((s) => !s.negative);
   const hasDebt = segments.some((s) => s.negative);
   const mixedSign = hasPositive && hasDebt;
 
-  // Data palette is sauce-free, so positives start at slot 0 regardless
-  // of whether debt is also on the bar. Debts always get sauce-deep so the
-  // red on the bar reads as "this is a liability" — the only place sauce
-  // appears in any data fill.
   let paletteIdx = 0;
   return segments.map((seg) => {
     if (mixedSign && seg.negative) {
-      return { ...seg, color: DEBT_COLOR };
+      return { ...seg, color: seg.color || DEBT_COLOR };
     }
+    if (seg.color) return seg;
     const color = DISTINCT_PALETTE[paletteIdx % DISTINCT_PALETTE.length];
     paletteIdx++;
     return { ...seg, color };

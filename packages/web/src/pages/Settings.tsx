@@ -305,6 +305,7 @@ export function Settings() {
         />
       </Section>
 
+
       {/* ── Financial goals ───────────────────────────────────── */}
       <Section title="Financial goals" eyebrow="what you're working toward">
         <NavLine
@@ -781,3 +782,4 @@ function IncomeEditPanel({ formData, setFormData, saving, onCancel, onSave }: Ed
     </motion.div>
   );
 }
+

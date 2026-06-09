@@ -3,6 +3,7 @@ import { Route, Switch, Redirect, useLocation } from 'wouter';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ChatStoreProvider } from './lib/chat-store';
 import { PageContextProvider } from './lib/page-context';
+import { ThemeProvider } from './lib/theme';
 import { Login } from './pages/Login';
 import { DemoBanner } from './components/common/DemoBanner';
 import { ConfirmProvider } from './components/ds';
@@ -128,10 +129,12 @@ function AppRoutes() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <ConfirmProvider>
-        <AppRoutes />
-      </ConfirmProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <ConfirmProvider>
+          <AppRoutes />
+        </ConfirmProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

@@ -54,6 +54,10 @@ export interface ChartHoverProps {
   className?: string;
   /** Callback fired when the hover index changes (or null on leave). */
   onHoverChange?: (i: number | null) => void;
+  /** Hide the floating value/label pill but keep the crosshair + dot.
+   *  Useful when the page already displays the hovered value elsewhere
+   *  (e.g. a top-left lead that swaps to the hovered value). */
+  hidePill?: boolean;
 }
 
 export function ChartHover({
@@ -67,6 +71,7 @@ export function ChartHover({
   getSubline,
   getCurvePoint,
   className,
+  hidePill = false,
   onHoverChange,
 }: ChartHoverProps) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -173,6 +178,7 @@ export function ChartHover({
               }}
             />
           )}
+          {!hidePill && (
           <div
             data-chart-hover="pill"
             style={{
@@ -213,6 +219,7 @@ export function ChartHover({
               </span>
             )}
           </div>
+          )}
         </>
       )}
     </div>
