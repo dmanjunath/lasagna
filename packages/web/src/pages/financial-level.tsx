@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef, Fragment } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
   TrendingUp, CreditCard, Rocket,
@@ -376,11 +376,28 @@ export function FinancialLevel() {
   const focusRef = useRef<HTMLDivElement>(null);
   const { openChat } = useChatStore();
 
+  // Below the side-panel breakpoint (1080px) the detail expands inline beneath
+  // the tapped row (accordion); at/above it, the detail lives in a sticky side
+  // panel. Track which mode we're in so the render + tap behaviour match.
+  const [isStacked, setIsStacked] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1079px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1079px)');
+    const update = () => setIsStacked(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const handleSelectStep = (stepId: string) => {
-    setSelectedStepId(stepId);
-    requestAnimationFrame(() => {
-      focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    // Accordion: tapping the open row collapses it. On the desktop side panel
+    // there's nothing to collapse, so just select.
+    if (isStacked) {
+      setSelectedStepId(prev => (prev === stepId ? null : stepId));
+    } else {
+      setSelectedStepId(stepId);
+    }
   };
 
   const handleSkipStep = async (stepId: string) => {
@@ -479,6 +496,21 @@ export function FinancialLevel() {
   const allComplete = completeCount === steps.length;
   const currentStep = steps.find(s => s.id === currentStepId) ?? steps[0];
 
+  // Shared between the inline accordion (mobile/tablet) and the sticky side
+  // panel (desktop) so the detail markup stays in one place.
+  const renderFocus = (step: PriorityStep) => (
+    <FocusArticle
+      step={step}
+      skipped={skippedStepIds.has(step.id)}
+      onSkip={() => handleSkipStep(step.id)}
+      onComplete={handleCompleteStep}
+      onUndoComplete={handleUndoComplete}
+      onAsk={() => openChat(
+        `Help me with this financial step:\n\nTitle: ${step.title}\nDescription: ${step.description || step.subtitle}\n\nWhat exactly should I do, and why does it matter for my finances?`
+      )}
+    />
+  );
+
   const surplusTone: 'pos' | 'neg' | 'default' =
     summary.monthlySurplus == null ? 'default' :
     summary.monthlySurplus >= 0 ? 'pos' : 'neg';
@@ -507,7 +539,7 @@ export function FinancialLevel() {
         className="fl-stats"
         items={[
           {
-            label: 'Current level',
+            label: 'Levels complete',
             value: <span className="ds-num">{completeCount}/{steps.length}</span>,
             sub: summary.retirementAge ? `FI target age ${summary.retirementAge}` : 'levels complete',
           },
@@ -530,76 +562,112 @@ export function FinancialLevel() {
         ]}
       />
 
-      <Section
-        title={allComplete ? 'All levels complete' : 'The 12 levels'}
-        actions={!allComplete ? <WhyThisOrderPopover /> : undefined}
-      >
-        {allComplete ? (
+      {allComplete ? (
+        <Section title="All levels complete">
           <AllCompleteView
             onAsk={() => openChat("I've completed all 12 financial levels. What should I focus on next?")}
           />
-        ) : (
-          <motion.ul
-            className="fl-list"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-          >
-            {steps.map((step) => (
-              <LevelRow
-                key={step.id}
-                step={step}
-                isCurrent={step.id === currentStepId}
-                isComplete={step.status === 'complete'}
-                isSkipped={skippedStepIds.has(step.id)}
-                isSelected={selectedStepId === step.id}
-                onSelect={() => handleSelectStep(step.id)}
-              />
-            ))}
-          </motion.ul>
-        )}
-      </Section>
-
-      {!allComplete && selectedStep && (
-        <div ref={focusRef}>
-        <Section
-          title="Current focus"
-        >
-          <motion.div
-            key={selectedStep.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <FocusArticle
-              step={selectedStep}
-              skipped={skippedStepIds.has(selectedStep.id)}
-              onSkip={() => handleSkipStep(selectedStep.id)}
-              onComplete={handleCompleteStep}
-              onUndoComplete={handleUndoComplete}
-              onAsk={() => openChat(
-                `Help me with this financial step:\n\nTitle: ${selectedStep.title}\nDescription: ${selectedStep.description || selectedStep.subtitle}\n\nWhat exactly should I do, and why does it matter for my finances?`
-              )}
-            />
-          </motion.div>
         </Section>
+      ) : (
+        <div className="fl-layout">
+          <div className="fl-layout__main">
+            <Section title="The 12 levels" actions={<WhyThisOrderPopover />}>
+              <p className="ds-caption" style={{ margin: '0 0 14px', color: 'var(--lf-muted)' }}>
+                Levels can be completed in any order — we highlight your highest-impact next step.
+              </p>
+              <motion.ul
+                className="fl-list"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+              >
+                {steps.map((step) => (
+                  <Fragment key={step.id}>
+                    <LevelRow
+                      step={step}
+                      isCurrent={step.id === currentStepId}
+                      isComplete={step.status === 'complete'}
+                      isSkipped={skippedStepIds.has(step.id)}
+                      isSelected={selectedStepId === step.id}
+                      onSelect={() => handleSelectStep(step.id)}
+                    />
+                    {/* Mobile/tablet: detail expands inline beneath the row. */}
+                    {isStacked && (
+                      <AnimatePresence initial={false}>
+                        {selectedStepId === step.id && (
+                          <motion.li
+                            className="fl-row-detail"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                            style={{ overflow: 'hidden' }}
+                          >
+                            {renderFocus(step)}
+                          </motion.li>
+                        )}
+                      </AnimatePresence>
+                    )}
+                  </Fragment>
+                ))}
+              </motion.ul>
+            </Section>
+          </div>
+
+          {/* Desktop: sticky side panel. */}
+          {!isStacked && selectedStep && (
+            <div className="fl-layout__detail" ref={focusRef}>
+              <Section title="Current focus">
+                <motion.div
+                  key={selectedStep.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {renderFocus(selectedStep)}
+                </motion.div>
+              </Section>
+            </div>
+          )}
         </div>
       )}
 
       {/* Page-scoped layout — no typography tokens here. */}
       <style>{`
-        .fl-stats { margin: 24px 0 48px; }
+        .fl-stats { margin: 24px 0 28px; }
+
+        /* Two-column layout: 12-level list on the left, the selected level's
+           detail in a sticky panel on the right (desktop). On mobile it stacks
+           and the detail scrolls into view on select. */
+        .fl-layout { display: block; }
+        .fl-layout__detail { margin-top: 28px; }
+        /* Side panel only once there's comfortable room for both columns; below
+           this the detail stacks under the list (and scrolls into view on tap). */
+        @media (min-width: 1080px) {
+          .fl-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+            gap: 24px;
+            align-items: start;
+          }
+          .fl-layout__detail { margin-top: 0; position: sticky; top: 24px; }
+          .fl-layout__detail .ds-section { margin-bottom: 0; }
+        }
 
         .fl-list {
           list-style: none;
           margin: 0;
-          padding: 0;
+          padding: 2px 18px;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 12px;
+          box-shadow: var(--shadow-card);
         }
         .fl-row {
           border-top: 1px solid var(--lf-rule);
         }
-        .fl-row:first-child { border-top: 1px solid var(--lf-ink); }
-        .fl-row:last-child { border-bottom: 1px solid var(--lf-rule); }
+        .fl-row:first-child { border-top: 0; }
+        .fl-row:last-child { border-bottom: 0; }
 
         .fl-row__btn {
           display: flex;
@@ -615,10 +683,18 @@ export function FinancialLevel() {
           color: inherit;
           transition: color 0.15s;
         }
-        /* Only the current step gets the cream extension — unifies with the "You are here" pill. */
-        .fl-row.is-current .fl-row__btn { background: var(--lf-cream); padding-left: 12px; padding-right: 12px; }
-        /* A non-current row that's been clicked to inspect uses a subtle inset rule, not the cream fill. */
-        .fl-row.is-selected .fl-row__btn { box-shadow: inset 2px 0 0 var(--lf-ink); padding-left: 12px; }
+        /* Current step: neutral fill bleeding to the card edges + a left accent
+           bar (matches the Actions priority-bar language). No theme-cream tint. */
+        .fl-row.is-current .fl-row__btn {
+          background: var(--lf-rule-soft);
+          box-shadow: inset 3px 0 0 var(--lf-sauce);
+          margin: 0 -18px;
+          padding-left: 18px;
+          padding-right: 18px;
+          border-radius: 8px;
+        }
+        /* A non-current row that's been clicked to inspect uses a subtle inset rule. */
+        .fl-row.is-selected .fl-row__btn { box-shadow: inset 2px 0 0 var(--lf-ink); margin: 0 -18px; padding-left: 18px; padding-right: 18px; }
         .fl-row__btn:hover .fl-row__title { color: var(--lf-sauce); }
 
         .fl-row__chip {
@@ -679,6 +755,13 @@ export function FinancialLevel() {
           padding: 28px 0 8px;
           border-top: 3px solid var(--lf-ink);
         }
+        /* Inline accordion detail (mobile/tablet): lives inside the list card,
+           so soften the heavy 3px divider to a hairline and tighten padding. */
+        .fl-row-detail { list-style: none; }
+        .fl-row-detail .fl-focus {
+          border-top: 1px solid var(--lf-rule);
+          padding: 14px 0 18px;
+        }
         .fl-focus__head {
           display: flex;
           align-items: center;
@@ -708,9 +791,9 @@ export function FinancialLevel() {
         }
         .fl-focus__title {
           font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 500;
-          font-size: clamp(28px, 4vw, 40px);
-          line-height: 1.05;
+          font-weight: 600;
+          font-size: clamp(18px, 2vw, 22px);
+          line-height: 1.2;
           letter-spacing: -0.015em;
           color: var(--lf-ink);
           margin: 0 0 12px;
@@ -750,7 +833,7 @@ export function FinancialLevel() {
           border-radius: 3px;
         }
         .fl-focus__callout {
-          background: var(--lf-cream);
+          background: var(--lf-rule-soft);
           border: 1px solid var(--lf-rule);
           border-radius: 10px;
           padding: 12px 14px;
@@ -766,8 +849,15 @@ export function FinancialLevel() {
         }
 
         @media (max-width: 640px) {
-          .fl-row__num { display: none; }
-          .fl-row__title { font-size: 17px; }
+          /* Free horizontal room for the title: drop the secondary icon box and
+             shrink the number chip so titles stop wrapping to two lines. */
+          .fl-list { padding: 2px 14px; }
+          .fl-row__btn { gap: 12px; }
+          .fl-row__icon { display: none; }
+          .fl-row__chip { width: 34px; height: 34px; font-size: 12px; border-radius: 7px; }
+          .fl-row__title { font-size: 16px; }
+          .fl-row.is-current .fl-row__btn,
+          .fl-row.is-selected .fl-row__btn { margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
         }
       `}</style>
     </Page>

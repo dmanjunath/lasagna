@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { Button } from './Button';
 
 interface ConfirmOptions {
   title: string;
@@ -28,6 +27,7 @@ interface DialogState extends ConfirmOptions {
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DialogState | null>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
 
   const confirm = useCallback<ConfirmFn>((opts) => {
     return new Promise<boolean>((resolve) => {
@@ -41,11 +41,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     setState(null);
   }, [state]);
 
-  // Focus the destructive action on open so screen-reader / keyboard users
-  // know where they are. Escape cancels; that's the universal mental model.
+  // On open, focus Cancel for destructive actions so a reflexive Enter/Space
+  // doesn't confirm a delete; non-destructive dialogs still focus the primary
+  // action. Escape cancels; that's the universal mental model.
   useEffect(() => {
     if (!state) return;
-    confirmBtnRef.current?.focus();
+    if (state.destructive) cancelBtnRef.current?.focus();
+    else confirmBtnRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') handleClose(false);
     };
@@ -68,9 +70,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             <h3 id="ds-confirm-title" className="ds-confirm__title">{state.title}</h3>
             {state.body && <div className="ds-confirm__body">{state.body}</div>}
             <div className="ds-confirm__actions">
-              <Button variant="ghost" onClick={() => handleClose(false)}>
+              <button
+                ref={cancelBtnRef}
+                type="button"
+                onClick={() => handleClose(false)}
+                className="ds-btn ds-btn--ghost"
+              >
                 {state.cancelLabel ?? 'Cancel'}
-              </Button>
+              </button>
               <button
                 ref={confirmBtnRef}
                 type="button"

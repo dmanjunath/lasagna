@@ -131,6 +131,13 @@ export function SimpleHome() {
     user?.email?.split('@')[0] ||
     'there';
 
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  })();
+
   const loadPriorities = useCallback(() => {
     return api
       .getPriorities()
@@ -287,24 +294,25 @@ export function SimpleHome() {
           of vertical real estate vs the old PageHeader + Lede stack. */}
       <header className="ds-page-bar">
         <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Good morning, {firstName}.</h1>
-          <span className="ds-page-bar__caption ds-num">
-            {breakdown
-              ? <>
-                  Net worth {fmtUsd(breakdown.netWorth)}
-                  {monthDelta !== null && (
-                    <>
-                      {'  ·  '}
-                      <span className={monthDelta >= 0 ? 'ds-pos' : 'ds-neg'}>
-                        {monthDelta >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthDelta))} this month
-                      </span>
-                    </>
-                  )}
-                </>
-              : formatDateLong(new Date())}
-          </span>
+          <h1 className="ds-page-bar__title">{greeting}, {firstName}.</h1>
+          <span className="ds-page-bar__caption">{formatDateLong(new Date())}</span>
         </div>
       </header>
+
+      {/* Net-worth hero — the focal figure of the page */}
+      {breakdown && (
+        <div className="ds-hero">
+          <span className="ds-hero__label">Net worth</span>
+          <div className="ds-hero__row">
+            <span className="ds-hero__value ds-num">{fmtUsd(breakdown.netWorth)}</span>
+            {monthDelta !== null && (
+              <span className={`ds-delta-chip ds-delta-chip--${monthDelta >= 0 ? 'pos' : 'neg'}`}>
+                {monthDelta >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthDelta))} this month
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Composition ribbon — visual KPI strip, primary signal at top */}
       {breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0) && (() => {
@@ -451,7 +459,7 @@ export function SimpleHome() {
           padding: 4px 20px;
           background: var(--lf-surface);
           border: 1px solid var(--lf-rule-neutral);
-          border-radius: 14px;
+          border-radius: 12px;
           box-shadow: var(--shadow-card);
         }
         .ds-home-feed li {
@@ -469,7 +477,7 @@ export function SimpleHome() {
         .ds-home-feed__bullet {
           width: 28px; height: 28px;
           border-radius: 4px;
-          background: var(--lf-cream);
+          background: var(--lf-rule-soft);
           display: grid; place-items: center;
           flex-shrink: 0;
           margin-top: 2px;
@@ -669,7 +677,7 @@ function LevelAndActionsCard({
         .ds-combo {
           background: var(--lf-surface);
           border: 1px solid var(--lf-rule-neutral);
-          border-radius: 14px;
+          border-radius: 12px;
           box-shadow: var(--shadow-card);
           margin-bottom: 32px;
           overflow: hidden;

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
-import { ChevronDown, Database, Wrench } from "lucide-react";
+import remarkGfm from "remark-gfm";
+import { ChevronDown, Database, Wrench, AlertTriangle, RotateCw } from "lucide-react";
 import { cn } from "../../lib/utils.js";
-import type { Message } from "../../lib/types.js";
+import type { ChatMessage } from "../../lib/chat-store.js";
 
 interface ContextMeta {
   page: string;
@@ -29,10 +30,34 @@ function formatToolName(name: string): string {
   return TOOL_DISPLAY[name] || name.replace(/_/g, ' ').replace(/\bget\b/i, 'Fetched');
 }
 
-export function MessageBubble({ message }: { message: Message }) {
+export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRetry?: () => void }) {
   const isUser = message.role === "user";
   const [contextOpen, setContextOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+
+  // Failed assistant turn — render a distinct error bubble with a retry action
+  // instead of a normal-looking reply.
+  if (message.isError) {
+    return (
+      <div className="flex flex-col items-start">
+        <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-danger/8 border border-danger/30 text-text">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-text-secondary">{message.content}</p>
+          </div>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-border text-[12px] font-medium text-text-secondary hover:text-text hover:border-danger/40 transition-colors"
+            >
+              <RotateCw className="w-3 h-3" />
+              Retry
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Extract context metadata from uiPayload on user messages
   const contextMeta: ContextMeta | null = isUser && message.uiPayload
@@ -111,6 +136,7 @@ export function MessageBubble({ message }: { message: Message }) {
         ) : (
           <div className="text-sm space-y-3">
           <Markdown
+            remarkPlugins={[remarkGfm]}
             components={{
               h1: ({ children }) => (
                 <h1 className="text-base font-semibold text-text mb-2">{children}</h1>
@@ -140,11 +166,23 @@ export function MessageBubble({ message }: { message: Message }) {
               ),
               li: ({ children }) => (
                 <li className="flex gap-2 text-text-secondary">
-                  <span className="text-accent mt-1.5 text-[6px]">●</span>
-                  <span>{children}</span>
+                  <span className="text-accent mt-1.5 text-[6px] flex-shrink-0">●</span>
+                  <span className="min-w-0 flex-1 break-words">{children}</span>
                 </li>
               ),
               hr: () => <hr className="border-border my-4" />,
+              table: ({ children }) => (
+                <div className="my-2 overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full text-xs border-collapse">{children}</table>
+                </div>
+              ),
+              thead: ({ children }) => <thead className="bg-bg-elevated">{children}</thead>,
+              th: ({ children }) => (
+                <th className="text-left font-semibold text-text px-3 py-2 border-b border-border whitespace-nowrap">{children}</th>
+              ),
+              td: ({ children }) => (
+                <td className="text-text-secondary px-3 py-2 border-b border-border/60 tabular-nums">{children}</td>
+              ),
               code: ({ children, className }) => {
                 const isBlock = className?.startsWith('language-');
                 return isBlock ? (

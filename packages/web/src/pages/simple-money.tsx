@@ -19,6 +19,7 @@ import {
   ChartHover,
   SkeletonChart,
   SkeletonRow,
+  useConfirm,
 } from '../components/ds';
 
 type Range = '1M' | '6M' | '1Y' | 'All';
@@ -144,6 +145,10 @@ export function SimpleMoney() {
   const assetsTotal = realEstateTotal + altTotal;
   const debtTotal = debtAccounts.reduce((s, a) => s + Math.abs(parseFloat(a.balance ?? '0')), 0);
   const netWorth = cashTotal + investTotal + assetsTotal - debtTotal;
+  // Gross assets = the asset base shared with the Home composition ribbon.
+  // Section shares are expressed against this (not net worth) so the same
+  // account reads at the same % on both pages and the slices sum to 100%.
+  const grossAssets = cashTotal + investTotal + assetsTotal;
 
   const monthChange = computeDelta(history, 30);
   const chartPoints = useMemo(() => filterByRange(history, range), [history, range]);
@@ -217,7 +222,7 @@ export function SimpleMoney() {
                     {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 ) : monthChange !== null && (
-                  <span className={`ds-figure__delta ds-num ${monthChange >= 0 ? 'ds-pos' : 'ds-neg'}`}>
+                  <span className={`ds-delta-chip ds-delta-chip--${monthChange >= 0 ? 'pos' : 'neg'}`}>
                     {monthChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthChange))} · 30d
                   </span>
                 )}
@@ -296,7 +301,7 @@ export function SimpleMoney() {
         <AccountSection
           title="Cash"
           eyebrow={`${cashAccounts.length} account${cashAccounts.length === 1 ? '' : 's'}`}
-          insight={netWorth > 0 ? `${Math.round((cashTotal / netWorth) * 100)}% of net worth · ready to deploy` : 'ready to deploy'}
+          insight={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets · ready to deploy` : 'ready to deploy'}
           total={cashTotal}
           items={items}
           filterType="depository"
@@ -311,8 +316,8 @@ export function SimpleMoney() {
         <AccountSection
           title="Investments"
           eyebrow={`${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`}
-          insight={netWorth > 0
-            ? `${Math.round((investTotal / netWorth) * 100)}% of net worth · across ${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`
+          insight={grossAssets > 0
+            ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · across ${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`
             : `across ${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`}
           total={investTotal}
           items={items}
@@ -328,8 +333,8 @@ export function SimpleMoney() {
         <AccountSection
           title="Property"
           eyebrow={`${realEstateAccounts.length} ${realEstateAccounts.length === 1 ? 'property' : 'properties'}`}
-          insight={netWorth > 0
-            ? `${Math.round((realEstateTotal / netWorth) * 100)}% of net worth · real estate`
+          insight={grossAssets > 0
+            ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate`
             : 'real estate'}
           total={realEstateTotal}
           items={items}
@@ -345,8 +350,8 @@ export function SimpleMoney() {
         <AccountSection
           title="Other assets"
           eyebrow={`${altAccounts.length} item${altAccounts.length === 1 ? '' : 's'}`}
-          insight={netWorth > 0
-            ? `${Math.round((altTotal / netWorth) * 100)}% of net worth · alternative holdings`
+          insight={grossAssets > 0
+            ? `${Math.round((altTotal / grossAssets) * 100)}% of assets · alternative holdings`
             : 'alternative holdings'}
           total={altTotal}
           items={items}
@@ -363,7 +368,6 @@ export function SimpleMoney() {
           title="Debt"
           eyebrow={`${debtAccounts.length} account${debtAccounts.length === 1 ? '' : 's'}`}
           insight={(() => {
-            const grossAssets = cashTotal + investTotal + assetsTotal;
             if (grossAssets <= 0) return `${debtAccounts.length} loan${debtAccounts.length === 1 ? '' : 's'}`;
             const dti = Math.round((debtTotal / grossAssets) * 100);
             return `${dti}% debt-to-assets · ${debtAccounts.length} loan${debtAccounts.length === 1 ? '' : 's'}`;
@@ -478,7 +482,7 @@ export function SimpleMoney() {
           padding: 4px 20px;
           background: var(--lf-surface);
           border: 1px solid var(--lf-rule-neutral);
-          border-radius: 14px;
+          border-radius: 12px;
           box-shadow: var(--shadow-card);
         }
         .ds-money-feed li {
@@ -496,7 +500,7 @@ export function SimpleMoney() {
         .ds-money-feed__bullet {
           width: 28px; height: 28px;
           border-radius: 4px;
-          background: var(--lf-cream);
+          background: var(--lf-rule-soft);
           display: grid; place-items: center;
           flex-shrink: 0;
           margin-top: 2px;
@@ -545,6 +549,28 @@ function AccountSection({
   onSync: (itemId: string) => void;
   onRefresh: () => Promise<void> | void;
 }) {
+  const confirm = useConfirm();
+  // Manual-account rename: a small controlled modal (the row is a shared ds
+  // primitive, so an inline field inside it isn't available here). Holds the
+  // account being renamed plus the draft name.
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
+
+  const submitRename = async () => {
+    if (!renaming) return;
+    const next = renameDraft.trim();
+    if (!next || next === renaming.name) { setRenaming(null); return; }
+    setSavingRename(true);
+    try {
+      await api.updateManualAccount(renaming.id, { name: next });
+      await onRefresh();
+      setRenaming(null);
+    } finally {
+      setSavingRename(false);
+    }
+  };
+
   const types = Array.isArray(filterType) ? filterType : [filterType];
   const accounts = items.flatMap((item) =>
     item.accounts
@@ -559,6 +585,7 @@ function AccountSection({
   );
 
   return (
+    <>
     <Section
       title={title}
       eyebrow={eyebrow}
@@ -629,18 +656,20 @@ function AccountSection({
               // only the applicable buttons per account.
               onSync={isManual ? undefined : () => onSync(acct.item.id)}
               syncing={syncing === acct.item.id}
-              onEdit={isManual ? async () => {
-                const next = window.prompt('Rename account', acct.name);
-                if (next && next.trim() && next.trim() !== acct.name) {
-                  await api.updateManualAccount(acct.id, { name: next.trim() });
-                  await onRefresh();
-                }
+              onEdit={isManual ? () => {
+                setRenaming({ id: acct.id, name: acct.name });
+                setRenameDraft(acct.name);
               } : undefined}
               onDelete={isManual ? async () => {
-                if (window.confirm(`Delete "${acct.name}"? This can't be undone.`)) {
-                  await api.deleteManualAccount(acct.id);
-                  await onRefresh();
-                }
+                const ok = await confirm({
+                  title: `Delete "${titleCase(acct.name)}"?`,
+                  body: 'The account and its full balance history will be permanently removed. This can’t be undone.',
+                  confirmLabel: 'Delete',
+                  destructive: true,
+                });
+                if (!ok) return;
+                await api.deleteManualAccount(acct.id);
+                await onRefresh();
               } : undefined}
               formatValue={(n) => fmtUsd(n)}
             />
@@ -648,6 +677,54 @@ function AccountSection({
         })}
       </Card>
     </Section>
+    {renaming && (
+      <div
+        className="ds-confirm__backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Rename account"
+        onClick={(e) => { if (e.target === e.currentTarget) setRenaming(null); }}
+      >
+        <div className="ds-confirm">
+          <h3 className="ds-confirm__title">Rename account</h3>
+          <input
+            type="text"
+            value={renameDraft}
+            onChange={(e) => setRenameDraft(e.target.value)}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitRename();
+              if (e.key === 'Escape') setRenaming(null);
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              margin: '4px 0 4px',
+              background: 'var(--lf-cream)',
+              border: '1px solid var(--lf-rule)',
+              borderRadius: 8,
+              fontSize: 16,
+              color: 'var(--lf-ink)',
+              outline: 'none',
+              boxSizing: 'border-box',
+              fontFamily: 'inherit',
+            }}
+          />
+          <div className="ds-confirm__actions">
+            <Button variant="ghost" onClick={() => setRenaming(null)}>Cancel</Button>
+            <button
+              type="button"
+              onClick={submitRename}
+              disabled={savingRename || !renameDraft.trim()}
+              className="ds-btn ds-btn--primary"
+            >
+              {savingRename ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

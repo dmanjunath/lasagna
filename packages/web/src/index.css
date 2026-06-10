@@ -76,8 +76,8 @@
     --color-gold-dim:    rgba(245, 158, 11, 0.15);
     --card-glow:         rgba(15, 23, 42, 0.03);
 
-    --shadow-card:       0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.05);
-    --shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08);
+    --shadow-card:       0 1px 2px rgba(15, 23, 42, 0.03), 0 2px 6px rgba(15, 23, 42, 0.04);
+    --shadow-card-hover: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.07);
     --shadow-accent-glow: 0 0 16px rgba(16, 185, 129, 0.18);
     --shadow-accent-glow-hover: 0 0 20px rgba(16, 185, 129, 0.28);
   }
@@ -147,8 +147,8 @@
     --color-gold-dim:    rgba(0, 200, 150, 0.15);
     --card-glow:         rgba(15, 15, 35, 0.03);
 
-    --shadow-card:       0 1px 2px rgba(15, 15, 35, 0.04), 0 4px 16px rgba(15, 15, 35, 0.06);
-    --shadow-card-hover: 0 2px 4px rgba(15, 15, 35, 0.06), 0 8px 24px rgba(15, 15, 35, 0.10);
+    --shadow-card:       0 1px 2px rgba(15, 15, 35, 0.03), 0 2px 6px rgba(15, 15, 35, 0.05);
+    --shadow-card-hover: 0 1px 2px rgba(15, 15, 35, 0.04), 0 4px 12px rgba(15, 15, 35, 0.08);
     --shadow-accent-glow: 0 0 16px rgba(124, 58, 237, 0.22);
     --shadow-accent-glow-hover: 0 0 20px rgba(124, 58, 237, 0.32);
   }
@@ -220,8 +220,8 @@
     --color-gold-dim:    rgba(245, 158, 11, 0.15);
     --card-glow:         rgba(11, 18, 32, 0.03);
 
-    --shadow-card:       0 1px 2px rgba(11, 18, 32, 0.04), 0 4px 16px rgba(11, 18, 32, 0.05);
-    --shadow-card-hover: 0 2px 4px rgba(11, 18, 32, 0.06), 0 8px 24px rgba(11, 18, 32, 0.08);
+    --shadow-card:       0 1px 2px rgba(11, 18, 32, 0.03), 0 2px 6px rgba(11, 18, 32, 0.04);
+    --shadow-card-hover: 0 1px 2px rgba(11, 18, 32, 0.04), 0 4px 12px rgba(11, 18, 32, 0.07);
     --shadow-accent-glow: 0 0 16px rgba(37, 99, 235, 0.18);
     --shadow-accent-glow-hover: 0 0 20px rgba(37, 99, 235, 0.28);
   }
@@ -506,13 +506,13 @@
 .lf-card {
   background: var(--lf-paper);
   border: 1px solid var(--lf-rule);
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .lf-card-dark {
   background: var(--lf-ink);
   border: 1px solid var(--lf-ink);
-  border-radius: 14px;
+  border-radius: 12px;
   color: var(--lf-paper);
 }
 
@@ -583,7 +583,7 @@
   .surface-card {
     background: var(--lf-surface);
     border: 1px solid var(--lf-rule-neutral);
-    border-radius: 14px;
+    border-radius: 12px;
     box-shadow: var(--shadow-card);
   }
 
@@ -600,7 +600,7 @@
   .glass-card {
     background: var(--lf-surface);
     border: 1px solid var(--lf-rule-neutral);
-    border-radius: 14px;
+    border-radius: 12px;
     box-shadow: var(--shadow-card);
   }
   .glass-card-hover {
@@ -615,7 +615,7 @@
   .stat-card {
     background: var(--lf-surface);
     border: 1px solid var(--lf-rule-neutral);
-    border-radius: 14px;
+    border-radius: 12px;
     box-shadow: var(--shadow-card);
   }
 
@@ -741,7 +741,7 @@
   .mobile-input:focus {
     outline: none;
     border-color: var(--lf-sauce);
-    box-shadow: 0 0 0 3px rgba(201, 84, 58, 0.1);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-sauce) 18%, transparent);
   }
 
   /* PWA Splash Screen Support */
@@ -1120,7 +1120,7 @@
   padding: 20px 20px 16px;
   background: var(--lf-surface);
   border: 1px solid var(--lf-rule-neutral);
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: var(--shadow-card);
 }
 .ds-figure__head {
@@ -1152,9 +1152,9 @@
 .ds-figure__value {
   font-family: 'Geist', system-ui, sans-serif;
   font-weight: 600;
-  font-size: clamp(28px, 3.4vw, 36px);
-  line-height: 1.05;
-  letter-spacing: -0.02em;
+  font-size: clamp(36px, 4.6vw, 52px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
   color: var(--lf-ink);
   font-variant-numeric: tabular-nums;
 }
@@ -1198,7 +1198,7 @@
 }
 .ds-ask-strip__box:focus-within {
   border-color: var(--lf-sauce);
-  box-shadow: 0 0 0 3px rgba(201, 84, 58, 0.10);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-sauce) 18%, transparent);
 }
 .ds-ask-strip__input {
   flex: 1;
@@ -1286,6 +1286,63 @@
   margin: 12px 0 0;
 }
 
+/* ── Hero number — the ONE focal figure per page ─────────────
+   Big tabular value with an eyebrow above and a delta chip beside it.
+   Use once per page (net worth, total saved, current level). */
+.ds-hero { margin: 2px 0 24px; }
+.ds-hero__label {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+.ds-hero__row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.ds-hero__value {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(40px, 6vw, 60px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--lf-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Delta chip — semantic +/- pill. The clean source of color pop. */
+.ds-delta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ds-delta-chip--pos {
+  background: color-mix(in srgb, var(--lf-pos) 13%, transparent);
+  color: var(--lf-pos);
+}
+.ds-delta-chip--neg {
+  background: color-mix(in srgb, var(--lf-neg) 13%, transparent);
+  color: var(--lf-neg);
+}
+.ds-delta-chip--neutral {
+  background: var(--lf-rule-soft);
+  color: var(--lf-ink-soft);
+}
+
 /* ── Typography scale ───────────────────────────────────────── */
 .ds-display {
   font-family: 'Instrument Serif', Georgia, serif;
@@ -1364,7 +1421,7 @@
 .ds-card {
   background: var(--lf-surface);
   border: 1px solid var(--lf-rule-neutral);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 20px;
   box-shadow: var(--shadow-card);
 }
@@ -1429,7 +1486,7 @@
   gap: 1px;
   background: var(--lf-rule);
   border: 1px solid var(--lf-rule);
-  border-radius: 14px;
+  border-radius: 12px;
   overflow: hidden;
 }
 .ds-kpi-grid--cols-2 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
@@ -1645,11 +1702,22 @@
 /* ── Empty state ────────────────────────────────────────────── */
 .ds-empty {
   text-align: center;
-  padding: 64px 24px;
-  border: 1px dashed var(--lf-rule);
-  border-radius: 14px;
+  padding: 56px 24px;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
 }
-.ds-empty__icon { color: var(--lf-muted); margin-bottom: 16px; }
+.ds-empty__icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--lf-sauce) 12%, transparent);
+  color: var(--lf-sauce);
+}
 .ds-empty__title { font-family: 'Instrument Serif', Georgia, serif; font-size: 22px; font-weight: 500; color: var(--lf-ink); margin: 0 0 8px; }
 .ds-empty__body  { font-size: 14px; color: var(--lf-muted); margin: 0 auto 24px; max-width: 360px; line-height: 1.55; }
 
@@ -1672,7 +1740,7 @@
 .ds-confirm {
   background: var(--lf-paper);
   border: 1px solid var(--lf-rule);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 24px;
   max-width: 420px;
   width: 100%;
@@ -1719,13 +1787,13 @@
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   background: var(--lf-surface);
   border: 1px solid var(--lf-rule-neutral);
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: var(--shadow-card);
   overflow: hidden;
   margin: 0;
 }
 .ds-strip__item {
-  padding: 14px 16px;
+  padding: 18px 20px;
   border-left: 1px solid var(--lf-rule);
   min-width: 0;
 }
@@ -1756,9 +1824,9 @@
   display: block;
   font-family: 'Geist', system-ui, sans-serif;
   font-weight: 600;
-  font-size: clamp(17px, 1.6vw, 20px);
-  line-height: 1.2;
-  letter-spacing: -0.015em;
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: var(--lf-ink);
   font-variant-numeric: tabular-nums;
   /* Wrap (don't silently truncate). Numeric values are short and won't
@@ -1823,7 +1891,7 @@
   overflow-y: visible;
   background: var(--lf-surface);
   border: 1px solid var(--lf-rule-neutral);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 20px;
   box-shadow: var(--shadow-card);
 }

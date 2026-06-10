@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { MessageSquare, Send, Trash2 } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 export interface Thread {
   id: string;
@@ -15,6 +16,9 @@ interface ChatThreadListProps {
   onDeleteThread: (index: number) => void;
   onNewMessage: (text: string) => void;
   suggestions?: string[];
+  // 'sidebar' (default) = compact rail; 'mobile' = full-screen with comfortable
+  // gutters and larger touch targets.
+  variant?: 'sidebar' | 'mobile';
 }
 
 const DEFAULT_PROMPTS = [
@@ -23,7 +27,8 @@ const DEFAULT_PROMPTS = [
   'Where am I losing money?',
 ];
 
-export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewMessage, suggestions }: ChatThreadListProps) {
+export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewMessage, suggestions, variant = 'sidebar' }: ChatThreadListProps) {
+  const isMobile = variant === 'mobile';
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -124,7 +129,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
       )}
 
       {/* Input */}
-      <div className="px-3 pt-2 pb-3 flex-shrink-0 border-t border-border/50">
+      <div className={cn('flex-shrink-0 border-t border-border/50', isMobile ? 'px-4 py-3' : 'px-3 pt-2 pb-3')}>
         <form onSubmit={handleSubmit}>
           <div className="flex items-end gap-2">
             <textarea
@@ -133,18 +138,25 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder="Ask anything…"
+              aria-label="Message Lasagna"
               rows={1}
-              className="flex-1 px-4 py-2.5 rounded-2xl border border-border bg-bg-elevated text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-surface-hover transition-all resize-none overflow-y-auto"
+              className={cn(
+                'flex-1 rounded-2xl border border-border bg-bg-elevated text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-surface-hover focus:ring-2 focus:ring-accent/15 transition-all resize-none overflow-y-auto',
+                isMobile ? 'px-4 py-3' : 'px-4 py-2.5'
+              )}
               style={{ maxHeight: 80 }}
             />
             <button
               type="submit"
               disabled={!input.trim()}
-              className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all mb-0.5 ${
+              aria-label="Send message"
+              className={cn(
+                'rounded-full flex items-center justify-center flex-shrink-0 transition-all mb-0.5',
+                isMobile ? 'w-11 h-11' : 'w-9 h-9',
                 input.trim()
                   ? 'bg-accent hover:bg-accent/90 shadow-sm shadow-accent/20'
                   : 'bg-border text-text-secondary cursor-not-allowed'
-              }`}
+              )}
             >
               <Send className="w-3.5 h-3.5 text-white" />
             </button>

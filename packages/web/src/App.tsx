@@ -35,7 +35,7 @@ const QuickImport = lazy(() => import('./pages/quick-import').then(m => ({ defau
 // Unified pages
 const SimpleHome = lazy(() => import('./pages/simple-home').then(m => ({ default: m.SimpleHome })));
 const SimpleMoney = lazy(() => import('./pages/simple-money').then(m => ({ default: m.SimpleMoney })));
-const SimpleChat = lazy(() => import('./pages/simple-chat').then(m => ({ default: m.SimpleChat })));
+const ChatFullPage = lazy(() => import('./components/chat/chat-full-page').then(m => ({ default: m.ChatFullPage })));
 
 function AppRoutes() {
   const { user } = useAuth();
@@ -74,7 +74,7 @@ function AppRoutes() {
                   <Switch>
                     <Route path="/" component={SimpleHome} />
                     <Route path="/money" component={SimpleMoney} />
-                    <Route path="/chat" component={SimpleChat} />
+                    <Route path="/chat" component={ChatFullPage} />
 
                     {/* Standard pages */}
                     <Route path="/spending" component={Spending} />

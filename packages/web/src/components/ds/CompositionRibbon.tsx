@@ -93,8 +93,14 @@ export function CompositionRibbon({
 }: CompositionRibbonProps) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  const total = segments.reduce((s, seg) => s + Math.abs(seg.value), 0);
-  const threshold = groupBelowPct > 0 ? (groupBelowPct / 100) * total : 0;
+  // Percentage base is GROSS ASSETS — the sum of non-negative (asset)
+  // segments only. Debt is a liability, not a share of assets, so it never
+  // enters the denominator: that kept the old Σ|value| base from matching the
+  // net-worth hero and made the same account read at different %s across
+  // pages. Debt is still drawn in the bar and legend, but expressed as a
+  // deduction against this same asset base.
+  const base = segments.reduce((s, seg) => s + (seg.negative ? 0 : seg.value), 0);
+  const threshold = groupBelowPct > 0 ? (groupBelowPct / 100) * base : 0;
 
   // Bar segments: bucket positive segments below threshold into a single
   // "Other". Debt segments are always kept distinct so they sit on the right
@@ -121,14 +127,14 @@ export function CompositionRibbon({
 
   const hasLead = leadLabel || leadValue || leadDelta;
   const hovered = hoverIdx !== null ? renderedSegments[hoverIdx] : null;
-  const hoveredPct = hovered && total > 0 ? (Math.abs(hovered.value) / total) * 100 : 0;
+  const hoveredPct = hovered && base > 0 ? (Math.abs(hovered.value) / base) * 100 : 0;
   // Tooltip x-position: center over the hovered segment, clamped so it
   // doesn't run off either edge of the bar.
   let hoveredCenterPct = 0;
   if (hoverIdx !== null) {
     let left = 0;
     for (let i = 0; i < hoverIdx; i++) {
-      left += total > 0 ? (Math.abs(renderedSegments[i].value) / total) * 100 : 0;
+      left += base > 0 ? (Math.abs(renderedSegments[i].value) / base) * 100 : 0;
     }
     hoveredCenterPct = left + hoveredPct / 2;
   }
@@ -152,7 +158,7 @@ export function CompositionRibbon({
         onPointerLeave={() => setHoverIdx(null)}
       >
         {renderedSegments.map((seg, i) => {
-          const pct = total > 0 ? (Math.abs(seg.value) / total) * 100 : 0;
+          const pct = base > 0 ? (Math.abs(seg.value) / base) * 100 : 0;
           return (
             <div
               key={`${seg.label}-${i}`}
@@ -176,13 +182,15 @@ export function CompositionRibbon({
             <span className="ds-ribbon__tooltip-value">
               {hovered.negative ? '−' : ''}{fmtUsd(Math.abs(hovered.value))}
             </span>
-            <span className="ds-ribbon__tooltip-pct">{hoveredPct.toFixed(1)}% of total</span>
+            <span className="ds-ribbon__tooltip-pct">
+              {hoveredPct.toFixed(1)}% of assets{hovered.negative ? ' · deduction' : ''}
+            </span>
           </div>
         )}
       </div>
       <div className="ds-ribbon__legend">
         {renderedSegments.map((seg, i) => {
-          const pct = total > 0 ? (Math.abs(seg.value) / total) * 100 : 0;
+          const pct = base > 0 ? (Math.abs(seg.value) / base) * 100 : 0;
           const isOther = seg.label === 'Other' && otherSeg !== null && i === positives.length;
           return (
             <span className="ds-ribbon__legend-item" key={`${seg.label}-${i}`}>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MessageSquare, X, Menu } from 'lucide-react';
+import { ArrowLeft, MessageSquare, X, Menu, Maximize2 } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
@@ -18,7 +19,17 @@ export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopChatOpen, setDesktopChatOpen] = useState(false);
   const isMobile = useIsMobile();
-  const { chatOpen, closeChat, unreadCount } = useChatStore();
+  const [location, setLocation] = useLocation();
+  const { chatOpen, closeChat, unreadCount, setChatReturnPath } = useChatStore();
+
+  // Expand the sidebar chat into the full-page /chat route, remembering where to
+  // return when the user collapses it back.
+  const handleExpandChat = () => {
+    setChatReturnPath(location);
+    setDesktopChatOpen(false);
+    closeChat();
+    setLocation('/chat');
+  };
 
   // Sync context chatOpen → desktop sidebar
   useEffect(() => {
@@ -58,7 +69,7 @@ export function Shell({ children }: ShellProps) {
         /* Mobile: main content + chat overlay */
         <div className="flex-1 flex overflow-hidden relative">
           {/* Main content — always rendered. pt offset = notch + 44px header. */}
-          <main className="w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] pb-[calc(env(safe-area-inset-bottom)+56px)]">
+          <main className="w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] pb-[calc(env(safe-area-inset-bottom)+56px)]" style={{ background: '#FCFAFA' }}>
             <div className="flex-1 overflow-y-auto">
               {children}
             </div>
@@ -108,31 +119,43 @@ export function Shell({ children }: ShellProps) {
           </aside>
 
           {/* Main content area */}
-          <main className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 flex flex-col overflow-hidden" style={{ background: '#FCFAFA' }}>
             <div className="flex-1 overflow-y-auto">
               {children}
             </div>
           </main>
 
-          {/* Desktop chat sidebar — closable */}
-          {desktopChatOpen && (
+          {/* Desktop chat sidebar — closable. Hidden on the full-page /chat
+              route, which already shows the conversation + history rail. */}
+          {location !== '/chat' && desktopChatOpen && (
             <aside className="w-[340px] flex-shrink-0 border-l border-border flex flex-col overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
                 <span className="text-[11px] font-medium font-mono text-text-muted uppercase tracking-[0.14em]">Chat</span>
-                <button
-                  onClick={() => { setDesktopChatOpen(false); closeChat(); }}
-                  className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-secondary hover:text-text"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={handleExpandChat}
+                    className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-secondary hover:text-text"
+                    title="Expand to full page"
+                    aria-label="Expand chat"
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => { setDesktopChatOpen(false); closeChat(); }}
+                    className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-secondary hover:text-text"
+                    aria-label="Close chat"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                 <GlobalChatSidebar />
               </div>
             </aside>
           )}
-          {/* Collapsed chat toggle */}
-          {!desktopChatOpen && (
+          {/* Collapsed chat toggle — also hidden on /chat (full page is open). */}
+          {location !== '/chat' && !desktopChatOpen && (
             <div className="flex-shrink-0 border-l border-border flex flex-col items-center pt-3 px-1.5">
               <button
                 onClick={() => setDesktopChatOpen(true)}

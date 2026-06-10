@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, RefreshCw, Zap } from 'lucide-react';
+import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
 import { formatRelativeTime } from '../lib/utils';
@@ -11,7 +12,6 @@ import {
   Section,
   Button,
   Pill,
-  Eyebrow,
   EmptyState,
   StatStrip,
 } from '../components/ds';
@@ -108,6 +108,7 @@ interface ActionRowProps {
   onOpenArea?: () => void;
   areaLabel: string;
   defaultOpen?: boolean;
+  priority?: 'do_now' | 'this_week' | 'watch';
 }
 
 function ActionRow({
@@ -119,12 +120,13 @@ function ActionRow({
   onOpenArea,
   areaLabel,
   defaultOpen = false,
+  priority = 'watch',
 }: ActionRowProps) {
   const [open, setOpen] = useState(defaultOpen);
   const { openChat } = useChatStore();
 
   return (
-    <li className="ins-row">
+    <li className={`ins-row ins-row--${priority}${open ? ' ins-row--open' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -154,13 +156,6 @@ function ActionRow({
               <p className="ds-body" style={{ margin: '0 0 14px', maxWidth: '62ch' }}>
                 {description}
               </p>
-
-              <div className="ins-row__callout">
-                <Eyebrow style={{ marginBottom: 6 }}>Do this next</Eyebrow>
-                <p className="ds-body" style={{ color: 'var(--lf-ink)', margin: 0 }}>
-                  {title}
-                </p>
-              </div>
 
               <div className="ins-row__actions">
                 <Button
@@ -219,8 +214,16 @@ export function Insights() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  // Pending dismissal awaiting the undo window. No restore endpoint exists, so
+  // "undo" works by deferring the (one-way) server dismiss until the window
+  // elapses — until then nothing has been committed and we can simply reverse.
+  const [pendingUndo, setPendingUndo] = useState<string | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUndoRef = useRef<string | null>(null);
 
-  const { insights, lastActionsGeneratedAt, isLoading, dismiss, refresh } = useInsights();
+  const { insights, lastActionsGeneratedAt, isLoading, refresh } = useInsights();
+
+  const UNDO_WINDOW_MS = 6000;
 
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
   const msSinceLastGen = lastActionsGeneratedAt
@@ -241,10 +244,52 @@ export function Insights() {
     }
   };
 
-  const handleDismiss = async (id: string) => {
-    setDismissed((prev) => new Set([...prev, id]));
-    await dismiss(id);
+  const setPending = (id: string | null) => {
+    pendingUndoRef.current = id;
+    setPendingUndo(id);
   };
+
+  const handleDismiss = (id: string) => {
+    // Flush any in-flight dismissal first so its server commit isn't lost when
+    // a second action is dismissed before the previous window elapses.
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      if (pendingUndoRef.current) api.dismissInsight(pendingUndoRef.current).catch(() => {});
+    }
+    setDismissed((prev) => new Set([...prev, id]));
+    setPending(id);
+    undoTimerRef.current = setTimeout(() => {
+      api.dismissInsight(id).catch(() => {});
+      undoTimerRef.current = null;
+      setPending(null);
+    }, UNDO_WINDOW_MS);
+  };
+
+  const handleUndo = () => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    const id = pendingUndoRef.current;
+    if (id) {
+      setDismissed((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+    setPending(null);
+  };
+
+  // On unmount, commit any pending dismissal so it isn't silently dropped.
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current);
+        if (pendingUndoRef.current) api.dismissInsight(pendingUndoRef.current).catch(() => {});
+      }
+    };
+  }, []);
 
   const activeInsights = insights.filter((i) => !dismissed.has(i.id));
   const completedInsights = insights.filter((i) => dismissed.has(i.id));
@@ -318,7 +363,6 @@ export function Insights() {
             {
               label: 'Urgent',
               value: <span className="ds-num">{doNowCount}</span>,
-              tone: 'neg',
             },
             {
               label: 'This week',
@@ -327,42 +371,14 @@ export function Insights() {
             {
               label: 'Watch',
               value: <span className="ds-num">{watchCount}</span>,
-              tone: 'pos',
             },
           ]}
         />
       )}
 
-      {/* Filter pills + refresh meta */}
+      {/* Filter pills + refresh meta — one aligned toolbar row */}
       {!isLoading && insights.length > 0 && (
-        <Section
-          actions={
-            <div className="ins-meta">
-              {lastActionsGeneratedAt && (
-                <span className="ds-caption" style={{ whiteSpace: 'nowrap' }}>
-                  Updated {formatRelativeTime(lastActionsGeneratedAt)}
-                </span>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing || !refreshReady}
-                title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
-                icon={
-                  <RefreshCw
-                    size={12}
-                    style={{
-                      animation: refreshing ? 'spin 1s linear infinite' : undefined,
-                    }}
-                  />
-                }
-              >
-                {refreshing ? 'Refreshing…' : 'Refresh'}
-              </Button>
-            </div>
-          }
-        >
+        <div className="ins-toolbar">
           <div className="ins-filter-scroll">
             <div className="ins-filter-pills">
               {FILTER_PILLS.map((pill) => {
@@ -381,7 +397,31 @@ export function Insights() {
               })}
             </div>
           </div>
-        </Section>
+          <div className="ins-meta">
+            {lastActionsGeneratedAt && (
+              <span className="ds-caption" style={{ whiteSpace: 'nowrap' }}>
+                Updated {formatRelativeTime(lastActionsGeneratedAt)}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing || !refreshReady}
+              title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
+              icon={
+                <RefreshCw
+                  size={12}
+                  style={{
+                    animation: refreshing ? 'spin 1s linear infinite' : undefined,
+                  }}
+                />
+              }
+            >
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </Button>
+          </div>
+        </div>
       )}
 
       {refreshError && (
@@ -453,6 +493,7 @@ export function Insights() {
                         chatPrompt={insight.chatPrompt ?? insight.title}
                         areaLabel={areaLabel}
                         defaultOpen={idx === 0 && group === 'do_now'}
+                        priority={group}
                         onDismiss={() => handleDismiss(insight.id)}
                         onOpenArea={
                           contextLink ? () => navigate(contextLink) : undefined
@@ -505,9 +546,70 @@ export function Insights() {
         </motion.div>
       )}
 
+      {/* Undo affordance — deferred server commit means a mis-tap is recoverable */}
+      <AnimatePresence>
+        {pendingUndo && (
+          <motion.div
+            initial={{ opacity: 0, x: '-50%', y: 12 }}
+            animate={{ opacity: 1, x: '-50%', y: 0 }}
+            exit={{ opacity: 0, x: '-50%', y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            role="status"
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              left: '50%',
+              zIndex: 60,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              padding: '12px 18px',
+              background: 'var(--lf-ink)',
+              color: 'var(--lf-paper)',
+              borderRadius: 12,
+              boxShadow: 'var(--shadow-card)',
+              fontSize: 14,
+            }}
+          >
+            <span>Action dismissed</span>
+            <button
+              type="button"
+              onClick={handleUndo}
+              style={{
+                background: 'none',
+                border: 0,
+                padding: 0,
+                font: 'inherit',
+                fontWeight: 600,
+                color: 'var(--lf-paper)',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+                cursor: 'pointer',
+              }}
+            >
+              Undo
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .ins-stats { margin: 0 0 40px; }
+        .ins-stats { margin: 0 0 20px; }
+
+        /* Filter pills + meta share one vertically-centered row. */
+        .ins-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin: 0 0 20px;
+        }
+        @media (max-width: 640px) {
+          .ins-toolbar { flex-wrap: wrap; gap: 10px; }
+          .ins-filter-scroll { flex: 1 1 100%; }
+          .ins-meta { width: 100%; justify-content: flex-end; }
+        }
 
         /* Header CTA: full width on mobile is overkill — shrink to sm sizing. */
         @media (max-width: 640px) {
@@ -519,6 +621,8 @@ export function Insights() {
 
         /* Filter pills: horizontally scroll on mobile rather than wrap. */
         .ins-filter-scroll {
+          flex: 1;
+          min-width: 0;
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
           margin: 0 -16px;
@@ -554,14 +658,39 @@ export function Insights() {
           list-style: none;
           margin: 0;
           padding: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
         }
         .ins-list--dim { opacity: 0.7; }
 
+        /* Each action is an elevated card with a left priority accent. */
         .ins-row {
-          border-top: 1px solid var(--lf-rule);
+          position: relative;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 12px;
+          box-shadow: var(--shadow-card);
+          padding: 2px 18px;
+          transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
         }
-        .ins-row:first-child { border-top: 1px solid var(--lf-ink); }
-        .ins-row:last-child { border-bottom: 1px solid var(--lf-rule); }
+        .ins-row::before {
+          content: '';
+          position: absolute;
+          left: 0; top: 12px; bottom: 12px;
+          width: 3px;
+          border-radius: 0 3px 3px 0;
+          background: var(--lf-noodle);
+        }
+        .ins-row--do_now::before   { background: var(--lf-neg); }
+        .ins-row--this_week::before { background: var(--lf-cheese); }
+        .ins-row--watch::before    { background: var(--lf-noodle); }
+        .ins-row:hover {
+          border-color: var(--lf-rule);
+          box-shadow: var(--shadow-card-hover);
+          transform: translateY(-1px);
+        }
+        .ins-row--open { box-shadow: var(--shadow-card-hover); }
 
         .ins-row__btn {
           display: flex;
@@ -579,7 +708,7 @@ export function Insights() {
         .ins-row__title {
           flex: 1;
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 19px;
+          font-size: 18px;
           font-weight: 500;
           color: var(--lf-ink);
           line-height: 1.25;
@@ -593,15 +722,7 @@ export function Insights() {
         }
 
         .ins-row__body {
-          padding: 4px 0 20px 0;
-        }
-        .ins-row__callout {
-          background: var(--lf-cream);
-          border: 1px solid var(--lf-rule);
-          border-radius: 10px;
-          padding: 12px 14px;
-          margin-bottom: 14px;
-          max-width: 62ch;
+          padding: 0 0 18px 0;
         }
         .ins-row__actions {
           display: flex;
@@ -611,6 +732,7 @@ export function Insights() {
         }
 
         @media (max-width: 640px) {
+          .ins-row { padding: 2px 14px; }
           .ins-row__title { font-size: 17px; }
         }
       `}</style>

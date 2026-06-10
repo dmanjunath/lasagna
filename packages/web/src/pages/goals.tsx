@@ -216,12 +216,19 @@ export function Goals() {
   return (
     <Page>
       <style>{`
-        .goals-feed { list-style: none; margin: 0; padding: 0; }
+        .goals-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
         .goals-feed li {
-          padding: 22px 0;
-          border-top: 1px solid var(--lf-rule);
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 12px;
+          box-shadow: var(--shadow-card);
+          padding: 18px 20px;
+          transition: box-shadow 0.18s ease, transform 0.18s ease;
         }
-        .goals-feed li:last-child { padding-bottom: 0; }
+        .goals-feed li:hover {
+          box-shadow: var(--shadow-card-hover);
+          transform: translateY(-1px);
+        }
         .goals-feed__row {
           display: grid;
           grid-template-columns: 44px minmax(0, 1fr) auto;
@@ -250,25 +257,27 @@ export function Goals() {
           letter-spacing: -0.01em;
         }
         .goals-feed__amount {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 13px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
           color: var(--lf-ink-soft);
           flex-shrink: 0;
           font-variant-numeric: tabular-nums;
         }
         .goals-feed__bar {
-          height: 4px;
-          background: var(--lf-cream-deep);
-          border-radius: 2px;
+          height: 8px;
+          background: var(--lf-rule-soft);
+          border-radius: 999px;
           overflow: hidden;
-          margin: 10px 0 8px;
+          margin: 12px 0 10px;
         }
-        .goals-feed__bar > div { height: 100%; border-radius: 2px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); }
+        .goals-feed__bar > div { height: 100%; border-radius: 999px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); }
         .goals-feed__meta {
           display: flex; gap: 10px; align-items: baseline;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px; letter-spacing: 0.04em;
           color: var(--lf-muted);
+          font-variant-numeric: tabular-nums;
         }
         .goals-feed__meta-sep { opacity: 0.4; }
         .goals-feed__actions {
@@ -318,7 +327,7 @@ export function Goals() {
         .goals-strip { margin: 32px 0 48px; }
         @media (max-width: 640px) {
           .goals-strip { margin: 16px 0 20px; }
-          .goals-feed li { padding: 16px 0; }
+          .goals-feed li { padding: 16px; }
           .goals-feed__row {
             grid-template-columns: 36px minmax(0, 1fr) auto;
             gap: 12px;
@@ -366,11 +375,18 @@ export function Goals() {
         .goals-strip-card__value {
           font-family: 'Geist', system-ui, sans-serif;
           font-weight: 600;
-          font-size: 22px;
-          line-height: 1.05;
-          letter-spacing: -0.01em;
+          font-size: 30px;
+          line-height: 1.02;
+          letter-spacing: -0.025em;
           color: var(--lf-ink);
           font-variant-numeric: tabular-nums;
+        }
+        /* Primary KPI (saved so far) carries the accent rule + largest value */
+        .goals-strip-card:first-child {
+          border-top: 2px solid var(--lf-sauce);
+        }
+        .goals-strip-card:first-child .goals-strip-card__value {
+          color: var(--lf-sauce-deep);
         }
         .goals-strip-card__caption {
           font-family: 'Geist', system-ui, sans-serif;
@@ -492,7 +508,7 @@ export function Goals() {
           <h1 className="ds-page-bar__title">Goals</h1>
           {!loading && activeGoals.length > 0 && (
             <span className="ds-page-bar__subtitle">
-              {formatCurrency(totalSaved)} of {formatCurrency(totalTarget)} · {activeGoals.length} active
+              {formatCurrency(totalTarget)} target · {activeGoals.length} active
               {completedGoals.length > 0 && (
                 <> · <span className="ds-pos">{completedGoals.length} complete</span></>
               )}
@@ -503,7 +519,7 @@ export function Goals() {
       </header>
       {!loading && activeGoals.length > 0 && (
         <div className="ds-page-bar__subtitle-mobile">
-          {formatCurrency(totalSaved)} of {formatCurrency(totalTarget)} · {activeGoals.length} active
+          {formatCurrency(totalTarget)} target · {activeGoals.length} active
           {completedGoals.length > 0 && (
             <> · <span className="ds-pos">{completedGoals.length} complete</span></>
           )}
@@ -755,9 +771,9 @@ export function Goals() {
                               progress is 0 so the rail reads as "alive but
                               empty" rather than "rail not even rendered". */}
                           {pct > 0 ? (
-                            <div style={{ width: `${pct}%`, background: 'var(--lf-data-2)' }} />
+                            <div style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}B3, ${color})` }} />
                           ) : (
-                            <div style={{ width: 4, background: 'var(--lf-data-2)' }} />
+                            <div style={{ width: 8, background: color }} />
                           )}
                         </div>
 

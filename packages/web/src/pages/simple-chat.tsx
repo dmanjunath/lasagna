@@ -425,14 +425,15 @@ export function SimpleChat() {
           align-items: center;
           gap: 8px;
           background: var(--lf-paper);
-          border: 1px solid var(--lf-rule);
+          border: 1px solid var(--lf-rule-neutral);
           border-radius: 999px;
           padding: 6px 6px 6px 18px;
+          box-shadow: var(--shadow-card);
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         .ds-chat-composer:focus-within {
-          border-color: var(--lf-ink);
-          box-shadow: 0 0 0 4px rgba(31,26,22,0.06);
+          border-color: var(--lf-sauce);
+          box-shadow: 0 0 0 4px color-mix(in srgb, var(--lf-sauce) 16%, transparent);
         }
         .ds-chat-composer__input {
           flex: 1;
@@ -566,12 +567,16 @@ function ChatStartHero({
         .ds-chat-hero__prompts {
           list-style: none;
           margin: 0;
-          padding: 0;
-          border-top: 1px solid var(--lf-ink);
+          padding: 4px 18px;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 12px;
+          box-shadow: var(--shadow-card);
         }
         .ds-chat-hero__prompts li {
           border-bottom: 1px solid var(--lf-rule);
         }
+        .ds-chat-hero__prompts li:last-child { border-bottom: 0; }
         .ds-chat-hero__prompt {
           display: flex;
           align-items: baseline;
@@ -579,7 +584,7 @@ function ChatStartHero({
           width: 100%;
           background: none;
           border: 0;
-          padding: 12px 0;
+          padding: 14px 0;
           text-align: left;
           cursor: pointer;
           transition: color 0.15s;

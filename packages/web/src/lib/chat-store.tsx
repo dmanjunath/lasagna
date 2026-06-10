@@ -18,6 +18,10 @@ export function setPreferredModelLevel(level: ModelLevel) {
   try { localStorage.setItem('lf-chat-model', level); } catch { /* ignore */ }
 }
 
+// Local message shape — extends the API `Message` with a client-only flag
+// marking a failed assistant turn so the UI can render an error + retry.
+export type ChatMessage = Message & { isError?: boolean };
+
 export interface ThreadData {
   thread: {
     id: string;
@@ -26,7 +30,7 @@ export interface ThreadData {
     timestamp: string;
     tags: string[];
   };
-  messages: Message[];
+  messages: ChatMessage[];
   apiThreadId: string | null;
   unread?: boolean;
   modelLevel?: ModelLevel;
@@ -37,6 +41,9 @@ interface ChatStoreState {
   chatOpen: boolean;
   openChat: (initialMessage?: string) => void;
   closeChat: () => void;
+  // Route to return to when collapsing the full-page chat back into the sidebar.
+  chatReturnPath: string | null;
+  setChatReturnPath: (path: string | null) => void;
   threads: ThreadData[];
   activeThreadIndex: number | null;
   setActiveThread: (index: number | null) => void;
@@ -49,7 +56,7 @@ interface ChatStoreState {
   pendingMessage: { text: string; nonce: number } | null;
   setPendingMessage: (msg: { text: string; nonce: number } | null) => void;
   clearPendingMessage: () => void;
-  sendMessage: (text: string, existingThreadId: string | null, contextString: string, contextMeta: unknown, tags?: string[], modelLevel?: ModelLevel) => Promise<{ response: string; threadId: string; contextMeta: unknown; threadTitle: string | null }>;
+  sendMessage: (text: string, existingThreadId: string | null, contextString: string, contextMeta: unknown, tags?: string[], modelLevel?: ModelLevel) => Promise<{ response: string; threadId: string; contextMeta: unknown; threadTitle: string | null; error?: boolean }>;
 }
 
 const ChatStoreContext = createContext<ChatStoreState | null>(null);
@@ -69,6 +76,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
   }, []);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingMessage, setPendingMessage] = useState<{ text: string; nonce: number } | null>(null);
+  const [chatReturnPath, setChatReturnPath] = useState<string | null>(null);
 
   const openChat = useCallback((initialMessage?: string) => {
     if (initialMessage) {
@@ -122,7 +130,9 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
 
       return { response, threadId, contextMeta, threadTitle: data.threadTitle ?? null };
     } catch {
-      return { response: 'Sorry, I encountered an error. Please try again.', threadId: existingThreadId || '', contextMeta: null, threadTitle: null };
+      // Signal failure instead of fabricating a successful-looking reply, so
+      // the caller can render an error state with a retry affordance.
+      return { response: '', threadId: existingThreadId || '', contextMeta: null, threadTitle: null, error: true };
     }
   }, []);
 
@@ -130,6 +140,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     <ChatStoreContext.Provider
       value={{
         chatOpen, openChat, closeChat,
+        chatReturnPath, setChatReturnPath,
         threads, activeThreadIndex, setActiveThread, setThreads,
         loadingThreads, setThreadLoading,
         unreadCount, clearUnread, incrementUnread,
