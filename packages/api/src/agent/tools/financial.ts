@@ -6,6 +6,7 @@ import {
   balanceSnapshots,
   holdings,
   securities,
+  financialProfiles,
 } from "@lasagna/core";
 import { eq, desc, and, sql } from "@lasagna/core";
 import { getHoldingsInput } from "../../routes/portfolio.js";
@@ -155,6 +156,47 @@ export function createFinancialTools(tenantId: string) {
               }))
             ),
           })),
+        };
+      },
+    }),
+
+    get_financial_profile: tool({
+      description:
+        "Get the user's financial profile: annual income, filing status, age, state of residence, employment type, risk tolerance, target retirement age, employer 401(k) match %, number of dependents, HDHP and PSLF status. Use this for income, tax, and retirement-planning questions — income lives here, NOT in transactions (manual-entry users often have no income transactions).",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const profile = await db.query.financialProfiles.findFirst({
+          where: eq(financialProfiles.tenantId, tenantId),
+        });
+
+        if (!profile) {
+          return { profile: null, note: "No financial profile has been set up yet." };
+        }
+
+        const age = profile.dateOfBirth
+          ? Math.floor(
+              (Date.now() - new Date(profile.dateOfBirth).getTime()) /
+                (365.25 * 24 * 60 * 60 * 1000)
+            )
+          : null;
+
+        return {
+          profile: {
+            annualIncome: profile.annualIncome ? parseFloat(profile.annualIncome) : null,
+            filingStatus: profile.filingStatus,
+            age,
+            stateOfResidence: profile.stateOfResidence,
+            employmentType: profile.employmentType,
+            riskTolerance: profile.riskTolerance,
+            retirementAge: profile.retirementAge,
+            employerMatchPercent:
+              profile.employerMatch !== null && profile.employerMatch !== undefined
+                ? parseFloat(profile.employerMatch)
+                : null,
+            dependentCount: profile.dependentCount ?? null,
+            hasHDHP: profile.hasHDHP ?? null,
+            isPSLFEligible: profile.isPSLFEligible ?? null,
+          },
         };
       },
     }),
