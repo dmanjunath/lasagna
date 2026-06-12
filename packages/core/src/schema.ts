@@ -60,8 +60,6 @@ export const onboardingStageEnum = pgEnum("onboarding_stage", [
   "complete",
 ]);
 
-export const uiModeEnum = pgEnum("ui_mode", ["simple", "advanced"]);
-
 // ── Tenants ────────────────────────────────────────────────────────────────
 
 export const tenants = pgTable("tenants", {
@@ -89,8 +87,8 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: roleEnum("role").notNull().default("owner"),
   isDemo: boolean("is_demo").default(false).notNull(),
+  isAdmin: boolean("is_admin").notNull().default(false),
   onboardingStage: onboardingStageEnum("onboarding_stage"),
-  uiMode: uiModeEnum("ui_mode").notNull().default("simple"),
   notifyDaily: boolean("notify_daily").notNull().default(true),
   notifyBills: boolean("notify_bills").notNull().default(true),
   notifyWeeklyEmail: boolean("notify_weekly_email").notNull().default(false),

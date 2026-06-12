@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
-import { eq, users, tenants, onboardingStageEnum, uiModeEnum } from "@lasagna/core";
+import { eq, users, tenants, onboardingStageEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import {
@@ -92,7 +92,7 @@ authRoutes.post("/signup", async (c) => {
       name: user.name,
       role: user.role,
       onboardingStage: user.onboardingStage,
-      uiMode: user.uiMode,
+      isAdmin: user.isAdmin,
     },
     tenant: { id: tenant.id, name: tenant.name, plan: tenant.plan },
   });
@@ -142,7 +142,7 @@ authRoutes.post("/login", async (c) => {
       name: user.name,
       role: user.role,
       onboardingStage: user.onboardingStage,
-      uiMode: user.uiMode,
+      isAdmin: user.isAdmin,
     },
     tenant: tenant
       ? { id: tenant.id, name: tenant.name, plan: tenant.plan }
@@ -177,7 +177,7 @@ authRoutes.get("/me", requireAuth, async (c) => {
       name: user.name,
       role: user.role,
       onboardingStage: user.onboardingStage,
-      uiMode: user.uiMode,
+      isAdmin: user.isAdmin,
       notifyDaily: user.notifyDaily,
       notifyBills: user.notifyBills,
       notifyWeeklyEmail: user.notifyWeeklyEmail,
@@ -214,7 +214,7 @@ authRoutes.patch("/me", requireAuth, async (c) => {
         name: existing.name,
         role: existing.role,
         onboardingStage: existing.onboardingStage,
-        uiMode: existing.uiMode,
+        isAdmin: existing.isAdmin,
         notifyDaily: existing.notifyDaily,
         notifyBills: existing.notifyBills,
         notifyWeeklyEmail: existing.notifyWeeklyEmail,
@@ -235,32 +235,12 @@ authRoutes.patch("/me", requireAuth, async (c) => {
       name: updated.name,
       role: updated.role,
       onboardingStage: updated.onboardingStage,
-      uiMode: updated.uiMode,
+      isAdmin: updated.isAdmin,
       notifyDaily: updated.notifyDaily,
       notifyBills: updated.notifyBills,
       notifyWeeklyEmail: updated.notifyWeeklyEmail,
     },
   });
-});
-
-// Update UI mode preference
-const VALID_UI_MODES = new Set(uiModeEnum.enumValues);
-
-authRoutes.patch("/ui-mode", requireAuth, async (c) => {
-  const session = c.get("session");
-  const { uiMode } = await c.req.json<{ uiMode: string }>();
-
-  if (!VALID_UI_MODES.has(uiMode as typeof uiModeEnum.enumValues[number])) {
-    return c.json({ error: "Invalid uiMode" }, 400);
-  }
-
-  const [updated] = await db
-    .update(users)
-    .set({ uiMode: uiMode as typeof uiModeEnum.enumValues[number] })
-    .where(eq(users.id, session.userId))
-    .returning();
-
-  return c.json({ uiMode: updated.uiMode });
 });
 
 // Update onboarding stage

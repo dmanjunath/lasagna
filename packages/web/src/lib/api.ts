@@ -42,7 +42,7 @@ export const api = {
         name: string | null;
         role: string;
         onboardingStage: string | null;
-        uiMode: "simple" | "advanced";
+        isAdmin: boolean;
         notifyDaily: boolean;
         notifyBills: boolean;
         notifyWeeklyEmail: boolean;
@@ -58,7 +58,7 @@ export const api = {
         name: string | null;
         role: string;
         onboardingStage: string | null;
-        uiMode: "simple" | "advanced";
+        isAdmin: boolean;
         notifyDaily: boolean;
         notifyBills: boolean;
         notifyWeeklyEmail: boolean;

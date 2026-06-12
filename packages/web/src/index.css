@@ -1461,7 +1461,11 @@
 
 /* ── Section ────────────────────────────────────────────────── */
 .ds-section { margin-bottom: 28px; }
-.ds-section:last-child { margin-bottom: 0; }
+/* Trim only the page's final trailing margin. Scoped to direct page children
+   so sections wrapped in a per-section motion.div (e.g. Insights groups) keep
+   the 28px inter-section rhythm instead of every wrapped section matching
+   :last-child and collapsing to 0. */
+.ds-page > .ds-section:last-child { margin-bottom: 0; }
 @media (max-width: 640px) { .ds-section { margin-bottom: 20px; } }
 .ds-section__header {
   display: flex;

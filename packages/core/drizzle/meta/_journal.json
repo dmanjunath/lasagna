@@ -29,6 +29,13 @@
       "when": 1779024753339,
       "tag": "0003_broken_vance_astro",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0004_cool_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

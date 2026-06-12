@@ -49,7 +49,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [location, navigate] = useLocation();
-  const { tenant, logout } = useAuth();
+  const { tenant, logout, user } = useAuth();
   const { openChat } = useChatStore();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -140,46 +140,50 @@ export function Sidebar({ className }: SidebarProps) {
           onClick={() => openChat()}
         />
 
-        {/* More — collapsible group of secondary finance areas */}
-        <button
-          type="button"
-          onClick={toggleAdvanced}
-          aria-expanded={advancedOpen}
-          className="w-full flex items-center justify-between gap-2 pl-4 pr-3 py-1.5 mt-4 mb-0.5 rounded-lg cursor-pointer hover:bg-bg-subtle transition-colors group"
-        >
-          <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-text-muted group-hover:text-text-secondary transition-colors">
-            More
-          </span>
-          <ChevronDown
-            size={13}
-            className={cn(
-              'text-text-muted group-hover:text-text-secondary transition-transform duration-200',
-              !advancedOpen && '-rotate-90',
-            )}
-          />
-        </button>
-        <AnimatePresence initial={false}>
-          {advancedOpen && (
-            <motion.div
-              key="advanced"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-              style={{ overflow: 'hidden' }}
+        {/* More — collapsible group of secondary finance areas (admin only) */}
+        {user?.isAdmin && (
+          <>
+            <button
+              type="button"
+              onClick={toggleAdvanced}
+              aria-expanded={advancedOpen}
+              className="w-full flex items-center justify-between gap-2 pl-4 pr-3 py-1.5 mt-4 mb-0.5 rounded-lg cursor-pointer hover:bg-bg-subtle transition-colors group"
             >
-              {ADVANCED_NAV.map((entry) => (
-                <NavButton
-                  key={entry.id}
-                  active={isActive(entry.path)}
-                  icon={entry.icon}
-                  label={entry.label}
-                  onClick={() => navigate(entry.path)}
-                />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-text-muted group-hover:text-text-secondary transition-colors">
+                More
+              </span>
+              <ChevronDown
+                size={13}
+                className={cn(
+                  'text-text-muted group-hover:text-text-secondary transition-transform duration-200',
+                  !advancedOpen && '-rotate-90',
+                )}
+              />
+            </button>
+            <AnimatePresence initial={false}>
+              {advancedOpen && (
+                <motion.div
+                  key="advanced"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  {ADVANCED_NAV.map((entry) => (
+                    <NavButton
+                      key={entry.id}
+                      active={isActive(entry.path)}
+                      icon={entry.icon}
+                      label={entry.label}
+                      onClick={() => navigate(entry.path)}
+                    />
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
 
         {/* Setup — no eyebrow; two items don't need labelling and avoid
             visual confusion with the Advanced collapse above. */}
@@ -195,8 +199,8 @@ export function Sidebar({ className }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Theme picker — compact swatch row above the account chip */}
-      <SidebarThemePicker />
+      {/* Theme picker — compact swatch row above the account chip (admin only) */}
+      {user?.isAdmin && <SidebarThemePicker />}
 
       {/* Account chip */}
       <div className="px-3 py-3 relative" ref={userMenuRef}>

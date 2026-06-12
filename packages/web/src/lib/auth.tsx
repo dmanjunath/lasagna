@@ -14,6 +14,7 @@ interface User {
   name: string | null;
   role: string;
   onboardingStage: string | null;
+  isAdmin: boolean;
   notifyDaily: boolean;
   notifyBills: boolean;
   notifyWeeklyEmail: boolean;

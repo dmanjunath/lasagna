@@ -459,7 +459,11 @@ export default function PortfolioComposition() {
             real_estate: 'var(--lf-noodle)',
             alternative: 'var(--lf-crust)',
           };
+          // Exclude liabilities — a mortgage/credit balance is debt, not an
+          // asset, so it must not appear as a slice of "Asset allocation".
+          const LIABILITY_TYPES = new Set(['loan', 'credit']);
           const accts = balanceData.balances
+            .filter((b) => !LIABILITY_TYPES.has(b.type))
             .map((b) => ({ name: b.name, value: Math.abs(parseFloat(b.balance || '0')), type: b.type }))
             .filter((a) => a.value > 0)
             .sort((a, b) => b.value - a.value);
