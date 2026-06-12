@@ -48,7 +48,7 @@ export const THEMES: ThemeDef[] = [
 
 const STORAGE_KEY = 'lasagna-theme';
 const CUSTOM_ACCENT_KEY = 'lasagna-custom-accent';
-const DEFAULT_THEME: ThemeId = 'hot-topic';
+const DEFAULT_THEME: ThemeId = 'minty';
 const DEFAULT_CUSTOM_ACCENT = '#F54772';
 
 // ─── Color math ───────────────────────────────────────────────────────────────

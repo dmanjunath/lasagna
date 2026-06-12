@@ -4,27 +4,27 @@
 
 @layer base {
   :root {
-    /* LasagnaFi brand tokens — warm earthy */
-    --cream: #F5EDE0;
-    --cream-deep: #EDE1CE;
-    --paper: #FBF6EC;
-    --ink: #1F1A16;
-    --ink-soft: #3A322C;
-    --muted: #8B7E6F;
-    --rule: #E3D6BF;
-    --rule-soft: #EADFC9;
+    /* Brand tokens — minty (matches webapp default theme) */
+    --cream: #F4F7F5;
+    --cream-deep: #E2EDE7;
+    --paper: #FFFFFF;
+    --ink: #0F172A;
+    --ink-soft: #334155;
+    --muted: #64748B;
+    --rule: #E5E7EB;
+    --rule-soft: #EEF0F4;
 
-    /* Brand — the lasagna stack */
-    --sauce: #C9543A;
-    --sauce-deep: #A23F29;
-    --cheese: #E6B85C;
-    --basil: #5A6B3F;
-    --noodle: #E8C789;
-    --crust: #8B4A2B;
-    --burgundy: #6B2420;
+    /* Brand — the lasagna stack (emerald primary, amber, slate) */
+    --sauce: #10B981;
+    --sauce-deep: #059669;
+    --cheese: #F59E0B;
+    --basil: #10B981;
+    --noodle: #94A3B8;
+    --crust: #475569;
+    --burgundy: #B91C1C;
 
-    --pos: #4C7A3E;
-    --neg: #A23F29;
+    --pos: #10B981;
+    --neg: #EF4444;
 
     /* Type */
     --serif: "Instrument Serif", "Cormorant Garamond", Georgia, serif;

@@ -111,6 +111,12 @@ function formatRel(when: string | Date): string {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function greetingForHour(h: number) {
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export function SimpleHome() {
   const { user, tenant } = useAuth();
   const [, setLocation] = useLocation();
@@ -131,12 +137,17 @@ export function SimpleHome() {
     user?.email?.split('@')[0] ||
     'there';
 
-  const greeting = (() => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
-  })();
+  const [greeting, setGreeting] = useState(() => greetingForHour(new Date().getHours()));
+  useEffect(() => {
+    const update = () => setGreeting(greetingForHour(new Date().getHours()));
+    update();
+    const id = setInterval(update, 60_000);
+    document.addEventListener('visibilitychange', update);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', update);
+    };
+  }, []);
 
   const loadPriorities = useCallback(() => {
     return api
