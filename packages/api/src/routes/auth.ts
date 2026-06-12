@@ -10,6 +10,7 @@ import {
 } from "../lib/session.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { generateInsights } from "../lib/insights-engine.js";
+import { env } from "../lib/env.js";
 
 export const authRoutes = new Hono<AuthEnv>();
 
@@ -67,6 +68,9 @@ authRoutes.post("/signup", async (c) => {
       name: name ?? null,
       passwordHash,
       role: "owner",
+      // Self-hosted (single-tenant) deployments: the person signing up owns the
+      // instance, so make them an admin. The multi-tenant cloud does not.
+      isAdmin: !env.MULTI_TENANT,
       onboardingStage: "profile",
     })
     .returning();
