@@ -87,7 +87,7 @@
           var t = localStorage.getItem('lasagna-theme');
           if (t === 'monarch' || t === 'classic') t = 'minty';
           var validIds = ['minty','rocket','cobalt','rose','coral','honey','marina','fireside','graphite','hot-topic','sapphire','amethyst','sunshine','aqua','custom'];
-          if (validIds.indexOf(t) === -1) t = 'hot-topic';
+          if (validIds.indexOf(t) === -1) t = 'minty';
           document.documentElement.setAttribute('data-theme', t);
 
           if (t === 'custom') {
