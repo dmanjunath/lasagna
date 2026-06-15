@@ -10,6 +10,7 @@ import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
 import { useChatStore } from '../../lib/chat-store';
 import { SidebarThemePicker } from './sidebar-theme-picker';
+import { Logo } from '../common/Logo';
 
 interface NavItem {
   id: string;
@@ -110,11 +111,9 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Brand */}
       <div className="px-4 pt-6 pb-5">
         <div className="flex items-center gap-2.5 px-2">
-          <div className="lf-mark">
-            <span /><span /><span />
-          </div>
-          <span className="text-lg font-semibold text-text tracking-tight">
-            Lasagna<span className="text-text-muted font-medium">Fi</span>
+          <Logo width={22} animate={false} />
+          <span className="lf-wordmark text-lg text-text">
+            Lasagna<span className="fi">fi</span>
           </span>
         </div>
       </div>

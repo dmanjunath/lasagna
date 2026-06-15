@@ -1,3 +1,5 @@
+import { Logo } from '../common/Logo';
+
 interface AppHeaderProps {
   /** Hamburger / back-arrow / etc. Mounted on the left. */
   leadingSlot?: React.ReactNode;
@@ -21,9 +23,9 @@ export function AppHeader({
       <div className="max-w-md md:max-w-none md:px-6 mx-auto px-4 h-14 flex items-center gap-2">
         <div className="w-11 -ml-2 shrink-0 flex items-center">{leadingSlot}</div>
         <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
-          <div className="lf-mark"><span /><span /><span /></div>
-          <span className="text-[15px] font-semibold text-text tracking-tight leading-none">
-            Lasagna<span className="text-text-muted font-medium">Fi</span>
+          <Logo width={20} animate={false} />
+          <span className="lf-wordmark text-[15px] text-text leading-none">
+            Lasagna<span className="fi">fi</span>
           </span>
         </div>
         <div className="w-11 -mr-2 shrink-0" aria-hidden="true" />

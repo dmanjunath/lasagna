@@ -1,0 +1,24 @@
+---
+// Stacked "noodle" waves — a lasagna layer that doubles as cash flow / signal.
+interface Props {
+  size?: number;
+  class?: string;
+  style?: string;
+}
+const { size = 22, class: cls = "", style = "" } = Astro.props;
+const height = Math.round((size * 24) / 28);
+---
+
+<svg
+  class={cls}
+  style={style}
+  width={size}
+  height={height}
+  viewBox="0 0 28 24"
+  fill="none"
+  aria-hidden="true"
+>
+  <path d="M2 7 C5 3.5 8 3.5 11 7 S17 10.5 20 7 S23 3.5 26 7" stroke="#F59E0B" stroke-width="2.4" stroke-linecap="round" />
+  <path d="M2 12 C5 8.5 8 8.5 11 12 S17 15.5 20 12 S23 8.5 26 12" stroke="#F59E0B" stroke-width="2.4" stroke-linecap="round" />
+  <path d="M2 17 C5 13.5 8 13.5 11 17 S17 20.5 20 17 S23 13.5 26 17" stroke="#F59E0B" stroke-width="2.4" stroke-linecap="round" />
+</svg>

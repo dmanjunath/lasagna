@@ -6,41 +6,38 @@ interface LogoProps {
   animate?: boolean;
 }
 
-export function Logo({ width = 30, className = '', animate = true }: LogoProps) {
-  const height = Math.round(width * 26 / 36);
+// Stacked "noodle" waves — a lasagna layer that doubles as cash flow / signal.
+const WAVES = [
+  { d: 'M2 7 C5 3.5 8 3.5 11 7 S17 10.5 20 7 S23 3.5 26 7',      color: '#F59E0B' },
+  { d: 'M2 12 C5 8.5 8 8.5 11 12 S17 15.5 20 12 S23 8.5 26 12',   color: '#F59E0B' },
+  { d: 'M2 17 C5 13.5 8 13.5 11 17 S17 20.5 20 17 S23 13.5 26 17', color: '#F59E0B' },
+];
 
-  // sauce / cheese / basil — matching .lf-mark pattern
-  const bars = [
-    { y: 0,  w: 22, color: '#C9543A' },  // sauce
-    { y: 10, w: 32, color: '#E6B85C' },  // cheese
-    { y: 20, w: 36, color: '#5A6B3F' },  // basil
-  ];
+export function Logo({ width = 30, className = '', animate = true }: LogoProps) {
+  const height = Math.round((width * 24) / 28);
 
   return (
     <svg
       width={width}
       height={height}
-      viewBox="0 0 36 26"
+      viewBox="0 0 28 24"
       fill="none"
       className={className}
     >
-      {bars.map((bar, i) => (
-        <motion.rect
+      {WAVES.map((wave, i) => (
+        <motion.path
           key={i}
-          x={0}
-          y={bar.y}
-          width={bar.w}
-          height={6}
-          rx={3}
-          fill={bar.color}
-          initial={animate ? { opacity: 0, scaleX: 0 } : false}
-          animate={{ opacity: 1, scaleX: 1 }}
+          d={wave.d}
+          stroke={wave.color}
+          strokeWidth={2.4}
+          strokeLinecap="round"
+          initial={animate ? { pathLength: 0, opacity: 0 } : false}
+          animate={{ pathLength: 1, opacity: 1 }}
           transition={{
-            duration: 0.4,
-            delay: i * 0.08,
+            duration: 0.5,
+            delay: i * 0.1,
             ease: [0.16, 1, 0.3, 1],
           }}
-          style={{ transformOrigin: 'left center' }}
         />
       ))}
     </svg>

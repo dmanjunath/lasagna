@@ -28,7 +28,7 @@ const { title, lastUpdated } = Astro.props;
     <main class="legal">
       <header class="legal-header">
         <h1 class="serif">{title}</h1>
-        <p class="last-updated mono">Last updated: {lastUpdated}</p>
+        <p class="last-updated">Last updated: {lastUpdated}</p>
       </header>
       <article class="legal-body">
         <slot />
@@ -58,7 +58,7 @@ const { title, lastUpdated } = Astro.props;
   }
 
   .last-updated {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
     margin: 0;
   }

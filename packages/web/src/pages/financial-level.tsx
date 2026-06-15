@@ -30,8 +30,8 @@ const iconMap: Record<string, LucideIcon> = {
 // Whimsy: 12-step earth ramp from sauce (urgent base layers) → basil (FI).
 // Each level gets a distinct color so the journey reads as a literal climb.
 const LEVEL_COLORS = [
-  '#B83B3B', '#C25030', '#C46425', '#B87A1E', '#8B7A22', '#5E7A28',
-  '#3D7A35', '#2D7040', '#25664A', '#1E5C50', '#185248', '#134840',
+  '#DC2626', '#EF4444', '#F97316', '#FB923C', '#F59E0B', '#FACC15',
+  '#A3E635', '#84CC16', '#4ADE80', '#22C55E', '#10B981', '#059669',
 ];
 const levelColor = (order: number) => LEVEL_COLORS[Math.min(LEVEL_COLORS.length, Math.max(1, order)) - 1] ?? '#7A5C3F';
 const withAlpha = (hex: string, a: number) => {

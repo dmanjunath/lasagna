@@ -116,8 +116,9 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(1100px circle at 10% 0%, color-mix(in oklab, var(--cheese) 8%, transparent), transparent 55%),
-      repeating-linear-gradient(135deg, transparent 0 14px, rgba(230,184,92,0.018) 14px 15px);
+      radial-gradient(900px circle at 88% -10%, color-mix(in oklab, var(--cheese) 26%, transparent), transparent 55%),
+      radial-gradient(720px circle at 6% 115%, color-mix(in oklab, var(--sauce) 22%, transparent), transparent 52%),
+      repeating-linear-gradient(135deg, transparent 0 14px, rgba(255,255,255,0.015) 14px 15px);
     pointer-events: none;
   }
 
@@ -183,7 +184,7 @@
     flex-direction: column;
     gap: 6px;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .bundle-row {
@@ -200,13 +201,13 @@
 
   .bundle-row .bk {
     color: var(--cheese);
-    font-size: 10px;
+    font-size: 13px;
     letter-spacing: 0.04em;
   }
 
   .bundle-row .bv {
     color: var(--paper);
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .bundle-row .bv.tok {
@@ -229,8 +230,8 @@
 
   .chat-q-tag {
     display: inline-block;
-    font-family: var(--mono);
-    font-size: 9px;
+    font-family: var(--sans);
+    font-size: 13px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--cheese);
@@ -292,7 +293,7 @@
   .llm-mark i:nth-child(5) { background: var(--basil);  width: 88%; }
 
   .llm-name { color: var(--paper); font-size: 13px; font-weight: 500; }
-  .llm-sub { font-family: var(--mono); font-size: 10px; color: #94A3B8; }
+  .llm-sub { font-family: var(--sans); font-size: 13px; color: #94A3B8; }
 
   .llm-trace {
     display: flex;
@@ -314,13 +315,13 @@
 
   .ts-num {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 13px;
     color: var(--cheese);
     text-align: center;
   }
 
   .ts-text {
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.45;
     color: #CBD5E1;
   }
@@ -343,7 +344,7 @@
     justify-content: space-between;
     gap: 12px;
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 13px;
     color: #94A3B8;
     letter-spacing: 0.04em;
     flex-wrap: wrap;
@@ -407,7 +408,7 @@
     justify-content: space-between;
     gap: 8px;
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 13px;
     padding: 4px 8px;
     background: var(--cream);
     border-radius: 4px;
@@ -427,7 +428,7 @@
     border-radius: 8px;
     border: 1px solid transparent;
     font-family: var(--sans);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     transition: transform 0.12s;
@@ -441,8 +442,8 @@
     margin-top: 28px;
     padding-top: 16px;
     border-top: 1px dashed #334155;
-    font-family: var(--mono);
-    font-size: 11px;
+    font-family: var(--sans);
+    font-size: 13px;
     color: #94A3B8;
     text-align: center;
     letter-spacing: 0.02em;

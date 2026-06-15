@@ -1,5 +1,6 @@
 ---
 import { GITHUB_URL } from "../config";
+import WaveMark from "./WaveMark.astro";
 
 const year = new Date().getFullYear();
 ---
@@ -8,8 +9,8 @@ const year = new Date().getFullYear();
   <div class="foot-inner">
     <div class="brand-col">
       <a href="/" class="brand">
-        <span class="mark"><i></i><i></i><i></i></span>
-        <span class="brand-name serif">Lasagna<em>Fi</em></span>
+        <WaveMark size={22} />
+        <span class="brand-name">Lasagna<em>fi</em></span>
       </a>
       <p>Personal finance with a private AI advisor. Your data stays private.</p>
     </div>
@@ -68,14 +69,17 @@ const year = new Date().getFullYear();
   }
 
   .brand-name {
-    font-family: var(--serif);
+    font-family: 'Bricolage Grotesque', 'Geist', system-ui, sans-serif;
     font-size: 20px;
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    font-weight: 700;
+    letter-spacing: -0.025em;
   }
 
   .brand-name em {
+    font-family: 'Fraunces', Georgia, serif;
     font-style: italic;
+    font-weight: 500;
+    letter-spacing: 0;
     color: var(--sauce);
   }
 
@@ -88,8 +92,8 @@ const year = new Date().getFullYear();
   }
 
   h5 {
-    font-family: var(--mono);
-    font-size: 10px;
+    font-family: var(--sans);
+    font-size: 13px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--muted);
@@ -115,8 +119,8 @@ const year = new Date().getFullYear();
     padding: 20px 32px;
     display: flex;
     justify-content: space-between;
-    font-family: var(--mono);
-    font-size: 11px;
+    font-family: var(--sans);
+    font-size: 13px;
     color: var(--muted);
     gap: 16px;
   }

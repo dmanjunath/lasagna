@@ -63,8 +63,8 @@ export function Login() {
             <div className="inline-flex items-center justify-center mb-4">
               <Logo width={64} />
             </div>
-            <h1 className="text-3xl font-display font-semibold text-text">
-              Lasagna<em style={{ fontStyle: 'italic', color: 'var(--lf-sauce)' }}>Fi</em>
+            <h1 className="lf-wordmark text-3xl text-text">
+              Lasagna<span className="fi">fi</span>
             </h1>
             <p className="text-text-secondary mt-1">Personal finance, layered.</p>
           </div>

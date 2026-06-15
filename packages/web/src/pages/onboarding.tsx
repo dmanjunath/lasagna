@@ -688,7 +688,7 @@ export function Onboarding() {
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
           <Logo width={28} animate={false} />
-          <span className="font-display text-lg font-medium text-text tracking-tight">Lasagna</span>
+          <span className="lf-wordmark text-lg text-text">Lasagna<span className="fi">fi</span></span>
         </div>
         {step < totalSteps - 1 && <span className="text-xs text-text-secondary">Step {step + 1} of {totalSteps - 1}</span>}
       </div>

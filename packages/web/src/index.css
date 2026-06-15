@@ -482,23 +482,20 @@
 }
 
 /* ============================================================
-   BRAND MARK — three stacked bars (sauce/cheese/basil)
+   WORDMARK — "Lasagna" grotesque + italic serif "fi"
    ============================================================ */
-.lf-mark {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 22px;
-  flex-shrink: 0;
+.lf-wordmark {
+  font-family: 'Bricolage Grotesque', 'Geist', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
-.lf-mark span {
-  display: block;
-  height: 4px;
-  border-radius: 1px;
+.lf-wordmark .fi {
+  font-family: 'Fraunces', Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: rgb(var(--color-accent));
 }
-.lf-mark span:nth-child(1) { background: var(--lf-sauce);  width: 100%; }
-.lf-mark span:nth-child(2) { background: var(--lf-cheese); width: 78%; }
-.lf-mark span:nth-child(3) { background: var(--lf-basil);  width: 88%; }
 
 /* ============================================================
    LASAGNAFI CARD
@@ -1289,18 +1286,40 @@
 /* ── Hero number — the ONE focal figure per page ─────────────
    Big tabular value with an eyebrow above and a delta chip beside it.
    Use once per page (net worth, total saved, current level). */
-.ds-hero { margin: 2px 0 24px; }
+/* Net-worth hero — the page's focal figure, seated on an ink panel with a
+   soft amber/emerald glow (echoes the landing io-section background). */
+.ds-hero {
+  position: relative;
+  overflow: hidden;
+  margin: 2px 0 24px;
+  padding: 26px 28px;
+  border-radius: 16px;
+  background: var(--lf-ink);
+  box-shadow: var(--shadow-card);
+}
+.ds-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(680px circle at 88% -20%, color-mix(in oklab, var(--lf-cheese) 24%, transparent), transparent 55%),
+    radial-gradient(520px circle at 4% 130%, color-mix(in oklab, var(--lf-sauce) 20%, transparent), transparent 52%),
+    repeating-linear-gradient(135deg, transparent 0 14px, rgba(255, 255, 255, 0.014) 14px 15px);
+  pointer-events: none;
+}
 .ds-hero__label {
+  position: relative;
   font-family: 'Geist', system-ui, sans-serif;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 600;
-  color: var(--lf-muted);
+  color: color-mix(in srgb, var(--lf-paper) 62%, transparent);
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .ds-hero__row {
+  position: relative;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -1312,8 +1331,17 @@
   font-size: clamp(40px, 6vw, 60px);
   line-height: 1;
   letter-spacing: -0.03em;
-  color: var(--lf-ink);
+  color: var(--lf-paper);
   font-variant-numeric: tabular-nums;
+}
+/* Delta chips read on the dark panel — brighter tint, light text. */
+.ds-hero .ds-delta-chip--pos {
+  background: color-mix(in srgb, var(--lf-pos) 26%, transparent);
+  color: color-mix(in srgb, var(--lf-pos) 55%, white);
+}
+.ds-hero .ds-delta-chip--neg {
+  background: color-mix(in srgb, var(--lf-neg) 26%, transparent);
+  color: color-mix(in srgb, var(--lf-neg) 55%, white);
 }
 
 /* Delta chip — semantic +/- pill. The clean source of color pop. */

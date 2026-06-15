@@ -63,18 +63,18 @@ function fmtK(value: number): string {
 // ── Layer color map (matches financial-level.tsx) ────────────────────────────
 
 const LAYER_COLORS = [
-  { bg: '#B83B3B', text: '#fff' },     // 1
-  { bg: '#C25030', text: '#fff' },     // 2
-  { bg: '#C46425', text: '#fff' },     // 3
-  { bg: '#B87A1E', text: '#fff' },     // 4
-  { bg: '#8B7A22', text: '#fff' },     // 5
-  { bg: '#5E7A28', text: '#fff' },     // 6
-  { bg: '#3D7A35', text: '#fff' },     // 7
-  { bg: '#2D7040', text: '#fff' },     // 8
-  { bg: '#25664A', text: '#fff' },     // 9
-  { bg: '#1E5C50', text: '#fff' },     // 10
-  { bg: '#185248', text: '#fff' },     // 11
-  { bg: '#134840', text: '#fff' },     // 12
+  { bg: '#DC2626', text: '#fff' },     // 1
+  { bg: '#EF4444', text: '#fff' },     // 2
+  { bg: '#F97316', text: '#fff' },     // 3
+  { bg: '#FB923C', text: '#0F172A' },     // 4
+  { bg: '#F59E0B', text: '#0F172A' },     // 5
+  { bg: '#FACC15', text: '#0F172A' },     // 6
+  { bg: '#A3E635', text: '#0F172A' },     // 7
+  { bg: '#84CC16', text: '#0F172A' },     // 8
+  { bg: '#4ADE80', text: '#0F172A' },     // 9
+  { bg: '#22C55E', text: '#fff' },     // 10
+  { bg: '#10B981', text: '#fff' },     // 11
+  { bg: '#059669', text: '#fff' },     // 12
 ];
 
 function layerColor(order: number): string {
