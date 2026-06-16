@@ -16,7 +16,9 @@ import {
   and,
   desc,
   sql,
+  notInArray,
 } from "@lasagna/core";
+import { excludedTxnAccountIds } from "./account-balances.js";
 
 interface FinancialSnapshot {
   accounts: Array<{
@@ -117,6 +119,8 @@ async function gatherFinancialData(
       subtype: accounts.subtype,
       metadata: accounts.metadata,
       accountId: accounts.id,
+      excludeFromNetWorth: accounts.excludeFromNetWorth,
+      invertBalance: accounts.invertBalance,
     })
     .from(accounts)
     .where(eq(accounts.tenantId, tenantId));
@@ -164,6 +168,8 @@ async function gatherFinancialData(
             ? Math.round((currentBal - oldBal) * 100) / 100
             : null,
         metadata,
+        excludeFromNetWorth: a.excludeFromNetWorth,
+        invertBalance: a.invertBalance,
       };
     })
   );
@@ -231,16 +237,21 @@ async function gatherFinancialData(
     totalLoan = 0;
 
   for (const a of accountsWithBalances) {
+    if (a.excludeFromNetWorth) continue;
+    const effBalance = a.invertBalance ? -a.balance : a.balance;
     if (a.type === "credit" || a.type === "loan") {
-      totalLiabilities += a.balance;
-      if (a.type === "credit") totalCredit += a.balance;
-      if (a.type === "loan") totalLoan += a.balance;
+      totalLiabilities += effBalance;
+      if (a.type === "credit") totalCredit += effBalance;
+      if (a.type === "loan") totalLoan += effBalance;
     } else {
-      totalAssets += a.balance;
-      if (a.type === "depository") totalDepository += a.balance;
-      if (a.type === "investment") totalInvestment += a.balance;
+      totalAssets += effBalance;
+      if (a.type === "depository") totalDepository += effBalance;
+      if (a.type === "investment") totalInvestment += effBalance;
     }
   }
+
+  // Accounts whose transactions the user has hidden from spending views
+  const excludedTxnIds = await excludedTxnAccountIds(tenantId);
 
   // Spending: current and prior month
   const [currentSpendRows, priorSpendRows] = await Promise.all([
@@ -255,7 +266,10 @@ async function gatherFinancialData(
           eq(transactions.tenantId, tenantId),
           sql`${transactions.amount} > 0`,
           sql`${transactions.category} NOT IN ('income', 'transfer')`,
-          sql`${transactions.date} >= ${currentMonthStart.toISOString()}`
+          sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
+          ...(excludedTxnIds.length > 0
+            ? [notInArray(transactions.accountId, excludedTxnIds)]
+            : [])
         )
       )
       .groupBy(transactions.category),
@@ -271,7 +285,10 @@ async function gatherFinancialData(
           sql`${transactions.amount} > 0`,
           sql`${transactions.category} NOT IN ('income', 'transfer')`,
           sql`${transactions.date} >= ${priorMonthStart.toISOString()}`,
-          sql`${transactions.date} <= ${priorMonthEnd.toISOString()}`
+          sql`${transactions.date} <= ${priorMonthEnd.toISOString()}`,
+          ...(excludedTxnIds.length > 0
+            ? [notInArray(transactions.accountId, excludedTxnIds)]
+            : [])
         )
       )
       .groupBy(transactions.category),
@@ -290,7 +307,10 @@ async function gatherFinancialData(
         sql`${transactions.amount} > 0`,
         sql`${transactions.category} NOT IN ('income', 'transfer')`,
         sql`${transactions.merchantName} IS NOT NULL`,
-        sql`${transactions.date} >= ${currentMonthStart.toISOString()}`
+        sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
+        ...(excludedTxnIds.length > 0
+          ? [notInArray(transactions.accountId, excludedTxnIds)]
+          : [])
       )
     )
     .groupBy(transactions.merchantName)
@@ -311,7 +331,10 @@ async function gatherFinancialData(
         sql`${transactions.amount} > 0`,
         sql`${transactions.category} IN ('subscriptions', 'entertainment')`,
         sql`${transactions.merchantName} IS NOT NULL`,
-        sql`${transactions.date} >= ${threeMonthsAgo.toISOString()}`
+        sql`${transactions.date} >= ${threeMonthsAgo.toISOString()}`,
+        ...(excludedTxnIds.length > 0
+          ? [notInArray(transactions.accountId, excludedTxnIds)]
+          : [])
       )
     )
     .groupBy(
@@ -353,7 +376,10 @@ async function gatherFinancialData(
         and(
           eq(transactions.tenantId, tenantId),
           sql`${transactions.category} = 'income'`,
-          sql`${transactions.date} >= ${currentMonthStart.toISOString()}`
+          sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
+          ...(excludedTxnIds.length > 0
+            ? [notInArray(transactions.accountId, excludedTxnIds)]
+            : [])
         )
       ),
     db
@@ -366,7 +392,10 @@ async function gatherFinancialData(
           eq(transactions.tenantId, tenantId),
           sql`${transactions.category} = 'income'`,
           sql`${transactions.date} >= ${priorMonthStart.toISOString()}`,
-          sql`${transactions.date} <= ${priorMonthEnd.toISOString()}`
+          sql`${transactions.date} <= ${priorMonthEnd.toISOString()}`,
+          ...(excludedTxnIds.length > 0
+            ? [notInArray(transactions.accountId, excludedTxnIds)]
+            : [])
         )
       ),
   ]);
@@ -460,7 +489,8 @@ async function gatherFinancialData(
 
   // Debt trajectory
   const debtAccounts = accountsWithBalances.filter(
-    (a) => a.type === "credit" || a.type === "loan"
+    (a) =>
+      !a.excludeFromNetWorth && (a.type === "credit" || a.type === "loan")
   );
 
   const debtTrajectory = debtAccounts.map((a) => {
@@ -469,7 +499,7 @@ async function gatherFinancialData(
       typeof meta.interestRate === "number" ? meta.interestRate : 0;
     const minPayment =
       typeof meta.minimumPayment === "number" ? meta.minimumPayment : null;
-    const balance = Math.abs(a.balance);
+    const balance = Math.abs(a.invertBalance ? -a.balance : a.balance);
 
     let monthsToPayoff: number | null = null;
     let totalInterestRemaining: number | null = null;

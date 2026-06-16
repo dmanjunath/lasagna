@@ -126,6 +126,9 @@ plaidRoutes.get("/items", async (c) => {
             balance: latest?.balance ?? null,
             currency: latest?.isoCurrencyCode ?? "USD",
             metadata: acct.metadata ? JSON.parse(acct.metadata) : null,
+            excludeFromNetWorth: acct.excludeFromNetWorth,
+            excludeTransactions: acct.excludeTransactions,
+            invertBalance: acct.invertBalance,
           };
         })
       );

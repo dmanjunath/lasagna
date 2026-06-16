@@ -633,6 +633,18 @@ export const api = {
   deleteManualAccount: (id: string) =>
     request<{ ok: boolean }>(`/manual-accounts/${id}`, { method: 'DELETE' }),
 
+  // Account settings — classification + per-account overrides (Plaid or manual)
+  updateAccount: (
+    id: string,
+    data: {
+      type?: string;
+      subtype?: string | null;
+      excludeFromNetWorth?: boolean;
+      excludeTransactions?: boolean;
+      invertBalance?: boolean;
+    },
+  ) => request<{ ok: boolean }>(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
   // Quick Import
   quickImportParse: (text: string) =>
     request<{

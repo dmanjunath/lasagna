@@ -111,7 +111,7 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Brand */}
       <div className="px-4 pt-6 pb-5">
         <div className="flex items-center gap-2.5 px-2">
-          <Logo width={22} animate={false} />
+          <Logo width={22} />
           <span className="lf-wordmark text-lg text-text">
             Lasagna<span className="fi">fi</span>
           </span>

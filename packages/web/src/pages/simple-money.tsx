@@ -15,6 +15,8 @@ import {
   Pill,
   EmptyState,
   AccountRow,
+  AccountSettingsModal,
+  type AccountSettingsAccount,
   TransactionRow,
   ChartHover,
   SkeletonChart,
@@ -38,6 +40,9 @@ interface Item {
     mask: string | null;
     balance: string | null;
     currency: string;
+    excludeFromNetWorth?: boolean;
+    excludeTransactions?: boolean;
+    invertBalance?: boolean;
   }>;
 }
 interface NetWorthPoint { date: string; value: number; }
@@ -51,6 +56,11 @@ interface Insight {
 
 const fmtUsd = (n: number, frac = 0) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
+
+// Balance with the user's invert override applied — used everywhere a balance
+// feeds a total or a row value so the UI matches the server's net-worth math.
+const effectiveBalance = (a: { balance: string | null; invertBalance?: boolean }) =>
+  (a.invertBalance ? -1 : 1) * parseFloat(a.balance ?? '0');
 
 const formatDateLong = (d: Date) =>
   d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
@@ -137,13 +147,18 @@ export function SimpleMoney() {
   const realEstateAccounts = allAccounts.filter((a) => a.type === 'real_estate');
   const altAccounts = allAccounts.filter((a) => a.type === 'alternative');
   const debtAccounts = allAccounts.filter((a) => a.type === 'credit' || a.type === 'loan');
-  const sumBalances = (arr: typeof allAccounts) => arr.reduce((s, a) => s + parseFloat(a.balance ?? '0'), 0);
+  // Subtotals skip accounts the user excluded from net worth and respect the
+  // invert override, so they reconcile with the net-worth figure and the chart.
+  const sumBalances = (arr: typeof allAccounts) =>
+    arr.filter((a) => !a.excludeFromNetWorth).reduce((s, a) => s + effectiveBalance(a), 0);
   const cashTotal = sumBalances(cashAccounts);
   const investTotal = sumBalances(investAccounts);
   const realEstateTotal = sumBalances(realEstateAccounts);
   const altTotal = sumBalances(altAccounts);
   const assetsTotal = realEstateTotal + altTotal;
-  const debtTotal = debtAccounts.reduce((s, a) => s + Math.abs(parseFloat(a.balance ?? '0')), 0);
+  const debtTotal = debtAccounts
+    .filter((a) => !a.excludeFromNetWorth)
+    .reduce((s, a) => s + Math.abs(effectiveBalance(a)), 0);
   const netWorth = cashTotal + investTotal + assetsTotal - debtTotal;
   // Gross assets = the asset base shared with the Home composition ribbon.
   // Section shares are expressed against this (not net worth) so the same
@@ -550,26 +565,9 @@ function AccountSection({
   onRefresh: () => Promise<void> | void;
 }) {
   const confirm = useConfirm();
-  // Manual-account rename: a small controlled modal (the row is a shared ds
-  // primitive, so an inline field inside it isn't available here). Holds the
-  // account being renamed plus the draft name.
-  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  const [renameDraft, setRenameDraft] = useState('');
-  const [savingRename, setSavingRename] = useState(false);
-
-  const submitRename = async () => {
-    if (!renaming) return;
-    const next = renameDraft.trim();
-    if (!next || next === renaming.name) { setRenaming(null); return; }
-    setSavingRename(true);
-    try {
-      await api.updateManualAccount(renaming.id, { name: next });
-      await onRefresh();
-      setRenaming(null);
-    } finally {
-      setSavingRename(false);
-    }
-  };
+  // Per-account settings modal (rename, reclassify, balance overrides). The row
+  // is a shared ds primitive, so the editor lives here at the section level.
+  const [settingsFor, setSettingsFor] = useState<AccountSettingsAccount | null>(null);
 
   const types = Array.isArray(filterType) ? filterType : [filterType];
   const accounts = items.flatMap((item) =>
@@ -592,12 +590,13 @@ function AccountSection({
       actions={
         // Iter 5: sync icon is now absolutely positioned and no longer takes
         // flex space, so AccountRow's value column ends 16px inside the card
-        // right edge (matches `.ds-row` padding-right). Subtotal uses the
-        // same offset so $ values share a single right edge with the rows
-        // below, and with all other section subtotals across the page.
+        // right edge. The rows now carry a ⋯ menu slot to the right of their
+        // value (28px slot + 10px gap, flush to the 16px padding), so the row
+        // values sit 54px in from the card edge. The subtotal matches that
+        // offset so all $ values share one right edge down the page.
         <span
           className={`ds-money-grid__value ds-num ${totalTone === 'neg' ? 'ds-neg' : ''}`}
-          style={{ fontSize: 18, fontWeight: 500, width: '12ch', marginRight: 16 }}
+          style={{ fontSize: 18, fontWeight: 500, width: '12ch', marginRight: 54 }}
         >
           {totalTone === 'neg' ? '−' : ''}{fmtUsd(total)}
         </span>
@@ -635,31 +634,57 @@ function AccountSection({
 
       <Card flush>
         {accounts.map((acct) => {
-          const bal = parseFloat(acct.balance ?? '0');
+          const bal = effectiveBalance(acct);
           const institution = acct.item.institutionName || 'Manual';
-          const metaParts: string[] = [];
-          metaParts.push(institution);
-          if (acct.subtype) metaParts.push(titleCase(acct.subtype));
-          if (acct.mask) metaParts.push(`··${acct.mask}`);
-          if (acct.item.lastSyncedAt) metaParts.push(relativeTime(acct.item.lastSyncedAt));
+          const metaSegs: string[] = [institution];
+          if (acct.subtype) metaSegs.push(titleCase(acct.subtype));
+          if (acct.mask) metaSegs.push(`··${acct.mask}`);
+          const synced = acct.item.lastSyncedAt ? relativeTime(acct.item.lastSyncedAt) : null;
+          const meta = (
+            <>
+              {metaSegs.map((seg, i) => (
+                <span key={i}>
+                  {i > 0 && <span className="ds-row__meta-dot">·</span>}
+                  {seg}
+                </span>
+              ))}
+              {synced && (
+                <>
+                  <span className="ds-row__meta-dot">·</span>
+                  <span className="ds-row__meta-time">{synced}</span>
+                </>
+              )}
+            </>
+          );
           const isManual = acct.item.institutionId === 'manual';
+          const badges: string[] = [];
+          if (acct.excludeFromNetWorth) badges.push('Not counted');
+          if (acct.invertBalance) badges.push('Inverted');
           return (
             <AccountRow
               key={acct.id}
               institution={institution}
               name={titleCase(acct.name)}
-              meta={metaParts.join(' · ')}
+              meta={meta}
+              badges={badges}
               value={bal}
               negative={totalTone === 'neg'}
-              // Plaid accounts get sync only; manual accounts get rename/
-              // delete (no Plaid item to sync). The action group surfaces
-              // only the applicable buttons per account.
+              // Every account gets a settings entry; Plaid accounts also get
+              // sync, manual accounts also get delete. The ⋯ menu surfaces only
+              // the applicable items per account.
+              onSettings={() => setSettingsFor({
+                id: acct.id,
+                name: acct.name,
+                type: acct.type,
+                subtype: acct.subtype,
+                isManual,
+                balance: parseFloat(acct.balance ?? '0'),
+                excludeFromNetWorth: acct.excludeFromNetWorth,
+                excludeTransactions: acct.excludeTransactions,
+                invertBalance: acct.invertBalance,
+              })}
               onSync={isManual ? undefined : () => onSync(acct.item.id)}
               syncing={syncing === acct.item.id}
-              onEdit={isManual ? () => {
-                setRenaming({ id: acct.id, name: acct.name });
-                setRenameDraft(acct.name);
-              } : undefined}
               onDelete={isManual ? async () => {
                 const ok = await confirm({
                   title: `Delete "${titleCase(acct.name)}"?`,
@@ -677,52 +702,12 @@ function AccountSection({
         })}
       </Card>
     </Section>
-    {renaming && (
-      <div
-        className="ds-confirm__backdrop"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Rename account"
-        onClick={(e) => { if (e.target === e.currentTarget) setRenaming(null); }}
-      >
-        <div className="ds-confirm">
-          <h3 className="ds-confirm__title">Rename account</h3>
-          <input
-            type="text"
-            value={renameDraft}
-            onChange={(e) => setRenameDraft(e.target.value)}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submitRename();
-              if (e.key === 'Escape') setRenaming(null);
-            }}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              margin: '4px 0 4px',
-              background: 'var(--lf-cream)',
-              border: '1px solid var(--lf-rule)',
-              borderRadius: 8,
-              fontSize: 16,
-              color: 'var(--lf-ink)',
-              outline: 'none',
-              boxSizing: 'border-box',
-              fontFamily: 'inherit',
-            }}
-          />
-          <div className="ds-confirm__actions">
-            <Button variant="ghost" onClick={() => setRenaming(null)}>Cancel</Button>
-            <button
-              type="button"
-              onClick={submitRename}
-              disabled={savingRename || !renameDraft.trim()}
-              className="ds-btn ds-btn--primary"
-            >
-              {savingRename ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </div>
-      </div>
+    {settingsFor && (
+      <AccountSettingsModal
+        account={settingsFor}
+        onClose={() => setSettingsFor(null)}
+        onSaved={onRefresh}
+      />
     )}
     </>
   );

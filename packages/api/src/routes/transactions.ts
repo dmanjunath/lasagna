@@ -1,7 +1,8 @@
 import { Hono } from "hono";
-import { eq, and, sql, desc, transactions } from "@lasagna/core";
+import { eq, and, sql, desc, notInArray, transactions } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import { excludedTxnAccountIds } from "../lib/account-balances.js";
 
 export const transactionRoutes = new Hono<AuthEnv>();
 
@@ -29,6 +30,13 @@ transactionRoutes.get("/", async (c) => {
   }
   if (accountId) {
     conditions.push(eq(transactions.accountId, accountId));
+  } else {
+    // Hide transactions from accounts the user excluded from spending views.
+    // Only when not drilling into a specific account on purpose.
+    const excludedIds = await excludedTxnAccountIds(session.tenantId);
+    if (excludedIds.length > 0) {
+      conditions.push(notInArray(transactions.accountId, excludedIds));
+    }
   }
   if (search) {
     conditions.push(
@@ -112,6 +120,10 @@ transactionRoutes.get("/spending-summary", async (c) => {
     sql`${transactions.date} >= ${startDate.toISOString()}::timestamptz`,
     sql`${transactions.date} <= ${endDate.toISOString()}::timestamptz`,
   ];
+  const excludedIds = await excludedTxnAccountIds(session.tenantId);
+  if (excludedIds.length > 0) {
+    conditions.push(notInArray(transactions.accountId, excludedIds));
+  }
 
   const rows = await db
     .select({
@@ -169,6 +181,7 @@ transactionRoutes.get("/monthly-trend", async (c) => {
   const now = new Date();
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
+  const trendExcludedIds = await excludedTxnAccountIds(session.tenantId);
   const rows = await db
     .select({
       month: sql<string>`to_char(${transactions.date}, 'YYYY-MM')`,
@@ -180,6 +193,9 @@ transactionRoutes.get("/monthly-trend", async (c) => {
       and(
         eq(transactions.tenantId, session.tenantId),
         sql`${transactions.date} >= ${sixMonthsAgo.toISOString()}::timestamptz`,
+        ...(trendExcludedIds.length > 0
+          ? [notInArray(transactions.accountId, trendExcludedIds)]
+          : []),
       ),
     )
     .orderBy(sql`to_char(${transactions.date}, 'YYYY-MM')`);

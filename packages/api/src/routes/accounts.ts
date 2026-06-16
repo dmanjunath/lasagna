@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, desc, and, sql, accounts, balanceSnapshots, parseLoanMetadata } from "@lasagna/core";
+import { eq, desc, and, sql, accounts, balanceSnapshots, parseLoanMetadata, accountTypeEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
 
 export const accountRoutes = new Hono<AuthEnv>();
 
@@ -31,15 +32,21 @@ accountRoutes.get("/balances", async (c) => {
         where: eq(balanceSnapshots.accountId, acct.id),
         orderBy: [desc(balanceSnapshots.snapshotAt)],
       });
+      const rawBalance = latest?.balance ? parseFloat(latest.balance) : null;
       return {
         accountId: acct.id,
         name: acct.name,
         type: acct.type,
         mask: acct.mask,
         balance: latest?.balance ?? null,
+        effectiveBalance:
+          rawBalance == null ? null : acct.invertBalance ? -rawBalance : rawBalance,
         available: latest?.available ?? null,
         currency: latest?.isoCurrencyCode ?? "USD",
         asOf: latest?.snapshotAt ?? null,
+        excludeFromNetWorth: acct.excludeFromNetWorth,
+        excludeTransactions: acct.excludeTransactions,
+        invertBalance: acct.invertBalance,
       };
     }),
   );
@@ -59,8 +66,14 @@ accountRoutes.get("/net-worth/history", async (c) => {
     return c.json({ history: [] });
   }
 
-  const liabilityTypes = new Set(["credit", "loan"]);
-  const accountTypeMap = new Map(accts.map((a) => [a.id, a.type]));
+  // Per-account overrides for the aggregation below: skip excluded accounts,
+  // flip the sign on inverted ones, and keep the liability convention.
+  const acctMeta = new Map(
+    accts.map((a) => [
+      a.id,
+      { type: a.type, invert: a.invertBalance, exclude: a.excludeFromNetWorth },
+    ]),
+  );
 
   // Get latest snapshot per account per day
   const rows = await db
@@ -101,9 +114,11 @@ accountRoutes.get("/net-worth/history", async (c) => {
   const history = allDates.map((date) => {
     let total = 0;
     for (const [acctId, dateBalMap] of accountBalances) {
-      const bal = dateBalMap.get(date) || 0;
-      const type = accountTypeMap.get(acctId);
-      total += type && liabilityTypes.has(type) ? -Math.abs(bal) : bal;
+      const m = acctMeta.get(acctId);
+      if (!m || m.exclude) continue;
+      let bal = dateBalMap.get(date) || 0;
+      if (m.invert) bal = -bal;
+      total += LIABILITY_TYPES.has(m.type) ? -Math.abs(bal) : bal;
     }
     return { date, value: Math.round(total * 100) / 100 };
   });
@@ -119,6 +134,7 @@ accountRoutes.get("/debts", async (c) => {
     where: and(
       eq(accounts.tenantId, session.tenantId),
       sql`${accounts.type} IN ('credit', 'loan')`,
+      eq(accounts.excludeFromNetWorth, false),
     ),
   });
 
@@ -365,4 +381,48 @@ accountRoutes.patch("/:id/loan-details", async (c) => {
     .where(eq(accounts.id, accountId));
 
   return c.json({ metadata });
+});
+
+// Update account settings — classification and per-account overrides.
+// Works for both Plaid and manual accounts; type/subtype reclassification
+// sticks across syncs (sync only sets type/subtype on first insert).
+accountRoutes.patch("/:id", async (c) => {
+  const session = c.get("session");
+  const accountId = c.req.param("id");
+
+  const acct = await db.query.accounts.findFirst({
+    where: eq(accounts.id, accountId),
+  });
+  if (!acct || acct.tenantId !== session.tenantId) {
+    return c.json({ error: "Account not found" }, 404);
+  }
+
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const bodySchema = z
+    .object({
+      type: z.enum(accountTypeEnum.enumValues),
+      subtype: z.string().max(100).nullable(),
+      excludeFromNetWorth: z.boolean(),
+      excludeTransactions: z.boolean(),
+      invertBalance: z.boolean(),
+    })
+    .partial();
+
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
+  }
+  if (Object.keys(parsed.data).length === 0) {
+    return c.json({ error: "No fields to update" }, 400);
+  }
+
+  await db.update(accounts).set(parsed.data).where(eq(accounts.id, accountId));
+
+  return c.json({ ok: true });
 });

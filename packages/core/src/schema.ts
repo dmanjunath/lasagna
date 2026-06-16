@@ -187,6 +187,12 @@ export const accounts = pgTable("accounts", {
   apr: numeric("apr", { precision: 6, scale: 4 }), // annual % rate on debts (credit/loan)
   apy: numeric("apy", { precision: 6, scale: 4 }), // annual % yield on deposits (savings)
   metadata: text("metadata"), // JSON string for loan details, property info, etc.
+  // User overrides — when an account's contribution to totals should differ
+  // from its raw synced balance. Honored everywhere balances are aggregated
+  // (net worth, debts, chat tools, insights, priorities, portfolio).
+  excludeFromNetWorth: boolean("exclude_from_net_worth").notNull().default(false),
+  excludeTransactions: boolean("exclude_transactions").notNull().default(false),
+  invertBalance: boolean("invert_balance").notNull().default(false), // flip the sign of the balance at point of use
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

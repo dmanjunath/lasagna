@@ -1,7 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "../../lib/db.js";
-import { transactions, eq, and, sql } from "@lasagna/core";
+import { transactions, eq, and, sql, notInArray } from "@lasagna/core";
+import { excludedTxnAccountIds } from "../../lib/account-balances.js";
 
 export function createSpendingTools(tenantId: string) {
   return {
@@ -32,6 +33,8 @@ export function createSpendingTools(tenantId: string) {
         const monthStart = new Date(year, mon, 1);
         const monthEnd = new Date(year, mon + 1, 0, 23, 59, 59);
 
+        const excludedIds = await excludedTxnAccountIds(tenantId);
+
         // Spending by category
         const categoryRows = await db
           .select({
@@ -46,7 +49,10 @@ export function createSpendingTools(tenantId: string) {
               sql`${transactions.amount} > 0`,
               sql`${transactions.category} NOT IN ('income', 'transfer')`,
               sql`${transactions.date} >= ${monthStart.toISOString()}`,
-              sql`${transactions.date} <= ${monthEnd.toISOString()}`
+              sql`${transactions.date} <= ${monthEnd.toISOString()}`,
+              ...(excludedIds.length > 0
+                ? [notInArray(transactions.accountId, excludedIds)]
+                : [])
             )
           )
           .groupBy(transactions.category)
@@ -67,7 +73,10 @@ export function createSpendingTools(tenantId: string) {
               sql`${transactions.category} NOT IN ('income', 'transfer')`,
               sql`${transactions.merchantName} IS NOT NULL`,
               sql`${transactions.date} >= ${monthStart.toISOString()}`,
-              sql`${transactions.date} <= ${monthEnd.toISOString()}`
+              sql`${transactions.date} <= ${monthEnd.toISOString()}`,
+              ...(excludedIds.length > 0
+                ? [notInArray(transactions.accountId, excludedIds)]
+                : [])
             )
           )
           .groupBy(transactions.merchantName)
@@ -85,7 +94,10 @@ export function createSpendingTools(tenantId: string) {
               eq(transactions.tenantId, tenantId),
               sql`${transactions.amount} < 0`,
               sql`${transactions.date} >= ${monthStart.toISOString()}`,
-              sql`${transactions.date} <= ${monthEnd.toISOString()}`
+              sql`${transactions.date} <= ${monthEnd.toISOString()}`,
+              ...(excludedIds.length > 0
+                ? [notInArray(transactions.accountId, excludedIds)]
+                : [])
             )
           );
 

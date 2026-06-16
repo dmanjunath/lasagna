@@ -1,6 +1,7 @@
 import { Hono } from "hono";
-import { eq, desc, and, sql, accounts, balanceSnapshots, financialProfiles, transactions, goals } from "@lasagna/core";
+import { eq, desc, and, sql, notInArray, accounts, balanceSnapshots, financialProfiles, transactions, goals } from "@lasagna/core";
 import { db } from "../lib/db.js";
+import { excludedTxnAccountIds } from "../lib/account-balances.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { z } from "zod";
 import { type UserFinancialContext } from '../lib/layer-selector.js';
@@ -25,7 +26,8 @@ priorityRoutes.get("/", async (c) => {
             where: eq(balanceSnapshots.accountId, acct.id),
             orderBy: [desc(balanceSnapshots.snapshotAt)],
           });
-          return { ...acct, balance: parseFloat(latest?.balance ?? "0") };
+          const rawBalance = parseFloat(latest?.balance ?? "0");
+          return { ...acct, balance: acct.invertBalance ? -rawBalance : rawBalance };
         })
       );
     })(),
@@ -60,6 +62,7 @@ priorityRoutes.get("/", async (c) => {
   let hasOverdraft = false, hasESPP = false, hasPension = false, has457b = false, has403b = false, hasInheritedIRA = false;
 
   for (const acct of accts) {
+    if (acct.excludeFromNetWorth) continue;
     const balance = Math.abs(acct.balance);
     const sub = (acct.subtype || acct.name || "").toLowerCase();
 
@@ -112,6 +115,7 @@ priorityRoutes.get("/", async (c) => {
   // Monthly expenses from last 30 days of transactions
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const excludedTxnIds = await excludedTxnAccountIds(session.tenantId);
   const [txnResult] = await db
     .select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
     .from(transactions)
@@ -120,6 +124,7 @@ priorityRoutes.get("/", async (c) => {
       sql`${transactions.amount} > 0`,
       sql`${transactions.category} != 'transfer'`,
       sql`${transactions.date} >= ${thirtyDaysAgo.toISOString().split('T')[0]}`,
+      ...(excludedTxnIds.length > 0 ? [notInArray(transactions.accountId, excludedTxnIds)] : []),
     ));
   const realMonthlyExpenses = parseFloat(txnResult?.total ?? "0");
   const hasTransactionData = realMonthlyExpenses > 0;

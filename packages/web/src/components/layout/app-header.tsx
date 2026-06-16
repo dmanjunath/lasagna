@@ -23,7 +23,7 @@ export function AppHeader({
       <div className="max-w-md md:max-w-none md:px-6 mx-auto px-4 h-14 flex items-center gap-2">
         <div className="w-11 -ml-2 shrink-0 flex items-center">{leadingSlot}</div>
         <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
-          <Logo width={20} animate={false} />
+          <Logo width={20} />
           <span className="lf-wordmark text-[15px] text-text leading-none">
             Lasagna<span className="fi">fi</span>
           </span>

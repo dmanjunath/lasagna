@@ -11,7 +11,6 @@ import {
   Building2,
   ChevronDown,
   ChevronRight,
-  Trash2,
   MoreHorizontal,
 } from "lucide-react";
 import {
@@ -22,6 +21,8 @@ import {
   Eyebrow,
   EmptyState,
   useConfirm,
+  RowMenu,
+  AccountSettingsModal,
 } from "../components/ds";
 import { api } from "../lib/api.js";
 
@@ -75,6 +76,9 @@ interface Account {
   balance: string | null;
   currency: string;
   metadata?: { linkedAccountId?: string; [key: string]: unknown } | null;
+  excludeFromNetWorth?: boolean;
+  excludeTransactions?: boolean;
+  invertBalance?: boolean;
 }
 
 interface PlaidItem {
@@ -602,6 +606,7 @@ export function Accounts() {
                 onSync={() => handleSyncItem(item.id)}
                 onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Unknown Bank")}
                 onDeleteAccount={handleDeleteAccount}
+                onRefresh={() => loadItems(false)}
                 allAccounts={allAccounts}
               />
             ))}
@@ -630,6 +635,7 @@ export function Accounts() {
                   onSync={() => {}}
                   onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
                   onDeleteAccount={handleDeleteAccount}
+                  onRefresh={() => loadItems(false)}
                   allAccounts={allAccounts}
                 />
               ))}
@@ -656,6 +662,7 @@ export function Accounts() {
                   onSync={() => {}}
                   onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
                   onDeleteAccount={handleDeleteAccount}
+                  onRefresh={() => loadItems(false)}
                   allAccounts={allAccounts}
                 />
               ))}
@@ -971,6 +978,7 @@ function InstitutionArticle({
   onSync,
   onDisconnect,
   onDeleteAccount,
+  onRefresh,
   allAccounts,
 }: {
   refCallback: (el: HTMLElement | null) => void;
@@ -985,6 +993,7 @@ function InstitutionArticle({
   onSync: () => void;
   onDisconnect: () => void;
   onDeleteAccount: (id: string, name: string) => void;
+  onRefresh: () => void;
   allAccounts: Account[];
 }) {
   const isError = item.status === "error" || item.status === "item_login_required";
@@ -1077,6 +1086,7 @@ function InstitutionArticle({
                   account={account}
                   isManual={isManual}
                   onDelete={() => onDeleteAccount(account.id, account.name)}
+                  onRefresh={onRefresh}
                   linkedAccountName={account.metadata?.linkedAccountId
                     ? allAccounts.find((a) => a.id === account.metadata?.linkedAccountId)?.name ?? null
                     : null}
@@ -1186,15 +1196,27 @@ function InstitutionArticle({
 // Account row
 // ---------------------------------------------------------------------------
 
-function AccountRow({ account, isManual, onDelete, linkedAccountName }: {
+function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName }: {
   account: Account; isManual: boolean; onDelete: () => void;
+  onRefresh: () => void;
   linkedAccountName: string | null;
 }) {
   const balance = account.balance !== null ? parseFloat(account.balance) : null;
   const isNegative = balance !== null && balance < 0;
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const openSettings = () => setSettingsOpen(true);
 
   return (
-    <div className="ds-acctrow">
+    <>
+    <div
+      className="ds-acctrow"
+      role="button"
+      tabIndex={0}
+      aria-label={`Edit ${account.name}`}
+      onClick={openSettings}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSettings(); } }}
+    >
       <div className="ds-acctrow__name">
         <span className="ds-acctrow__name-main">
           {account.name}
@@ -1225,25 +1247,28 @@ function AccountRow({ account, isManual, onDelete, linkedAccountName }: {
           : "—"}
       </span>
 
-      {isManual && (
-        <Button
-          variant="icon"
-          size="sm"
-          aria-label={`Remove ${account.name}`}
-          onClick={onDelete}
-          className="ds-inst__icon-danger"
-        >
-          <Trash2 size={13} />
-        </Button>
-      )}
+      <RowMenu
+        name={account.name}
+        onSettings={openSettings}
+        onSync={isManual ? undefined : async () => {
+          setSyncing(true);
+          try { await api.syncAccount(account.id); await onRefresh(); }
+          finally { setSyncing(false); }
+        }}
+        syncing={syncing}
+        onDelete={isManual ? onDelete : undefined}
+      />
 
       <style>{`
         .ds-acctrow {
           display: flex; align-items: center;
-          padding: 10px 0;
+          padding: 8px 0;
           gap: 12px;
           border-top: 1px solid var(--lf-rule-soft);
+          cursor: pointer;
+          transition: background 0.12s;
         }
+        .ds-acctrow:hover { background: rgba(31, 26, 22, 0.025); }
         .ds-acctrow:first-child { border-top: 0; }
         .ds-acctrow__name {
           flex: 1; min-width: 0;
@@ -1257,6 +1282,24 @@ function AccountRow({ account, isManual, onDelete, linkedAccountName }: {
         }
       `}</style>
     </div>
+    {settingsOpen && (
+      <AccountSettingsModal
+        account={{
+          id: account.id,
+          name: account.name,
+          type: account.type,
+          subtype: account.subtype,
+          isManual,
+          balance: balance ?? 0,
+          excludeFromNetWorth: account.excludeFromNetWorth,
+          excludeTransactions: account.excludeTransactions,
+          invertBalance: account.invertBalance,
+        }}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={onRefresh}
+      />
+    )}
+    </>
   );
 }
 

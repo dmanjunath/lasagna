@@ -51,6 +51,7 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
     for (const h of holdingsArray) {
       const sec = securitiesMap.get(h.securityId);
       const acct = accountsMap.get(h.accountId);
+      if (acct?.excludeFromNetWorth) continue;
       if (sec && acct) {
         holdingsInput.push({
           ticker: sec.tickerSymbol || 'UNKNOWN',
@@ -70,6 +71,7 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
     where: and(
       eq(accounts.tenantId, tenantId),
       sql`${accounts.type} = 'depository'`,
+      eq(accounts.excludeFromNetWorth, false),
     ),
   });
 
@@ -78,7 +80,8 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
       where: eq(balanceSnapshots.accountId, acct.id),
       orderBy: desc(balanceSnapshots.snapshotAt),
     });
-    const balance = parseFloat(latest?.balance ?? "0");
+    const raw = parseFloat(latest?.balance ?? "0");
+    const balance = acct.invertBalance ? -raw : raw;
     if (balance > 0) {
       holdingsInput.push({
         ticker: 'CASH',
@@ -106,11 +109,13 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
 
   for (const acct of investmentAccts) {
     if (accountsWithRealHoldings.has(acct.id)) continue;
+    if (acct.excludeFromNetWorth) continue;
     const latest = await db.query.balanceSnapshots.findFirst({
       where: eq(balanceSnapshots.accountId, acct.id),
       orderBy: desc(balanceSnapshots.snapshotAt),
     });
-    const balance = parseFloat(latest?.balance ?? "0");
+    const raw = parseFloat(latest?.balance ?? "0");
+    const balance = acct.invertBalance ? -raw : raw;
     if (balance <= 0) continue;
 
     const stockValue = balance * 0.6;

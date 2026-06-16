@@ -1,5 +1,5 @@
-import { ReactNode, useState } from 'react';
-import { RefreshCw, Pencil, Trash2 } from 'lucide-react';
+import { ReactNode, useState, useRef, useEffect } from 'react';
+import { RefreshCw, Trash2, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
 import { faviconUrl, institutionDomainFor } from './institutions';
 
 export interface AccountRowProps {
@@ -11,17 +11,19 @@ export interface AccountRowProps {
   name: string;
   /** Sub-line metadata: mask, type, account number, last sync, etc. */
   meta?: ReactNode;
+  /** Small state chips appended to the meta line — "Not counted", "Inverted". */
+  badges?: string[];
   /** Primary balance value. */
   value: number;
   /** Optional delta below value, rendered tabular and muted. */
   delta?: ReactNode;
-  /** Optional sync callback — exposes a hover-revealed sync icon on desktop. */
+  /** Optional sync callback — adds a "Sync now" item to the overflow menu. */
   onSync?: () => void;
   /** Whether the sync action is currently in flight. */
   syncing?: boolean;
-  /** Optional rename callback — shown when provided (manual accounts only). */
-  onEdit?: () => void;
-  /** Optional delete callback — shown when provided (manual accounts only). */
+  /** Opens the account settings modal — adds "Account settings" to the menu. */
+  onSettings?: () => void;
+  /** Optional delete callback — adds "Delete account" to the menu (manual only). */
   onDelete?: () => void;
   /** Format the value (caller-controlled so currency formatting stays consistent). */
   formatValue?: (n: number) => string;
@@ -36,25 +38,28 @@ const defaultFmt = (n: number) =>
  * AccountRow — shared primitive for any account/holding-style list row.
  *
  * Layout contract:
- * - Desktop 52px tall, mobile 56px tall.
+ * - Desktop 60px tall, mobile 64px tall.
  * - Left: 28×28 institution favicon (Google s2) with a monogram fallback.
- *   Monogram bg is neutral grayscale — NOT sauce/teal/cheese — so it never
- *   shouts louder than the value.
  * - Primary line: account name (truncate, full name in title attr).
- * - Eyebrow under name: institution + mask + type (caller-supplied via `meta`).
- * - Right: value (always visible, tabular-nums), delta below in 11px muted.
- * - Mobile rule: $ value never collapses. Truncate names; never wrap to 6 lines.
+ * - Eyebrow under name: institution + mask + type (caller-supplied via `meta`),
+ *   plus optional state chips.
+ * - A `⋯` overflow menu sits just left of the value. Its slot is always
+ *   reserved so the value NEVER moves — the balance stays visible at all times
+ *   (the old hover-slide hid the balance behind the action buttons). The icon
+ *   itself fades in on hover/focus on desktop; it's always shown on touch.
+ * - Right: value (always visible, tabular-nums, pinned right), delta below.
  */
 export function AccountRow({
   institution,
   institutionDomain,
   name,
   meta,
+  badges,
   value,
   delta,
   onSync,
   syncing,
-  onEdit,
+  onSettings,
   onDelete,
   formatValue = defaultFmt,
   negative,
@@ -63,57 +68,172 @@ export function AccountRow({
   const icon = faviconUrl(resolvedDomain, 64);
   const monogram = (institution || '?').trim().charAt(0).toUpperCase();
   const formatted = formatValue(Math.abs(value));
-  const display = negative ? `−${formatted}` : formatted;
-  const actionCount = (onEdit ? 1 : 0) + (onSync ? 1 : 0) + (onDelete ? 1 : 0);
+  // Debt sections force a leading − (negative). Elsewhere, show a sign only
+  // when the value is actually negative (e.g. an inverted asset balance).
+  const showNeg = negative || value < 0;
+  const display = showNeg ? `−${formatted}` : formatted;
+  const hasMenu = Boolean(onSettings || onSync || onDelete);
+
+  const hasBadges = Boolean(badges && badges.length > 0);
+  // The whole row opens settings (the ⋯ menu's clicks stop propagation so they
+  // don't double-fire). Gives a big, discoverable tap target for editing.
+  const clickable = Boolean(onSettings);
 
   return (
     <div
-      className="ds-row ds-row--account"
-      data-actions={actionCount > 0 ? actionCount : undefined}
+      className={`ds-row ds-row--account${clickable ? ' ds-row--clickable' : ''}`}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-label={clickable ? `Edit ${name}` : undefined}
+      onClick={clickable ? onSettings : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSettings!(); } }
+          : undefined
+      }
     >
       <Favicon icon={icon} monogram={monogram} alt={institution} />
       <div className="ds-row__main">
         <div className="ds-row__primary" title={name}>{name}</div>
-        {meta && <div className="ds-row__meta">{meta}</div>}
+        {(meta || hasBadges) && (
+          <div className="ds-row__meta-line">
+            {meta && <span className="ds-row__meta">{meta}</span>}
+            {badges?.map((b) => (
+              <span key={b} className="ds-row__badge">{b}</span>
+            ))}
+          </div>
+        )}
       </div>
       <div className="ds-row__right">
-        <span className={`ds-row__value ds-num${negative ? ' ds-neg' : ''}`}>{display}</span>
+        <span className={`ds-row__value ds-num${showNeg ? ' ds-neg' : ''}`}>{display}</span>
         {delta && <span className="ds-row__delta ds-num">{delta}</span>}
       </div>
-      {actionCount > 0 && (
-        <div className="ds-row__actions" role="group" aria-label={`Actions for ${name}`}>
-          {onEdit && (
+      {hasMenu && (
+        <RowMenu
+          name={name}
+          onSettings={onSettings}
+          onSync={onSync}
+          syncing={syncing}
+          onDelete={onDelete}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * RowMenu — the `⋯` overflow trigger and its popover, pinned to the row's right
+ * edge so it sits in one predictable place (hugging the value) rather than
+ * floating in the gap. The trigger stays faintly visible at rest so the actions
+ * are discoverable without hover-hunting, and shows a spinner while syncing so
+ * "Sync now" gives feedback even after the menu closes.
+ */
+export function RowMenu({
+  name,
+  onSettings,
+  onSync,
+  syncing,
+  onDelete,
+}: {
+  name: string;
+  onSettings?: () => void;
+  onSync?: () => void;
+  syncing?: boolean;
+  onDelete?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  // Flip the popover above the trigger when there isn't room below (last rows).
+  const openMenu = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) setDropUp(window.innerHeight - rect.bottom < 200);
+    setOpen(true);
+  };
+
+  const closeMenu = (returnFocus = false) => {
+    setOpen(false);
+    if (returnFocus) triggerRef.current?.focus();
+  };
+
+  // On open, move focus into the menu; on outside-click / Escape, close it.
+  useEffect(() => {
+    if (!open) return;
+    popRef.current?.querySelector<HTMLButtonElement>('.ds-row__menu-item')?.focus();
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); closeMenu(true); }
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div
+      className={`ds-row__menu${open ? ' ds-row__menu--open' : ''}${syncing ? ' ds-row__menu--busy' : ''}`}
+      ref={ref}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        ref={triggerRef}
+        className="ds-row__menu-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={syncing ? `Syncing ${name}` : `Actions for ${name}`}
+        onClick={() => (open ? closeMenu() : openMenu())}
+      >
+        {syncing ? <RefreshCw size={15} className="animate-spin" /> : <MoreHorizontal size={16} />}
+      </button>
+      {open && (
+        <div
+          ref={popRef}
+          className={`ds-row__menu-pop${dropUp ? ' ds-row__menu-pop--up' : ''}`}
+          role="menu"
+          aria-label={`Actions for ${name}`}
+        >
+          {onSettings && (
             <button
               type="button"
-              className="ds-row__action"
-              onClick={onEdit}
-              title="Rename"
-              aria-label={`Rename ${name}`}
+              role="menuitem"
+              className="ds-row__menu-item"
+              onClick={() => { closeMenu(); onSettings(); }}
             >
-              <Pencil size={14} />
+              <SlidersHorizontal size={14} />
+              Account settings
             </button>
           )}
           {onSync && (
             <button
               type="button"
-              className="ds-row__action"
-              onClick={onSync}
+              role="menuitem"
+              className="ds-row__menu-item"
               disabled={syncing}
-              title={`Sync ${institution}`}
-              aria-label={`Sync ${institution}`}
+              onClick={() => { closeMenu(); onSync(); }}
             >
               <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Syncing…' : 'Sync now'}
             </button>
           )}
           {onDelete && (
             <button
               type="button"
-              className="ds-row__action ds-row__action--danger"
-              onClick={onDelete}
-              title="Delete"
-              aria-label={`Delete ${name}`}
+              role="menuitem"
+              className="ds-row__menu-item ds-row__menu-item--danger"
+              onClick={() => { closeMenu(); onDelete(); }}
             >
               <Trash2 size={14} />
+              Delete account
             </button>
           )}
         </div>
