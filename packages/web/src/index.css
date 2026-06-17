@@ -2567,3 +2567,32 @@
 @media (prefers-reduced-motion: reduce) {
   .ds-skeleton { animation: none; }
 }
+
+/* ============================================================
+   Goal account/preset chips — shared by the goals list create
+   form and the savings-goal detail "Manage accounts" editor.
+   Global so they render correctly on both routes (the detail
+   page does not mount the list page's inline <style>).
+   ============================================================ */
+.goals-presets {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.goals-preset {
+  padding: 6px 14px; border-radius: 20px;
+  border: 1px solid var(--lf-rule);
+  background: transparent; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 500;
+  color: var(--lf-muted);
+  transition: all 0.15s;
+}
+.goals-preset:hover { color: var(--lf-ink); }
+.goals-preset:focus-visible {
+  outline: 2px solid var(--lf-rule);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .goals-preset {
+    min-height: 44px;
+    padding-top: 0; padding-bottom: 0;
+  }
+}

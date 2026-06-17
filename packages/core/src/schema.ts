@@ -9,6 +9,7 @@ import {
   integer,
   jsonb,
   boolean,
+  unique,
 } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
@@ -525,7 +526,6 @@ export const goals = pgTable("goals", {
   category: varchar("category", { length: 50 }).notNull().default("savings"),
   status: goalStatusEnum("goal_status").notNull().default("active"),
   icon: varchar("icon", { length: 10 }),
-  linkedAccountId: uuid("linked_account_id").references(() => accounts.id, { onDelete: "set null" }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -533,6 +533,26 @@ export const goals = pgTable("goals", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+export const goalAccounts = pgTable(
+  "goal_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    goalId: uuid("goal_id")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    uniqGoalAccount: unique().on(t.goalId, t.accountId),
+  }),
+);
 
 // ── Tax Documents ─────────────────────────────────────────────────────────
 export const taxDocuments = pgTable("tax_documents", {

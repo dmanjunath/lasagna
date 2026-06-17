@@ -1,10 +1,7 @@
-import { useState, useEffect, ComponentType, ReactElement } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  Plus, Check, X, Trash2, ArrowRight,
-  Target, Shield, Home as HomeIcon, Plane, Car, Heart,
-  GraduationCap, Hammer, Sparkles, Palmtree, CreditCard, Wallet, Wrench,
-} from 'lucide-react';
+import { Plus, Check, Target, ArrowRight, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageActions } from '../components/common/page-actions';
 import {
@@ -14,62 +11,12 @@ import {
   Button,
   Eyebrow,
   EmptyState,
-  useConfirm,
 } from '../components/ds';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-// ---------------------------------------------------------------------------
-// Goal category → LasagnaFi color
-// ---------------------------------------------------------------------------
-
-function goalColor(category: string): string {
-  const c = category?.toLowerCase() ?? '';
-  if (c === 'home_purchase' || c === 'house' || c === 'home' || c.includes('down_payment') || c.includes('house')) return 'var(--lf-sauce)';
-  if (c === 'emergency_fund' || c === 'safety' || c.includes('emergency')) return 'var(--lf-basil)';
-  if (c === 'vacation' || c === 'travel' || c === 'relocation' || c.includes('travel') || c.includes('vacation')) return 'var(--lf-cheese)';
-  if (c === 'car' || c === 'vehicle' || c === 'transport' || c.includes('car')) return 'var(--lf-crust)';
-  if (c === 'wedding' || c === 'life_event' || c === 'life' || c.includes('wedding')) return 'var(--lf-burgundy)';
-  if (c === 'home_repair' || c === 'major_purchase' || c.includes('repair') || c.includes('major')) return 'var(--lf-crust)';
-  if (c === 'education' || c === 'retirement' || c.includes('education') || c.includes('retirement')) return 'var(--lf-noodle)';
-  if (c === 'debt_payoff' || c.includes('debt')) return 'var(--lf-muted)';
-  return 'var(--lf-muted)';
-}
+import { formatCurrency, goalColor, iconFor, toggleId, AccountChips, IconKey } from './goal-shared';
 
 // ---------------------------------------------------------------------------
 // Presets
 // ---------------------------------------------------------------------------
-
-// Lucide icon registry — neutral monochrome glyphs replace emoji per iter 2
-// critic. Stored as a stable string key so we can persist the choice (still
-// `goal.icon: string`) but render a real SVG via `iconFor()`.
-type IconKey =
-  | 'shield' | 'home' | 'plane' | 'car' | 'heart' | 'graduationCap'
-  | 'wrench' | 'sparkles' | 'palmtree' | 'creditCard' | 'wallet'
-  | 'target' | 'hammer';
-
-const ICON_REGISTRY: Record<IconKey, ComponentType<{ size?: number; className?: string }>> = {
-  shield: Shield, home: HomeIcon, plane: Plane, car: Car, heart: Heart,
-  graduationCap: GraduationCap, wrench: Wrench, sparkles: Sparkles,
-  palmtree: Palmtree, creditCard: CreditCard, wallet: Wallet,
-  target: Target, hammer: Hammer,
-};
-
-function iconFor(key: string | null | undefined, size = 20): ReactElement {
-  const Cmp = (key && ICON_REGISTRY[key as IconKey]) || Target;
-  return <Cmp size={size} />;
-}
 
 const GOAL_PRESETS: Array<{ name: string; category: string; icon: IconKey; suggestedTarget: number }> = [
   { name: 'Emergency Fund', category: 'emergency_fund', icon: 'shield', suggestedTarget: 25000 },
@@ -100,6 +47,8 @@ interface Goal {
   status: string;
   icon: string | null;
   createdAt: string;
+  accountIds: string[];
+  isAutoTracked: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,13 +56,11 @@ interface Goal {
 // ---------------------------------------------------------------------------
 
 export function Goals() {
-  const confirm = useConfirm();
+  const [, setLocation] = useLocation();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editAmount, setEditAmount] = useState('');
 
   // Create form state
   const [newName, setNewName] = useState('');
@@ -121,17 +68,31 @@ export function Goals() {
   const [newIcon, setNewIcon] = useState<string>('target');
   const [newDeadline, setNewDeadline] = useState('');
   const [newCategory, setNewCategory] = useState('savings');
+  const [accounts, setAccounts] = useState<Array<{ id: string; name: string; mask: string | null; type: string; balance: string | null }>>([]);
+  const [newAccountIds, setNewAccountIds] = useState<string[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     api.getGoals()
       .then(({ goals }) => setGoals(goals))
       .catch(console.error)
       .finally(() => setLoading(false));
+    api.getBalances()
+      .then(({ balances }) => setAccounts(
+        balances
+          // Only liquid, fundable accounts can back a savings goal. Liabilities
+          // (credit/loan) would track debt, and illiquid assets (real_estate,
+          // alternative) would slam progress to 100% instantly — drop both.
+          .filter(b => b.type === 'depository' || b.type === 'investment')
+          .map(b => ({ id: b.accountId, name: b.name, mask: b.mask, type: b.type, balance: b.balance }))
+      ))
+      .catch(console.error);
   }, []);
 
   const handleCreate = async () => {
     if (!newName || !newTarget) return;
     setCreating(true);
+    setFormError(null);
     try {
       await api.createGoal({
         name: newName,
@@ -139,6 +100,7 @@ export function Goals() {
         deadline: newDeadline || undefined,
         category: newCategory,
         icon: newIcon,
+        accountIds: newAccountIds,
       });
       const { goals: fresh } = await api.getGoals();
       setGoals(fresh);
@@ -148,49 +110,12 @@ export function Goals() {
       setNewIcon('target');
       setNewDeadline('');
       setNewCategory('savings');
+      setNewAccountIds([]);
     } catch (err) {
       console.error(err);
+      setFormError('Could not create goal. Please try again.');
     } finally {
       setCreating(false);
-    }
-  };
-
-  const handleUpdateAmount = async (id: string) => {
-    const amount = parseFloat(editAmount);
-    if (isNaN(amount)) return;
-    try {
-      await api.updateGoal(id, { currentAmount: amount });
-      setGoals(prev => prev.map(g => g.id === id ? { ...g, currentAmount: String(amount) } : g));
-      setEditingId(null);
-      setEditAmount('');
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    const goal = goals.find((g) => g.id === id);
-    const ok = await confirm({
-      title: goal ? `Delete "${goal.name}"?` : 'Delete this goal?',
-      body: 'The goal and its progress history will be removed. Linked savings accounts are kept.',
-      confirmLabel: 'Delete',
-      destructive: true,
-    });
-    if (!ok) return;
-    try {
-      await api.deleteGoal(id);
-      setGoals(prev => prev.filter(g => g.id !== id));
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleComplete = async (id: string) => {
-    try {
-      await api.updateGoal(id, { status: 'completed' });
-      setGoals(prev => prev.map(g => g.id === id ? { ...g, status: 'completed' } : g));
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -223,11 +148,16 @@ export function Goals() {
           border-radius: 12px;
           box-shadow: var(--shadow-card);
           padding: 18px 20px;
+          cursor: pointer;
           transition: box-shadow 0.18s ease, transform 0.18s ease;
         }
         .goals-feed li:hover {
           box-shadow: var(--shadow-card-hover);
           transform: translateY(-1px);
+        }
+        .goals-feed li:focus-visible {
+          outline: 2px solid var(--lf-rule);
+          outline-offset: 2px;
         }
         .goals-feed__row {
           display: grid;
@@ -258,75 +188,64 @@ export function Goals() {
         }
         .goals-feed__amount {
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
+          font-size: 15px;
           font-weight: 500;
-          color: var(--lf-ink-soft);
+          color: var(--lf-ink);
           flex-shrink: 0;
           font-variant-numeric: tabular-nums;
+          display: inline-flex; align-items: center; gap: 8px;
         }
+        /* Iter 9: progress is the hero of each row — a thick, legible rail
+           with a clear track and a category-colored gradient fill. */
         .goals-feed__bar {
-          height: 8px;
+          height: 10px;
           background: var(--lf-rule-soft);
           border-radius: 999px;
           overflow: hidden;
-          margin: 12px 0 10px;
+          margin: 14px 0 10px;
         }
         .goals-feed__bar > div { height: 100%; border-radius: 999px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); }
         .goals-feed__meta {
           display: flex; gap: 10px; align-items: baseline;
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px; letter-spacing: 0.04em;
+          font-size: 13px; letter-spacing: 0.02em;
           color: var(--lf-muted);
           font-variant-numeric: tabular-nums;
         }
         .goals-feed__meta-sep { opacity: 0.4; }
+        /* Percentage is the key metric — render it large and confident. */
+        .goals-feed__pct {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-weight: 600;
+          font-size: 17px;
+          letter-spacing: -0.01em;
+          color: var(--lf-ink);
+          font-variant-numeric: tabular-nums;
+        }
+        /* 100% complete: a strong basil "Reached" badge that reads obviously
+           different from an in-progress row. */
+        .goals-feed__complete {
+          display: inline-flex; align-items: center; gap: 5px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-weight: 600; font-size: 13px; letter-spacing: 0.02em;
+          color: var(--lf-basil);
+          background: color-mix(in srgb, var(--lf-basil) 14%, transparent);
+          border: 1px solid color-mix(in srgb, var(--lf-basil) 30%, transparent);
+          border-radius: 999px; padding: 2px 10px;
+        }
         .goals-feed__actions {
-          display: flex; gap: 4px; flex-shrink: 0;
-          align-items: flex-start; padding-top: 4px;
+          display: flex; flex-shrink: 0;
+          align-items: center; align-self: stretch;
         }
-        .goals-feed__iconbtn {
-          display: flex; align-items: center; justify-content: center;
-          min-width: 44px; min-height: 44px;
-          width: 44px; height: 44px; border-radius: 6px;
-          border: none; background: transparent;
-          color: var(--lf-muted); cursor: pointer;
-        }
-        .goals-feed__iconbtn:hover { background: var(--lf-cream); color: var(--lf-ink); }
-        /* Destructive trash icon hides until row hover (desktop). Touch
-           devices keep it semi-visible so users can find it. */
-        .goals-feed__iconbtn--destructive {
-          opacity: 0;
-          transition: opacity 0.12s, background 0.12s, color 0.12s;
-        }
-        .goals-feed li:hover .goals-feed__iconbtn--destructive,
-        .goals-feed__iconbtn--destructive:focus-visible {
-          opacity: 1;
-        }
-        .goals-feed__iconbtn--destructive:hover { color: var(--lf-sauce-deep); }
-        @media (hover: none) and (pointer: coarse) {
-          .goals-feed__iconbtn--destructive { opacity: 0.55; }
-        }
+        /* Open affordance — the whole row is clickable; the chevron signals it. */
         .goals-feed__open {
           display: inline-flex; align-items: center; justify-content: center;
-          min-width: 44px; min-height: 44px;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-          color: var(--lf-muted);
-          background: transparent; border: none; cursor: pointer;
-          padding: 0 6px;
-          transition: color 0.15s;
+          width: 32px; height: 32px;
+          color: var(--lf-muted); flex-shrink: 0;
+          transition: color 0.15s, transform 0.15s;
         }
-        .goals-feed__open:hover { color: var(--lf-sauce); }
-        .goals-feed__amount-edit {
-          height: 28px; padding: 0 8px; border-radius: 6px;
-          border: 1px solid var(--lf-rule); background: var(--lf-cream);
-          color: var(--lf-ink); font-size: 12px;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          width: 120px; outline: none;
-        }
-        .goals-strip { margin: 32px 0 48px; }
+        .goals-feed li:hover .goals-feed__open { color: var(--lf-sauce); transform: translateX(2px); }
         @media (max-width: 640px) {
-          .goals-strip { margin: 16px 0 20px; }
           .goals-feed li { padding: 16px; }
           .goals-feed__row {
             grid-template-columns: 36px minmax(0, 1fr) auto;
@@ -336,19 +255,12 @@ export function Goals() {
             width: 36px; height: 36px;
             font-size: 18px;
           }
+          .goals-feed__head {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+          }
         }
-        .goals-presets {
-          display: flex; flex-wrap: wrap; gap: 8px;
-        }
-        .goals-preset {
-          padding: 6px 14px; border-radius: 20px;
-          border: 1px solid var(--lf-rule);
-          background: transparent; cursor: pointer;
-          font-family: inherit; font-size: 13px; font-weight: 500;
-          color: var(--lf-muted);
-          transition: all 0.15s;
-        }
-        .goals-preset:hover { color: var(--lf-ink); }
 
         /* ── Iter 7 B: "Saving this month" strip ──
            Three KPI cards, same neutral surface as .ds-card but flattened
@@ -471,6 +383,19 @@ export function Goals() {
           border-top: 1px solid var(--lf-rule-soft);
           display: flex; align-items: center; gap: 12px;
         }
+        .goals-archive li[role="button"] { cursor: pointer; }
+        .goals-archive li[role="button"]:hover .goals-archive__name { color: var(--lf-ink-soft); }
+        .goals-archive li[role="button"]:focus-visible {
+          outline: 2px solid var(--lf-rule);
+          outline-offset: 2px;
+        }
+        .goals-archive__open {
+          color: var(--lf-muted); flex-shrink: 0;
+          transition: color 0.15s, transform 0.15s;
+        }
+        .goals-archive li[role="button"]:hover .goals-archive__open {
+          color: var(--lf-sauce); transform: translateX(2px);
+        }
         .goals-archive__icon {
           width: 32px; height: 32px;
           border-radius: 6px;
@@ -531,7 +456,7 @@ export function Goals() {
           a coarse "added this month" derived from delta-against-target as a
           proxy until we wire per-goal monthly contribution history. */}
       {!loading && activeGoals.length > 0 && (
-        <section className="goals-strip-grid" aria-label="Saving this month">
+        <section className="goals-strip-grid" aria-label="Savings totals across all active goals">
           <div className="goals-strip-card">
             <span className="ds-eyebrow goals-strip-card__eyebrow">saved so far</span>
             <span className="goals-strip-card__value ds-num">{formatCurrency(totalSaved)}</span>
@@ -556,7 +481,7 @@ export function Goals() {
               {formatCurrency(activeGoals.length > 0 ? totalSaved / activeGoals.length : 0)}
             </span>
             <span className="goals-strip-card__caption">
-              {completedGoals.length} reached lifetime
+              average saved per active goal
             </span>
           </div>
         </section>
@@ -666,6 +591,26 @@ export function Goals() {
                 </div>
               </div>
 
+              {/* Accounts — linking ≥1 makes the goal auto-track its balance */}
+              {accounts.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <Eyebrow>Accounts (optional)</Eyebrow>
+                  <p style={{
+                    margin: '4px 0 8px',
+                    fontFamily: "'Geist', system-ui, sans-serif",
+                    fontSize: 12,
+                    color: 'var(--lf-muted)',
+                  }}>
+                    Linked accounts auto-track this goal's progress.
+                  </p>
+                  <AccountChips
+                    accounts={accounts}
+                    selected={newAccountIds}
+                    onToggle={(id) => setNewAccountIds(prev => toggleId(prev, id))}
+                  />
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 10 }}>
                 <Button
                   variant="ink"
@@ -678,6 +623,16 @@ export function Goals() {
                   Cancel
                 </Button>
               </div>
+              {formError && (
+                <p style={{
+                  margin: '10px 0 0',
+                  fontFamily: "'Geist', system-ui, sans-serif",
+                  fontSize: 12,
+                  color: 'var(--lf-sauce)',
+                }}>
+                  {formError}
+                </p>
+              )}
             </Card>
           </motion.section>
         )}
@@ -704,6 +659,7 @@ export function Goals() {
               {activeGoals.map((goal) => {
                 const target = parseFloat(goal.targetAmount);
                 const current = parseFloat(goal.currentAmount);
+                const autoTracked = goal.isAutoTracked;
                 const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
                 const remaining = Math.max(0, target - current);
                 const color = goalColor(goal.category);
@@ -716,120 +672,92 @@ export function Goals() {
                   deadlineLabel = daysLeft > 0 ? `${daysLeft}d left` : 'Past deadline';
                 }
 
+                const complete = pct >= 100;
+                const open = () => setLocation(`/plans/savings/${goal.id}`);
+
                 return (
-                  <li key={goal.id}>
+                  <li
+                    key={goal.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ${goal.name}`}
+                    onClick={open}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+                    }}
+                  >
                     <div className="goals-feed__row">
                       <div
                         className="goals-feed__icon"
-                        style={{ background: color + '18', border: `1px solid ${color}30`, color }}
+                        style={{ background: `color-mix(in srgb, ${color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`, color }}
                       >
                         {iconFor(goal.icon, 22)}
                       </div>
                       <div className="goals-feed__main">
                         <div className="goals-feed__head">
                           <h3 className="goals-feed__title">{goal.name}</h3>
-                          {editingId === goal.id ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <input
-                                type="number"
-                                value={editAmount}
-                                onChange={e => setEditAmount(e.target.value)}
-                                autoFocus
-                                onKeyDown={e => e.key === 'Enter' && handleUpdateAmount(goal.id)}
-                                className="goals-feed__amount-edit ds-num"
-                              />
-                              <button onClick={() => handleUpdateAmount(goal.id)} className="goals-feed__iconbtn" style={{ color: 'var(--lf-basil)' }}>
-                                <Check size={13} />
-                              </button>
-                              <button onClick={() => { setEditingId(null); setEditAmount(''); }} className="goals-feed__iconbtn">
-                                <X size={13} />
-                              </button>
+                          <span className="goals-feed__amount" title={autoTracked ? 'Tracked from linked accounts' : undefined}>
+                            <span>
+                              {formatCurrency(current)} <span style={{ color: 'var(--lf-muted)', fontWeight: 400 }}>/ {formatCurrency(target)}</span>
                             </span>
-                          ) : (
-                            <button
-                              onClick={
-                                import.meta.env.VITE_DEMO_MODE !== 'true'
-                                  ? () => { setEditingId(goal.id); setEditAmount(String(current)); }
-                                  : undefined
-                              }
-                              className="goals-feed__amount"
-                              style={{
-                                background: 'transparent', border: 'none', padding: 0,
-                                cursor: import.meta.env.VITE_DEMO_MODE !== 'true' ? 'text' : 'default',
-                              }}
-                            >
-                              {formatCurrency(current)} <span style={{ color: 'var(--lf-muted)' }}>/ {formatCurrency(target)}</span>
-                            </button>
-                          )}
+                            {autoTracked && (
+                              <span
+                                title={`Tracked from: ${
+                                  goal.accountIds
+                                    .map(id => accounts.find(a => a.id === id)?.name)
+                                    .filter(Boolean)
+                                    .join(', ')
+                                  || `${goal.accountIds.length} account${goal.accountIds.length === 1 ? '' : 's'}`
+                                }`}
+                                style={{
+                                  fontFamily: "'Geist', system-ui, sans-serif",
+                                  fontSize: 12, fontWeight: 500,
+                                  color: 'var(--lf-ink-soft)',
+                                  background: 'color-mix(in srgb, var(--lf-basil) 14%, transparent)',
+                                  border: '1px solid color-mix(in srgb, var(--lf-basil) 24%, transparent)',
+                                  borderRadius: 999, padding: '2px 8px',
+                                }}>
+                                Auto · {goal.accountIds.length} acct{goal.accountIds.length === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </span>
                         </div>
 
                         <div className="goals-feed__bar">
-                          {/* Iter 5: at 0% the fill width is 0, leaving only
-                              the cream track visible — which on some category
-                              colors was indistinguishable from the track. We
-                              render a tiny basil tick at the start whenever
-                              progress is 0 so the rail reads as "alive but
-                              empty" rather than "rail not even rendered". */}
-                          {pct > 0 ? (
-                            <div style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}B3, ${color})` }} />
+                          {/* 100% fills basil (success); otherwise a category
+                              gradient. At 0% we render a tiny tick so the rail
+                              reads as "alive but empty" rather than absent. */}
+                          {complete ? (
+                            <div style={{ width: '100%', background: 'var(--lf-basil)' }} />
+                          ) : pct > 0 ? (
+                            <div style={{ width: `${pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${color} 70%, transparent), ${color})` }} />
                           ) : (
                             <div style={{ width: 8, background: color }} />
                           )}
                         </div>
 
                         <div className="goals-feed__meta">
-                          {/* Iter 6: pct number reads as a STATUS, not a
-                              category badge. Use basil at 100%, neutral
-                              ink-soft otherwise so the "0%" eyebrow stops
-                              rendering as sauce (which was a sauce-purge
-                              violation on home_purchase goals). */}
-                          <span style={{ color: pct >= 100 ? 'var(--lf-basil)' : 'var(--lf-ink-soft)' }}>
-                            {Math.round(pct)}%
-                          </span>
-                          <span className="goals-feed__meta-sep">·</span>
-                          <span>
-                            {remaining > 0 ? `${formatCurrency(remaining)} to go` : 'Reached'}
-                          </span>
-                          {deadlineLabel && (
-                            <>
-                              <span className="goals-feed__meta-sep">·</span>
-                              <span>{deadlineLabel}</span>
-                            </>
-                          )}
-                          {goal.category && (
-                            <>
-                              <span className="goals-feed__meta-sep">·</span>
-                              <span>{goal.category.replace(/_/g, ' ')}</span>
-                            </>
-                          )}
+                          {[
+                            complete
+                              ? <span className="goals-feed__complete"><Check size={13} /> Reached</span>
+                              : <span className="goals-feed__pct">{Math.round(pct)}%</span>,
+                            complete ? null : <span>{formatCurrency(remaining)} to go</span>,
+                            deadlineLabel ? <span>{deadlineLabel}</span> : null,
+                            goal.category ? <span>{goal.category.replace(/_/g, ' ')}</span> : null,
+                          ]
+                            .filter(Boolean)
+                            .map((item, i) => (
+                              <span key={i} style={{ display: 'contents' }}>
+                                {i > 0 && <span className="goals-feed__meta-sep">·</span>}
+                                {item}
+                              </span>
+                            ))}
                         </div>
                       </div>
                       <div className="goals-feed__actions">
-                        {import.meta.env.VITE_DEMO_MODE !== 'true' && pct >= 100 && (
-                          <button onClick={() => handleComplete(goal.id)} title="Mark complete" className="goals-feed__iconbtn">
-                            <Check size={14} />
-                          </button>
-                        )}
-                        {/* Destructive action: hover-reveal (and always-visible on touch).
-                            Keeps the destructive control off the resting nav rail next
-                            to the open-chevron — iter 2 critic flagged it as too easy
-                            to mis-tap. Confirm dialog already wraps the action. */}
-                        {import.meta.env.VITE_DEMO_MODE !== 'true' && (
-                          <button onClick={() => handleDelete(goal.id)} title="Delete" className="goals-feed__iconbtn goals-feed__iconbtn--destructive">
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                        <button
-                          className="goals-feed__open"
-                          aria-label="Open goal"
-                          onClick={
-                            import.meta.env.VITE_DEMO_MODE !== 'true'
-                              ? () => { setEditingId(goal.id); setEditAmount(String(current)); }
-                              : undefined
-                          }
-                        >
-                          <ArrowRight size={14} />
-                        </button>
+                        <span className="goals-feed__open" aria-hidden="true">
+                          <ChevronRight size={18} />
+                        </span>
                       </div>
                     </div>
                   </li>
@@ -851,21 +779,34 @@ export function Goals() {
         >
           {completedGoals.length > 0 ? (
             <ul className="goals-archive">
-              {completedGoals.map((goal) => (
-                <li key={goal.id}>
-                  <div className="goals-archive__icon">{iconFor(goal.icon, 16)}</div>
-                  <div className="goals-archive__body">
-                    <span className="goals-archive__name">{goal.name}</span>
-                    <span className="goals-archive__meta">
-                      reached
-                      {goal.category && <> · {goal.category.replace(/_/g, ' ')}</>}
+              {completedGoals.map((goal) => {
+                const open = () => setLocation(`/plans/savings/${goal.id}`);
+                return (
+                  <li
+                    key={goal.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ${goal.name}`}
+                    onClick={open}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+                    }}
+                  >
+                    <div className="goals-archive__icon">{iconFor(goal.icon, 16)}</div>
+                    <div className="goals-archive__body">
+                      <span className="goals-archive__name">{goal.name}</span>
+                      <span className="goals-archive__meta">
+                        reached
+                        {goal.category && <> · {goal.category.replace(/_/g, ' ')}</>}
+                      </span>
+                    </div>
+                    <span className="goals-archive__value">
+                      {formatCurrency(parseFloat(goal.targetAmount))}
                     </span>
-                  </div>
-                  <span className="goals-archive__value">
-                    {formatCurrency(parseFloat(goal.targetAmount))}
-                  </span>
-                </li>
-              ))}
+                    <ChevronRight size={16} className="goals-archive__open" aria-hidden="true" />
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <ul className="goals-archive">
@@ -909,7 +850,7 @@ export function Goals() {
                 >
                   <span
                     className="goals-suggested-card__icon"
-                    style={{ background: color + '18', color }}
+                    style={{ background: `color-mix(in srgb, ${color} 10%, transparent)`, color }}
                   >
                     {iconFor(preset.icon, 18)}
                   </span>

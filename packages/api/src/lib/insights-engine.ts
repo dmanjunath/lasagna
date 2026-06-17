@@ -11,6 +11,7 @@ import {
   financialProfiles,
   transactions,
   goals,
+  goalAccounts,
   taxDocuments,
   eq,
   and,
@@ -18,7 +19,11 @@ import {
   sql,
   notInArray,
 } from "@lasagna/core";
-import { excludedTxnAccountIds } from "./account-balances.js";
+import {
+  excludedTxnAccountIds,
+  fetchAccountsWithBalances,
+} from "./account-balances.js";
+import { buildGoalAccountMap, resolveGoalAmount } from "./goal-progress.js";
 
 interface FinancialSnapshot {
   accounts: Array<{
@@ -440,16 +445,26 @@ async function gatherFinancialData(
       : null;
 
   // Goals
-  const goalsRows = await db
-    .select()
-    .from(goals)
-    .where(
-      and(eq(goals.tenantId, tenantId), eq(goals.status, "active"))
-    );
+  const [goalsRows, goalLinks, goalAccts] = await Promise.all([
+    db
+      .select()
+      .from(goals)
+      .where(and(eq(goals.tenantId, tenantId), eq(goals.status, "active"))),
+    db.query.goalAccounts.findMany({ where: eq(goalAccounts.tenantId, tenantId) }),
+    fetchAccountsWithBalances(tenantId),
+  ]);
+  const goalAccountMap = buildGoalAccountMap(goalLinks);
+  const goalBalanceById = new Map(
+    goalAccts.map((a) => [a.id, a.effectiveBalance]),
+  );
 
   const goalsData = goalsRows.map((g) => {
     const target = parseFloat(g.targetAmount);
-    let current = parseFloat(g.currentAmount);
+    let current = resolveGoalAmount(
+      g.currentAmount,
+      goalAccountMap.get(g.id),
+      goalBalanceById,
+    ).amount;
 
     // For retirement goals, use actual invested balance if higher than stored currentAmount
     const cat = (g.category || "").toLowerCase();

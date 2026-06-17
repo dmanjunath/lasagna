@@ -557,16 +557,17 @@ export const api = {
         category: string;
         status: string;
         icon: string | null;
-        linkedAccountId: string | null;
+        accountIds: string[];
+        isAutoTracked: boolean;
         completedAt: string | null;
         createdAt: string;
       }>;
     }>('/goals'),
 
-  createGoal: (data: { name: string; targetAmount: number; deadline?: string; category?: string; icon?: string; description?: string; linkedAccountId?: string }) =>
+  createGoal: (data: { name: string; targetAmount: number; deadline?: string; category?: string; icon?: string; description?: string; accountIds?: string[] }) =>
     request<{ goal: { id: string } }>('/goals', { method: 'POST', body: JSON.stringify(data) }),
 
-  updateGoal: (id: string, data: { currentAmount?: number; name?: string; description?: string; targetAmount?: number; deadline?: string; status?: string; linkedAccountId?: string | null }) =>
+  updateGoal: (id: string, data: { currentAmount?: number; name?: string; description?: string; targetAmount?: number; deadline?: string; status?: string; accountIds?: string[] }) =>
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   deleteGoal: (id: string) =>

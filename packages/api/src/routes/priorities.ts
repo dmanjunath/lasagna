@@ -1,7 +1,8 @@
 import { Hono } from "hono";
-import { eq, desc, and, sql, notInArray, accounts, balanceSnapshots, financialProfiles, transactions, goals } from "@lasagna/core";
+import { eq, desc, and, sql, notInArray, accounts, balanceSnapshots, financialProfiles, transactions, goals, goalAccounts } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { excludedTxnAccountIds } from "../lib/account-balances.js";
+import { buildGoalAccountMap, resolveGoalAmount } from "../lib/goal-progress.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { z } from "zod";
 import { type UserFinancialContext } from '../lib/layer-selector.js';
@@ -15,7 +16,7 @@ export const priorityRoutes = new Hono<AuthEnv>();
 priorityRoutes.get("/", async (c) => {
   const session = c.get("session");
 
-  const [accts, profile, activeGoals] = await Promise.all([
+  const [accts, profile, activeGoals, goalLinks] = await Promise.all([
     (async () => {
       const allAccounts = await db.query.accounts.findMany({
         where: eq(accounts.tenantId, session.tenantId),
@@ -40,7 +41,13 @@ priorityRoutes.get("/", async (c) => {
         eq(goals.status, 'active'),
       ),
     }),
+    db.query.goalAccounts.findMany({
+      where: eq(goalAccounts.tenantId, session.tenantId),
+    }),
   ]);
+
+  const goalAccountMap = buildGoalAccountMap(goalLinks);
+  const goalBalanceById = new Map(accts.map((a) => [a.id, a.balance]));
 
   // ── Build UserFinancialContext from DB data ─────────────────────────────
 
@@ -150,7 +157,11 @@ priorityRoutes.get("/", async (c) => {
       name: g.name,
       category: g.category,
       targetAmount: parseFloat(g.targetAmount ?? "0"),
-      currentAmount: parseFloat(g.currentAmount ?? "0"),
+      currentAmount: resolveGoalAmount(
+        g.currentAmount ?? "0",
+        goalAccountMap.get(g.id),
+        goalBalanceById,
+      ).amount,
       deadline: g.deadline ? new Date(g.deadline) : null,
     })),
     skippedLayerIds: profile?.skippedPrioritySteps ?? [],
