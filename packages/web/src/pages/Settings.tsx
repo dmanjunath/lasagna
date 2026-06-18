@@ -248,7 +248,7 @@ export function Settings() {
       </header>
 
       {/* ── Personal info ─────────────────────────────────────── */}
-      <Section eyebrow="who you are">
+      <Section eyebrow="Personal">
         <EditorialArticle
           icon={<User size={16} />}
           title="Personal info"
@@ -272,7 +272,7 @@ export function Settings() {
       </Section>
 
       {/* ── Income & employment ───────────────────────────────── */}
-      <Section eyebrow="what you earn">
+      <Section eyebrow="Income">
         <EditorialArticle
           icon={<Briefcase size={16} />}
           title="Income & employment"
@@ -296,7 +296,7 @@ export function Settings() {
       </Section>
 
       {/* ── Linked accounts ───────────────────────────────────── */}
-      <Section title="Linked accounts" eyebrow="what's connected">
+      <Section title="Linked accounts">
         <NavLine
           icon={<Building2 size={16} />}
           label="Manage accounts"
@@ -307,7 +307,7 @@ export function Settings() {
 
 
       {/* ── Financial goals ───────────────────────────────────── */}
-      <Section title="Financial goals" eyebrow="what you're working toward">
+      <Section title="Financial goals">
         <NavLine
           icon={<Target size={16} />}
           label="Manage goals"

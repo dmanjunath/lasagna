@@ -654,7 +654,7 @@ export function Goals() {
             />
           </Section>
         ) : activeGoals.length > 0 ? (
-          <Section title="Active goals" eyebrow={`${activeGoals.length} in progress`}>
+          <Section title="Active goals" eyebrow={`${activeGoals.length} goal${activeGoals.length === 1 ? '' : 's'}`}>
             <ul className="goals-feed">
               {activeGoals.map((goal) => {
                 const target = parseFloat(goal.targetAmount);
@@ -833,7 +833,7 @@ export function Goals() {
           card pre-fills the New-goal form so the user can review/edit
           before committing — same flow as selectPreset() in the form. */}
       {!loading && import.meta.env.VITE_DEMO_MODE !== 'true' && (
-        <Section title="Suggested" eyebrow="popular templates">
+        <Section title="Suggested">
           <div className="goals-suggested-grid">
             {GOAL_PRESETS.slice(0, 6).map((preset) => {
               const color = goalColor(preset.category);

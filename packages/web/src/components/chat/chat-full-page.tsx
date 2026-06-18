@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { Minimize2, Plus, Trash2, Send, Sparkles } from 'lucide-react';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
-import { useChatStore } from '../../lib/chat-store';
+import { useChatStore, setChatExpanded } from '../../lib/chat-store';
 import { useGlobalChat } from './use-global-chat';
 import { ChatThreadView } from './chat-thread-view';
 import { ChatThreadList } from './chat-thread-list';
@@ -114,6 +114,7 @@ export function ChatFullPage() {
   }, [search, setPendingMessage, setLocation]);
 
   const handleCollapse = () => {
+    setChatExpanded(false);
     openChat();
     setLocation(chatReturnPath || '/');
   };

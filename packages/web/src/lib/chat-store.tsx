@@ -18,6 +18,17 @@ export function setPreferredModelLevel(level: ModelLevel) {
   try { localStorage.setItem('lf-chat-model', level); } catch { /* ignore */ }
 }
 
+// Chat opens in the sidebar by default. If the user expands it to the full
+// /chat page we remember that, and collapsing back resets to the sidebar — so
+// the last-used view is what reopens next time, defaulting to sidebar.
+export function getChatExpanded(): boolean {
+  try { return localStorage.getItem('lf-chat-expanded') === '1'; } catch { return false; }
+}
+
+export function setChatExpanded(expanded: boolean) {
+  try { localStorage.setItem('lf-chat-expanded', expanded ? '1' : '0'); } catch { /* ignore */ }
+}
+
 // Local message shape — extends the API `Message` with a client-only flag
 // marking a failed assistant turn so the UI can render an error + retry.
 export type ChatMessage = Message & { isError?: boolean };

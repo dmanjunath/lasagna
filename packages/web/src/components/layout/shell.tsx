@@ -7,7 +7,7 @@ import { MobileNav } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
 import { AppHeader } from './app-header';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
-import { useChatStore } from '../../lib/chat-store';
+import { useChatStore, getChatExpanded, setChatExpanded } from '../../lib/chat-store';
 import { ChatTabs } from '../chat/chat-tabs';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
 
@@ -23,19 +23,28 @@ export function Shell({ children }: ShellProps) {
   const { chatOpen, closeChat, unreadCount, setChatReturnPath } = useChatStore();
 
   // Expand the sidebar chat into the full-page /chat route, remembering where to
-  // return when the user collapses it back.
+  // return when the user collapses it back. Persist the preference so chat
+  // reopens expanded next time (until they collapse back to the sidebar).
   const handleExpandChat = () => {
+    setChatExpanded(true);
     setChatReturnPath(location);
     setDesktopChatOpen(false);
     closeChat();
     setLocation('/chat');
   };
 
-  // Sync context chatOpen → desktop sidebar
+  // Sync context chatOpen → desktop view. Chat opens in the sidebar by default;
+  // if the user last expanded it, honor that and open the full /chat page.
   useEffect(() => {
-    if (chatOpen && !isMobile) {
+    if (!chatOpen || isMobile) return;
+    if (getChatExpanded() && location !== '/chat') {
+      setChatReturnPath(location);
+      closeChat();
+      setLocation('/chat');
+    } else {
       setDesktopChatOpen(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatOpen, isMobile]);
 
   return (

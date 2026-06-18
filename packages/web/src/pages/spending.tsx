@@ -786,7 +786,7 @@ export function Spending() {
 
       {/* By category */}
       {!loadingSummary && spendingCategories.length > 0 && (
-        <Section title="By category" eyebrow="breakdown">
+        <Section title="By category">
           <Card>
             <div className="spend-by-cat">
               <div className="spend-by-cat__donut">

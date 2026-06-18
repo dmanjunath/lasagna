@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Lightbulb } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
+import { useChatStore } from '../lib/chat-store';
 import {
   Page,
   Section,
@@ -11,6 +12,7 @@ import {
   Button,
   CompositionRibbon,
 } from '../components/ds';
+import { formatCurrency, goalColor, iconFor } from './goal-shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +24,7 @@ interface Goal {
   currentAmount: string;
   deadline: string | null;
   icon: string | null;
+  category: string;
   status: string;
 }
 
@@ -97,18 +100,6 @@ function formatMoneyShort(n: number): string {
 const formatDateLong = (d: Date) =>
   d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
 
-function formatRel(when: string | Date): string {
-  const t = when instanceof Date ? when.getTime() : new Date(when).getTime();
-  const ms = Date.now() - t;
-  const mins = Math.round(ms / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.round(hrs / 24);
-  return `${days}d ago`;
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function greetingForHour(h: number) {
@@ -120,7 +111,8 @@ function greetingForHour(h: number) {
 export function SimpleHome() {
   const { user, tenant } = useAuth();
   const [, setLocation] = useLocation();
-  const { insights, reload: reloadInsights, refresh: refreshInsights, lastActionsGeneratedAt } = useInsights();
+  const { openChat } = useChatStore();
+  const { insights, reload: reloadInsights, refresh: refreshInsights } = useInsights();
   const [generatingInsights, setGeneratingInsights] = useState(false);
   const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
   const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
@@ -240,7 +232,7 @@ export function SimpleHome() {
     e?.preventDefault();
     const text = askDraft.trim();
     setAskDraft('');
-    setLocation(text ? `/chat?prompt=${encodeURIComponent(text)}` : '/chat');
+    openChat(text || undefined);
   }
 
   // ── Ranked insights ──────────────────────────────────────────────────────
@@ -249,13 +241,8 @@ export function SimpleHome() {
     (a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0),
   );
   const sideActions = ranked.slice(0, 3);
-  const sideIds = new Set(sideActions.map((a) => a.id));
-  const dykInsights = ranked.filter((i) => !sideIds.has(i.id)).slice(0, 5);
 
   const topGoal = goals.find((g) => g.status === 'active');
-  const goalProgress = topGoal
-    ? Math.min(100, Math.round((parseFloat(topGoal.currentAmount) / parseFloat(topGoal.targetAmount)) * 100))
-    : null;
 
   const monthDelta = useMemo(() => {
     if (nwHistory.length < 2) return null;
@@ -351,7 +338,7 @@ export function SimpleHome() {
         onChange={setAskDraft}
         onSubmit={submitAsk}
         prompts={suggestedPrompts}
-        onPick={(q) => setLocation(`/chat?prompt=${encodeURIComponent(q)}`)}
+        onPick={(q) => openChat(q)}
       />
 
       {/* Combined "Where you are + What to do" — Financial Level current step
@@ -386,7 +373,7 @@ export function SimpleHome() {
           onStepHelp={() => {
             if (!currentStep) return;
             const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
-            setLocation(`/chat?prompt=${encodeURIComponent(prompt)}`);
+            openChat(prompt);
           }}
           onActionDone={async (id) => {
             try { await api.actOnInsight(id); } catch {}
@@ -405,113 +392,19 @@ export function SimpleHome() {
         </div>
       )}
 
-      {/* Two-column body */}
-      <div className="ds-home-twocol">
-        {/* Did you know feed */}
-        {dykInsights.length > 0 && (
-          <Section
-            title="Did you know"
-            eyebrow={lastActionsGeneratedAt ? `Updated ${formatRel(lastActionsGeneratedAt)}` : undefined}
-            actions={<Link href="/insights" className="ds-btn ds-btn--link" aria-label="More insights">→</Link>}
-          >
-            <ul className="ds-home-feed">
-              {dykInsights.map((ins) => (
-                <li key={ins.id}>
-                  <Link href={`/insights?id=${ins.id}`} className="ds-home-feed__link">
-                    <div className="ds-home-feed__bullet">
-                      <Lightbulb size={14} className="text-cheese" />
-                    </div>
-                    <div className="ds-home-feed__body">
-                      <div className="ds-home-feed__title">{ins.title}</div>
-                      {ins.description && (
-                        <p className="ds-home-feed__desc">{ins.description}</p>
-                      )}
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        )}
+      {/* Goals — active savings goals as compact progress rows */}
+      <GoalsSection goals={goals} />
 
-        {/* Marginalia: goal + bill (ask moved to a prominent hero above) */}
-        <aside className="ds-home-aside">
-          {topGoal && goalProgress !== null && (
-            <MarginaliaGoal goal={topGoal} progress={goalProgress} />
-          )}
+      {/* Upcoming bill — a single marginalia note when one is due soon */}
+      {upcomingBill && (
+        <div className="ds-home-aside">
+          <MarginaliaBill bill={upcomingBill} account={upcomingBill.accountId ? accountsById.get(upcomingBill.accountId) ?? null : null} />
+        </div>
+      )}
 
-          {upcomingBill && (
-            <MarginaliaBill bill={upcomingBill} account={upcomingBill.accountId ? accountsById.get(upcomingBill.accountId) ?? null : null} />
-          )}
-        </aside>
-      </div>
-
-      {/* Local layout helpers — page-specific grid only, no typography tokens.
-          NOTE: AskStrip mobile-hide is owned by the <AskStrip> component
-          (Tailwind hidden md:flex). The injected <style> hack from iter 2
-          is gone — duct tape removed. */}
+      {/* Local layout helpers — page-specific only, no typography tokens.
+          NOTE: AskStrip mobile-hide is owned by the <AskStrip> component. */}
       <style>{`
-        .ds-home-stats { margin: 32px 0 56px; }
-        .ds-home-twocol {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 40px;
-        }
-        @media (min-width: 1024px) {
-          .ds-home-twocol {
-            grid-template-columns: minmax(0, 1fr) 320px;
-            align-items: start;
-            gap: 56px;
-          }
-        }
-        .ds-home-feed {
-          list-style: none;
-          margin: 0;
-          padding: 4px 20px;
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 12px;
-          box-shadow: var(--shadow-card);
-        }
-        .ds-home-feed li {
-          padding: 16px 0;
-          border-top: 1px solid var(--lf-rule-neutral);
-        }
-        .ds-home-feed li:first-child { border-top: 0; }
-        .ds-home-feed__link {
-          display: flex;
-          gap: 14px;
-          text-decoration: none;
-          color: inherit;
-        }
-        .ds-home-feed__link:hover .ds-home-feed__title { color: var(--lf-sauce); }
-        .ds-home-feed__bullet {
-          width: 28px; height: 28px;
-          border-radius: 4px;
-          background: var(--lf-rule-soft);
-          display: grid; place-items: center;
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-        .ds-home-feed__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 17px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.3;
-          transition: color 0.15s;
-        }
-        .ds-home-feed__desc {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-          line-height: 1.5;
-          color: var(--lf-muted);
-          margin: 6px 0 0;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
         .ds-home-aside {
           display: flex;
           flex-direction: column;
@@ -565,163 +458,129 @@ function LevelAndActionsCard({
   const body = step?.description || step?.subtitle;
 
   return (
-    <article className="ds-combo">
-      {step && (
-        <section className="ds-combo__level">
-          <div className="ds-combo__eyebrow">
-            <span>Your level</span>
-            <Link href="/financial-level" className="ds-combo__more">See all 12 levels →</Link>
-          </div>
-          <h2 className="ds-combo__title">{step.title}</h2>
-          {body && <p className="ds-combo__body">{body}</p>}
-          {hasProgress && (
-            <div className="ds-combo__progress">
-              <div className="ds-combo__progress-meta">
-                <span className="ds-combo__progress-label">Progress</span>
-                <span className="ds-caption ds-num">
-                  {progress}%{progressDetail ? ` · ${progressDetail}` : ''}
-                </span>
-              </div>
-              <div className="ds-combo__progress-bar">
-                <div style={{ width: `${progress}%` }} />
+    <>
+      <Section
+        title="Do this next"
+        actions={<Link href="/financial-level" className="ds-btn ds-btn--link">View all steps →</Link>}
+      >
+        <Card>
+          {step && (
+            <div className="ds-combo__step">
+              <h3 className="ds-combo__title">{step.title}</h3>
+              {body && <p className="ds-combo__body">{body}</p>}
+              {hasProgress && (
+                <div className="ds-combo__progress">
+                  <div className="ds-combo__progress-meta">
+                    <span className="ds-combo__progress-label">Progress</span>
+                    <span className="ds-caption ds-num">
+                      {progress}%{progressDetail ? ` · ${progressDetail}` : ''}
+                    </span>
+                  </div>
+                  <div className="ds-combo__progress-bar">
+                    <div style={{ width: `${progress}%` }} />
+                  </div>
+                </div>
+              )}
+              <div className="ds-combo__level-actions">
+                <Button
+                  variant="ink"
+                  disabled={stepBusy}
+                  onClick={() => onStepHelp()}
+                >
+                  Start →
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={stepBusy}
+                  onClick={async () => {
+                    setStepBusy(true);
+                    try { await onStepComplete(); } finally { setStepBusy(false); }
+                  }}
+                >
+                  {stepBusy ? '…' : 'I did this ✓'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={stepBusy}
+                  onClick={async () => {
+                    setStepBusy(true);
+                    try {
+                      await onStepSkip();
+                      setJustSkipped(true);
+                      setTimeout(() => setJustSkipped(false), 4000);
+                    } finally { setStepBusy(false); }
+                  }}
+                >
+                  Skip
+                </Button>
+                {justSkipped && (
+                  <button
+                    type="button"
+                    className="ds-combo__undo"
+                    onClick={async () => {
+                      setStepBusy(true);
+                      try { await onStepUnskip(); setJustSkipped(false); } finally { setStepBusy(false); }
+                    }}
+                  >
+                    Skipped · Undo
+                  </button>
+                )}
               </div>
             </div>
           )}
-          <div className="ds-combo__level-actions">
-            <Button
-              variant="ink"
-              disabled={stepBusy}
-              onClick={() => onStepHelp()}
-            >
-              Start →
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={stepBusy}
-              onClick={async () => {
-                setStepBusy(true);
-                try { await onStepComplete(); } finally { setStepBusy(false); }
-              }}
-            >
-              {stepBusy ? '…' : 'I did this ✓'}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={stepBusy}
-              onClick={async () => {
-                setStepBusy(true);
-                try {
-                  await onStepSkip();
-                  setJustSkipped(true);
-                  setTimeout(() => setJustSkipped(false), 4000);
-                } finally { setStepBusy(false); }
-              }}
-            >
-              Skip
-            </Button>
-            {justSkipped && (
+
+          {step && actions.length > 0 && <div className="ds-combo__divider" />}
+
+          {actions.length > 0 ? (
+            <ul className="ds-combo__list">
+              {actions.map((a) => {
+                const busy = actionBusy === a.id;
+                return (
+                  <li key={a.id} className="ds-combo__item">
+                    <Link href={`/insights?id=${a.id}`} className="ds-combo__item-body">
+                      <div className="ds-combo__item-title">{a.title}</div>
+                      {a.description && <p className="ds-combo__item-desc">{a.description}</p>}
+                    </Link>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        setActionBusy(a.id);
+                        try { await onActionDone(a.id); } finally { setActionBusy(null); }
+                      }}
+                      className="ds-combo__item-done"
+                      aria-label="Mark done"
+                    >
+                      {busy ? '…' : 'Done ✓'}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="ds-combo__empty">
+              <span>No actions yet — get personalized ones based on your finances.</span>
               <button
                 type="button"
-                className="ds-combo__undo"
-                onClick={async () => {
-                  setStepBusy(true);
-                  try { await onStepUnskip(); setJustSkipped(false); } finally { setStepBusy(false); }
-                }}
+                className="ds-combo__empty-btn"
+                onClick={() => onGenerateActions()}
+                disabled={generating}
               >
-                Skipped · Undo
+                {generating ? 'Generating…' : 'Generate actions'}
               </button>
-            )}
-          </div>
-        </section>
-      )}
-
-      {step && <div className="ds-combo__divider" />}
-
-      <section className="ds-combo__actions">
-        <div className="ds-combo__eyebrow">
-          <span>Top actions</span>
-          <Link href="/insights" className="ds-combo__more">All actions →</Link>
-        </div>
-        {actions.length > 0 ? (
-          <ul className="ds-combo__list">
-            {actions.map((a) => {
-              const busy = actionBusy === a.id;
-              return (
-                <li key={a.id} className="ds-combo__item">
-                  <Link href={`/insights?id=${a.id}`} className="ds-combo__item-body">
-                    <div className="ds-combo__item-title">{a.title}</div>
-                    {a.description && <p className="ds-combo__item-desc">{a.description}</p>}
-                  </Link>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      setActionBusy(a.id);
-                      try { await onActionDone(a.id); } finally { setActionBusy(null); }
-                    }}
-                    className="ds-combo__item-done"
-                    aria-label="Mark done"
-                  >
-                    {busy ? '…' : 'Done ✓'}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <div className="ds-combo__empty">
-            <span>No actions yet — get personalized ones based on your finances.</span>
-            <button
-              type="button"
-              className="ds-combo__empty-btn"
-              onClick={() => onGenerateActions()}
-              disabled={generating}
-            >
-              {generating ? 'Generating…' : 'Generate actions'}
-            </button>
-          </div>
-        )}
-      </section>
+            </div>
+          )}
+        </Card>
+      </Section>
 
       <style>{`
-        .ds-combo {
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 12px;
-          box-shadow: var(--shadow-card);
-          margin-bottom: 32px;
-          overflow: hidden;
-        }
-        .ds-combo__level { padding: 20px 24px 18px; }
+        .ds-combo__step { margin-bottom: 4px; }
         .ds-combo__divider {
           height: 1px;
           background: var(--lf-rule-neutral);
-          margin: 0;
+          margin: 16px 0;
         }
-        .ds-combo__actions { padding: 18px 24px 18px; }
-        .ds-combo__eyebrow {
-          display: flex;
-          align-items: baseline;
-          justify-content: space-between;
-          gap: 12px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 11px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          font-weight: 600;
-          color: var(--lf-muted);
-          margin-bottom: 10px;
-        }
-        .ds-combo__more {
-          font-size: 11px;
-          letter-spacing: 0.04em;
-          text-transform: none;
-          color: var(--lf-muted);
-          text-decoration: none;
-          font-weight: 500;
-        }
-        .ds-combo__more:hover { color: var(--lf-sauce); }
         .ds-combo__title {
           font-family: 'Geist', system-ui, sans-serif;
           font-weight: 600;
@@ -877,57 +736,181 @@ function LevelAndActionsCard({
           color: white;
         }
       `}</style>
-    </article>
+    </>
   );
 }
 
-// ─── Marginalia (right column) ─────────────────────────────────────────────
+// ─── Goals section — active savings goals as compact progress rows ─────────
+// Mirrors the goals-page visual language (category-tinted icon tile, a real
+// progress bar with the color-mix gradient + a basil "Reached" state at 100%),
+// but in a tighter row built for the dashboard. Each row deep-links to the
+// goal detail page; "See all" goes to the full goals list.
 
-function MarginaliaGoal({ goal, progress }: { goal: Goal; progress: number }) {
+function GoalsSection({ goals }: { goals: Goal[] }) {
+  const active = goals.filter((g) => g.status === 'active');
+
+  if (active.length === 0) {
+    return (
+      <Section title="Goals">
+        <Card variant="ghost">
+          <p className="ds-body" style={{ margin: 0, color: 'var(--lf-muted)' }}>
+            No active goals yet.{' '}
+            <Link href="/goals" className="ds-btn ds-btn--link" style={{ display: 'inline' }}>
+              Set a savings goal →
+            </Link>
+          </p>
+        </Card>
+      </Section>
+    );
+  }
+
+  const shown = active.slice(0, 4);
+
   return (
-    <div className="ds-margin">
-      <div className="ds-margin__title">{goal.name}</div>
-      <div className="ds-margin__bar">
-        <div style={{ width: `${progress}%` }} />
-      </div>
-      <div className="ds-margin__meta">
-        <span className="ds-num">{fmtUsd(parseFloat(goal.currentAmount))} / {fmtUsd(parseFloat(goal.targetAmount))}</span>
-        <Link href="/goals" className="ds-btn ds-btn--link">Open →</Link>
-      </div>
+    <Section
+      title="Goals"
+      eyebrow={`${active.length} active`}
+      actions={<Link href="/goals" className="ds-btn ds-btn--link">View all goals →</Link>}
+    >
+      <ul className="ds-home-goals">
+        {shown.map((g) => {
+          const target = parseFloat(g.targetAmount);
+          const current = parseFloat(g.currentAmount);
+          const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+          const reached = target > 0 && current >= target;
+          const color = goalColor(g.category);
+          return (
+            <li key={g.id}>
+              <Link href={`/plans/savings/${g.id}`} className="ds-home-goals__row">
+                <span
+                  className="ds-home-goals__icon"
+                  style={{
+                    background: `color-mix(in srgb, ${color} 10%, transparent)`,
+                    border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`,
+                    color,
+                  }}
+                >
+                  {iconFor(g.icon, 18)}
+                </span>
+                <span className="ds-home-goals__main">
+                  <span className="ds-home-goals__head">
+                    <span className="ds-home-goals__name">{g.name}</span>
+                    <span className="ds-home-goals__amt ds-num">
+                      {formatCurrency(current)}{' '}
+                      <span style={{ color: 'var(--lf-muted)' }}>/ {formatCurrency(target)}</span>
+                    </span>
+                  </span>
+                  <span className="ds-home-goals__bar">
+                    {reached ? (
+                      <span style={{ width: '100%', background: 'var(--lf-basil)' }} />
+                    ) : pct > 0 ? (
+                      <span
+                        style={{
+                          width: `${pct}%`,
+                          background: `linear-gradient(90deg, color-mix(in srgb, ${color} 70%, transparent), ${color})`,
+                        }}
+                      />
+                    ) : (
+                      <span style={{ width: 8, background: color }} />
+                    )}
+                  </span>
+                  <span className="ds-home-goals__meta">
+                    {reached ? (
+                      <span className="ds-home-goals__reached">✓ Reached</span>
+                    ) : (
+                      <>{Math.round(pct)}% · {formatCurrency(Math.max(0, target - current))} to go</>
+                    )}
+                  </span>
+                </span>
+                <ChevronRight size={16} className="ds-home-goals__chev" />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
       <style>{`
-        .ds-margin { border-top: 1px solid var(--lf-ink); padding-top: 20px; }
-        .ds-margin__title {
+        .ds-home-goals {
+          list-style: none;
+          margin: 0;
+          padding: 4px 20px;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 12px;
+          box-shadow: var(--shadow-card);
+        }
+        .ds-home-goals li {
+          border-top: 1px solid var(--lf-rule-neutral);
+        }
+        .ds-home-goals li:first-child { border-top: 0; }
+        .ds-home-goals__row {
+          display: grid;
+          grid-template-columns: 36px minmax(0, 1fr) 16px;
+          gap: 14px;
+          align-items: center;
+          padding: 14px 0;
+          text-decoration: none;
+          color: inherit;
+        }
+        .ds-home-goals__icon {
+          width: 36px; height: 36px;
+          border-radius: 8px;
+          display: grid; place-items: center;
+        }
+        .ds-home-goals__main { min-width: 0; }
+        .ds-home-goals__head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 7px;
+        }
+        .ds-home-goals__name {
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 22px;
+          font-size: 15px;
           font-weight: 500;
           color: var(--lf-ink);
           line-height: 1.2;
-          margin: 10px 0 16px;
-        }
-        .ds-margin__bar {
-          height: 4px;
-          background: var(--lf-cream-deep);
-          border-radius: 2px;
+          white-space: nowrap;
           overflow: hidden;
-          margin-bottom: 10px;
+          text-overflow: ellipsis;
+          transition: color 0.15s;
         }
-        .ds-margin__bar > div {
+        .ds-home-goals__row:hover .ds-home-goals__name { color: var(--lf-sauce); }
+        .ds-home-goals__amt {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          flex-shrink: 0;
+          font-variant-numeric: tabular-nums;
+        }
+        .ds-home-goals__bar {
+          display: block;
+          height: 8px;
+          background: var(--lf-rule-soft);
+          border-radius: 4px;
+          overflow: hidden;
+          margin-bottom: 6px;
+        }
+        .ds-home-goals__bar > span {
+          display: block;
           height: 100%;
-          background: var(--lf-basil);
-          border-radius: 2px;
+          border-radius: 4px;
         }
-        .ds-margin__meta {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
+        .ds-home-goals__meta {
+          font-family: 'Geist', system-ui, sans-serif;
           font-size: 12px;
           color: var(--lf-muted);
           font-variant-numeric: tabular-nums;
         }
+        .ds-home-goals__reached { color: var(--lf-basil); font-weight: 600; }
+        .ds-home-goals__chev { color: var(--lf-muted); }
+        .ds-home-goals__row:hover .ds-home-goals__chev { color: var(--lf-sauce); }
       `}</style>
-    </div>
+    </Section>
   );
 }
+
+// ─── Marginalia (right column) ─────────────────────────────────────────────
 
 function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: string; balance: number } | null }) {
   const when = bill.daysAway <= 0 ? 'today' : bill.daysAway === 1 ? 'tomorrow' : `in ${bill.daysAway} days`;
@@ -949,6 +932,15 @@ function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: st
         )}
       </p>
       <style>{`
+        .ds-margin { border-top: 1px solid var(--lf-rule-neutral); padding-top: 20px; }
+        .ds-margin__title {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 18px;
+          font-weight: 500;
+          color: var(--lf-ink);
+          line-height: 1.2;
+          margin: 10px 0 12px;
+        }
         .ds-margin__desc {
           font-family: 'Geist', system-ui, sans-serif;
           font-size: 13px;

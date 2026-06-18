@@ -31,6 +31,7 @@ const FinancialLevel = lazy(() => import('./pages/financial-level').then(m => ({
 const Insights = lazy(() => import('./pages/insights').then(m => ({ default: m.Insights })));
 const Onboarding = lazy(() => import('./pages/onboarding').then(m => ({ default: m.Onboarding })));
 const QuickImport = lazy(() => import('./pages/quick-import').then(m => ({ default: m.QuickImport })));
+const AccountDetail = lazy(() => import('./pages/account-detail').then(m => ({ default: m.AccountDetail })));
 
 // Unified pages
 const SimpleHome = lazy(() => import('./pages/simple-home').then(m => ({ default: m.SimpleHome })));
@@ -92,6 +93,7 @@ function AppRoutes() {
                     <Route path="/retirement" component={Retirement} />
                     <Route path="/probability" component={ProbabilityOfSuccess} />
                     <Route path="/profile" component={Settings} />
+                    <Route path="/accounts/:id" component={AccountDetail} />
                     <Route path="/accounts" component={Accounts} />
                     <Route path="/quick-import" component={QuickImport} />
 

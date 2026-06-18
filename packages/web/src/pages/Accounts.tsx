@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   RefreshCw,
   X,
@@ -22,7 +22,6 @@ import {
   EmptyState,
   useConfirm,
   RowMenu,
-  AccountSettingsModal,
 } from "../components/ds";
 import { api } from "../lib/api.js";
 
@@ -1203,9 +1202,9 @@ function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName 
 }) {
   const balance = account.balance !== null ? parseFloat(account.balance) : null;
   const isNegative = balance !== null && balance < 0;
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [, setLocation] = useLocation();
   const [syncing, setSyncing] = useState(false);
-  const openSettings = () => setSettingsOpen(true);
+  const openSettings = () => setLocation('/accounts/' + account.id);
 
   return (
     <>
@@ -1282,23 +1281,6 @@ function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName 
         }
       `}</style>
     </div>
-    {settingsOpen && (
-      <AccountSettingsModal
-        account={{
-          id: account.id,
-          name: account.name,
-          type: account.type,
-          subtype: account.subtype,
-          isManual,
-          balance: balance ?? 0,
-          excludeFromNetWorth: account.excludeFromNetWorth,
-          excludeTransactions: account.excludeTransactions,
-          invertBalance: account.invertBalance,
-        }}
-        onClose={() => setSettingsOpen(false)}
-        onSaved={onRefresh}
-      />
-    )}
     </>
   );
 }

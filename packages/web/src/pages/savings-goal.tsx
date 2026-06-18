@@ -549,7 +549,7 @@ export function SavingsGoal() {
       {/* ── Linked accounts ── */}
       <Section
         title="Linked accounts"
-        eyebrow={`${linkedAccounts.length} linked`}
+        eyebrow={linkedAccounts.length > 0 ? `${linkedAccounts.length} linked` : undefined}
         actions={
           !editingAccounts ? (
             <Button variant="ghost" onClick={openAccountsEditor}>Manage accounts</Button>

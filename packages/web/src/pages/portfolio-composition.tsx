@@ -969,7 +969,7 @@ export default function PortfolioComposition() {
               <ChevronRight size={11} />
               <span style={{ color: 'var(--lf-ink)' }}>{drillLevel1}</span>
             </span>
-          ) : `By ${labelFor(groupBy)}`
+          ) : undefined
         }
         actions={
           <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6 }}>

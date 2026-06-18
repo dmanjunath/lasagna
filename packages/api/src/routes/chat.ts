@@ -91,6 +91,7 @@ chatRouter.post("/", async (c) => {
   let allToolCalls: any[] = [];
   const MAX_TOOL_ROUNDS = 5;
 
+  try {
   for (let step = 0; step < MAX_TOOL_ROUNDS; step++) {
     console.log(`[Chat] Step ${step + 1}/${MAX_TOOL_ROUNDS}...`);
 
@@ -107,6 +108,11 @@ chatRouter.post("/", async (c) => {
       system: systemPrompt,
       messages: conversationMessages,
       tools,
+      // Cap output so the request fits provider credit/token budgets. Without
+      // this the provider defaults to the model max (64k), which can exceed the
+      // OpenRouter key's affordable budget and 402 → surfaced as a 500. A chat
+      // turn never needs anywhere near this much.
+      maxOutputTokens: 4096,
       // Force at least one tool call on step 1 so the model fetches real data
       // before answering. Subsequent steps use "auto" so it can respond freely.
       toolChoice: step === 0 ? "required" : "auto",
@@ -171,6 +177,25 @@ chatRouter.post("/", async (c) => {
     // Add tool results as a proper tool message
     conversationMessages.push({ role: "tool" as const, content: toolResultParts });
   }
+  } catch (err) {
+    // The AI provider call failed (e.g. OpenRouter 402 out-of-credits, rate
+    // limit, upstream outage). Don't 500 — return a clear assistant message the
+    // user can act on. Not persisted, so the next successful turn is clean.
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Chat] AI generation failed:", msg);
+    const isCredit = /credit|max_tokens|402|quota|insufficient|payment/i.test(msg);
+    return c.json({
+      threadTitle: null,
+      response: {
+        chat: isCredit
+          ? "I can't respond right now — the AI provider (OpenRouter) is out of credits or over its limit. Add credits or raise the key's monthly limit, then try again."
+          : "I ran into an error generating a response. Please try again in a moment.",
+      },
+      toolResults: [],
+      model: { level: agentLevel, slug: agentModelSlug },
+      error: isCredit ? "ai_credits" : "ai_error",
+    });
+  }
 
   // Descrub LLM response — replace aliases back to real names
   finalText = descrub(finalText, aliasMap, "chat");
@@ -196,6 +221,7 @@ chatRouter.post("/", async (c) => {
         model: getModel(),
         system: "Generate a short title (3-6 words) for this financial conversation. No quotes, no punctuation at the end. Just the title.",
         messages: [{ role: "user", content: `Title for: "${body.message.slice(0, 200)}"` }],
+        maxOutputTokens: 32,
       });
       generatedThreadTitle = titleResult.text.trim().slice(0, 100);
       if (generatedThreadTitle && generatedThreadTitle.length > 2) {
