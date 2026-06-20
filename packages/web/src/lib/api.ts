@@ -104,6 +104,8 @@ export const api = {
           mask: string | null;
           balance: string | null;
           currency: string;
+          apr?: string | null;
+          metadata?: Record<string, unknown> | null;
         }>;
       }>;
     }>("/plaid/items"),

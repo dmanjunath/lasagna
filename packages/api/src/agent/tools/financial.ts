@@ -1,45 +1,81 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "../../lib/db.js";
-import { financialProfiles } from "@lasagna/core";
-import { eq } from "@lasagna/core";
+import {
+  financialProfiles,
+  transactions,
+  recurringTransactions,
+  goals,
+  goalAccounts,
+  accounts,
+  eq,
+  and,
+  desc,
+  sql,
+} from "@lasagna/core";
 import { getHoldingsInput } from "../../routes/portfolio.js";
 import { aggregatePortfolio } from "../../services/portfolio-aggregator.js";
 import {
   fetchAccountsWithBalances,
   netWorthContribution,
 } from "../../lib/account-balances.js";
+import { buildGoalAccountMap, resolveGoalAmount } from "../../lib/goal-progress.js";
+
+/** Parse the account.metadata JSON blob (property details, loan terms, etc.). */
+function parseMeta(m: string | null): unknown {
+  if (!m) return null;
+  try {
+    return JSON.parse(m);
+  } catch {
+    return m;
+  }
+}
 
 export function createFinancialTools(tenantId: string) {
   return {
     get_accounts: tool({
       description:
-        "Get all financial accounts for the user with their current balances",
+        "Get ALL of the user's financial accounts with current balances and details. Covers every type: cash (checking/savings), investment & retirement (brokerage/401k/IRA/HSA), real estate / property, other/alternative assets, and liabilities (credit cards, loans, mortgages). Includes each account's `metadata` (e.g. property details for real estate, loan terms for debts). This is the complete account list — real estate and property ARE included here.",
       inputSchema: z.object({}),
       execute: async () => {
-        const accts = await fetchAccountsWithBalances(tenantId);
+        const [accts, rateRows] = await Promise.all([
+          fetchAccountsWithBalances(tenantId),
+          db
+            .select({ id: accounts.id, apr: accounts.apr, apy: accounts.apy })
+            .from(accounts)
+            .where(eq(accounts.tenantId, tenantId)),
+        ]);
+        const rates = new Map(rateRows.map((r) => [r.id, r]));
 
         return {
-          accounts: accts.map((a) => ({
-            id: a.id,
-            name: a.name,
-            type: a.type,
-            subtype: a.subtype,
-            mask: a.mask,
-            // effectiveBalance already reflects the user's invert override
-            balance: a.effectiveBalance,
-            available: a.available,
-            lastUpdated: a.asOf,
-            excludedFromNetWorth: a.excludeFromNetWorth,
-            inverted: a.invertBalance,
-          })),
+          accounts: accts.map((a) => {
+            const rate = rates.get(a.id);
+            return {
+              id: a.id,
+              name: a.name,
+              type: a.type,
+              subtype: a.subtype,
+              mask: a.mask,
+              // effectiveBalance already reflects the user's invert override
+              balance: a.effectiveBalance,
+              available: a.available,
+              lastUpdated: a.asOf,
+              excludedFromNetWorth: a.excludeFromNetWorth,
+              inverted: a.invertBalance,
+              // Interest rate: APR for loans/credit (e.g. mortgage rate), APY for deposits.
+              apr: rate?.apr ? parseFloat(rate.apr) : null,
+              apy: rate?.apy ? parseFloat(rate.apy) : null,
+              // Property details (real estate), loan terms (debts), etc.
+              metadata: parseMeta(a.metadata),
+            };
+          }),
         };
       },
     }),
 
     get_net_worth: tool({
       description:
-        "Get the user's net worth with historical data for trend analysis",
+        "Get the user's current net worth with a per-type breakdown (cash, investment, real_estate, alternative, credit, loan). Real estate and all asset/liability types are included.",
       inputSchema: z.object({
         timeframe: z
           .enum(["1m", "3m", "6m", "1y", "all"])
@@ -71,7 +107,7 @@ export function createFinancialTools(tenantId: string) {
     }),
 
     get_holdings: tool({
-      description: "Get investment holdings with securities information, grouped by asset class",
+      description: "Get investment holdings with securities information, grouped by asset class. Covers brokerage/retirement positions only (not real estate — use get_accounts for property).",
       inputSchema: z.object({}),
       execute: async () => {
         // Use the same pipeline as the portfolio tab for consistent data
@@ -95,6 +131,149 @@ export function createFinancialTools(tenantId: string) {
                 category: cat.name,
               }))
             ),
+          })),
+        };
+      },
+    }),
+
+    get_debts: tool({
+      description:
+        "Get the user's debts and liabilities (credit cards, loans, mortgages) with balances, APR, and loan details (term, payment, payoff date) from metadata. Use for debt-payoff, interest, refinance, and minimum-payment questions.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const [accts, aprRows] = await Promise.all([
+          fetchAccountsWithBalances(tenantId),
+          db
+            .select({ id: accounts.id, apr: accounts.apr, apy: accounts.apy })
+            .from(accounts)
+            .where(eq(accounts.tenantId, tenantId)),
+        ]);
+        const aprMap = new Map(aprRows.map((r) => [r.id, r.apr]));
+        const liabilities = accts.filter(
+          (a) => a.type === "credit" || a.type === "loan",
+        );
+        const apr = liabilities.map((a) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          subtype: a.subtype,
+          balance: Math.abs(a.effectiveBalance),
+          apr: aprMap.get(a.id) ? parseFloat(aprMap.get(a.id)!) : null,
+          details: parseMeta(a.metadata),
+        }));
+        return {
+          debts: apr,
+          totalDebt: apr.reduce((s, d) => s + d.balance, 0),
+        };
+      },
+    }),
+
+    get_goals: tool({
+      description:
+        "Get the user's savings goals with progress: name, category, target amount, current amount, deadline, status, and which accounts fund each goal. Auto-tracked goals derive their progress from linked account balances.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const [rows, links, accts] = await Promise.all([
+          db.select().from(goals).where(eq(goals.tenantId, tenantId)),
+          db.query.goalAccounts.findMany({
+            where: eq(goalAccounts.tenantId, tenantId),
+          }),
+          fetchAccountsWithBalances(tenantId),
+        ]);
+        const accountMap = buildGoalAccountMap(links);
+        const balanceById = new Map(accts.map((a) => [a.id, a.effectiveBalance]));
+        return {
+          goals: rows.map((g) => {
+            const accountIds = accountMap.get(g.id) ?? [];
+            const { amount, isAutoTracked } = resolveGoalAmount(
+              g.currentAmount,
+              accountIds,
+              balanceById,
+            );
+            const target = parseFloat(g.targetAmount);
+            return {
+              id: g.id,
+              name: g.name,
+              category: g.category,
+              target,
+              current: amount,
+              percentComplete: target > 0 ? Math.round((amount / target) * 100) : 0,
+              deadline: g.deadline,
+              status: g.status,
+              autoTracked: isAutoTracked,
+              fundedByAccountIds: accountIds,
+            };
+          }),
+        };
+      },
+    }),
+
+    get_transactions: tool({
+      description:
+        "Get individual transactions (date, name, merchant, amount, category, account). Positive amount = expense, negative = income. Use for questions about specific purchases, recent activity, or a detailed/filtered transaction list. For aggregate totals by category use get_spending_summary instead.",
+      inputSchema: z.object({
+        limit: z.number().optional().default(50).describe("Max rows (capped at 200)."),
+        category: z.string().optional().describe("Filter to a single category."),
+        startDate: z.string().optional().describe("ISO date, inclusive lower bound."),
+        endDate: z.string().optional().describe("ISO date, inclusive upper bound."),
+      }),
+      execute: async ({ limit, category, startDate, endDate }) => {
+        const conds = [eq(transactions.tenantId, tenantId)];
+        if (category) conds.push(eq(transactions.category, category as never));
+        if (startDate) conds.push(sql`${transactions.date} >= ${startDate}`);
+        if (endDate) conds.push(sql`${transactions.date} <= ${endDate}`);
+        const rows = await db
+          .select({
+            date: transactions.date,
+            name: transactions.name,
+            merchant: transactions.merchantName,
+            amount: transactions.amount,
+            category: transactions.category,
+            accountId: transactions.accountId,
+            pending: transactions.pending,
+          })
+          .from(transactions)
+          .where(and(...conds))
+          .orderBy(desc(transactions.date))
+          .limit(Math.min(limit ?? 50, 200));
+        return {
+          transactions: rows.map((r) => ({
+            date: r.date,
+            name: r.name,
+            merchant: r.merchant,
+            amount: parseFloat(r.amount),
+            category: r.category,
+            accountId: r.accountId,
+            pending: r.pending === 1,
+          })),
+        };
+      },
+    }),
+
+    get_recurring: tool({
+      description:
+        "Get recurring transactions — bills and subscriptions the user pays on a schedule (name, merchant, amount, frequency, next due date, category). Use for cash-flow, upcoming-bills, and subscription-audit questions.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const rows = await db
+          .select()
+          .from(recurringTransactions)
+          .where(
+            and(
+              eq(recurringTransactions.tenantId, tenantId),
+              eq(recurringTransactions.isActive, true),
+            ),
+          )
+          .orderBy(recurringTransactions.nextDueDate);
+        return {
+          recurring: rows.map((r) => ({
+            name: r.name,
+            merchant: r.merchantName,
+            amount: parseFloat(r.amount),
+            frequency: r.frequency,
+            nextDueDate: r.nextDueDate,
+            category: r.category,
+            accountId: r.accountId,
           })),
         };
       },

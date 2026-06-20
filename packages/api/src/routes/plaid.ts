@@ -125,6 +125,7 @@ plaidRoutes.get("/items", async (c) => {
             mask: acct.mask,
             balance: latest?.balance ?? null,
             currency: latest?.isoCurrencyCode ?? "USD",
+            apr: acct.apr,
             metadata: acct.metadata ? JSON.parse(acct.metadata) : null,
             excludeFromNetWorth: acct.excludeFromNetWorth,
             excludeTransactions: acct.excludeTransactions,

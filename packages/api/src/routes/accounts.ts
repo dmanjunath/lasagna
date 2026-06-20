@@ -375,9 +375,22 @@ accountRoutes.patch("/:id/loan-details", async (c) => {
     lastSyncedAt: new Date().toISOString(),
   };
 
+  // Keep the `apr` column in sync with the edited rate so the chat tools
+  // (which read accounts.apr) and the Debt page (which reads metadata) agree.
+  let apr: string | undefined;
+  if (parsed.data.type === "credit_card") {
+    const purchase = parsed.data.aprs?.find((a) => a.aprType === "purchase_apr");
+    if (purchase) apr = String(purchase.aprPercentage);
+  } else if (parsed.data.interestRatePercentage !== undefined) {
+    apr = String(parsed.data.interestRatePercentage);
+  }
+
   await db
     .update(accounts)
-    .set({ metadata: JSON.stringify(metadata) })
+    .set({
+      metadata: JSON.stringify(metadata),
+      ...(apr !== undefined ? { apr } : {}),
+    })
     .where(eq(accounts.id, accountId));
 
   return c.json({ metadata });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { ChevronDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, RefreshCw, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 import {
   Page,
@@ -61,6 +61,8 @@ type DetailAccount = ApiAccount & {
   excludeFromNetWorth?: boolean;
   excludeTransactions?: boolean;
   invertBalance?: boolean;
+  apr?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 type Snapshot = Awaited<ReturnType<typeof api.getHistory>>['snapshots'][number];
 
@@ -89,11 +91,33 @@ export function AccountDetail() {
   const [invertBalance, setInvert] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Loan-detail form state (credit/loan accounts only). Pre-filled in load()
+  // from the account's parsed metadata + apr column. Mirrors LoanDetailsModal.
+  const [maturityDate, setMaturityDate] = useState('');
+  const [expectedPayoffDate, setExpectedPayoffDate] = useState('');
+  const [interestRate, setInterestRate] = useState('');
+  const [minPayment, setMinPayment] = useState('');
+  const [originationDate, setOriginationDate] = useState('');
+  const [repaymentPlanType, setRepaymentPlanType] = useState('');
+  const [purchaseApr, setPurchaseApr] = useState('');
+  // Snapshot of the loaded loan values so Save only patches when one changed.
+  const initialLoanRef = useRef<Record<string, string>>({});
+
   // Presentation state — chart range, hover readout, and the collapsible
   // settings panel (hidden by default so the page leads with the chart).
   const [range, setRange] = useState<Range>('6M');
   const [chartHoverIdx, setChartHoverIdx] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Editable value for manual accounts (e.g. re-valuing a home). Synced
+  // accounts get their balance from the provider, so it's not editable there.
+  const [editValue, setEditValue] = useState('');
+  const settingsRef = useRef<HTMLButtonElement>(null);
+  const openSettings = () => {
+    setSettingsOpen(true);
+    requestAnimationFrame(() =>
+      settingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
+  };
 
   // Sync / delete actions.
   const [actionPending, setActionPending] = useState(false);
@@ -139,6 +163,36 @@ export function AccountDetail() {
       setExcludeNW(Boolean(found.acct.excludeFromNetWorth));
       setExcludeTx(Boolean(found.acct.excludeTransactions));
       setInvert(Boolean(found.acct.invertBalance));
+      setEditValue(found.acct.balance ?? '');
+
+      // Pre-fill loan-detail fields from parsed metadata + the apr column.
+      const meta = (found.acct.metadata ?? {}) as Record<string, unknown>;
+      const aprCol = found.acct.apr != null ? String(found.acct.apr) : '';
+      const num = (v: unknown) =>
+        typeof v === 'number' ? String(v) : typeof v === 'string' ? v : '';
+      const dateStr = (v: unknown) => (typeof v === 'string' ? v.slice(0, 10) : '');
+      const purchaseAprMeta = Array.isArray(meta.aprs)
+        ? (meta.aprs as Array<{ aprType?: string; aprPercentage?: number }>).find(
+            (a) => a.aprType === 'purchase_apr',
+          )?.aprPercentage
+        : undefined;
+      const loanVals = {
+        maturityDate: dateStr(meta.maturityDate),
+        expectedPayoffDate: dateStr(meta.expectedPayoffDate),
+        interestRate: num(meta.interestRatePercentage) || aprCol,
+        minPayment: num(meta.minimumPaymentAmount),
+        originationDate: dateStr(meta.originationDate),
+        repaymentPlanType: typeof meta.repaymentPlanType === 'string' ? meta.repaymentPlanType : '',
+        purchaseApr: (purchaseAprMeta !== undefined ? String(purchaseAprMeta) : '') || aprCol,
+      };
+      setMaturityDate(loanVals.maturityDate);
+      setExpectedPayoffDate(loanVals.expectedPayoffDate);
+      setInterestRate(loanVals.interestRate);
+      setMinPayment(loanVals.minPayment);
+      setOriginationDate(loanVals.originationDate);
+      setRepaymentPlanType(loanVals.repaymentPlanType);
+      setPurchaseApr(loanVals.purchaseApr);
+      initialLoanRef.current = loanVals;
     } catch {
       setNotFound(true);
     } finally {
@@ -216,6 +270,18 @@ export function AccountDetail() {
   const crossesBucket = wasLiability !== willBeLiability;
   const displayedBalance = invertBalance ? -balance : balance;
 
+  // Mirror LoanDetailsModal's loanType derivation, off the persisted type.
+  const isLiabilityAcct = acct.type === 'credit' || acct.type === 'loan';
+  const lowerName = acct.name.toLowerCase();
+  const loanType: 'mortgage' | 'student_loan' | 'credit_card' | 'other_loan' =
+    acct.type === 'credit'
+      ? 'credit_card'
+      : acct.subtype === 'mortgage' || lowerName.includes('mortgage')
+        ? 'mortgage'
+        : acct.subtype === 'student' || acct.subtype === 'student_loan' || lowerName.includes('student')
+          ? 'student_loan'
+          : 'other_loan';
+
   const save = async () => {
     setActionError(null);
     if (crossesBucket) {
@@ -228,8 +294,16 @@ export function AccountDetail() {
     }
     setSaving(true);
     try {
-      if (isManual && name.trim() && name.trim() !== acct.name) {
-        await api.updateManualAccount(id, { name: name.trim() });
+      if (isManual) {
+        const manualUpdate: { name?: string; balance?: number } = {};
+        if (name.trim() && name.trim() !== acct.name) manualUpdate.name = name.trim();
+        const newBalance = parseFloat(editValue);
+        if (!Number.isNaN(newBalance) && newBalance !== parseFloat(acct.balance ?? '0')) {
+          manualUpdate.balance = newBalance;
+        }
+        if (Object.keys(manualUpdate).length > 0) {
+          await api.updateManualAccount(id, manualUpdate);
+        }
       }
       await api.updateAccount(id, {
         type: chosen.type,
@@ -238,6 +312,40 @@ export function AccountDetail() {
         excludeTransactions,
         invertBalance,
       });
+
+      // Persist loan-detail edits (credit/loan accounts) when any field changed.
+      if (isLiabilityAcct) {
+        const cur: Record<string, string> = {
+          maturityDate, expectedPayoffDate, interestRate, minPayment,
+          originationDate, repaymentPlanType, purchaseApr,
+        };
+        const init = initialLoanRef.current;
+        const changed = Object.keys(cur).some((k) => cur[k] !== (init[k] ?? ''));
+        if (changed) {
+          const body: Record<string, unknown> = { type: loanType };
+          if (loanType === 'mortgage') {
+            if (maturityDate) body.maturityDate = maturityDate;
+            if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
+            if (originationDate) body.originationDate = originationDate;
+          } else if (loanType === 'student_loan') {
+            if (expectedPayoffDate) body.expectedPayoffDate = expectedPayoffDate;
+            if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
+            if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
+            if (repaymentPlanType) body.repaymentPlanType = repaymentPlanType;
+          } else if (loanType === 'credit_card') {
+            if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
+            if (purchaseApr)
+              body.aprs = [{ aprType: 'purchase_apr', aprPercentage: parseFloat(purchaseApr) }];
+          } else {
+            if (maturityDate) body.maturityDate = maturityDate;
+            if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
+            if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
+            if (originationDate) body.originationDate = originationDate;
+          }
+          if (Object.keys(body).length > 1) await api.patchLoanDetails(id, body);
+        }
+      }
+
       await load();
       showFlash('Saved ✓');
     } catch {
@@ -282,6 +390,9 @@ export function AccountDetail() {
 
   const headerActions = (
     <div className="ds-money-header-actions">
+      <Button variant="ghost" size="sm" onClick={openSettings} icon={<Pencil size={12} />}>
+        Edit
+      </Button>
       {!isManual && (
         <Button
           variant="ghost"
@@ -416,6 +527,7 @@ export function AccountDetail() {
       {/* ── Settings — collapsed behind a toggle (hidden by default). ── */}
       <Section>
         <button
+          ref={settingsRef}
           type="button"
           className="ad-settings-toggle"
           aria-expanded={settingsOpen}
@@ -429,9 +541,20 @@ export function AccountDetail() {
         {settingsOpen && (
         <Card style={{ marginTop: 12 }}>
           {isManual ? (
-            <Field label="Name">
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-            </Field>
+            <>
+              <Field label="Name">
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+              </Field>
+              <Field label="Value">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  style={inputStyle}
+                />
+              </Field>
+            </>
           ) : (
             <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, background: 'var(--lf-cream-deep)', color: 'var(--lf-muted)' }}>
               <span style={{ color: 'var(--lf-ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleCase(acct.name)}</span>
@@ -475,6 +598,50 @@ export function AccountDetail() {
             label="Invert balance"
             description={`Flip the sign of the balance. Currently counts as ${fmtUsd(displayedBalance)}${invertBalance ? ` (was ${fmtUsd(balance)})` : ''}.`}
           />
+
+          {isLiabilityAcct && (
+            <>
+              <div style={{ height: 1, background: 'var(--lf-rule)', margin: '16px 0' }} />
+              <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 600, color: 'var(--lf-ink-soft)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                Loan details
+              </p>
+              {(loanType === 'mortgage' || loanType === 'other_loan') && (
+                <Field label="Maturity / payoff date">
+                  <input type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+              {loanType === 'student_loan' && (
+                <Field label="Expected payoff date">
+                  <input type="date" value={expectedPayoffDate} onChange={(e) => setExpectedPayoffDate(e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+              {loanType !== 'credit_card' && (
+                <Field label="Interest rate (APR %)">
+                  <input type="number" step="0.01" min="0" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+              {loanType === 'credit_card' && (
+                <Field label="Purchase APR (%)">
+                  <input type="number" step="0.01" min="0" value={purchaseApr} onChange={(e) => setPurchaseApr(e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+              {(loanType === 'mortgage' || loanType === 'other_loan') && (
+                <Field label="Origination date">
+                  <input type="date" value={originationDate} onChange={(e) => setOriginationDate(e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+              {(loanType === 'student_loan' || loanType === 'credit_card' || loanType === 'other_loan') && (
+                <Field label="Minimum payment ($)">
+                  <input type="number" step="1" min="0" value={minPayment} onChange={(e) => setMinPayment(e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+              {loanType === 'student_loan' && (
+                <Field label="Repayment plan type">
+                  <input type="text" value={repaymentPlanType} onChange={(e) => setRepaymentPlanType(e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+            </>
+          )}
 
           <div style={{ marginTop: 20 }}>
             <Button variant="ink" disabled={saving} onClick={save}>
