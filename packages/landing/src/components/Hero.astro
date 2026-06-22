@@ -1,160 +1,56 @@
 ---
-import { APP_URL, GITHUB_URL } from "../config";
-
-const layers = [
-  { idx: "01", label: "Stabilize + oh-shit fund", val: "$1,000 · done", cls: "l1" },
-  { idx: "02", label: "Employer match", val: "capturing 100%", cls: "l2" },
-  { idx: "03", label: "High-rate debt", val: "$0 · paid off", cls: "l3" },
-  { idx: "04", label: "Emergency fund", val: "$24,000 / $24,000", cls: "l4" },
-  { idx: "05", label: "Insurance and will", val: "← you are here", cls: "l5" },
-  { idx: "06", label: "Tax-advantaged investing", val: "$4,200 / $7,000", cls: "l6" },
-];
+import { APP_URL } from "../config";
 ---
 
-<section class="hero">
-  <div class="hero-text">
-    <h1 class="serif">
-      Your money.<br />
-      Your <em>privacy</em>.<br />
-      Your AI.
-    </h1>
-    <p class="hero-sub">
-      LasagnaFi is a personal financial dashboard with a private AI assistant. Ask anything about your money. The AI sees your numbers and patterns, never your name, bank, or account details.
-    </p>
-    <div class="hero-cta">
-      <a href={GITHUB_URL} class="btn btn-primary">View on GitHub →</a>
-      <a href="#privacy" class="btn btn-ghost">See how privacy works</a>
-    </div>
-  </div>
+<a id="top"></a>
+<div class="wrap">
 
-  <div class="stack-viz">
-    {layers.map((l) => (
-      <div class={`stack-layer ${l.cls}`}>
-        <div class="layer-left">
-          <span class="idx">{l.idx}</span>
-          <span class="lbl">{l.label}</span>
-        </div>
-        <span class="val">{l.val}</span>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="rv" style="animation-delay:.05s">
+      <h1 class="serif">Stop guessing<br><em>with your money.</em></h1>
+      <p class="hero-sub">LasagnaFi looks at all your financial information and suggests the best next steps to improve your finances.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href={APP_URL}>Get started →</a>
+        <a class="btn btn-ghost" href="#get">See what you get ↓</a>
       </div>
-    ))}
-  </div>
-</section>
+    </div>
 
-<style>
-  .hero {
-    max-width: 1240px;
-    margin: 0 auto;
-    padding: 80px 32px 64px;
-    display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: 64px;
-    align-items: center;
-  }
-
-  h1 {
-    font-size: clamp(54px, 6.5vw, 96px);
-    line-height: 0.98;
-    letter-spacing: -0.022em;
-    font-weight: 400;
-  }
-
-  h1 em {
-    font-style: italic;
-    color: var(--sauce);
-  }
-
-  .hero-sub {
-    margin-top: 24px;
-    font-size: 18px;
-    line-height: 1.55;
-    color: var(--ink-soft);
-    max-width: 500px;
-  }
-
-  .hero-cta {
-    display: flex;
-    gap: 12px;
-    margin-top: 32px;
-    flex-wrap: wrap;
-  }
-
-  .hero-meta {
-    margin-top: 28px;
-    display: flex;
-    gap: 24px;
-    flex-wrap: wrap;
-    font-family: var(--sans);
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  .hero-meta span::before {
-    content: "· ";
-    color: var(--sauce);
-  }
-
-  /* Stack viz */
-  .stack-viz {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    padding: 28px 0;
-  }
-
-  .stack-layer {
-    border-radius: 12px;
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 12px 24px -16px rgba(15,23,42,0.3);
-    transform-origin: left center;
-    transition: transform 0.25s ease;
-    cursor: default;
-  }
-
-  .stack-layer:hover { transform: translateX(6px); }
-
-  .layer-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .idx {
-    font-family: var(--mono);
-    font-size: 13px;
-    opacity: 0.65;
-  }
-
-  .lbl { font-size: 13px; font-weight: 500; }
-  .val { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
-
-  /* Layer colors — vibrant traffic-light ramp (urgent → done) */
-  .l1 { background: #DC2626; color: #fff;    width: 94%; }
-  .l2 { background: #F97316; color: #fff;    width: 88%; margin-left: 6%; }
-  .l3 { background: #F59E0B; color: #0F172A; width: 92%; margin-left: 2%; }
-  .l4 { background: #84CC16; color: #0F172A; width: 86%; margin-left: 8%; }
-  .l5 { background: #22C55E; color: #fff;    width: 90%; margin-left: 4%; }
-  .l6 { background: #10B981; color: #fff;    width: 96%; }
-
-  .stack-caption {
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    font-family: var(--sans);
-    font-size: 13px;
-    color: var(--muted);
-    letter-spacing: 0.08em;
-  }
-
-  @media (max-width: 860px) {
-    .hero {
-      grid-template-columns: 1fr;
-      padding: 48px 20px 48px;
-      gap: 40px;
-    }
-    .stack-viz { display: none; }
-  }
-</style>
+    <div class="rv" style="animation-delay:.2s">
+      <div class="plan">
+        <div class="plan-head">
+          <span class="t">Your plan · this week</span>
+          <span class="live"><span class="pulse"></span>updated today</span>
+        </div>
+        <div class="move m-now">
+          <div class="rank">1</div>
+          <div class="body">
+            <div class="tag">Do this now</div>
+            <h4>Kill the $6,240 card balance.</h4>
+            <p>It's at 23.9%, costing you $124/mo in interest. Nothing you could invest in beats a guaranteed 23.9% return.</p>
+          </div>
+          <div class="impact"><div class="n">+$1,490</div><div class="l">saved / yr</div></div>
+        </div>
+        <div class="move m-next">
+          <div class="rank">2</div>
+          <div class="body">
+            <div class="tag">Next</div>
+            <h4>Get term life + a will.</h4>
+            <p>2 dependents, $0 coverage. If something happens to you, they're not protected. ~$42/mo fixes it.</p>
+          </div>
+          <div class="impact"><div class="n">$42</div><div class="l">/ mo</div></div>
+        </div>
+        <div class="move m-then">
+          <div class="rank">3</div>
+          <div class="body">
+            <div class="tag">Then</div>
+            <h4>Top off your Roth. $4,800 to go.</h4>
+            <p>Tax-free growth, and you can't add to your 2025 Roth after April 16.</p>
+          </div>
+          <div class="impact"><div class="n">$2,200</div><div class="l">of $7,000</div></div>
+        </div>
+        <div class="plan-foot"><span>3 of 12 layers active</span><span>net worth $182,430 ↑</span></div>
+      </div>
+    </div>
+  </section>
+</div>

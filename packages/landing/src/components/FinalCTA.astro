@@ -1,74 +1,17 @@
 ---
-import { GITHUB_URL } from "../config";
+import { APP_URL, GITHUB_URL } from "../config";
 import WaveMark from "./WaveMark.astro";
 ---
 
-<section>
-  <div class="inner">
-    <WaveMark size={72} style="display: block; margin: 0 auto 32px auto;" />
-    <h2 class="serif">
-      Your finances, your data, <em>your control.</em>
-    </h2>
-    <div class="cta-row">
-      <a href={GITHUB_URL} class="btn btn-primary">View on GitHub →</a>
-      <a href="#pricing" class="btn btn-ghost">See pricing</a>
+<!-- FINAL CTA -->
+<section class="wrap">
+  <div class="final">
+    <WaveMark size={64} style="display:block;margin:0 auto 22px" />
+    <h2 class="serif">You've been guessing.<br><em>You don't have to.</em></h2>
+    <p>Connect your accounts and see your next move in about five minutes. It's free to start and open source.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href={APP_URL}>Get started →</a>
+      <a class="btn btn-ghost" href={GITHUB_URL}>View the source →</a>
     </div>
   </div>
 </section>
-
-<style>
-  section {
-    background: var(--ink);
-    color: var(--paper);
-    border-top: none;
-  }
-
-  .inner {
-    max-width: 1240px;
-    margin: 0 auto;
-    padding: 140px 32px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  h2 {
-    font-size: clamp(44px, 6vw, 80px);
-    line-height: 1;
-    letter-spacing: -0.022em;
-    font-weight: 400;
-    max-width: 880px;
-    margin: 0 0 40px 0;
-  }
-
-  h2 em {
-    font-style: italic;
-    color: var(--sauce);
-  }
-
-  .cta-row {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .cta-row :global(.btn-primary) {
-    background: var(--paper);
-    color: var(--ink);
-  }
-
-  .cta-row :global(.btn-ghost) {
-    border-color: rgba(255,255,255,0.2);
-    color: var(--paper);
-  }
-
-  .cta-row :global(.btn-ghost:hover) {
-    border-color: rgba(255,255,255,0.4);
-  }
-
-  @media (max-width: 540px) {
-    .inner { padding: 80px 20px; }
-  }
-</style>
