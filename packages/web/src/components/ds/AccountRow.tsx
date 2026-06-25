@@ -1,5 +1,5 @@
 import { ReactNode, useState, useRef, useEffect } from 'react';
-import { RefreshCw, Trash2, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
+import { RefreshCw, Trash2, MoreHorizontal, SlidersHorizontal, Lock } from 'lucide-react';
 import { faviconUrl, institutionDomainFor } from './institutions';
 
 export interface AccountRowProps {
@@ -9,7 +9,9 @@ export interface AccountRowProps {
   institutionDomain?: string;
   /** Account name — "Suhana R Manjunath 529 College Savings". */
   name: string;
-  /** Sub-line metadata: mask, type, account number, last sync, etc. */
+  /** Last-4 mask, rendered as a muted account-number tail bound to the name. */
+  mask?: string | null;
+  /** Sub-line metadata: institution, type, etc. (NOT the mask — that's `mask`). */
   meta?: ReactNode;
   /** Small state chips appended to the meta line — "Not counted", "Inverted". */
   badges?: string[];
@@ -25,10 +27,14 @@ export interface AccountRowProps {
   onSettings?: () => void;
   /** Optional delete callback — adds "Delete account" to the menu (manual only). */
   onDelete?: () => void;
+  /** Optional upgrade callback — adds "Upgrade to sync" to the menu (frozen accounts). */
+  onUpgrade?: () => void;
   /** Format the value (caller-controlled so currency formatting stays consistent). */
   formatValue?: (n: number) => string;
   /** Render value as negative (e.g. debt totals shown as positive absolute with leading −). */
   negative?: boolean;
+  /** De-emphasize the whole row (e.g. a frozen, no-longer-synced account). */
+  muted?: boolean;
 }
 
 const defaultFmt = (n: number) =>
@@ -53,6 +59,7 @@ export function AccountRow({
   institution,
   institutionDomain,
   name,
+  mask,
   meta,
   badges,
   value,
@@ -61,8 +68,10 @@ export function AccountRow({
   syncing,
   onSettings,
   onDelete,
+  onUpgrade,
   formatValue = defaultFmt,
   negative,
+  muted,
 }: AccountRowProps) {
   const resolvedDomain = institutionDomain ?? institutionDomainFor(institution);
   const icon = faviconUrl(resolvedDomain, 64);
@@ -72,7 +81,7 @@ export function AccountRow({
   // when the value is actually negative (e.g. an inverted asset balance).
   const showNeg = negative || value < 0;
   const display = showNeg ? `−${formatted}` : formatted;
-  const hasMenu = Boolean(onSettings || onSync || onDelete);
+  const hasMenu = Boolean(onSettings || onSync || onDelete || onUpgrade);
 
   const hasBadges = Boolean(badges && badges.length > 0);
   // The whole row opens settings (the ⋯ menu's clicks stop propagation so they
@@ -81,7 +90,7 @@ export function AccountRow({
 
   return (
     <div
-      className={`ds-row ds-row--account${clickable ? ' ds-row--clickable' : ''}`}
+      className={`ds-row ds-row--account${clickable ? ' ds-row--clickable' : ''}${muted ? ' ds-row--muted' : ''}`}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       aria-label={clickable ? `Edit ${name}` : undefined}
@@ -94,7 +103,14 @@ export function AccountRow({
     >
       <Favicon icon={icon} monogram={monogram} alt={institution} />
       <div className="ds-row__main">
-        <div className="ds-row__primary" title={name}>{name}</div>
+        <div className="ds-row__primary-line">
+          <span className="ds-row__primary" title={name}>{name}</span>
+          {mask && (
+            <span className="ds-row__acct-no" aria-label={`account ending ${mask}`}>
+              <span className="ds-row__acct-dots" aria-hidden="true">••••</span>{mask}
+            </span>
+          )}
+        </div>
         {(meta || hasBadges) && (
           <div className="ds-row__meta-line">
             {meta && <span className="ds-row__meta">{meta}</span>}
@@ -115,6 +131,7 @@ export function AccountRow({
           onSync={onSync}
           syncing={syncing}
           onDelete={onDelete}
+          onUpgrade={onUpgrade}
         />
       )}
     </div>
@@ -134,12 +151,14 @@ export function RowMenu({
   onSync,
   syncing,
   onDelete,
+  onUpgrade,
 }: {
   name: string;
   onSettings?: () => void;
   onSync?: () => void;
   syncing?: boolean;
   onDelete?: () => void;
+  onUpgrade?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
@@ -223,6 +242,17 @@ export function RowMenu({
             >
               <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
               {syncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          )}
+          {onUpgrade && (
+            <button
+              type="button"
+              role="menuitem"
+              className="ds-row__menu-item"
+              onClick={() => { closeMenu(); onUpgrade(); }}
+            >
+              <Lock size={14} />
+              Upgrade to sync
             </button>
           )}
           {onDelete && (

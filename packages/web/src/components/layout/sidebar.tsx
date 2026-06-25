@@ -3,8 +3,8 @@ import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Zap, Layers, TrendingUp, PieChart, Wallet,
-  CreditCard, AlertCircle, Receipt, Target, Building2,
-  User, MessageSquare, ChevronUp, ChevronDown, type LucideIcon,
+  CreditCard, AlertCircle, Receipt, Target,
+  MessageSquare, ChevronUp, ChevronDown, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
@@ -33,11 +33,6 @@ const ADVANCED_NAV: NavItem[] = [
   { id: 'spending',   label: 'Spending',   icon: CreditCard,  path: '/spending' },
   { id: 'debt',       label: 'Debt',       icon: AlertCircle, path: '/debt' },
   { id: 'tax',        label: 'Tax',        icon: Receipt,     path: '/tax' },
-];
-
-const SETUP_NAV: NavItem[] = [
-  { id: 'accounts', label: 'Accounts', icon: Building2, path: '/accounts' },
-  { id: 'profile',  label: 'Profile',  icon: User,      path: '/profile' },
 ];
 
 const ADVANCED_OPEN_KEY = 'lasagna-sidebar-advanced-open';
@@ -184,18 +179,6 @@ export function Sidebar({ className }: SidebarProps) {
           </>
         )}
 
-        {/* Setup — no eyebrow; two items don't need labelling and avoid
-            visual confusion with the Advanced collapse above. */}
-        <div className="mt-4 mb-1 mx-4 h-px" style={{ background: 'var(--lf-rule-neutral)' }} />
-        {SETUP_NAV.map((entry) => (
-          <NavButton
-            key={entry.id}
-            active={isActive(entry.path)}
-            icon={entry.icon}
-            label={entry.label}
-            onClick={() => navigate(entry.path)}
-          />
-        ))}
       </nav>
 
       {/* Theme picker — compact swatch row above the account chip (admin only) */}
@@ -212,9 +195,21 @@ export function Sidebar({ className }: SidebarProps) {
               transition={{ duration: 0.15 }}
               className="absolute bottom-full left-3 right-3 mb-1.5 bg-bg border border-rule rounded-xl overflow-hidden shadow-lg z-50"
             >
-              {/* Accounts + Profile are now in the main nav (below the divider),
-                  so the popover only carries Sign out. Keeps a single canonical
-                  path to each destination. */}
+              {/* Connected Accounts + Profile live in this account menu (not the
+                  main sidebar nav). */}
+              <button
+                onClick={() => { setUserMenuOpen(false); navigate('/accounts'); }}
+                className="w-full text-left px-4 py-2.5 text-sm text-text-secondary hover:bg-bg-elevated transition-colors cursor-pointer"
+              >
+                Connected Accounts
+              </button>
+              <button
+                onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
+                className="w-full text-left px-4 py-2.5 text-sm text-text-secondary hover:bg-bg-elevated transition-colors cursor-pointer"
+              >
+                Profile
+              </button>
+              <div className="h-px mx-3 my-1" style={{ background: 'var(--lf-rule-neutral)' }} />
               <button
                 onClick={() => { setUserMenuOpen(false); logout(); }}
                 className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-bg-elevated transition-colors cursor-pointer"

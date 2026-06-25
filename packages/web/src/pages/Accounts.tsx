@@ -23,10 +23,14 @@ import {
   EmptyState,
   useConfirm,
   RowMenu,
+  Favicon,
+  faviconUrl,
+  institutionDomainFor,
 } from "../components/ds";
 import { api } from "../lib/api.js";
 import { useAuth } from "../lib/auth";
 import { useBilling, startUpgrade } from "../lib/billing";
+import { stripAccountMask } from "../lib/utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -148,6 +152,9 @@ export function Accounts() {
   const { tenant } = useAuth();
   const { status: billing } = useBilling();
   const isFree = tenant?.plan === "free";
+  // Free + over the account cap: surface which accounts are still active
+  // (the rest render as frozen).
+  const overLimit = isFree && !!billing && billing.usage.accounts > billing.usage.maxAccounts;
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
@@ -534,15 +541,31 @@ export function Accounts() {
         )}
       </header>
 
-      {/* Plan usage — N of M accounts used, with an upgrade nudge at the cap */}
+      {/* Plan usage — over the cap, surface "M of N syncing" (the rest are
+          frozen) instead of the confusing "22 of 3 used"; otherwise the plain
+          "N of M accounts used" with an upgrade nudge as the cap approaches. */}
       {billing && (
-        <p className="ds-accounts-usage">
-          {billing.usage.accounts} of {billing.usage.maxAccounts} accounts used
+        <p className={`ds-accounts-usage${overLimit ? " ds-accounts-usage--over" : ""}`}>
+          {overLimit ? (
+            <>
+              <span className="ds-accounts-usage__count">
+                {billing.usage.maxAccounts} of {billing.usage.accounts}
+              </span>{" "}
+              accounts syncing on Free
+            </>
+          ) : (
+            <>
+              <span className="ds-accounts-usage__count">
+                {billing.usage.accounts} of {billing.usage.maxAccounts}
+              </span>{" "}
+              accounts used
+            </>
+          )}
           {isFree && billing.usage.accounts >= billing.usage.maxAccounts && (
             <>
               {" · "}
               <button type="button" className="ds-accounts-usage__upgrade" onClick={handleUpgrade}>
-                Upgrade for more
+                {overLimit ? "Upgrade to sync all" : "Upgrade for more"}
               </button>
             </>
           )}
@@ -590,9 +613,26 @@ export function Accounts() {
         </motion.div>
       )}
 
-      {/* Loading state */}
+      {/* Loading state — mirror the institution feed outline so first paint
+          lands without a layout jolt (matched logo + name/meta + total rows). */}
       {loading && (
-        <div style={{ height: 120, background: 'var(--lf-cream)', borderRadius: 8 }} className="animate-pulse" />
+        <div className="ds-accounts-feed" aria-hidden="true">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="ds-inst ds-inst--skeleton">
+              <div className="ds-inst__head">
+                <span className="ds-inst__head-chev">
+                  <ChevronRight size={14} />
+                </span>
+                <span className="ds-skeleton" style={{ display: "block", width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
+                <div className="ds-inst__head-body">
+                  <span className="ds-skeleton" style={{ display: "block", width: 120, height: 18, borderRadius: 5, marginBottom: 8 }} />
+                  <span className="ds-skeleton" style={{ display: "block", width: 90, height: 12, borderRadius: 4 }} />
+                </div>
+                <span className="ds-skeleton" style={{ display: "block", width: 96, height: 15, borderRadius: 4, flexShrink: 0 }} />
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Empty state */}
@@ -639,6 +679,7 @@ export function Accounts() {
                 onRefresh={() => loadItems(false)}
                 allAccounts={allAccounts}
                 isFree={isFree}
+                overLimit={overLimit}
                 onUpgrade={handleUpgrade}
               />
             ))}
@@ -670,6 +711,7 @@ export function Accounts() {
                   onRefresh={() => loadItems(false)}
                   allAccounts={allAccounts}
                   isFree={isFree}
+                  overLimit={overLimit}
                   onUpgrade={handleUpgrade}
                 />
               ))}
@@ -699,6 +741,7 @@ export function Accounts() {
                   onRefresh={() => loadItems(false)}
                   allAccounts={allAccounts}
                   isFree={isFree}
+                  overLimit={overLimit}
                   onUpgrade={handleUpgrade}
                 />
               ))}
@@ -895,6 +938,12 @@ export function Accounts() {
           font-size: 12px;
           color: var(--lf-muted);
         }
+        .ds-accounts-usage__count {
+          font-variant-numeric: tabular-nums;
+          font-weight: 600;
+          color: var(--lf-ink-soft);
+        }
+        .ds-accounts-usage--over .ds-accounts-usage__count { color: var(--lf-sauce); }
         .ds-accounts-usage__upgrade {
           background: none; border: 0; padding: 0;
           font: inherit; cursor: pointer;
@@ -958,6 +1007,22 @@ export function Accounts() {
           color: var(--lf-ink);
         }
         .ds-accounts-feed { display: flex; flex-direction: column; }
+        /* Loading skeleton — InstitutionArticle's scoped <style> isn't mounted
+           during load, so mirror the head layout here (flex row + indented
+           body + right-aligned total) so the placeholder matches the real
+           feed and first paint doesn't jolt. */
+        .ds-inst--skeleton { border-top: 1px solid var(--lf-ink); }
+        .ds-inst--skeleton:last-child { border-bottom: 1px solid var(--lf-ink); }
+        .ds-inst--skeleton .ds-inst__head {
+          display: flex; align-items: center; gap: 12px;
+          width: 100%; padding: 18px 0;
+        }
+        .ds-inst--skeleton .ds-inst__head-chev { display: flex; flex-shrink: 0; color: var(--lf-muted); }
+        .ds-inst--skeleton .ds-inst__head-body { flex: 1; min-width: 0; }
+        /* Keep the collapsed header total + count off the gutter on mobile. */
+        @media (max-width: 640px) {
+          .ds-inst__head-total { margin-left: 10px; }
+        }
         .ds-accounts-type-tile {
           display: flex; align-items: center; gap: 10px;
           padding: 12px 14px; border-radius: 10px;
@@ -1030,6 +1095,7 @@ function InstitutionArticle({
   onRefresh,
   allAccounts,
   isFree,
+  overLimit,
   onUpgrade,
 }: {
   refCallback: (el: HTMLElement | null) => void;
@@ -1047,18 +1113,23 @@ function InstitutionArticle({
   onRefresh: () => void;
   allAccounts: Account[];
   isFree: boolean;
+  overLimit: boolean;
   onUpgrade: () => void;
 }) {
   const isError = item.status === "error" || item.status === "item_login_required";
-  const statusLabel = isError
+  // Manual accounts aren't "synced" — they're hand-entered, so the relative
+  // timestamp ("synced 63d ago") was misleading. Show a calm "Manual" pill.
+  const statusLabel = isManual
+    ? "manual"
+    : isError
     ? "needs re-auth"
     : item.lastSyncedAt
     ? `synced ${formatRelativeTime(item.lastSyncedAt)}`
-    : isManual
-    ? "manual"
     : "synced";
 
   const institutionName = item.institutionName ?? (isManual ? "Manual" : "Unknown Bank");
+  const favicon = isManual ? null : faviconUrl(institutionDomainFor(institutionName), 64);
+  const monogram = institutionName.trim().charAt(0).toUpperCase() || "?";
   // Net total across the institution (debts reduce; depository/investment increase)
   const total = item.accounts.reduce((sum, a) => {
     if (a.balance === null) return sum;
@@ -1094,6 +1165,9 @@ function InstitutionArticle({
       >
         <span className="ds-inst__head-chev">
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+        <span className="ds-inst__head-logo">
+          <Favicon icon={favicon} monogram={monogram} alt={institutionName} size={34} />
         </span>
         <div className="ds-inst__head-body">
           <div className="ds-inst__head-name">{institutionName}</div>
@@ -1139,6 +1213,7 @@ function InstitutionArticle({
                   account={account}
                   isManual={isManual}
                   isFree={isFree}
+                  overLimit={overLimit}
                   onUpgrade={onUpgrade}
                   onDelete={() => onDeleteAccount(account.id, account.name)}
                   onRefresh={onRefresh}
@@ -1187,6 +1262,14 @@ function InstitutionArticle({
           color: var(--lf-muted);
           flex-shrink: 0;
           display: flex;
+        }
+        /* Brand logo — same Favicon primitive as the rows, bumped to 34px so
+           the institution header reads as the parent of the accounts nested
+           under it. The expanded body indents to this logo's left edge. */
+        .ds-inst__head-logo { display: flex; flex-shrink: 0; }
+        .ds-inst__head-logo .ds-row__favicon,
+        .ds-inst__head-logo .ds-row__monogram {
+          width: 34px; height: 34px; border-radius: 8px;
         }
         .ds-inst__head-body { flex: 1; min-width: 0; }
         .ds-inst__head-name {
@@ -1251,8 +1334,8 @@ function InstitutionArticle({
 // Account row
 // ---------------------------------------------------------------------------
 
-function AccountRow({ account, isManual, isFree, onUpgrade, onDelete, onRefresh, linkedAccountName }: {
-  account: Account; isManual: boolean; isFree: boolean; onUpgrade: () => void;
+function AccountRow({ account, isManual, isFree, overLimit, onUpgrade, onDelete, onRefresh, linkedAccountName }: {
+  account: Account; isManual: boolean; isFree: boolean; overLimit: boolean; onUpgrade: () => void;
   onDelete: () => void;
   onRefresh: () => void;
   linkedAccountName: string | null;
@@ -1277,28 +1360,37 @@ function AccountRow({ account, isManual, isFree, onUpgrade, onDelete, onRefresh,
       <div className="ds-acctrow__name">
         <span className="ds-acctrow__name-main">
           {isFrozen && <Lock size={12} style={{ marginRight: 6, verticalAlign: "-1px", color: "var(--lf-muted)" }} />}
-          {account.name}
+          {stripAccountMask(account.name, account.mask)}
           {account.mask && (
-            <span style={{ color: "var(--lf-muted)", fontWeight: 400, marginLeft: 6 }}>
-              ••{account.mask}
+            <span className="ds-row__acct-no" style={{ marginLeft: 8 }} aria-label={`account ending ${account.mask}`}>
+              <span className="ds-row__acct-dots" aria-hidden="true">••••</span>{account.mask}
             </span>
           )}
         </span>
         {isFrozen ? (
-          <span className="ds-caption" style={{ fontSize: 11 }}>
-            Frozen —{" "}
+          <span className="ds-caption" style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span className="ds-row__badge">Frozen</span>
             <button
               type="button"
               className="ds-acctrow__upgrade"
               onClick={(e) => { e.stopPropagation(); onUpgrade(); }}
             >
-              upgrade to reactivate
+              Upgrade to sync
             </button>
           </span>
-        ) : linkedAccountName && (
-          <span className="ds-caption" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
-            linked to {linkedAccountName}
-          </span>
+        ) : (
+          <>
+            {overLimit && (
+              <span className="ds-caption" style={{ fontSize: 11, color: "var(--lf-basil)", fontWeight: 600 }}>
+                Active
+              </span>
+            )}
+            {linkedAccountName && (
+              <span className="ds-caption" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
+                linked to {linkedAccountName}
+              </span>
+            )}
+          </>
         )}
       </div>
 

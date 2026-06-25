@@ -6,6 +6,8 @@ import { plaidClient } from "../lib/plaid.js";
 import { env } from "../lib/env.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { syncItem } from "../lib/sync.js";
+import { resolveTenantPlan } from "../lib/billing.js";
+import { recomputeFrozenAccounts } from "../lib/account-limits.js";
 
 export const plaidRoutes = new Hono<AuthEnv>();
 
@@ -92,6 +94,14 @@ plaidRoutes.post("/exchange-token", async (c) => {
 // List linked Plaid items with accounts and balances
 plaidRoutes.get("/items", async (c) => {
   const session = c.get("session");
+
+  // Keep freeze state current on every read: free tenants keep their oldest
+  // `maxAccounts` active and freeze the rest. Idempotent (only writes on
+  // change), so this is a no-op once settled — but it ensures the
+  // active/frozen split is correct even for tenants that haven't synced since
+  // the limit was introduced.
+  const plan = await resolveTenantPlan(session.tenantId);
+  await recomputeFrozenAccounts(session.tenantId, plan);
 
   const items = await db.query.plaidItems.findMany({
     where: eq(plaidItems.tenantId, session.tenantId),

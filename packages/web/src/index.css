@@ -1180,7 +1180,9 @@
 
 /* ── Ask Lasagna composer strip — compact tool, not hero ──── */
 .ds-ask-strip {
-  margin: 0 0 36px;
+  /* Match the 28px section rhythm — a utility tool shouldn't carry the
+     largest gap on the page. */
+  margin: 0 0 28px;
 }
 .ds-ask-strip__form { margin: 0; }
 .ds-ask-strip__box {
@@ -1291,7 +1293,10 @@
 .ds-hero {
   position: relative;
   overflow: hidden;
-  margin: 2px 0 24px;
+  /* 14px below pairs the net-worth hero with the composition ribbon as one
+     "where you stand" unit; the ribbon's 28px section margin then opens the
+     larger gap to the next section (rhythm: more space between than within). */
+  margin: 2px 0 14px;
   padding: 26px 28px;
   border-radius: 16px;
   background: var(--lf-ink);
@@ -1683,6 +1688,19 @@
   min-height: 0;
 }
 .ds-btn--link:hover { color: var(--lf-sauce-deep); }
+/* Touch targets — section action links ("View all steps →", "View all
+   goals →") render ~13px tall, well under the 44px touch minimum. Pad the
+   hit area on coarse/small screens and cancel it with negative margin so the
+   visual position is unchanged. */
+@media (max-width: 640px) {
+  .ds-section__actions .ds-btn--link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 11px 4px;
+    margin: -11px -4px;
+  }
+}
 .ds-btn--icon {
   width: 40px;
   height: 40px;
@@ -2214,6 +2232,21 @@
 .ds-row--clickable { cursor: pointer; transition: background 0.12s; }
 .ds-row--clickable:hover { background: rgba(31, 26, 22, 0.025); }
 
+/* Frozen / de-emphasized account rows. We deliberately do NOT blanket the row in
+   opacity (that dimmed real five- and six-figure balances). Instead we recede the
+   identity — grayed favicon, softened name — while the balance stays full ink so
+   the money is always legible. The lock + "Frozen" status (right) and the grayed
+   logo carry the "inactive" read. */
+.ds-row--muted .ds-row__favicon,
+.ds-row--muted .ds-row__monogram {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+.ds-row--muted .ds-row__primary { color: var(--lf-ink-soft); }
+/* Balance stays full ink even when frozen — the money is always legible; only
+   the identity (favicon + name) recedes. */
+.ds-row--muted .ds-row__value { color: var(--lf-ink); }
+
 .ds-row__favicon {
   width: 28px;
   height: 28px;
@@ -2276,6 +2309,40 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Name + account-number tail on one line. The masked number is the account's
+   IDENTITY, not a value — binding it to the name (muted, tabular) leaves the
+   balance on the right as the single standalone number per row. The name
+   truncates first; the ··6755 tail is pinned and never clipped. */
+.ds-row__primary-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.ds-row__primary-line .ds-row__primary {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.ds-row__acct-no {
+  flex-shrink: 0;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lf-muted);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: 0.01em;
+}
+.ds-row__acct-dots {
+  margin-right: 3px;
+  font-size: 0.8em;
+  letter-spacing: 0.14em;
+  opacity: 0.75;
+  vertical-align: 0.4px;
+}
+/* Frozen rows recede the account-number tail along with the name. */
+.ds-row--muted .ds-row__acct-no { opacity: 0.7; }
 .ds-row__meta {
   font-family: 'Geist', system-ui, sans-serif;
   font-size: 12px;
@@ -2299,8 +2366,6 @@
   color: var(--lf-muted);
   opacity: 0.45;
 }
-/* Sync freshness reads as secondary to the bank · type · mask identity. */
-.ds-row__meta-time { opacity: 0.8; }
 .ds-row__cat {
   color: var(--lf-ink-soft);
   font-weight: 500;
@@ -2318,10 +2383,14 @@
   align-items: flex-end;
   text-align: right;
   flex-shrink: 0;
-  /* Fixed-width value column so every row in a list shares a right edge
-     with the section header total (which uses the same 12ch width). */
-  width: 12ch;
-  min-width: 12ch;
+  /* Auto-width value column: the right edge is already pinned by the trailing
+     ⋯ menu slot (28px + 10px gap + 16px pad = 54px in from the card edge, which
+     the section header total mirrors via margin-right:54). A fixed 12ch column
+     over-reserved ~57px the widest balance never used and starved the flex name
+     column on mobile. Auto + a small min-width keeps the edge aligned while the
+     name reclaims the slack. */
+  width: auto;
+  min-width: 6ch;
 }
 .ds-row__value {
   font-family: 'Geist', system-ui, sans-serif;
@@ -2332,12 +2401,29 @@
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
+/* Account-row balance is the hero of the row: a touch larger and heavier than
+   the name (which stays 14px/500) so the eye lands on the money first. Scoped
+   to --account so transaction amounts and portfolio holdings are untouched. */
+.ds-row--account .ds-row__value {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .ds-row__delta {
   font-size: 11px;
   color: var(--lf-muted);
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
+/* Right-side status sub-line under the value — sync freshness ("7d ago") on
+   active rows, a lock + "Frozen" on frozen ones. Sits in the delta slot. */
+.ds-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--lf-muted);
+}
+.ds-row__status--frozen svg { opacity: 0.8; }
 .ds-row__amount {
   font-family: 'Geist', system-ui, sans-serif;
   font-size: 14px;
@@ -2516,6 +2602,11 @@
   }
   .ds-row--tx .ds-row__amount { font-size: 14px; }
   .ds-row__cat { max-width: 96px; }
+  /* Mobile: drop the •••• dot-leader so the mask tail collapses to just the 4
+     digits ("4219"). Keeps the account-identity read while handing the narrow
+     primary line back to the name, so "CPC Savings" / "Emergency Fund" render
+     in full instead of truncating to "CPC S…". */
+  .ds-row__acct-dots { display: none; }
 }
 
 /* ============================================================

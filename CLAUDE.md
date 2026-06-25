@@ -12,6 +12,8 @@ Before implementing:
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
+**Be unambiguously clear about exactly what I'm referring to.** Before acting on any request that points at something ("this", "the X", "it moves", a behavior, an element), confirm you and I mean the *same* thing. If there's any ambiguity about which element, interaction, or scope I mean, ask follow-up questions until it's pinned down — don't pick the interpretation you can act on fastest and run with it. Reproduce the exact scenario I described before claiming it's fixed; verifying the thing you changed is not the same as verifying the thing I reported. Keep asking until it's clear. I will tell you when I want no more questions.
+
 ### 2. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
@@ -63,6 +65,7 @@ It's not required you get confirmation to execute the plan, just make a plan and
 - **NEVER modify user data in the database** — do not reset passwords, delete accounts, alter balances, or change any real user records. If you need to test as a specific user, ask for credentials. Use seed data for testing instead.
 - **NEVER run destructive database operations** (DROP, TRUNCATE, DELETE) on production or user data without explicit permission.
 - **NEVER commit by default.** Only commit when the user explicitly asks ("commit this", "make a commit", "git commit"). Finishing a task is not an implicit request to commit — leave the working tree dirty so the user can review.
+- **NEVER create git branches by default.** Do not run `git checkout -b` / `git branch` / `git switch -c` unless the user explicitly asks for a branch. Work on the current branch and leave changes in the working tree.
 - **Always run typecheck before committing.** Once asked to commit, run `pnpm -F @lasagna/web typecheck` (or `cd packages/web && npx tsc --noEmit` for just the web package) and fix any errors before staging. If typecheck fails, surface the errors and stop — do not commit broken code.
 
 ## Docker Development

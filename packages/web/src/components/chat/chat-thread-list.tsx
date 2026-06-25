@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { MessageSquare, Send, Trash2 } from 'lucide-react';
+import { Send, Trash2, Sparkles, ArrowUpRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export interface Thread {
@@ -59,23 +59,33 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
       {/* Thread list */}
       <div className="flex-1 overflow-y-auto">
         {threads.length === 0 ? (
-          <div className="p-4 space-y-3">
-            <div className="flex items-center gap-2 px-1 mb-1">
-              <MessageSquare className="w-3.5 h-3.5 text-text-secondary" />
-              <span className="text-xs font-medium text-text-secondary">Suggested</span>
+          <div className="p-4 space-y-5">
+            <div className="flex flex-col items-center text-center pt-6 pb-1">
+              <div className="w-12 h-12 rounded-2xl bg-accent/10 ring-1 ring-accent/15 grid place-items-center mb-3">
+                <Sparkles className="w-5 h-5 text-accent" />
+              </div>
+              <h2 className="font-serif text-2xl text-text leading-tight">Ask anything about your finances</h2>
+              <p className="text-sm text-text-secondary mt-1.5">I can analyze your accounts, spending, and plans.</p>
             </div>
-            {DEFAULT_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                onClick={() => onNewMessage(prompt)}
-                className="w-full text-left px-3.5 py-3 rounded-xl border border-border bg-surface text-sm text-text-secondary hover:bg-surface-hover hover:border-accent/40 hover:text-text transition-all leading-snug"
-              >
-                {prompt}
-              </button>
-            ))}
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted px-1">Try asking</p>
+              {DEFAULT_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => onNewMessage(prompt)}
+                  className="group w-full text-left flex items-center justify-between gap-2 px-3.5 py-3 rounded-xl border border-border bg-surface text-sm text-text-secondary hover:bg-surface-hover hover:border-accent/40 hover:text-text transition-all leading-snug"
+                >
+                  <span>{prompt}</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-text-muted group-hover:text-accent transition-colors flex-shrink-0" />
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="py-1">
+            <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted">
+              Conversations
+            </p>
             {threads.map((thread, index) => (
               <div
                 key={thread.id}
@@ -131,7 +141,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
       {/* Input */}
       <div className={cn('flex-shrink-0 border-t border-border/50', isMobile ? 'px-4 py-3' : 'px-3 pt-2 pb-3')}>
         <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-2xl border border-border bg-surface shadow-[var(--shadow-card)] transition-all focus-within:border-accent/40 focus-within:ring-2 focus-within:ring-accent/15">
             <textarea
               ref={inputRef}
               value={input}
@@ -140,10 +150,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
               placeholder="Ask anything…"
               aria-label="Message Lasagna"
               rows={1}
-              className={cn(
-                'flex-1 rounded-2xl border border-border bg-bg-elevated text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-surface-hover focus:ring-2 focus:ring-accent/15 transition-all resize-none overflow-y-auto',
-                isMobile ? 'px-4 py-3' : 'px-4 py-2.5'
-              )}
+              className="flex-1 bg-transparent text-text text-sm placeholder:text-text-muted focus:outline-none resize-none overflow-y-auto py-1.5"
               style={{ maxHeight: 80 }}
             />
             <button
@@ -151,11 +158,11 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
               disabled={!input.trim()}
               aria-label="Send message"
               className={cn(
-                'rounded-full flex items-center justify-center flex-shrink-0 transition-all mb-0.5',
+                'rounded-full flex items-center justify-center flex-shrink-0 transition-all',
                 isMobile ? 'w-11 h-11' : 'w-9 h-9',
                 input.trim()
                   ? 'bg-accent hover:bg-accent/90 shadow-sm shadow-accent/20'
-                  : 'bg-border text-text-secondary cursor-not-allowed'
+                  : 'bg-border text-text-muted cursor-not-allowed'
               )}
             >
               <Send className="w-3.5 h-3.5 text-white" />

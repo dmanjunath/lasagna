@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { Minimize2, Plus, Trash2, Send, Sparkles } from 'lucide-react';
+import { Minimize2, Plus, Trash2, Send, Sparkles, ArrowUpRight } from 'lucide-react';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { useChatStore, setChatExpanded } from '../../lib/chat-store';
 import { useGlobalChat } from './use-global-chat';
 import { ChatThreadView } from './chat-thread-view';
 import { ChatThreadList } from './chat-thread-list';
+import { Eyebrow } from '../ds';
 
 // Compact composer + suggested prompts shown in the conversation pane when no
 // thread is active (the "new chat" state).
@@ -37,17 +38,22 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6">
-      <div className="w-full max-w-xl">
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-accent/10 grid place-items-center mb-3">
+      <div className="w-full max-w-[760px] animate-fade-in">
+        <div className="flex flex-col items-center text-center mb-7">
+          <div className="w-12 h-12 rounded-2xl bg-accent/10 ring-1 ring-accent/15 grid place-items-center mb-4">
             <Sparkles className="w-5 h-5 text-accent" />
           </div>
-          <h2 className="text-lg font-semibold text-text">Ask anything about your finances</h2>
-          <p className="text-sm text-text-secondary mt-1">I can analyze your accounts, spending, and plans.</p>
+          <Eyebrow variant="sauce">AI Assistant</Eyebrow>
+          <h2 className="font-serif text-3xl text-text mt-2 leading-tight">
+            Ask anything about your finances
+          </h2>
+          <p className="text-sm text-text-secondary mt-2 max-w-sm">
+            I can analyze your accounts, spending, and plans — and walk you through what to do next.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-2 p-2 rounded-2xl border border-border bg-surface shadow-card">
+          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-2xl border border-border bg-surface shadow-[var(--shadow-card)] transition-all focus-within:border-accent/40 focus-within:ring-2 focus-within:ring-accent/15">
             <textarea
               ref={inputRef}
               value={input}
@@ -56,35 +62,41 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
               placeholder="Ask anything…"
               aria-label="Message Lasagna"
               rows={1}
-              className="flex-1 px-3 py-2 bg-transparent text-text text-sm placeholder:text-text-muted focus:outline-none resize-none overflow-y-auto"
+              className="flex-1 py-2 bg-transparent text-text text-sm placeholder:text-text-muted focus:outline-none resize-none overflow-y-auto"
               style={{ maxHeight: 120 }}
             />
             <button
               type="submit"
               disabled={!input.trim()}
               aria-label="Send message"
-              className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+              className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
                 input.trim()
                   ? 'bg-accent hover:bg-accent/90 shadow-sm shadow-accent/20'
-                  : 'bg-border text-text-secondary cursor-not-allowed'
+                  : 'bg-border text-text-muted cursor-not-allowed'
               }`}
             >
-              <Send className="w-3.5 h-3.5 text-white" />
+              <Send className="w-4 h-4 text-white" />
             </button>
           </div>
         </form>
 
         {suggestions.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 justify-center mt-4">
-            {suggestions.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => onSend(s)}
-                className="px-3 py-1.5 rounded-full text-xs font-medium bg-surface border border-border text-text-secondary hover:bg-surface-hover hover:text-text hover:border-accent/30 transition-all"
-              >
-                {s}
-              </button>
-            ))}
+          <div className="mt-5">
+            <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-text-muted text-center mb-2.5">
+              Try asking
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => onSend(s)}
+                  className="group inline-flex items-center gap-1.5 pl-3.5 pr-3 py-2 rounded-full text-[13px] font-medium bg-surface border border-border text-text-secondary hover:bg-surface-hover hover:text-text hover:border-accent/30 transition-all"
+                >
+                  {s}
+                  <ArrowUpRight className="w-3 h-3 text-text-muted group-hover:text-accent transition-colors" />
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -178,21 +190,29 @@ export function ChatFullPage() {
             <p className="px-4 py-6 text-xs text-text-muted">No conversations yet.</p>
           ) : (
             <div className="py-1">
-              {threadSummaries.map((thread, index) => (
+              <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted">
+                Conversations
+              </p>
+              {threadSummaries.map((thread, index) => {
+                const active = index === activeThreadIndex;
+                return (
                 <div
                   key={thread.id}
                   className={`group flex items-start gap-1 border-b border-border/50 last:border-b-0 transition-colors relative ${
-                    index === activeThreadIndex ? 'bg-surface-hover' : 'hover:bg-surface-hover'
+                    active ? 'bg-accent/[0.06]' : 'hover:bg-surface-hover'
                   }`}
                 >
-                  {thread.unread && (
+                  {active && (
+                    <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />
+                  )}
+                  {thread.unread && !active && (
                     <span className="absolute left-1.5 top-5 w-2 h-2 rounded-full bg-accent flex-shrink-0" />
                   )}
                   <button
                     onClick={() => handleSelectThread(index)}
                     className="flex-1 text-left flex flex-col gap-1 px-4 py-3.5 min-w-0"
                   >
-                    <span className={`text-sm leading-snug line-clamp-2 ${thread.unread ? 'font-semibold text-text' : 'font-medium text-text'}`}>
+                    <span className={`text-sm leading-snug line-clamp-2 ${thread.unread || active ? 'font-semibold text-text' : 'font-medium text-text'}`}>
                       {thread.question}
                     </span>
                     {thread.answerPreview && (
@@ -210,7 +230,8 @@ export function ChatFullPage() {
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

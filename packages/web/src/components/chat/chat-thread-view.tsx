@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Trash2, Plus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, Plus, Sparkles } from 'lucide-react';
 import { MessageBubble } from './message-bubble';
 import { cn } from '../../lib/utils';
 import type { ChatMessage } from '../../lib/chat-store';
@@ -21,13 +21,21 @@ function ThinkingIndicator() {
   }, []);
 
   return (
-    <div className="flex justify-start">
-      <div className="bg-surface border border-border rounded-2xl px-4 py-3 flex items-center gap-2.5">
-        <Loader2 className="w-3.5 h-3.5 text-accent animate-spin" />
-        <span
-          key={step}
-          className="text-sm text-text-secondary animate-fade-in"
-        >
+    <div className="flex gap-3 items-start animate-fade-in">
+      <div className="w-7 h-7 rounded-full bg-accent/10 ring-1 ring-accent/15 grid place-items-center flex-shrink-0 mt-0.5">
+        <Sparkles className="w-3.5 h-3.5 text-accent" />
+      </div>
+      <div className="flex items-center gap-2.5 pt-1">
+        <div className="flex items-center gap-1" aria-hidden>
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="w-1.5 h-1.5 rounded-full bg-accent/60 lf-thinking"
+              style={{ animationDelay: `${i * 0.18}s` }}
+            />
+          ))}
+        </div>
+        <span key={step} className="text-sm text-text-muted animate-fade-in">
           {THINKING_STEPS[step]}
         </span>
       </div>
@@ -84,12 +92,14 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
 
   const isFull = variant === 'full';
   const isMobile = variant === 'mobile';
-  // Fill the conversation pane on the desktop full page (same feel as a laptop
-  // width); only cap on very large monitors so prose doesn't run absurdly wide.
-  const measure = isFull ? 'max-w-[1400px] w-full mx-auto' : 'w-full';
-  const headerPad = isFull ? 'px-4 py-4' : isMobile ? 'px-4 py-3.5' : 'px-3 py-3';
-  const bodyPad = isFull ? 'px-4 py-6 space-y-5' : isMobile ? 'px-4 py-5 space-y-4' : 'px-4 py-4 space-y-4';
-  const composerPad = isFull ? 'px-4 py-4' : isMobile ? 'px-4 py-3' : 'px-3 pt-2 pb-3';
+  // Cap the desktop full-page conversation to a comfortable reading column
+  // (~68ch) so assistant prose never runs edge-to-edge across a wide pane.
+  // Header and composer share the same centered measure so the whole surface
+  // lines up on one column.
+  const measure = isFull ? 'max-w-[760px] w-full mx-auto' : 'w-full';
+  const headerPad = isFull ? 'px-6 py-4' : isMobile ? 'px-4 py-3.5' : 'px-3 py-3';
+  const bodyPad = isFull ? 'px-6 py-8 space-y-6' : isMobile ? 'px-4 py-5 space-y-5' : 'px-4 py-4 space-y-4';
+  const composerPad = isFull ? 'px-6 py-4' : isMobile ? 'px-4 py-3' : 'px-3 pt-2 pb-3';
   const iconBtn = isMobile ? 'p-2.5' : 'p-1.5';
 
   return (
@@ -143,36 +153,35 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
 
       {/* Follow-up input */}
       <form onSubmit={handleSubmit} className="border-t border-border flex-shrink-0">
-        <div className={cn('flex items-end gap-2', composerPad, measure)}>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Follow up…"
-            aria-label="Message Lasagna"
-            disabled={loading}
-            rows={1}
-            className={cn(
-              'flex-1 rounded-2xl border border-border bg-bg-elevated text-text text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/40 focus:bg-surface-hover focus:ring-2 focus:ring-accent/15 transition-all disabled:opacity-50 resize-none overflow-y-auto',
-              isMobile ? 'px-4 py-3' : 'px-4 py-2.5'
-            )}
-            style={{ maxHeight: 80 }}
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || loading}
-            aria-label="Send message"
-            className={cn(
-              "rounded-full flex items-center justify-center flex-shrink-0 transition-all mb-0.5",
-              isMobile ? "w-11 h-11" : "w-9 h-9",
-              input.trim() && !loading
-                ? "bg-accent hover:bg-accent/90 shadow-sm shadow-accent/20"
-                : "bg-border text-text-secondary cursor-not-allowed"
-            )}
-          >
-            <Send className="w-3.5 h-3.5 text-white" />
-          </button>
+        <div className={cn(composerPad, measure)}>
+          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-2xl border border-border bg-surface shadow-[var(--shadow-card)] transition-all focus-within:border-accent/40 focus-within:ring-2 focus-within:ring-accent/15">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Follow up…"
+              aria-label="Message Lasagna"
+              disabled={loading}
+              rows={1}
+              className="flex-1 bg-transparent text-text text-sm placeholder:text-text-muted focus:outline-none disabled:opacity-50 resize-none overflow-y-auto py-1.5"
+              style={{ maxHeight: 80 }}
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || loading}
+              aria-label="Send message"
+              className={cn(
+                "rounded-full flex items-center justify-center flex-shrink-0 transition-all",
+                isMobile ? "w-11 h-11" : "w-9 h-9",
+                input.trim() && !loading
+                  ? "bg-accent hover:bg-accent/90 shadow-sm shadow-accent/20"
+                  : "bg-border text-text-muted cursor-not-allowed"
+              )}
+            >
+              <Send className="w-3.5 h-3.5 text-white" />
+            </button>
+          </div>
         </div>
       </form>
     </div>

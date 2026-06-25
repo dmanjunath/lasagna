@@ -5,6 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Strip a trailing account-number mask from a display name so it isn't shown
+ * twice (some institutions name accounts like "Plaid Checking ••1234" while we
+ * also render the mask separately). Only strips when the trailing digits match
+ * the account's actual `mask`, and never returns an empty string.
+ */
+export function stripAccountMask(name: string, mask?: string | null): string {
+  if (!mask) return name;
+  const m = mask.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Optional separator/marker (•• · ... … # * x X - ( ) and whitespace) then the mask, anchored to the end.
+  const re = new RegExp('[\\s(]*(?:[•·]{1,2}|\\.{2,3}|…|[#*xX])?\\s*' + m + '[)\\s]*$');
+  if (!re.test(name)) return name;
+  const stripped = name.replace(re, '').trim();
+  return stripped.length >= 2 ? stripped : name;
+}
+
 export function formatMoney(value: number | string | null, compact = false): string {
   if (value === null || value === undefined) return '—';
   const num = typeof value === 'string' ? parseFloat(value) : value;

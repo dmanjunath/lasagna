@@ -304,7 +304,7 @@ export function Settings() {
       </Section>
 
       {/* ── Linked accounts ───────────────────────────────────── */}
-      <Section title="Linked accounts">
+      <Section eyebrow="Accounts">
         <NavLine
           icon={<Building2 size={16} />}
           label="Manage accounts"
@@ -313,9 +313,8 @@ export function Settings() {
         />
       </Section>
 
-
       {/* ── Financial goals ───────────────────────────────────── */}
-      <Section title="Financial goals">
+      <Section eyebrow="Goals">
         <NavLine
           icon={<Target size={16} />}
           label="Manage goals"
@@ -399,6 +398,7 @@ export function Settings() {
           text-transform: none;
           font-weight: 400;
           color: var(--lf-muted);
+          flex-shrink: 0;
         }
         .ds-article__row-value {
           font-family: 'Geist', system-ui, sans-serif;
@@ -407,6 +407,8 @@ export function Settings() {
           font-weight: 600;
           text-align: right;
           font-variant-numeric: tabular-nums;
+          min-width: 0;
+          word-break: break-word;
         }
         .ds-article__row-value--muted { color: var(--lf-muted); font-weight: 400; }
         .ds-article__edit {
@@ -414,10 +416,18 @@ export function Settings() {
           border-bottom: 1px solid var(--lf-rule-soft);
           display: flex; flex-direction: column; gap: 16px;
         }
-        .ds-article__skeleton {
-          height: 80px;
+        .ds-article__skeleton-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 0;
+          border-bottom: 1px solid var(--lf-rule-soft);
+        }
+        .ds-article__skeleton-row:last-child { border-bottom: 0; }
+        .ds-article__skeleton-bar {
+          height: 11px;
+          border-radius: 999px;
           background: var(--lf-cream);
-          border-radius: 6px;
         }
         .ds-navline {
           display: flex;
@@ -481,14 +491,17 @@ export function Settings() {
           outline: none;
           box-sizing: border-box;
         }
-        .ds-settings-input:focus { border-color: var(--lf-ink); }
+        .ds-settings-input:focus {
+          border-color: var(--lf-sauce);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-sauce) 18%, transparent);
+        }
         .ds-settings-signout {
-          color: var(--lf-sauce);
+          color: var(--lf-muted);
           min-height: 44px;
           padding-left: 16px; padding-right: 16px;
-          border-color: rgba(201,84,58,0.4);
+          border-color: var(--lf-rule);
         }
-        .ds-settings-signout:hover { color: var(--lf-sauce-deep); border-color: rgba(201,84,58,0.6); }
+        .ds-settings-signout:hover { color: var(--lf-ink); border-color: var(--lf-ink-soft); }
         .ds-settings-lede { margin-bottom: 40px; }
         @media (max-width: 640px) {
           .ds-settings-lede { margin-bottom: 20px; }
@@ -541,8 +554,13 @@ function EditorialArticle({ icon, title, summary, rows, loading, editable, expan
       </button>
 
       {loading ? (
-        <div style={{ padding: '20px 0' }}>
-          <div className="ds-article__skeleton animate-pulse" />
+        <div className="animate-pulse">
+          {rows.map((r, i) => (
+            <div key={i} className="ds-article__skeleton-row">
+              <span className="ds-article__skeleton-bar" style={{ width: 88 + (i % 3) * 18 }} />
+              <span className="ds-article__skeleton-bar" style={{ width: 56 + (i % 2) * 22 }} />
+            </div>
+          ))}
         </div>
       ) : expanded && editable ? (
         children
@@ -664,8 +682,13 @@ function PlanCard() {
       )}
 
       {loading ? (
-        <div style={{ padding: "20px 0" }}>
-          <div className="ds-article__skeleton animate-pulse" />
+        <div className="animate-pulse">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="ds-article__skeleton-row">
+              <span className="ds-article__skeleton-bar" style={{ width: 120 + i * 16 }} />
+              <span className="ds-article__skeleton-bar" style={{ width: 48 }} />
+            </div>
+          ))}
         </div>
       ) : isPro ? (
         <div className="ds-plan-body">
@@ -765,7 +788,7 @@ function PlanCard() {
         .ds-plan-cancel-note {
           margin: 4px 0 12px;
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; line-height: 1.5; color: var(--lf-text-muted, #6b7280);
+          font-size: 13px; line-height: 1.5; color: var(--lf-muted);
         }
         @media (max-width: 520px) {
           .ds-plan-compare { grid-template-columns: 1fr; }

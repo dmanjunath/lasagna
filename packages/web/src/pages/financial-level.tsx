@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
   TrendingUp, CreditCard, Rocket,
-  AlertCircle,
+  AlertCircle, Check,
   PiggyBank, Landmark, Layers,
 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -17,6 +17,8 @@ import {
   Eyebrow,
   EmptyState,
   StatStrip,
+  SkeletonLine,
+  SkeletonBlock,
 } from '../components/ds';
 
 // ── constants ────────────────────────────────────────────────────────────────
@@ -27,17 +29,14 @@ const iconMap: Record<string, LucideIcon> = {
   'alert-circle': AlertCircle, 'piggy-bank': PiggyBank, landmark: Landmark, layers: Layers,
 };
 
-// Whimsy: 12-step earth ramp from sauce (urgent base layers) → basil (FI).
-// Each level gets a distinct color so the journey reads as a literal climb.
-const LEVEL_COLORS = [
-  '#DC2626', '#EF4444', '#F97316', '#FB923C', '#F59E0B', '#FACC15',
-  '#A3E635', '#84CC16', '#4ADE80', '#22C55E', '#10B981', '#059669',
-];
-const levelColor = (order: number) => LEVEL_COLORS[Math.min(LEVEL_COLORS.length, Math.max(1, order)) - 1] ?? '#7A5C3F';
-const withAlpha = (hex: string, a: number) => {
-  const v = parseInt(hex.slice(1), 16);
-  return `rgba(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255}, ${a})`;
-};
+// State drives color, not order. Three intentional, token-only states:
+//   done    → basil (green)  · settled, earned
+//   current → cheese (amber) · the hero — "you are here"
+//   future  → muted (neutral)· quiet, ahead of you
+//   skipped → muted, struck
+// The CSS reads a single `--st` custom property set per state class, so the
+// palette lives in one place and never drifts to a foreign hex.
+type LevelState = 'done' | 'current' | 'future' | 'skipped';
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -74,6 +73,39 @@ function fmt(value: number) {
 
 function isAutoTracked(step: PriorityStep): boolean {
   return step.target !== null;
+}
+
+function levelStateOf(step: PriorityStep, currentStepId: string, skipped: Set<string>): LevelState {
+  if (step.status === 'complete') return 'done';
+  if (skipped.has(step.id)) return 'skipped';
+  if (step.id === currentStepId) return 'current';
+  return 'future';
+}
+
+// ── LevelLadder — the hero. A 12-rung climb. Height AND color tell ONE story,
+// driven by state (never index): cleared levels stand tall, the current level
+// is the summit you're on, levels ahead sit low until you reach them. A done
+// rung can never appear "more advanced" than the amber "you are here" rung. ──
+
+const RUNG_HEIGHT: Record<LevelState, number> = {
+  done: 78,     // climbed — elevated, consistent
+  current: 100, // the summit — "you are here"
+  future: 46,   // ahead, not yet climbed
+  skipped: 46,  // stepped over, low
+};
+
+function LevelLadder({ states }: { states: LevelState[] }) {
+  return (
+    <div className="fl-ladder" aria-hidden="true">
+      {states.map((st, i) => (
+        <span
+          key={i}
+          className={`fl-ladder__rung is-${st}`}
+          style={{ height: `${RUNG_HEIGHT[st]}%` }}
+        />
+      ))}
+    </div>
+  );
 }
 
 // ── WhyThisOrderPopover ──────────────────────────────────────────────────────
@@ -143,18 +175,17 @@ function WhyThisOrderPopover() {
 
 // ── LevelRow — editorial row, hairline separated ─────────────────────────────
 
-function LevelRow({ step, isCurrent, isComplete, isSkipped, isSelected, onSelect }: {
+function LevelRow({ step, state, isSelected, onSelect }: {
   step: PriorityStep;
-  isCurrent: boolean;
-  isComplete: boolean;
-  isSkipped: boolean;
+  state: LevelState;
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const isComplete = state === 'done';
+  const isCurrent = state === 'current';
+  const isSkipped = state === 'skipped';
   const fill = isComplete ? 100 : Math.min(step.progress, 100);
-  const isFuture = !isComplete && !isCurrent && !isSkipped;
   const Icon = iconMap[step.icon] ?? Layers;
-  const color = levelColor(step.order);
 
   const pillTone: 'basil' | 'cheese' | 'ghost' | undefined =
     isComplete ? 'basil' :
@@ -164,30 +195,21 @@ function LevelRow({ step, isCurrent, isComplete, isSkipped, isSelected, onSelect
   const pillLabel = isComplete ? 'Done' : isCurrent ? 'You are here' : isSkipped ? 'Skipped' : null;
 
   return (
-    <li
-      className={`fl-row ${isCurrent ? 'is-current' : ''} ${isSelected && !isCurrent ? 'is-selected' : ''}`}
-      style={{
-        opacity: isFuture ? 0.78 : isSkipped ? 0.5 : 1,
-        ['--level-color' as any]: color,
-      }}
-    >
+    <li className={`fl-row is-${state} ${isSelected && !isCurrent ? 'is-selected' : ''}`}>
       <button type="button" onClick={onSelect} className="fl-row__btn">
         <span className="fl-row__chip" aria-hidden="true">
-          {String(step.order).padStart(2, '0')}
+          {isComplete
+            ? <Check size={16} strokeWidth={2.5} />
+            : String(step.order).padStart(2, '0')}
         </span>
-        <span className="fl-row__icon" style={{ background: withAlpha(color, 0.12) }}>
-          <Icon size={14} style={{ color }} />
+        <span className="fl-row__icon" aria-hidden="true">
+          <Icon size={14} />
         </span>
         <span className="fl-row__body">
-          <span
-            className="fl-row__title"
-            style={{ textDecoration: isSkipped ? 'line-through' : 'none' }}
-          >
-            {step.title}
-          </span>
+          <span className="fl-row__title">{step.title}</span>
           {!isComplete && !isSkipped && fill > 0 && (
             <span className="fl-row__progress">
-              <span style={{ width: `${fill}%`, background: color }} />
+              <span style={{ width: `${fill}%` }} />
             </span>
           )}
         </span>
@@ -199,8 +221,9 @@ function LevelRow({ step, isCurrent, isComplete, isSkipped, isSelected, onSelect
 
 // ── FocusArticle — the selected level, rendered as editorial article ─────────
 
-function FocusArticle({ step, skipped, onSkip, onAsk, onComplete, onUndoComplete }: {
+function FocusArticle({ step, state, skipped, onSkip, onAsk, onComplete, onUndoComplete }: {
   step: PriorityStep;
+  state: LevelState;
   skipped: boolean;
   onSkip: () => void;
   onAsk: () => void;
@@ -221,23 +244,19 @@ function FocusArticle({ step, skipped, onSkip, onAsk, onComplete, onUndoComplete
     else progressDetail = fmt(step.current) + ' saved';
   }
   const hasProgress = !isComplete && fill > 0;
-  const color = levelColor(step.order);
 
   return (
-    <article className="fl-focus" style={{ ['--level-color' as any]: color, borderTopColor: color }}>
+    <article className={`fl-focus is-${state}`}>
       <div className="fl-focus__head">
-        <span
-          className="fl-focus__chip"
-          aria-hidden="true"
-          style={{ background: color, color: 'var(--lf-paper)' }}
-        >
-          L{String(step.order).padStart(2, '0')}
+        <span className="fl-focus__chip" aria-hidden="true">
+          {`L${String(step.order).padStart(2, '0')}`}
         </span>
-        <span className="fl-focus__icon" aria-hidden="true" style={{ background: withAlpha(color, 0.14) }}>
-          <Icon size={16} style={{ color }} />
+        <span className="fl-focus__icon" aria-hidden="true">
+          <Icon size={16} />
         </span>
         {isComplete && <Pill tone="basil">Complete</Pill>}
-        {!isComplete && hasProgress && <Pill tone="cheese">In progress</Pill>}
+        {!isComplete && state === 'current' && <Pill tone="cheese">You are here</Pill>}
+        {!isComplete && state === 'future' && <Pill tone="ghost">Ahead</Pill>}
         {skipped && <Pill tone="ghost">Skipped</Pill>}
       </div>
 
@@ -258,7 +277,6 @@ function FocusArticle({ step, skipped, onSkip, onAsk, onComplete, onUndoComplete
               initial={{ width: 0 }}
               animate={{ width: `${fill}%` }}
               transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-              style={{ background: color }}
             />
           </div>
         </div>
@@ -450,7 +468,36 @@ export function FinancialLevel() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return null;
+  if (loading) return (
+    <Page>
+      <header className="ds-page-bar">
+        <div className="ds-page-bar__title-group">
+          <h1 className="ds-page-bar__title">Financial Level</h1>
+        </div>
+      </header>
+      <div className="fl-hero fl-hero--skeleton">
+        <div className="fl-hero__lead">
+          <SkeletonLine width="92px" height={11} style={{ marginBottom: 14 }} />
+          <SkeletonLine width="118px" height={46} style={{ marginBottom: 14 }} />
+          <SkeletonLine width="210px" height={13} />
+        </div>
+        <div className="fl-hero__meter">
+          <SkeletonBlock height={66} />
+          <SkeletonLine width="70%" height={12} style={{ marginTop: 14 }} />
+        </div>
+      </div>
+      <SkeletonBlock height={88} style={{ borderRadius: 12, margin: '24px 0 28px' }} />
+      <div className="fl-list fl-list--skeleton">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div className="fl-row-sk" key={i}>
+            <span className="ds-skeleton" style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0 }} />
+            <SkeletonLine width={`${52 - i * 4}%`} height={16} />
+          </div>
+        ))}
+      </div>
+      <style>{flStyles}</style>
+    </Page>
+  );
 
   if (error) return (
     <Page>
@@ -501,6 +548,7 @@ export function FinancialLevel() {
   const renderFocus = (step: PriorityStep) => (
     <FocusArticle
       step={step}
+      state={levelStateOf(step, currentStepId, skippedStepIds)}
       skipped={skippedStepIds.has(step.id)}
       onSkip={() => handleSkipStep(step.id)}
       onComplete={handleCompleteStep}
@@ -517,32 +565,51 @@ export function FinancialLevel() {
   const investedOrCash = summary.totalInvested > 0 ? summary.totalInvested : summary.totalCash;
   const investedLabel = summary.totalInvested > 0 ? 'total portfolio' : summary.totalCash > 0 ? 'cash holdings' : 'link accounts';
 
-  // Iter 8: ds-page-bar replaces editorial PageHeader + Lede. The "you are on
-  // Level N" line moves to the subtitle slot (truncated on mobile to just
-  // progress count).
-  const subtitleText = currentStep && !allComplete
-    ? `Level ${currentStep.order} of 12 · ${currentStep.title}`
-    : `${completeCount} of ${steps.length} complete`;
-  const subtitleMobile = `${completeCount} of ${steps.length} complete`;
+  const states = steps.map(s => levelStateOf(s, currentStepId, skippedStepIds));
+  const futureCount = states.filter(s => s === 'future').length;
 
   return (
     <Page>
       <header className="ds-page-bar">
         <div className="ds-page-bar__title-group">
           <h1 className="ds-page-bar__title">Financial Level</h1>
-          <span className="ds-page-bar__subtitle">{subtitleText}</span>
         </div>
       </header>
-      <div className="ds-page-bar__subtitle-mobile">{subtitleMobile}</div>
+
+      {/* ── Hero: the climb. Geist level number (tabular, matches the app's
+          canonical hero figures) + a 12-rung ladder that reads done / here /
+          ahead at a glance. ── */}
+      <section className="fl-hero">
+        <div className="fl-hero__lead">
+          <Eyebrow>Your climb</Eyebrow>
+          <div className="fl-hero__level">
+            <span className="fl-hero__num ds-num">
+              {allComplete ? steps.length : currentStep.order}
+            </span>
+            <span className="fl-hero__of">of {steps.length}</span>
+          </div>
+          <p className="fl-hero__now">
+            {allComplete ? (
+              <>Every level cleared — time to fine-tune.</>
+            ) : (
+              <>Working on <strong>{currentStep.title}</strong></>
+            )}
+            {summary.retirementAge ? <> · FI target age {summary.retirementAge}</> : null}
+          </p>
+        </div>
+        <div className="fl-hero__meter">
+          <LevelLadder states={states} />
+          <div className="fl-hero__legend">
+            <span className="fl-hero__key is-done"><i aria-hidden="true" />{completeCount} done</span>
+            {!allComplete && <span className="fl-hero__key is-current"><i aria-hidden="true" />1 here</span>}
+            {futureCount > 0 && <span className="fl-hero__key is-future"><i aria-hidden="true" />{futureCount} ahead</span>}
+          </div>
+        </div>
+      </section>
 
       <StatStrip
         className="fl-stats"
         items={[
-          {
-            label: 'Levels complete',
-            value: <span className="ds-num">{completeCount}/{steps.length}</span>,
-            sub: summary.retirementAge ? `FI target age ${summary.retirementAge}` : 'levels complete',
-          },
           {
             label: 'Monthly income',
             value: <span className="ds-num">{summary.monthlyIncome > 0 ? fmt(summary.monthlyIncome) : '—'}</span>,
@@ -585,9 +652,7 @@ export function FinancialLevel() {
                   <Fragment key={step.id}>
                     <LevelRow
                       step={step}
-                      isCurrent={step.id === currentStepId}
-                      isComplete={step.status === 'complete'}
-                      isSkipped={skippedStepIds.has(step.id)}
+                      state={levelStateOf(step, currentStepId, skippedStepIds)}
                       isSelected={selectedStepId === step.id}
                       onSelect={() => handleSelectStep(step.id)}
                     />
@@ -632,17 +697,121 @@ export function FinancialLevel() {
         </div>
       )}
 
-      {/* Page-scoped layout — no typography tokens here. */}
-      <style>{`
+      <style>{flStyles}</style>
+    </Page>
+  );
+}
+
+// Page-scoped styles — shared by the loading shell and the loaded page.
+// Palette is token-only; state is carried by a single `--st` custom property
+// set per state class (is-done / is-current / is-future / is-skipped).
+const flStyles = `
         .fl-stats { margin: 24px 0 28px; }
+
+        /* ── Hero: serif level number + the climb ladder ── */
+        .fl-hero {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 22px;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 16px;
+          box-shadow: var(--shadow-card);
+          padding: 24px 24px;
+          margin-top: 4px;
+        }
+        @media (min-width: 760px) {
+          .fl-hero {
+            grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+            align-items: center;
+            gap: 44px;
+            padding: 28px 32px;
+          }
+        }
+        .fl-hero__lead { min-width: 0; }
+        .fl-hero__level {
+          display: flex;
+          align-items: baseline;
+          gap: 10px;
+          margin: 6px 0 10px;
+        }
+        .fl-hero__num {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: clamp(52px, 13vw, 66px);
+          line-height: 0.85;
+          color: var(--lf-ink);
+        }
+        .fl-hero__of {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 16px;
+          font-weight: 500;
+          color: var(--lf-muted);
+        }
+        .fl-hero__now {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 14px;
+          line-height: 1.5;
+          color: var(--lf-muted);
+          margin: 0;
+        }
+        .fl-hero__now strong { color: var(--lf-ink); font-weight: 600; }
+
+        .fl-hero__meter { min-width: 0; }
+        .fl-ladder {
+          display: flex;
+          align-items: flex-end;
+          gap: 6px;
+          height: 72px;
+        }
+        .fl-ladder__rung {
+          flex: 1;
+          min-width: 0;
+          border-radius: 4px 4px 2px 2px;
+          background: var(--lf-cream-deep);
+          transition: background 0.2s ease;
+        }
+        .fl-ladder__rung.is-done    { background: var(--lf-basil); }
+        .fl-ladder__rung.is-current {
+          background: var(--lf-cheese);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-cheese) 24%, transparent);
+        }
+        .fl-ladder__rung.is-skipped { background: var(--lf-cream-deep); opacity: 0.65; }
+
+        .fl-hero__legend {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px 18px;
+          margin-top: 14px;
+        }
+        .fl-hero__key {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--lf-muted);
+        }
+        .fl-hero__key i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
+        .fl-hero__key.is-done i    { background: var(--lf-basil); }
+        .fl-hero__key.is-current i { background: var(--lf-cheese); }
+        .fl-hero__key.is-future i  { background: var(--lf-cream-deep); border: 1px solid var(--lf-rule); }
+
+        /* Skeleton list rows */
+        .fl-list--skeleton .fl-row-sk {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 16px 0;
+          border-top: 1px solid var(--lf-rule);
+        }
+        .fl-list--skeleton .fl-row-sk:first-child { border-top: 0; }
 
         /* Two-column layout: 12-level list on the left, the selected level's
            detail in a sticky panel on the right (desktop). On mobile it stacks
            and the detail scrolls into view on select. */
         .fl-layout { display: block; }
         .fl-layout__detail { margin-top: 28px; }
-        /* Side panel only once there's comfortable room for both columns; below
-           this the detail stacks under the list (and scrolls into view on tap). */
         @media (min-width: 1080px) {
           .fl-layout {
             display: grid;
@@ -669,6 +838,13 @@ export function FinancialLevel() {
         .fl-row:first-child { border-top: 0; }
         .fl-row:last-child { border-bottom: 0; }
 
+        /* ── State palette — one source of truth via --st ── */
+        .fl-row.is-done    { --st: var(--lf-basil); }
+        .fl-row.is-current { --st: var(--lf-cheese); }
+        .fl-row.is-future  { --st: var(--lf-muted); }
+        .fl-row.is-skipped { --st: var(--lf-muted); opacity: 0.6; }
+        .fl-row.is-skipped .fl-row__title { text-decoration: line-through; }
+
         .fl-row__btn {
           display: flex;
           align-items: center;
@@ -683,18 +859,22 @@ export function FinancialLevel() {
           color: inherit;
           transition: color 0.15s;
         }
-        /* Current step: neutral fill bleeding to the card edges + a left accent
-           bar (matches the Actions priority-bar language). No theme-cream tint. */
+        /* Current step: soft amber wash bleeding to the card edges + a left
+           accent bar — the "you are here" focal row. */
         .fl-row.is-current .fl-row__btn {
-          background: var(--lf-rule-soft);
-          box-shadow: inset 3px 0 0 var(--lf-sauce);
+          background: color-mix(in srgb, var(--lf-cheese) 8%, var(--lf-surface));
+          box-shadow: inset 3px 0 0 var(--lf-cheese);
+          /* width grows by the 36px the negative margins consume so the box
+             bleeds to both card edges; plain width:100% would only shift it
+             left, dragging the right-aligned pill inward. */
+          width: calc(100% + 36px);
           margin: 0 -18px;
           padding-left: 18px;
           padding-right: 18px;
           border-radius: 8px;
         }
         /* A non-current row that's been clicked to inspect uses a subtle inset rule. */
-        .fl-row.is-selected .fl-row__btn { box-shadow: inset 2px 0 0 var(--lf-ink); margin: 0 -18px; padding-left: 18px; padding-right: 18px; }
+        .fl-row.is-selected .fl-row__btn { box-shadow: inset 2px 0 0 var(--lf-ink); width: calc(100% + 36px); margin: 0 -18px; padding-left: 18px; padding-right: 18px; }
         .fl-row__btn:hover .fl-row__title { color: var(--lf-sauce); }
 
         .fl-row__chip {
@@ -702,8 +882,8 @@ export function FinancialLevel() {
           width: 44px;
           height: 44px;
           border-radius: 8px;
-          background: var(--level-color);
-          color: var(--lf-paper);
+          background: color-mix(in srgb, var(--st) 13%, var(--lf-surface));
+          color: var(--st);
           display: grid;
           place-items: center;
           font-family: 'Geist', system-ui, sans-serif;
@@ -711,6 +891,8 @@ export function FinancialLevel() {
           font-weight: 700;
           letter-spacing: 0.04em;
         }
+        /* Current chip: solid amber, the boldest mark on the list. */
+        .fl-row.is-current .fl-row__chip { background: var(--st); color: var(--lf-paper); }
         .fl-row__icon {
           width: 28px;
           height: 28px;
@@ -718,6 +900,8 @@ export function FinancialLevel() {
           display: grid;
           place-items: center;
           flex-shrink: 0;
+          background: color-mix(in srgb, var(--st) 10%, transparent);
+          color: var(--st);
         }
         .fl-row__body {
           flex: 1;
@@ -728,7 +912,7 @@ export function FinancialLevel() {
         }
         .fl-row__title {
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 19px;
+          font-size: 16px;
           font-weight: 500;
           color: var(--lf-ink);
           line-height: 1.25;
@@ -747,13 +931,18 @@ export function FinancialLevel() {
           display: block;
           height: 100%;
           border-radius: 2px;
+          background: var(--st);
           transition: width 0.4s ease;
         }
 
-        /* Focus article */
+        /* ── Focus article — state-tinted ── */
+        .fl-focus.is-done    { --st: var(--lf-basil); }
+        .fl-focus.is-current { --st: var(--lf-cheese); }
+        .fl-focus.is-future  { --st: var(--lf-muted); }
+        .fl-focus.is-skipped { --st: var(--lf-muted); }
         .fl-focus {
           padding: 28px 0 8px;
-          border-top: 3px solid var(--lf-ink);
+          border-top: 3px solid var(--st);
         }
         /* Inline accordion detail (mobile/tablet): lives inside the list card,
            so soften the heavy 3px divider to a hairline and tighten padding. */
@@ -780,6 +969,8 @@ export function FinancialLevel() {
           font-weight: 700;
           letter-spacing: 0.06em;
           flex-shrink: 0;
+          background: var(--st);
+          color: var(--lf-paper);
         }
         .fl-focus__icon {
           width: 32px;
@@ -788,6 +979,8 @@ export function FinancialLevel() {
           display: grid;
           place-items: center;
           flex-shrink: 0;
+          background: color-mix(in srgb, var(--st) 14%, transparent);
+          color: var(--st);
         }
         .fl-focus__title {
           font-family: 'Geist', system-ui, sans-serif;
@@ -829,7 +1022,7 @@ export function FinancialLevel() {
         }
         .fl-focus__bar > div {
           height: 100%;
-          background: var(--lf-cheese);
+          background: var(--st);
           border-radius: 3px;
         }
         .fl-focus__callout {
@@ -858,8 +1051,7 @@ export function FinancialLevel() {
           .fl-row__title { font-size: 16px; }
           .fl-row.is-current .fl-row__btn,
           .fl-row.is-selected .fl-row__btn { margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
+          .fl-hero { padding: 22px 20px; }
+          .fl-ladder { gap: 5px; height: 64px; }
         }
-      `}</style>
-    </Page>
-  );
-}
+`;

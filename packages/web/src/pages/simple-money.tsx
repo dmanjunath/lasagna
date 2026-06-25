@@ -4,9 +4,11 @@ import {
   Wallet, TrendingUp, CreditCard, RefreshCw, Lightbulb, Plus,
   Banknote, ShoppingCart, UtensilsCrossed, Home, Car, Clapperboard,
   ShoppingBag, HeartPulse, Shield, Plane, Tv, Receipt, ArrowLeftRight,
-  DollarSign,
+  DollarSign, Lock,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { stripAccountMask } from '../lib/utils';
+import { startUpgrade } from '../lib/billing';
 import {
   Page,
   Section,
@@ -18,6 +20,8 @@ import {
   TransactionRow,
   SkeletonChart,
   SkeletonRow,
+  SkeletonLine,
+  SkeletonBlock,
   useConfirm,
   TrendChart,
   filterByRange,
@@ -42,14 +46,12 @@ interface Item {
     excludeFromNetWorth?: boolean;
     excludeTransactions?: boolean;
     invertBalance?: boolean;
+    frozen?: boolean;
   }>;
 }
 interface Transaction {
   id: string; date: string; name: string; merchantName: string | null;
   amount: string; category: string;
-}
-interface Insight {
-  id: string; category: string; type: string | null; title: string; description: string;
 }
 
 const fmtUsd = (n: number, frac = 0) =>
@@ -78,7 +80,6 @@ export function SimpleMoney() {
   const [items, setItems] = useState<Item[]>([]);
   const [history, setHistory] = useState<TrendPoint[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [insights, setInsights] = useState<Insight[]>([]);
   const [range, setRange] = useState<Range>('6M');
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -89,12 +90,10 @@ export function SimpleMoney() {
       api.getItems().catch(() => ({ items: [] as Item[] })),
       api.getNetWorthHistory().catch(() => ({ history: [] as TrendPoint[] })),
       api.getTransactions({ limit: 8 }).catch(() => ({ transactions: [] as Transaction[] })),
-      api.getInsights().catch(() => ({ insights: [] as Insight[] })),
-    ]).then(([itemsData, historyData, txData, insightsData]) => {
+    ]).then(([itemsData, historyData, txData]) => {
       setItems(itemsData.items);
       setHistory(historyData.history || []);
       setTransactions(txData.transactions);
-      setInsights((insightsData.insights || []).filter((i: any) => !i.dismissedAt).slice(0, 5));
     }).finally(() => setLoading(false));
   }, []);
 
@@ -165,11 +164,6 @@ export function SimpleMoney() {
 
   const monthChange = computeDelta(history, 30);
   const chartPoints = useMemo(() => filterByRange(history, range), [history, range]);
-
-  // Real AI insights filtered to portfolio/debt/cash categories
-  const moneyInsights = insights.filter((i) =>
-    ['portfolio', 'cash', 'debt', 'savings', 'investment'].some((k) => (i.category + (i.type || '')).toLowerCase().includes(k))
-  );
 
   const totalAccountCount = cashAccounts.length + investAccounts.length + realEstateAccounts.length + altAccounts.length + debtAccounts.length;
 
@@ -272,18 +266,42 @@ export function SimpleMoney() {
         </Section>
       )}
 
-      {/* ── Loading skeleton — iter 7 D: matched outline (chart + 2 rows ×
-          2 sections) so first paint reserves the same space the loaded
-          page consumes. */}
+      {/* ── Loading skeleton — matched outline so first paint reserves the
+          exact footprint the loaded page consumes. The figure skeleton wears
+          the real .ds-figure card and reserves the head (NET WORTH label +
+          hero value + range pills) above the chart, and each section reserves
+          its header (eyebrow + title + right-aligned total) above carded rows
+          — so neither the net-worth figure nor the section headers jump in
+          when data lands. */}
       {loading && (
         <>
-          <div style={{ marginBottom: 28 }}>
-            <SkeletonChart height={240} />
+          <div className="ds-figure">
+            <div className="ds-figure__head">
+              <div className="ds-figure__lead" style={{ display: 'block' }}>
+                <SkeletonLine width="84px" height={11} style={{ display: 'block', marginBottom: 10 }} />
+                <SkeletonLine width="280px" height={50} style={{ display: 'block' }} />
+              </div>
+              <div className="ds-figure__range">
+                {[0, 1, 2, 3].map((i) => (
+                  <SkeletonBlock key={i} height={30} style={{ width: 44, borderRadius: 999 }} />
+                ))}
+              </div>
+            </div>
+            <SkeletonChart />
           </div>
-          {[1, 2].map((g) => (
+          {[0, 1].map((g) => (
             <Section key={g}>
-              <SkeletonRow />
-              <SkeletonRow />
+              <div className="ds-section__header">
+                <div className="ds-section__title-block">
+                  <SkeletonLine width="72px" height={11} style={{ display: 'block', marginBottom: 10 }} />
+                  <SkeletonLine width="116px" height={26} style={{ display: 'block' }} />
+                </div>
+                <SkeletonLine width="108px" height={18} />
+              </div>
+              <Card flush>
+                <SkeletonRow />
+                <SkeletonRow />
+              </Card>
             </Section>
           ))}
         </>
@@ -330,8 +348,8 @@ export function SimpleMoney() {
           title="Investments"
           eyebrow={`${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`}
           insight={grossAssets > 0
-            ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · across ${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`
-            : `across ${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`}
+            ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · long-term growth`
+            : undefined}
           total={investTotal}
           items={items}
           filterType="investment"
@@ -381,9 +399,9 @@ export function SimpleMoney() {
           title="Debt"
           eyebrow={`${debtAccounts.length} account${debtAccounts.length === 1 ? '' : 's'}`}
           insight={(() => {
-            if (grossAssets <= 0) return `${debtAccounts.length} loan${debtAccounts.length === 1 ? '' : 's'}`;
+            if (grossAssets <= 0) return undefined;
             const dti = Math.round((debtTotal / grossAssets) * 100);
-            return `${dti}% debt-to-assets · ${debtAccounts.length} loan${debtAccounts.length === 1 ? '' : 's'}`;
+            return `${dti}% debt-to-assets`;
           })()}
           total={debtTotal}
           totalTone="neg"
@@ -393,33 +411,6 @@ export function SimpleMoney() {
           onSync={handleSync}
           onRefresh={refreshItems}
         />
-      )}
-
-      {/* ── Actions — editorial feed (not cards) ── */}
-      {moneyInsights.length > 0 && (
-        <Section
-          title="Actions"
-          eyebrow={`${moneyInsights.length} item${moneyInsights.length === 1 ? '' : 's'}`}
-          actions={<Link href="/insights" className="ds-btn ds-btn--link">All actions →</Link>}
-        >
-          <ul className="ds-money-feed">
-            {moneyInsights.map((ins) => (
-              <li key={ins.id}>
-                <Link href={`/insights?id=${ins.id}`} className="ds-money-feed__link">
-                  <div className="ds-money-feed__bullet">
-                    <Lightbulb size={14} className="text-cheese" />
-                  </div>
-                  <div className="ds-money-feed__body">
-                    <div className="ds-money-feed__title">{ins.title}</div>
-                    {ins.description && (
-                      <p className="ds-money-feed__desc">{ins.description}</p>
-                    )}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Section>
       )}
 
       {/* ── Recent activity — TransactionRow primitive.
@@ -634,8 +625,15 @@ function AccountSection({
           const institution = acct.item.institutionName || 'Manual';
           const metaSegs: string[] = [institution];
           if (acct.subtype) metaSegs.push(titleCase(acct.subtype));
-          if (acct.mask) metaSegs.push(`··${acct.mask}`);
+          // The mask is NOT in the meta — it's bound to the name via AccountRow's
+          // `mask` prop as a muted ··6755 tail, so it reads as account identity
+          // rather than a second number competing with the balance.
           const synced = acct.item.lastSyncedAt ? relativeTime(acct.item.lastSyncedAt) : null;
+          const frozen = acct.frozen === true;
+          // Identity line stays calm: just bank · type. Sync freshness and the
+          // frozen state move to a right-side status line under the value (see
+          // `status` below) so the left meta never gets dot-heavy and never
+          // truncates mid-segment on mobile.
           const meta = (
             <>
               {metaSegs.map((seg, i) => (
@@ -644,14 +642,19 @@ function AccountSection({
                   {seg}
                 </span>
               ))}
-              {synced && (
-                <>
-                  <span className="ds-row__meta-dot">·</span>
-                  <span className="ds-row__meta-time">{synced}</span>
-                </>
-              )}
             </>
           );
+          // Right-side status sub-line beneath the balance. Frozen accounts show a
+          // quiet lock + "Frozen"; the upgrade CTA lives in the ⋯ menu (parallel to
+          // "Sync now" on active accounts) rather than as a per-row underlined link.
+          const status = frozen ? (
+            <span className="ds-row__status ds-row__status--frozen">
+              <Lock size={11} strokeWidth={2} aria-hidden="true" />
+              Frozen
+            </span>
+          ) : synced ? (
+            <span className="ds-row__status">{synced}</span>
+          ) : undefined;
           const isManual = acct.item.institutionId === 'manual';
           const badges: string[] = [];
           if (acct.excludeFromNetWorth) badges.push('Not counted');
@@ -660,16 +663,20 @@ function AccountSection({
             <AccountRow
               key={acct.id}
               institution={institution}
-              name={titleCase(acct.name)}
+              name={titleCase(stripAccountMask(acct.name, acct.mask))}
+              mask={acct.mask}
               meta={meta}
               badges={badges}
               value={bal}
+              delta={status}
               negative={totalTone === 'neg'}
+              muted={frozen}
               // Every account gets a settings entry; Plaid accounts also get
               // sync, manual accounts also get delete. The ⋯ menu surfaces only
               // the applicable items per account.
               onSettings={() => setLocation('/accounts/' + acct.id)}
-              onSync={isManual ? undefined : () => onSync(acct.item.id)}
+              onSync={isManual || frozen ? undefined : () => onSync(acct.item.id)}
+              onUpgrade={frozen ? () => { startUpgrade().catch(() => {}); } : undefined}
               syncing={syncing === acct.item.id}
               onDelete={isManual ? async () => {
                 const ok = await confirm({

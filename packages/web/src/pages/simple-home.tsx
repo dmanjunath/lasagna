@@ -11,6 +11,9 @@ import {
   Card,
   Button,
   CompositionRibbon,
+  SkeletonBlock,
+  SkeletonLine,
+  SkeletonRow,
 } from '../components/ds';
 import { formatCurrency, goalColor, iconFor } from './goal-shared';
 
@@ -122,6 +125,7 @@ export function SimpleHome() {
   const [askDraft, setAskDraft] = useState('');
   const [currentStep, setCurrentStep] = useState<LevelStep | null>(null);
   const [levelLoading, setLevelLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const firstName =
     user?.name?.split(' ')[0] ||
@@ -225,7 +229,7 @@ export function SimpleHome() {
         const daysAway = Math.round((upcoming.dueDate.getTime() - now) / (24 * 60 * 60 * 1000));
         setUpcomingBill({ ...upcoming, daysAway });
       }
-    });
+    }).finally(() => setLoading(false));
   }, [loadPriorities]);
 
   function submitAsk(e?: React.FormEvent) {
@@ -297,6 +301,29 @@ export function SimpleHome() {
         </div>
       </header>
 
+      {/* First-paint skeleton — reserves the hero + ribbon footprint so the
+          top of the page doesn't pop in. Matches the loaded outline (dark
+          hero block, then ribbon card) the way the Money page does. */}
+      {loading && !breakdown && (
+        <>
+          <div className="ds-hero-skel">
+            {/* Height is owned by .ds-hero-skel (responsive) so the block
+                matches the loaded .ds-hero footprint at every breakpoint and
+                nothing shifts when the number lands. */}
+            <SkeletonBlock height={137} style={{ height: '100%', borderRadius: 16 }} />
+          </div>
+          <div className="ds-ribbon-skel">
+            <SkeletonLine width="90px" height={11} style={{ marginBottom: 14 }} />
+            <SkeletonBlock height={36} style={{ borderRadius: 4, marginBottom: 14 }} />
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+              {[0, 1, 2, 3].map((i) => (
+                <SkeletonLine key={i} width="96px" height={13} />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Net-worth hero — the focal figure of the page */}
       {breakdown && (
         <div className="ds-hero">
@@ -345,7 +372,17 @@ export function SimpleHome() {
           stacked with the top actions, so the user sees both at a glance
           without scrolling. */}
       {levelLoading ? (
-        <div className="ds-focus-wrap"><div style={{ height: 220 }} className="animate-pulse" /></div>
+        <Section title="Do this next">
+          <Card>
+            <SkeletonLine width="46%" height={18} style={{ marginBottom: 12, display: 'block' }} />
+            <SkeletonLine width="80%" height={13} style={{ marginBottom: 7, display: 'block' }} />
+            <SkeletonLine width="64%" height={13} style={{ marginBottom: 18, display: 'block' }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <SkeletonBlock height={36} style={{ width: 96, borderRadius: 999 }} />
+              <SkeletonBlock height={36} style={{ width: 96, borderRadius: 999 }} />
+            </div>
+          </Card>
+        </Section>
       ) : (currentStep || sideActions.length > 0) ? (
         <LevelAndActionsCard
           step={currentStep}
@@ -393,7 +430,7 @@ export function SimpleHome() {
       )}
 
       {/* Goals — active savings goals as compact progress rows */}
-      <GoalsSection goals={goals} />
+      <GoalsSection goals={goals} loading={loading} />
 
       {/* Upcoming bill — a single marginalia note when one is due soon */}
       {upcomingBill && (
@@ -409,6 +446,25 @@ export function SimpleHome() {
           display: flex;
           flex-direction: column;
           gap: 24px;
+        }
+        /* First-paint skeletons — mirror the hero (dark panel) + ribbon (card)
+           footprints so content swaps in without a layout jolt. Heights are
+           pinned to the measured loaded surfaces: .ds-hero ≈137px desktop /
+           ≈152px mobile (the delta chip wraps below the value), and .ds-ribbon
+           ≈143px desktop / ≈214px mobile (legend wraps to multiple rows). */
+        .ds-hero-skel { margin: 2px 0 14px; height: 137px; }
+        .ds-ribbon-skel {
+          margin: 0 0 28px;
+          min-height: 143px;
+          padding: 20px;
+          background: var(--lf-surface);
+          border: 1px solid var(--lf-rule-neutral);
+          border-radius: 12px;
+          box-shadow: var(--shadow-card);
+        }
+        @media (max-width: 640px) {
+          .ds-hero-skel { height: 152px; }
+          .ds-ribbon-skel { min-height: 214px; }
         }
       `}</style>
     </Page>
@@ -584,8 +640,10 @@ function LevelAndActionsCard({
         .ds-combo__title {
           font-family: 'Geist', system-ui, sans-serif;
           font-weight: 600;
-          font-size: 20px;
-          line-height: 1.25;
+          /* 18px keeps the focal step title clearly subordinate to the 22px
+             section H2 ("Do this next") sitting directly above it. */
+          font-size: 18px;
+          line-height: 1.3;
           letter-spacing: -0.01em;
           color: var(--lf-ink);
           margin: 0 0 10px;
@@ -735,6 +793,12 @@ function LevelAndActionsCard({
           border-color: var(--lf-sauce);
           color: white;
         }
+        /* At ≤640px the section H2 ("Do this next") floors to 18px (the bottom
+           of its clamp), so an 18px focus title reads as a peer. Drop the
+           focus title to 16px on mobile to keep it clearly subordinate. */
+        @media (max-width: 640px) {
+          .ds-combo__title { font-size: 16px; }
+        }
       `}</style>
     </>
   );
@@ -746,8 +810,20 @@ function LevelAndActionsCard({
 // but in a tighter row built for the dashboard. Each row deep-links to the
 // goal detail page; "See all" goes to the full goals list.
 
-function GoalsSection({ goals }: { goals: Goal[] }) {
+function GoalsSection({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
   const active = goals.filter((g) => g.status === 'active');
+
+  if (loading) {
+    return (
+      <Section title="Goals">
+        <div className="ds-home-goals">
+          {[0, 1, 2].map((i) => (
+            <SkeletonRow key={i} />
+          ))}
+        </div>
+      </Section>
+    );
+  }
 
   if (active.length === 0) {
     return (

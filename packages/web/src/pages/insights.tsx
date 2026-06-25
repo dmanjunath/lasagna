@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, RefreshCw, Zap } from 'lucide-react';
+import { ChevronDown, RefreshCw, Zap, CheckCircle2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
@@ -13,7 +13,6 @@ import {
   Button,
   Pill,
   EmptyState,
-  StatStrip,
 } from '../components/ds';
 
 // ---------------------------------------------------------------------------
@@ -42,17 +41,17 @@ const GROUP_META: Record<
 > = {
   do_now: {
     label: 'Do now',
-    hint: 'Critical or high-impact actions — address these first',
+    hint: 'Address first',
     pillTone: 'sauce',
   },
   this_week: {
     label: 'This week',
-    hint: 'Meaningful improvements worth acting on soon',
+    hint: 'Worth doing soon',
     pillTone: 'cheese',
   },
   watch: {
     label: 'Watch',
-    hint: 'Keep an eye on these — no urgent action needed yet',
+    hint: 'No rush',
     pillTone: 'basil',
   },
 };
@@ -307,8 +306,6 @@ export function Insights() {
   );
 
   const doNowCount = grouped.do_now.length;
-  const thisWeekCount = grouped.this_week.length;
-  const watchCount = grouped.watch.length;
   const totalCount = activeInsights.length;
 
   // Top action for the lede
@@ -352,28 +349,32 @@ export function Insights() {
 
       <LegalDisclaimer variant="insights" />
 
-      {!isLoading && totalCount > 0 && (
-        <StatStrip
-          className="ins-stats"
-          items={[
-            {
-              label: 'Total',
-              value: <span className="ds-num">{totalCount}</span>,
-            },
-            {
-              label: 'Urgent',
-              value: <span className="ds-num">{doNowCount}</span>,
-            },
-            {
-              label: 'This week',
-              value: <span className="ds-num">{thisWeekCount}</span>,
-            },
-            {
-              label: 'Watch',
-              value: <span className="ds-num">{watchCount}</span>,
-            },
-          ]}
-        />
+      {/* Loading — shaped skeleton matching the toolbar + grouped feed so the
+          first paint reserves the same space the loaded page consumes. */}
+      {isLoading && (
+        <div className="ins-skeleton" aria-hidden="true">
+          <div className="ins-skeleton__toolbar">
+            {[64, 92, 84, 64].map((w, i) => (
+              <span key={i} className="ds-skeleton" style={{ height: 30, width: w, borderRadius: 999 }} />
+            ))}
+          </div>
+          {[2, 3].map((count, s) => (
+            <div className="ins-skeleton__section" key={s}>
+              <span className="ds-skeleton" style={{ display: 'block', height: 10, width: 150, borderRadius: 4, marginBottom: 12 }} />
+              <span className="ds-skeleton" style={{ display: 'block', height: 22, width: 110, borderRadius: 6, marginBottom: 16 }} />
+              <ul className="ins-list">
+                {Array.from({ length: count }).map((_, i) => (
+                  <li key={i} className="ins-row ins-row--skeleton">
+                    <div className="ins-row__btn" style={{ cursor: 'default' }}>
+                      <span className="ds-skeleton" style={{ height: 20, width: 56, borderRadius: 999, flexShrink: 0 }} />
+                      <span className="ds-skeleton" style={{ height: 16, width: `${[62, 74, 48][i % 3]}%`, borderRadius: 4 }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Filter pills + refresh meta — one aligned toolbar row */}
@@ -430,10 +431,10 @@ export function Insights() {
           style={{
             marginBottom: 16,
             padding: '10px 14px',
-            background: 'rgba(196, 70, 41, 0.08)',
-            border: '1px solid var(--lf-sauce)',
+            background: 'color-mix(in srgb, var(--lf-neg) 8%, transparent)',
+            border: '1px solid var(--lf-neg)',
             borderRadius: 10,
-            color: 'var(--lf-sauce)',
+            color: 'var(--lf-neg)',
             fontSize: 13,
             lineHeight: 1.4,
           }}
@@ -442,23 +443,48 @@ export function Insights() {
         </div>
       )}
 
-      {/* Empty / generate state */}
+      {/* Empty state — adaptive. If we've never generated, invite the user to
+          generate; if a run produced nothing, they're caught up. */}
       {!isLoading && insights.length === 0 && (
-        <EmptyState
-          icon={<Zap size={32} />}
-          title="No actions yet"
-          body="Generate personalized actions based on your financial data."
-          cta={
-            <Button
-              variant="ink"
-              onClick={handleRefresh}
-              disabled={refreshing || !refreshReady}
-              title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
-            >
-              {refreshing ? 'Generating…' : 'Generate actions'}
-            </Button>
-          }
-        />
+        lastActionsGeneratedAt ? (
+          <EmptyState
+            icon={<CheckCircle2 size={28} />}
+            title="You're all caught up"
+            body="No open actions right now. We'll surface new ones as your accounts, spending, and goals change."
+            cta={
+              <Button
+                variant="ghost"
+                onClick={handleRefresh}
+                disabled={refreshing || !refreshReady}
+                title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
+                icon={
+                  <RefreshCw
+                    size={14}
+                    style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }}
+                  />
+                }
+              >
+                {refreshing ? 'Refreshing…' : 'Check for new actions'}
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={<Zap size={28} />}
+            title="No actions yet"
+            body="Generate a personalized set of actions from your accounts, spending, and goals."
+            cta={
+              <Button
+                variant="ink"
+                onClick={handleRefresh}
+                disabled={refreshing || !refreshReady}
+                title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
+              >
+                {refreshing ? 'Generating…' : 'Generate actions'}
+              </Button>
+            }
+          />
+        )
       )}
 
       {/* Grouped action lists — each section renders rows as editorial articles */}
@@ -595,7 +621,19 @@ export function Insights() {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .ins-stats { margin: 0 0 20px; }
+
+        /* Loading skeleton — mirrors the toolbar + grouped feed rhythm. */
+        .ins-skeleton__toolbar {
+          display: flex;
+          gap: 8px;
+          margin: 0 0 28px;
+        }
+        .ins-skeleton__section { margin-bottom: 28px; }
+        .ins-skeleton__section:last-child { margin-bottom: 0; }
+        .ins-row--skeleton { cursor: default; }
+        @media (max-width: 640px) {
+          .ins-skeleton__section { margin-bottom: 20px; }
+        }
 
         /* Filter pills + meta share one vertically-centered row. */
         .ins-toolbar {
@@ -654,43 +692,25 @@ export function Insights() {
           flex-shrink: 0;
         }
 
+        /* Each action is its own card (matches the dashboard Card surface), in
+           a simple gap stack — not a single hairline-row panel. */
         .ins-list {
           list-style: none;
           margin: 0;
           padding: 0;
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 12px;
         }
         .ins-list--dim { opacity: 0.7; }
 
-        /* Each action is an elevated card with a left priority accent. */
         .ins-row {
-          position: relative;
           background: var(--lf-surface);
           border: 1px solid var(--lf-rule-neutral);
           border-radius: 12px;
           box-shadow: var(--shadow-card);
-          padding: 2px 18px;
-          transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+          overflow: hidden;
         }
-        .ins-row::before {
-          content: '';
-          position: absolute;
-          left: 0; top: 12px; bottom: 12px;
-          width: 3px;
-          border-radius: 0 3px 3px 0;
-          background: var(--lf-noodle);
-        }
-        .ins-row--do_now::before   { background: var(--lf-neg); }
-        .ins-row--this_week::before { background: var(--lf-cheese); }
-        .ins-row--watch::before    { background: var(--lf-noodle); }
-        .ins-row:hover {
-          border-color: var(--lf-rule);
-          box-shadow: var(--shadow-card-hover);
-          transform: translateY(-1px);
-        }
-        .ins-row--open { box-shadow: var(--shadow-card-hover); }
 
         .ins-row__btn {
           display: flex;
@@ -699,7 +719,7 @@ export function Insights() {
           width: 100%;
           background: none;
           border: 0;
-          padding: 16px 0;
+          padding: 16px 18px;
           text-align: left;
           cursor: pointer;
           color: inherit;
@@ -708,7 +728,7 @@ export function Insights() {
         .ins-row__title {
           flex: 1;
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 500;
           color: var(--lf-ink);
           line-height: 1.25;
@@ -722,7 +742,7 @@ export function Insights() {
         }
 
         .ins-row__body {
-          padding: 0 0 18px 0;
+          padding: 0 18px 18px;
         }
         .ins-row__actions {
           display: flex;
@@ -732,8 +752,10 @@ export function Insights() {
         }
 
         @media (max-width: 640px) {
-          .ins-row { padding: 2px 14px; }
-          .ins-row__title { font-size: 17px; }
+          .ins-row__btn { padding: 16px 14px; }
+          .ins-row__body { padding: 0 14px 18px; }
+          /* Expanded action buttons meet the 44px touch minimum on mobile. */
+          .ins-row__actions .ds-btn { min-height: 44px; }
         }
       `}</style>
     </Page>

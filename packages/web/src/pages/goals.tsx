@@ -11,6 +11,7 @@ import {
   Button,
   Eyebrow,
   EmptyState,
+  SkeletonLine,
 } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountChips, IconKey } from './goal-shared';
 
@@ -245,6 +246,37 @@ export function Goals() {
           transition: color 0.15s, transform 0.15s;
         }
         .goals-feed li:hover .goals-feed__open { color: var(--lf-sauce); transform: translateX(2px); }
+
+        /* Reached / exceeded goals are a distinct surface — faint basil wash +
+           green-tinted hairline so a completed row reads as "done" at a glance,
+           not just another neutral card. */
+        .goals-feed li.is-complete {
+          border-color: color-mix(in srgb, var(--lf-basil) 32%, var(--lf-rule-neutral));
+          background:
+            linear-gradient(180deg,
+              color-mix(in srgb, var(--lf-basil) 6%, var(--lf-surface)),
+              color-mix(in srgb, var(--lf-basil) 3%, var(--lf-surface)));
+        }
+        /* Check seal on the icon — the second cue that a goal landed. */
+        .goals-feed__icon { position: relative; }
+        .goals-feed__icon-check {
+          position: absolute; right: -5px; bottom: -5px;
+          width: 18px; height: 18px; border-radius: 999px;
+          background: var(--lf-basil); color: var(--lf-paper);
+          display: grid; place-items: center;
+          border: 2px solid var(--lf-surface);
+          box-shadow: 0 1px 2px rgba(15,23,42,0.08);
+        }
+        /* Exceeded → solid (filled) badge; outlined "Reached" stays calmer.
+           The filled fill is the louder, "you beat it" signal. */
+        .goals-feed__complete--exceeded {
+          color: var(--lf-paper);
+          background: var(--lf-basil);
+          border-color: var(--lf-basil);
+        }
+        /* Skeleton rows reuse the feed shell but stay inert. */
+        .goals-feed li.is-skeleton { cursor: default; }
+        .goals-feed li.is-skeleton:hover { transform: none; box-shadow: var(--shadow-card); }
         @media (max-width: 640px) {
           .goals-feed li { padding: 16px; }
           .goals-feed__row {
@@ -449,6 +481,39 @@ export function Goals() {
             <> · <span className="ds-pos">{completedGoals.length} complete</span></>
           )}
         </div>
+      )}
+
+      {/* Loading skeleton — matched outline: KPI strip + a few goal rows so
+          first paint reserves the same space the loaded page consumes. */}
+      {loading && (
+        <>
+          <div className="goals-strip-grid" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="goals-strip-card">
+                <SkeletonLine width="42%" height={11} />
+                <SkeletonLine width="70%" height={28} style={{ marginTop: 2 }} />
+                <SkeletonLine width="56%" height={11} />
+              </div>
+            ))}
+          </div>
+          <ul className="goals-feed" aria-hidden="true">
+            {[35, 68, 100].map((w, i) => (
+              <li key={i} className="is-skeleton">
+                <div className="goals-feed__row">
+                  <span className="ds-skeleton goals-feed__icon" />
+                  <div className="goals-feed__main">
+                    <SkeletonLine width="46%" height={22} />
+                    <div className="goals-feed__bar">
+                      <div style={{ width: `${w}%`, background: 'var(--lf-rule)' }} />
+                    </div>
+                    <SkeletonLine width="34%" height={13} />
+                  </div>
+                  <div className="goals-feed__actions" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {/* Iter 7 B: "Saving this month" KPI strip. Built from the active-goal
@@ -662,6 +727,7 @@ export function Goals() {
                 const autoTracked = goal.isAutoTracked;
                 const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
                 const remaining = Math.max(0, target - current);
+                const surplus = current - target;
                 const color = goalColor(goal.category);
 
                 let deadlineLabel: string | null = null;
@@ -673,11 +739,14 @@ export function Goals() {
                 }
 
                 const complete = pct >= 100;
+                // Over-target: landed AND a real dollar surplus past the goal.
+                const exceeded = complete && surplus >= 1;
                 const open = () => setLocation(`/plans/savings/${goal.id}`);
 
                 return (
                   <li
                     key={goal.id}
+                    className={complete ? 'is-complete' : undefined}
                     role="button"
                     tabIndex={0}
                     aria-label={`Open ${goal.name}`}
@@ -689,9 +758,16 @@ export function Goals() {
                     <div className="goals-feed__row">
                       <div
                         className="goals-feed__icon"
-                        style={{ background: `color-mix(in srgb, ${color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`, color }}
+                        style={complete
+                          ? { background: 'color-mix(in srgb, var(--lf-basil) 14%, transparent)', border: '1px solid color-mix(in srgb, var(--lf-basil) 30%, transparent)', color: 'var(--lf-basil)' }
+                          : { background: `color-mix(in srgb, ${color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`, color }}
                       >
                         {iconFor(goal.icon, 22)}
+                        {complete && (
+                          <span className="goals-feed__icon-check" aria-hidden="true">
+                            <Check size={11} strokeWidth={3} />
+                          </span>
+                        )}
                       </div>
                       <div className="goals-feed__main">
                         <div className="goals-feed__head">
@@ -738,10 +814,14 @@ export function Goals() {
 
                         <div className="goals-feed__meta">
                           {[
-                            complete
-                              ? <span className="goals-feed__complete"><Check size={13} /> Reached</span>
-                              : <span className="goals-feed__pct">{Math.round(pct)}%</span>,
-                            complete ? null : <span>{formatCurrency(remaining)} to go</span>,
+                            exceeded
+                              ? <span className="goals-feed__complete goals-feed__complete--exceeded"><Check size={13} /> Exceeded</span>
+                              : complete
+                                ? <span className="goals-feed__complete"><Check size={13} /> Reached</span>
+                                : <span className="goals-feed__pct">{Math.round(pct)}%</span>,
+                            exceeded
+                              ? <span>{formatCurrency(surplus)} over target</span>
+                              : complete ? null : <span>{formatCurrency(remaining)} to go</span>,
                             deadlineLabel ? <span>{deadlineLabel}</span> : null,
                             goal.category ? <span>{goal.category.replace(/_/g, ' ')}</span> : null,
                           ]
