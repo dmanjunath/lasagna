@@ -36,6 +36,13 @@
       "when": 1780000000000,
       "tag": "0004_cool_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782355334480,
+      "tag": "0005_overconfident_thundra",
+      "breakpoints": true
     }
   ]
 }

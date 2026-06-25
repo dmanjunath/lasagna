@@ -22,6 +22,7 @@ import { priorityRoutes } from "./routes/priorities.js";
 import { manualAccountRoutes } from "./routes/manual-accounts.js";
 import { recurringRoutes } from "./routes/recurring.js";
 import { quickImportRoutes } from "./routes/quick-import.js";
+import { billingRoutes } from "./routes/billing.js";
 
 export const app = new Hono<AuthEnv>();
 
@@ -70,6 +71,7 @@ app.use("/api/*", async (ctx, next) => {
     "/api/auth/signup",
     "/api/auth/me",
     "/api/health",
+    "/api/billing/webhook",
   ];
   if (exempt.includes(ctx.req.path)) return next();
   return requireAuth(ctx, next);
@@ -122,3 +124,4 @@ app.route("/api/priorities", priorityRoutes);
 app.route("/api/manual-accounts", manualAccountRoutes);
 app.route("/api/recurring", recurringRoutes);
 app.route("/api/quick-import", quickImportRoutes);
+app.route("/api/billing", billingRoutes);

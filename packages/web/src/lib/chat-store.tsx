@@ -2,14 +2,14 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 import { api, API_BASE } from './api';
 import type { Message } from './types';
 
-export type ModelLevel = 'fast' | 'medium' | 'quality' | 'frontier';
+export type ModelLevel = 'free' | 'fast' | 'medium' | 'quality' | 'frontier';
 
 export const DEFAULT_MODEL_LEVEL: ModelLevel = 'medium';
 
 export function getPreferredModelLevel(): ModelLevel {
   try {
     const stored = localStorage.getItem('lf-chat-model');
-    if (stored && ['fast', 'medium', 'quality', 'frontier'].includes(stored)) return stored as ModelLevel;
+    if (stored && ['free', 'fast', 'medium', 'quality', 'frontier'].includes(stored)) return stored as ModelLevel;
   } catch { /* ignore */ }
   return DEFAULT_MODEL_LEVEL;
 }

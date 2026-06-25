@@ -15,6 +15,8 @@ import { db } from "./db.js";
 import { plaidClient } from "./plaid.js";
 import { env } from "./env.js";
 import { syncTransactions } from "./transaction-sync.js";
+import { resolveTenantPlan } from "./billing.js";
+import { recomputeFrozenAccounts } from "./account-limits.js";
 
 export async function syncItem(itemId: string): Promise<void> {
   const item = await db.query.plaidItems.findFirst({
@@ -56,6 +58,8 @@ export async function syncItem(itemId: string): Promise<void> {
       let accountId: string;
       if (existing) {
         accountId = existing.id;
+        // Frozen (over-limit) accounts are read-only: don't refresh their data.
+        if (existing.frozen) continue;
       } else {
         const [created] = await db
           .insert(accounts)
@@ -116,6 +120,9 @@ export async function syncItem(itemId: string): Promise<void> {
             eq(accounts.plaidItemId, item.id),
           ),
         });
+        // Frozen (over-limit) accounts are read-only — don't refresh holdings,
+        // so a frozen investment account keeps its last-known value.
+        if (acct?.frozen) continue;
         const sec = await db.query.securities.findFirst({
           where: eq(securities.plaidSecurityId, h.security_id),
         });
@@ -239,6 +246,8 @@ export async function syncItem(itemId: string): Promise<void> {
           ),
         });
         if (!acct) continue;
+        // Frozen (over-limit) accounts are read-only — don't overwrite metadata.
+        if (acct.frozen) continue;
 
         const existingMeta = parseLoanMetadata(acct.metadata ?? null);
         if (existingMeta?.source === "manual") {
@@ -272,6 +281,10 @@ export async function syncItem(itemId: string): Promise<void> {
     }
 
     // Sync transactions
+    // NOTE: transactions are synced at the item level, so a frozen account's
+    // transactions still ingest here. Accepted limitation — frozen only freezes
+    // balance/holdings/liability data (what drives net worth & portfolio value);
+    // per-account transaction gating would require changes in transaction-sync.
     try {
       await syncTransactions(itemId);
     } catch (e) {
@@ -289,6 +302,17 @@ export async function syncItem(itemId: string): Promise<void> {
       .update(plaidItems)
       .set({ lastSyncedAt: new Date() })
       .where(eq(plaidItems.id, item.id));
+
+    // Enforce the tenant's account limit (oldest stay active, newest freeze).
+    // In its own try so an enforcement failure can't flip the already-succeeded
+    // sync to "error". Runs in syncItem (not syncAllForTenant) so the initial
+    // connect path covers it; the cron's per-item redundancy is idempotent/cheap.
+    try {
+      const plan = await resolveTenantPlan(item.tenantId);
+      await recomputeFrozenAccounts(item.tenantId, plan);
+    } catch (e) {
+      console.error(`[sync] freeze recompute failed for tenant ${item.tenantId}:`, e instanceof Error ? e.message : e);
+    }
   } catch (err) {
     // Extract detailed Plaid error if available
     let errorMessage = err instanceof Error ? err.message : String(err);

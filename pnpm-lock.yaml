@@ -80,6 +80,9 @@ importers:
       plaid:
         specifier: ^41.4.0
         version: 41.4.0
+      stripe:
+        specifier: ^22.2.3
+        version: 22.2.3(@types/node@25.5.0)
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
@@ -5302,6 +5305,15 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
+
+  stripe@22.2.3:
+    resolution: {integrity: sha512-9lrggvLtjO4Ef5WXH4t50ckHJcJgTD72xFB+KJgZCSszAH9zMV1BqU6PwmWbRLdcdX7LK6PbErBapiGK7pIb+g==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   style-to-js@1.1.21:
     resolution: {integrity: sha512-RjQetxJrrUJLQPHbLku6U/ocGtzyjbJMP9lCNK7Ag0CNh690nSH8woqWH9u16nMjYBAok+i7JO1NP2pOy8IsPQ==}
@@ -11538,6 +11550,10 @@ snapshots:
   strip-json-comments@2.0.1: {}
 
   strip-json-comments@3.1.1: {}
+
+  stripe@22.2.3(@types/node@25.5.0):
+    optionalDependencies:
+      '@types/node': 25.5.0
 
   style-to-js@1.1.21:
     dependencies:

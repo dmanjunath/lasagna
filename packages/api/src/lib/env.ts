@@ -37,4 +37,17 @@ export const env = {
   get APP_ENV() {
     return optional("APP_ENV", process.env.NODE_ENV || "dev");
   },
+  get STRIPE_SECRET_KEY() {
+    return optional("STRIPE_SECRET_KEY", "");
+  },
+  get STRIPE_WEBHOOK_SECRET() {
+    return optional("STRIPE_WEBHOOK_SECRET", "");
+  },
+  get STRIPE_PRICE_PRO_MONTHLY() {
+    return optional("STRIPE_PRICE_PRO_MONTHLY", "");
+  },
+  // Web app origin — used for Stripe Checkout/Portal success & return URLs.
+  get APP_URL() {
+    return optional("APP_URL", "http://localhost:5173");
+  },
 };

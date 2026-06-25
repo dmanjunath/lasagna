@@ -11,6 +11,7 @@ import { env } from "../lib/env.js";
 const _models = new Map<ModelLevel, LanguageModel>();
 
 export const MODEL_LEVELS = [
+  "free",
   "fast",
   "fast-claude",
   "medium-google",
@@ -21,6 +22,7 @@ export const MODEL_LEVELS = [
 export type ModelLevel = (typeof MODEL_LEVELS)[number];
 
 const modelMappings: Record<ModelLevel, string> = {
+  "free": "google/gemini-3.1-flash-lite-preview",
   "fast": "google/gemini-3.1-flash-lite-preview",
   "fast-claude": "anthropic/claude-haiku-4.5",
   "medium-google": "google/gemini-3.5-flash",
