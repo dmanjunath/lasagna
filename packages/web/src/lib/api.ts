@@ -106,6 +106,7 @@ export const api = {
           currency: string;
           apr?: string | null;
           metadata?: Record<string, unknown> | null;
+          frozen?: boolean;
         }>;
       }>;
     }>("/plaid/items"),
@@ -393,6 +394,23 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+
+  // Billing
+  getBillingStatus: () =>
+    request<{
+      plan: "free" | "pro";
+      subscriptionStatus: string | null;
+      currentPeriodEnd: string | null;
+      cancelAtPeriodEnd: boolean;
+      usage: { accounts: number; maxAccounts: number };
+      models: { allowed: string[]; all: string[] };
+    }>("/billing/status"),
+
+  startCheckout: () =>
+    request<{ url: string }>("/billing/checkout", { method: "POST" }),
+
+  openBillingPortal: () =>
+    request<{ url: string }>("/billing/portal", { method: "POST" }),
 
   // Insights
   getInsights: () =>

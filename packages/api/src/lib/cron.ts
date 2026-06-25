@@ -1,23 +1,37 @@
 import cron from "node-cron";
 import { db } from "./db.js";
-import { eq, plaidItems, tenants } from "@lasagna/core";
+import { eq, plaidItems, tenants, type Plan } from "@lasagna/core";
 import { syncItem } from "./sync.js";
 import { generateInsights } from "./insights-engine.js";
+import { resolveTenantPlan } from "./billing.js";
 
 export function startCronJobs() {
   // Plaid sync twice daily: 1pm ET (17:00 UTC) and 7pm ET (23:00 UTC)
-  const syncAll = async () => {
-    console.log("[Cron] Starting sync for all active Plaid items...");
+  // proOnly=false → every active item (covers free's 1×/day morning run)
+  // proOnly=true  → only pro tenants' items (pro's 2nd daily run)
+  const syncAll = async (proOnly = false) => {
+    console.log(`[Cron] Starting sync (${proOnly ? "pro only" : "all tenants"})...`);
     try {
       const items = await db.query.plaidItems.findMany({
         where: eq(plaidItems.status, "active"),
       });
-      console.log(`[Cron] Found ${items.length} active items to sync`);
 
-      const results = await Promise.allSettled(
-        items.map((item) => syncItem(item.id))
-      );
+      let toSync = items;
+      if (proOnly) {
+        const planByTenant = new Map<string, Plan>();
+        toSync = [];
+        for (const item of items) {
+          let plan = planByTenant.get(item.tenantId);
+          if (!plan) {
+            plan = await resolveTenantPlan(item.tenantId);
+            planByTenant.set(item.tenantId, plan);
+          }
+          if (plan === "pro") toSync.push(item);
+        }
+      }
 
+      console.log(`[Cron] Syncing ${toSync.length}/${items.length} items`);
+      const results = await Promise.allSettled(toSync.map((item) => syncItem(item.id)));
       const succeeded = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.filter((r) => r.status === "rejected").length;
       console.log(`[Cron] Sync complete: ${succeeded} succeeded, ${failed} failed`);
@@ -26,8 +40,8 @@ export function startCronJobs() {
     }
   };
 
-  cron.schedule("0 17 * * *", syncAll); // 1pm ET
-  cron.schedule("0 23 * * *", syncAll); // 7pm ET
+  cron.schedule("0 17 * * *", () => syncAll(false)); // 1pm ET — all tenants
+  cron.schedule("0 23 * * *", () => syncAll(true)); // 7pm ET — pro only
 
   // Daily insights generation at 5pm UTC / 1pm ET (after first sync)
   cron.schedule("30 17 * * *", async () => {

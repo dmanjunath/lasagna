@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
+  Lock,
 } from "lucide-react";
 import {
   Page,
@@ -24,6 +25,8 @@ import {
   RowMenu,
 } from "../components/ds";
 import { api } from "../lib/api.js";
+import { useAuth } from "../lib/auth";
+import { useBilling, startUpgrade } from "../lib/billing";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -78,6 +81,7 @@ interface Account {
   excludeFromNetWorth?: boolean;
   excludeTransactions?: boolean;
   invertBalance?: boolean;
+  frozen?: boolean;
 }
 
 interface PlaidItem {
@@ -141,6 +145,9 @@ const ACCOUNT_TYPES: AccountTypeDef[] = [
 
 export function Accounts() {
   const confirm = useConfirm();
+  const { tenant } = useAuth();
+  const { status: billing } = useBilling();
+  const isFree = tenant?.plan === "free";
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
@@ -317,6 +324,15 @@ export function Accounts() {
     }
   };
 
+  const handleUpgrade = async () => {
+    setError("");
+    try {
+      await startUpgrade();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start upgrade");
+    }
+  };
+
   const handleSyncAll = async () => {
     setSyncing(true);
     setError("");
@@ -455,7 +471,7 @@ export function Accounts() {
             </Button>
             {/* Secondaries collapse into the "···" sheet at <=520px via the
                 .ds-page-bar__action--overflow utility. */}
-            {items.length > 0 && (
+            {!isFree && items.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -490,7 +506,7 @@ export function Accounts() {
               </button>
               {overflowOpen && (
                 <div className="ds-page-bar__overflow-menu" role="menu">
-                  {items.length > 0 && (
+                  {!isFree && items.length > 0 && (
                     <button
                       type="button"
                       className="ds-page-bar__overflow-item"
@@ -517,6 +533,21 @@ export function Accounts() {
           </span>
         )}
       </header>
+
+      {/* Plan usage — N of M accounts used, with an upgrade nudge at the cap */}
+      {billing && (
+        <p className="ds-accounts-usage">
+          {billing.usage.accounts} of {billing.usage.maxAccounts} accounts used
+          {isFree && billing.usage.accounts >= billing.usage.maxAccounts && (
+            <>
+              {" · "}
+              <button type="button" className="ds-accounts-usage__upgrade" onClick={handleUpgrade}>
+                Upgrade for more
+              </button>
+            </>
+          )}
+        </p>
+      )}
 
       {/* Quick Import CTA — kept as a soft inline marginalia line */}
       <Link href="/quick-import" className="ds-accounts-quickimport">
@@ -607,6 +638,8 @@ export function Accounts() {
                 onDeleteAccount={handleDeleteAccount}
                 onRefresh={() => loadItems(false)}
                 allAccounts={allAccounts}
+                isFree={isFree}
+                onUpgrade={handleUpgrade}
               />
             ))}
           </div>
@@ -636,6 +669,8 @@ export function Accounts() {
                   onDeleteAccount={handleDeleteAccount}
                   onRefresh={() => loadItems(false)}
                   allAccounts={allAccounts}
+                  isFree={isFree}
+                  onUpgrade={handleUpgrade}
                 />
               ))}
             </div>
@@ -663,6 +698,8 @@ export function Accounts() {
                   onDeleteAccount={handleDeleteAccount}
                   onRefresh={() => loadItems(false)}
                   allAccounts={allAccounts}
+                  isFree={isFree}
+                  onUpgrade={handleUpgrade}
                 />
               ))}
             </div>
@@ -852,6 +889,19 @@ export function Accounts() {
            .ds-page-bar__overflow menu (handled by the design-system primitive),
            so the page-scoped grid is no longer needed here. The primary
            "Connect a bank" stays inline next to the overflow "···" button. */
+        .ds-accounts-usage {
+          margin: 0 0 8px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
+          color: var(--lf-muted);
+        }
+        .ds-accounts-usage__upgrade {
+          background: none; border: 0; padding: 0;
+          font: inherit; cursor: pointer;
+          color: var(--lf-sauce);
+          text-decoration: underline; text-underline-offset: 2px;
+        }
+        .ds-accounts-usage__upgrade:hover { color: var(--lf-sauce-deep); }
         .ds-accounts-quickimport {
           display: inline-flex; align-items: center; gap: 8px;
           padding: 6px 0;
@@ -979,6 +1029,8 @@ function InstitutionArticle({
   onDeleteAccount,
   onRefresh,
   allAccounts,
+  isFree,
+  onUpgrade,
 }: {
   refCallback: (el: HTMLElement | null) => void;
   item: PlaidItem;
@@ -994,6 +1046,8 @@ function InstitutionArticle({
   onDeleteAccount: (id: string, name: string) => void;
   onRefresh: () => void;
   allAccounts: Account[];
+  isFree: boolean;
+  onUpgrade: () => void;
 }) {
   const isError = item.status === "error" || item.status === "item_login_required";
   const statusLabel = isError
@@ -1051,7 +1105,7 @@ function InstitutionArticle({
           </div>
         </div>
         <span className="ds-inst__head-total ds-num">{formatTotal(total)}</span>
-        {!isDemoMode && !isManual && (
+        {!isDemoMode && !isManual && !isFree && (
           <span className="ds-inst__head-actions">
             <Button
               variant="icon"
@@ -1084,6 +1138,8 @@ function InstitutionArticle({
                   key={account.id}
                   account={account}
                   isManual={isManual}
+                  isFree={isFree}
+                  onUpgrade={onUpgrade}
                   onDelete={() => onDeleteAccount(account.id, account.name)}
                   onRefresh={onRefresh}
                   linkedAccountName={account.metadata?.linkedAccountId
@@ -1195,13 +1251,15 @@ function InstitutionArticle({
 // Account row
 // ---------------------------------------------------------------------------
 
-function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName }: {
-  account: Account; isManual: boolean; onDelete: () => void;
+function AccountRow({ account, isManual, isFree, onUpgrade, onDelete, onRefresh, linkedAccountName }: {
+  account: Account; isManual: boolean; isFree: boolean; onUpgrade: () => void;
+  onDelete: () => void;
   onRefresh: () => void;
   linkedAccountName: string | null;
 }) {
   const balance = account.balance !== null ? parseFloat(account.balance) : null;
   const isNegative = balance !== null && balance < 0;
+  const isFrozen = account.frozen === true;
   const [, setLocation] = useLocation();
   const [syncing, setSyncing] = useState(false);
   const openSettings = () => setLocation('/accounts/' + account.id);
@@ -1209,7 +1267,7 @@ function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName 
   return (
     <>
     <div
-      className="ds-acctrow"
+      className={`ds-acctrow${isFrozen ? " ds-acctrow--frozen" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`Edit ${account.name}`}
@@ -1218,6 +1276,7 @@ function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName 
     >
       <div className="ds-acctrow__name">
         <span className="ds-acctrow__name-main">
+          {isFrozen && <Lock size={12} style={{ marginRight: 6, verticalAlign: "-1px", color: "var(--lf-muted)" }} />}
           {account.name}
           {account.mask && (
             <span style={{ color: "var(--lf-muted)", fontWeight: 400, marginLeft: 6 }}>
@@ -1225,7 +1284,18 @@ function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName 
             </span>
           )}
         </span>
-        {linkedAccountName && (
+        {isFrozen ? (
+          <span className="ds-caption" style={{ fontSize: 11 }}>
+            Frozen —{" "}
+            <button
+              type="button"
+              className="ds-acctrow__upgrade"
+              onClick={(e) => { e.stopPropagation(); onUpgrade(); }}
+            >
+              upgrade to reactivate
+            </button>
+          </span>
+        ) : linkedAccountName && (
           <span className="ds-caption" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
             linked to {linkedAccountName}
           </span>
@@ -1249,7 +1319,7 @@ function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName 
       <RowMenu
         name={account.name}
         onSettings={openSettings}
-        onSync={isManual ? undefined : async () => {
+        onSync={isManual || isFree ? undefined : async () => {
           setSyncing(true);
           try { await api.syncAccount(account.id); await onRefresh(); }
           finally { setSyncing(false); }
@@ -1269,6 +1339,8 @@ function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName 
         }
         .ds-acctrow:hover { background: rgba(31, 26, 22, 0.025); }
         .ds-acctrow:first-child { border-top: 0; }
+        .ds-acctrow--frozen { opacity: 0.55; }
+        .ds-acctrow--frozen .ds-acctrow__name-main { color: var(--lf-muted); }
         .ds-acctrow__name {
           flex: 1; min-width: 0;
           display: flex; flex-direction: column; gap: 2px;
@@ -1279,6 +1351,13 @@ function AccountRow({ account, isManual, onDelete, onRefresh, linkedAccountName 
           color: var(--lf-ink);
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        .ds-acctrow__upgrade {
+          background: none; border: 0; padding: 0;
+          font: inherit; cursor: pointer;
+          color: var(--lf-sauce);
+          text-decoration: underline; text-underline-offset: 2px;
+        }
+        .ds-acctrow__upgrade:hover { color: var(--lf-sauce-deep); }
       `}</style>
     </div>
     </>

@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
+import { useBilling, startUpgrade, openPortal } from "../lib/billing";
 import { formatMoney } from "../lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -12,6 +13,8 @@ import {
   ChevronRight,
   ChevronDown,
   LogOut,
+  Sparkles,
+  Check,
 } from "lucide-react";
 import {
   Page,
@@ -295,6 +298,11 @@ export function Settings() {
         </EditorialArticle>
       </Section>
 
+      {/* ── Plan & billing ────────────────────────────────────── */}
+      <Section eyebrow="Plan">
+        <PlanCard />
+      </Section>
+
       {/* ── Linked accounts ───────────────────────────────────── */}
       <Section title="Linked accounts">
         <NavLine
@@ -318,17 +326,6 @@ export function Settings() {
 
       {/* Sign-out now lives in the page-bar action slot (iter 7 A) so the
           page no longer needs a redundant "Account / Session" section. */}
-
-      <p className="ds-caption" style={{
-        textAlign: 'center',
-        fontFamily: "'JetBrains Mono', monospace",
-        letterSpacing: '0.08em',
-        margin: '48px 0 0',
-        paddingTop: 24,
-        borderTop: '1px solid var(--lf-rule-soft)',
-      }}>
-        Lasagna v0.1.0 · Built in the open
-      </p>
 
       <style>{`
         .ds-article {
@@ -579,6 +576,202 @@ function NavLine({
       </span>
       <span className="ds-navline-chev"><ChevronRight size={16} /></span>
     </button>
+  );
+}
+
+// ─── Plan & billing ──────────────────────────────────────────────────────────
+
+const PRO_FEATURES = [
+  "50 connected accounts",
+  'Manual "Sync now"',
+  "Premium AI models",
+];
+
+const FREE_FEATURES = [
+  "3 connected accounts",
+  "Daily auto-sync",
+  "Basic AI model",
+];
+
+function PlanCard() {
+  const { status, loading, refresh } = useBilling();
+  const [upgrading, setUpgrading] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const [error, setError] = useState("");
+  const [welcome, setWelcome] = useState(false);
+
+  // After Stripe Checkout redirects back with ?upgraded=1, the webhook that
+  // flips the plan may land a beat later — so refresh now and again shortly.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("upgraded") !== "1") return;
+    setWelcome(true);
+    refresh();
+    const t = setTimeout(() => refresh(), 2000);
+    return () => clearTimeout(t);
+  }, [refresh]);
+
+  const handleUpgrade = async () => {
+    setUpgrading(true);
+    setError("");
+    try {
+      await startUpgrade();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start upgrade");
+      setUpgrading(false);
+    }
+  };
+
+  const handleManage = async () => {
+    setManaging(true);
+    setError("");
+    try {
+      await openPortal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to open billing portal");
+      setManaging(false);
+    }
+  };
+
+  const isPro = status?.plan === "pro";
+  const periodDate = status?.currentPeriodEnd
+    ? new Date(status.currentPeriodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    : null;
+  const cancelScheduled = !!status?.cancelAtPeriodEnd;
+  // When a cancellation is scheduled, the subscription is still active (Pro)
+  // until the period end — so show "Cancels on" instead of "Renews".
+  const periodLabel = periodDate
+    ? `${cancelScheduled ? "Cancels" : "Renews"} ${periodDate}`
+    : null;
+
+  return (
+    <article className="ds-article">
+      <div className="ds-article__head" style={{ cursor: "default" }}>
+        <span className="ds-article__head-icon"><Sparkles size={16} /></span>
+        <span className="ds-article__head-body">
+          <span className="ds-article__head-title">{isPro ? "Pro" : "Free plan"}</span>
+          <span className="ds-article__head-sub">
+            {isPro
+              ? cancelScheduled
+                ? (periodLabel ?? "Cancels at period end")
+                : `${(status?.subscriptionStatus ?? "active").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}${periodLabel ? ` · ${periodLabel}` : ""}`
+              : `${FREE_FEATURES.join(" · ")}`}
+          </span>
+        </span>
+      </div>
+
+      {welcome && (
+        <p className="ds-plan-welcome">Welcome to Pro! Your account is being upgraded.</p>
+      )}
+
+      {loading ? (
+        <div style={{ padding: "20px 0" }}>
+          <div className="ds-article__skeleton animate-pulse" />
+        </div>
+      ) : isPro ? (
+        <div className="ds-plan-body">
+          <ul className="ds-plan-features">
+            {PRO_FEATURES.map((f) => (
+              <li key={f}><Check size={13} /> {f}</li>
+            ))}
+          </ul>
+          {cancelScheduled && periodDate && (
+            <p className="ds-plan-cancel-note">
+              Your subscription is set to cancel on {periodDate}. You'll keep Pro until then —
+              reactivate any time from Manage subscription.
+            </p>
+          )}
+          <Button variant="ghost" onClick={handleManage} disabled={managing}>
+            {managing ? "Redirecting…" : "Manage subscription"}
+          </Button>
+        </div>
+      ) : (
+        <div className="ds-plan-body">
+          <div className="ds-plan-compare">
+            <div className="ds-plan-col">
+              <p className="ds-plan-col__head">Free</p>
+              <ul className="ds-plan-features">
+                {FREE_FEATURES.map((f) => (
+                  <li key={f}><Check size={13} /> {f}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="ds-plan-col ds-plan-col--pro">
+              <p className="ds-plan-col__head">Pro · $11.99/mo</p>
+              <ul className="ds-plan-features">
+                {PRO_FEATURES.map((f) => (
+                  <li key={f}><Check size={13} /> {f}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <Button variant="ink" onClick={handleUpgrade} disabled={upgrading}>
+            {upgrading ? "Redirecting…" : "Upgrade to Pro"}
+          </Button>
+        </div>
+      )}
+
+      {error && <p className="ds-plan-error">{error}</p>}
+
+      <style>{`
+        .ds-plan-welcome {
+          margin: 14px 0 0;
+          padding: 10px 14px;
+          border-radius: 8px;
+          background: rgba(90,107,63,0.08);
+          border: 1px solid rgba(90,107,63,0.25);
+          color: var(--lf-ink);
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px;
+        }
+        .ds-plan-body {
+          padding: 18px 0 8px;
+          display: flex; flex-direction: column; gap: 18px;
+          align-items: flex-start;
+        }
+        .ds-plan-compare {
+          display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+          width: 100%;
+        }
+        .ds-plan-col {
+          padding: 14px 16px;
+          border: 1px solid var(--lf-rule);
+          border-radius: 10px;
+        }
+        .ds-plan-col--pro {
+          background: var(--lf-cream);
+          border-color: var(--lf-cream-deep);
+        }
+        .ds-plan-col__head {
+          margin: 0 0 10px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px; font-weight: 600;
+          color: var(--lf-ink);
+        }
+        .ds-plan-features {
+          list-style: none; margin: 0; padding: 0;
+          display: flex; flex-direction: column; gap: 8px;
+        }
+        .ds-plan-features li {
+          display: flex; align-items: center; gap: 8px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px; color: var(--lf-ink-soft);
+        }
+        .ds-plan-features li svg { color: var(--lf-sauce); flex-shrink: 0; }
+        .ds-plan-error {
+          margin: 12px 0 0;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px; color: var(--lf-sauce);
+        }
+        .ds-plan-cancel-note {
+          margin: 4px 0 12px;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 13px; line-height: 1.5; color: var(--lf-text-muted, #6b7280);
+        }
+        @media (max-width: 520px) {
+          .ds-plan-compare { grid-template-columns: 1fr; }
+        }
+      `}</style>
+    </article>
   );
 }
 

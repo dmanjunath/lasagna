@@ -237,7 +237,7 @@ export function Sidebar({ className }: SidebarProps) {
           <div className="flex-1 text-left min-w-0">
             <div className="text-sm font-medium text-text truncate">{firstName}</div>
             <div className="text-[11px] text-text-muted font-mono truncate">
-              {tenant?.plan === 'pro' ? 'pro plan' : 'self-hosted'}
+              {tenant?.plan === 'pro' ? 'pro plan' : 'free plan'}
             </div>
           </div>
           <ChevronUp

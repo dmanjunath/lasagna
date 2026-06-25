@@ -3,9 +3,12 @@ import { z } from "zod";
 import { generateText } from "ai";
 import { db } from "../lib/db.js";
 import { chatThreads, messages, eq, and } from "@lasagna/core";
-import { getModel, getModelSlug, createAgentTools, systemPrompt, MODEL_LEVELS } from "../agent/index.js";
+import { getModel, getModelSlug, createAgentTools, systemPrompt, MODEL_LEVELS, type ModelLevel } from "../agent/index.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildAliasMap, scrub, descrub, PII_DEBUG } from "../lib/pii-scrubber.js";
+import { resolveTenantPlan } from "../lib/billing.js";
+import { resolveModelLevel } from "../lib/model-gate.js";
+import { FREE_MODEL_LEVEL } from "@lasagna/core";
 
 export const chatRouter = new Hono<AuthEnv>();
 
@@ -82,7 +85,9 @@ chatRouter.post("/", async (c) => {
 
   // Resolve the agent-loop model once — the response echoes this back so the
   // client can show which model answered.
-  const agentLevel = body.modelLevel ?? "fast-claude";
+  const plan = await resolveTenantPlan(tenantId);
+  // Free tenants are served the free model regardless of the requested level.
+  const agentLevel: ModelLevel = resolveModelLevel(plan, body.modelLevel);
   const agentModelSlug = getModelSlug(agentLevel);
 
   console.log("[Chat] Starting agentic loop with", Object.keys(tools).length, "tools");
@@ -169,7 +174,10 @@ chatRouter.post("/", async (c) => {
         type: "tool-call" as const,
         toolCallId: tc.toolCallId,
         toolName: tc.toolName,
-        args: (tc as any).input ?? (tc as any).args,
+        // AI SDK v6 renamed this field args → input. Using `args` makes strict
+        // providers (Google) reject the transcript as having no valid function
+        // calls; Anthropic tolerated it, which masked the bug.
+        input: (tc as any).input ?? (tc as any).args,
       });
     }
     conversationMessages.push({ role: "assistant" as const, content: assistantContent });
@@ -218,7 +226,7 @@ chatRouter.post("/", async (c) => {
   if (!isDemo && !thread.title) {
     try {
       const titleResult = await generateText({
-        model: getModel(),
+        model: getModel(plan === "free" ? FREE_MODEL_LEVEL : "quality"),
         system: "Generate a short title (3-6 words) for this financial conversation. No quotes, no punctuation at the end. Just the title.",
         messages: [{ role: "user", content: `Title for: "${body.message.slice(0, 200)}"` }],
         maxOutputTokens: 32,

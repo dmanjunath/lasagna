@@ -67,6 +67,13 @@ export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
   plan: planEnum("plan").notNull().default("free"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionStatus: varchar("subscription_status", { length: 50 }),
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  // True when the subscription is set to cancel at period end — still active
+  // (Pro) until currentPeriodEnd, then Stripe fires subscription.deleted.
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -194,6 +201,8 @@ export const accounts = pgTable("accounts", {
   excludeFromNetWorth: boolean("exclude_from_net_worth").notNull().default(false),
   excludeTransactions: boolean("exclude_transactions").notNull().default(false),
   invertBalance: boolean("invert_balance").notNull().default(false), // flip the sign of the balance at point of use
+  // Over the tenant's plan account limit → read-only: not synced, shown locked.
+  frozen: boolean("frozen").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

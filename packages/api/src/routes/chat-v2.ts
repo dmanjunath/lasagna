@@ -8,6 +8,8 @@ import { systemPromptV2 } from "../agent/prompt-v2.js";
 import { responseSchemaV2 } from "../agent/types-v2.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildAliasMap, scrub, descrub, PII_DEBUG } from "../lib/pii-scrubber.js";
+import { resolveTenantPlan } from "../lib/billing.js";
+import { resolveModelLevel } from "../lib/model-gate.js";
 
 export const chatRouterV2 = new Hono<AuthEnv>();
 
@@ -38,6 +40,15 @@ chatRouterV2.post("/", async (c) => {
   if (!thread) {
     return c.json({ error: "Thread not found" }, 404);
   }
+
+  // Named `tier` (not `plan`) to avoid colliding with the financial `plan`
+  // rows fetched later in this handler.
+  const tier = await resolveTenantPlan(tenantId);
+  // v2 has no client model selector; pass "quality" for pro (its historical
+  // default) and let the guard force free tenants down to the free model.
+  // Inputs guarantee the guard never throws here (free→undefined, pro→allowed),
+  // so no 402 handling is needed — unlike chat.ts which forwards a client level.
+  const modelLevel = resolveModelLevel(tier, tier === "free" ? undefined : "quality");
 
   // Get plan context if thread is attached to a plan
   let planContext = "";
@@ -108,7 +119,7 @@ chatRouterV2.post("/", async (c) => {
     }
 
     const stepResult = await generateText({
-      model: getModel(),
+      model: getModel(modelLevel),
       system: systemPromptV2 + planContext,
       messages: conversationMessages,
       tools,
@@ -194,7 +205,9 @@ chatRouterV2.post("/", async (c) => {
         type: "tool-call" as const,
         toolCallId: tc.toolCallId,
         toolName: tc.toolName,
-        args: (tc as any).input ?? (tc as any).args,
+        // AI SDK v6 renamed this field args → input (strict providers like
+        // Google reject `args` as a malformed tool call; Anthropic tolerated it).
+        input: (tc as any).input ?? (tc as any).args,
       });
     }
     conversationMessages.push({ role: "assistant" as const, content: assistantContent });

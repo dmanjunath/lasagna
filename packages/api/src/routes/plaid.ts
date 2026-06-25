@@ -130,6 +130,7 @@ plaidRoutes.get("/items", async (c) => {
             excludeFromNetWorth: acct.excludeFromNetWorth,
             excludeTransactions: acct.excludeTransactions,
             invertBalance: acct.invertBalance,
+            frozen: acct.frozen,
           };
         })
       );
