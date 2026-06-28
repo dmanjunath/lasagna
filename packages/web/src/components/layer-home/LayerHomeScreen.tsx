@@ -785,7 +785,7 @@ export function LayerHomeScreen({
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginBottom: 10 }}>
                 {displayNetWorthDate ? displayNetWorthDate : 'Net Worth · live'}
               </div>
-              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 'clamp(40px, 8vw, 72px)', lineHeight: 0.95, letterSpacing: '-0.03em', color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 'clamp(40px, 8vw, 72px)', lineHeight: 0.95, letterSpacing: '-0.03em', color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {displayNetWorth != null ? fmt(displayNetWorth) : '—'}
               </div>
               {netWorthChange !== null && netWorthChange !== undefined && !displayNetWorthDate && (

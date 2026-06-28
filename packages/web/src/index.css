@@ -410,11 +410,10 @@
 /* ============================================================
    BRAND TYPOGRAPHY HELPERS
 
-   Instrument Serif is reserved for editorial moments — page H1,
+   Geist sans is the display face for editorial moments — page H1,
    the opening lede, the single hero number per page, empty-state
-   titles, and the brand wordmark. Everything else (section
-   headings, KPI strips, dialog titles, repeated metrics) uses
-   Geist sans so the serif keeps its weight when it appears.
+   titles. Headings use a heavier weight (600) so they read strong
+   at large sizes. The brand wordmark keeps its Fraunces italic "fi".
    ============================================================ */
 .lf-serif {
   font-family: 'Geist', system-ui, sans-serif;
@@ -422,8 +421,8 @@
   letter-spacing: -0.01em;
 }
 .lf-serif--display {
-  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
-  font-weight: 400;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
@@ -454,8 +453,8 @@
    .lf-h3 for cards / sub-sections. .lf-eyebrow above any title.
    ============================================================ */
 .lf-h1 {
-  font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
-  font-weight: 500;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
   font-size: 28px;
   line-height: 1.1;
   letter-spacing: -0.01em;
@@ -766,8 +765,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Instrument Serif', Georgia, serif;
+    font-family: 'Geist', system-ui, sans-serif;
     font-size: 32px;
+    font-weight: 600;
     color: var(--lf-paper);
   }
   
@@ -832,7 +832,7 @@
     font-size: 18px;
     font-weight: 600;
     margin-bottom: 8px;
-    font-family: 'Instrument Serif', Georgia, serif;
+    font-family: 'Geist', system-ui, sans-serif;
   }
   
   .a2hs-prompt p {
@@ -1378,8 +1378,8 @@
 
 /* ── Typography scale ───────────────────────────────────────── */
 .ds-display {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-weight: 500;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
   font-size: clamp(40px, 6vw, 64px);
   line-height: 1;
   letter-spacing: -0.02em;
@@ -1387,8 +1387,8 @@
   font-variant-numeric: tabular-nums;
 }
 .ds-h1 {
-  font-family: 'Instrument Serif', Georgia, serif;
-  font-weight: 500;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
   font-size: clamp(28px, 4vw, 40px);
   line-height: 1.05;
   letter-spacing: -0.015em;
@@ -1770,7 +1770,7 @@
   background: color-mix(in srgb, var(--lf-sauce) 12%, transparent);
   color: var(--lf-sauce);
 }
-.ds-empty__title { font-family: 'Instrument Serif', Georgia, serif; font-size: 22px; font-weight: 500; color: var(--lf-ink); margin: 0 0 8px; }
+.ds-empty__title { font-family: 'Geist', system-ui, sans-serif; font-size: 22px; font-weight: 600; color: var(--lf-ink); margin: 0 0 8px; }
 .ds-empty__body  { font-size: 14px; color: var(--lf-muted); margin: 0 auto 24px; max-width: 360px; line-height: 1.55; }
 
 /* Confirm dialog — replaces window.confirm() for destructive actions. */
@@ -2113,7 +2113,7 @@
 /* Editorial Lede ── large serif paragraph with inline tabular numbers.
    Used as the page's opening voice — addresses the user directly. */
 .ds-lede {
-  font-family: 'Instrument Serif', Georgia, serif;
+  font-family: 'Geist', system-ui, sans-serif;
   font-weight: 400;
   font-size: clamp(20px, 2.4vw, 28px);
   line-height: 1.4;

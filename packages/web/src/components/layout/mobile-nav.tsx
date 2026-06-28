@@ -114,7 +114,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 onClick={() => handleNavigate('/profile')}
                 className="flex items-center gap-3 p-4 w-full bg-bg-elevated rounded-2xl border border-rule hover:border-accent/30 transition text-left"
               >
-                <div className="w-14 h-14 rounded-full bg-accent grid place-items-center text-xl font-serif font-medium text-white shrink-0 shadow-sm">
+                <div className="w-14 h-14 rounded-full bg-accent grid place-items-center text-xl font-serif font-semibold text-white shrink-0 shadow-sm">
                   {initial}
                 </div>
                 <div className="flex-1 text-left">

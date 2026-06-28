@@ -548,8 +548,8 @@ function ChatStartHero({
           padding: 24px 0 40px;
         }
         .ds-chat-hero__title {
-          font-family: 'Instrument Serif', Georgia, serif;
-          font-weight: 500;
+          font-family: 'Geist', system-ui, sans-serif;
+          font-weight: 600;
           font-size: clamp(32px, 5vw, 48px);
           line-height: 1.05;
           letter-spacing: -0.015em;
@@ -612,7 +612,7 @@ function ChatStartHero({
         }
         .ds-chat-hero__prompt-text {
           flex: 1;
-          font-family: 'Instrument Serif', Georgia, serif;
+          font-family: 'Geist', system-ui, sans-serif;
           /* C3: 17px instead of clamp(18, 22) so more starters fit above the fold on mobile. */
           font-size: 17px;
           font-weight: 400;

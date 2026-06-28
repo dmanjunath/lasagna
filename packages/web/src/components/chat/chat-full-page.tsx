@@ -44,7 +44,7 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
             <Sparkles className="w-5 h-5 text-accent" />
           </div>
           <Eyebrow variant="sauce">AI Assistant</Eyebrow>
-          <h2 className="font-serif text-3xl text-text mt-2 leading-tight">
+          <h2 className="font-serif font-semibold text-3xl text-text mt-2 leading-tight">
             Ask anything about your finances
           </h2>
           <p className="text-sm text-text-secondary mt-2 max-w-sm">

@@ -226,7 +226,7 @@ export function Sidebar({ className }: SidebarProps) {
           aria-expanded={userMenuOpen}
           className="w-full flex items-center gap-2.5 p-3 bg-bg border border-rule rounded-xl cursor-pointer hover:border-accent/30 transition"
         >
-          <div className="w-7 h-7 rounded-lg bg-accent text-white flex items-center justify-center font-serif text-sm shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-accent text-white flex items-center justify-center font-serif font-semibold text-sm shrink-0">
             {initial}
           </div>
           <div className="flex-1 text-left min-w-0">

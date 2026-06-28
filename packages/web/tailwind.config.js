@@ -70,8 +70,8 @@ export default {
       fontFamily: {
         sans:    ['Geist', 'system-ui', 'sans-serif'],
         mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
-        serif:   ['Instrument Serif', 'Cormorant Garamond', 'Georgia', 'serif'],
-        display: ['Instrument Serif', 'Cormorant Garamond', 'Georgia', 'serif'],
+        serif:   ['Geist', 'system-ui', 'sans-serif'],
+        display: ['Geist', 'system-ui', 'sans-serif'],
       },
 
       // ─────────────────────────────────────────────────────────

@@ -64,7 +64,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
               <div className="w-12 h-12 rounded-2xl bg-accent/10 ring-1 ring-accent/15 grid place-items-center mb-3">
                 <Sparkles className="w-5 h-5 text-accent" />
               </div>
-              <h2 className="font-serif text-2xl text-text leading-tight">Ask anything about your finances</h2>
+              <h2 className="font-serif font-semibold text-2xl text-text leading-tight">Ask anything about your finances</h2>
               <p className="text-sm text-text-secondary mt-1.5">I can analyze your accounts, spending, and plans.</p>
             </div>
             <div className="space-y-2">
