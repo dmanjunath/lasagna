@@ -6,6 +6,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // DISABLED: the service worker's NavigationRoute intercepted every
+      // navigation and hung for ~10s on iOS Safari (worker cold-start on each
+      // open), so app.lasagnafi.com showed a white screen on mobile while the
+      // static landing page (no SW) loaded instantly. `selfDestroying` ships a
+      // worker that unregisters itself and clears its caches on next visit,
+      // cleaning up the buggy worker already installed on users' devices.
+      selfDestroying: true,
       registerType: 'autoUpdate',
       strategies: 'generateSW',
       workbox: {
