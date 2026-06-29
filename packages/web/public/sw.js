@@ -1,90 +1,22 @@
-const CACHE_NAME = 'lasagnafi-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.svg',
-  '/icon-192x192.png',
-  '/icon-512x512.png',
-  '/src/main.tsx',
-  '/src/App.tsx',
-  '/src/index.css',
-  '/src/components/layout/shell.tsx',
-  '/src/components/layout/mobile-nav.tsx',
-  '/src/components/layout/mobile-tab-bar.tsx',
-  '/src/pages/Dashboard.tsx',
-  '/src/pages/Login.tsx',
-];
+// Self-destroying service worker.
+//
+// The PWA was removed: its worker intercepted every navigation and hung for
+// ~10s on iOS Safari (worker cold-start on each open), white-screening the app
+// on mobile. Browsers that already registered a worker re-fetch this file as
+// an update; it unregisters itself and clears its caches so those devices get
+// cleaned up. New visitors never register a worker.
+//
+// Safe to delete this file once existing installs have updated (a few weeks).
+self.addEventListener("install", () => self.skipWaiting());
 
-self.addEventListener('install', (event) => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
-      .catch((error) => {
-        console.error('Cache installation failed:', error);
-      })
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+      await self.registration.unregister();
+      const clients = await self.clients.matchAll({ type: "window" });
+      clients.forEach((client) => client.navigate(client.url));
+    })(),
   );
-  self.skipWaiting();
-});
-
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request)
-          .then((response) => {
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              })
-              .catch((error) => {
-                console.error('Cache put failed:', error);
-              });
-            return response;
-          })
-          .catch((error) => {
-            console.error('Fetch failed:', error);
-            // Return a basic offline page for navigation requests
-            if (event.request.mode === 'navigate') {
-              return caches.match('/offline.html') || new Response('Offline');
-            }
-            throw error;
-          });
-      })
-      .catch((error) => {
-        console.error('Cache match failed:', error);
-        throw error;
-      })
-  );
-});
-
-self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys()
-      .then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheWhitelist.indexOf(cacheName) === -1) {
-              return caches.delete(cacheName);
-            }
-            return Promise.resolve();
-          })
-        );
-      })
-      .catch((error) => {
-        console.error('Cache activation failed:', error);
-      })
-  );
-  self.clients.claim();
 });
