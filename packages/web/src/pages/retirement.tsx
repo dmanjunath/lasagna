@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';
@@ -12,7 +12,7 @@ import {
   type WithdrawalStrategy, type BacktestYearData, type BacktestRow,
   computeWithdrawal, eraLabel, runBacktest, buildBands,
 } from '../lib/retirement-engine';
-import { Button, EmptyState, Skeleton } from '../components/uikit';
+import { Button, EmptyState, Skeleton, SegmentedControl } from '../components/uikit';
 
 // ── MC constants ─────────────────────────────────────────────────────────────
 const HISTORICAL_RETURNS: Record<string, number> = {
@@ -58,7 +58,7 @@ function getExpectedReturn(allocation: Record<string, number>): number {
 function Eyebrow({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
     <div
-      className={cn('text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted', className)}
+      className={cn('text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]', className)}
       style={style}
     >
       {children}
@@ -161,6 +161,26 @@ function ChartHover({
  * Note: bands are SVG <path> filled regions, NOT 1000 individual paths — we
  * compute once via buildBands (memoized by caller) and just paint quantiles.
  */
+
+// Measure a chart container's width so fixed-viewBox charts render at true
+// device pixels. A fixed viewBox scaled to 100% squishes the chart (and its
+// axis labels) to ~40% on a 390px phone; measuring keeps 1 unit ≈ 1px so text
+// stays legible and the chart keeps its full height on narrow screens.
+function useMeasuredWidth(fallback: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(fallback);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setWidth(Math.max(280, el.clientWidth || fallback));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fallback]);
+  return [ref, width] as const;
+}
+
 function ProjectionFan({
   bands,
   currentAge,
@@ -170,10 +190,12 @@ function ProjectionFan({
   currentAge: number;
   retirementAge: number;
 }) {
+  const [wrapRef, W] = useMeasuredWidth(760);
+
   const n = bands.p50.length;
   if (n === 0) return null;
 
-  const W = 760; const H = 220;
+  const H = 220;
   const PL = 52; const PR = 16; const PT = 14; const PB = 28;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
@@ -218,7 +240,7 @@ function ProjectionFan({
   };
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={wrapRef} style={{ position: 'relative' }}>
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', pointerEvents: 'none' }}
       data-testid="projection-fan"
     >
@@ -226,7 +248,7 @@ function ProjectionFan({
       {yTicks.map(({ pct, val, y }) => (
         <g key={pct}>
           <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
-          <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))">
+          <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
             {fmt(val)}
           </text>
         </g>
@@ -237,7 +259,7 @@ function ProjectionFan({
         <>
           <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={H - PB}
             stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
-          <text x={xf(retireIdx) + 5} y={PT + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-brand))">
+          <text x={xf(retireIdx) + 5} y={PT + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-brand))">
             retire {retirementAge}
           </text>
         </>
@@ -252,13 +274,13 @@ function ProjectionFan({
         strokeDasharray="5 4" strokeLinecap="round" data-band="p50" />
 
       {/* X-axis age labels */}
-      <text x={xf(0)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))">
+      <text x={xf(0)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
         {currentAge}
       </text>
-      <text x={xf(Math.floor((n - 1) / 2))} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))" textAnchor="middle">
+      <text x={xf(Math.floor((n - 1) / 2))} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))" textAnchor="middle">
         {currentAge + Math.floor((n - 1) / 2)}
       </text>
-      <text x={xf(n - 1)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))" textAnchor="end">
+      <text x={xf(n - 1)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))" textAnchor="end">
         {currentAge + n - 1}
       </text>
 
@@ -304,11 +326,31 @@ function ReadinessRing({ pct }: { pct: number }) {
 }
 
 function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof buildBands>; retireAge: number; currentAge: number }) {
-  const W = 760; const H = 200;
+  const [wrapRef, W] = useMeasuredWidth(760);
   const n = bands.p50.length;
-  const max = Math.max(...bands.p95) || 1;
-  const xf = (i: number) => (i / (n - 1)) * W;
-  const yf = (v: number) => H - (v / max) * H;
+  const H = 220;
+  const PL = 52; const PR = 16; const PT = 14; const PB = 28;
+  const chartW = W - PL - PR;
+  const chartH = H - PT - PB;
+
+  // Log y-axis (matches the Overview projection) so early low-$ years don't
+  // flatten the whole span to a hockey-stick. buildBands output is untouched.
+  const maxV = Math.max(...bands.p95, 1);
+  const startMin = Math.max(1000, Math.min(...bands.p5.filter(v => v > 0), bands.p50[0] || 1000));
+  const lnMin = Math.log(Math.max(1000, startMin));
+  const lnMax = Math.log(Math.max(maxV, startMin * 10));
+  const lnRange = Math.max(1e-6, lnMax - lnMin);
+  const xf = (i: number) => PL + (i / Math.max(n - 1, 1)) * chartW;
+  const yf = (v: number) => {
+    const safe = Math.max(1000, v);
+    const t = (Math.log(safe) - lnMin) / lnRange;
+    return PT + chartH - Math.min(1, Math.max(0, t)) * chartH;
+  };
+  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => {
+    const val = Math.exp(lnMin + pct * lnRange);
+    return { pct, val, y: yf(val) };
+  });
+
   const path = (arr: number[], close?: number[]) => {
     let d = `M ${xf(0)},${yf(arr[0])}`;
     for (let i = 1; i < n; i++) d += ` L ${xf(i)},${yf(arr[i])}`;
@@ -319,40 +361,51 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
     return d;
   };
   const retireOffset = Math.max(0, retireAge - currentAge);
-  const retirePos = retireOffset < n ? xf(retireOffset) : W;
+  const retirePos = retireOffset < n ? xf(retireOffset) : xf(n - 1);
 
   const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1000)}k`;
 
   return (
-    <div style={{ position: 'relative' }}>
-    <svg viewBox={`0 0 ${W} ${H + 20}`} width="100%" style={{ display: 'block', pointerEvents: 'none' }}
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', pointerEvents: 'none' }}
       data-testid="fan-chart"
     >
-      {[0, 1, 2, 3, 4].map(i => (
-        <line key={i} x1={0} x2={W} y1={i * H / 4} y2={i * H / 4} stroke="var(--ui-line)" strokeDasharray="2 4" />
+      {/* Gridlines + Y-axis $ labels */}
+      {yTicks.map(({ pct, val, y }) => (
+        <g key={pct}>
+          <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
+          <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
+            {fmt(val)}
+          </text>
+        </g>
       ))}
       <path d={path(bands.p95, bands.p5)} fill="var(--ui-viz-2)" fillOpacity="0.08" data-band="p5-p95" />
       <path d={path(bands.p75, bands.p25)} fill="var(--ui-viz-2)" fillOpacity="0.18" data-band="p25-p75" />
-      <path d={path(bands.p50)} stroke="rgb(var(--ui-content-secondary))" strokeWidth="1.5" strokeDasharray="5 4" fill="none" data-band="p50" />
-      <line x1={retirePos} x2={retirePos} y1={0} y2={H} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" />
-      <text x={retirePos + 6} y={16} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-brand))">
-        retire {retireAge}
-      </text>
-      <text x={0} y={H + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-content-muted))">
+      <path d={path(bands.p50)} stroke="rgb(var(--ui-content-secondary))" strokeWidth="1.5" strokeDasharray="5 4" strokeLinecap="round" fill="none" data-band="p50" />
+      {retireOffset > 0 && retireOffset < n && (
+        <>
+          <line x1={retirePos} x2={retirePos} y1={PT} y2={H - PB} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
+          <text x={retirePos + 5} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="11" fill="rgb(var(--ui-brand))">
+            retire {retireAge}
+          </text>
+        </>
+      )}
+      {/* X-axis age labels */}
+      <text x={xf(0)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="11" fill="rgb(var(--ui-content-muted))">
         age {currentAge}
       </text>
-      <text x={W / 2} y={H + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-content-muted))" textAnchor="middle">
-        age {Math.round(currentAge + (n - 1) / 2)}
+      <text x={xf(Math.floor((n - 1) / 2))} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="11" fill="rgb(var(--ui-content-muted))" textAnchor="middle">
+        {Math.round(currentAge + (n - 1) / 2)}
       </text>
-      <text x={W} y={H + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-content-muted))" textAnchor="end">
-        age {currentAge + n - 1}
+      <text x={xf(n - 1)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="11" fill="rgb(var(--ui-content-muted))" textAnchor="end">
+        {currentAge + n - 1}
       </text>
     </svg>
     <ChartHover
       width={W}
-      height={H + 20}
-      paddingLeft={0}
-      paddingRight={0}
+      height={H}
+      paddingLeft={PL}
+      paddingRight={PR}
       count={n}
       getValue={(i) => `${fmt(bands.p50[i])} @ ${currentAge + i}`}
       getLabel={(i) => `median (p50) at age ${currentAge + i}`}
@@ -364,6 +417,7 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
 }
 
 function DistributionBar({ finalValues }: { finalValues: number[] }) {
+  const [wrapRef, W] = useMeasuredWidth(720);
   const [hovered, setHovered] = useState<number | null>(null);
   // Compact labels so the x-axis doesn't overlap on mobile (audit R4).
   const BINS = [
@@ -381,9 +435,10 @@ function DistributionBar({ finalValues }: { finalValues: number[] }) {
     pct: (finalValues.filter(v => v > bin.min && v <= bin.max).length / total) * 100,
   }));
   const maxPct = Math.max(...histogram.map(h => h.pct), 1);
-  const W = 720; const H = 160;
+  const H = 160;
   const bw = W / histogram.length - 8;
   return (
+    <div ref={wrapRef}>
     <svg viewBox={`0 0 ${W} ${H + 50}`} width="100%" style={{ cursor: 'pointer' }}>
       {histogram.map((h, i) => {
         const barH = Math.max(2, (h.pct / maxPct) * H);
@@ -422,6 +477,7 @@ function DistributionBar({ finalValues }: { finalValues: number[] }) {
         );
       })}
     </svg>
+    </div>
   );
 }
 
@@ -429,9 +485,10 @@ function DistributionBar({ finalValues }: { finalValues: number[] }) {
 
 // ── Backtest detail chart ────────────────────────────────────────────────────
 function BacktestDetailChart({ yearByYear, dollars }: { yearByYear: BacktestYearData[]; dollars: 'real' | 'nominal' }) {
+  const [wrapRef, W] = useMeasuredWidth(720);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   if (!yearByYear.length) return null;
-  const W = 720; const H = 220;
+  const H = 220;
   const PL = 60; const PR = 16; const PT = 14; const PB = 28;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
@@ -484,7 +541,7 @@ function BacktestDetailChart({ yearByYear, dollars }: { yearByYear: BacktestYear
   const ttX = hoverIdx !== null ? Math.min(hx, W - 170) : 0;
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div ref={wrapRef} style={{ marginBottom: 12 }}>
       <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'rgb(var(--ui-content-muted))', marginBottom: 6, display: 'flex', gap: 16 }}>
         <span><span style={{ display: 'inline-block', width: 10, height: 3, background: 'var(--ui-viz-2)', borderRadius: 2, marginRight: 4, verticalAlign: 'middle' }} />Portfolio value</span>
         {retireIdx > 0 && <span><span style={{ display: 'inline-block', width: 10, height: 8, background: 'rgb(var(--ui-brand))', borderRadius: 1, marginRight: 4, verticalAlign: 'middle', opacity: 0.15 }} />Accumulation</span>}
@@ -505,7 +562,7 @@ function BacktestDetailChart({ yearByYear, dollars }: { yearByYear: BacktestYear
         {[0.25, 0.5, 0.75, 1].map(pct => (
           <g key={pct}>
             <line x1={PL} x2={W - PR} y1={yf(maxV * pct)} y2={yf(maxV * pct)} stroke="var(--ui-line)" strokeDasharray="2 4" />
-            <text x={PL - 6} y={yf(maxV * pct) + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))">{fmt(maxV * pct)}</text>
+            <text x={PL - 6} y={yf(maxV * pct) + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">{fmt(maxV * pct)}</text>
           </g>
         ))}
         {/* Accumulation area (green) */}
@@ -524,12 +581,12 @@ function BacktestDetailChart({ yearByYear, dollars }: { yearByYear: BacktestYear
         {retireIdx > 0 && (
           <>
             <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={PT + chartH} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
-            <text x={xf(retireIdx) + 4} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-brand))">retire</text>
+            <text x={xf(retireIdx) + 4} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-brand))">retire</text>
           </>
         )}
         {/* X-axis labels */}
         {xLabels.map(i => (
-          <text key={i} x={xf(i)} y={H - 4} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))"
+          <text key={i} x={xf(i)} y={H - 4} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))"
             textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}>{yearByYear[i].year}</text>
         ))}
         {/* Hover crosshair + tooltip */}
@@ -800,7 +857,7 @@ function SimulateView({
   );
 
   const mcSuccessRate = bands.mcSuccessRate;
-  const mcSuccessColor = mcSuccessRate >= 80 ? 'rgb(var(--ui-brand))' : mcSuccessRate >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+  const mcSuccessColor = mcSuccessRate >= 80 ? 'rgb(var(--ui-brand-ink))' : mcSuccessRate >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
 
   // Real vs nominal: deflate by 3% / yr from current age
   const displayBands = useMemo(() => {
@@ -839,7 +896,7 @@ function SimulateView({
   };
 
   const backtestSuccessRate = backtestRows.length > 0 ? Math.round((survived / backtestRows.length) * 100) : 0;
-  const btSuccessColor = backtestSuccessRate >= 80 ? 'rgb(var(--ui-brand))' : backtestSuccessRate >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+  const btSuccessColor = backtestSuccessRate >= 80 ? 'rgb(var(--ui-brand-ink))' : backtestSuccessRate >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
 
   useEffect(() => { onRatesChange?.(mcSuccessRate, backtestSuccessRate); }, [mcSuccessRate, backtestSuccessRate, onRatesChange]);
 
@@ -849,22 +906,18 @@ function SimulateView({
       {/* Withdrawal strategy */}
       <Eyebrow style={{ marginBottom: 10 }}>Withdrawal strategy</Eyebrow>
       <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-          {([
-            { id: 'constant_dollar' as const, label: 'Constant Dollar (4%)' },
-            { id: 'percent_portfolio' as const, label: '% of Portfolio' },
-            { id: 'guardrails' as const, label: 'Guyton-Klinger Guardrails' },
-          ]).map(s => (
-            <button key={s.id} onClick={() => setStrategy(s.id)} style={{
-              padding: '8px 14px', fontSize: 13, cursor: 'pointer',
-              fontFamily: 'inherit', borderRadius: 8, fontWeight: 500,
-              background: strategy === s.id ? 'var(--ui-brand-soft)' : 'rgb(var(--ui-panel))',
-              color: strategy === s.id ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-secondary))',
-              border: `1px solid ${strategy === s.id ? 'var(--ui-brand-ring)' : 'var(--ui-line)'}`,
-            }}>
-              {s.label}
-            </button>
-          ))}
+        <div style={{ marginBottom: 20 }}>
+          <SegmentedControl
+            tone="brand"
+            value={strategy}
+            onChange={(v) => setStrategy(v)}
+            options={[
+              { value: 'constant_dollar', label: 'Constant 4%' },
+              { value: 'percent_portfolio', label: '% of Portfolio' },
+              { value: 'guardrails', label: 'Guardrails' },
+            ]}
+            aria-label="Withdrawal strategy"
+          />
         </div>
         {/* Body copy → Geist (mono only for numeric displays). */}
         <div style={{ fontFamily: 'inherit', fontSize: 14, color: 'rgb(var(--ui-content-secondary))', lineHeight: 1.55, marginBottom: 20 }}>
@@ -949,20 +1002,21 @@ function SimulateView({
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
           {MC_PRESETS.map(p => (
             <button key={p.id} onClick={() => selectPreset(p)} style={{
-              padding: '8px 14px', fontSize: 13, cursor: 'pointer',
-              fontFamily: 'inherit', borderRadius: 8, fontWeight: 500,
+              minHeight: 40, padding: '9px 16px', fontSize: 13, cursor: 'pointer',
+              fontFamily: 'inherit', borderRadius: 999, fontWeight: 600,
               background: preset === p.id ? 'var(--ui-brand-soft)' : 'rgb(var(--ui-panel))',
               color: preset === p.id ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-secondary))',
               border: `1px solid ${preset === p.id ? 'var(--ui-brand-ring)' : 'var(--ui-line)'}`,
+              transition: 'background 0.15s, color 0.15s, border-color 0.15s',
             }}>
               {p.label}
             </button>
           ))}
           {preset === 'custom' && (
             <span style={{
-              padding: '8px 14px', fontSize: 13, borderRadius: 8,
+              minHeight: 40, display: 'inline-flex', alignItems: 'center', padding: '9px 16px', fontSize: 13, borderRadius: 999,
               background: 'rgb(var(--ui-canvas-sunken))', color: 'rgb(var(--ui-content-muted))',
-              border: '1px solid var(--ui-line)', fontVariantNumeric: 'tabular-nums',
+              border: '1px solid var(--ui-line)', fontVariantNumeric: 'tabular-nums', fontWeight: 600,
             }}>Custom</span>
           )}
         </div>
@@ -1047,58 +1101,53 @@ function SimulateView({
         </div>
       </Card>
 
-      {/* ── Real / Nominal toggle — applies to both tabs ───────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))' }}>
-        <span>Values in:</span>
-        <div style={{ display: 'flex', border: '1px solid var(--ui-line)', borderRadius: 8, overflow: 'hidden' }}>
-          {(['real', 'nominal'] as const).map((d, i) => (
-            <button key={d} onClick={() => setDollars(d)} style={{
-              padding: '5px 12px', fontSize: 13, cursor: 'pointer',
-              fontVariantNumeric: 'tabular-nums',
-              background: dollars === d ? 'var(--ui-brand-soft)' : 'transparent',
-              color: dollars === d ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-muted))',
-              border: 0, borderRight: i === 0 ? '1px solid var(--ui-line)' : 'none',
-              transition: 'background 0.15s, color 0.15s',
-            }}>
-              {d === 'real' ? 'Real $' : 'Nominal $'}
-            </button>
-          ))}
+      {/* ── Method + values toggles (SegmentedControl, tight to content) ────── */}
+      <Eyebrow style={{ marginBottom: 10 }}>Simulation</Eyebrow>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+        <SegmentedControl
+          tone="brand"
+          value={simTab}
+          onChange={(v) => setSimTab(v)}
+          options={[
+            { value: 'mc', label: 'Monte Carlo' },
+            { value: 'backtest', label: 'Historical Backtest' },
+          ]}
+          aria-label="Simulation method"
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'rgb(var(--ui-content-muted))' }}>Values in</span>
+          <SegmentedControl
+            size="sm"
+            value={dollars}
+            onChange={(v) => setDollars(v)}
+            options={[
+              { value: 'real', label: 'Real $' },
+              { value: 'nominal', label: 'Nominal $' },
+            ]}
+            aria-label="Values shown in real or nominal dollars"
+          />
         </div>
-        {dollars === 'real' && (
-          <span style={{ fontSize: 12, opacity: 0.7 }}>inflation-adjusted{simTab === 'backtest' ? ' · historical CPI' : ' · 3%/yr'}</span>
-        )}
       </div>
 
-      {/* ── Tab bar ────────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 20, border: '1px solid var(--ui-line)', borderRadius: 10, overflow: 'hidden', background: 'rgb(var(--ui-canvas-sunken))' }}>
-        {([
-          { id: 'mc', label: 'Monte Carlo', rate: mcSuccessRate, color: mcSuccessColor },
-          { id: 'backtest', label: 'Historical Backtest', rate: backtestSuccessRate, color: btSuccessColor },
-        ] as const).map((tab, i) => {
-          const isActive = simTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setSimTab(tab.id)}
-              style={{
-                flex: 1, padding: '12px 16px', cursor: 'pointer', border: 0,
-                borderRight: i === 0 ? '1px solid var(--ui-line)' : 'none',
-                borderBottom: isActive ? `2px solid rgb(var(--ui-brand))` : '2px solid transparent',
-                background: isActive ? 'rgb(var(--ui-panel))' : 'transparent',
-                transition: 'background 0.15s, border-color 0.15s',
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3,
-              }}
-            >
-              <span style={{ fontFamily: 'inherit', fontSize: 13, fontWeight: isActive ? 600 : 500, color: isActive ? 'rgb(var(--ui-content))' : 'rgb(var(--ui-content-muted))' }}>
-                {tab.label}
-              </span>
-              <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 600, color: tab.color }}>
-                {tab.rate}% success
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Focal probability — the confident number for the active method ──── */}
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
+          <span className="font-editorial ui-tnum" style={{ fontSize: 52, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.03em', color: simTab === 'mc' ? mcSuccessColor : btSuccessColor }}>
+            {simTab === 'mc' ? mcSuccessRate : backtestSuccessRate}%
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: 'inherit', fontSize: 15, fontWeight: 600, color: 'rgb(var(--ui-content))' }}>
+              {simTab === 'mc' ? 'chance your money lasts through age ' + lifeExp : 'of historical retirements survived'}
+            </div>
+            <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 3, lineHeight: 1.5 }}>
+              {simTab === 'mc'
+                ? `${mcSuccessRate}% of 1,000 simulated market paths end with money left`
+                : `${survived} of ${backtestRows.length} start years (1928–${1928 + Math.max(backtestRows.length - 1, 0)}) lasted the full ${lifeHorizon} years`}
+              {dollars === 'real' && ` · shown in today's dollars${simTab === 'backtest' ? ' (historical CPI)' : ' (3%/yr)'}`}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* ── Monte Carlo tab ─────────────────────────────────────────────────── */}
       {simTab === 'mc' && (
@@ -1161,7 +1210,7 @@ function SimulateView({
             });
 
             return (
-              <Card style={{ marginBottom: 20, background: 'var(--ui-negative-soft)', border: '1px solid var(--ui-negative-soft)' }}>
+              <Card style={{ marginBottom: 20, background: 'var(--ui-negative-soft)', border: '1px solid rgb(var(--ui-negative) / 0.35)' }}>
                 <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgb(var(--ui-negative))', marginBottom: 12 }}>
                   Why {failPct}% of runs fail · what to do
                 </div>
@@ -1519,15 +1568,21 @@ export function Retirement() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
       >
-        <header className="ret-header-row flex flex-wrap items-end justify-between gap-4">
+        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
-            <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
-              On track to <span className="ui-tnum">{formatMoney(portfolioAtRetirement, true)}</span> by {retirementAge}
+            <div className="flex items-center gap-2.5">
+              <span
+                className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+                aria-hidden
+              />
+              <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement</span>
+            </div>
+            <h1 className="mt-2 font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
+              Will your money last?
             </h1>
             <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">
-              {Math.max(0, retirementAge - currentAge)} years away · lasts{' '}
-              {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+ yrs` : `${yearsMoneyLasts} yr${yearsMoneyLasts === 1 ? '' : 's'}`}
-              {'  ·  '}{formatMoney(monthlyRetirementSpend, true)}/mo
+              {yearsUntilRetirement} year{yearsUntilRetirement === 1 ? '' : 's'} to retirement · planning through age {lifeExpectancy}
             </p>
           </div>
           <div className="ret-view-toggle" role="tablist" aria-label="View mode">
@@ -1544,6 +1599,137 @@ export function Retirement() {
             ))}
           </div>
         </header>
+
+        {/* ── HERO ANSWER — the one confident number: are you on track? ──────── */}
+        {(() => {
+          const readinessColor =
+            readiness >= 80 ? 'rgb(var(--ui-brand-ink))' : readiness >= 50 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+          const covered = monthlyRetirementIncome >= monthlyRetirementSpend;
+          const coveragePct = Math.min(100, (monthlyRetirementIncome / Math.max(monthlyRetirementSpend, 1)) * 100);
+          const pill =
+            readinessTone === 'pos'
+              ? { bg: 'var(--ui-brand-soft)', fg: 'rgb(var(--ui-brand-ink))' }
+              : readinessTone === 'warn'
+              ? { bg: 'var(--ui-caution-soft)', fg: 'rgb(var(--ui-caution))' }
+              : { bg: 'var(--ui-negative-soft)', fg: 'rgb(var(--ui-negative))' };
+          return (
+            <section
+              data-hero
+              className="relative mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7"
+            >
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    'radial-gradient(95% 85% at 0% 0%, var(--ui-accent-softer), transparent 60%),' +
+                    'radial-gradient(80% 70% at 100% 8%, var(--ui-info-soft), transparent 62%)',
+                }}
+              />
+              <div className="relative grid items-center gap-7 sm:gap-10 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                {/* lead — the answer */}
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement readiness</div>
+                  <div className="mt-2 flex items-end gap-3 flex-wrap">
+                    <span
+                      className="font-editorial text-[56px] sm:text-[68px] font-extrabold leading-[0.82] tracking-[-0.03em] ui-tnum"
+                      style={{ color: readinessColor }}
+                    >
+                      {readiness.toFixed(0)}%
+                    </span>
+                    <span
+                      className="mb-2 inline-flex items-center h-7 px-3 rounded-full text-[12.5px] font-bold"
+                      style={{ background: pill.bg, color: pill.fg }}
+                    >
+                      {readinessLabel}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-[15px] leading-[1.55] text-content-secondary max-w-[50ch]">
+                    On track to{' '}
+                    <strong className="font-bold text-content ui-tnum">{formatMoney(portfolioAtRetirement, true)}</strong> by age{' '}
+                    <span className="ui-tnum">{retirementAge}</span>. At a 4% safe rate that supports about{' '}
+                    <strong className="font-bold text-content ui-tnum">{formatMoney(monthlyRetirementIncome)}/mo</strong> —{' '}
+                    {yearsMoneyLasts >= lifeHorizon
+                      ? 'enough to last a full lifetime.'
+                      : `lasting roughly ${yearsMoneyLasts} year${yearsMoneyLasts === 1 ? '' : 's'}.`}
+                  </p>
+                  {/* coverage — does the safe income cover the plan? */}
+                  <div className="mt-5 max-w-[440px]">
+                    <div className="mb-2 flex items-baseline justify-between gap-2">
+                      <span className="text-[12px] font-semibold text-content-muted">Safe income vs your {formatMoney(monthlyRetirementSpend)}/mo plan</span>
+                      <span
+                        className="text-[12.5px] font-extrabold ui-tnum"
+                        style={{ color: covered ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-negative))' }}
+                      >
+                        {coveragePct.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="h-[9px] rounded-full bg-canvas-sunken overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(coveragePct, 3)}%`,
+                          background: covered ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))',
+                          transition: 'width 0.6s ease',
+                        }}
+                      />
+                    </div>
+                    <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">
+                      {covered
+                        ? 'Covers your planned spending in full'
+                        : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))}/mo short of plan`}
+                    </div>
+                  </div>
+                </div>
+                {/* ring — the visual echo of the answer */}
+                <div className="flex items-center justify-center sm:justify-end">
+                  <ReadinessRing pct={readiness} />
+                </div>
+              </div>
+            </section>
+          );
+        })()}
+
+        {/* ── SUPPORTING KPIs ──────────────────────────────────────────────── */}
+        <div data-stats className="ret-stats mt-6 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+          {([
+            {
+              label: 'Portfolio at retirement',
+              value: formatMoney(portfolioAtRetirement, true),
+              sub: `age ${retirementAge} · ${expectedReturn.toFixed(1)}% return`,
+              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
+            },
+            {
+              label: 'FIRE number',
+              value: formatMoney(fireNumber, true),
+              sub: '25× annual spend',
+              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
+            },
+            {
+              label: 'Years money lasts',
+              value: yearsMoneyLasts >= lifeHorizon ? 'lifetime' : String(yearsMoneyLasts),
+              sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}`,
+              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
+            },
+            view === 'simple'
+              ? { label: 'Safe monthly income', value: formatMoney(monthlyRetirementIncome), sub: '4% rule · projected', tone: undefined as 'pos' | 'warn' | 'neg' | undefined }
+              : { label: 'Monte Carlo', value: `${mcRate}%`, sub: '1,000 runs', tone: (mcRate >= 80 ? 'pos' : 'neg') as 'pos' | 'neg' },
+          ]).map((item) => (
+            <div key={item.label} className="border-l-2 border-line pl-3.5">
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{item.label}</div>
+              <div
+                className={cn(
+                  'mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
+                  item.tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
+                  item.tone === 'warn' && 'text-caution',
+                  item.tone === 'neg' && 'text-negative',
+                )}
+              >
+                {item.value}
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">{item.sub}</div>
+            </div>
+          ))}
+        </div>
 
         {/* Composition ribbon — only when we have a real allocation to show */}
         {Object.keys(allocation).length > 0 && portfolioValue > 0 && (() => {
@@ -1587,48 +1773,6 @@ export function Retirement() {
             </Card>
           );
         })()}
-
-        {/* Stat strip — secondary KPIs */}
-        <div className="ret-stats mt-6 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
-          {([
-            {
-              label: 'Portfolio at retirement',
-              value: formatMoney(portfolioAtRetirement, true),
-              sub: `age ${retirementAge} · ${expectedReturn.toFixed(1)}% return`,
-              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
-            },
-            {
-              label: 'FIRE number',
-              value: formatMoney(fireNumber, true),
-              sub: '25× annual spend',
-              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
-            },
-            {
-              label: 'Years money lasts',
-              value: yearsMoneyLasts >= lifeHorizon ? 'lifetime' : String(yearsMoneyLasts),
-              sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}`,
-              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
-            },
-            view === 'simple'
-              ? { label: 'Readiness', value: `${readiness.toFixed(0)}%`, sub: readinessLabel, tone: readinessTone }
-              : { label: 'Monte Carlo', value: `${mcRate}%`, sub: '1,000 runs', tone: (mcRate >= 80 ? 'pos' : 'neg') as 'pos' | 'neg' },
-          ]).map((item) => (
-            <div key={item.label} className="border-l-2 border-line pl-3.5">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{item.label}</div>
-              <div
-                className={cn(
-                  'mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
-                  item.tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
-                  item.tone === 'warn' && 'text-caution',
-                  item.tone === 'neg' && 'text-negative',
-                )}
-              >
-                {item.value}
-              </div>
-              <div className="mt-1.5 text-[12px] font-medium text-content-muted">{item.sub}</div>
-            </div>
-          ))}
-        </div>
 
         <LegalDisclaimer variant="projections" />
 
@@ -1743,42 +1887,6 @@ export function Retirement() {
         {/* ── SIMPLE VIEW ──────────────────────────────────────────────────────── */}
         {view === 'simple' && (
           <>
-            {/* Readiness + Income sub-cards */}
-            <Section title="Income & longevity">
-              <div
-                className="ret-3col"
-                style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}
-              >
-                <Card>
-                  <Eyebrow>Sustainable monthly income</Eyebrow>
-                  <div className="ui-tnum font-editorial" style={{ fontWeight: 800, fontSize: 28, color: 'rgb(var(--ui-content))', lineHeight: 1.1, marginTop: 8, letterSpacing: '-0.02em' }}>
-                    {formatMoney(monthlyRetirementIncome)}
-                  </div>
-                  <p className="text-[12.5px] text-content-muted" style={{ marginTop: 6 }}>4% rule from projected portfolio</p>
-                  <div style={{ height: 4, background: 'var(--ui-line)', borderRadius: 2, marginTop: 12, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${Math.min(100, (monthlyRetirementIncome / Math.max(monthlyRetirementSpend, 1)) * 100)}%`,
-                      background: monthlyRetirementIncome >= monthlyRetirementSpend ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))', /* income coverage bar */
-                      borderRadius: 2,
-                      transition: 'width 0.6s ease',
-                    }} />
-                  </div>
-                  <p className="text-[12.5px] text-content-muted" style={{ marginTop: 6 }}>
-                    {monthlyRetirementIncome >= monthlyRetirementSpend
-                      ? 'covers your planned spending'
-                      : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))} short of plan`}
-                  </p>
-                </Card>
-                <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 220, padding: 24 }}>
-                  <ReadinessRing pct={readiness} />
-                  <p className="text-[12.5px] text-content-muted" style={{ textAlign: 'center', margin: 0 }}>
-                    {readinessLabel}
-                  </p>
-                </Card>
-              </div>
-            </Section>
-
             {/* Projection chart — Monte Carlo bands (1,000 randomized paths).
                 Plan tab now shows the same uncertainty as the Advanced tab so
                 users don't read a single deterministic line as a guarantee. */}

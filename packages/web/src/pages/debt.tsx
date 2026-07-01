@@ -13,12 +13,6 @@ import {
   Input,
   EmptyState,
   Modal,
-  Table,
-  THead,
-  TBody,
-  TR,
-  TH,
-  TD,
 } from '../components/uikit';
 
 interface DebtAccount {
@@ -268,89 +262,120 @@ function NoAccountsView() {
   );
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
+// ── KPI (supporting stat, lighter than the hero) ──────────────────────────────
 
-function StatCard({
-  label, value, sub, neg,
-}: {
-  label: string;
-  value: React.ReactNode;
-  sub: string;
-  neg?: boolean;
-}) {
+function Kpi({ label, value, sub, neg }: { label: string; value: React.ReactNode; sub: string; neg?: boolean }) {
   return (
-    <Surface pad="none" className="p-4 sm:p-[18px]">
+    <div className="border-l-2 border-line pl-3.5">
       <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{label}</div>
       <div className={cn(
-        'mt-1.5 font-editorial text-[24px] sm:text-[26px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
+        'mt-1.5 font-editorial text-[22px] sm:text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
         neg ? 'text-negative' : 'text-content',
       )}>
         {value}
       </div>
-      <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">{sub}</div>
-    </Surface>
-  );
-}
-
-// ── Composition bar ───────────────────────────────────────────────────────────
-
-function CompositionBar({ debts }: { debts: DebtAccount[] }) {
-  const segments = [...debts]
-    .sort((a, b) => b.balance - a.balance)
-    .slice(0, 6)
-    .map((d, i) => ({
-      label: d.name.replace(/\bMORTGAGE\b/gi, 'MTG'),
-      value: d.balance,
-      color: debtColor(i),
-    }));
-  const total = segments.reduce((s, seg) => s + Math.abs(seg.value), 0);
-  if (total <= 0) return null;
-
-  return (
-    <div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-canvas-sunken">
-        {segments.map((seg, i) => {
-          const pct = (Math.abs(seg.value) / total) * 100;
-          return (
-            <div
-              key={i}
-              className="h-full first:rounded-l-full last:rounded-r-full"
-              style={{ width: `${pct}%`, background: seg.color, boxShadow: 'inset 0 0 0 1px rgb(var(--ui-panel) / 0.35)' }}
-              title={`${seg.label} · ${formatCurrency(Math.abs(seg.value))}`}
-            />
-          );
-        })}
-      </div>
-      <div className="mt-3.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-2">
-        {segments.map((seg, i) => {
-          const pct = Math.round((Math.abs(seg.value) / total) * 100);
-          return (
-            <div key={i} className="flex items-center gap-2 text-[12.5px]">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} aria-hidden />
-              <span className="min-w-0 truncate font-semibold text-content-secondary">{seg.label}</span>
-              <span className="ml-auto shrink-0 font-semibold text-content ui-tnum sm:ml-0">{formatCurrency(Math.abs(seg.value))}</span>
-              <span className="shrink-0 text-content-muted ui-tnum">{pct}%</span>
-            </div>
-          );
-        })}
-      </div>
+      <div className="mt-1.5 truncate text-[11.5px] font-medium text-content-muted">{sub}</div>
     </div>
   );
 }
 
-// ── Strategy card ─────────────────────────────────────────────────────────────
+// ── Debt ribbon — one confident, full-width composition chart ──────────────────
+// Segments grow to their balance; wide ones carry an inline label. Coral leads
+// (debt colour), matching the portfolio allocation bar as the primary-page bar.
 
-function StrategyCard({
-  active, onSelect, label, title, amount, body, footnote, footnoteTone,
+function DebtRibbon({ debts }: { debts: DebtAccount[] }) {
+  const segs = [...debts]
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 6)
+    .map((d, i) => ({
+      label: `${d.name}${d.mask ? ` ··${d.mask}` : ''}`.replace(/\bMORTGAGE\b/gi, 'MTG'),
+      value: Math.abs(d.balance),
+      color: debtColor(i),
+    }));
+  const total = segs.reduce((s, x) => s + x.value, 0);
+  if (total <= 0) return null;
+
+  return (
+    <div
+      className="flex h-[52px] gap-[3px] overflow-hidden rounded-[14px]"
+      style={{ boxShadow: 'var(--ui-shadow-sm), inset 0 1.5px 0 rgba(255,255,255,0.24)' }}
+      role="img"
+      aria-label="Debt composition by balance"
+    >
+      {segs.map((s, i) => {
+        const pct = (s.value / total) * 100;
+        const wide = pct >= 9;
+        return (
+          <div
+            key={`${s.label}-${i}`}
+            className="relative flex h-full items-center px-3"
+            style={{
+              flexGrow: s.value,
+              minWidth: 5,
+              background: s.color,
+              backgroundImage:
+                'linear-gradient(170deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 52%, rgba(0,0,0,0.12))',
+              borderRadius: i === 0 ? '11px 4px 4px 11px' : i === segs.length - 1 ? '4px 11px 11px 4px' : '4px',
+            }}
+            title={`${s.label} · ${pct.toFixed(1)}% · ${formatCurrency(s.value)}`}
+          >
+            {wide && (
+              <span className="truncate text-[12.5px] font-extrabold text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.32)' }}>
+                {s.label} · {pct.toFixed(0)}%
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Debt breakdown — the legible two-column legend for the ribbon ──────────────
+
+function DebtBreakdown({ debts }: { debts: DebtAccount[] }) {
+  const rows = [...debts]
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 6)
+    .map((d, i) => ({
+      label: `${d.name}${d.mask ? ` ··${d.mask}` : ''}`.replace(/\bMORTGAGE\b/gi, 'MTG'),
+      value: Math.abs(d.balance),
+      color: debtColor(i),
+    }));
+  const total = rows.reduce((s, r) => s + r.value, 0);
+  if (total <= 0) return null;
+
+  return (
+    <div className="grid grid-cols-1 gap-x-10 gap-y-0.5 sm:grid-cols-2">
+      {rows.map((r, i) => {
+        const pct = (r.value / total) * 100;
+        return (
+          <div key={`${r.label}-${i}`} className="flex items-center gap-3 px-1 py-2">
+            <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: r.color }} aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content" title={r.label}>{r.label}</span>
+            <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
+              <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content">{formatCurrency(r.value)}</span>
+              <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{pct < 0.1 ? '<0.1%' : `${pct.toFixed(0)}%`}</span>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Strategy option — a compact, outcome-first radio choice ────────────────────
+
+function StrategyOption({
+  active, onSelect, title, sub, interest, note, noteTone,
 }: {
   active: boolean;
   onSelect: () => void;
-  label: string;
   title: string;
-  amount: string;
-  body: string;
-  footnote?: string;
-  footnoteTone?: 'good' | 'bad';
+  sub: string;
+  interest: string;
+  note: string;
+  noteTone: 'good' | 'bad' | 'flat';
 }) {
   return (
     <button
@@ -359,33 +384,184 @@ function StrategyCard({
       aria-checked={active}
       onClick={onSelect}
       className={cn(
-        'relative flex flex-col rounded-ui-xl border bg-panel p-5 text-left shadow-ui-sm transition-[transform,box-shadow,border-color]',
+        'group relative flex items-center gap-3.5 rounded-ui-lg border bg-panel p-4 text-left transition-[transform,box-shadow,border-color]',
         active
-          ? 'border-brand ring-1 ring-[var(--ui-brand-ring)]'
-          : 'border-line hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-md',
+          ? 'border-[rgb(var(--ui-accent))] shadow-ui-md ring-1 ring-[var(--ui-accent-soft)]'
+          : 'border-line shadow-ui-sm hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-md',
       )}
     >
-      <div className="flex items-center gap-2">
-        <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{label}</span>
-        {active && <Badge tone="brand" size="sm">Active</Badge>}
+      <span
+        className={cn(
+          'mt-0.5 grid h-5 w-5 shrink-0 place-items-center self-start rounded-full border-2 transition-colors',
+          active ? 'border-[rgb(var(--ui-accent))]' : 'border-line-strong',
+        )}
+        aria-hidden
+      >
+        {active && <span className="h-2.5 w-2.5 rounded-full bg-[rgb(var(--ui-accent))]" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="font-editorial text-[16px] font-bold tracking-[-0.015em] text-content">{title}</span>
+          <span className="text-[11.5px] font-semibold text-content-muted">{sub}</span>
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-[12.5px] text-content-muted ui-tnum">
+          <span><span className="font-bold text-content">{interest}</span> interest</span>
+          <span className="text-content-faint">·</span>
+          <span
+            className={cn(
+              'font-bold',
+              noteTone === 'good' && 'text-[rgb(var(--ui-brand-ink))]',
+              noteTone === 'bad' && 'text-negative',
+              noteTone === 'flat' && 'text-content-muted',
+            )}
+          >
+            {note}
+          </span>
+        </div>
       </div>
-      <h3 className="mt-1.5 font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h3>
-      <div className="mt-4 font-editorial text-[30px] sm:text-[34px] font-extrabold leading-none tracking-[-0.02em] text-content ui-tnum">
-        {amount}
-      </div>
-      <div className="mt-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Total interest paid</div>
-      <p className="mt-3 text-[13.5px] leading-relaxed text-content-secondary">{body}</p>
-      {footnote && (
-        <span
-          className={cn(
-            'mt-3 text-[12px] font-bold ui-tnum',
-            footnoteTone === 'good' ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-negative',
-          )}
-        >
-          {footnote}
-        </span>
-      )}
     </button>
+  );
+}
+
+// ── Attack sequence — the concrete "fastest way out": which balance to hit
+// first, then the rest. Reorders live when the strategy changes. ──────────────
+
+function AttackList({ debts, strategy }: { debts: DebtAccount[]; strategy: 'avalanche' | 'snowball' }) {
+  return (
+    <ol key={strategy} className="animate-fade-in flex flex-col gap-2">
+      {debts.map((d, i) => {
+        const focus = i === 0;
+        const high = d.apr > 20;
+        const extra = Math.max(0, d.suggestedPayment - d.minPayment);
+        const role = focus
+          ? extra > 0
+            ? `Focus here — put ${formatCurrency(extra)}/mo extra on this`
+            : 'Focus here first, then roll the freed-up payment down'
+          : `Pay the ${formatCurrency(d.minPayment)}/mo minimum for now`;
+        return (
+          <li
+            key={d.id}
+            className={cn(
+              'flex items-center gap-3.5 rounded-ui-lg border px-3.5 py-3 transition-colors',
+              focus ? 'border-[rgb(var(--ui-accent))] bg-[var(--ui-accent-softer)]' : 'border-line bg-panel',
+            )}
+          >
+            <span
+              className={cn(
+                'grid h-7 w-7 shrink-0 place-items-center rounded-full text-[13px] font-extrabold ui-tnum',
+                focus ? 'bg-[rgb(var(--ui-accent))] text-white' : 'bg-canvas-sunken text-content-secondary',
+              )}
+            >
+              {i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-[14px] font-semibold text-content">
+                  {d.name}{d.mask ? ` ··${d.mask}` : ''}
+                </span>
+                <span
+                  className={cn(
+                    'shrink-0 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold ui-tnum',
+                    high ? 'bg-negative-soft text-negative' : 'bg-canvas-sunken text-content-muted',
+                  )}
+                >
+                  {d.apr}%
+                </span>
+                {focus && (
+                  <span className="shrink-0 rounded-full bg-[var(--ui-accent-soft)] px-1.5 py-0.5 text-[10.5px] font-bold text-[rgb(var(--ui-accent-ink))]">
+                    Attack first
+                  </span>
+                )}
+              </div>
+              <div className="mt-0.5 truncate text-[12px] font-medium text-content-muted">{role}</div>
+            </div>
+            <div className="shrink-0 text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-negative ui-tnum">
+              −{formatCurrency(d.balance)}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// ── Account card — one liability, all key fields, used at every width ──────────
+
+function AccountStat({ label, value, neg }: { label: string; value: string; neg?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-content-muted">{label}</div>
+      <div className={cn('mt-0.5 truncate text-[13.5px] font-bold ui-tnum', neg ? 'text-negative' : 'text-content')}>{value}</div>
+    </div>
+  );
+}
+
+function AccountCard({
+  debt: d, maxBalance, isDemo, onEdit, onPlan,
+}: {
+  debt: DebtAccount;
+  maxBalance: number;
+  isDemo: boolean;
+  onEdit: () => void;
+  onPlan: () => void;
+}) {
+  const high = d.apr > 20;
+  const share = maxBalance > 0 ? Math.max(4, (Math.abs(d.balance) / maxBalance) * 100) : 0;
+  const payoff = d.payoffDate
+    ? new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    : d.suggestedPayoffDate;
+  return (
+    <div className="flex flex-col rounded-ui-xl border border-line bg-panel p-4 shadow-ui-sm transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md">
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-secondary">
+          {d.type === 'credit' ? <CreditCard size={16} /> : <Landmark size={16} />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold text-content">
+            {d.name}{d.mask ? ` ··${d.mask}` : ''}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            <Badge tone="neutral" size="sm">{debtTypeLabel(d)}</Badge>
+            {d.liabilitySource === 'plaid' && <Badge tone="brand" size="sm">Synced</Badge>}
+          </div>
+        </div>
+        <div className="shrink-0 pt-0.5 text-right font-editorial text-[17px] font-extrabold tracking-[-0.015em] text-negative ui-tnum">
+          −{formatCurrency(d.balance)}
+        </div>
+      </div>
+
+      {/* share-of-debt bar — visual weight of this balance vs the largest */}
+      <div className="mt-3 h-[6px] w-full overflow-hidden rounded-full bg-canvas-sunken">
+        <div className="h-full rounded-full" style={{ width: `${share}%`, background: 'rgb(var(--ui-negative))', opacity: 0.85 }} />
+      </div>
+
+      <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-line pt-3.5">
+        <AccountStat label="APR" value={`${d.apr}%`} neg={high} />
+        <AccountStat label="Min pay" value={`${formatCurrency(d.minPayment)}/mo`} />
+        <AccountStat label="Payoff" value={payoff} />
+      </div>
+
+      <div className="mt-3.5 flex items-center gap-2">
+        {!isDemo && (
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label="Edit loan details"
+            className="ui-focus grid h-11 w-11 shrink-0 place-items-center rounded-ui-sm border border-line text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
+          >
+            <Pencil size={15} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onPlan}
+          className="ui-focus inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-ui-sm"
+        >
+          Plan payoff
+          <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -418,26 +594,47 @@ function HasDebtView({
 }) {
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
-  // Cheaper of the two strategies — the interest total surfaced in the KPI strip.
-  const cheaperInterest = Math.min(avalancheInterest, snowballInterest);
-  const totalInterest = Math.round(cheaperInterest);
+  // Highest-rate account — `debts` arrives pre-sorted by APR desc, so the head
+  // is the avalanche target. Surfaced as a distinct KPI (never the blended APR).
+  const highest = debts[0];
+  const highRateCount = debts.filter((d) => d.apr > 20).length;
+  const totalMinPayment = debts.reduce((s, d) => s + d.minPayment, 0);
+  const maxBalance = debts.reduce((m, d) => Math.max(m, Math.abs(d.balance)), 0);
 
-  const subtitle = (
-    <span className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
-      <span className="text-negative ui-tnum font-extrabold">−{formatCurrency(totalDebt)}</span>
-      <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-      <span>{debts.length} account{debts.length === 1 ? '' : 's'}</span>
-      <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-      <span><b className="font-extrabold text-content ui-tnum">{apr}%</b> blended APR</span>
-    </span>
-  );
+  const activeInterest = strategy === 'avalanche' ? avalancheInterest : snowballInterest;
+  const noNeverDate = !debtFreeDate.toLowerCase().startsWith('never');
+  const focusTarget = orderedDebts[0];
 
   return (
     <>
-      <DebtHeader subtitle={subtitle} />
+      {/* ── Purpose-led header: the page's job stated up top ── */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+              aria-hidden
+            />
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Debt</span>
+          </div>
+          <h1 className="mt-2 font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
+            How fast can you be debt-free?
+          </h1>
+          <p className="mt-1.5 inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[14px] font-medium text-content-muted">
+            <span><b className="font-extrabold text-content ui-tnum">{debts.length}</b> account{debts.length === 1 ? '' : 's'}</span>
+            {highRateCount > 0 && (
+              <>
+                <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+                <span><b className="font-extrabold text-negative ui-tnum">{highRateCount}</b> at a punishing rate</span>
+              </>
+            )}
+          </p>
+        </div>
+      </header>
 
-      {/* ── Hero: total debt + composition ── */}
-      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+      {/* ── HERO — one confident answer: how much, how long, what it costs ── */}
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
@@ -447,168 +644,148 @@ function HasDebtView({
               'radial-gradient(90% 70% at 0% 4%, var(--ui-caution-soft), transparent 62%)',
           }}
         />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Total debt</div>
-            <div className="mt-2 font-editorial text-[38px] sm:text-[52px] font-extrabold leading-[0.98] tracking-[-0.035em] text-negative ui-tnum">
-              −{formatCurrency(totalDebt)}
-            </div>
-            <div className="mt-3 text-[13px] font-medium text-content-muted ui-tnum">
-              {debts.length} account{debts.length === 1 ? '' : 's'} · {apr}% blended APR
-            </div>
+        <div className="relative">
+          <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Total debt</div>
+          <div className="mt-2 font-editorial text-[40px] sm:text-[56px] font-extrabold leading-[0.9] tracking-[-0.035em] text-negative ui-tnum">
+            −{formatCurrency(totalDebt)}
           </div>
+          <p className="mt-4 max-w-[54ch] text-[14.5px] leading-[1.55] text-content-secondary ui-tnum">
+            {noNeverDate ? (
+              <>
+                On your <strong className="font-bold text-content">{strategy}</strong> plan you&apos;re debt-free by{' '}
+                <strong className="font-bold text-content">{debtFreeDate}</strong> — and it costs about{' '}
+                <strong className="font-bold text-negative">{formatCurrency(Math.round(activeInterest))}</strong> in interest along the way.
+              </>
+            ) : (
+              <>
+                At minimum payments this debt never clears. Put more toward the highest-rate balance to set a real
+                debt-free date and cut the interest you&apos;re paying.
+              </>
+            )}
+          </p>
+
+          {debts.length > 0 && (
+            <div className="mt-6">
+              <DebtRibbon debts={debts} />
+              <div className="mt-5">
+                <DebtBreakdown debts={debts} />
+              </div>
+            </div>
+          )}
         </div>
-        {debts.length > 0 && (
-          <div className="relative mt-6">
-            <CompositionBar debts={debts} />
-          </div>
-        )}
       </section>
 
-      {/* ── KPI strip ── */}
-      <div className="mt-[18px] grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-3.5">
-        <StatCard label="Total debt" value={`−${formatCurrency(totalDebt)}`} sub={`${debts.length} account${debts.length === 1 ? '' : 's'}`} neg />
-        <StatCard label="Blended APR" value={`${apr}%`} sub="weighted average" />
-        <StatCard label="Monthly payment" value={formatCurrency(totalMonthlyPayment)} sub="suggested plan" />
-        <StatCard label="Total interest" value={formatCurrency(totalInterest)} sub="over plan" />
+      {/* ── Supporting KPIs — distinct from the hero + strategy figures ── */}
+      <div className="mt-7 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+        <Kpi label="Blended APR" value={`${apr}%`} sub="weighted average" />
+        <Kpi label="Monthly payment" value={formatCurrency(totalMonthlyPayment)} sub="suggested plan" />
+        <Kpi label="Minimum due" value={formatCurrency(totalMinPayment)} sub="required each month" />
+        {highest && (
+          <Kpi label="Highest rate" value={`${highest.apr}%`} sub={debtTypeLabel(highest)} neg={highest.apr > 20} />
+        )}
       </div>
 
-      {/* ── Payoff strategy ── */}
-      <section className="mt-9">
-        <div className="flex items-end justify-between gap-3 pb-4">
-          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">Payoff strategy</h2>
-          <span className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-content-muted" aria-live="polite">
-            Sorted · {strategy}
+      {/* ── YOUR PAYOFF PLAN — pick a method, see the concrete order to attack ── */}
+      <section className="mt-11">
+        <div className="flex items-center gap-2.5 pb-4">
+          <span
+            className="h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
+            style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+            aria-hidden
+          />
+          <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Your payoff plan</h2>
+          <span className="ml-auto text-[10.5px] font-bold uppercase tracking-[0.14em] text-content-muted" aria-live="polite">
+            {strategy}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2" role="radiogroup" aria-label="Payoff strategy">
-          <StrategyCard
-            active={strategy === 'avalanche'}
-            onSelect={() => onStrategyChange('avalanche')}
-            label="Avalanche"
-            title="Highest APR first"
-            amount={formatCurrency(Math.round(avalancheInterest))}
-            body="Mathematically optimal. Saves you the most money over the life of the plan."
-            footnote={interestSavedVsSnowball > 0 ? `Saves ${formatCurrency(interestSavedVsSnowball)} vs snowball` : undefined}
-            footnoteTone="good"
-          />
-          <StrategyCard
-            active={strategy === 'snowball'}
-            onSelect={() => onStrategyChange('snowball')}
-            label="Snowball"
-            title="Smallest balance first"
-            amount={formatCurrency(Math.round(snowballInterest))}
-            body="Quick psychological wins. You close accounts faster — useful if motivation matters more than dollars."
-            footnote={interestSavedVsSnowball > 0 ? `Costs ${formatCurrency(interestSavedVsSnowball)} more in interest` : undefined}
-            footnoteTone="bad"
-          />
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-5">
-          <div className="flex flex-wrap gap-x-8 gap-y-3">
-            <div>
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Debt-free</div>
-              <div className="mt-1 text-[15px] font-bold text-content ui-tnum">{debtFreeDate}</div>
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1fr)]">
+          {/* left: the method chooser — impact shown as a direct A/B */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5" role="radiogroup" aria-label="Payoff strategy">
+              <StrategyOption
+                active={strategy === 'avalanche'}
+                onSelect={() => onStrategyChange('avalanche')}
+                title="Avalanche"
+                sub="Highest APR first"
+                interest={formatCurrency(Math.round(avalancheInterest))}
+                note={interestSavedVsSnowball > 0 ? `Saves ${formatCurrency(interestSavedVsSnowball)}` : 'Lowest-cost order'}
+                noteTone="good"
+              />
+              <StrategyOption
+                active={strategy === 'snowball'}
+                onSelect={() => onStrategyChange('snowball')}
+                title="Snowball"
+                sub="Smallest balance first"
+                interest={formatCurrency(Math.round(snowballInterest))}
+                note={interestSavedVsSnowball > 0 ? `+${formatCurrency(interestSavedVsSnowball)} more` : 'Closes accounts fastest'}
+                noteTone={interestSavedVsSnowball > 0 ? 'bad' : 'flat'}
+              />
             </div>
-            <div>
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">If minimum only</div>
-              <div className="mt-1 text-[15px] font-bold text-content-muted ui-tnum">{minOnlyDate}</div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-ui-lg border border-line bg-canvas-sunken px-3.5 py-3">
+              <div className="flex flex-wrap gap-x-6 gap-y-2.5">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-content-muted">Debt-free</div>
+                  <div className="mt-0.5 text-[14px] font-bold text-content ui-tnum">{debtFreeDate}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-content-muted">At minimums</div>
+                  <div className="mt-0.5 text-[14px] font-bold text-content-muted ui-tnum">{minOnlyDate}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => openChat('Should I use avalanche or snowball to pay off my debt?')}
+                className="group ui-focus touch-target-inline inline-flex items-center gap-1.5 rounded-ui-sm text-[13px] font-bold text-[rgb(var(--ui-brand-ink))] transition-colors hover:text-brand"
+              >
+                Why this strategy?
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </button>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => openChat('Should I use avalanche or snowball to pay off my debt?')}
-            className="group inline-flex items-center gap-1.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-colors hover:text-brand"
-          >
-            Why this strategy?
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </button>
+
+          {/* right: the concrete order — the actionable "fastest way out" */}
+          <div>
+            <div className="mb-2.5 flex items-baseline justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Pay in this order</span>
+              {focusTarget && (
+                <span className="text-[12px] font-semibold text-content-muted">
+                  Start with <b className="text-content">{focusTarget.name}{focusTarget.mask ? ` ··${focusTarget.mask}` : ''}</b>
+                </span>
+              )}
+            </div>
+            <AttackList debts={orderedDebts} strategy={strategy} />
+          </div>
         </div>
       </section>
 
-      {/* ── Accounts table ── */}
-      <section className="mt-9">
-        <h2 className="pb-3 font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">Accounts</h2>
-        <Surface pad="none" className="overflow-hidden">
-          <Table>
-            <THead>
-              <TR className="border-b border-line">
-                <TH>Account</TH>
-                <TH numeric>Balance</TH>
-                <TH numeric>APR</TH>
-                <TH numeric>Min pay</TH>
-                <TH numeric>Payoff</TH>
-                <TH numeric aria-label="Actions"><span className="sr-only">Actions</span></TH>
-              </TR>
-            </THead>
-            <TBody>
-              {orderedDebts.map((d) => {
-                const high = d.apr > 20;
-                return (
-                  <TR key={d.id}>
-                    <TD>
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <span className="shrink-0 text-content-muted">
-                          {d.type === 'credit' ? <CreditCard size={16} /> : <Landmark size={16} />}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-content">
-                            {d.name}{d.mask ? ` ··${d.mask}` : ''}
-                          </div>
-                          <div className="mt-1 flex flex-wrap gap-1.5">
-                            <Badge tone="neutral" size="sm">{debtTypeLabel(d)}</Badge>
-                            {d.liabilitySource === 'plaid' && (
-                              <Badge tone="brand" size="sm">Synced</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </TD>
-                    <TD numeric>
-                      <span className="text-negative">−{formatCurrency(d.balance)}</span>
-                    </TD>
-                    <TD numeric>
-                      <span className={cn(high && 'font-bold text-negative')}>{d.apr}%</span>
-                    </TD>
-                    <TD numeric>{formatCurrency(d.minPayment)}/mo</TD>
-                    <TD numeric className="text-content-muted">
-                      {d.payoffDate
-                        ? new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-                        : d.suggestedPayoffDate}
-                    </TD>
-                    <TD numeric>
-                      <div className="flex items-center justify-end gap-1.5">
-                        {!isDemo && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onEditDebt(d); }}
-                            title="Edit loan details"
-                            aria-label="Edit loan details"
-                            className="ui-focus grid h-8 w-8 place-items-center rounded-ui-sm border border-line text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`);
-                          }}
-                          trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}
-                        >
-                          Plan
-                        </Button>
-                      </div>
-                    </TD>
-                  </TR>
-                );
-              })}
-            </TBody>
-          </Table>
-        </Surface>
+      {/* ── ACCOUNTS — the ledger, two-column cards; every field visible ── */}
+      <section className="mt-11">
+        <div className="flex items-center gap-2.5 pb-3">
+          <span
+            className="h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
+            style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+            aria-hidden
+          />
+          <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Accounts</h2>
+          <span className="ml-auto text-[10.5px] font-bold uppercase tracking-[0.14em] text-content-muted">
+            {orderedDebts.length} total
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {orderedDebts.map((d) => (
+            <AccountCard
+              key={d.id}
+              debt={d}
+              maxBalance={maxBalance}
+              isDemo={isDemo}
+              onEdit={() => onEditDebt(d)}
+              onPlan={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`)}
+            />
+          ))}
+        </div>
       </section>
 
       <section className="mt-12">
@@ -790,8 +967,8 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
       <section className="mt-8">
         <div className="mb-2 flex items-center gap-2.5">
           <span
-            className="h-[7px] w-[7px] rounded-full bg-brand"
-            style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+            className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+            style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
             aria-hidden
           />
           <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">

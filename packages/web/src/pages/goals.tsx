@@ -399,8 +399,8 @@ export function Goals() {
           <>
             <div className="mt-9 flex items-center gap-2.5">
               <span
-                className="h-[7px] w-[7px] rounded-full bg-brand"
-                style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+                className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
                 aria-hidden
               />
               <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Your goals</span>
@@ -529,7 +529,7 @@ function SummaryHero({
         style={{
           background:
             'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
-            'radial-gradient(90% 80% at 0% 10%, var(--ui-brand-softer), transparent 60%)',
+            'radial-gradient(90% 80% at 0% 10%, var(--ui-accent-softer), transparent 60%)',
         }}
       />
       <div className="relative min-w-[280px] flex-1">

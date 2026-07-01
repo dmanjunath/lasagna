@@ -498,7 +498,7 @@ export function AccountDetail() {
             {fmtUsd(allPoints[0]?.value ?? balance)}
           </div>
           <div className="mt-4 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-9 text-center">
-            <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-brand-soft text-brand">
+            <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
               <TrendingUp size={20} />
             </div>
             <div className="text-[15px] font-semibold">No history yet</div>

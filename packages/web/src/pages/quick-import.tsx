@@ -312,7 +312,7 @@ function InputStage({
   return (
     <div className="pb-28">
       <div className="flex items-center gap-2 mb-1.5">
-        <Sparkles className="w-4 h-4 text-brand" />
+        <Sparkles className="w-4 h-4 text-[rgb(var(--ui-accent-ink))]" />
         <h1 className="font-editorial text-[22px] font-medium tracking-[-0.015em] text-content">Describe your finances</h1>
       </div>
       <p className="text-[13px] text-content-secondary mb-4 leading-snug">
@@ -1014,7 +1014,7 @@ function DoneStage({
 function SectionHeader({ title, count }: { title: string; count: number }) {
   return (
     <div className="flex items-baseline justify-between px-1">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">{title}</h2>
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]">{title}</h2>
       <span className="text-xs text-content-muted ui-tnum">{count}</span>
     </div>
   );

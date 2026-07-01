@@ -449,8 +449,8 @@ export function Insights() {
         <div>
           <span className="inline-flex items-center gap-2.5 mb-3">
             <span
-              className="w-[7px] h-[7px] rounded-full bg-brand"
-              style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+              className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
             />
             <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
               Your queue

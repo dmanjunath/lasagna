@@ -1,7 +1,13 @@
-import { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, X } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import {
+  ArrowRight,
+  Sparkles,
+  Receipt,
+  Flame,
+  TrendingUp,
+  PiggyBank,
+  CreditCard,
+  Target,
+} from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
 
 interface ActionItemProps {
@@ -16,19 +22,44 @@ interface ActionItemProps {
   onContextClick?: () => void;
 }
 
-const tagColors: Record<string, string> = {
-  DEBT: 'text-danger',
-  INVEST: 'text-success',
-  TAX: 'text-warning',
-  SAVINGS: 'text-warning',
-  SETUP: 'text-accent',
+// Category (tag) → friendly label, icon, tinted tag colors, left accent bar.
+// Same anatomy + tokens as the /insights action cards (see insights.tsx CATEGORY).
+type CatStyle = {
+  label: string;
+  icon: typeof Receipt;
+  tagBg: string;
+  tagFg: string;
+  bar: string;
 };
 
-const impactBgColors: Record<string, string> = {
-  green: 'bg-success/10 text-success',
-  amber: 'bg-warning/10 text-warning',
-  red: 'bg-danger/10 text-danger',
+const CATEGORY: Record<string, CatStyle> = {
+  tax: { label: 'Taxes', icon: Receipt, tagBg: 'var(--ui-caution-soft)', tagFg: 'rgb(var(--ui-caution))', bar: 'var(--ui-viz-3)' },
+  debt: { label: 'Debt', icon: Flame, tagBg: 'var(--ui-negative-soft)', tagFg: 'rgb(var(--ui-negative))', bar: 'var(--ui-viz-4)' },
+  portfolio: { label: 'Investing', icon: TrendingUp, tagBg: 'var(--ui-info-soft)', tagFg: 'rgb(var(--ui-info))', bar: 'var(--ui-viz-2)' },
+  invest: { label: 'Investing', icon: TrendingUp, tagBg: 'var(--ui-info-soft)', tagFg: 'rgb(var(--ui-info))', bar: 'var(--ui-viz-2)' },
+  retirement: { label: 'Retirement', icon: Target, tagBg: 'var(--ui-brand-soft)', tagFg: 'rgb(var(--ui-brand))', bar: 'rgb(var(--ui-brand))' },
+  savings: { label: 'Savings', icon: PiggyBank, tagBg: 'var(--ui-brand-soft)', tagFg: 'rgb(var(--ui-brand))', bar: 'rgb(var(--ui-brand))' },
+  spending: { label: 'Spending', icon: CreditCard, tagBg: 'var(--ui-canvas-sunken)', tagFg: 'rgb(var(--ui-content-secondary))', bar: 'rgb(var(--ui-content-faint))' },
+  behavioral: { label: 'Spending', icon: CreditCard, tagBg: 'var(--ui-canvas-sunken)', tagFg: 'rgb(var(--ui-content-secondary))', bar: 'rgb(var(--ui-content-faint))' },
+  setup: { label: 'Setup', icon: Sparkles, tagBg: 'var(--ui-brand-soft)', tagFg: 'rgb(var(--ui-brand))', bar: 'rgb(var(--ui-brand))' },
+  general: { label: 'Overview', icon: Sparkles, tagBg: 'var(--ui-canvas-sunken)', tagFg: 'rgb(var(--ui-content-secondary))', bar: 'rgb(var(--ui-content-faint))' },
 };
+
+function catForTag(tag: string): CatStyle {
+  return CATEGORY[tag.toLowerCase()] ?? CATEGORY.general;
+}
+
+// impactColor (green / amber / red) → tinted impact-pill colors (matches insights).
+function impactColorVar(color: 'green' | 'amber' | 'red'): string {
+  if (color === 'red') return 'rgb(var(--ui-negative))';
+  if (color === 'amber') return 'rgb(var(--ui-caution))';
+  return 'rgb(var(--ui-positive))';
+}
+function impactSoftVar(color: 'green' | 'amber' | 'red'): string {
+  if (color === 'red') return 'var(--ui-negative-soft)';
+  if (color === 'amber') return 'var(--ui-caution-soft)';
+  return 'var(--ui-positive-soft)';
+}
 
 export function ActionItem({
   title,
@@ -37,140 +68,88 @@ export function ActionItem({
   impact,
   impactColor,
   chatPrompt,
-  defaultOpen = false,
+  defaultOpen,
   onDismiss,
   onContextClick,
 }: ActionItemProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  const [done, setDone] = useState(false);
+  void defaultOpen; // accordion state removed — cards are always expanded now
   const { openChat } = useChatStore();
+  const cat = catForTag(tag);
+  const Icon = cat.icon;
 
   return (
-    <div className="border-b border-border last:border-b-0">
-      {/* Header */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen((prev) => !prev)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setOpen((prev) => !prev);
-          }
-        }}
-        className="w-full flex items-center gap-3 py-3 px-1 text-left group cursor-pointer"
-      >
-        {/* Checkbox circle */}
+    <article className="relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[20px_18px] sm:p-[22px_24px] transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md">
+      {/* left accent bar — tone by category */}
+      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
+
+      <div className="flex items-start sm:items-center gap-5 flex-wrap sm:flex-nowrap">
+        <div className="flex-1 min-w-0">
+          <span
+            className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-[0.05em] mb-3"
+            style={{ background: cat.tagBg, color: cat.tagFg }}
+          >
+            <Icon className="h-3 w-3" />
+            {cat.label}
+          </span>
+          <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em] text-content">
+            {title}
+          </h3>
+          <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-2 max-w-[52ch]">
+            {description}
+          </p>
+        </div>
+
+        {/* right-aligned impact — tinted by impactColor; reflows below a hairline on mobile */}
+        {impact && (
+          <div className="w-full sm:w-auto mt-3.5 sm:mt-0 pt-3.5 sm:pt-0 border-t sm:border-t-0 border-line shrink-0">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-ui-md px-2.5 py-1.5 font-editorial text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap"
+              style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
+            >
+              {impact}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 mt-5 flex-wrap">
+        {/* primary — Ask Lasagna (soft-pill), preserves the openChat prompt */}
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setDone((prev) => !prev);
-          }}
-          className={cn(
-            'w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors',
-            done
-              ? 'border-success bg-success text-white'
-              : 'border-border hover:border-text-muted'
-          )}
+          onClick={() =>
+            openChat(
+              `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
+            )
+          }
+          className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow] group"
         >
-          {done && (
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M2 5L4.5 7.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
+          <Sparkles className="h-[15px] w-[15px]" />
+          Ask Lasagna about this
+          <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
         </button>
 
-        {/* Title */}
-        <span
-          className={cn(
-            'flex-1 text-sm font-medium transition-all',
-            done && 'line-through text-text-secondary'
-          )}
-        >
-          {title}
-        </span>
-
-        {/* Tag badge */}
-        <span
-          className={cn(
-            'font-mono text-[11px] font-bold uppercase tracking-[0.14em] px-1.5 py-0.5 rounded transition-opacity',
-            tagColors[tag.toUpperCase()] || 'text-text-secondary',
-            done && 'opacity-40'
-          )}
-        >
-          {tag}
-        </span>
-
-        {/* Dismiss (if insight) */}
-        {onDismiss && (
+        {onContextClick && (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-            className="p-1 rounded hover:bg-surface-hover text-text-secondary hover:text-text-secondary transition-colors flex-shrink-0"
-            title="Dismiss"
+            onClick={onContextClick}
+            className="touch-target h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
           >
-            <X className="w-3.5 h-3.5" />
+            See in context →
           </button>
         )}
 
-        {/* Chevron */}
-        <ChevronDown
-          className={cn(
-            'w-4 h-4 text-text-secondary flex-shrink-0 transition-transform duration-200',
-            open && 'rotate-180'
-          )}
-        />
-      </div>
+        <span className="hidden sm:block flex-1 min-w-[8px]" aria-hidden />
 
-      {/* Expandable body */}
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="content"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden"
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="touch-target h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
           >
-            <div className="pb-3 pl-8 pr-1">
-              <p className="text-sm text-text-secondary mb-2">{description}</p>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span
-                  className={cn(
-                    'text-[11px] font-semibold px-2 py-0.5 rounded-full',
-                    impactBgColors[impactColor]
-                  )}
-                >
-                  {impact}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openChat(
-                      `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
-                    );
-                  }}
-                  className="text-xs text-text-secondary hover:text-text font-medium transition-colors"
-                >
-                  Walk me through this &rarr;
-                </button>
-                {onContextClick && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onContextClick(); }}
-                    className="text-xs text-text-secondary hover:text-text transition-colors ml-auto"
-                  >
-                    See in context &rarr;
-                  </button>
-                )}
-              </div>
-            </div>
-          </motion.div>
+            Dismiss
+          </button>
         )}
-      </AnimatePresence>
-    </div>
+      </div>
+    </article>
   );
 }

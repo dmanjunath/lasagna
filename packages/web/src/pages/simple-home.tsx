@@ -64,6 +64,10 @@ interface NetBreakdown {
   alternativeValue: number;
   debts: number;
   debtsCount: number;
+  creditCards: number;
+  creditCardsCount: number;
+  loans: number;
+  loansCount: number;
   netWorth: number;
 }
 
@@ -220,6 +224,8 @@ export function SimpleHome() {
         assets: 0, assetsCount: 0,
         realEstateValue: 0, alternativeValue: 0,
         debts: 0, debtsCount: 0,
+        creditCards: 0, creditCardsCount: 0,
+        loans: 0, loansCount: 0,
         netWorth: 0,
       };
       const map = new Map<string, { name: string; balance: number }>();
@@ -231,7 +237,8 @@ export function SimpleHome() {
         else if (b.type === 'investment') { next.investments += v; next.investmentsCount++; }
         else if (b.type === 'real_estate') { next.assets += v; next.assetsCount++; next.realEstateValue += v; }
         else if (b.type === 'alternative') { next.assets += v; next.assetsCount++; next.alternativeValue += v; }
-        else if (b.type === 'credit' || b.type === 'loan') { next.debts += Math.abs(v); next.debtsCount++; }
+        else if (b.type === 'credit') { next.debts += Math.abs(v); next.debtsCount++; next.creditCards += Math.abs(v); next.creditCardsCount++; }
+        else if (b.type === 'loan') { next.debts += Math.abs(v); next.debtsCount++; next.loans += Math.abs(v); next.loansCount++; }
       }
       next.netWorth = next.cash + next.investments + next.assets - next.debts;
       setBreakdown(next);
@@ -355,26 +362,29 @@ export function SimpleHome() {
         </div>
       )}
 
-      {/* ════════ CONSISTENT 2/3 + 1/3 GRID ════════ */}
+      {/* ════════ ROW 1 — FULL-WIDTH NET-WORTH HERO ════════ */}
+      {breakdown && hasComposition && (
+        <div className="mt-7">
+          <NetWorthBreakdown
+            breakdown={breakdown}
+            monthDelta={monthDelta}
+            onOpenMoney={() => setLocation('/money')}
+          />
+        </div>
+      )}
+
+      {/* ════════ ROW 2 — 2/3 (ACTIONS) + 1/3 (CHART/CHAT/GOALS) GRID ════════ */}
       {breakdown && (
         <div className="mt-7 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-7 items-start">
 
-          {/* ░░░░ LEFT COLUMN (2/3) ░░░░ */}
+          {/* ░░░░ LEFT COLUMN (2/3) — the action queue ░░░░ */}
           <div className="min-w-0 flex flex-col">
-            {hasComposition && (
-              <NetWorthBreakdown
-                breakdown={breakdown}
-                monthDelta={monthDelta}
-                onOpenMoney={() => setLocation('/money')}
-              />
-            )}
-
             {/* Today — three moves */}
-            <div className="mt-10 flex items-center gap-3.5 flex-wrap">
+            <div className="flex items-center gap-3.5 flex-wrap">
               <span className="inline-flex items-center gap-2.5">
                 <span
-                  className="w-[7px] h-[7px] rounded-full bg-brand"
-                  style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+                  className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+                  style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
                 />
                 <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Today</span>
               </span>
@@ -464,6 +474,60 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 
 // ─── Net-worth breakdown — vertical assets / debt equation ──────────────────────
 
+type CompSegment = { key: string; label: string; value: number; count: number; color: string };
+
+/** One "What you own / owe" column: a proportional stacked bar + name·value·% legend. */
+function CompositionColumn({
+  title, accountCount, segments, total, ariaLabel,
+}: {
+  title: string;
+  accountCount: number;
+  segments: CompSegment[];
+  total: number;
+  ariaLabel: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">{title}</span>
+        <span className="text-[12px] font-semibold text-content-muted">{accountCount} account{accountCount === 1 ? '' : 's'}</span>
+      </div>
+      <div
+        className="flex gap-[2px] h-[10px] rounded-full overflow-hidden"
+        style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.32)' }}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        {segments.map((s) => {
+          const pct = Math.round((s.value / (total || 1)) * 100);
+          return (
+            <div
+              key={s.key}
+              className="h-full"
+              style={{ flexGrow: s.value, minWidth: 4, background: s.color }}
+              title={`${s.label} · ${pct}%`}
+            />
+          );
+        })}
+      </div>
+      {/* legend — name · value · % */}
+      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 ui-tnum">
+        {segments.map((s) => {
+          const pct = Math.round((s.value / (total || 1)) * 100);
+          return (
+            <span key={s.key} className="inline-flex items-center gap-2 text-[13px]">
+              <span className="w-[9px] h-[9px] rounded-[3px] shrink-0" style={{ background: s.color }} />
+              <span className="font-bold">{s.label}</span>
+              <span className="font-editorial font-extrabold tracking-[-0.01em]">{fmtUsd(s.value)}</span>
+              <span className="text-[12px] font-semibold text-content-muted">{pct}% · {s.count} acct{s.count === 1 ? '' : 's'}</span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function NetWorthBreakdown({
   breakdown, monthDelta, onOpenMoney,
 }: {
@@ -476,14 +540,16 @@ function NetWorthBreakdown({
 
   // Assets stacked-bar segments (Cash · Investments · Property) — proportional.
   const segments = [
-    breakdown.cash > 0 && { key: 'cash', label: 'Cash', value: breakdown.cash, count: breakdown.cashCount, viz: 1 },
-    breakdown.investments > 0 && { key: 'inv', label: 'Investments', value: breakdown.investments, count: breakdown.investmentsCount, viz: 2 },
-    breakdown.assets > 0 && { key: 'prop', label: assetsLabel(breakdown), value: breakdown.assets, count: breakdown.assetsCount, viz: 3 },
-  ].filter(Boolean) as { key: string; label: string; value: number; count: number; viz: number }[];
+    breakdown.cash > 0 && { key: 'cash', label: 'Cash', value: breakdown.cash, count: breakdown.cashCount, color: 'var(--ui-viz-1)' },
+    breakdown.investments > 0 && { key: 'inv', label: 'Investments', value: breakdown.investments, count: breakdown.investmentsCount, color: 'var(--ui-viz-2)' },
+    breakdown.assets > 0 && { key: 'prop', label: assetsLabel(breakdown), value: breakdown.assets, count: breakdown.assetsCount, color: 'var(--ui-viz-3)' },
+  ].filter(Boolean) as CompSegment[];
 
-  // Debt bar shares the assets' left origin, proportionally shorter.
-  const debtPct = assetTotal > 0 ? Math.min(100, (breakdown.debts / assetTotal) * 100) : 0;
-  const debtRatioLabel = assetTotal > 0 ? Math.round((breakdown.debts / assetTotal) * 100) : 0;
+  // Debt stacked-bar segments (Credit cards · Loans) — warm/coral, reads as liability.
+  const debtSegments = [
+    breakdown.creditCards > 0 && { key: 'cc', label: 'Credit cards', value: breakdown.creditCards, count: breakdown.creditCardsCount, color: '#F97316' },
+    breakdown.loans > 0 && { key: 'loans', label: 'Loans', value: breakdown.loans, count: breakdown.loansCount, color: 'var(--ui-viz-4)' },
+  ].filter(Boolean) as CompSegment[];
 
   return (
     <Card className="relative overflow-hidden p-6 sm:p-7 animate-fade-in" >
@@ -493,7 +559,7 @@ function NetWorthBreakdown({
         style={{
           background:
             'radial-gradient(120% 80% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
-            'radial-gradient(90% 70% at 0% 8%, var(--ui-brand-softer), transparent 60%)',
+            'radial-gradient(90% 70% at 0% 8%, var(--ui-accent-softer), transparent 60%)',
         }}
       />
       <div className="relative flex items-start justify-between gap-4">
@@ -511,109 +577,62 @@ function NetWorthBreakdown({
         </button>
       </div>
 
-      <div className="relative mt-6 flex flex-col">
-        {/* ASSETS — full-width stacked bar */}
-        <div>
-          <div className="flex items-baseline gap-2.5 flex-wrap mb-3">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</span>
-            <span className="font-editorial text-[21px] font-extrabold tracking-[-0.02em] ui-tnum">{fmtUsd(assetTotal)}</span>
-            <span className="ml-auto text-[12px] font-semibold text-content-muted">{assetAccounts} account{assetAccounts === 1 ? '' : 's'}</span>
+      <div className="relative mt-6">
+        {/* Assets − Debt = Net worth — one horizontal line on desktop (terms stack on mobile) */}
+        <div className="flex flex-col sm:flex-row sm:items-end gap-x-6 lg:gap-x-9 gap-y-4 sm:flex-wrap">
+          {/* ASSETS */}
+          <div className="min-w-0">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets · what you own</div>
+            <div className="mt-1 font-editorial text-[27px] sm:text-[30px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">
+              {fmtUsd(assetTotal)}
+            </div>
           </div>
-          <div
-            className="flex gap-[3px] h-8 rounded-[11px] overflow-hidden"
-            style={{ boxShadow: 'var(--ui-shadow-sm), inset 0 1.5px 0 rgba(255,255,255,0.32)' }}
-            role="img"
-            aria-label="Assets breakdown bar"
-          >
-            {segments.map((s, i) => {
-              const pct = Math.round((s.value / (assetTotal || 1)) * 100);
-              const wide = pct >= 12;
-              return (
-                <div
-                  key={s.key}
-                  className="relative h-full flex items-center px-[11px]"
-                  style={{
-                    flexGrow: s.value,
-                    minWidth: 6,
-                    background: `var(--ui-viz-${s.viz})`,
-                    backgroundImage: 'linear-gradient(170deg, rgba(255,255,255,0.30), rgba(255,255,255,0) 50%, rgba(0,0,0,0.06))',
-                    borderRadius: i === 0 ? '9px 3px 3px 9px' : i === segments.length - 1 ? '3px 9px 9px 3px' : '3px',
-                  }}
-                  title={`${s.label} · ${pct}%`}
-                >
-                  {wide && (
-                    <span className="text-[12px] font-extrabold text-white truncate" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.24)' }}>
-                      {s.label} · {pct}%
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {/* legend */}
-          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 ui-tnum">
-            {segments.map((s) => {
-              const pct = Math.round((s.value / (assetTotal || 1)) * 100);
-              return (
-                <span key={s.key} className="inline-flex items-center gap-2 text-[13px]">
-                  <span className="w-[9px] h-[9px] rounded-[3px] shrink-0" style={{ background: `var(--ui-viz-${s.viz})` }} />
-                  <span className="font-bold">{s.label}</span>
-                  <span className="font-editorial font-extrabold tracking-[-0.01em]">{fmtUsd(s.value)}</span>
-                  <span className="text-[12px] font-semibold text-content-muted">{pct}% · {s.count} acct{s.count === 1 ? '' : 's'}</span>
-                </span>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* minus */}
-        <div aria-hidden className="self-start ml-[3px] my-3 font-editorial font-semibold text-[26px] leading-none text-content-faint">−</div>
+          <div aria-hidden className="hidden sm:block pb-[4px] font-editorial font-semibold text-[24px] sm:text-[26px] leading-none text-content-faint">−</div>
 
-        {/* DEBT — aligned to same left origin, proportionally shorter */}
-        <div>
-          <div className="flex items-baseline gap-2.5 flex-wrap mb-3">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Debt</span>
-            <span className="font-editorial text-[21px] font-extrabold tracking-[-0.02em] ui-tnum" style={{ color: 'rgb(var(--ui-negative))' }}>
-              −{fmtUsd(breakdown.debts)}
-            </span>
-            <span className="ml-auto text-[12px] font-semibold text-content-muted">{breakdown.debtsCount} account{breakdown.debtsCount === 1 ? '' : 's'}</span>
-          </div>
-          <div style={{ width: `${debtPct}%`, minWidth: 92 }}>
+          {/* DEBT — coral, minus already implied by the operator */}
+          <div className="min-w-0">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em]" style={{ color: 'rgb(var(--ui-negative))' }}>Debt · what you owe</div>
             <div
-              className="h-8 rounded-[11px]"
-              role="img"
-              aria-label={`Total debt, about ${debtRatioLabel} percent the size of assets`}
-              style={{
-                backgroundColor: 'var(--ui-viz-4)',
-                backgroundImage:
-                  'repeating-linear-gradient(-45deg, rgba(255,255,255,0.32) 0 2px, transparent 2px 9px),' +
-                  'linear-gradient(170deg, rgba(255,255,255,0.20), rgba(0,0,0,0.08))',
-                boxShadow: 'var(--ui-shadow-sm), inset 0 1.5px 0 rgba(255,255,255,0.28)',
-              }}
-            />
-          </div>
-          {breakdown.debts > 0 && (
-            <div className="mt-2.5 text-[12px] font-semibold text-content-muted">
-              Liabilities you owe — about {debtRatioLabel}% the size of your assets
+              className="mt-1 font-editorial text-[27px] sm:text-[30px] font-extrabold tracking-[-0.02em] leading-none ui-tnum"
+              style={{ color: 'rgb(var(--ui-negative))' }}
+            >
+              {fmtUsd(breakdown.debts)}
             </div>
-          )}
+          </div>
+
+          <div aria-hidden className="hidden sm:block pb-[4px] font-editorial font-semibold text-[24px] sm:text-[26px] leading-none text-content-faint">=</div>
+
+          {/* NET WORTH — the confident payoff; same label+number structure as
+              Assets/Debt so all three numbers share a baseline under items-end. */}
+          <div className="min-w-0">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</div>
+            <div className="mt-1 flex items-end gap-2.5">
+              <span className="font-editorial text-[30px] sm:text-[34px] font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">
+                {fmtUsd(breakdown.netWorth)}
+              </span>
+              {monthDelta !== null && <DeltaChip delta={monthDelta} suffix="30d" />}
+            </div>
+          </div>
         </div>
 
-        {/* equals */}
-        <div aria-hidden className="self-start ml-[3px] my-3 font-editorial font-semibold text-[26px] leading-none text-content-faint">=</div>
-
-        {/* NET WORTH — the payoff */}
-        <div
-          className="flex items-center justify-between gap-4 flex-wrap px-5 py-4 rounded-ui-lg"
-          style={{ background: 'var(--ui-brand-soft)' }}
-        >
-          <div>
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</span>
-            <div className="mt-1 font-editorial font-extrabold tracking-[-0.03em] leading-none text-brand text-[30px] sm:text-[36px] ui-tnum">
-              {fmtUsd(breakdown.netWorth)}
-            </div>
-          </div>
-          {monthDelta !== null && <DeltaChip delta={monthDelta} suffix="30 days" />}
+        {/* Composition — what you own vs what you owe, itemized side by side
+            on desktop (stacked on mobile). Each: a proportional bar + legend. */}
+        <div className="mt-7 pt-6 border-t border-line grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-7">
+          <CompositionColumn
+            title="What you own"
+            accountCount={assetAccounts}
+            segments={segments}
+            total={assetTotal}
+            ariaLabel="Assets composition bar"
+          />
+          <CompositionColumn
+            title="What you owe"
+            accountCount={breakdown.debtsCount}
+            segments={debtSegments}
+            total={breakdown.debts}
+            ariaLabel="Debt composition bar"
+          />
         </div>
       </div>
     </Card>
@@ -623,7 +642,7 @@ function NetWorthBreakdown({
 // ─── Three moves queue ──────────────────────────────────────────────────────────
 
 const ACCENT = {
-  brand: { text: 'rgb(var(--ui-brand))', bar: 'rgb(var(--ui-brand))', soft: 'var(--ui-brand-soft)', border: 'var(--ui-brand-soft)' },
+  brand: { text: 'rgb(var(--ui-accent-ink))', bar: 'rgb(var(--ui-accent))', soft: 'var(--ui-accent-soft)', border: 'var(--ui-accent-soft)' },
   negative: { text: 'rgb(var(--ui-negative))', bar: 'var(--ui-viz-4)', soft: 'var(--ui-negative-soft)', border: 'var(--ui-negative-soft)' },
   caution: { text: 'rgb(var(--ui-caution))', bar: 'var(--ui-viz-3)', soft: 'var(--ui-caution-soft)', border: 'var(--ui-caution-soft)' },
 } as const;
@@ -1068,12 +1087,12 @@ function AskComposer({
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(80% 130% at 0% 0%, var(--ui-brand-softer), transparent 58%),' +
+            'radial-gradient(80% 130% at 0% 0%, var(--ui-accent-softer), transparent 58%),' +
             'radial-gradient(70% 130% at 100% 0%, var(--ui-info-soft), transparent 64%)',
         }}
       />
       <div className="relative mb-3 flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden />
+        <Sparkles className="h-3.5 w-3.5 shrink-0 text-[rgb(var(--ui-accent-ink))]" aria-hidden />
         <span className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Ask Lasagna</span>
       </div>
       <form onSubmit={onSubmit} className="relative">

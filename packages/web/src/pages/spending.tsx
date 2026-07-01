@@ -28,6 +28,7 @@ import {
   Landmark,
   Banknote,
 } from 'lucide-react';
+import { Link } from 'wouter';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
@@ -368,9 +369,12 @@ function SpendTrendChart({
           </g>
         )}
 
-        {xLabels.map(({ idx, label }) => (
-          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 8} textAnchor="middle" fill="rgb(var(--ui-content-muted))" style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
-        ))}
+        {xLabels.map(({ idx, label }, i) => {
+          // Right-align only the final tick so it doesn't clip the SVG edge
+          // (CHART_M.right is just 12px); the rest stay centered on their point.
+          const anchor = i === xLabels.length - 1 ? 'end' : 'middle';
+          return <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 8} textAnchor={anchor} fill="rgb(var(--ui-content-muted))" style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>;
+        })}
       </svg>
 
       <div
@@ -425,15 +429,16 @@ function TxnRow({
 }
 
 // ---------------------------------------------------------------------------
-// Small stat card (Income / Net flow / Savings rate).
+// Stat rail cell (Income / Net flow / Savings rate) — sits inline at the base
+// of the hero, divided by hairlines, instead of three separate boxy cards.
 // ---------------------------------------------------------------------------
 
-function StatCard({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: 'pos' | 'neg' }) {
+function StatCell({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: 'pos' | 'neg' }) {
   return (
-    <div className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
-      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{label}</div>
+    <div className="px-4 first:pl-0 sm:px-6">
+      <div className="text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">{label}</div>
       <div className={cn(
-        'mt-1.5 font-editorial text-[22px] sm:text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
+        'mt-1.5 font-editorial text-[20px] sm:text-[25px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
         tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
         tone === 'neg' && 'text-negative',
       )}>{value}</div>
@@ -727,31 +732,21 @@ export function Spending() {
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
   return (
-    <div className="mx-auto max-w-[1080px] px-[18px] sm:px-12 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* ════════ Header ════════ */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Spending
           </h1>
           {!loadingSummary && (
-            <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[14px] font-semibold text-content-muted">
-              <span>{monthLabel(currentMonth)}</span>
-              {lastMonthDelta !== null && (
-                <>
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-                  <span className={cn('ui-tnum', spentMore ? 'text-negative' : 'text-[rgb(var(--ui-brand-ink))]')}>
-                    {spentMore ? '▲' : '▼'} {Math.abs(lastMonthDelta)}% vs last month
-                  </span>
-                </>
-              )}
-              {topCategoryLabel && (
-                <>
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-                  <span>Top: <b className="font-extrabold text-content">{topCategoryLabel}</b></span>
-                </>
+            <p className="mt-1.5 text-[14px] font-medium text-content-muted">
+              {topCategoryLabel ? (
+                <>Where your money went — most on <b className="font-bold text-content">{topCategoryLabel}</b>.</>
+              ) : (
+                <>Where your money went in {monthLabel(currentMonth)}.</>
               )}
             </p>
           )}
@@ -801,28 +796,28 @@ export function Spending() {
 
       {/* ════════ Loading skeleton ════════ */}
       {loadingSummary && (
-        <>
-          <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="mt-3 h-12 w-56" />
-            <Skeleton className="mt-3 h-7 w-44 rounded-full" />
-            <Skeleton className="mt-6 h-[180px] w-full rounded-ui-md" />
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mt-3 h-12 w-56" />
+          <Skeleton className="mt-3 h-7 w-44 rounded-full" />
+          <Skeleton className="mt-6 h-[190px] w-full rounded-ui-md" />
+          <div className="mt-6 grid grid-cols-3 gap-6 border-t border-line pt-5">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
+              <div key={i}>
                 <Skeleton className="h-3 w-16" />
                 <Skeleton className="mt-3 h-6 w-20" />
                 <Skeleton className="mt-3 h-3 w-14" />
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
 
-      {/* ════════ Hero — spent total + monthly trend chart ════════ */}
+      {/* ════════ HERO — the one confident statement: spent + how it compares +
+           the interactive trend, closed by an inline stat rail (income / net /
+           savings) so the page opens with a single, complete answer. ════════ */}
       {!loadingSummary && !noData && (
-        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
@@ -836,19 +831,19 @@ export function Spending() {
             <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
               Spent · {heroCaption}
             </div>
-            <div className="mt-2 font-editorial text-[38px] sm:text-[52px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
+            <div className="mt-2 font-editorial text-[40px] sm:text-[54px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
               {formatCurrency(heroValue)}
             </div>
             <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
               {hoveredTrend ? (
-                <span className="text-[13.5px] font-medium text-content-muted">Monthly expenses</span>
+                <span className="text-[13.5px] font-medium text-content-muted">Total expenses this month</span>
               ) : lastMonthDelta !== null ? (
                 <>
                   <span
                     className="ui-tnum inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[13px] font-bold"
                     style={{
-                      background: spentMore ? 'var(--ui-negative-soft)' : 'var(--ui-brand-soft)',
-                      color: spentMore ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-brand-ink))',
+                      background: spentMore ? 'var(--ui-negative-soft)' : 'var(--ui-positive-soft)',
+                      color: spentMore ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-positive))',
                     }}
                   >
                     {spentMore
@@ -856,13 +851,13 @@ export function Spending() {
                       : <TrendingDown size={13} aria-hidden />}
                     {spentMore ? '+' : '−'}{Math.abs(lastMonthDelta)}%
                   </span>
-                  <span className="text-[13px] font-medium text-content-muted">vs last month</span>
+                  <span className="text-[13px] font-medium text-content-muted">
+                    {spentMore ? 'more than' : 'less than'} last month
+                  </span>
                 </>
-              ) : topCategoryLabel ? (
-                <span className="text-[13px] font-medium text-content-muted">
-                  Top category · <b className="font-bold text-content">{topCategoryLabel}</b>
-                </span>
-              ) : null}
+              ) : (
+                <span className="text-[13px] font-medium text-content-muted">across {monthLabel(currentMonth)}</span>
+              )}
             </div>
           </div>
 
@@ -871,25 +866,23 @@ export function Spending() {
               <SpendTrendChart points={trendPoints} activeIdx={activeTrendIdx} onHoverChange={setChartHover} />
             </div>
           )}
-        </section>
-      )}
 
-      {/* ════════ Stat cards ════════ */}
-      {!loadingSummary && !noData && (
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          <StatCard label="Income" value={formatCurrency(totalIncome)} sub="this month" />
-          <StatCard
-            label="Net flow"
-            value={`${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
-            sub={netCashFlow >= 0 ? 'surplus' : 'deficit'}
-            tone={netCashFlow >= 0 ? 'pos' : 'neg'}
-          />
-          <StatCard
-            label="Savings rate"
-            value={savingsRate !== null ? `${savingsRate.toFixed(0)}%` : '—'}
-            sub="of income"
-          />
-        </div>
+          {/* Inline stat rail — the three summary numbers, folded into the hero */}
+          <div className="relative mt-6 grid grid-cols-3 divide-x divide-line border-t border-line pt-5">
+            <StatCell label="Income" value={formatCurrency(totalIncome)} sub="received" />
+            <StatCell
+              label="Net flow"
+              value={`${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
+              sub={netCashFlow >= 0 ? 'surplus' : 'deficit'}
+              tone={netCashFlow >= 0 ? 'pos' : 'neg'}
+            />
+            <StatCell
+              label="Savings rate"
+              value={savingsRate !== null ? `${savingsRate.toFixed(0)}%` : '—'}
+              sub="of income"
+            />
+          </div>
+        </section>
       )}
 
       {/* ════════ Estimated (linked but no transactions) ════════ */}
@@ -911,20 +904,45 @@ export function Spending() {
         </section>
       )}
 
+      {/* ════════ Empty — no transactions and nothing linked ════════ */}
+      {!loadingSummary && noData && !hasLinkedAccounts && (
+        <div className="mt-7">
+          <EmptyState
+            icon={<Receipt size={24} />}
+            title="No spending to show yet"
+            description="Connect a bank or card account to see your monthly spending, categories, and transactions here."
+            action={
+              <Link href="/accounts">
+                <Button variant="primary">Connect an account</Button>
+              </Link>
+            }
+          />
+        </div>
+      )}
+
       {/* ════════ Behavioral / spending insights ════════ */}
       <section className="mt-10">
         <PageActions types={['spending', 'behavioral']} />
       </section>
 
-      {/* ════════ By category ════════ */}
+      {/* ════════ WHERE IT WENT — donut (labeled, long-tail binned) paired with
+           a portfolio-grade two-column category ledger that fills the width.
+           Rows filter the transactions below; hover links donut ⇄ ledger. ═══ */}
       {!loadingSummary && spendingCategories.length > 0 && (
         <section className="mt-10">
-          <div className="flex items-center gap-2.5 px-1 pb-4">
-            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">By category</span>
+          <div className="flex items-end justify-between gap-4 pb-4">
+            <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Where it went</h2>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted ui-tnum">
+              {spendingCategories.length} categories
+            </span>
           </div>
           <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
-            <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-12">
-              <div className="mx-auto w-full max-w-[300px]">
+            <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[268px_1fr] lg:gap-12">
+              {/* Donut — clearly labeled */}
+              <div className="mx-auto w-full max-w-[280px]">
+                <div className="mb-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+                  {monthLabel(currentMonth)}
+                </div>
                 <DonutMini
                   cats={donutCats}
                   total={donutTotal}
@@ -932,8 +950,13 @@ export function Spending() {
                   onHoverChange={setDonutHover}
                   fmtAmount={formatCurrency}
                 />
+                <div className="mt-3 text-center text-[12px] font-medium text-content-muted">
+                  Tap a slice to isolate it
+                </div>
               </div>
-              <div className="min-w-0">
+
+              {/* Two-column ledger */}
+              <div className="min-w-0 grid grid-cols-1 gap-x-8 gap-y-0.5 sm:grid-cols-2">
                 {donutCats.map((cat, idx) => {
                   const pct = donutTotal > 0 ? (cat.amount / donutTotal) * 100 : 0;
                   const isOther = cat.name === '__tailbin__';
@@ -942,8 +965,11 @@ export function Spending() {
                   return (
                     <div
                       key={cat.name}
-                      className="flex flex-col border-t border-line transition-opacity first:border-t-0"
-                      style={{ opacity: dimmed ? 0.45 : 1 }}
+                      className={cn(
+                        'flex flex-col transition-opacity',
+                        isOther && 'sm:col-span-2',
+                      )}
+                      style={{ opacity: dimmed ? 0.4 : 1 }}
                       onMouseEnter={() => setDonutHover(idx)}
                       onMouseLeave={() => setDonutHover(null)}
                     >
@@ -951,26 +977,27 @@ export function Spending() {
                         type="button"
                         onClick={isOther ? undefined : () => setSelectedCategory(isSelected ? null : cat.name)}
                         className={cn(
-                          'flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left',
+                          'ui-focus flex min-h-touch min-w-0 items-center gap-3 rounded-ui-sm px-2.5 py-2 text-left transition-colors',
                           isOther ? 'cursor-default' : 'cursor-pointer',
+                          isSelected ? 'bg-brand-soft' : !isOther && 'hover:bg-brand-softer',
                         )}
                       >
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: cat.color }} />
+                        <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: cat.color }} aria-hidden />
                         <span className={cn(
-                          'flex-1 truncate text-[14px] font-semibold',
+                          'min-w-0 flex-1 truncate text-[13.5px] font-semibold',
                           isSelected ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-content',
                         )}>
                           {cat.label}
                         </span>
-                        <span className="ui-tnum shrink-0 text-[13px] font-bold text-content-secondary">
-                          {formatCurrency(cat.amount)}
-                        </span>
-                        <span className="ui-tnum ml-1 min-w-[38px] shrink-0 text-right text-[12px] font-semibold text-content-muted">
-                          {pct.toFixed(0)}%
+                        <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
+                          <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content">
+                            {formatCurrency(cat.amount)}
+                          </span>
+                          <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{pct.toFixed(0)}%</span>
                         </span>
                       </button>
                       {isOther && cat.children.length > 0 && (
-                        <div className="pb-2 pl-[22px] text-[11.5px] leading-relaxed text-content-muted">
+                        <div className="px-2.5 pb-2 text-[11.5px] leading-relaxed text-content-muted">
                           {cat.children.map((c, j) => (
                             <span key={c.name}>
                               {c.label} <span className="ui-tnum">{formatCurrency(c.amount)}</span>
@@ -992,7 +1019,7 @@ export function Spending() {
       <section className="mt-10">
         <div className="flex flex-col gap-3 px-1 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-baseline gap-2.5">
-            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Recent transactions</h2>
+            <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Recent transactions</h2>
             {txTotal > 0 && (
               <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">{txTotal} total</span>
             )}
@@ -1002,7 +1029,7 @@ export function Spending() {
               <select
                 value={selectedCategory || ''}
                 onChange={(e) => { setSelectedCategory(e.target.value || null); setTxPage(1); }}
-                className="ui-focus h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm sm:w-auto"
+                className="ui-focus touch-target h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm sm:w-auto"
               >
                 <option value="">All categories</option>
                 {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
@@ -1018,7 +1045,7 @@ export function Spending() {
                 placeholder="Search merchants…"
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setTxPage(1); }}
-                className="ui-focus h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-8 text-[13px] text-content shadow-ui-sm sm:w-[220px]"
+                className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-8 text-[13px] text-content shadow-ui-sm sm:w-[220px]"
               />
               {searchQuery && (
                 <button
@@ -1090,7 +1117,7 @@ export function Spending() {
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setEditingTxId(tx.id); }}
                     title="Click to recategorize"
-                    className="rounded-ui-xs text-content-muted transition-colors hover:text-content hover:underline"
+                    className="touch-target-inline rounded-ui-xs text-content-muted transition-colors hover:text-content hover:underline"
                   >
                     {display.label}
                   </button>

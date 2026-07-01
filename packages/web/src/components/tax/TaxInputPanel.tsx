@@ -175,7 +175,8 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                       </div>
                       <button
                         type="button"
-                        className="ui-focus shrink-0 rounded-ui-sm p-1 text-content-muted transition-colors hover:text-negative"
+                        aria-label={`Remove ${f.name}`}
+                        className="touch-target ui-focus grid shrink-0 place-items-center rounded-ui-sm p-1 text-content-muted transition-colors hover:text-negative"
                         onClick={(e) => { e.stopPropagation(); setFiles((prev) => prev.filter((_, j) => j !== i)); }}
                       >
                         <X className="h-3.5 w-3.5" />

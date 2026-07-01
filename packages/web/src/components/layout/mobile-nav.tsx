@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Menu, Wallet,
+  X, Wallet, LogOut,
   LayoutDashboard, Zap, Layers,
   TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, Target,
   Building2, User, MessageSquare,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { useChatStore } from '../../lib/chat-store';
+import { BrandMark } from '../common/BrandMark';
 
 interface NavItem {
   label: string;
@@ -100,33 +101,48 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
             className="fixed top-0 left-0 bottom-0 w-[88%] max-w-[360px] z-50 overflow-y-auto
-                       bg-bg shadow-2xl md:hidden scrollbar-thin"
+                       bg-canvas border-r border-line shadow-2xl md:hidden scrollbar-thin"
           >
             <nav
               className="px-3 space-y-1"
               style={{
-                paddingTop: 'max(16px, env(safe-area-inset-top))',
+                paddingTop: 'max(14px, env(safe-area-inset-top))',
                 paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
               }}
             >
-              {/* Profile card — matches Simple drawer */}
+              {/* Header — brand + close */}
+              <div className="flex items-center justify-between px-2 pt-1 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <BrandMark size={30} />
+                  <span className="font-editorial text-[18px] font-semibold tracking-[-0.01em] text-content">LasagnaFi</span>
+                </div>
+                <button
+                  onClick={onClose}
+                  aria-label="Close menu"
+                  className="grid place-items-center w-11 h-11 -mr-1 rounded-ui-md text-content-muted hover:bg-canvas-sunken hover:text-content transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Profile card */}
               <button
                 onClick={() => handleNavigate('/profile')}
-                className="flex items-center gap-3 p-4 w-full bg-bg-elevated rounded-2xl border border-rule hover:border-accent/30 transition text-left"
+                className="flex items-center gap-3 p-4 w-full bg-panel rounded-ui-lg border border-line hover:border-brand/40 hover:shadow-ui-sm transition text-left"
               >
-                <div className="w-14 h-14 rounded-full bg-accent grid place-items-center text-xl font-serif font-semibold text-white shrink-0 shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
                   {initial}
                 </div>
                 <div className="flex-1 text-left">
-                  <div className="text-base font-semibold leading-tight tracking-tight">{firstName}</div>
-                  <div className="text-xs text-text-muted mt-1">View profile &amp; settings</div>
+                  <div className="text-[15px] font-bold leading-tight tracking-tight text-content">{firstName}</div>
+                  <div className="text-[12px] text-content-muted mt-0.5">View profile &amp; settings</div>
                 </div>
-                <div className="text-text-muted text-xs">›</div>
+                <div className="text-content-faint text-sm">›</div>
               </button>
 
               {NAV_SECTIONS.map(({ section, items }) => (
                 <div key={section} className="mb-2">
-                  <div className="font-mono text-[10px] tracking-[0.14em] uppercase text-text-muted px-3 pt-4 pb-2">
+                  <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-content-faint px-3 pt-4 pb-2">
                     {section}
                   </div>
                   {items.map(({ label, icon: Icon, path }) => {
@@ -135,15 +151,15 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                       <button
                         key={path}
                         onClick={() => handleNavigate(path)}
-                        className={`flex items-center gap-3 w-full p-3 rounded-xl mb-0.5
-                                   cursor-pointer text-left text-sm transition-colors active:scale-[0.98]
-                                   min-h-[44px] ${active ? 'bg-bg-elevated' : 'hover:bg-bg-elevated'}`}
+                        className={`flex items-center gap-3 w-full p-2.5 rounded-ui-md mb-0.5
+                                   cursor-pointer text-left text-[15px] transition-colors active:scale-[0.98]
+                                   min-h-[44px] ${active ? 'bg-brand-soft' : 'hover:bg-canvas-sunken'}`}
                       >
-                        <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center shrink-0">
-                          <Icon size={16} className={active ? 'text-accent' : 'text-text-muted'} />
+                        <div className={`w-9 h-9 rounded-ui-md grid place-items-center shrink-0 ${active ? 'bg-brand text-[rgb(var(--ui-brand-fg))]' : 'bg-canvas-sunken text-content-muted'}`}>
+                          <Icon size={16} />
                         </div>
-                        <span className={active ? 'font-semibold text-accent' : 'font-medium'}>{label}</span>
-                        <div className="text-text-muted text-xs ml-auto">›</div>
+                        <span className={active ? 'font-bold text-[rgb(var(--ui-brand-ink))]' : 'font-semibold text-content'}>{label}</span>
+                        <div className="text-content-faint text-sm ml-auto">›</div>
                       </button>
                     );
                   })}
@@ -154,49 +170,33 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
               <div className="mb-2">
                 <button
                   onClick={() => { openChat(); onClose(); }}
-                  className="flex items-center gap-3 w-full p-3 rounded-xl
-                             cursor-pointer text-left text-sm
-                             transition-colors active:scale-[0.98] hover:bg-bg-elevated
+                  className="flex items-center gap-3 w-full p-2.5 rounded-ui-md
+                             cursor-pointer text-left text-[15px]
+                             transition-colors active:scale-[0.98] hover:bg-canvas-sunken
                              min-h-[44px]"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center shrink-0">
-                    <MessageSquare size={16} className="text-text-muted" />
+                  <div className="w-9 h-9 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
+                    <MessageSquare size={16} />
                   </div>
-                  <span className="font-medium">AI Chat</span>
-                  <div className="text-text-muted text-xs ml-auto">›</div>
+                  <span className="font-semibold text-content">AI Chat</span>
+                  <div className="text-content-faint text-sm ml-auto">›</div>
                 </button>
               </div>
 
               {/* Sign out */}
               <button
                 onClick={() => { onClose(); logout(); }}
-                className="flex items-center gap-3 w-full p-3 mt-4 rounded-xl hover:bg-bg-elevated text-left"
+                className="flex items-center gap-3 w-full p-2.5 mt-3 rounded-ui-md hover:bg-canvas-sunken text-left min-h-[44px]"
               >
-                <div className="w-9 h-9 rounded-xl bg-bg-elevated grid place-items-center shrink-0">
-                  <X size={16} className="text-text-muted" />
+                <div className="w-9 h-9 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
+                  <LogOut size={16} />
                 </div>
-                <span className="text-sm font-medium text-text-secondary">Sign out</span>
+                <span className="text-[15px] font-semibold text-content-secondary">Sign out</span>
               </button>
             </nav>
           </motion.div>
         </>
       )}
     </AnimatePresence>
-  );
-}
-
-export function MobileMenuButton({ onClick }: { onClick: () => void }) {
-  return (
-    <motion.button
-      onClick={onClick}
-      whileTap={{ scale: 0.95 }}
-      className="fixed top-3.5 left-4 z-30 w-9 h-9 rounded-lg
-                 bg-lf-paper border border-border
-                 flex items-center justify-center cursor-pointer
-                 active:scale-95 transition-transform duration-200
-                 md:hidden min-w-[44px] min-h-[44px]"
-    >
-      <Menu size={18} className="text-lf-ink" strokeWidth={2} />
-    </motion.button>
   );
 }

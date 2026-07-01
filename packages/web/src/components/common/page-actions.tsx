@@ -1,7 +1,7 @@
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useInsights } from '../../hooks/useInsights';
 import { ActionItem } from './action-item';
-import { Section } from './section';
 import { LegalDisclaimer } from './legal-disclaimer';
 
 interface PageActionsProps {
@@ -27,14 +27,24 @@ export function PageActions({ types, viewAllHref }: PageActionsProps) {
   if (isLoading || insights.length === 0) return null;
 
   return (
-    <Section
-      title="Actions"
-      actions={
+    <div className="mb-8">
+      {/* Section header — periwinkle eyebrow + quiet controls (matches redesigned pages) */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <span className="inline-flex items-center gap-2.5">
+          <span
+            className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+            style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+          />
+          <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+            Actions
+          </span>
+        </span>
+
         <div className="flex items-center gap-3">
           {viewAllHref && (
             <a
               href={viewAllHref}
-              className="text-xs text-accent hover:text-accent/80 transition-colors"
+              className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors"
             >
               View all →
             </a>
@@ -43,15 +53,20 @@ export function PageActions({ types, viewAllHref }: PageActionsProps) {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="text-xs text-text-secondary hover:text-accent transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors disabled:opacity-50"
           >
-            {refreshing ? '↻ Refreshing…' : '↻ Refresh'}
+            <RefreshCw
+              className="h-[13px] w-[13px]"
+              style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }}
+            />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
-      }
-    >
-      <div className="bg-bg-elevated border border-border rounded-xl px-4">
-        {insights.map((insight, i) => (
+      </div>
+
+      {/* Action cards — stacked, on-skin, matching /insights */}
+      <div className="flex flex-col gap-3.5">
+        {insights.map((insight) => (
           <ActionItem
             key={insight.id}
             title={insight.title}
@@ -60,12 +75,16 @@ export function PageActions({ types, viewAllHref }: PageActionsProps) {
             impact={insight.impact ?? ''}
             impactColor={(insight.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
             chatPrompt={insight.chatPrompt ?? insight.title}
-            defaultOpen={i === 0}
             onDismiss={() => dismiss(insight.id)}
           />
         ))}
+      </div>
+
+      <div className="mt-5">
         <LegalDisclaimer variant="insights" />
       </div>
-    </Section>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
   );
 }

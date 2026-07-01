@@ -39,10 +39,10 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
     <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6 py-10">
       <div className="w-full max-w-[620px] animate-fade-in">
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-12 h-12 rounded-ui-lg bg-brand-soft grid place-items-center mb-4">
-            <Sparkles className="w-[22px] h-[22px] text-[rgb(var(--ui-brand-ink))]" />
+          <div className="w-12 h-12 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
+            <Sparkles className="w-[22px] h-[22px] text-[rgb(var(--ui-accent-ink))]" />
           </div>
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-brand-ink))]">AI Assistant</span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]">AI Assistant</span>
           <h2 className="font-editorial font-bold text-[30px] sm:text-[34px] text-content mt-2.5 leading-[1.05] tracking-[-0.025em]">
             Ask anything about your finances
           </h2>

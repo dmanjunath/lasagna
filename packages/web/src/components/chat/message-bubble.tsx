@@ -9,8 +9,8 @@ import type { ChatMessage } from "../../lib/chat-store.js";
 // conversation reads as a dialogue (user bubble right, assistant prose left).
 function AssistantAvatar() {
   return (
-    <div className="w-7 h-7 rounded-full bg-brand-soft grid place-items-center flex-shrink-0 mt-0.5">
-      <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-brand-ink))]" />
+    <div className="w-7 h-7 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center flex-shrink-0 mt-0.5">
+      <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
     </div>
   );
 }
@@ -136,7 +136,7 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
               <div className="mt-1 px-3 py-2 rounded-ui-sm bg-canvas-sunken border border-line text-[11px] space-y-1">
                 {uniqueTools.map((name, i) => (
                   <div key={i} className="flex items-center gap-2 text-content-secondary">
-                    <span className="w-1 h-1 rounded-full bg-brand/50 flex-shrink-0" />
+                    <span className="w-1 h-1 rounded-full bg-[rgb(var(--ui-accent)/0.5)] flex-shrink-0" />
                     <span>{formatToolName(name)}</span>
                   </div>
                 ))}
@@ -165,7 +165,7 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
                 <strong className="font-semibold text-content">{children}</strong>
               ),
               blockquote: ({ children }) => (
-                <blockquote className="border-l-2 border-brand/40 pl-3 py-1 my-2 text-content-secondary italic">
+                <blockquote className="border-l-2 border-[rgb(var(--ui-accent)/0.4)] pl-3 py-1 my-2 text-content-secondary italic">
                   {children}
                 </blockquote>
               ),
@@ -177,7 +177,7 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
               ),
               li: ({ children }) => (
                 <li className="flex gap-2 text-content-secondary">
-                  <span className="text-[rgb(var(--ui-brand-ink))] mt-1.5 text-[6px] flex-shrink-0">●</span>
+                  <span className="text-[rgb(var(--ui-accent-ink))] mt-1.5 text-[6px] flex-shrink-0">●</span>
                   <span className="min-w-0 flex-1 break-words">{children}</span>
                 </li>
               ),

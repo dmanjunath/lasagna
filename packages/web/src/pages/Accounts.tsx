@@ -495,7 +495,7 @@ export function Accounts() {
         href="/quick-import"
         className="group mt-5 flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm px-4 py-3 transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong min-h-touch"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
           <Sparkles size={16} />
         </span>
         <span className="min-w-0 flex-1">
@@ -744,8 +744,8 @@ function SectionHeader({ title, meta }: { title: string; meta: string }) {
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2.5">
         <span
-          className="h-[7px] w-[7px] shrink-0 rounded-full bg-brand"
-          style={{ boxShadow: "0 0 0 4px var(--ui-brand-soft)" }}
+          className="h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
+          style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
           aria-hidden
         />
         <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{title}</span>

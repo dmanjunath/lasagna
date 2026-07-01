@@ -43,6 +43,13 @@
   --ui-brand-softer: rgba(5, 178, 121, 0.06);
   --ui-brand-ring:   rgba(5, 178, 121, 0.42);   /* focus ring                */
 
+  /* ── Card accent — periwinkle (matches the net-worth graph line); used for
+     card/section eyebrows + card accent chrome to break up the green. ─────── */
+  --ui-accent:       99 102 241;       /* #6366F1 periwinkle (viz-2)          */
+  --ui-accent-ink:   79 70 229;        /* #4F46E5 indigo TEXT on light, AA    */
+  --ui-accent-soft:  rgba(99, 102, 241, 0.12);
+  --ui-accent-softer: rgba(99, 102, 241, 0.06);
+
   /* ── Semantic — Bright teal gains / coral loss ────────────────────────── */
   --ui-positive:       13 110 103;     /* teal-700 gains, AA on tint (≥5:1)   */
   --ui-positive-soft:  rgba(13, 148, 136, 0.13);
@@ -110,6 +117,12 @@
   --ui-brand-softer: rgba(30, 216, 148, 0.09);
   --ui-brand-ring:   rgba(30, 216, 148, 0.50);
 
+  /* Card accent — periwinkle (matches graph), brighter for dark. */
+  --ui-accent:       129 140 248;      /* #818CF8 */
+  --ui-accent-ink:   165 173 250;      /* #A5ADFA TEXT on dark, AA */
+  --ui-accent-soft:  rgba(129, 140, 248, 0.16);
+  --ui-accent-softer: rgba(129, 140, 248, 0.09);
+
   --ui-positive:       94 234 212;     /* pale teal gains                     */
   --ui-positive-soft:  rgba(94, 234, 212, 0.16);
   --ui-negative:       255 109 140;    /* coral losses                        */
@@ -149,13 +162,13 @@
 .app-wash {
   background-image:
     radial-gradient(58% 42% at 84% -6%, rgba(99,102,241,0.10), transparent 70%),
-    radial-gradient(50% 40% at 6% 2%, rgba(5,178,121,0.10), transparent 72%),
+    radial-gradient(50% 40% at 6% 2%, rgba(99,102,241,0.12), transparent 72%),
     radial-gradient(40% 36% at 96% 90%, rgba(245,158,11,0.07), transparent 70%);
 }
 .dark .app-wash {
   background-image:
     radial-gradient(58% 42% at 84% -6%, rgba(129,140,248,0.14), transparent 70%),
-    radial-gradient(50% 40% at 6% 2%, rgba(30,216,148,0.12), transparent 72%),
+    radial-gradient(50% 40% at 6% 2%, rgba(129,140,248,0.16), transparent 72%),
     radial-gradient(40% 36% at 96% 90%, rgba(251,191,36,0.08), transparent 70%);
 }
 

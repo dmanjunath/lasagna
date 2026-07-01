@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   FileText,
@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Info,
   Receipt,
+  PiggyBank,
 } from "lucide-react";
 import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
 import type { TaxDocument, TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
@@ -172,6 +173,12 @@ interface Profile {
   stateOfResidence: string | null;
 }
 
+interface SavingsLine {
+  title: string;
+  amount: number;
+  color: string | null;
+}
+
 // ─── component ───────────────────────────────────────────────────────────────
 
 export function TaxStrategy() {
@@ -307,6 +314,19 @@ export function TaxStrategy() {
     return total > 0 ? total : null;
   }, [insights, documents.length]);
 
+  // Where the savings come from — the hero's visual echo. Real insight impacts,
+  // largest first. Never fabricated: only strategies with a parsed $ amount.
+  const savingsBreakdown = useMemo<SavingsLine[]>(() => {
+    return insights
+      .map((ins) => ({
+        title: ins.title,
+        amount: ins.impact ? parseDollarAmount(ins.impact) : 0,
+        color: ins.impactColor,
+      }))
+      .filter((l) => l.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+  }, [insights]);
+
   useEffect(() => {
     if (profile) {
       setPageContext({
@@ -326,8 +346,12 @@ export function TaxStrategy() {
   // Subtitle bits — filing year + live document/action counts.
   const subBits: string[] = [`${FILING_YEAR} filing year`];
   if (documents.length > 0) subBits.push(`${documents.length} doc${documents.length === 1 ? "" : "s"}`);
-  if (insights.length > 0) subBits.push(`${insights.length} action${insights.length === 1 ? "" : "s"}`);
+  if (insights.length > 0) subBits.push(`${insights.length} strateg${insights.length === 1 ? "y" : "ies"}`);
   const subtitleText = subBits.join(" · ");
+
+  const hasDocs = documents.length > 0;
+  const strategyCount = insights.length;
+  const topAmount = savingsBreakdown[0]?.amount ?? 0;
 
   return (
     <div className="mx-auto max-w-[1120px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
@@ -349,8 +373,8 @@ export function TaxStrategy() {
         <div>
           <span className="inline-flex items-center gap-2.5 mb-2.5">
             <span
-              className="w-[7px] h-[7px] rounded-full bg-brand"
-              style={{ boxShadow: "0 0 0 4px var(--ui-brand-soft)" }}
+              className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
               aria-hidden
             />
             <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
@@ -370,20 +394,185 @@ export function TaxStrategy() {
             leadingIcon={<Upload size={15} />}
             onClick={scrollToUpload}
           >
-            Upload documents
+            {hasDocs ? "Add a document" : "Upload documents"}
           </Button>
         )}
       </header>
 
-      {/* ── KPI row ── */}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCell
-          label="Estimated savings"
-          value={insightsLoading ? "…" : estimatedSavings ? formatMoney(estimatedSavings) : "—"}
-          accent={estimatedSavings ? "text-[rgb(var(--ui-brand-ink))]" : undefined}
-          sub={insightsLoading ? "calculating" : estimatedSavings ? "/yr from actions" : "upload documents"}
+      {/* ══════════ ZONE 1 — How do I lower my taxes? ══════════ */}
+
+      {/* ── HERO — the one confident answer: savings on the table ── */}
+      <section
+        data-hero
+        className="relative mt-6 sm:mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(92% 82% at 0% 0%, var(--ui-brand-softer), transparent 60%)," +
+              "radial-gradient(84% 74% at 100% 0%, var(--ui-accent-softer), transparent 62%)",
+          }}
         />
-        <StatCell
+        <div className="relative grid items-center gap-8 sm:gap-10 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+          {/* lead — the number */}
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              {hasDocs ? `Estimated ${FILING_YEAR} savings on the table` : "Your tax workspace"}
+            </div>
+
+            {hasDocs ? (
+              <>
+                <div className="mt-2.5 flex items-end gap-3 flex-wrap">
+                  <span className="font-editorial text-[42px] sm:text-[58px] font-extrabold leading-[0.85] tracking-[-0.03em] text-[rgb(var(--ui-brand-ink))] ui-tnum">
+                    {insightsLoading ? "…" : estimatedSavings ? formatMoney(estimatedSavings) : "—"}
+                  </span>
+                  {!insightsLoading && strategyCount > 0 && (
+                    <span
+                      className="mb-1.5 inline-flex items-center h-7 px-3 rounded-full text-[12.5px] font-bold"
+                      style={{ background: "var(--ui-brand-soft)", color: "rgb(var(--ui-brand-ink))" }}
+                    >
+                      {strategyCount} strateg{strategyCount === 1 ? "y" : "ies"}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-4 text-[15px] leading-[1.55] text-content-secondary max-w-[52ch]">
+                  {insightsLoading ? (
+                    <>Scanning your {documents.length} document{documents.length === 1 ? "" : "s"} for ways to lower your {FILING_YEAR} taxes…</>
+                  ) : strategyCount > 0 ? (
+                    <>
+                      From the <strong className="font-bold text-content ui-tnum">{documents.length}</strong>{" "}
+                      document{documents.length === 1 ? "" : "s"} on file, we found{" "}
+                      <strong className="font-bold text-content ui-tnum">{strategyCount}</strong>{" "}
+                      {strategyCount === 1 ? "way" : "ways"} to keep more of your money this year.
+                      {estimatedSavings ? " Work through the moves below to claim it." : " Review the moves below."}
+                    </>
+                  ) : (
+                    <>Your documents are in and extracted. Strategies to lower your {FILING_YEAR} taxes will
+                    appear here as we analyze them — or refresh below.</>
+                  )}
+                </p>
+
+                {/* filing context chips */}
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  {filingAbbr && (
+                    <span
+                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[12px] font-bold border border-line bg-canvas-sunken/60 text-content-secondary"
+                      title={filingLabel ?? undefined}
+                    >
+                      <Receipt className="h-3 w-3 text-content-muted" />
+                      {filingAbbr}
+                    </span>
+                  )}
+                  {profile?.stateOfResidence && (
+                    <span className="inline-flex items-center h-7 px-3 rounded-full text-[12px] font-bold border border-line bg-canvas-sunken/60 text-content-secondary">
+                      {profile.stateOfResidence}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center h-7 px-3 rounded-full text-[12px] font-bold border border-line bg-canvas-sunken/60 text-content-secondary ui-tnum">
+                    {FILING_YEAR} filing year
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-2.5 font-editorial text-[30px] sm:text-[40px] font-extrabold leading-[1.02] tracking-[-0.028em] text-content">
+                  See what you could save
+                </h2>
+                <p className="mt-4 text-[15px] leading-[1.55] text-content-secondary max-w-[50ch]">
+                  Add your W-2s, 1099s, or any tax form. We extract the fields, surface the deductions and
+                  credits you qualify for, and never store the original file.
+                </p>
+                {showUpload && (
+                  <div className="mt-6">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leadingIcon={<Upload size={15} />}
+                      onClick={scrollToUpload}
+                    >
+                      Upload your first document
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* visual echo — where the savings come from */}
+          <div className="min-w-0">
+            {insightsLoading && hasDocs ? (
+              <div className="rounded-ui-lg border border-line bg-panel/70 p-4 sm:p-5">
+                <Skeleton className="h-3 w-32" />
+                <div className="mt-4 flex flex-col gap-3.5">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i}>
+                      <Skeleton className="h-3 w-2/3" />
+                      <Skeleton className="mt-2 h-2 w-full rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : savingsBreakdown.length > 0 ? (
+              <div className="rounded-ui-lg border border-line bg-panel/70 p-4 sm:p-5 shadow-ui-sm">
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
+                  <TrendingUp className="h-3.5 w-3.5 text-[rgb(var(--ui-brand-ink))]" />
+                  Where it comes from
+                </div>
+                <div className="mt-4 flex flex-col gap-3.5">
+                  {savingsBreakdown.slice(0, 4).map((line) => (
+                    <SavingsLineBar key={line.title} line={line} max={topAmount} />
+                  ))}
+                </div>
+                {savingsBreakdown.length > 4 && (
+                  <div className="mt-3.5 text-[12px] font-semibold text-content-muted">
+                    +{savingsBreakdown.length - 4} more{" "}
+                    {savingsBreakdown.length - 4 === 1 ? "strategy" : "strategies"} below
+                  </div>
+                )}
+              </div>
+            ) : strategyCount > 0 ? (
+              <div className="rounded-ui-lg border border-line bg-panel/70 p-4 sm:p-5">
+                <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
+                  What we found
+                </div>
+                <div className="mt-3.5 flex flex-col gap-2.5">
+                  {insights.slice(0, 3).map((ins) => (
+                    <div key={ins.id} className="flex items-start gap-2.5">
+                      <span
+                        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ background: impactColorVar(ins.impactColor) }}
+                        aria-hidden
+                      />
+                      <span className="text-[13.5px] font-semibold leading-snug text-content-secondary line-clamp-2">
+                        {ins.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              // decorative echo for the empty invitation
+              <div className="hidden lg:flex items-center justify-center">
+                <div
+                  className="grid h-[132px] w-[132px] place-items-center rounded-ui-xl border border-line"
+                  style={{
+                    background:
+                      "linear-gradient(150deg, var(--ui-brand-soft), var(--ui-accent-soft))",
+                  }}
+                >
+                  <PiggyBank className="h-14 w-14 text-[rgb(var(--ui-brand-ink))]" strokeWidth={1.5} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Supporting facts strip ── */}
+      <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+        <StatItem
           label="Filing status"
           value={filingAbbr ?? "—"}
           sub={
@@ -391,88 +580,22 @@ export function TaxStrategy() {
               ? profile?.stateOfResidence
                 ? `${filingLabel} · ${profile.stateOfResidence}`
                 : filingLabel
-              : profile?.stateOfResidence ?? undefined
+              : profile?.stateOfResidence ?? "not set"
           }
         />
-        <StatCell label="Documents" value={String(documents.length)} sub="uploaded" />
-        <StatCell
-          label="Open actions"
-          value={insightsLoading ? "…" : String(insights.length)}
-          sub={insights.length === 1 ? "tax action" : "tax actions"}
+        <StatItem label="Documents on file" value={String(documents.length)} sub={hasDocs ? "extracted & stored" : "none yet"} />
+        <StatItem
+          label="Strategies"
+          value={insightsLoading ? "…" : String(strategyCount)}
+          sub={strategyCount === 1 ? "to review" : "to review"}
         />
+        <StatItem label="Filing year" value={String(FILING_YEAR)} sub="tax year" />
       </div>
 
-      {/* ── Tax inputs ── */}
-      {showUpload && (
-        <section id="tax-documents-section" className="mt-9">
-          <div className="flex items-end justify-between gap-4 px-1 pb-3">
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-brand">
-                Upload or describe
-              </span>
-              <h2 className="mt-1 font-editorial text-[19px] font-bold tracking-[-0.018em]">Tax inputs</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              {insightStatus === "generating" && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-caution-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-caution">
-                  <RefreshCw size={11} className="animate-spin" />
-                  Updating
-                </span>
-              )}
-              {insightStatus === "done" && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-positive-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-positive">
-                  Actions updated
-                </span>
-              )}
-              <div className="relative" ref={safetyRef}>
-                <button
-                  onClick={() => setShowSafety((p) => !p)}
-                  className="ui-focus grid h-9 w-9 place-items-center rounded-ui-md border border-line text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
-                  aria-label="Privacy & safety information"
-                >
-                  <ShieldCheck size={15} />
-                </button>
-                {showSafety && (
-                  <div className="animate-scale-in absolute right-0 top-[calc(100%+8px)] z-50 w-[280px] origin-top-right rounded-ui-lg border border-line-strong bg-panel-raised p-4 text-left shadow-ui-lg">
-                    <div className="mb-2.5 flex items-center gap-2">
-                      <ShieldCheck size={14} className="shrink-0 text-positive" />
-                      <span className="text-[13px] font-bold text-content">Privacy & security</span>
-                      <button
-                        onClick={() => setShowSafety(false)}
-                        className="ml-auto text-content-muted hover:text-content"
-                        aria-label="Close"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {[
-                        "Open-weight models with zero data retention — documents never used for training.",
-                        "Documents sent over HTTPS, used only for field extraction.",
-                        "Only extracted tax fields are stored — not the original file.",
-                        "Prefer not to upload? Use the text option to describe your situation.",
-                      ].map((item) => (
-                        <div key={item} className="flex gap-2 text-[12.5px] leading-relaxed text-content-secondary">
-                          <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-content-faint" />
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="tax-input-wrap rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
-            <TaxInputPanel onSuccess={handleInputSuccess} />
-          </div>
-        </section>
-      )}
-
-      {/* ── Recommended actions ── */}
+      {/* ── Strategies — the concrete moves ── */}
       {insightsLoading ? (
-        <section className="mt-9" aria-hidden>
-          <Skeleton className="h-6 w-52" />
+        <section className="mt-10" aria-hidden>
+          <Skeleton className="h-6 w-56" />
           <div className="mt-4 flex flex-col gap-3.5">
             {[0, 1].map((i) => (
               <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-6">
@@ -485,13 +608,15 @@ export function TaxStrategy() {
           </div>
         </section>
       ) : insights.length > 0 ? (
-        <section className="mt-9">
-          <div className="flex items-end justify-between gap-4 px-1 pb-3">
+        <section className="mt-10 sm:mt-12">
+          <div className="flex items-end justify-between gap-4 px-1 pb-3.5">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-brand">
-                {estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} action${insights.length === 1 ? "" : "s"}`}
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]">
+                {estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} to review`}
               </span>
-              <h2 className="mt-1 font-editorial text-[19px] font-bold tracking-[-0.018em]">Recommended actions</h2>
+              <h2 className="mt-1 font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
+                Ways to lower your taxes
+              </h2>
             </div>
             <Button
               variant="ghost"
@@ -526,67 +651,142 @@ export function TaxStrategy() {
         </section>
       ) : null}
 
-      {/* ── Documents ── */}
-      <section className="mt-10">
-        <div className="flex items-baseline justify-between gap-3 px-1 pb-3">
-          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Documents</h2>
+      {/* ══════════ ZONE 2 — What have I got on file? ══════════ */}
+      <section id="tax-documents-section" className="mt-10 sm:mt-14 scroll-mt-6">
+        <div className="flex items-end justify-between gap-3 px-1 pb-3.5">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]">
+              On file
+            </span>
+            <h2 className="mt-1 font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
+              Your documents
+            </h2>
+          </div>
           <span className="text-[13px] font-semibold text-content-muted">
             {documents.length > 0 ? `${documents.length} uploaded` : "None yet"}
           </span>
         </div>
 
-        {documents.length === 0 ? (
-          <EmptyState
-            icon={<FolderOpen size={24} />}
-            title="No documents uploaded yet"
-            description="Upload W-2s, 1099s, or any tax form. We extract the fields, surface deductions, and never store the original file."
-            action={
-              showUpload ? (
-                <Button variant="primary" size="sm" leadingIcon={<Upload size={15} />} onClick={scrollToUpload}>
-                  Upload documents
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <div className="overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-            <div className={cn("grid grid-cols-1", selectedDoc && "lg:grid-cols-2")}>
-              <div className={cn(selectedDoc && "lg:border-r lg:border-line")}>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
+          {/* Add a document — the upload / describe tool */}
+          {showUpload && (
+            <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm lg:sticky lg:top-6">
+              <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 place-items-center rounded-ui-md bg-brand-soft text-[rgb(var(--ui-brand-ink))]">
+                    <Upload size={15} />
+                  </span>
+                  <span className="text-[14px] font-bold text-content">Add a document</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {insightStatus === "generating" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-caution-soft px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-caution">
+                      <RefreshCw size={11} className="animate-spin" />
+                      Updating
+                    </span>
+                  )}
+                  {insightStatus === "done" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-positive-soft px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-positive">
+                      Updated
+                    </span>
+                  )}
+                  <div className="relative" ref={safetyRef}>
+                    <button
+                      onClick={() => setShowSafety((p) => !p)}
+                      className="touch-target ui-focus grid h-9 w-9 place-items-center rounded-ui-md border border-line text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
+                      aria-label="Privacy & safety information"
+                    >
+                      <ShieldCheck size={15} />
+                    </button>
+                    {showSafety && (
+                      <div className="animate-scale-in absolute right-0 top-[calc(100%+8px)] z-50 w-[280px] origin-top-right rounded-ui-lg border border-line-strong bg-panel-raised p-4 text-left shadow-ui-lg">
+                        <div className="mb-2.5 flex items-center gap-2">
+                          <ShieldCheck size={14} className="shrink-0 text-positive" />
+                          <span className="text-[13px] font-bold text-content">Privacy & security</span>
+                          <button
+                            onClick={() => setShowSafety(false)}
+                            className="ml-auto text-content-muted hover:text-content"
+                            aria-label="Close"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {[
+                            "Open-weight models with zero data retention — documents never used for training.",
+                            "Documents sent over HTTPS, used only for field extraction.",
+                            "Only extracted tax fields are stored — not the original file.",
+                            "Prefer not to upload? Use the text option to describe your situation.",
+                          ].map((item) => (
+                            <div key={item} className="flex gap-2 text-[12.5px] leading-relaxed text-content-secondary">
+                              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-content-faint" />
+                              {item}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="tax-input-wrap p-5">
+                <TaxInputPanel onSuccess={handleInputSuccess} />
+              </div>
+            </div>
+          )}
+
+          {/* Document library — list + reachable detail */}
+          <div className={cn(!showUpload && "lg:col-span-2")}>
+            {documents.length === 0 ? (
+              <EmptyState
+                icon={<FolderOpen size={24} />}
+                title="No documents yet"
+                description={
+                  showUpload
+                    ? "Add a W-2, 1099, or any tax form. We extract the fields, surface deductions, and never store the original file."
+                    : "Uploaded tax forms and their extracted fields will show up here."
+                }
+              />
+            ) : (
+              <div className="overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
                 {documents.map((doc) => (
-                  <DocRow
-                    key={doc.id}
-                    doc={doc}
-                    selected={selectedDoc?.id === doc.id}
-                    loading={docLoading === doc.id}
-                    confirming={deleteConfirmId === doc.id}
-                    showDelete={showUpload}
-                    onSelect={() => handleSelectDocument(doc.id)}
-                    onAskDelete={() => setDeleteConfirmId(doc.id)}
-                    onConfirmDelete={() => {
-                      handleDeleteDocument(doc.id);
-                      setDeleteConfirmId(null);
-                    }}
-                    onCancelDelete={() => setDeleteConfirmId(null)}
-                  />
+                  <Fragment key={doc.id}>
+                    <DocRow
+                      doc={doc}
+                      selected={selectedDoc?.id === doc.id}
+                      loading={docLoading === doc.id}
+                      confirming={deleteConfirmId === doc.id}
+                      showDelete={showUpload}
+                      onSelect={() => handleSelectDocument(doc.id)}
+                      onAskDelete={() => setDeleteConfirmId(doc.id)}
+                      onConfirmDelete={() => {
+                        handleDeleteDocument(doc.id);
+                        setDeleteConfirmId(null);
+                      }}
+                      onCancelDelete={() => setDeleteConfirmId(null)}
+                    />
+                    {/* Detail expands inline right under the tapped row — reachable
+                        on every viewport, never buried below the full list. */}
+                    <AnimatePresence initial={false}>
+                      {selectedDoc?.id === doc.id && (
+                        <motion.div
+                          key={`${doc.id}-detail`}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.22, ease: "easeInOut" }}
+                          className="overflow-hidden border-t border-line bg-canvas-sunken/40"
+                        >
+                          <DocumentDetail doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </Fragment>
                 ))}
               </div>
-
-              <AnimatePresence>
-                {selectedDoc && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                    className="border-t border-line lg:border-t-0 bg-canvas-sunken/30"
-                  >
-                    <DocumentDetail doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </section>
     </div>
   );
@@ -594,31 +794,41 @@ export function TaxStrategy() {
 
 // ─── sub-components ──────────────────────────────────────────────────────────
 
-function StatCell({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: string;
-}) {
+// Supporting fact — the retirement "border-l" KPI treatment.
+function StatItem({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4 sm:p-[18px]">
+    <div className="border-l-2 border-line pl-3.5">
       <div className="text-[10.5px] sm:text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
         {label}
       </div>
-      <div
-        className={cn(
-          "mt-2 font-editorial text-[22px] sm:text-[26px] font-extrabold leading-none tracking-[-0.02em] ui-tnum",
-          accent ?? "text-content",
-        )}
-      >
+      <div className="mt-1.5 font-editorial text-[22px] sm:text-[24px] font-extrabold leading-none tracking-[-0.02em] text-content ui-tnum">
         {value}
       </div>
       {sub && <div className="mt-1.5 truncate text-[12px] font-medium text-content-muted">{sub}</div>}
+    </div>
+  );
+}
+
+// One line of the hero savings breakdown — a strategy's $ contribution as a bar.
+function SavingsLineBar({ line, max }: { line: SavingsLine; max: number }) {
+  const pct = max > 0 ? Math.max((line.amount / max) * 100, 8) : 8;
+  const color = impactColorVar(line.color);
+  return (
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="truncate text-[12.5px] font-semibold text-content-secondary" title={line.title}>
+          {line.title}
+        </span>
+        <span className="shrink-0 text-[12.5px] font-extrabold ui-tnum" style={{ color }}>
+          {formatMoney(line.amount)}
+        </span>
+      </div>
+      <div className="mt-1.5 h-[7px] rounded-full bg-canvas-sunken overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${pct}%`, background: color, transition: "width 0.6s ease" }}
+        />
+      </div>
     </div>
   );
 }
@@ -667,7 +877,7 @@ function TaxActionCard({
             {title}
           </h3>
           {description && (
-            <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary max-w-[52ch]">
+            <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-3 max-w-[52ch]">
               {description}
             </p>
           )}
@@ -686,7 +896,12 @@ function TaxActionCard({
       </div>
 
       <div className="flex items-center gap-2 mt-5 flex-wrap">
-        <Button size="sm" onClick={onAsk} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+        <Button
+          size="sm"
+          onClick={onAsk}
+          leadingIcon={<Sparkles className="h-3.5 w-3.5" />}
+          trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}
+        >
           Ask Lasagna about this
         </Button>
         <span className="hidden sm:block flex-1 min-w-[8px]" aria-hidden />
@@ -779,13 +994,13 @@ function DocRow({
             <div className="flex items-center gap-1.5">
               <button
                 onClick={onConfirmDelete}
-                className="ui-focus rounded-ui-sm bg-negative-soft px-2.5 py-1 text-[12px] font-bold text-negative hover:bg-negative/15"
+                className="touch-target ui-focus rounded-ui-sm bg-negative-soft px-2.5 py-1 text-[12px] font-bold text-negative hover:bg-negative/15"
               >
                 Delete
               </button>
               <button
                 onClick={onCancelDelete}
-                className="ui-focus rounded-ui-sm px-2.5 py-1 text-[12px] font-semibold text-content-muted hover:bg-canvas-sunken"
+                className="touch-target ui-focus rounded-ui-sm px-2.5 py-1 text-[12px] font-semibold text-content-muted hover:bg-canvas-sunken"
               >
                 Cancel
               </button>
@@ -793,7 +1008,7 @@ function DocRow({
           ) : (
             <button
               onClick={onAskDelete}
-              className="ui-focus grid h-9 w-9 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-negative-soft hover:text-negative"
+              className="touch-target ui-focus grid h-9 w-9 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-negative-soft hover:text-negative"
               aria-label="Delete document"
             >
               <Trash2 size={15} />
@@ -841,8 +1056,14 @@ function isNestedObject(value: unknown): value is Record<string, unknown> {
 function FieldGrid({ entries }: { entries: [string, unknown][] }) {
   return (
     <div className="grid grid-cols-2 gap-px overflow-hidden rounded-ui-md border border-line bg-line">
-      {entries.map(([key, value]) => (
-        <div key={key} className="flex flex-col gap-1 bg-panel px-3 py-2">
+      {entries.map(([key, value], i) => (
+        <div
+          key={key}
+          className={cn(
+            "flex flex-col gap-1 bg-panel px-3 py-2",
+            entries.length % 2 === 1 && i === entries.length - 1 && "col-span-2",
+          )}
+        >
           <div className="text-[11px] font-medium uppercase tracking-[0.04em] text-content-muted">
             {formatFieldKey(key)}
           </div>
@@ -896,7 +1117,7 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
             e.stopPropagation();
             onClose();
           }}
-          className="ui-focus grid h-8 w-8 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
+          className="touch-target ui-focus grid h-8 w-8 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
           aria-label="Close detail"
         >
           <X size={15} />

@@ -88,7 +88,7 @@ export function HistoryTab({ onSelectThread }: HistoryTabProps) {
                   {thread.tags.map(tag => (
                     <span
                       key={tag}
-                      className="px-2 py-0.5 bg-brand-soft text-[rgb(var(--ui-brand-ink))] text-[10px] rounded-full"
+                      className="px-2 py-0.5 bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))] text-[10px] rounded-full"
                     >
                       {tag}
                     </span>

@@ -61,10 +61,10 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
         {threads.length === 0 ? (
           <div className="p-4 space-y-6">
             <div className="flex flex-col items-center text-center pt-8 pb-1">
-              <div className="w-12 h-12 rounded-ui-lg bg-brand-soft grid place-items-center mb-4">
-                <Sparkles className="w-[22px] h-[22px] text-[rgb(var(--ui-brand-ink))]" />
+              <div className="w-12 h-12 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
+                <Sparkles className="w-[22px] h-[22px] text-[rgb(var(--ui-accent-ink))]" />
               </div>
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-brand-ink))] mb-2">AI Assistant</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))] mb-2">AI Assistant</span>
               <h2 className="font-editorial font-bold text-[26px] text-content leading-[1.05] tracking-[-0.025em]">Ask anything about your finances</h2>
               <p className="text-[14px] font-medium text-content-muted mt-2.5">I can analyze your accounts, spending, and plans.</p>
             </div>
@@ -114,7 +114,14 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDeleteThread(index); }}
-                  className="flex-shrink-0 p-2 mt-2.5 mr-1.5 rounded-ui-sm opacity-0 group-hover:opacity-100 hover:bg-negative-soft hover:text-negative text-content-muted transition-all"
+                  className={cn(
+                    'flex-shrink-0 grid place-items-center rounded-ui-sm hover:bg-negative-soft hover:text-negative text-content-muted transition-all',
+                    // Touch has no hover, so on mobile the delete affordance must
+                    // be persistently visible and a full 44px tap target.
+                    isMobile
+                      ? 'w-11 h-11 mt-1.5 mr-1 opacity-100'
+                      : 'w-[30px] h-[30px] mt-2.5 mr-1.5 opacity-0 group-hover:opacity-100'
+                  )}
                   aria-label="Delete conversation"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -156,7 +163,11 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
               placeholder="Ask anything…"
               aria-label="Message Lasagna"
               rows={1}
-              className="flex-1 min-w-0 bg-transparent text-content text-[15px] placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto py-2"
+              className={cn(
+                'flex-1 min-w-0 bg-transparent text-content placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto py-2',
+                // ≥16px on mobile so iOS doesn't auto-zoom the viewport on focus.
+                isMobile ? 'text-[16px]' : 'text-[15px]'
+              )}
               style={{ maxHeight: 80 }}
             />
             <button

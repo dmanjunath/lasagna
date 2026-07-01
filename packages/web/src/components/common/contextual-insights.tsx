@@ -33,7 +33,7 @@ export function ContextualInsights({
         </span>
         <span className="text-xs text-text-muted">({shown.length})</span>
       </div>
-      <div className="bg-bg-elevated border border-border rounded-xl px-4">
+      <div className="flex flex-col gap-3.5">
         {shown.map((insight) => (
           <ActionItem
             key={insight.id}

@@ -25,7 +25,7 @@ export function MobileTabBar() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md border-t border-line md:hidden pb-[env(safe-area-inset-bottom)]"
+      className="fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md border-t border-line md:hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]"
       style={{ background: 'rgb(var(--ui-canvas) / 0.92)' }}
     >
       <div className="flex items-stretch px-1.5 pt-1.5">

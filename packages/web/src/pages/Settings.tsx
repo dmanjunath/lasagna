@@ -366,7 +366,7 @@ function SettingsCard({ eyebrow, icon, title, summary, rows, loading, editable, 
           !editable && "cursor-default",
         )}
       >
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-brand-soft text-brand">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
           {icon}
         </span>
         <span className="min-w-0 flex-1">
@@ -438,7 +438,7 @@ function NavCard({
         onClick={onClick}
         className="flex min-h-touch w-full items-center gap-3.5 px-5 py-4 text-left sm:px-6"
       >
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-brand-soft text-brand">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
           {icon}
         </span>
         <span className="min-w-0 flex-1">
@@ -537,7 +537,7 @@ function PlanCard() {
   return (
     <Surface pad="none" className="overflow-hidden">
       <div className="flex items-center gap-3.5 px-5 py-4 sm:px-6">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-brand-soft text-brand">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
           <Sparkles className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
@@ -587,8 +587,8 @@ function PlanCard() {
                 <p className="mb-2.5 text-[13px] font-bold text-content">Free</p>
                 <FeatureList features={FREE_FEATURES} />
               </div>
-              <div className="rounded-ui-md border border-transparent bg-brand-soft p-4">
-                <p className="mb-2.5 text-[13px] font-bold text-[rgb(var(--ui-brand-ink))]">Pro · $11.99/mo</p>
+              <div className="rounded-ui-md border border-transparent bg-[var(--ui-accent-soft)] p-4">
+                <p className="mb-2.5 text-[13px] font-bold text-[rgb(var(--ui-accent-ink))]">Pro · $11.99/mo</p>
                 <FeatureList features={PRO_FEATURES} />
               </div>
             </div>

@@ -672,7 +672,7 @@ export function FinancialLevel() {
       {/* ════════ Header ════════ */}
       <header className="animate-fade-in">
         <span className="inline-flex items-center gap-2.5 mb-3">
-          <span className="w-[7px] h-[7px] rounded-full bg-brand" style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }} />
+          <span className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]" style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }} />
           <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Your climb</span>
         </span>
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
@@ -808,7 +808,7 @@ export function FinancialLevel() {
           {/* section header */}
           <div className="mt-10 flex items-center gap-3 flex-wrap">
             <span className="inline-flex items-center gap-2.5">
-              <span className="w-[7px] h-[7px] rounded-full bg-brand" style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }} />
+              <span className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]" style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }} />
               <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">The {steps.length} levels</span>
             </span>
             <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />

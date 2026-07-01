@@ -54,7 +54,7 @@ export function Shell({ children }: ShellProps) {
   }, [chatOpen, isMobile]);
 
   return (
-    <div className="h-dvh w-screen overflow-hidden bg-canvas app-wash flex flex-col">
+    <div className="h-dvh w-full max-w-full overflow-hidden bg-canvas app-wash flex flex-col">
       {/* Shared top bar — same component the Simple shell uses, so the
           Simple/Advanced toggle and overall chrome are consistent across
           modes. Hidden when the mobile chat overlay is up. */}
@@ -84,7 +84,7 @@ export function Shell({ children }: ShellProps) {
         /* Mobile: main content + chat overlay */
         <div className="flex-1 flex overflow-hidden relative">
           {/* Main content — always rendered. pt offset = notch + 44px header. */}
-          <main className={`w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] ${hideTabBarForThread ? 'pb-[env(safe-area-inset-bottom)]' : 'pb-[calc(env(safe-area-inset-bottom)+56px)]'}`}>
+          <main className={`w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] ${hideTabBarForThread ? 'pb-safe-bottom' : 'pb-[calc(env(safe-area-inset-bottom)+68px)]'}`}>
             <div className="flex-1 overflow-y-auto">
               {children}
             </div>
@@ -104,7 +104,7 @@ export function Shell({ children }: ShellProps) {
               >
                 {/* Header */}
                 <div className="flex items-center gap-2 px-3 py-3 border-b border-line flex-shrink-0
-                               safe-top-safe-top">
+                               pt-[calc(env(safe-area-inset-top)+0.75rem)]">
                   <button
                     onClick={() => closeChat()}
                     className="grid place-items-center rounded-ui-md text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors
@@ -113,15 +113,15 @@ export function Shell({ children }: ShellProps) {
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
-                  <div className="w-6 h-6 rounded-full bg-brand-soft grid place-items-center">
-                    <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-brand-ink))]" />
+                  <div className="w-6 h-6 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center">
+                    <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
                   </div>
                   <span className="text-sm font-semibold text-content">Assistant</span>
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 flex flex-col overflow-hidden min-h-0
-                                safe-bottom-safe-bottom">
+                                pb-safe-bottom">
                   <ChatTabs />
                 </div>
               </motion.div>
@@ -149,8 +149,8 @@ export function Shell({ children }: ShellProps) {
             <aside className="w-[340px] flex-shrink-0 border-l border-line flex flex-col overflow-hidden bg-canvas">
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-line flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-brand-soft grid place-items-center">
-                    <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-brand-ink))]" />
+                  <div className="w-6 h-6 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center">
+                    <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
                   </div>
                   <span className="text-sm font-semibold text-content">Assistant</span>
                 </div>

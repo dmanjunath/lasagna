@@ -79,7 +79,7 @@ export function NewPlanPage() {
                   {creating ? (
                     <Loader2 className="w-5 h-5 text-brand animate-spin" />
                   ) : (
-                    <pt.icon className="w-5 h-5 text-brand" />
+                    <pt.icon className="w-5 h-5 text-[rgb(var(--ui-accent-ink))]" />
                   )}
                 </div>
                 <div>

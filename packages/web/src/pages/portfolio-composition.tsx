@@ -88,13 +88,6 @@ function cleanAccountLabel(raw: string): string {
   return first.replace(/[\s-]*\d{5,}(?:[-_]\d+)*$/, '').trim() || first;
 }
 
-// Abbreviate verbose asset-class labels for the composition bar.
-function abbreviateClassLabel(name: string): string {
-  return name
-    .replace(/^INTERNATIONAL\s+STOCKS$/i, "INT'L STOCKS")
-    .replace(/^INTERNATIONAL\s+/i, "INT'L ");
-}
-
 // Sentence-case group-by labels — shared by the segmented control + breadcrumb.
 function labelFor(g: GroupBy): string {
   return g === 'assetClass' ? 'Asset class'
@@ -103,147 +96,152 @@ function labelFor(g: GroupBy): string {
     : 'Account';
 }
 
+// Percent formatter for the breakdown — never renders "0.0%" noise; anything
+// below a tenth of a percent reads "<0.1%" so tiny slivers stay honest.
+function fmtPct(p: number): string {
+  if (p <= 0) return '0%';
+  if (p < 0.1) return '<0.1%';
+  return `${p.toFixed(1)}%`;
+}
+
 // ---------------------------------------------------------------------------
-// SVG Donut chart — native SVG, no external lib
+// Allocation slice — one bucket in whatever grouping is active
 // ---------------------------------------------------------------------------
 
 interface DonutSlice { name: string; value: number; pct: number; color: string }
 
-function PortfolioDonut({
+// ---------------------------------------------------------------------------
+// Full-width allocation bar — the single at-a-glance chart. Segments grow to
+// their value, wide ones carry an inline label, and hovering one dims the rest
+// and echoes into the breakdown below. Click drills (when not already drilled).
+// ---------------------------------------------------------------------------
+
+function AllocationBar({
   slices,
-  total,
+  hovered,
+  onHover,
   onSliceClick,
 }: {
   slices: DonutSlice[];
-  total: number;
+  hovered: string | null;
+  onHover: (name: string | null) => void;
   onSliceClick?: (name: string) => void;
 }) {
-  const [hovered, setHovered] = useState<number | null>(null);
-  const r = 78;
-  const R = 116;
-  const cx = 140;
-  const cy = 140;
-
-  let a0 = -Math.PI / 2;
-  const paths: { d: string; color: string; name: string; pct: number; value: number }[] = [];
-
-  for (const s of slices) {
-    if (s.pct <= 0) continue;
-    const angle = (s.pct / 100) * 2 * Math.PI;
-    const a1 = a0 + angle;
-    const large = angle > Math.PI ? 1 : 0;
-
-    const x1o = cx + R * Math.cos(a0);
-    const y1o = cy + R * Math.sin(a0);
-    const x2o = cx + R * Math.cos(a1);
-    const y2o = cy + R * Math.sin(a1);
-
-    const x1i = cx + r * Math.cos(a1);
-    const y1i = cy + r * Math.sin(a1);
-    const x2i = cx + r * Math.cos(a0);
-    const y2i = cy + r * Math.sin(a0);
-
-    const d = [
-      `M ${x1o} ${y1o}`,
-      `A ${R} ${R} 0 ${large} 1 ${x2o} ${y2o}`,
-      `L ${x1i} ${y1i}`,
-      `A ${r} ${r} 0 ${large} 0 ${x2i} ${y2i}`,
-      'Z',
-    ].join(' ');
-
-    paths.push({ d, color: s.color, name: s.name, pct: s.pct, value: s.value });
-    a0 = a1;
-  }
-
-  const hp = hovered !== null ? paths[hovered] : null;
-  const editorial = "'Bricolage Grotesque', system-ui, sans-serif";
-  const body = "'Plus Jakarta Sans', system-ui, sans-serif";
+  const segs = slices.filter((s) => s.value > 0 && s.pct > 0);
+  const sum = segs.reduce((s, x) => s + x.value, 0) || 1;
+  if (segs.length === 0) return null;
 
   return (
-    <svg width={280} height={280} viewBox="0 0 280 280" style={{ flexShrink: 0, cursor: 'pointer' }}>
-      {paths.map((p, i) => (
-        <path
-          key={i}
-          d={p.d}
-          fill={p.color}
-          stroke="rgb(var(--ui-panel))"
-          strokeWidth={2}
-          opacity={hovered === null ? 1 : hovered === i ? 1 : 0.42}
-          style={{ transition: 'opacity 0.15s' }}
-          onMouseEnter={() => setHovered(i)}
-          onMouseLeave={() => setHovered(null)}
-          onTouchStart={() => setHovered(hovered === i ? null : i)}
-          onClick={() => onSliceClick?.(p.name)}
-        />
-      ))}
-      {/* Center text — shows hover info or total */}
-      {hp ? (
-        <>
-          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: body, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fill: 'rgb(var(--ui-content-muted))' }}>
-            {hp.name}
-          </text>
-          <text x={cx} y={cy + 6} textAnchor="middle" style={{ fontFamily: editorial, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontSize: 24, fill: 'rgb(var(--ui-content))' }}>
-            {formatMoney(hp.value, true)}
-          </text>
-          <text x={cx} y={cy + 24} textAnchor="middle" style={{ fontFamily: body, fontSize: 11.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', fill: hp.color }}>
-            {hp.pct.toFixed(1)}%
-          </text>
-        </>
-      ) : (
-        <>
-          <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontFamily: editorial, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em', fontSize: 28, fill: 'rgb(var(--ui-content))' }}>
-            {formatMoney(total, true)}
-          </text>
-          <text x={cx} y={cy + 18} textAnchor="middle" style={{ fontFamily: body, fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', fill: 'rgb(var(--ui-content-muted))' }}>
-            Total
-          </text>
-        </>
-      )}
-    </svg>
+    <div
+      className="flex h-[56px] gap-[3px] overflow-hidden rounded-[14px]"
+      style={{ boxShadow: 'var(--ui-shadow-sm), inset 0 1.5px 0 rgba(255,255,255,0.28)' }}
+      role="img"
+      aria-label="Allocation breakdown bar"
+    >
+      {segs.map((s, i) => {
+        const pct = (s.value / sum) * 100;
+        const wide = pct >= 8;
+        const active = hovered === null || hovered === s.name;
+        return (
+          <button
+            key={`${s.name}-${i}`}
+            type="button"
+            onClick={() => onSliceClick?.(s.name)}
+            onMouseEnter={() => onHover(s.name)}
+            onMouseLeave={() => onHover(null)}
+            className="relative flex h-full items-center px-3 transition-opacity duration-150"
+            style={{
+              flexGrow: s.value,
+              minWidth: 5,
+              background: s.color,
+              backgroundImage:
+                'linear-gradient(170deg, rgba(255,255,255,0.30), rgba(255,255,255,0) 52%, rgba(0,0,0,0.10))',
+              borderRadius:
+                i === 0 ? '11px 4px 4px 11px' : i === segs.length - 1 ? '4px 11px 11px 4px' : '4px',
+              opacity: active ? 1 : 0.38,
+              cursor: onSliceClick ? 'pointer' : 'default',
+            }}
+            title={`${s.name} · ${pct.toFixed(1)}% · ${formatMoney(s.value, true)}`}
+          >
+            {wide && (
+              <span
+                className="truncate text-[12.5px] font-extrabold text-white"
+                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.30)' }}
+              >
+                {s.name} · {pct.toFixed(0)}%
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Composition bar — stacked ribbon of asset-class buckets + legend
+// Two-column breakdown — the legible legend. Each row spells out swatch · name
+// · value · %, side-by-side across two columns on desktop, one on mobile.
 // ---------------------------------------------------------------------------
 
-interface CompSegment { label: string; value: number; color: string }
+function AllocationBreakdown({
+  slices,
+  activeName,
+  hovered,
+  onHover,
+  onSliceClick,
+}: {
+  slices: DonutSlice[];
+  activeName: string | null;
+  hovered: string | null;
+  onHover: (name: string | null) => void;
+  onSliceClick: (name: string) => void;
+}) {
+  const rows = slices.filter((s) => s.value > 0 && s.pct > 0);
+  const CAP = 24;
+  const shown = rows.slice(0, CAP);
+  const rest = rows.length - shown.length;
 
-function CompositionBar({ segments, total }: { segments: CompSegment[]; total: number }) {
-  const sum = total || segments.reduce((s, x) => s + x.value, 0) || 1;
   return (
-    <Surface pad="md">
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-canvas-sunken">
-        {segments.map((seg, i) => {
-          const pct = (seg.value / sum) * 100;
-          if (pct <= 0) return null;
+    <div>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-2 sm:gap-x-10">
+        {shown.map((s, i) => {
+          const isActive = activeName === s.name;
+          const isHover = hovered === s.name;
           return (
-            <span
-              key={`${seg.label}-${i}`}
-              title={`${seg.label} · ${pct.toFixed(1)}%`}
-              className="h-full first:rounded-l-full last:rounded-r-full"
-              style={{ width: `${pct}%`, background: seg.color, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.15)' }}
-            />
+            <button
+              key={`${s.name}-${i}`}
+              type="button"
+              onClick={() => onSliceClick(s.name)}
+              onMouseEnter={() => onHover(s.name)}
+              onMouseLeave={() => onHover(null)}
+              className={cn(
+                'ui-focus flex min-h-touch items-center gap-3 rounded-ui-sm px-2.5 py-2 text-left transition-colors',
+                isActive ? 'bg-brand-soft' : isHover ? 'bg-brand-softer' : 'hover:bg-brand-softer',
+              )}
+            >
+              <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: s.color }} aria-hidden />
+              <span
+                className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content"
+                title={s.name}
+              >
+                {s.name}
+              </span>
+              <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
+                <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content">
+                  {formatMoney(s.value, true)}
+                </span>
+                <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{fmtPct(s.pct)}</span>
+              </span>
+            </button>
           );
         })}
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-        {segments.map((seg, i) => {
-          const pct = (seg.value / sum) * 100;
-          return (
-            <div key={`${seg.label}-legend-${i}`} className="flex items-center gap-2.5 min-w-0">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: seg.color }} aria-hidden />
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-content" title={seg.label}>
-                {seg.label}
-              </span>
-              <span className="shrink-0 text-[12.5px] font-semibold text-content-muted ui-tnum">
-                {pct.toFixed(1)}%
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </Surface>
+      {rest > 0 && (
+        <div className="mt-2 px-2.5 text-[12px] font-medium text-content-muted">
+          +{rest} smaller {rest === 1 ? 'position' : 'positions'} in the bar
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -414,6 +412,8 @@ export default function PortfolioComposition() {
   // ── UI state ──
   const [groupBy, setGroupBy] = useState<GroupBy>('assetClass');
   const [drillLevel1, setDrillLevel1] = useState<string | null>(null);
+  // Shared hover — links a bar segment to its breakdown row and back.
+  const [hoveredSlice, setHoveredSlice] = useState<string | null>(null);
   // Account filter: set of account names to SHOW (null = show all)
   const [activeAccounts, setActiveAccounts] = useState<Set<string> | null>(null);
 
@@ -730,29 +730,34 @@ export default function PortfolioComposition() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
         <Skeleton className="h-9 w-40" />
         <Skeleton className="mt-3 h-4 w-64" />
-        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
-          <Skeleton className="h-3 w-full rounded-full" />
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-4 w-full" />)}
+        {/* Allocation hero */}
+        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="mt-3 h-10 w-52" />
+              <Skeleton className="mt-3 h-4 w-64" />
+            </div>
+            <Skeleton className="h-9 w-64 rounded-ui-md" />
+          </div>
+          <Skeleton className="mt-6 h-[56px] w-full rounded-[14px]" />
+          <div className="mt-5 grid grid-cols-1 gap-x-10 gap-y-1 sm:grid-cols-2">
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex items-center gap-3 py-2">
+                <Skeleton className="h-3 w-3 rounded-[4px]" />
+                <Skeleton className="h-3.5 flex-1" />
+                <Skeleton className="h-3.5 w-16" />
+              </div>
+            ))}
           </div>
         </div>
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="mt-3 h-7 w-24" />
-            </div>
-          ))}
-        </div>
-        <div className="mt-8 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
-          <div className="flex justify-center"><Skeleton className="h-[240px] w-[240px] rounded-full" /></div>
-        </div>
-        <div className="mt-8 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+        {/* Holdings — two columns */}
+        <div className="mt-10 grid grid-cols-1 gap-3 lg:grid-cols-2">
           {[0, 1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="flex items-center gap-3.5 border-t border-line px-5 py-3.5 first:border-t-0">
+            <div key={i} className="flex items-center gap-3.5 rounded-ui-lg border border-line bg-panel shadow-ui-sm px-4 py-3">
               <Skeleton className="h-9 w-9 rounded-ui-md" />
               <div className="flex-1"><Skeleton className="h-3.5 w-24" /><Skeleton className="mt-2 h-3 w-40" /></div>
               <Skeleton className="h-4 w-20" />
@@ -773,22 +778,36 @@ export default function PortfolioComposition() {
     }));
 
     return (
-      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
         <PageHead
           subtitle={`${formatMoney(accountTotal, true)} · ${accountAllocation.length} account${accountAllocation.length === 1 ? '' : 's'} · no holdings yet`}
         />
 
-        <section className="mt-7 space-y-4">
-          <h2 className="text-[18px] font-semibold text-content">Asset allocation</h2>
-          <Surface pad="lg">
-            <AllocationGrid>
-              <PortfolioDonut slices={acctSlices} total={accountTotal} />
-              <div className="grid grid-cols-1 gap-2.5 min-w-0 sm:grid-cols-2 md:grid-cols-1">
-                {accountAllocation.map(acct => (
-                  <LegendRow key={acct.name} color={acct.color} name={acct.name} pct={acct.percentage} value={acct.value} />
-                ))}
+        <section className="mt-6">
+          <Surface pad="lg" className="relative overflow-hidden">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{ background: 'radial-gradient(90% 80% at 0% 0%, var(--ui-accent-softer), transparent 60%)' }}
+            />
+            <div className="relative">
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-content-muted">Allocation by account</div>
+              <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
+                {formatMoney(accountTotal, true)}
               </div>
-            </AllocationGrid>
+              <div className="mt-5">
+                <AllocationBar slices={acctSlices} hovered={hoveredSlice} onHover={setHoveredSlice} />
+              </div>
+              <div className="mt-5">
+                <AllocationBreakdown
+                  slices={acctSlices}
+                  activeName={null}
+                  hovered={hoveredSlice}
+                  onHover={setHoveredSlice}
+                  onSliceClick={() => {}}
+                />
+              </div>
+            </div>
           </Surface>
         </section>
 
@@ -814,7 +833,7 @@ export default function PortfolioComposition() {
 
   if (assetClasses.length === 0) {
     return (
-      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
         <PageHead subtitle="No accounts linked" />
         <div className="mt-8">
           <EmptyState
@@ -836,198 +855,174 @@ export default function PortfolioComposition() {
   // Main render — full holdings view
   // ---------------------------------------------------------------------------
 
-  // ── Composition bar: enumerate every asset class. If the backend returned a
-  // class literally named "Other", drill in and replace it with its constituent
-  // holdings so the bar never shows the word "Other".
-  const ribbonSegments: CompSegment[] = [...filteredAssetClasses]
-    .sort((a, b) => b.value - a.value)
-    .flatMap<CompSegment>((ac, i) => {
-      if (/^other$/i.test(ac.name.trim())) {
-        const holdings = (ac.categories ?? [])
-          .flatMap((sc) => sc.holdings)
-          .filter((h) => h.value > 0)
-          .sort((a, b) => b.value - a.value);
-        if (holdings.length > 0) {
-          return holdings.map((h, j) => ({
-            label: holdingLabel(h),
-            value: h.value,
-            color: FALLBACK_COLORS[(i + j) % FALLBACK_COLORS.length],
-          }));
-        }
-      }
-      return [{
-        label: abbreviateClassLabel(ac.name),
-        value: ac.value,
-        color: colorForAssetClass(ac.name, i),
-      }];
-    });
-
   const biggestHolding = holdingsByTicker[0];
-
-  const subtitle = (
-    <>
-      {formatMoney(filteredTotal, true)} · {positionCount} position{positionCount !== 1 ? 's' : ''} · {accountCount} account{accountCount !== 1 ? 's' : ''}
-      {blendedReturn !== null && (
-        <>
-          {'  ·  '}
-          <span className={cn('font-semibold', blendedReturn >= 0 ? 'text-positive' : 'text-negative')}>
-            {blendedReturn >= 0 ? '+' : '−'}{Math.abs(blendedReturn).toFixed(1)}% blended return
-          </span>
-        </>
-      )}
-    </>
-  );
+  const groupTotal = drillLevel1 ? chartSlices.reduce((s, sl) => s + sl.value, 0) : filteredTotal;
 
   return (
-    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
-      <PageHead subtitle={subtitle} />
+    <div
+      className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content"
+      onMouseLeave={() => setHoveredSlice(null)}
+    >
+      <PageHead subtitle="What you're invested in, and how it's allocated." />
 
-      {/* Composition bar */}
-      {ribbonSegments.length > 0 && (
-        <div className="mt-6">
-          <CompositionBar segments={ribbonSegments} total={filteredTotal} />
-        </div>
-      )}
-
-      {/* KPI strip */}
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Total value" value={formatMoney(filteredTotal, true)} />
-        <KpiCard
-          label="Blended return"
-          value={blendedReturn !== null ? `${blendedReturn >= 0 ? '+' : '−'}${Math.abs(blendedReturn).toFixed(1)}%` : '—'}
-          valueClass={blendedReturn !== null ? (blendedReturn >= 0 ? 'text-positive' : 'text-negative') : undefined}
-          sub={blendedReturn !== null ? 'per year' : 'unavailable'}
-        />
-        <KpiCard label="Positions" value={String(positionCount)} sub={`${accountCount} account${accountCount === 1 ? '' : 's'}`} />
-        {biggestHolding && (
-          <KpiCard
-            label="Largest holding"
-            value={biggestHolding.ticker}
-            sub={`${biggestHolding.percentage.toFixed(1)}% · ${formatMoney(biggestHolding.totalValue, true)}`}
+      {/* ════════ ALLOCATION HERO — one full-width chart + a legible breakdown ════════ */}
+      <section className="mt-6">
+        <Surface pad="lg" className="relative overflow-hidden">
+          {/* atmospheric wash — matches the primary-nav hero cards */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+                'radial-gradient(90% 70% at 0% 4%, var(--ui-accent-softer), transparent 60%)',
+            }}
           />
-        )}
-      </div>
+          <div className="relative">
+            {/* Header — value + return + stats · group-by control */}
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-content-muted">Portfolio value</div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <span className="font-editorial text-[34px] sm:text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
+                    {formatMoney(filteredTotal, true)}
+                  </span>
+                  {blendedReturn !== null && (
+                    <span
+                      className="inline-flex items-center gap-1 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
+                      style={{
+                        background: blendedReturn >= 0 ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
+                        color: blendedReturn >= 0 ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
+                      }}
+                    >
+                      {blendedReturn >= 0 ? '+' : '−'}{Math.abs(blendedReturn).toFixed(1)}%
+                      <span className="font-semibold opacity-70">/ yr</span>
+                    </span>
+                  )}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-medium text-content-muted ui-tnum">
+                  <span><span className="font-bold text-content">{positionCount}</span> position{positionCount === 1 ? '' : 's'}</span>
+                  <span className="text-content-faint">·</span>
+                  <span><span className="font-bold text-content">{accountCount}</span> account{accountCount === 1 ? '' : 's'}</span>
+                  {biggestHolding && (
+                    <>
+                      <span className="text-content-faint">·</span>
+                      <span>Largest <span className="font-bold text-content">{biggestHolding.ticker}</span> {biggestHolding.percentage.toFixed(1)}%</span>
+                    </>
+                  )}
+                </div>
+              </div>
 
-      {/* ── Insights (preserved) ── */}
-      <div className="mt-10">
-        <PageActions types="portfolio" />
-      </div>
+              <div className="flex flex-col items-start gap-2 lg:items-end">
+                <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Group by</span>
+                <SegmentedControl
+                  aria-label="Group allocation by"
+                  value={groupBy}
+                  onChange={(g) => handleGroupByChange(g as GroupBy)}
+                  size="sm"
+                  options={[
+                    { value: 'assetClass', label: 'Class' },
+                    { value: 'category', label: 'Category' },
+                    { value: 'holding', label: 'Holding' },
+                    { value: 'account', label: 'Account' },
+                  ]}
+                />
+              </div>
+            </div>
 
-      {/* ── Asset allocation chart ── */}
-      <section className="mt-10">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-[18px] font-semibold text-content">Asset allocation</h2>
-            {drillLevel1 && (
-              <div className="mt-1 flex items-center gap-1.5 text-[13px]">
-                <button
-                  type="button"
-                  onClick={() => setDrillLevel1(null)}
-                  className="ui-focus rounded-ui-sm font-semibold text-content-muted underline underline-offset-2 hover:text-brand"
-                >
-                  {labelFor(groupBy)}
-                </button>
-                <ChevronRight size={13} className="text-content-faint" />
-                <span className="font-semibold text-content">{drillLevel1}</span>
+            {/* Filter + drill breadcrumb */}
+            {(allAccounts.length > 1 || drillLevel1) && (
+              <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2.5">
+                {allAccounts.length > 1 && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted">Account</span>
+                    <AccountFilterDropdown
+                      accounts={allAccounts}
+                      activeAccounts={activeAccounts}
+                      accountTypeMap={accountTypeMap}
+                      onToggle={toggleAccount}
+                      onSelectAll={selectAllAccounts}
+                    />
+                  </div>
+                )}
+                {drillLevel1 && (
+                  <div className="flex items-center gap-1.5 text-[13px]">
+                    <button
+                      type="button"
+                      onClick={() => setDrillLevel1(null)}
+                      className="ui-focus rounded-ui-sm font-semibold text-content-muted underline underline-offset-2 hover:text-brand"
+                    >
+                      {labelFor(groupBy)}
+                    </button>
+                    <ChevronRight size={13} className="text-content-faint" />
+                    <span className="font-bold text-content">{drillLevel1}</span>
+                    <span className="ml-1 font-semibold text-content-muted ui-tnum">{formatMoney(groupTotal, true)}</span>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-          <SegmentedControl
-            aria-label="Group allocation by"
-            value={groupBy}
-            onChange={(g) => handleGroupByChange(g as GroupBy)}
-            size="sm"
-            options={[
-              { value: 'assetClass', label: 'Class' },
-              { value: 'category', label: 'Category' },
-              { value: 'holding', label: 'Holding' },
-              { value: 'account', label: 'Account' },
-            ]}
-          />
-        </div>
 
-        {/* Account filter row */}
-        {allAccounts.length > 1 && (
-          <div className="mt-4 flex flex-wrap items-center gap-2.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted">Account</span>
-            <AccountFilterDropdown
-              accounts={allAccounts}
-              activeAccounts={activeAccounts}
-              accountTypeMap={accountTypeMap}
-              onToggle={toggleAccount}
-              onSelectAll={selectAllAccounts}
-            />
-          </div>
-        )}
-
-        <Surface pad="lg" className="mt-4">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`${groupBy}-${drillLevel1}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
-            >
-              <AllocationGrid>
-                <PortfolioDonut
-                  slices={chartSlices}
-                  total={drillLevel1
-                    ? chartSlices.reduce((s, sl) => s + sl.value, 0)
-                    : filteredTotal}
-                  onSliceClick={handleSliceClick}
-                />
-                <div className="grid grid-cols-1 gap-1.5 min-w-0 sm:grid-cols-2 md:grid-cols-1">
-                  {chartSlices.slice(0, 10).map(sl => {
-                    const isActive = drillLevel1 === sl.name;
-                    return (
-                      <button
-                        key={sl.name}
-                        type="button"
-                        onClick={() => handleSliceClick(sl.name)}
-                        className={cn(
-                          'ui-focus flex min-h-touch items-center gap-2.5 rounded-ui-sm px-2 py-1.5 text-left transition-colors hover:bg-brand-softer',
-                          isActive && 'bg-brand-soft',
-                        )}
-                      >
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: sl.color }} aria-hidden />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13px] font-semibold text-content" title={sl.name}>{sl.name}</div>
-                          <div className="text-[12px] font-medium text-content-muted ui-tnum">
-                            {sl.pct.toFixed(1)}% · {formatMoney(sl.value, true)}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+            {/* The one chart + its two-column breakdown */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${groupBy}-${drillLevel1}`}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+              >
+                <div className="mt-5">
+                  <AllocationBar
+                    slices={chartSlices}
+                    hovered={hoveredSlice}
+                    onHover={setHoveredSlice}
+                    onSliceClick={handleSliceClick}
+                  />
                 </div>
-              </AllocationGrid>
-            </motion.div>
-          </AnimatePresence>
+                <div className="mt-5">
+                  <AllocationBreakdown
+                    slices={chartSlices}
+                    activeName={drillLevel1}
+                    hovered={hoveredSlice}
+                    onHover={setHoveredSlice}
+                    onSliceClick={handleSliceClick}
+                  />
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </Surface>
       </section>
 
-      {/* ── Holdings ── */}
+      {/* ── Insights (preserved) ── */}
+      <div className="mt-8">
+        <PageActions types="portfolio" />
+      </div>
+
+      {/* ── Holdings — the position ledger, two columns on desktop ── */}
       <section className="mt-10">
         <div className="flex items-end justify-between gap-4 pb-1">
-          <h2 className="text-[18px] font-semibold text-content">Holdings</h2>
+          <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Holdings</h2>
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted">
             {holdingsByTicker.length} position{holdingsByTicker.length === 1 ? '' : 's'}
           </span>
         </div>
-        <div className="mt-3 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-          {holdingsByTicker.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[13px] text-content-muted">
-              No holdings match the current filter.
-            </div>
-          ) : (
-            holdingsByTicker.map((h) => {
+        {holdingsByTicker.length === 0 ? (
+          <div className="mt-3 rounded-ui-xl border border-line bg-panel px-4 py-8 text-center text-[13px] text-content-muted shadow-ui-sm">
+            No holdings match the current filter.
+          </div>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {holdingsByTicker.map((h) => {
               const isOther = /^other$/i.test(h.assetClass.trim());
               const classLabel = isOther && h.category ? h.category : h.assetClass;
               const account = cleanAccountLabel(h.accountLabel);
               const meta = `${classLabel}${account ? ` · ${account}` : ''}`;
               return (
-                <div key={h.ticker} className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
+                <div
+                  key={h.ticker}
+                  className="flex items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3 shadow-ui-sm transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md sm:px-5"
+                >
                   <TickerIcon ticker={h.ticker} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[14.5px] font-bold leading-tight ui-tnum" title={h.ticker}>{h.ticker}</div>
@@ -1051,9 +1046,9 @@ export default function PortfolioComposition() {
                   </div>
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </section>
     </div>
   );
@@ -1074,45 +1069,3 @@ function PageHead({ subtitle }: { subtitle: React.ReactNode }) {
   );
 }
 
-function KpiCard({
-  label, value, sub, valueClass,
-}: {
-  label: string; value: string; sub?: string; valueClass?: string;
-}) {
-  return (
-    <div className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
-      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{label}</div>
-      <div className={cn('mt-1.5 font-editorial text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum', valueClass)}>
-        {value}
-      </div>
-      {sub && <div className="mt-1.5 text-[11.5px] font-medium text-content-muted ui-tnum">{sub}</div>}
-    </div>
-  );
-}
-
-function AllocationGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[280px_minmax(0,1fr)] md:gap-10">
-      <div className="flex min-w-0 justify-center">{Array.isArray(children) ? children[0] : children}</div>
-      {Array.isArray(children) && children[1]}
-    </div>
-  );
-}
-
-function LegendRow({
-  color, name, pct, value,
-}: {
-  color: string; name: string; pct: number; value: number;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 min-w-0">
-      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold text-content" title={name}>{name}</div>
-        <div className="text-[12px] font-medium text-content-muted ui-tnum">
-          {pct.toFixed(1)}% · {formatMoney(value, true)}
-        </div>
-      </div>
-    </div>
-  );
-}

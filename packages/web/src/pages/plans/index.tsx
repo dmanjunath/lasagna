@@ -184,7 +184,7 @@ export function PlansPage() {
                   </button>
                 )}
                 <div className="flex items-start justify-between mb-3">
-                  <span className="text-xs px-2 py-1 rounded-full bg-brand-soft text-brand">
+                  <span className="text-xs px-2 py-1 rounded-full bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
                     {planTypeLabels[plan.type]}
                   </span>
                   <span className="text-xs text-content-secondary capitalize">

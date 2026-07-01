@@ -169,6 +169,13 @@ export function SimpleMoney() {
   const hasChart = chartPoints.length >= 2;
   const hoveredPoint = hasChart && chartHoverIdx !== null ? chartPoints[chartHoverIdx] : null;
   const displayValue = hoveredPoint ? hoveredPoint.value : netWorth;
+  // Change pill stays visible while hovering and always reads the diff from the
+  // START of the selected period to the currently-shown value (hovered or latest).
+  const periodStart = hasChart ? chartPoints[0] : null;
+  const periodDelta = periodStart ? displayValue - periodStart.value : monthChange;
+  const periodPct = periodStart && periodStart.value !== 0
+    ? (periodDelta! / periodStart.value) * 100
+    : monthPct;
 
   return (
     <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
@@ -181,8 +188,8 @@ export function SimpleMoney() {
           <p className="mt-1.5 flex items-center gap-2 text-[14px] font-medium text-content-muted">
             {hasMoney && (
               <span
-                className="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-brand"
-                style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+                className="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
+                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
                 aria-hidden="true"
               />
             )}
@@ -273,7 +280,7 @@ export function SimpleMoney() {
             style={{
               background:
                 'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
-                'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
+                'radial-gradient(90% 70% at 0% 4%, var(--ui-accent-softer), transparent 60%)',
             }}
           />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -283,15 +290,16 @@ export function SimpleMoney() {
                 {fmtUsd(displayValue)}
               </div>
               <div className="mt-3.5 flex items-center gap-2.5 flex-wrap">
-                {hoveredPoint ? (
-                  <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
-                    {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                ) : monthChange !== null ? (
+                {periodDelta !== null ? (
                   <>
-                    <DeltaChip delta={monthChange} />
-                    <span className="text-[13px] font-medium text-content-muted">
-                      past 30 days{monthPct !== null ? ` · ${monthPct < 0 ? '−' : '+'}${Math.abs(monthPct).toFixed(1)}%` : ''}
+                    <DeltaChip delta={periodDelta} />
+                    <span className="text-[13px] font-medium text-content-muted ui-tnum">
+                      {hoveredPoint
+                        ? new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : periodStart
+                          ? `since ${new Date(periodStart.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                          : 'past 30 days'}
+                      {periodPct !== null ? ` · ${periodPct < 0 ? '−' : '+'}${Math.abs(periodPct).toFixed(1)}%` : ''}
                     </span>
                   </>
                 ) : null}
@@ -318,7 +326,7 @@ export function SimpleMoney() {
             </div>
           ) : (
             <div className="mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-10 text-center">
-              <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-brand-soft text-brand">
+              <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
                 <TrendingUp size={20} />
               </div>
               <div className="text-[15px] font-semibold">Building your trend</div>
