@@ -22,20 +22,20 @@ function ThinkingIndicator() {
 
   return (
     <div className="flex gap-3 items-start animate-fade-in">
-      <div className="w-7 h-7 rounded-full bg-accent/10 ring-1 ring-accent/15 grid place-items-center flex-shrink-0 mt-0.5">
-        <Sparkles className="w-3.5 h-3.5 text-accent" />
+      <div className="w-7 h-7 rounded-full bg-brand-soft grid place-items-center flex-shrink-0 mt-0.5">
+        <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-brand-ink))]" />
       </div>
       <div className="flex items-center gap-2.5 pt-1">
         <div className="flex items-center gap-1" aria-hidden>
           {[0, 1, 2].map((i) => (
             <span
               key={i}
-              className="w-1.5 h-1.5 rounded-full bg-accent/60 lf-thinking"
+              className="w-1.5 h-1.5 rounded-full bg-brand lf-thinking"
               style={{ animationDelay: `${i * 0.18}s` }}
             />
           ))}
         </div>
-        <span key={step} className="text-sm text-text-muted animate-fade-in">
+        <span key={step} className="text-sm text-content-muted animate-fade-in">
           {THINKING_STEPS[step]}
         </span>
       </div>
@@ -105,36 +105,38 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Header */}
-      <div className="border-b border-border flex-shrink-0">
+      <div className="border-b border-line flex-shrink-0">
         <div className={cn('flex items-center gap-2', headerPad, measure)}>
-          <button
-            onClick={onBack}
-            className={cn('rounded-lg hover:bg-surface-hover transition-colors flex-shrink-0', iconBtn)}
-            aria-label="Back to conversations"
-          >
-            <ArrowLeft className="w-4 h-4 text-text-secondary" />
-          </button>
-          <span className={cn('flex-1 font-medium text-text truncate leading-snug', isFull ? 'text-[15px]' : 'text-sm')}>
+          {!isFull && (
+            <button
+              onClick={onBack}
+              className={cn('rounded-ui-md hover:bg-canvas-sunken transition-colors flex-shrink-0', iconBtn)}
+              aria-label="Back to conversations"
+            >
+              <ArrowLeft className="w-4 h-4 text-content-secondary" />
+            </button>
+          )}
+          <span className={cn('flex-1 font-medium text-content truncate leading-snug', isFull ? 'text-[15px]' : 'text-sm')}>
             {thread.question}
           </span>
           {onNewChat && (
             <button
               onClick={onNewChat}
-              className={cn('rounded-lg hover:bg-surface-hover transition-colors flex-shrink-0', iconBtn)}
+              className={cn('rounded-ui-md hover:bg-canvas-sunken transition-colors flex-shrink-0', iconBtn)}
               aria-label="New conversation"
               title="New conversation"
             >
-              <Plus className="w-4 h-4 text-text-secondary" />
+              <Plus className="w-4 h-4 text-content-secondary" />
             </button>
           )}
           {onDelete && (
             <button
               onClick={onDelete}
-              className={cn('rounded-lg hover:bg-surface-hover hover:text-danger transition-colors flex-shrink-0', iconBtn)}
+              className={cn('rounded-ui-md hover:bg-canvas-sunken hover:text-negative transition-colors flex-shrink-0', iconBtn)}
               aria-label="Delete conversation"
               title="Delete conversation"
             >
-              <Trash2 className="w-4 h-4 text-text-secondary hover:text-danger" />
+              <Trash2 className="w-4 h-4 text-content-secondary hover:text-negative" />
             </button>
           )}
         </div>
@@ -152,9 +154,9 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
       </div>
 
       {/* Follow-up input */}
-      <form onSubmit={handleSubmit} className="border-t border-border flex-shrink-0">
+      <form onSubmit={handleSubmit} className="border-t border-line flex-shrink-0">
         <div className={cn(composerPad, measure)}>
-          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-2xl border border-border bg-surface shadow-[var(--shadow-card)] transition-all focus-within:border-accent/40 focus-within:ring-2 focus-within:ring-accent/15">
+          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-transparent transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
             <textarea
               ref={inputRef}
               value={input}
@@ -164,7 +166,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
               aria-label="Message Lasagna"
               disabled={loading}
               rows={1}
-              className="flex-1 bg-transparent text-text text-sm placeholder:text-text-muted focus:outline-none disabled:opacity-50 resize-none overflow-y-auto py-1.5"
+              className="flex-1 min-w-0 bg-transparent text-content text-[15px] placeholder:text-content-muted focus:outline-none disabled:opacity-50 resize-none overflow-y-auto py-2"
               style={{ maxHeight: 80 }}
             />
             <button
@@ -172,14 +174,14 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
               disabled={!input.trim() || loading}
               aria-label="Send message"
               className={cn(
-                "rounded-full flex items-center justify-center flex-shrink-0 transition-all",
-                isMobile ? "w-11 h-11" : "w-9 h-9",
+                "shrink-0 grid place-items-center rounded-full transition-[transform,box-shadow,background-color]",
+                isMobile ? "w-11 h-11 min-w-[44px] min-h-[44px]" : "w-10 h-10",
                 input.trim() && !loading
-                  ? "bg-accent hover:bg-accent/90 shadow-sm shadow-accent/20"
-                  : "bg-border text-text-muted cursor-not-allowed"
+                  ? "bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm"
+                  : "bg-canvas-sunken text-content-muted cursor-not-allowed"
               )}
             >
-              <Send className="w-3.5 h-3.5 text-white" />
+              <Send className="w-4 h-4" />
             </button>
           </div>
         </div>

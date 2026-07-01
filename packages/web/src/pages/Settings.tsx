@@ -1,9 +1,9 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { useBilling, startUpgrade, openPortal } from "../lib/billing";
-import { formatMoney } from "../lib/utils";
+import { formatMoney, cn } from "../lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import {
   User,
@@ -17,11 +17,16 @@ import {
   Check,
 } from "lucide-react";
 import {
-  Page,
-  Section,
   Button,
+  Surface,
   Eyebrow,
-} from "../components/ds";
+  Field,
+  Input,
+  Select,
+  Badge,
+  Alert,
+  Skeleton,
+} from "../components/uikit";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -217,43 +222,47 @@ export function Settings() {
   ];
 
   const incomeRows: ArticleRowSpec[] = [
-    { label: "Gross income", value: grossIncome, muted: grossIncome === "Not set" },
+    { label: "Gross income", value: grossIncome, muted: grossIncome === "Not set", money: true },
     { label: "Employment type", value: formatEmployment(employmentType), muted: employmentType === "Not set" },
-    { label: "Employer match", value: employerMatch, muted: employerMatch === "Not set" },
-    { label: "Retirement age", value: retirementAge, muted: retirementAge === "Not set" },
+    { label: "Employer match", value: employerMatch, muted: employerMatch === "Not set", money: true },
+    { label: "Retirement age", value: retirementAge, muted: retirementAge === "Not set", money: true },
   ];
 
-  // Iter 7 A: ds-page-bar replaces the editorial PageHeader + Lede so
-  // /profile lives inside the same chrome as the rest of the product.
   const captionBits: string[] = [];
   if (email) captionBits.push(email);
   if (state !== "Not set") captionBits.push(state);
   if (age !== "Not set") captionBits.push(`age ${age}`);
 
   return (
-    <Page width="narrow">
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Profile · {firstName}</h1>
+    <div className="mx-auto max-w-[820px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      {/* ════════ Header ════════ */}
+      <header className="flex flex-wrap items-start justify-between gap-4 animate-fade-in border-b border-line pb-6">
+        <div className="min-w-0">
+          <Eyebrow>Profile</Eyebrow>
+          <h1 className="mt-1.5 font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+            {firstName}
+          </h1>
           {captionBits.length > 0 && (
-            <span className="ds-page-bar__caption">{captionBits.join(' · ')}</span>
+            <p className="mt-2 text-[13.5px] font-semibold text-content-muted">
+              {captionBits.join(' · ')}
+            </p>
           )}
         </div>
         <Button
-          variant="ghost"
+          variant="destructive"
           size="sm"
           onClick={() => logout()}
-          icon={<LogOut size={13} />}
-          className="ds-settings-signout"
+          leadingIcon={<LogOut className="h-4 w-4" />}
         >
           Sign out
         </Button>
       </header>
 
-      {/* ── Personal info ─────────────────────────────────────── */}
-      <Section eyebrow="Personal">
-        <EditorialArticle
-          icon={<User size={16} />}
+      <div className="mt-6 space-y-5">
+        {/* ── Personal info ── */}
+        <SettingsCard
+          eyebrow="Personal"
+          icon={<User className="h-5 w-5" />}
           title="Personal info"
           summary={`${age === "Not set" ? "Age not set" : `Age ${age}`} · ${dependents === "Not set" ? "0 dependents" : `${dependents} dependent${dependents === "1" ? "" : "s"}`}${state !== "Not set" ? ` · ${state}` : ""}`}
           rows={personalRows}
@@ -271,13 +280,12 @@ export function Settings() {
               onSave={handleSave}
             />
           )}
-        </EditorialArticle>
-      </Section>
+        </SettingsCard>
 
-      {/* ── Income & employment ───────────────────────────────── */}
-      <Section eyebrow="Income">
-        <EditorialArticle
-          icon={<Briefcase size={16} />}
+        {/* ── Income & employment ── */}
+        <SettingsCard
+          eyebrow="Income"
+          icon={<Briefcase className="h-5 w-5" />}
           title="Income & employment"
           summary={`${grossIncome}${employerMatch !== "Not set" ? ` · ${employerMatch} match` : " · no match"}`}
           rows={incomeRows}
@@ -295,233 +303,46 @@ export function Settings() {
               onSave={handleSave}
             />
           )}
-        </EditorialArticle>
-      </Section>
+        </SettingsCard>
 
-      {/* ── Plan & billing ────────────────────────────────────── */}
-      <Section eyebrow="Plan">
+        {/* ── Plan & billing ── */}
         <PlanCard />
-      </Section>
 
-      {/* ── Linked accounts ───────────────────────────────────── */}
-      <Section eyebrow="Accounts">
-        <NavLine
-          icon={<Building2 size={16} />}
+        {/* ── Linked accounts ── */}
+        <NavCard
+          eyebrow="Accounts"
+          icon={<Building2 className="h-5 w-5" />}
           label="Manage accounts"
           sub="Banks, brokerages, and manual balances"
           onClick={() => navigate("/accounts")}
         />
-      </Section>
 
-      {/* ── Financial goals ───────────────────────────────────── */}
-      <Section eyebrow="Goals">
-        <NavLine
-          icon={<Target size={16} />}
+        {/* ── Financial goals ── */}
+        <NavCard
+          eyebrow="Goals"
+          icon={<Target className="h-5 w-5" />}
           label="Manage goals"
           sub="Targets, milestones, progress"
           onClick={() => navigate("/goals")}
         />
-      </Section>
-
-      {/* Sign-out now lives in the page-bar action slot (iter 7 A) so the
-          page no longer needs a redundant "Account / Session" section. */}
-
-      <style>{`
-        .ds-article {
-          border-top: 1px solid var(--lf-ink);
-          padding: 0;
-        }
-        .ds-article__head {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 18px 0 14px;
-          border-bottom: 1px solid var(--lf-rule-soft);
-          width: 100%;
-          background: none;
-          border-left: 0; border-right: 0; border-top: 0;
-          cursor: pointer;
-          text-align: left;
-          font-family: 'Geist', system-ui, sans-serif;
-          color: inherit;
-        }
-        .ds-article__head:disabled { cursor: default; }
-        .ds-article__head-icon {
-          width: 28px; height: 28px;
-          display: grid; place-items: center;
-          color: var(--lf-ink-soft);
-          flex-shrink: 0;
-        }
-        .ds-article__head-body {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        .ds-article__head-title {
-          display: block;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 20px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.2;
-        }
-        .ds-article__head-sub {
-          display: block;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          color: var(--lf-muted);
-        }
-        .ds-article__head-chev {
-          color: var(--lf-muted);
-          flex-shrink: 0;
-          display: flex;
-          transition: color 0.15s;
-        }
-        .ds-article__head:not(:disabled):hover .ds-article__head-chev { color: var(--lf-sauce); }
-        .ds-article__row {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          gap: 16px;
-          padding: 12px 0;
-          border-bottom: 1px solid var(--lf-rule-soft);
-        }
-        .ds-article__row:last-child { border-bottom: 0; }
-        .ds-article__row-label {
-          /* Quiet sans label — the figure on the right is the signal,
-             this is just naming the row. */
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-          letter-spacing: 0;
-          text-transform: none;
-          font-weight: 400;
-          color: var(--lf-muted);
-          flex-shrink: 0;
-        }
-        .ds-article__row-value {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 15px;
-          color: var(--lf-ink);
-          font-weight: 600;
-          text-align: right;
-          font-variant-numeric: tabular-nums;
-          min-width: 0;
-          word-break: break-word;
-        }
-        .ds-article__row-value--muted { color: var(--lf-muted); font-weight: 400; }
-        .ds-article__edit {
-          padding: 20px 0 8px;
-          border-bottom: 1px solid var(--lf-rule-soft);
-          display: flex; flex-direction: column; gap: 16px;
-        }
-        .ds-article__skeleton-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 0;
-          border-bottom: 1px solid var(--lf-rule-soft);
-        }
-        .ds-article__skeleton-row:last-child { border-bottom: 0; }
-        .ds-article__skeleton-bar {
-          height: 11px;
-          border-radius: 999px;
-          background: var(--lf-cream);
-        }
-        .ds-navline {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          width: 100%;
-          padding: 18px 0;
-          border: 0;
-          border-top: 1px solid var(--lf-ink);
-          background: none;
-          font-family: 'Geist', system-ui, sans-serif;
-          color: inherit;
-          cursor: pointer;
-          text-align: left;
-        }
-        .ds-navline-icon {
-          width: 28px; height: 28px;
-          display: grid; place-items: center;
-          color: var(--lf-ink-soft);
-          flex-shrink: 0;
-        }
-        .ds-navline-body {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        .ds-navline-title {
-          display: block;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 20px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.2;
-          transition: color 0.15s;
-        }
-        .ds-navline-sub {
-          display: block;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          color: var(--lf-muted);
-        }
-        .ds-navline-chev {
-          color: var(--lf-muted);
-          display: flex;
-          transition: color 0.15s, transform 0.15s;
-        }
-        .ds-navline:hover .ds-navline-title { color: var(--lf-sauce); }
-        .ds-navline:hover .ds-navline-chev { color: var(--lf-sauce); transform: translateX(2px); }
-        .ds-settings-input {
-          width: 100%;
-          padding: 12px 14px;
-          background: var(--lf-paper);
-          border: 1px solid var(--lf-rule);
-          border-radius: 8px;
-          /* 16px prevents iOS Safari auto-zoom on focus */
-          font-size: 16px;
-          color: var(--lf-ink);
-          font-family: 'Geist', system-ui, sans-serif;
-          outline: none;
-          box-sizing: border-box;
-        }
-        .ds-settings-input:focus {
-          border-color: var(--lf-sauce);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-sauce) 18%, transparent);
-        }
-        .ds-settings-signout {
-          color: var(--lf-muted);
-          min-height: 44px;
-          padding-left: 16px; padding-right: 16px;
-          border-color: var(--lf-rule);
-        }
-        .ds-settings-signout:hover { color: var(--lf-ink); border-color: var(--lf-ink-soft); }
-        .ds-settings-lede { margin-bottom: 40px; }
-        @media (max-width: 640px) {
-          .ds-settings-lede { margin-bottom: 20px; }
-        }
-      `}</style>
-    </Page>
+      </div>
+    </div>
   );
 }
 
-// ─── Editorial article ───────────────────────────────────────────────────────
+// ─── Settings card ───────────────────────────────────────────────────────────
 
 interface ArticleRowSpec {
   label: string;
   value: string;
   muted?: boolean;
+  money?: boolean;
 }
 
-interface EditorialArticleProps {
+interface SettingsCardProps {
+  eyebrow: string;
   icon: React.ReactNode;
-  title?: string;
+  title: string;
   summary: string;
   rows: ArticleRowSpec[];
   loading: boolean;
@@ -531,69 +352,103 @@ interface EditorialArticleProps {
   children?: React.ReactNode;
 }
 
-function EditorialArticle({ icon, title, summary, rows, loading, editable, expanded, onEdit, children }: EditorialArticleProps) {
+function SettingsCard({ eyebrow, icon, title, summary, rows, loading, editable, expanded, onEdit, children }: SettingsCardProps) {
   return (
-    <article className="ds-article">
+    <Surface pad="none" className="overflow-hidden">
       <button
         type="button"
-        className="ds-article__head"
         onClick={editable ? onEdit : undefined}
         disabled={!editable}
         aria-expanded={expanded}
+        className={cn(
+          "flex w-full items-center gap-3.5 px-5 py-4 text-left sm:px-6",
+          editable && "min-h-touch transition-colors hover:bg-canvas-sunken",
+          !editable && "cursor-default",
+        )}
       >
-        <span className="ds-article__head-icon">{icon}</span>
-        <span className="ds-article__head-body">
-          {title && <span className="ds-article__head-title">{title}</span>}
-          <span className="ds-article__head-sub">{summary}</span>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-brand-soft text-brand">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">{eyebrow}</span>
+          <span className="mt-0.5 block font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">{title}</span>
+          <span className="mt-0.5 block truncate text-[12.5px] font-medium text-content-muted">{summary}</span>
         </span>
         {editable && (
-          <span className="ds-article__head-chev">
-            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          <span className="shrink-0 text-content-muted">
+            {expanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
           </span>
         )}
       </button>
 
-      {loading ? (
-        <div className="animate-pulse">
-          {rows.map((r, i) => (
-            <div key={i} className="ds-article__skeleton-row">
-              <span className="ds-article__skeleton-bar" style={{ width: 88 + (i % 3) * 18 }} />
-              <span className="ds-article__skeleton-bar" style={{ width: 56 + (i % 2) * 22 }} />
-            </div>
-          ))}
-        </div>
-      ) : expanded && editable ? (
-        children
-      ) : (
-        <div>
-          {rows.map((r) => (
-            <div key={r.label} className="ds-article__row">
-              <span className="ds-article__row-label">{r.label}</span>
-              <span className={`ds-article__row-value${r.muted ? ' ds-article__row-value--muted' : ''}`}>
-                {r.value}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </article>
+      <div className="border-t border-line px-5 sm:px-6">
+        {loading ? (
+          <div className="py-1">
+            {rows.map((_, i) => (
+              <div key={i} className="flex items-center justify-between border-b border-line py-3.5 last:border-0">
+                <Skeleton className={cn("h-3 rounded-full", ["w-24", "w-32", "w-28"][i % 3])} />
+                <Skeleton className={cn("h-3 rounded-full", i % 2 ? "w-20" : "w-14")} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <AnimatePresence initial={false} mode="wait">
+            {expanded && editable ? (
+              <motion.div
+                key="edit"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="py-5"
+              >
+                {children}
+              </motion.div>
+            ) : (
+              <motion.div key="rows" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                {rows.map((r) => (
+                  <div key={r.label} className="flex items-baseline justify-between gap-4 border-b border-line py-3 last:border-0">
+                    <span className="shrink-0 text-[13px] font-medium text-content-muted">{r.label}</span>
+                    <span className={cn(
+                      "min-w-0 break-words text-right text-[14.5px] font-semibold text-content",
+                      r.money && "ui-tnum",
+                      r.muted && "font-normal text-content-faint",
+                    )}>
+                      {r.value}
+                    </span>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+      </div>
+    </Surface>
   );
 }
 
-// ─── NavLine — single editorial row that navigates somewhere ─────────────────
+// ─── NavCard — a settings row that navigates somewhere ───────────────────────
 
-function NavLine({
-  icon, label, sub, onClick,
-}: { icon: React.ReactNode; label: string; sub?: string; onClick: () => void }) {
+function NavCard({
+  eyebrow, icon, label, sub, onClick,
+}: { eyebrow: string; icon: React.ReactNode; label: string; sub?: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="ds-navline">
-      <span className="ds-navline-icon">{icon}</span>
-      <span className="ds-navline-body">
-        <span className="ds-navline-title">{label}</span>
-        {sub && <span className="ds-navline-sub">{sub}</span>}
-      </span>
-      <span className="ds-navline-chev"><ChevronRight size={16} /></span>
-    </button>
+    <Surface pad="none" interactive className="group">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-h-touch w-full items-center gap-3.5 px-5 py-4 text-left sm:px-6"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-brand-soft text-brand">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">{eyebrow}</span>
+          <span className="mt-0.5 block font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content transition-colors group-hover:text-[rgb(var(--ui-brand-ink))]">{label}</span>
+          {sub && <span className="mt-0.5 block text-[12.5px] font-medium text-content-muted">{sub}</span>}
+        </span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-content-muted transition-transform group-hover:translate-x-0.5 group-hover:text-[rgb(var(--ui-brand-ink))]" />
+      </button>
+    </Surface>
   );
 }
 
@@ -610,6 +465,18 @@ const FREE_FEATURES = [
   "Daily auto-sync",
   "Basic AI model",
 ];
+
+function FeatureList({ features }: { features: string[] }) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {features.map((f) => (
+        <li key={f} className="flex items-center gap-2 text-[13px] text-content-secondary">
+          <Check className="h-3.5 w-3.5 shrink-0 text-brand" strokeWidth={2.5} /> {f}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function PlanCard() {
   const { status, loading, refresh } = useBilling();
@@ -661,140 +528,110 @@ function PlanCard() {
     ? `${cancelScheduled ? "Cancels" : "Renews"} ${periodDate}`
     : null;
 
+  const summary = isPro
+    ? cancelScheduled
+      ? (periodLabel ?? "Cancels at period end")
+      : `${(status?.subscriptionStatus ?? "active").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}${periodLabel ? ` · ${periodLabel}` : ""}`
+    : `${FREE_FEATURES.join(" · ")}`;
+
   return (
-    <article className="ds-article">
-      <div className="ds-article__head" style={{ cursor: "default" }}>
-        <span className="ds-article__head-icon"><Sparkles size={16} /></span>
-        <span className="ds-article__head-body">
-          <span className="ds-article__head-title">{isPro ? "Pro" : "Free plan"}</span>
-          <span className="ds-article__head-sub">
-            {isPro
-              ? cancelScheduled
-                ? (periodLabel ?? "Cancels at period end")
-                : `${(status?.subscriptionStatus ?? "active").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}${periodLabel ? ` · ${periodLabel}` : ""}`
-              : `${FREE_FEATURES.join(" · ")}`}
-          </span>
+    <Surface pad="none" className="overflow-hidden">
+      <div className="flex items-center gap-3.5 px-5 py-4 sm:px-6">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-brand-soft text-brand">
+          <Sparkles className="h-5 w-5" />
         </span>
+        <div className="min-w-0 flex-1">
+          <span className="block text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">Plan</span>
+          <span className="mt-0.5 block font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+            {isPro ? "Pro" : "Free plan"}
+          </span>
+          <span className="mt-0.5 block truncate text-[12.5px] font-medium text-content-muted">{summary}</span>
+        </div>
+        {isPro && !cancelScheduled && <Badge tone="brand" size="sm">Active</Badge>}
+        {isPro && cancelScheduled && <Badge tone="caution" size="sm">Canceling</Badge>}
       </div>
 
-      {welcome && (
-        <p className="ds-plan-welcome">Welcome to Pro! Your account is being upgraded.</p>
-      )}
+      <div className="border-t border-line px-5 py-5 sm:px-6">
+        {welcome && (
+          <Alert tone="positive" className="mb-4">
+            Welcome to Pro! Your account is being upgraded.
+          </Alert>
+        )}
 
-      {loading ? (
-        <div className="animate-pulse">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="ds-article__skeleton-row">
-              <span className="ds-article__skeleton-bar" style={{ width: 120 + i * 16 }} />
-              <span className="ds-article__skeleton-bar" style={{ width: 48 }} />
-            </div>
-          ))}
-        </div>
-      ) : isPro ? (
-        <div className="ds-plan-body">
-          <ul className="ds-plan-features">
-            {PRO_FEATURES.map((f) => (
-              <li key={f}><Check size={13} /> {f}</li>
+        {loading ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center justify-between">
+                <Skeleton className={cn("h-3 rounded-full", ["w-32", "w-36", "w-40"][i])} />
+                <Skeleton className="h-3 w-12 rounded-full" />
+              </div>
             ))}
-          </ul>
-          {cancelScheduled && periodDate && (
-            <p className="ds-plan-cancel-note">
-              Your subscription is set to cancel on {periodDate}. You'll keep Pro until then —
-              reactivate any time from Manage subscription.
-            </p>
-          )}
-          <Button variant="ghost" onClick={handleManage} disabled={managing}>
-            {managing ? "Redirecting…" : "Manage subscription"}
-          </Button>
-        </div>
-      ) : (
-        <div className="ds-plan-body">
-          <div className="ds-plan-compare">
-            <div className="ds-plan-col">
-              <p className="ds-plan-col__head">Free</p>
-              <ul className="ds-plan-features">
-                {FREE_FEATURES.map((f) => (
-                  <li key={f}><Check size={13} /> {f}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="ds-plan-col ds-plan-col--pro">
-              <p className="ds-plan-col__head">Pro · $11.99/mo</p>
-              <ul className="ds-plan-features">
-                {PRO_FEATURES.map((f) => (
-                  <li key={f}><Check size={13} /> {f}</li>
-                ))}
-              </ul>
-            </div>
           </div>
-          <Button variant="ink" onClick={handleUpgrade} disabled={upgrading}>
-            {upgrading ? "Redirecting…" : "Upgrade to Pro"}
-          </Button>
-        </div>
-      )}
+        ) : isPro ? (
+          <div className="flex flex-col items-start gap-5">
+            <FeatureList features={PRO_FEATURES} />
+            {cancelScheduled && periodDate && (
+              <p className="text-[13px] leading-relaxed text-content-muted">
+                Your subscription is set to cancel on {periodDate}. You'll keep Pro until then —
+                reactivate any time from Manage subscription.
+              </p>
+            )}
+            <Button variant="secondary" onClick={handleManage} disabled={managing} loading={managing}>
+              {managing ? "Redirecting…" : "Manage subscription"}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-start gap-5">
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-ui-md border border-line p-4">
+                <p className="mb-2.5 text-[13px] font-bold text-content">Free</p>
+                <FeatureList features={FREE_FEATURES} />
+              </div>
+              <div className="rounded-ui-md border border-transparent bg-brand-soft p-4">
+                <p className="mb-2.5 text-[13px] font-bold text-[rgb(var(--ui-brand-ink))]">Pro · $11.99/mo</p>
+                <FeatureList features={PRO_FEATURES} />
+              </div>
+            </div>
+            <Button onClick={handleUpgrade} disabled={upgrading} loading={upgrading} leadingIcon={<Sparkles className="h-4 w-4" />}>
+              {upgrading ? "Redirecting…" : "Upgrade to Pro"}
+            </Button>
+          </div>
+        )}
 
-      {error && <p className="ds-plan-error">{error}</p>}
+        {error && <p className="mt-3 text-[13px] font-semibold text-negative">{error}</p>}
+      </div>
+    </Surface>
+  );
+}
 
-      <style>{`
-        .ds-plan-welcome {
-          margin: 14px 0 0;
-          padding: 10px 14px;
-          border-radius: 8px;
-          background: rgba(90,107,63,0.08);
-          border: 1px solid rgba(90,107,63,0.25);
-          color: var(--lf-ink);
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-        }
-        .ds-plan-body {
-          padding: 18px 0 8px;
-          display: flex; flex-direction: column; gap: 18px;
-          align-items: flex-start;
-        }
-        .ds-plan-compare {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-          width: 100%;
-        }
-        .ds-plan-col {
-          padding: 14px 16px;
-          border: 1px solid var(--lf-rule);
-          border-radius: 10px;
-        }
-        .ds-plan-col--pro {
-          background: var(--lf-cream);
-          border-color: var(--lf-cream-deep);
-        }
-        .ds-plan-col__head {
-          margin: 0 0 10px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; font-weight: 600;
-          color: var(--lf-ink);
-        }
-        .ds-plan-features {
-          list-style: none; margin: 0; padding: 0;
-          display: flex; flex-direction: column; gap: 8px;
-        }
-        .ds-plan-features li {
-          display: flex; align-items: center; gap: 8px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; color: var(--lf-ink-soft);
-        }
-        .ds-plan-features li svg { color: var(--lf-sauce); flex-shrink: 0; }
-        .ds-plan-error {
-          margin: 12px 0 0;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; color: var(--lf-sauce);
-        }
-        .ds-plan-cancel-note {
-          margin: 4px 0 12px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; line-height: 1.5; color: var(--lf-muted);
-        }
-        @media (max-width: 520px) {
-          .ds-plan-compare { grid-template-columns: 1fr; }
-        }
-      `}</style>
-    </article>
+// ─── Switch — brand toggle ───────────────────────────────────────────────────
+
+function Switch({
+  checked, onChange, label,
+}: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="ui-focus flex min-h-touch w-full items-center gap-3 rounded-ui-md text-left"
+    >
+      <span
+        className={cn(
+          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-150 ease-ui",
+          checked ? "bg-brand" : "bg-canvas-sunken border border-line-strong",
+        )}
+      >
+        <span
+          className={cn(
+            "inline-block h-[18px] w-[18px] rounded-full bg-white shadow-ui-sm transition-transform duration-150 ease-ui",
+            checked ? "translate-x-[23px]" : "translate-x-[3px]",
+          )}
+        />
+      </span>
+      <span className="text-[13.5px] font-medium text-content-secondary">{label}</span>
+    </button>
   );
 }
 
@@ -820,182 +657,160 @@ interface EditPanelProps {
   onSave: () => void;
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <Eyebrow style={{ display: 'block', marginBottom: 6 }}>{children}</Eyebrow>;
-}
-
 function PersonalEditPanel({ formData, setFormData, saving, onCancel, onSave }: EditPanelProps) {
+  // Inline validation (visual only — never blocks save, matching prior behavior).
+  const stateError = formData.stateOfResidence.length === 1 ? "Use a 2-letter code" : undefined;
+  const retAgeNum = Number(formData.retirementAge);
+  const retAgeError = formData.retirementAge && (retAgeNum < 30 || retAgeNum > 100) ? "Between 30 and 100" : undefined;
+  const depNum = Number(formData.dependentCount);
+  const depError = formData.dependentCount && (depNum < 0 || depNum > 10) ? "Between 0 and 10" : undefined;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      className="ds-article__edit"
-    >
-      <div>
-        <FieldLabel>Date of birth</FieldLabel>
-        <input
+    <div className="flex flex-col gap-4">
+      <Field label="Date of birth">
+        <Input
           type="date"
           value={formData.dateOfBirth}
           onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
-          className="ds-settings-input"
         />
-      </div>
+      </Field>
 
-      <div>
-        <FieldLabel>Filing status</FieldLabel>
-        <select
+      <Field label="Filing status">
+        <Select
           value={formData.filingStatus}
           onChange={(e) => setFormData((f) => ({ ...f, filingStatus: e.target.value }))}
-          className="ds-settings-input"
         >
           <option value="">Select…</option>
           {FILING_STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      <div>
-        <FieldLabel>State of residence (2-letter)</FieldLabel>
-        <input
+      <Field label="State of residence" hint="2-letter code" error={stateError}>
+        <Input
           type="text"
           maxLength={2}
+          invalid={!!stateError}
           value={formData.stateOfResidence}
           onChange={(e) => setFormData((f) => ({ ...f, stateOfResidence: e.target.value }))}
           placeholder="CA"
-          className="ds-settings-input"
+          className="uppercase"
         />
-      </div>
+      </Field>
 
-      <div>
-        <FieldLabel>Risk tolerance</FieldLabel>
-        <select
+      <Field label="Risk tolerance">
+        <Select
           value={formData.riskTolerance}
           onChange={(e) => setFormData((f) => ({ ...f, riskTolerance: e.target.value }))}
-          className="ds-settings-input"
         >
           <option value="">Select…</option>
           {RISK_TOLERANCE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      <div>
-        <FieldLabel>Retirement age</FieldLabel>
-        <input
+      <Field label="Retirement age" error={retAgeError}>
+        <Input
           type="number"
           min={30}
           max={100}
+          invalid={!!retAgeError}
           value={formData.retirementAge}
           onChange={(e) => setFormData((f) => ({ ...f, retirementAge: e.target.value }))}
           placeholder="65"
-          className="ds-settings-input"
+          className="ui-tnum"
         />
-      </div>
+      </Field>
 
-      <div>
-        <FieldLabel>Number of dependents</FieldLabel>
-        <input
+      <Field label="Number of dependents" error={depError}>
+        <Input
           type="number"
           min={0}
           max={10}
+          invalid={!!depError}
           value={formData.dependentCount}
           onChange={(e) => setFormData((f) => ({ ...f, dependentCount: e.target.value }))}
           placeholder="0"
-          className="ds-settings-input"
+          className="ui-tnum"
+        />
+      </Field>
+
+      <div className="flex flex-col gap-1 rounded-ui-md bg-canvas-sunken px-4 py-2">
+        <Switch
+          checked={formData.hasHDHP}
+          onChange={(v) => setFormData((f) => ({ ...f, hasHDHP: v }))}
+          label="Enrolled in a high-deductible health plan (HDHP)"
+        />
+        <Switch
+          checked={formData.isPSLFEligible}
+          onChange={(v) => setFormData((f) => ({ ...f, isPSLFEligible: v }))}
+          label="Work in public service (PSLF eligible)"
         />
       </div>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-        <input
-          type="checkbox"
-          checked={formData.hasHDHP}
-          onChange={(e) => setFormData((f) => ({ ...f, hasHDHP: e.target.checked }))}
-          style={{ width: 16, height: 16, accentColor: 'var(--lf-sauce)', cursor: 'pointer' }}
-        />
-        <span style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
-          Enrolled in a high-deductible health plan (HDHP)
-        </span>
-      </label>
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-        <input
-          type="checkbox"
-          checked={formData.isPSLFEligible}
-          onChange={(e) => setFormData((f) => ({ ...f, isPSLFEligible: e.target.checked }))}
-          style={{ width: 16, height: 16, accentColor: 'var(--lf-sauce)', cursor: 'pointer' }}
-        />
-        <span style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
-          Work in public service (PSLF eligible)
-        </span>
-      </label>
-
-      <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
-        <Button variant="ink" onClick={onSave} disabled={saving}>
+      <div className="flex gap-2 pt-1">
+        <Button onClick={onSave} disabled={saving} loading={saving}>
           {saving ? "Saving…" : "Save"}
         </Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
 function IncomeEditPanel({ formData, setFormData, saving, onCancel, onSave }: EditPanelProps) {
+  const matchNum = Number(formData.employerMatchPercent);
+  const matchError = formData.employerMatchPercent && (matchNum < 0 || matchNum > 100) ? "Between 0 and 100" : undefined;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      className="ds-article__edit"
-    >
-      <div>
-        <FieldLabel>Employment type</FieldLabel>
-        <select
+    <div className="flex flex-col gap-4">
+      <Field label="Employment type">
+        <Select
           value={formData.employmentType}
           onChange={(e) => setFormData((f) => ({ ...f, employmentType: e.target.value }))}
-          className="ds-settings-input"
         >
           <option value="w2">W2 employee</option>
           <option value="self_employed">Self-employed</option>
           <option value="1099">1099 / contractor</option>
           <option value="business_owner">Business owner</option>
-        </select>
-      </div>
+        </Select>
+      </Field>
 
-      <div>
-        <FieldLabel>Annual gross income ($)</FieldLabel>
-        <input
+      <Field label="Annual gross income">
+        <Input
           type="number"
           min={0}
           step={1000}
           value={formData.annualIncome}
           onChange={(e) => setFormData((f) => ({ ...f, annualIncome: e.target.value }))}
           placeholder="72000"
-          className="ds-settings-input"
+          className="ui-tnum"
+          leadingIcon={<span className="text-[13px]">$</span>}
         />
-      </div>
+      </Field>
 
-      <div>
-        <FieldLabel>Employer match (%)</FieldLabel>
-        <input
+      <Field label="Employer match (%)" error={matchError}>
+        <Input
           type="number"
           min={0}
           max={100}
           step={0.5}
+          invalid={!!matchError}
           value={formData.employerMatchPercent}
           onChange={(e) => setFormData((f) => ({ ...f, employerMatchPercent: e.target.value }))}
           placeholder="4"
-          className="ds-settings-input"
+          className="ui-tnum"
         />
-      </div>
+      </Field>
 
-      <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
-        <Button variant="ink" onClick={onSave} disabled={saving}>
+      <div className="flex gap-2 pt-1">
+        <Button onClick={onSave} disabled={saving} loading={saving}>
           {saving ? "Saving…" : "Save"}
         </Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
-    </motion.div>
+    </div>
   );
 }
-

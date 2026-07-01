@@ -33,6 +33,9 @@ const Onboarding = lazy(() => import('./pages/onboarding').then(m => ({ default:
 const QuickImport = lazy(() => import('./pages/quick-import').then(m => ({ default: m.QuickImport })));
 const AccountDetail = lazy(() => import('./pages/account-detail').then(m => ({ default: m.AccountDetail })));
 
+// Design system styleguide — renders OUTSIDE the auth shell (no login required).
+const Styleguide = lazy(() => import('./pages/_styleguide').then(m => ({ default: m.Styleguide })));
+
 // Unified pages
 const SimpleHome = lazy(() => import('./pages/simple-home').then(m => ({ default: m.SimpleHome })));
 const SimpleMoney = lazy(() => import('./pages/simple-money').then(m => ({ default: m.SimpleMoney })));
@@ -41,6 +44,15 @@ const ChatFullPage = lazy(() => import('./components/chat/chat-full-page').then(
 function AppRoutes() {
   const { user } = useAuth();
   const [location] = useLocation();
+
+  // Public design-system styleguide — no auth shell, no session required.
+  if (location.startsWith('/_styleguide')) {
+    return (
+      <Suspense fallback={null}>
+        <Styleguide />
+      </Suspense>
+    );
+  }
 
   if (!user) {
     return <Login />;

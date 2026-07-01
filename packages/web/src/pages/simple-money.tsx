@@ -4,30 +4,16 @@ import {
   Wallet, TrendingUp, CreditCard, RefreshCw, Lightbulb, Plus,
   Banknote, ShoppingCart, UtensilsCrossed, Home, Car, Clapperboard,
   ShoppingBag, HeartPulse, Shield, Plane, Tv, Receipt, ArrowLeftRight,
-  DollarSign, Lock,
+  DollarSign, Lock, MoreHorizontal, SlidersHorizontal, Trash2, ChevronDown,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { stripAccountMask } from '../lib/utils';
+import { cn, stripAccountMask } from '../lib/utils';
 import { startUpgrade } from '../lib/billing';
-import {
-  Page,
-  Section,
-  Card,
-  Button,
-  Pill,
-  EmptyState,
-  AccountRow,
-  TransactionRow,
-  SkeletonChart,
-  SkeletonRow,
-  SkeletonLine,
-  SkeletonBlock,
-  useConfirm,
-  TrendChart,
-  filterByRange,
-  type Range,
-  type TrendPoint,
-} from '../components/ds';
+import { Button, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
+import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
+import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney } from '../components/ds/TrendChart';
+import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 
 interface Item {
   id: string;
@@ -56,6 +42,8 @@ interface Transaction {
 
 const fmtUsd = (n: number, frac = 0) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
+const fmtUsdCents = (n: number) =>
+  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Balance with the user's invert override applied — used everywhere a balance
 // feeds a total or a row value so the UI matches the server's net-worth math.
@@ -63,7 +51,7 @@ const effectiveBalance = (a: { balance: string | null; invertBalance?: boolean }
   (a.invertBalance ? -1 : 1) * parseFloat(a.balance ?? '0');
 
 const formatDateLong = (d: Date) =>
-  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
 const categoryIcon: Record<string, React.ReactNode> = {
   income: <DollarSign size={14} />, groceries: <ShoppingCart size={14} />,
@@ -163,390 +151,446 @@ export function SimpleMoney() {
   const grossAssets = cashTotal + investTotal + assetsTotal;
 
   const monthChange = computeDelta(history, 30);
+  // Percent move over the same 30-day window (relative to the prior value), so
+  // the lead can read "past 30 days · −2.0%" alongside the dollar delta.
+  const monthPct = monthChange !== null && netWorth - monthChange !== 0
+    ? (monthChange / (netWorth - monthChange)) * 100
+    : null;
   const chartPoints = useMemo(() => filterByRange(history, range), [history, range]);
 
   const totalAccountCount = cashAccounts.length + investAccounts.length + realEstateAccounts.length + altAccounts.length + debtAccounts.length;
+  const lastSynced = useMemo(() => {
+    const stamps = items.map((i) => i.lastSyncedAt).filter(Boolean) as string[];
+    if (stamps.length === 0) return null;
+    return stamps.reduce((a, b) => (new Date(a) > new Date(b) ? a : b));
+  }, [items]);
 
   const hasMoney = !loading && totalAccountCount > 0;
+  const hasChart = chartPoints.length >= 2;
+  const hoveredPoint = hasChart && chartHoverIdx !== null ? chartPoints[chartHoverIdx] : null;
+  const displayValue = hoveredPoint ? hoveredPoint.value : netWorth;
 
   return (
-    <Page>
-      {/* Compact page bar — small H1 + actions only. Net worth + delta are
-          dropped from the caption because the figure below already shows them
-          with proper typographic hierarchy (iter 2 dedupe). On <640px the
-          action buttons hide to keep the bar a single short row — the same
-          actions remain available via the account sections and the "+" route. */}
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Money</h1>
-          {!hasMoney && (
-            <span className="ds-page-bar__caption">{formatDateLong(new Date())}</span>
-          )}
+    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      {/* ── Page header ── */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
+            Money
+          </h1>
+          <p className="mt-1.5 flex items-center gap-2 text-[14px] font-medium text-content-muted">
+            {hasMoney && (
+              <span
+                className="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-brand"
+                style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+                aria-hidden="true"
+              />
+            )}
+            {hasMoney
+              ? `${totalAccountCount} account${totalAccountCount === 1 ? '' : 's'}${lastSynced ? ` · last synced ${relativeTime(lastSynced)}` : ''}`
+              : formatDateLong(new Date())}
+          </p>
         </div>
         {hasMoney && (
-          <div className="ds-money-header-actions">
+          <div className="flex w-full gap-2.5 sm:w-auto">
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
+              className="flex-1 sm:flex-none"
               onClick={handleSyncAll}
               disabled={syncingAll}
-              icon={<RefreshCw size={12} className={syncingAll ? 'animate-spin' : ''} />}
+              leadingIcon={<RefreshCw size={15} className={syncingAll ? 'animate-spin' : ''} />}
             >
               {syncingAll ? 'Syncing…' : 'Sync all'}
             </Button>
-            <Link href="/accounts">
-              <Button variant="ink" size="sm" icon={<Plus size={12} />}>Add account</Button>
+            <Link href="/accounts" className="flex-1 sm:flex-none">
+              <Button variant="primary" size="sm" className="w-full" leadingIcon={<Plus size={15} />}>
+                Add account
+              </Button>
             </Link>
           </div>
         )}
       </header>
 
-      {/* Sync error banner */}
+      {/* ── Sync error banner (dismissible) ── */}
       {syncError && (
-        <Section>
-          <Card variant="ghost">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <span className="ds-body ds-neg">{syncError}</span>
-              <Button variant="link" size="sm" onClick={() => setSyncError(null)}>Dismiss</Button>
-            </div>
-          </Card>
-        </Section>
+        <div className="mt-6 flex items-center justify-between gap-3 rounded-ui-md border border-negative/30 bg-negative-soft px-4 py-3">
+          <span className="text-[14px] font-medium text-negative">{syncError}</span>
+          <button
+            onClick={() => setSyncError(null)}
+            className="ui-focus shrink-0 rounded-ui-sm px-2.5 py-1 text-[13px] font-semibold text-negative hover:bg-negative/10"
+          >
+            Dismiss
+          </button>
+        </div>
       )}
 
-      {/* ── Net worth figure — borderless chart with internal value label.
-          No section H2 above it (the value lives inside the figure). */}
-      {chartPoints.length >= 2 && (() => {
-        const hoveredPoint = chartHoverIdx !== null ? chartPoints[chartHoverIdx] : null;
-        const displayValue = hoveredPoint ? hoveredPoint.value : netWorth;
-        return (
-          <figure className="ds-figure">
-            <div className="ds-figure__head">
-              <div className="ds-figure__lead">
-                <span className="ds-figure__label">Net worth</span>
-                <span className="ds-figure__value ds-num">{fmtUsd(displayValue)}</span>
-                {hoveredPoint ? (
-                  <span className="ds-figure__delta ds-num" style={{ color: 'var(--lf-muted)' }}>
-                    {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                ) : monthChange !== null && (
-                  <span className={`ds-delta-chip ds-delta-chip--${monthChange >= 0 ? 'pos' : 'neg'}`}>
-                    {monthChange >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthChange))} · 30d
-                  </span>
-                )}
-              </div>
-              <div role="radiogroup" aria-label="Time range" className="ds-figure__range">
-                {(['1M', '6M', '1Y', 'All'] as Range[]).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRange(r)}
-                    role="radio"
-                    aria-checked={range === r}
-                    className="ds-figure__range-btn"
-                  >
-                    <Pill tone={range === r ? 'ink' : 'ghost'}>{r}</Pill>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <TrendChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
-          </figure>
-        );
-      })()}
-
-      {/* ── Chart placeholder ── */}
-      {!loading && chartPoints.length < 2 && allAccounts.length > 0 && (
-        <Section>
-          <Card variant="ghost">
-            <div style={{ display: 'grid', placeItems: 'center', padding: '36px 12px', textAlign: 'center' }}>
-              <TrendingUp size={20} className="text-text-muted" style={{ marginBottom: 8 }} />
-              <div className="ds-h3">Building your trend</div>
-              <p className="ds-caption" style={{ marginTop: 6 }}>Your net-worth chart appears once we have a few days of history.</p>
-            </div>
-          </Card>
-        </Section>
-      )}
-
-      {/* ── Loading skeleton — matched outline so first paint reserves the
-          exact footprint the loaded page consumes. The figure skeleton wears
-          the real .ds-figure card and reserves the head (NET WORTH label +
-          hero value + range pills) above the chart, and each section reserves
-          its header (eyebrow + title + right-aligned total) above carded rows
-          — so neither the net-worth figure nor the section headers jump in
-          when data lands. */}
+      {/* ── Loading skeleton — reserves the chart card + two group footprints ── */}
       {loading && (
         <>
-          <div className="ds-figure">
-            <div className="ds-figure__head">
-              <div className="ds-figure__lead" style={{ display: 'block' }}>
-                <SkeletonLine width="84px" height={11} style={{ display: 'block', marginBottom: 10 }} />
-                <SkeletonLine width="280px" height={50} style={{ display: 'block' }} />
+          <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="mt-3 h-12 w-60" />
+                <Skeleton className="mt-3 h-7 w-40 rounded-full" />
               </div>
-              <div className="ds-figure__range">
-                {[0, 1, 2, 3].map((i) => (
-                  <SkeletonBlock key={i} height={30} style={{ width: 44, borderRadius: 999 }} />
+              <Skeleton className="h-9 w-48 rounded-ui-md" />
+            </div>
+            <Skeleton className="mt-6 h-[200px] w-full rounded-ui-md" />
+          </div>
+          {[0, 1].map((g) => (
+            <div key={g} className="mt-[18px] rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+              <div className="flex items-center gap-3 px-5 py-4">
+                <Skeleton className="h-[11px] w-[11px] rounded-[3.5px]" />
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="ml-auto h-4 w-24" />
+              </div>
+              <div className="border-t border-line">
+                {[0, 1].map((r) => (
+                  <div key={r} className="flex items-center gap-3.5 border-t border-line px-5 py-3.5 first:border-t-0">
+                    <Skeleton className="h-10 w-10 rounded-ui-md" />
+                    <div className="flex-1">
+                      <Skeleton className="h-3.5 w-32" />
+                      <Skeleton className="mt-2 h-3 w-44" />
+                    </div>
+                    <Skeleton className="h-4 w-20" />
+                  </div>
                 ))}
               </div>
             </div>
-            <SkeletonChart />
-          </div>
-          {[0, 1].map((g) => (
-            <Section key={g}>
-              <div className="ds-section__header">
-                <div className="ds-section__title-block">
-                  <SkeletonLine width="72px" height={11} style={{ display: 'block', marginBottom: 10 }} />
-                  <SkeletonLine width="116px" height={26} style={{ display: 'block' }} />
-                </div>
-                <SkeletonLine width="108px" height={18} />
-              </div>
-              <Card flush>
-                <SkeletonRow />
-                <SkeletonRow />
-              </Card>
-            </Section>
           ))}
         </>
       )}
 
+      {/* ── Net-worth + chart card ── */}
+      {hasMoney && (
+        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+          {/* atmospheric wash — periwinkle top-right + brand top-left */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+                'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
+            }}
+          />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Net worth</div>
+              <div className="mt-2 font-editorial text-[38px] sm:text-[52px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
+                {fmtUsd(displayValue)}
+              </div>
+              <div className="mt-3.5 flex items-center gap-2.5 flex-wrap">
+                {hoveredPoint ? (
+                  <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
+                    {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                ) : monthChange !== null ? (
+                  <>
+                    <DeltaChip delta={monthChange} />
+                    <span className="text-[13px] font-medium text-content-muted">
+                      past 30 days{monthPct !== null ? ` · ${monthPct < 0 ? '−' : '+'}${Math.abs(monthPct).toFixed(1)}%` : ''}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+            {hasChart && (
+              <SegmentedControl
+                aria-label="Time range"
+                value={range}
+                onChange={(r) => setRange(r as Range)}
+                options={[
+                  { value: '1M', label: '1M' },
+                  { value: '6M', label: '6M' },
+                  { value: '1Y', label: '1Y' },
+                  { value: 'All', label: 'All' },
+                ]}
+              />
+            )}
+          </div>
+
+          {hasChart ? (
+            <div className="relative mt-5 pr-2 sm:pr-0">
+              <NetWorthChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+            </div>
+          ) : (
+            <div className="mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-10 text-center">
+              <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-brand-soft text-brand">
+                <TrendingUp size={20} />
+              </div>
+              <div className="text-[15px] font-semibold">Building your trend</div>
+              <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-content-muted">
+                Your net-worth chart appears once we have a few days of history.
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ── Empty state ── */}
       {!loading && allAccounts.length === 0 && (
-        <Section>
+        <div className="mt-7">
           <EmptyState
-            icon={<Wallet size={28} />}
+            icon={<Wallet size={24} />}
             title="No accounts connected"
-            body="Link a bank or brokerage to see your money here."
-            cta={
+            description="Link a bank or brokerage to see your money here."
+            action={
               <Link href="/accounts">
-                <Button variant="ink">Connect an account</Button>
+                <Button variant="primary">Connect an account</Button>
               </Link>
             }
           />
-        </Section>
+        </div>
       )}
 
-      {/* Section insights — short personalized callouts that surface the
-          "what does this mean" question per section. Computed once from the
-          breakdown so changing data updates the captions automatically. */}
-      {(() => null)()}
-      {/* ── Cash section ── */}
+      {/* ── Account sections, grouped by category ── */}
       {cashAccounts.length > 0 && (
-        <AccountSection
-          title="Cash"
-          eyebrow={`${cashAccounts.length} account${cashAccounts.length === 1 ? '' : 's'}`}
-          insight={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets · ready to deploy` : 'ready to deploy'}
-          total={cashTotal}
-          items={items}
-          filterType="depository"
-          syncing={syncing}
-          onSync={handleSync}
-          onRefresh={refreshItems}
+        <GroupSection
+          title="Cash" viz={1} count={cashAccounts.length}
+          caption={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets · ready to deploy` : 'ready to deploy'}
+          total={cashTotal} items={items} filterType="depository"
+          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
         />
       )}
-
-      {/* ── Investments section ── */}
       {investAccounts.length > 0 && (
-        <AccountSection
-          title="Investments"
-          eyebrow={`${investAccounts.length} account${investAccounts.length === 1 ? '' : 's'}`}
-          insight={grossAssets > 0
-            ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · long-term growth`
-            : undefined}
-          total={investTotal}
-          items={items}
-          filterType="investment"
-          syncing={syncing}
-          onSync={handleSync}
-          onRefresh={refreshItems}
+        <GroupSection
+          title="Investments" viz={2} count={investAccounts.length}
+          caption={grossAssets > 0 ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · long-term growth` : 'long-term growth'}
+          total={investTotal} items={items} filterType="investment"
+          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
         />
       )}
-
-      {/* ── Property section ── */}
       {realEstateAccounts.length > 0 && (
-        <AccountSection
-          title="Property"
-          eyebrow={`${realEstateAccounts.length} account${realEstateAccounts.length === 1 ? '' : 's'}`}
-          insight={grossAssets > 0
-            ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate`
-            : 'real estate'}
-          total={realEstateTotal}
-          items={items}
-          filterType="real_estate"
-          syncing={syncing}
-          onSync={handleSync}
-          onRefresh={refreshItems}
+        <GroupSection
+          title="Property" viz={3} count={realEstateAccounts.length}
+          caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate` : 'real estate'}
+          total={realEstateTotal} items={items} filterType="real_estate"
+          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
         />
       )}
-
-      {/* ── Other assets section ── */}
       {altAccounts.length > 0 && (
-        <AccountSection
-          title="Other assets"
-          eyebrow={`${altAccounts.length} item${altAccounts.length === 1 ? '' : 's'}`}
-          insight={grossAssets > 0
-            ? `${Math.round((altTotal / grossAssets) * 100)}% of assets · alternative holdings`
-            : 'alternative holdings'}
-          total={altTotal}
-          items={items}
-          filterType="alternative"
-          syncing={syncing}
-          onSync={handleSync}
-          onRefresh={refreshItems}
+        <GroupSection
+          title="Other assets" viz={5} count={altAccounts.length} unit="item"
+          caption={grossAssets > 0 ? `${Math.round((altTotal / grossAssets) * 100)}% of assets · alternative holdings` : 'alternative holdings'}
+          total={altTotal} items={items} filterType="alternative"
+          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
         />
       )}
-
-      {/* ── Debt section ── */}
       {debtAccounts.length > 0 && (
-        <AccountSection
-          title="Debt"
-          eyebrow={`${debtAccounts.length} account${debtAccounts.length === 1 ? '' : 's'}`}
-          insight={(() => {
-            if (grossAssets <= 0) return undefined;
-            const dti = Math.round((debtTotal / grossAssets) * 100);
-            return `${dti}% debt-to-assets`;
-          })()}
-          total={debtTotal}
-          totalTone="neg"
-          items={items}
-          filterType={['credit', 'loan']}
-          syncing={syncing}
-          onSync={handleSync}
-          onRefresh={refreshItems}
+        <GroupSection
+          title="Debt" viz={4} count={debtAccounts.length}
+          caption={grossAssets > 0 ? `${Math.round((debtTotal / grossAssets) * 100)}% debt-to-assets` : 'reduces net worth'}
+          total={debtTotal} totalNeg items={items} filterType={['credit', 'loan']}
+          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
         />
       )}
 
-      {/* ── Recent activity — TransactionRow primitive.
-          Mobile rule: $ amount is ALWAYS visible. Category + date stay on
-          the sub-row, never drop. (Iter 2 P0.) */}
+      {/* ── Recent activity ── */}
       {transactions.length > 0 && (
-        <Section
-          title="Recent activity"
-          actions={<Link href="/spending" className="ds-btn ds-btn--link">All spending →</Link>}
-        >
-          <Card flush>
-            {transactions.map((t) => {
-              const amt = parseFloat(t.amount);
-              return (
-                <TransactionRow
-                  key={t.id}
-                  merchant={t.merchantName || t.name}
-                  category={humanCategory(t.category)}
-                  date={t.date}
-                  amount={amt}
-                  fallbackIcon={categoryIcon[t.category] || <Banknote size={14} />}
-                />
-              );
-            })}
-          </Card>
-        </Section>
+        <section className="mt-8">
+          <div className="flex items-baseline justify-between gap-3 px-1 pb-3">
+            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Recent activity</h2>
+            <Link href="/spending" className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">
+              All spending →
+            </Link>
+          </div>
+          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+            {transactions.map((t) => (
+              <TxnRow
+                key={t.id}
+                merchant={t.merchantName || t.name}
+                category={humanCategory(t.category)}
+                date={t.date}
+                amount={parseFloat(t.amount)}
+                fallbackIcon={categoryIcon[t.category] || <Banknote size={14} />}
+              />
+            ))}
+          </div>
+        </section>
       )}
-
-      <style>{`
-        .ds-money-stats { margin: 32px 0 56px; }
-
-        /* Page-bar actions: hidden on <640px so the bar stays a single short
-           row (iter 2 fix — was wrapping into a 128px tall double-stack). The
-           same actions live in the per-section "+ Add account" empty states
-           and the global accounts page. */
-        .ds-money-header-actions {
-          display: none;
-        }
-        @media (min-width: 640px) {
-          .ds-money-header-actions {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            gap: 10px;
-          }
-        }
-
-        /* Composition ribbon legend: stack to one column on mobile with a
-           fixed-width % column on the right so values right-align cleanly. */
-        @media (max-width: 640px) {
-          .ds-ribbon__legend {
-            flex-direction: column;
-            gap: 8px;
-            align-items: stretch;
-          }
-          .ds-ribbon__legend-item {
-            display: grid;
-            grid-template-columns: 12px 1fr auto;
-            gap: 10px;
-            align-items: baseline;
-          }
-          .ds-ribbon__legend-value {
-            text-align: right;
-            min-width: 64px;
-          }
-        }
-
-        /* Action feed — sits on the unified card surface so the page reads
-           as a coherent stack of elevated panels. */
-        .ds-money-feed {
-          list-style: none;
-          margin: 0;
-          padding: 4px 20px;
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 12px;
-          box-shadow: var(--shadow-card);
-        }
-        .ds-money-feed li {
-          padding: 16px 0;
-          border-top: 1px solid var(--lf-rule-neutral);
-        }
-        .ds-money-feed li:first-child { border-top: 0; }
-        .ds-money-feed__link {
-          display: flex;
-          gap: 14px;
-          text-decoration: none;
-          color: inherit;
-        }
-        .ds-money-feed__link:hover .ds-money-feed__title { color: var(--lf-sauce); }
-        .ds-money-feed__bullet {
-          width: 28px; height: 28px;
-          border-radius: 4px;
-          background: var(--lf-rule-soft);
-          display: grid; place-items: center;
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-        .ds-money-feed__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 17px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.3;
-          transition: color 0.15s;
-        }
-        .ds-money-feed__desc {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-          line-height: 1.5;
-          color: var(--lf-muted);
-          margin: 6px 0 0;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-      `}</style>
-    </Page>
+    </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Account section — groups accounts by institution with sync controls.
-// Header uses Section primitive (serif h2 + eyebrow), total surfaces in the
-// Section actions slot as tabular ink — no inline serif/dark hero.
+// Net-worth delta chip — sign + arrow + tinted color (never color-only).
 // ─────────────────────────────────────────────────────────────────────────
 
-function AccountSection({
-  title, eyebrow, insight, total, totalTone, items, filterType, syncing, onSync, onRefresh,
+function DeltaChip({ delta }: { delta: number }) {
+  const positive = delta >= 0;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
+      style={{
+        background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
+        color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
+      </svg>
+      {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Net-worth trend chart — brand area+line on --ui-* tokens. Mirrors the math
+// of the shared ds/TrendChart (smooth spline + nice ticks) but restyled to the
+// new palette, with hover crosshair that bubbles the index up to swap the lead.
+// ─────────────────────────────────────────────────────────────────────────
+
+const CHART_H = 250;
+const CHART_M = { top: 16, right: 12, bottom: 34, left: 56 };
+
+function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [chartW, setChartW] = useState(680);
+  const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
+  const setHoverIdx = (i: number | null) => { setHoverIdxRaw(i); onHoverChange?.(i); };
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => setChartW(el.clientWidth || 680);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const innerW = chartW - CHART_M.left - CHART_M.right;
+  const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
+
+  const { yMin, yMax, yTicks } = useMemo(() => {
+    const values = points.map((p) => p.value);
+    const rawMin = Math.min(...values);
+    const rawMax = Math.max(...values);
+    const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
+    return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
+  }, [points]);
+
+  const xAt = (i: number) => CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
+  const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
+
+  const xy = useMemo<Array<[number, number]>>(
+    () => points.map((p, i) => [xAt(i), yAt(p.value)]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [points, chartW, yMin, yMax],
+  );
+  const linePath = useMemo(() => smoothLinePath(xy), [xy]);
+  const baseY = (CHART_M.top + innerH).toFixed(2);
+  const areaPath = linePath
+    ? `${linePath} L ${xAt(points.length - 1).toFixed(2)} ${baseY} L ${xAt(0).toFixed(2)} ${baseY} Z`
+    : '';
+
+  const hover = hoverIdx !== null ? points[hoverIdx] : null;
+  const xLabels = useMemo(() => pickXLabels(points, range), [points, range]);
+
+  const pointerToIdx = (clientX: number): number | null => {
+    const root = wrapRef.current;
+    if (!root || points.length <= 0) return null;
+    const rect = root.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const scale = chartW / rect.width;
+    const localX = (clientX - rect.left) * scale;
+    const ratio = (localX - CHART_M.left) / Math.max(1, innerW);
+    return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
+  };
+
+  return (
+    <div ref={wrapRef} className="relative select-none">
+      <svg
+        viewBox={`0 0 ${chartW} ${CHART_H}`}
+        role="img"
+        aria-label="Net worth trend chart"
+        className="block w-full touch-none"
+        style={{ pointerEvents: 'none' }}
+      >
+        <defs>
+          <linearGradient id="nw-area-ui" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity="0.24" />
+            <stop offset="55%" stopColor="var(--ui-viz-2)" stopOpacity="0.07" />
+            <stop offset="100%" stopColor="var(--ui-viz-2)" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="nw-line-ui" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="var(--ui-viz-2)" />
+          </linearGradient>
+        </defs>
+
+        {yTicks.map((t) => (
+          <g key={t}>
+            <line
+              x1={CHART_M.left} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
+              stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
+            />
+            <text
+              x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
+              fill="rgb(var(--ui-content-faint))"
+              style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+            >
+              {formatShortMoney(t)}
+            </text>
+          </g>
+        ))}
+
+        <path d={areaPath} fill="url(#nw-area-ui)" />
+        <path
+          d={linePath} fill="none" stroke="url(#nw-line-ui)"
+          strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+        />
+
+        {!hover && points.length > 0 && (
+          <>
+            <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={11} fill="var(--ui-viz-2)" fillOpacity={0.12} />
+            <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={5.5} fill="var(--ui-viz-2)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
+          </>
+        )}
+        {hover && hoverIdx !== null && (
+          <g>
+            <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} stroke="rgb(var(--ui-content-muted))" strokeOpacity={0.5} strokeWidth={1} strokeDasharray="2 4" />
+            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={14} fill="var(--ui-viz-2)" fillOpacity={0.16} />
+            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={5.5} fill="var(--ui-viz-2)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
+          </g>
+        )}
+
+        {xLabels.map(({ idx, label }) => (
+          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 10} textAnchor="middle" fill="rgb(var(--ui-content-muted))" style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+        ))}
+      </svg>
+
+      {/* Pointer overlay — snaps hover to the nearest x-domain point. */}
+      <div
+        className="absolute inset-0"
+        style={{ touchAction: 'none', cursor: 'crosshair' }}
+        onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
+        onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
+        onPointerLeave={() => setHoverIdx(null)}
+        onPointerCancel={() => setHoverIdx(null)}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Account group section — collapsible header (dot + title + caption + total)
+// over a card of account rows.
+// ─────────────────────────────────────────────────────────────────────────
+
+function GroupSection({
+  title, viz, count, caption, unit = 'account', total, totalNeg, items, filterType, syncing, onSync, onRefresh,
 }: {
   title: string;
-  eyebrow: string;
-  insight?: string;
+  viz: number;
+  count: number;
+  caption: string;
+  unit?: string;
   total: number;
-  totalTone?: 'neg' | 'default';
+  totalNeg?: boolean;
   items: Item[];
   filterType: string | string[];
   syncing: string | null;
@@ -555,147 +599,336 @@ function AccountSection({
 }) {
   const confirm = useConfirm();
   const [, setLocation] = useLocation();
+  const [collapsed, setCollapsed] = useState(false);
 
   const types = Array.isArray(filterType) ? filterType : [filterType];
   const accounts = items.flatMap((item) =>
-    item.accounts
-      .filter((a) => types.includes(a.type))
-      .map((a) => ({ ...a, item }))
+    item.accounts.filter((a) => types.includes(a.type)).map((a) => ({ ...a, item })),
   );
-
   const errorItems = items.filter(
     (item) =>
       (item.status === 'error' || item.status === 'item_login_required') &&
-      item.accounts.some((a) => types.includes(a.type))
+      item.accounts.some((a) => types.includes(a.type)),
   );
 
   return (
-    <>
-    <Section
-      title={title}
-      eyebrow={eyebrow}
-      actions={
-        // Iter 5: sync icon is now absolutely positioned and no longer takes
-        // flex space, so AccountRow's value column ends 16px inside the card
-        // right edge. The rows now carry a ⋯ menu slot to the right of their
-        // value (28px slot + 10px gap, flush to the 16px padding), so the row
-        // values sit 54px in from the card edge. The subtotal matches that
-        // offset so all $ values share one right edge down the page.
-        <span
-          className={`ds-money-grid__value ds-num ${totalTone === 'neg' ? 'ds-neg' : ''}`}
-          style={{ fontSize: 18, fontWeight: 500, width: '12ch', marginRight: 54 }}
-        >
-          {totalTone === 'neg' ? '−' : ''}{fmtUsd(total)}
-        </span>
-      }
-    >
-      {/* Per-section personalized insight — short caption that frames what
-          the user is looking at (e.g. "12% of net worth · ready to deploy").
-          Sits between the section header and the row list so it reads as
-          context, not chrome. */}
-      {insight && (
-        <p
-          className="ds-caption"
-          style={{ margin: '-8px 0 12px', color: 'var(--lf-muted)' }}
-        >
-          {insight}
-        </p>
-      )}
-
-      {/* Sync error banners */}
+    <div className="mt-[18px]">
       {errorItems.map((item) => (
-        <Card key={item.id} variant="ghost" tight style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div>
-              <div className="ds-body" style={{ color: 'var(--lf-sauce-deep)', fontWeight: 600 }}>
-                {item.institutionName || 'Institution'} needs attention
-              </div>
-              <p className="ds-caption" style={{ marginTop: 2 }}>
-                {item.status === 'item_login_required' ? 'Login expired — reconnect to resume syncing' : 'Sync error — try reconnecting'}
-              </p>
-            </div>
-            <Link href="/accounts" className="ds-btn ds-btn--link">Reconnect →</Link>
+        <div key={item.id} className="mb-2.5 flex items-center justify-between gap-3 rounded-ui-md border border-caution/30 bg-caution-soft px-4 py-3">
+          <div>
+            <div className="text-[14px] font-semibold text-caution">{item.institutionName || 'Institution'} needs attention</div>
+            <p className="mt-0.5 text-[12.5px] text-content-muted">
+              {item.status === 'item_login_required' ? 'Login expired — reconnect to resume syncing' : 'Sync error — try reconnecting'}
+            </p>
           </div>
-        </Card>
+          <Link href="/accounts" className="ui-focus shrink-0 rounded-ui-sm text-[13px] font-semibold text-brand hover:underline">Reconnect →</Link>
+        </div>
       ))}
 
-      <Card flush>
-        {accounts.map((acct) => {
-          const bal = effectiveBalance(acct);
-          const institution = acct.item.institutionName || 'Manual';
-          const metaSegs: string[] = [institution];
-          if (acct.subtype) metaSegs.push(titleCase(acct.subtype));
-          // The mask is NOT in the meta — it's bound to the name via AccountRow's
-          // `mask` prop as a muted ··6755 tail, so it reads as account identity
-          // rather than a second number competing with the balance.
-          const synced = acct.item.lastSyncedAt ? relativeTime(acct.item.lastSyncedAt) : null;
-          const frozen = acct.frozen === true;
-          // Identity line stays calm: just bank · type. Sync freshness and the
-          // frozen state move to a right-side status line under the value (see
-          // `status` below) so the left meta never gets dot-heavy and never
-          // truncates mid-segment on mobile.
-          const meta = (
-            <>
-              {metaSegs.map((seg, i) => (
-                <span key={i}>
-                  {i > 0 && <span className="ds-row__meta-dot">·</span>}
-                  {seg}
-                </span>
-              ))}
-            </>
-          );
-          // Right-side status sub-line beneath the balance. Frozen accounts show a
-          // quiet lock + "Frozen"; the upgrade CTA lives in the ⋯ menu (parallel to
-          // "Sync now" on active accounts) rather than as a per-row underlined link.
-          const status = frozen ? (
-            <span className="ds-row__status ds-row__status--frozen">
-              <Lock size={11} strokeWidth={2} aria-hidden="true" />
-              Frozen
-            </span>
-          ) : synced ? (
-            <span className="ds-row__status">{synced}</span>
-          ) : undefined;
-          const isManual = acct.item.institutionId === 'manual';
-          const badges: string[] = [];
-          if (acct.excludeFromNetWorth) badges.push('Not counted');
-          if (acct.invertBalance) badges.push('Inverted');
-          return (
-            <AccountRow
-              key={acct.id}
-              institution={institution}
-              name={titleCase(stripAccountMask(acct.name, acct.mask))}
-              mask={acct.mask}
-              meta={meta}
-              badges={badges}
-              value={bal}
-              delta={status}
-              negative={totalTone === 'neg'}
-              muted={frozen}
-              // Every account gets a settings entry; Plaid accounts also get
-              // sync, manual accounts also get delete. The ⋯ menu surfaces only
-              // the applicable items per account.
-              onSettings={() => setLocation('/accounts/' + acct.id)}
-              onSync={isManual || frozen ? undefined : () => onSync(acct.item.id)}
-              onUpgrade={frozen ? () => { startUpgrade().catch(() => {}); } : undefined}
-              syncing={syncing === acct.item.id}
-              onDelete={isManual ? async () => {
-                const ok = await confirm({
-                  title: `Delete "${titleCase(acct.name)}"?`,
-                  body: 'The account and its full balance history will be permanently removed. This can’t be undone.',
-                  confirmLabel: 'Delete',
-                  destructive: true,
-                });
-                if (!ok) return;
-                await api.deleteManualAccount(acct.id);
-                await onRefresh();
-              } : undefined}
-              formatValue={(n) => fmtUsd(n)}
+      <section className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-expanded={!collapsed}
+          className={cn(
+            'ui-focus flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-brand-softer sm:px-5 sm:py-4 rounded-ui-xl',
+            !collapsed && 'rounded-b-none',
+          )}
+        >
+          <span className="h-[11px] w-[11px] shrink-0 rounded-[3.5px]" style={{ background: `var(--ui-viz-${viz})` }} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <span className="shrink-0 font-editorial text-[16.5px] font-bold tracking-[-0.01em]">{title}</span>
+              <span className="shrink-0 text-[12.5px] font-medium text-content-muted">{count} {unit}{count === 1 ? '' : 's'}</span>
+            </div>
+            <div className="mt-0.5 hidden truncate text-[12px] font-medium text-content-faint sm:block">{caption}</div>
+          </div>
+          <span className={cn('ml-3 shrink-0 font-editorial text-[16.5px] font-extrabold tracking-[-0.015em] ui-tnum', totalNeg && 'text-negative')}>
+            {totalNeg ? '−' : ''}{fmtUsd(total)}
+          </span>
+          <span className="grid h-[26px] w-[26px] shrink-0 place-items-center text-content-faint">
+            <ChevronDown
+              size={18}
+              className={cn('transition-transform duration-200 ease-ui', collapsed && '-rotate-90')}
             />
-          );
-        })}
-      </Card>
-    </Section>
-    </>
+          </span>
+        </button>
+
+        {!collapsed && (
+          <div className="border-t border-line">
+            {accounts.map((acct) => {
+              const bal = effectiveBalance(acct);
+              const institution = acct.item.institutionName || 'Manual';
+              const synced = acct.item.lastSyncedAt ? relativeTime(acct.item.lastSyncedAt) : null;
+              const frozen = acct.frozen === true;
+              const isManual = acct.item.institutionId === 'manual';
+              const metaSegs: string[] = [institution];
+              if (acct.subtype) metaSegs.push(titleCase(acct.subtype));
+              const badges: string[] = [];
+              if (acct.excludeFromNetWorth) badges.push('Not counted');
+              if (acct.invertBalance) badges.push('Inverted');
+              return (
+                <AcctRow
+                  key={acct.id}
+                  institution={institution}
+                  name={titleCase(stripAccountMask(acct.name, acct.mask))}
+                  mask={acct.mask}
+                  metaSegs={metaSegs}
+                  badges={badges}
+                  value={bal}
+                  negative={totalNeg}
+                  frozen={frozen}
+                  syncTime={synced}
+                  syncing={syncing === acct.item.id}
+                  onSettings={() => setLocation('/accounts/' + acct.id)}
+                  onSync={isManual || frozen ? undefined : () => onSync(acct.item.id)}
+                  onUpgrade={frozen ? () => { startUpgrade().catch(() => {}); } : undefined}
+                  onDelete={isManual ? async () => {
+                    const ok = await confirm({
+                      title: `Delete "${titleCase(acct.name)}"?`,
+                      body: 'The account and its full balance history will be permanently removed. This can’t be undone.',
+                      confirmLabel: 'Delete',
+                      destructive: true,
+                    });
+                    if (!ok) return;
+                    await api.deleteManualAccount(acct.id);
+                    await onRefresh();
+                  } : undefined}
+                />
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Account row — institution icon · name/meta · balance · status · ⋯ menu
+// ─────────────────────────────────────────────────────────────────────────
+
+function AcctRow({
+  institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime, syncing,
+  onSettings, onSync, onUpgrade, onDelete,
+}: {
+  institution: string;
+  name: string;
+  mask?: string | null;
+  metaSegs: string[];
+  badges: string[];
+  value: number;
+  negative?: boolean;
+  frozen: boolean;
+  syncTime: string | null;
+  syncing: boolean;
+  onSettings: () => void;
+  onSync?: () => void;
+  onUpgrade?: () => void;
+  onDelete?: () => void;
+}) {
+  const showNeg = negative || value < 0;
+  const formatted = fmtUsd(Math.abs(value));
+  return (
+    <div
+      className={cn(
+        'group flex items-center gap-3.5 border-t border-line px-4 py-3 transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-brand-softer sm:px-5',
+        frozen && 'opacity-70',
+      )}
+    >
+      <InstIcon institution={institution} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[14.5px] font-bold leading-tight" title={name}>{name}</span>
+          {badges.map((b) => (
+            <span key={b} className="hidden shrink-0 rounded-full bg-canvas-sunken px-1.5 py-0.5 text-[10px] font-medium text-content-muted sm:inline">{b}</span>
+          ))}
+        </div>
+        <div className="mt-0.5 truncate text-[12.5px] text-content-muted">
+          {metaSegs.map((seg, i) => (
+            <span key={i}>
+              {i > 0 && <span className="mx-1 text-content-faint">·</span>}
+              {seg}
+            </span>
+          ))}
+          {mask && (
+            <>
+              <span className="mx-1 text-content-faint">·</span>
+              <span className="ui-tnum">····{mask}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+        <div className="text-right">
+          <div className={cn('font-editorial text-[15.5px] font-extrabold tracking-[-0.015em] ui-tnum', showNeg && 'text-negative')}>
+            {showNeg ? '−' : ''}{formatted}
+          </div>
+          {frozen ? (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
+              <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
+            </span>
+          ) : syncTime ? (
+            <div className="mt-0.5 hidden text-[12px] text-content-muted ui-tnum sm:block">{syncTime}</div>
+          ) : null}
+        </div>
+        <RowMenu
+          onSettings={onSettings}
+          onSync={onSync}
+          onUpgrade={onUpgrade}
+          onDelete={onDelete}
+          syncing={syncing}
+        />
+      </div>
+    </div>
+  );
+}
+
+function InstIcon({ institution }: { institution: string }) {
+  const url = faviconUrl(institutionDomainFor(institution), 64);
+  const mono = (institution || '?').trim().charAt(0).toUpperCase();
+  const [err, setErr] = useState(false);
+  return (
+    <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-ui-md border border-line bg-canvas-sunken text-[13px] font-bold text-content-secondary">
+      {url && !err ? (
+        <img src={url} alt="" className="h-6 w-6 rounded-[5px]" onError={() => setErr(true)} />
+      ) : (
+        mono
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Per-row overflow menu. Destructive items are ghost-danger (red text), never
+// a solid fill. Surfaces only the actions applicable to the account.
+// ─────────────────────────────────────────────────────────────────────────
+
+function RowMenu({
+  onSettings, onSync, onUpgrade, onDelete, syncing,
+}: {
+  onSettings: () => void;
+  onSync?: () => void;
+  onUpgrade?: () => void;
+  onDelete?: () => void;
+  syncing: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const run = (fn?: () => void) => () => { setOpen(false); fn?.(); };
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        aria-label="Account actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="ui-focus touch-target grid h-9 w-9 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
+      >
+        <MoreHorizontal size={18} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="animate-scale-in absolute right-0 top-[calc(100%+6px)] z-30 w-52 origin-top-right rounded-ui-md border border-line-strong bg-panel-raised p-1.5 shadow-ui-lg"
+        >
+          <MenuItem icon={<SlidersHorizontal size={16} />} onClick={run(onSettings)}>Account settings</MenuItem>
+          {onSync && (
+            <MenuItem icon={<RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />} onClick={run(onSync)}>
+              {syncing ? 'Syncing…' : 'Sync now'}
+            </MenuItem>
+          )}
+          {onUpgrade && (
+            <MenuItem icon={<Sparkles size={16} />} onClick={run(onUpgrade)}>Upgrade to sync</MenuItem>
+          )}
+          {onDelete && (
+            <>
+              <div className="my-1 h-px bg-line" />
+              <MenuItem icon={<Trash2 size={16} />} danger onClick={run(onDelete)}>Remove account</MenuItem>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  icon, children, onClick, danger,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className={cn(
+        'ui-focus flex w-full items-center gap-2.5 rounded-ui-sm px-2.5 py-2 text-left text-[13.5px] font-medium transition-colors',
+        danger
+          ? 'text-negative hover:bg-negative-soft'
+          : 'text-content-secondary hover:bg-canvas-sunken hover:text-content',
+      )}
+    >
+      <span className="shrink-0">{icon}</span>
+      {children}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Transaction row — favicon/category glyph · merchant · category·date · amount
+// Income (amount < 0) renders positive green with a leading '+'.
+// ─────────────────────────────────────────────────────────────────────────
+
+function TxnRow({
+  merchant, category, date, amount, fallbackIcon,
+}: {
+  merchant: string;
+  category: string;
+  date: string;
+  amount: number;
+  fallbackIcon: React.ReactNode;
+}) {
+  const isIncome = amount < 0;
+  return (
+    <div className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
+      <span className={cn(
+        'grid h-9 w-9 shrink-0 place-items-center rounded-ui-md',
+        isIncome ? 'bg-positive-soft text-positive' : 'bg-canvas-sunken text-content-secondary',
+      )}>
+        {fallbackIcon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
+        <div className="mt-0.5 text-[12.5px] text-content-muted">
+          <span>{category}</span>
+          <span className="mx-1 text-content-faint">·</span>
+          <span className="ui-tnum">{shortDate(date)}</span>
+        </div>
+      </div>
+      <span className={cn('shrink-0 font-editorial text-[14.5px] font-extrabold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive')}>
+        {isIncome ? '+' : ''}{fmtUsdCents(Math.abs(amount))}
+      </span>
+    </div>
   );
 }
 
@@ -720,6 +953,17 @@ function relativeTime(iso: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, today)) return 'Today';
+  if (sameDay(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function titleCase(raw: string): string {

@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
-import { Button } from "../components/ui/button.js";
-import { Logo } from "../components/common/Logo.js";
+import { Button, Input, Field } from "../components/uikit";
+import { BrandMark } from "../components/common/BrandMark";
 
 export function Login() {
   const { login, signup } = useAuth();
@@ -49,94 +49,94 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-      {/* Ambient background glow */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-accent/3 rounded-full blur-3xl" />
+    <div className="ui-root min-h-screen bg-canvas flex items-center justify-center p-4">
+      {/* Ambient warm glow — faint, single brand accent for atmosphere. */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <div
+          className="absolute -top-24 left-1/2 -translate-x-1/2 w-[640px] h-[640px] rounded-full blur-3xl"
+          style={{ background: "radial-gradient(circle, var(--ui-brand-soft), transparent 68%)" }}
+        />
       </div>
 
-      <div className="relative w-full max-w-md">
-        <div className="glass-card p-8">
-          {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center mb-4">
-              <Logo width={64} />
-            </div>
-            <h1 className="lf-wordmark text-3xl text-text">
-              Lasagna<span className="fi">fi</span>
+      <div className="relative w-full max-w-[420px]">
+        <div className="rounded-ui-xl border border-line bg-panel shadow-ui-lg p-7 sm:p-8">
+          {/* Brand + welcome */}
+          <div className="flex flex-col items-center text-center mb-7">
+            <BrandMark size={54} />
+            <h1 className="mt-4 font-editorial text-[26px] font-medium tracking-[-0.015em] text-content">
+              Lasagna<span className="text-brand">Fi</span>
             </h1>
-            <p className="text-text-secondary mt-1">Personal finance, layered.</p>
+            <p className="mt-1.5 text-[14px] text-content-secondary">
+              {isSignup ? "Create your account — personal finance, layered." : "Welcome back — let's check on your money."}
+            </p>
           </div>
 
           {import.meta.env.VITE_DEMO_MODE === "true" && (
-            <div className="mb-4 rounded-lg p-3 text-sm" style={{
-              border: '1px solid rgba(201,84,58,0.25)',
-              background: 'rgba(201,84,58,0.06)',
-            }}>
-              <p className="font-semibold mb-1" style={{ color: 'var(--lf-sauce)' }}>
-                Demo account
-              </p>
-              <p style={{ color: 'var(--lf-ink-soft)' }}>
-                Email: demo@lasagnafi.com &nbsp;|&nbsp; Password: lasagna123
+            <div className="mb-5 rounded-ui-md border border-brand-soft bg-brand-softer p-3.5 text-sm">
+              <p className="font-semibold text-brand mb-1">Demo account</p>
+              <p className="text-content-secondary ui-tnum">
+                demo@lasagnafi.com &nbsp;·&nbsp; lasagna123
               </p>
               <button
                 type="button"
                 onClick={autofillDemo}
-                className="mt-2 text-xs underline"
-                style={{ color: 'var(--lf-sauce)' }}
+                className="mt-2 text-xs font-medium text-brand underline underline-offset-2 hover:text-brand-hover"
               >
                 Auto-fill credentials
               </button>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             {isSignup && (
-              <div>
-                <input
+              <Field label="Name" hint="Optional">
+                <Input
                   type="text"
-                  placeholder="Name (optional)"
+                  placeholder="Your name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20 transition-all"
+                  autoComplete="name"
                 />
-              </div>
+              </Field>
             )}
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20 transition-all"
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20 transition-all"
-            />
+            <Field label="Email">
+              <Input
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
+            </Field>
+            <Field label="Password">
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                autoComplete={isSignup ? "new-password" : "current-password"}
+              />
+            </Field>
 
             {isSignup && (
-              <div className="space-y-3 text-sm">
+              <div className="space-y-3 pt-1 text-sm">
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={acceptedTos}
                     onChange={(e) => setAcceptedTos(e.target.checked)}
-                    className="mt-0.5 accent-[var(--lf-sauce)]"
+                    className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
                   />
-                  <span className="text-text-secondary leading-snug">
+                  <span className="text-content-secondary leading-snug">
                     I agree to the{" "}
                     <a
                       href="https://lasagnafi.com/terms"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-accent hover:text-accent-dim underline"
+                      className="text-brand hover:text-brand-hover underline underline-offset-2"
                     >
                       Terms of Service
                     </a>
@@ -147,15 +147,15 @@ export function Login() {
                     type="checkbox"
                     checked={acceptedPrivacy}
                     onChange={(e) => setAcceptedPrivacy(e.target.checked)}
-                    className="mt-0.5 accent-[var(--lf-sauce)]"
+                    className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
                   />
-                  <span className="text-text-secondary leading-snug">
+                  <span className="text-content-secondary leading-snug">
                     I agree to the{" "}
                     <a
                       href="https://lasagnafi.com/privacy"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-accent hover:text-accent-dim underline"
+                      className="text-brand hover:text-brand-hover underline underline-offset-2"
                     >
                       Privacy Policy
                     </a>
@@ -166,10 +166,10 @@ export function Login() {
                     type="checkbox"
                     checked={acceptedNotRia}
                     onChange={(e) => setAcceptedNotRia(e.target.checked)}
-                    className="mt-0.5 accent-[var(--lf-sauce)]"
+                    className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
                   />
-                  <span className="text-text-secondary leading-snug">
-                    I understand that LasagnaFi is <strong className="text-text">not a registered
+                  <span className="text-content-secondary leading-snug">
+                    I understand that LasagnaFi is <strong className="font-semibold text-content">not a registered
                     investment advisor</strong> and does not provide financial advice
                   </span>
                 </label>
@@ -177,31 +177,26 @@ export function Login() {
             )}
 
             {error && (
-              <div
-                className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20"
-              >
-                <AlertCircle className="w-4 h-4 text-danger flex-shrink-0" />
-                <span className="text-danger text-sm">{error}</span>
+              <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
+                <AlertCircle className="w-4 h-4 text-negative flex-shrink-0" />
+                <span className="text-negative text-sm">{error}</span>
               </div>
             )}
 
             <Button
               type="submit"
+              size="lg"
+              loading={loading}
               disabled={loading || (isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia))}
               className="w-full"
             >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing...
-                </span>
-              ) : isSignup ? "Create Account" : "Sign In"}
+              {loading ? "Processing…" : isSignup ? "Create Account" : "Sign In"}
             </Button>
           </form>
 
           {/* Sign-up toggle button — hide in demo mode */}
           {import.meta.env.VITE_DEMO_MODE !== "true" && (
-            <p className="text-center text-text-secondary mt-6">
+            <p className="text-center text-content-secondary text-sm mt-6">
               {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
                 type="button"
@@ -212,7 +207,7 @@ export function Login() {
                   setAcceptedPrivacy(false);
                   setAcceptedNotRia(false);
                 }}
-                className="text-accent hover:text-accent-dim transition-colors font-medium"
+                className="text-brand hover:text-brand-hover transition-colors font-medium"
               >
                 {isSignup ? "Sign in" : "Sign up"}
               </button>
@@ -221,8 +216,8 @@ export function Login() {
 
           {/* If in demo mode, redirect to app.lasagnafi.com instead */}
           {import.meta.env.VITE_DEMO_MODE === "true" && (
-            <p className="text-center text-sm text-[rgb(var(--color-text-secondary))] mt-6">
-              <a href="https://app.lasagnafi.com/login" className="text-[rgb(var(--color-accent))] underline">
+            <p className="text-center text-sm text-content-secondary mt-6">
+              <a href="https://app.lasagnafi.com/login" className="text-brand hover:text-brand-hover underline underline-offset-2">
                 Create an account at app.lasagnafi.com →
               </a>
             </p>
@@ -231,19 +226,16 @@ export function Login() {
 
         {/* Try the demo link — shown only when not in demo mode */}
         {import.meta.env.VITE_DEMO_MODE !== "true" && (
-          <p className="text-center text-xs text-[rgb(var(--color-text-muted))] mt-3">
+          <p className="text-center text-xs text-content-muted mt-4">
             Want to explore first?{" "}
             <a
               href="https://demo.lasagnafi.com"
-              className="text-[rgb(var(--color-text-secondary))] underline"
+              className="text-content-secondary underline underline-offset-2 hover:text-content"
             >
               Try the demo →
             </a>
           </p>
         )}
-
-        {/* Decorative border glow */}
-        <div className="absolute -inset-px rounded-2xl -z-10 blur-sm" style={{ background: 'linear-gradient(135deg, rgba(201,84,58,0.15), transparent, rgba(230,184,92,0.08))' }} />
       </div>
     </div>
   );

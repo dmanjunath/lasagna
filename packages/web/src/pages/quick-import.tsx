@@ -226,7 +226,7 @@ export function QuickImport() {
     Object.values(profileFieldsKept).filter(Boolean).length;
 
   return (
-    <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto' }}>
+    <div className="ui-root text-content" style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 640, margin: '0 auto' }}>
       {stage === 'input' && (
         <InputStage
           text={text}
@@ -312,10 +312,10 @@ function InputStage({
   return (
     <div className="pb-28">
       <div className="flex items-center gap-2 mb-1.5">
-        <Sparkles className="w-4 h-4 text-accent" />
-        <h1 className="font-serif text-lg font-medium">Describe your finances</h1>
+        <Sparkles className="w-4 h-4 text-brand" />
+        <h1 className="font-editorial text-[22px] font-medium tracking-[-0.015em] text-content">Describe your finances</h1>
       </div>
-      <p className="text-xs text-text-secondary mb-3 leading-snug">
+      <p className="text-[13px] text-content-secondary mb-4 leading-snug">
         Type a sentence or two. We&rsquo;ll show you what we found before saving anything.
       </p>
 
@@ -329,14 +329,14 @@ function InputStage({
         onChange={(e) => setText(e.target.value)}
         placeholder={EXAMPLE_PLACEHOLDER}
         rows={4}
-        className="w-full bg-bg-elevated border border-rule rounded-2xl p-3 text-base text-text outline-none focus:border-accent transition-colors resize-none leading-snug overflow-hidden"
+        className="w-full bg-panel border border-line-strong shadow-ui-sm rounded-ui-lg p-3.5 text-base text-content placeholder:text-content-faint outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] transition-[border-color,box-shadow] duration-150 ease-ui resize-none leading-snug overflow-hidden"
         autoFocus
       />
 
       <SuggestionChips text={text} />
 
       {error && (
-        <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-300 flex items-start gap-2">
+        <div className="mt-4 flex items-start gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25 text-sm text-negative">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -346,7 +346,7 @@ function InputStage({
         <button
           onClick={onParse}
           disabled={tooShort || parsing}
-          className="w-full bg-accent text-white font-medium rounded-2xl py-3.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="ui-focus w-full min-h-touch bg-brand-soft text-[rgb(var(--ui-brand-ink))] font-bold rounded-ui-md py-3.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-[transform,box-shadow] duration-150 ease-ui hover:-translate-y-px hover:shadow-ui-sm active:translate-y-px"
         >
           {parsing ? (
             <>
@@ -407,14 +407,14 @@ function PreviewStage({
   return (
     <div className="pb-36 space-y-5">
       <div>
-        <h1 className="font-serif text-xl font-medium mb-1">Here&rsquo;s what we found</h1>
-        <p className="text-sm text-text-secondary">
+        <h1 className="font-editorial text-[24px] font-medium tracking-[-0.015em] text-content mb-1">Here&rsquo;s what we found</h1>
+        <p className="text-sm text-content-secondary">
           Edit anything that&rsquo;s wrong. Untoggle to skip. Nothing&rsquo;s saved yet.
         </p>
       </div>
 
       {nothingFound && (
-        <div className="p-4 rounded-2xl bg-bg-elevated border border-rule text-sm text-text-secondary">
+        <div className="p-4 rounded-ui-lg border border-dashed border-line-strong bg-canvas-sunken/40 text-sm text-content-secondary">
           We couldn&rsquo;t find anything to import. Try being more specific — include
           balances and account types.
         </div>
@@ -468,8 +468,8 @@ function PreviewStage({
       )}
 
       {result.unparsed.length > 0 && (
-        <div className="p-3 rounded-2xl bg-bg-elevated/50 border border-dashed border-rule text-xs text-text-muted">
-          <div className="font-medium mb-1 text-text-secondary">We heard but didn&rsquo;t act on:</div>
+        <div className="p-3.5 rounded-ui-lg bg-canvas-sunken/40 border border-dashed border-line-strong text-xs text-content-muted">
+          <div className="font-medium mb-1 text-content-secondary">We heard but didn&rsquo;t act on:</div>
           <ul className="space-y-0.5">
             {result.unparsed.map((u, i) => (
               <li key={i}>&ldquo;{u}&rdquo;</li>
@@ -479,7 +479,7 @@ function PreviewStage({
       )}
 
       {error && (
-        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-300 flex items-start gap-2">
+        <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25 text-sm text-negative">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -489,7 +489,7 @@ function PreviewStage({
         <div className="flex gap-2">
           <button
             onClick={onBack}
-            className="px-4 py-3.5 rounded-2xl border border-rule text-sm text-text-secondary hover:bg-bg-elevated"
+            className="ui-focus min-h-touch px-4 py-3.5 rounded-ui-md border border-line-strong bg-canvas-sunken text-sm font-bold text-content hover:border-line-heavy transition-colors"
             disabled={committing}
           >
             Edit text
@@ -497,7 +497,7 @@ function PreviewStage({
           <button
             onClick={onCommit}
             disabled={committing || itemCount === 0}
-            className="flex-1 bg-accent text-white font-medium rounded-2xl py-3.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="ui-focus flex-1 min-h-touch bg-brand-soft text-[rgb(var(--ui-brand-ink))] font-bold rounded-ui-md py-3.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-[transform,box-shadow] duration-150 ease-ui hover:-translate-y-px hover:shadow-ui-sm active:translate-y-px"
           >
             {committing ? (
               <>
@@ -534,7 +534,7 @@ function ProfileCard({
   return (
     <div className="space-y-3">
       <SectionHeader title="Profile" count={fields.length} />
-      <div className="bg-bg-elevated border border-rule rounded-2xl divide-y divide-rule overflow-hidden">
+      <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm divide-y divide-line overflow-hidden">
         {fields.map(([field, value]) => {
           const existing = currentProfile ? (currentProfile as unknown as Record<string, unknown>)[field] : null;
           const hasConflict =
@@ -545,22 +545,22 @@ function ProfileCard({
             <div key={field} className="px-4 py-3 flex items-start gap-3">
               <button
                 onClick={() => setKept({ ...kept, [field]: !isKept })}
-                className={`mt-1 w-5 h-5 rounded border shrink-0 grid place-items-center transition-colors ${
-                  isKept ? 'bg-accent border-accent' : 'bg-transparent border-rule'
+                className={`ui-focus mt-1 w-5 h-5 rounded border shrink-0 grid place-items-center transition-colors ${
+                  isKept ? 'bg-brand border-brand' : 'bg-transparent border-line-strong'
                 }`}
                 aria-label={isKept ? 'Skip this field' : 'Include this field'}
               >
                 {isKept && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
               </button>
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-text-muted mb-1">{PROFILE_FIELD_LABELS[field]}</div>
+                <div className="text-xs text-content-muted mb-1">{PROFILE_FIELD_LABELS[field]}</div>
                 <EditProfileField
                   field={field}
                   value={value}
                   onChange={(v) => setEdits({ ...edits, [field]: v })}
                 />
                 {hasConflict && (
-                  <div className="text-[11px] text-amber-400/80 mt-1">
+                  <div className="text-[11px] text-caution mt-1">
                     Currently set to{' '}
                     <span className="line-through">{formatProfileValue(field, existing)}</span>
                     {' '}— will overwrite
@@ -582,7 +582,7 @@ const US_STATE_CODES = [
 ];
 
 const inputCls =
-  'w-full bg-bg border border-rule rounded-lg px-3 py-2 text-sm outline-none focus:border-accent';
+  'w-full bg-panel border border-line-strong rounded-ui-md px-3 py-2 text-sm text-content outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] transition-[border-color,box-shadow] duration-150 ease-ui';
 
 function EditProfileField({
   field,
@@ -623,7 +623,7 @@ function EditProfileField({
         step={field === 'employerMatch' ? '0.5' : '1'}
         value={value === null || value === undefined ? '' : String(value)}
         onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className={inputCls}
+        className={`${inputCls} ui-tnum`}
       />
     );
   }
@@ -636,7 +636,7 @@ function EditProfileField({
         type="date"
         value={s}
         onChange={(e) => onChange(e.target.value || null)}
-        className={`${inputCls} [color-scheme:dark]`}
+        className={inputCls}
       />
     );
   }
@@ -716,9 +716,9 @@ function EditProfileField({
           type="checkbox"
           checked={v}
           onChange={(e) => onChange(e.target.checked)}
-          className="accent-accent w-4 h-4"
+          className="accent-[rgb(var(--ui-brand))] w-4 h-4"
         />
-        <span className="text-text-secondary">{v ? 'Yes' : 'No'}</span>
+        <span className="text-content-secondary">{v ? 'Yes' : 'No'}</span>
       </label>
     );
   }
@@ -745,32 +745,32 @@ function AccountCard({
     : ACCOUNT_TYPE_LABELS[account.type];
 
   return (
-    <div className={`bg-bg-elevated border rounded-2xl overflow-hidden ${
-      missingBalance ? 'border-amber-500/40' : 'border-rule'
+    <div className={`bg-panel border rounded-ui-lg shadow-ui-sm overflow-hidden ${
+      missingBalance ? 'border-caution/50' : 'border-line'
     }`}>
       <div className="px-4 py-3 flex items-center gap-3">
         <span className="text-2xl leading-none">{emoji}</span>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{account.name}</div>
-          <div className="text-xs text-text-muted truncate">{subLabel}</div>
+          <div className="text-sm font-medium text-content truncate">{account.name}</div>
+          <div className="text-xs text-content-muted truncate">{subLabel}</div>
         </div>
         <div className="text-right shrink-0">
           {missingBalance ? (
-            <span className="text-xs text-amber-400">Balance needed</span>
+            <span className="text-xs text-caution">Balance needed</span>
           ) : (
-            <span className="text-sm font-medium tabular-nums">{formatMoney(account.balance)}</span>
+            <span className="text-sm font-medium text-content ui-tnum">{formatMoney(account.balance)}</span>
           )}
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-8 h-8 grid place-items-center text-text-muted hover:text-text"
+          className="ui-focus w-8 h-8 grid place-items-center rounded-ui-md text-content-muted hover:text-content"
           aria-label={expanded ? 'Collapse' : 'Edit'}
         >
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
         <button
           onClick={onRemove}
-          className="w-8 h-8 grid place-items-center text-text-muted hover:text-red-400"
+          className="ui-focus w-8 h-8 grid place-items-center rounded-ui-md text-content-muted hover:text-negative"
           aria-label="Remove"
         >
           <X className="w-4 h-4" />
@@ -778,13 +778,13 @@ function AccountCard({
       </div>
 
       {expanded && (
-        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-rule">
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line">
           <Field label="Name">
             <input
               type="text"
               value={account.name}
               onChange={(e) => onChange({ ...account, name: e.target.value })}
-              className="w-full bg-bg border border-rule rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
+              className={inputCls}
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
@@ -794,7 +794,7 @@ function AccountCard({
                 onChange={(e) =>
                   onChange({ ...account, type: e.target.value as QuickImportAccount['type'] })
                 }
-                className="w-full bg-bg border border-rule rounded-lg px-3 py-2 text-sm outline-none focus:border-accent appearance-none"
+                className={`${inputCls} appearance-none`}
               >
                 {Object.entries(ACCOUNT_TYPE_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>
@@ -809,7 +809,7 @@ function AccountCard({
                 value={account.subtype ?? ''}
                 onChange={(e) => onChange({ ...account, subtype: e.target.value || null })}
                 placeholder="optional"
-                className="w-full bg-bg border border-rule rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
+                className={inputCls}
               />
             </Field>
           </div>
@@ -828,7 +828,7 @@ function AccountCard({
                 onChange={(e) =>
                   onChange({ ...account, apr: e.target.value === '' ? null : Number(e.target.value) })
                 }
-                className="w-full bg-bg border border-rule rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
+                className={`${inputCls} ui-tnum`}
               />
             </Field>
           )}
@@ -841,7 +841,7 @@ function AccountCard({
                 onChange={(e) =>
                   onChange({ ...account, apy: e.target.value === '' ? null : Number(e.target.value) })
                 }
-                className="w-full bg-bg border border-rule rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
+                className={`${inputCls} ui-tnum`}
               />
             </Field>
           )}
@@ -849,7 +849,7 @@ function AccountCard({
       )}
 
       {!expanded && account.sourcePhrase && (
-        <div className="px-4 pb-3 -mt-1 text-[11px] text-text-muted italic truncate">
+        <div className="px-4 pb-3 -mt-1 text-[11px] text-content-muted italic truncate">
           from: &ldquo;{account.sourcePhrase}&rdquo;
         </div>
       )}
@@ -871,37 +871,37 @@ function GoalCard({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="bg-bg-elevated border border-rule rounded-2xl overflow-hidden">
+    <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm overflow-hidden">
       <div className="px-4 py-3 flex items-center gap-3">
         <span className="text-2xl leading-none">🎯</span>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{goal.name}</div>
-          <div className="text-xs text-text-muted">
+          <div className="text-sm font-medium text-content truncate">{goal.name}</div>
+          <div className="text-xs text-content-muted ui-tnum">
             {formatMoney(goal.targetAmount)}
             {goal.deadline ? ` by ${goal.deadline}` : ''}
           </div>
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-8 h-8 grid place-items-center text-text-muted hover:text-text"
+          className="ui-focus w-8 h-8 grid place-items-center rounded-ui-md text-content-muted hover:text-content"
         >
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
         <button
           onClick={onRemove}
-          className="w-8 h-8 grid place-items-center text-text-muted hover:text-red-400"
+          className="ui-focus w-8 h-8 grid place-items-center rounded-ui-md text-content-muted hover:text-negative"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
       {expanded && (
-        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-rule">
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line">
           <Field label="Name">
             <input
               type="text"
               value={goal.name}
               onChange={(e) => onChange({ ...goal, name: e.target.value })}
-              className="w-full bg-bg border border-rule rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
+              className={inputCls}
             />
           </Field>
           <Field label="Target amount">
@@ -915,13 +915,13 @@ function GoalCard({
               type="date"
               value={goal.deadline ?? ''}
               onChange={(e) => onChange({ ...goal, deadline: e.target.value || null })}
-              className="w-full bg-bg border border-rule rounded-lg px-3 py-2 text-sm outline-none focus:border-accent [color-scheme:dark]"
+              className={inputCls}
             />
           </Field>
         </div>
       )}
       {!expanded && goal.sourcePhrase && (
-        <div className="px-4 pb-3 -mt-1 text-[11px] text-text-muted italic truncate">
+        <div className="px-4 pb-3 -mt-1 text-[11px] text-content-muted italic truncate">
           from: &ldquo;{goal.sourcePhrase}&rdquo;
         </div>
       )}
@@ -945,25 +945,25 @@ function DoneStage({
   return (
     <div className="pb-32">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-12 h-12 rounded-full bg-emerald-500/20 grid place-items-center">
-          <Check className="w-6 h-6 text-emerald-400" />
+        <div className="w-12 h-12 rounded-full bg-brand-soft grid place-items-center">
+          <Check className="w-6 h-6 text-brand" />
         </div>
         <div>
-          <h1 className="font-serif text-xl font-medium">All set</h1>
-          <p className="text-sm text-text-secondary">Your data has been imported.</p>
+          <h1 className="font-editorial text-[24px] font-medium tracking-[-0.015em] text-content">All set</h1>
+          <p className="text-sm text-content-secondary">Your data has been imported.</p>
         </div>
       </div>
 
       <div className="space-y-3">
         {summary.accounts.length > 0 && (
-          <div className="bg-bg-elevated border border-rule rounded-2xl p-4">
-            <div className="text-xs text-text-muted uppercase tracking-wide mb-2">
+          <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm p-4">
+            <div className="text-[11px] text-content-muted uppercase tracking-[0.12em] font-semibold mb-2">
               Accounts created ({summary.accounts.length})
             </div>
-            <ul className="text-sm space-y-1">
+            <ul className="text-sm space-y-1 text-content">
               {summary.accounts.map((a) => (
                 <li key={a.id} className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <Check className="w-3.5 h-3.5 text-brand shrink-0" />
                   {a.name}
                 </li>
               ))}
@@ -971,14 +971,14 @@ function DoneStage({
           </div>
         )}
         {summary.goals.length > 0 && (
-          <div className="bg-bg-elevated border border-rule rounded-2xl p-4">
-            <div className="text-xs text-text-muted uppercase tracking-wide mb-2">
+          <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm p-4">
+            <div className="text-[11px] text-content-muted uppercase tracking-[0.12em] font-semibold mb-2">
               Goals created ({summary.goals.length})
             </div>
-            <ul className="text-sm space-y-1">
+            <ul className="text-sm space-y-1 text-content">
               {summary.goals.map((g) => (
                 <li key={g.id} className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <Check className="w-3.5 h-3.5 text-brand shrink-0" />
                   {g.name}
                 </li>
               ))}
@@ -986,8 +986,8 @@ function DoneStage({
           </div>
         )}
         {summary.profileUpdated && (
-          <div className="bg-bg-elevated border border-rule rounded-2xl p-4 text-sm flex items-center gap-2">
-            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm p-4 text-sm text-content flex items-center gap-2">
+            <Check className="w-3.5 h-3.5 text-brand shrink-0" />
             Profile updated
           </div>
         )}
@@ -996,7 +996,7 @@ function DoneStage({
       <StickyFooter>
         <button
           onClick={onContinue}
-          className="w-full bg-accent text-white font-medium rounded-2xl py-3.5"
+          className="ui-focus w-full min-h-touch bg-brand-soft text-[rgb(var(--ui-brand-ink))] font-bold rounded-ui-md py-3.5 transition-[transform,box-shadow] duration-150 ease-ui hover:-translate-y-px hover:shadow-ui-sm active:translate-y-px"
         >
           {onboardingCompleted
             ? 'Go to dashboard'
@@ -1014,8 +1014,8 @@ function DoneStage({
 function SectionHeader({ title, count }: { title: string; count: number }) {
   return (
     <div className="flex items-baseline justify-between px-1">
-      <h2 className="text-sm font-medium uppercase tracking-wide text-text-secondary">{title}</h2>
-      <span className="text-xs text-text-muted">{count}</span>
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">{title}</h2>
+      <span className="text-xs text-content-muted ui-tnum">{count}</span>
     </div>
   );
 }
@@ -1134,23 +1134,23 @@ function SuggestionChips({ text }: { text: string }) {
   }, [text]);
 
   return (
-    <div className="mt-2">
-      <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1.5">
+    <div className="mt-3">
+      <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-content-muted mb-1.5">
         Things to mention
       </div>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1.5">
         {SUGGESTIONS.map((cat) => {
           const hit = matched.has(cat.key);
           return (
             <span
               key={cat.key}
-              className={`inline-flex items-center gap-0.5 text-[11px] px-2 py-0.5 rounded-full border transition-all ${
+              className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-all ${
                 hit
-                  ? 'border-accent/30 bg-accent/5 text-text-muted line-through opacity-60'
-                  : 'border-rule bg-bg-elevated text-text-secondary'
+                  ? 'border-transparent bg-brand-soft text-brand line-through opacity-70'
+                  : 'border-line bg-canvas-sunken text-content-secondary'
               }`}
             >
-              {hit && <Check className="w-2.5 h-2.5 text-accent shrink-0 no-underline" />}
+              {hit && <Check className="w-2.5 h-2.5 text-brand shrink-0 no-underline" />}
               {cat.label}
             </span>
           );
@@ -1163,7 +1163,7 @@ function SuggestionChips({ text }: { text: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-xs text-text-muted mb-1">{label}</span>
+      <span className="block text-xs text-content-muted mb-1">{label}</span>
       {children}
     </label>
   );
@@ -1185,7 +1185,7 @@ function CurrencyInput({
 
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-sm">$</span>
       <input
         type="text"
         inputMode="decimal"
@@ -1196,7 +1196,7 @@ function CurrencyInput({
           onChange(clean === '' ? null : Number(clean));
         }}
         placeholder="0"
-        className="w-full bg-bg border border-rule rounded-lg pl-7 pr-3 py-2 text-sm outline-none focus:border-accent"
+        className="w-full bg-panel border border-line-strong rounded-ui-md pl-7 pr-3 py-2 text-sm text-content ui-tnum outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] transition-[border-color,box-shadow] duration-150 ease-ui"
       />
     </div>
   );
@@ -1204,7 +1204,7 @@ function CurrencyInput({
 
 function StickyFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fixed bottom-0 inset-x-0 z-30 max-w-md mx-auto bg-bg/95 backdrop-blur border-t border-rule/60 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+    <div className="fixed bottom-0 inset-x-0 z-30 max-w-[640px] mx-auto bg-canvas/95 backdrop-blur border-t border-line px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
       {children}
     </div>
   );

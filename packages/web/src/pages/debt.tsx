@@ -1,24 +1,25 @@
 import { useState, useEffect } from 'react';
-import { CreditCard, Landmark, Pencil, X } from 'lucide-react';
+import { CreditCard, Landmark, Pencil, ArrowRight } from 'lucide-react';
 import { api } from '../lib/api';
-import { formatMoney } from '../lib/utils';
+import { cn, formatMoney } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
 import {
-  Page,
-  Section,
-  Card,
   Button,
-  Pill,
-  Eyebrow,
-  DataTable,
+  Surface,
+  Badge,
+  Field,
+  Input,
   EmptyState,
-  CompositionRibbon,
-  StatStrip,
-} from '../components/ds';
-import type { DataTableColumn } from '../components/ds/DataTable';
-import type { CompositionSegment } from '../components/ds/CompositionRibbon';
+  Modal,
+  Table,
+  THead,
+  TBody,
+  TR,
+  TH,
+  TD,
+} from '../components/uikit';
 
 interface DebtAccount {
   id: string;
@@ -88,16 +89,16 @@ function debtTypeLabel(d: DebtAccount): string {
   return 'Loan';
 }
 
-// Distinct hues for debt segments — sauce + crust + muted + cheese were
-// the prior set's three browns, which read as one block. Alternating hue
-// (red → brown → warm-grey → yellow) gives users at-a-glance separation.
+// Distinct hues for debt composition segments. Coral (viz-4) is the debt color,
+// so it leads; the rest alternate through the Bright categorical palette to give
+// at-a-glance separation between accounts, in both light and dark.
 const DEBT_SHADES = [
-  'var(--lf-sauce)',
-  'var(--lf-crust)',
-  'var(--lf-muted)',
-  'var(--lf-cheese)',
-  'var(--lf-burgundy)',
-  'var(--lf-sauce-deep)',
+  'var(--ui-viz-4)',
+  'var(--ui-viz-3)',
+  'var(--ui-viz-7)',
+  'var(--ui-viz-5)',
+  'var(--ui-viz-2)',
+  'var(--ui-viz-6)',
 ];
 function debtColor(i: number): string {
   return DEBT_SHADES[i % DEBT_SHADES.length];
@@ -198,7 +199,7 @@ export function Debt() {
   const apr = blendedApr(debts);
 
   return (
-    <Page>
+    <div className="mx-auto max-w-[1120px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
       {loading ? null : !hasAccounts ? (
         <NoAccountsView />
       ) : hasDebt ? (
@@ -224,7 +225,24 @@ export function Debt() {
       ) : (
         <DebtFreeView openChat={openChat} />
       )}
-    </Page>
+    </div>
+  );
+}
+
+// ── Page header ───────────────────────────────────────────────────────────────
+
+function DebtHeader({ subtitle }: { subtitle?: React.ReactNode }) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+          Debt
+        </h1>
+        {subtitle && (
+          <p className="mt-2 text-[14.5px] font-semibold text-content-muted">{subtitle}</p>
+        )}
+      </div>
+    </header>
   );
 }
 
@@ -233,26 +251,141 @@ export function Debt() {
 function NoAccountsView() {
   return (
     <>
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Debt</h1>
-          <span className="ds-page-bar__subtitle">No accounts linked</span>
-        </div>
-      </header>
-      <div className="ds-page-bar__subtitle-mobile">No accounts linked</div>
-      <Section>
+      <DebtHeader subtitle="No accounts linked" />
+      <div className="mt-8">
         <EmptyState
-          icon={<CreditCard size={40} />}
+          icon={<CreditCard size={24} />}
           title="No accounts linked"
-          body="Add your credit cards and loans to see your debt breakdown, payoff timeline, and optimization strategy."
-          cta={import.meta.env.VITE_DEMO_MODE !== "true" ? (
-            <a href="/accounts" className="ds-btn ds-btn--primary">
-              Add accounts
+          description="Add your credit cards and loans to see your debt breakdown, payoff timeline, and optimization strategy."
+          action={import.meta.env.VITE_DEMO_MODE !== "true" ? (
+            <a href="/accounts">
+              <Button>Add accounts</Button>
             </a>
           ) : undefined}
         />
-      </Section>
+      </div>
     </>
+  );
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label, value, sub, neg,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub: string;
+  neg?: boolean;
+}) {
+  return (
+    <Surface pad="none" className="p-4 sm:p-[18px]">
+      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{label}</div>
+      <div className={cn(
+        'mt-1.5 font-editorial text-[24px] sm:text-[26px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
+        neg ? 'text-negative' : 'text-content',
+      )}>
+        {value}
+      </div>
+      <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">{sub}</div>
+    </Surface>
+  );
+}
+
+// ── Composition bar ───────────────────────────────────────────────────────────
+
+function CompositionBar({ debts }: { debts: DebtAccount[] }) {
+  const segments = [...debts]
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 6)
+    .map((d, i) => ({
+      label: d.name.replace(/\bMORTGAGE\b/gi, 'MTG'),
+      value: d.balance,
+      color: debtColor(i),
+    }));
+  const total = segments.reduce((s, seg) => s + Math.abs(seg.value), 0);
+  if (total <= 0) return null;
+
+  return (
+    <div>
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-canvas-sunken">
+        {segments.map((seg, i) => {
+          const pct = (Math.abs(seg.value) / total) * 100;
+          return (
+            <div
+              key={i}
+              className="h-full first:rounded-l-full last:rounded-r-full"
+              style={{ width: `${pct}%`, background: seg.color, boxShadow: 'inset 0 0 0 1px rgb(var(--ui-panel) / 0.35)' }}
+              title={`${seg.label} · ${formatCurrency(Math.abs(seg.value))}`}
+            />
+          );
+        })}
+      </div>
+      <div className="mt-3.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-2">
+        {segments.map((seg, i) => {
+          const pct = Math.round((Math.abs(seg.value) / total) * 100);
+          return (
+            <div key={i} className="flex items-center gap-2 text-[12.5px]">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} aria-hidden />
+              <span className="min-w-0 truncate font-semibold text-content-secondary">{seg.label}</span>
+              <span className="ml-auto shrink-0 font-semibold text-content ui-tnum sm:ml-0">{formatCurrency(Math.abs(seg.value))}</span>
+              <span className="shrink-0 text-content-muted ui-tnum">{pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Strategy card ─────────────────────────────────────────────────────────────
+
+function StrategyCard({
+  active, onSelect, label, title, amount, body, footnote, footnoteTone,
+}: {
+  active: boolean;
+  onSelect: () => void;
+  label: string;
+  title: string;
+  amount: string;
+  body: string;
+  footnote?: string;
+  footnoteTone?: 'good' | 'bad';
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onSelect}
+      className={cn(
+        'relative flex flex-col rounded-ui-xl border bg-panel p-5 text-left shadow-ui-sm transition-[transform,box-shadow,border-color]',
+        active
+          ? 'border-brand ring-1 ring-[var(--ui-brand-ring)]'
+          : 'border-line hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-md',
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{label}</span>
+        {active && <Badge tone="brand" size="sm">Active</Badge>}
+      </div>
+      <h3 className="mt-1.5 font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h3>
+      <div className="mt-4 font-editorial text-[30px] sm:text-[34px] font-extrabold leading-none tracking-[-0.02em] text-content ui-tnum">
+        {amount}
+      </div>
+      <div className="mt-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Total interest paid</div>
+      <p className="mt-3 text-[13.5px] leading-relaxed text-content-secondary">{body}</p>
+      {footnote && (
+        <span
+          className={cn(
+            'mt-3 text-[12px] font-bold ui-tnum',
+            footnoteTone === 'good' ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-negative',
+          )}
+        >
+          {footnote}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -283,423 +416,204 @@ function HasDebtView({
   onCloseModal: () => void;
   onLoanDetailsSaved: () => void;
 }) {
-  // Composition segments per account. Abbreviate "MORTGAGE" → "MTG" so the legend
-  // stays scannable on mobile, and drop the ··mask suffix from the label (it adds
-  // noise when stacked one-per-row).
-  const compositionSegments: CompositionSegment[] = [...debts]
-    .sort((a, b) => b.balance - a.balance)
-    .slice(0, 6)
-    .map((d, i) => ({
-      label: d.name.replace(/\bMORTGAGE\b/gi, 'MTG'),
-      value: d.balance,
-      color: debtColor(i),
-      negative: true,
-    }));
-  // Largest balance to identify <1% rows for de-emphasis (D5).
-  const compositionTotal = compositionSegments.reduce((s, seg) => s + Math.abs(seg.value), 0);
+  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
-  // Total interest delta: how much interest saved using avalanche vs snowball
+  // Cheaper of the two strategies — the interest total surfaced in the KPI strip.
   const cheaperInterest = Math.min(avalancheInterest, snowballInterest);
   const totalInterest = Math.round(cheaperInterest);
 
-  // Debt table columns
-  const cols: DataTableColumn<DebtAccount>[] = [
-    {
-      key: 'name',
-      header: 'Account',
-      cell: (d) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <span style={{ flexShrink: 0, color: 'var(--lf-muted)' }}>
-            {d.type === 'credit'
-              ? <CreditCard size={16} />
-              : <Landmark size={16} />}
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 500, color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {d.name}{d.mask ? ` ··${d.mask}` : ''}
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
-              <Pill tone="cream">{debtTypeLabel(d)}</Pill>
-              {d.liabilitySource === 'plaid' && (
-                <Pill tone="basil">Synced</Pill>
-              )}
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'balance',
-      header: 'Balance',
-      num: true,
-      cell: (d) => <span className="ds-num">{formatCurrency(d.balance)}</span>,
-    },
-    {
-      key: 'apr',
-      header: 'APR',
-      num: true,
-      cell: (d) => {
-        const high = d.apr > 20;
-        return (
-          <span className={`ds-num ${high ? 'ds-neg' : ''}`} style={{ fontWeight: high ? 600 : 400 }}>
-            {d.apr}%
-          </span>
-        );
-      },
-    },
-    {
-      key: 'min',
-      header: 'Min pay',
-      num: true,
-      cell: (d) => <span className="ds-num">{formatCurrency(d.minPayment)}/mo</span>,
-    },
-    {
-      key: 'payoff',
-      header: 'Payoff',
-      num: true,
-      muted: true,
-      cell: (d) => (
-        <span className="ds-num">
-          {d.payoffDate
-            ? new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-            : d.suggestedPayoffDate}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      cell: (d) => (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          {import.meta.env.VITE_DEMO_MODE !== 'true' && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onEditDebt(d); }}
-              title="Edit loan details"
-              aria-label="Edit loan details"
-              style={{
-                background: 'transparent', border: '1px solid var(--lf-rule)', borderRadius: 6,
-                cursor: 'pointer', color: 'var(--lf-muted)', padding: 6, lineHeight: 0,
-              }}
-            >
-              <Pencil size={12} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`);
-            }}
-            className="ds-btn ds-btn--ghost ds-btn--sm"
-          >
-            Plan →
-          </button>
-        </div>
-      ),
-    },
-  ];
+  const subtitle = (
+    <span className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      <span className="text-negative ui-tnum font-extrabold">−{formatCurrency(totalDebt)}</span>
+      <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+      <span>{debts.length} account{debts.length === 1 ? '' : 's'}</span>
+      <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+      <span><b className="font-extrabold text-content ui-tnum">{apr}%</b> blended APR</span>
+    </span>
+  );
 
   return (
     <>
-      <style>{`
-        .debt-strip { margin: 32px 0 48px; }
+      <DebtHeader subtitle={subtitle} />
 
-        /* Composition legend on mobile — force one item per row (vs the default
-           wrap-onto-multiple-rows which mixes line heights). Each legend item
-           becomes a clean: SWATCH · account name · amount · % strip. */
-        @media (max-width: 640px) {
-          .debt-ribbon-wrap .ds-ribbon__legend {
-            flex-direction: column;
-            gap: 8px;
-            row-gap: 8px;
-          }
-          .debt-ribbon-wrap .ds-ribbon__legend-item {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            grid-template-areas:
-              "swatch label  pct"
-              ".      value  pct";
-            align-items: baseline;
-            gap: 4px 10px;
-            width: 100%;
-          }
-          .debt-ribbon-wrap .ds-ribbon__swatch { grid-area: swatch; align-self: center; }
-          .debt-ribbon-wrap .ds-ribbon__legend-label { grid-area: label; }
-          .debt-ribbon-wrap .ds-ribbon__legend-value { grid-area: value; }
-          .debt-ribbon-wrap .ds-ribbon__legend-item > span:last-child { grid-area: pct; }
-        }
-
-        /* De-emphasize the trailing tiny-% rows (D5). data-tiny is the count of
-           sub-1% segments at the end of the legend, set by the page. */
-        .debt-ribbon-wrap[data-tiny="1"] .ds-ribbon__legend-item:nth-last-child(-n+1),
-        .debt-ribbon-wrap[data-tiny="2"] .ds-ribbon__legend-item:nth-last-child(-n+2),
-        .debt-ribbon-wrap[data-tiny="3"] .ds-ribbon__legend-item:nth-last-child(-n+3),
-        .debt-ribbon-wrap[data-tiny="4"] .ds-ribbon__legend-item:nth-last-child(-n+4) {
-          opacity: 0.55;
-          font-size: 11px;
-        }
-        .debt-ribbon-wrap[data-tiny="1"] .ds-ribbon__legend-item:nth-last-child(-n+1) .ds-ribbon__legend-label,
-        .debt-ribbon-wrap[data-tiny="2"] .ds-ribbon__legend-item:nth-last-child(-n+2) .ds-ribbon__legend-label,
-        .debt-ribbon-wrap[data-tiny="3"] .ds-ribbon__legend-item:nth-last-child(-n+3) .ds-ribbon__legend-label,
-        .debt-ribbon-wrap[data-tiny="4"] .ds-ribbon__legend-item:nth-last-child(-n+4) .ds-ribbon__legend-label {
-          font-size: 10px;
-        }
-
-        .debt-strategy {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 0;
-        }
-        @media (min-width: 720px) {
-          .debt-strategy { grid-template-columns: 1fr 1fr; }
-        }
-        .debt-strategy__col {
-          padding: 20px 0;
-        }
-        /* The strategy columns are now <button>s — strip the default UA styles
-           so they read as cards, and add a clear active state pill + ring. */
-        .debt-strategy__col--btn {
-          background: none;
-          border: 0;
-          width: 100%;
-          text-align: left;
-          font: inherit;
-          color: inherit;
-          cursor: pointer;
-          border-radius: 10px;
-          transition: background 0.15s, box-shadow 0.15s;
-        }
-        .debt-strategy__col--btn:hover:not(.is-active) {
-          background: var(--lf-cream);
-        }
-        .debt-strategy__col--btn.is-active {
-          background: var(--lf-cream);
-          box-shadow: inset 0 0 0 1px var(--lf-sauce);
-          padding-left: 14px;
-          padding-right: 14px;
-        }
-        .debt-strategy__col--btn:focus-visible {
-          outline: 2px solid var(--lf-sauce);
-          outline-offset: 2px;
-        }
-        .debt-strategy__col + .debt-strategy__col {
-          border-top: 1px solid var(--lf-rule);
-        }
-        @media (min-width: 720px) {
-          .debt-strategy__col + .debt-strategy__col {
-            border-top: none;
-            border-left: 1px solid var(--lf-rule);
-            padding-left: 28px;
-          }
-          .debt-strategy__col:first-child {
-            padding-right: 28px;
-          }
-        }
-        .debt-strategy__label {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 10px;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
-          color: var(--lf-muted);
-          margin-bottom: 6px;
-        }
-        .debt-strategy__amount {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 500;
-          font-size: clamp(28px, 3.4vw, 36px);
-          line-height: 1.1;
-          color: var(--lf-ink);
-          font-variant-numeric: tabular-nums;
-          letter-spacing: -0.01em;
-        }
-        .debt-strategy__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 500;
-          font-size: 22px;
-          color: var(--lf-ink);
-          margin: 0 0 4px;
-        }
-        .debt-strategy__body {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
-          line-height: 1.55;
-          color: var(--lf-ink-soft);
-          margin: 8px 0 0;
-        }
-        .debt-strategy__pill {
-          display: inline-block;
-          margin-top: 12px;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 11px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-        }
-      `}</style>
-
-      {/* Iter 8: ds-page-bar replaces editorial PageHeader + Lede. Live
-          monetary data stays out of the H1; subtitle carries the totals
-          (inline on desktop, dropped below on mobile). */}
-      {(() => {
-        const subtitleText = `${formatCurrency(totalDebt)} across ${debts.length} account${debts.length === 1 ? '' : 's'} · ${apr}% blended`;
-        const subtitleMobile = `${debts.length} account${debts.length === 1 ? '' : 's'} · ${apr}% blended`;
-        return (
-          <>
-            <header className="ds-page-bar">
-              <div className="ds-page-bar__title-group">
-                <h1 className="ds-page-bar__title">Debt</h1>
-                <span className="ds-page-bar__subtitle">{subtitleText}</span>
-              </div>
-            </header>
-            <div className="ds-page-bar__subtitle-mobile">{subtitleMobile}</div>
-          </>
-        );
-      })()}
-
-      {/* Composition ribbon */}
-      {compositionSegments.length > 0 && (() => {
-        // Count trailing tiny segments (<1% of total) so we can de-emphasize them
-        // in the legend via :nth-last-child. Segments are already sorted desc.
-        let tinyCount = 0;
-        for (let i = compositionSegments.length - 1; i >= 0; i--) {
-          const pct = compositionTotal > 0 ? (Math.abs(compositionSegments[i].value) / compositionTotal) * 100 : 0;
-          if (pct < 1) tinyCount++;
-          else break;
-        }
-        return (
-          <Section>
-            <div className="debt-ribbon-wrap" data-tiny={tinyCount}>
-              <CompositionRibbon
-                leadDelta={`${debts.length} account${debts.length === 1 ? '' : 's'}`}
-                segments={compositionSegments}
-              />
+      {/* ── Hero: total debt + composition ── */}
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(120% 90% at 100% 0%, var(--ui-negative-soft), transparent 58%),' +
+              'radial-gradient(90% 70% at 0% 4%, var(--ui-caution-soft), transparent 62%)',
+          }}
+        />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Total debt</div>
+            <div className="mt-2 font-editorial text-[38px] sm:text-[52px] font-extrabold leading-[0.98] tracking-[-0.035em] text-negative ui-tnum">
+              −{formatCurrency(totalDebt)}
             </div>
-          </Section>
-        );
-      })()}
-
-      {/* Stat strip */}
-      <StatStrip
-        className="debt-strip"
-        items={[
-          { label: 'Total debt', value: <span className="ds-num">{formatCurrency(totalDebt)}</span>, sub: `${debts.length} account${debts.length === 1 ? '' : 's'}`, tone: 'neg' },
-          { label: 'Blended APR', value: <span className="ds-num">{apr}%</span>, sub: 'weighted average' },
-          { label: 'Monthly payment', value: <span className="ds-num">{formatCurrency(totalMonthlyPayment)}</span>, sub: 'suggested plan' },
-          { label: 'Total interest', value: <span className="ds-num">{formatCurrency(totalInterest)}</span>, sub: 'over plan' },
-        ]}
-      />
-
-      {/* Payoff strategy — editorial comparison */}
-      <Section
-        title="Payoff strategy"
-        actions={
-          <span
-            style={{
-              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-              fontSize: 10,
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              color: 'var(--lf-muted)',
-            }}
-            aria-live="polite"
-          >
-            Sorted · {strategy}
-          </span>
-        }
-      >
-        <div className="debt-strategy">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={strategy === 'avalanche'}
-            aria-pressed={strategy === 'avalanche'}
-            onClick={() => onStrategyChange('avalanche')}
-            className={`debt-strategy__col debt-strategy__col--btn ${strategy === 'avalanche' ? 'is-active' : ''}`}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-              <span className="debt-strategy__label" style={{ marginBottom: 0 }}>Avalanche</span>
-              {strategy === 'avalanche' && <Pill tone="sauce">Active</Pill>}
-            </div>
-            <h3 className="debt-strategy__title">Highest APR first</h3>
-            <div className="debt-strategy__amount" style={{ marginTop: 12 }}>
-              {formatCurrency(Math.round(avalancheInterest))}
-            </div>
-            <div className="debt-strategy__label" style={{ marginTop: 4 }}>Total interest paid</div>
-            <p className="debt-strategy__body">
-              Mathematically optimal. Saves you the most money over the life of the plan.
-            </p>
-            {interestSavedVsSnowball > 0 && (
-              <span className="debt-strategy__pill" style={{ color: 'var(--lf-basil)' }}>
-                Saves {formatCurrency(interestSavedVsSnowball)} vs snowball
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={strategy === 'snowball'}
-            aria-pressed={strategy === 'snowball'}
-            onClick={() => onStrategyChange('snowball')}
-            className={`debt-strategy__col debt-strategy__col--btn ${strategy === 'snowball' ? 'is-active' : ''}`}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-              <span className="debt-strategy__label" style={{ marginBottom: 0 }}>Snowball</span>
-              {strategy === 'snowball' && <Pill tone="sauce">Active</Pill>}
-            </div>
-            <h3 className="debt-strategy__title">Smallest balance first</h3>
-            <div className="debt-strategy__amount" style={{ marginTop: 12 }}>
-              {formatCurrency(Math.round(snowballInterest))}
-            </div>
-            <div className="debt-strategy__label" style={{ marginTop: 4 }}>Total interest paid</div>
-            <p className="debt-strategy__body">
-              Quick psychological wins. You close accounts faster — useful if motivation matters more than dollars.
-            </p>
-            {interestSavedVsSnowball > 0 && (
-              <span className="debt-strategy__pill" style={{ color: 'var(--lf-sauce)' }}>
-                Costs {formatCurrency(interestSavedVsSnowball)} more in interest
-              </span>
-            )}
-          </button>
-        </div>
-        <div style={{
-          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-          marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--lf-rule)',
-          gap: 16, flexWrap: 'wrap',
-        }}>
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-            <div>
-              <Eyebrow>Debt-free</Eyebrow>
-              <div className="ds-num" style={{ fontSize: 15, fontWeight: 500, marginTop: 4 }}>{debtFreeDate}</div>
-            </div>
-            <div>
-              <Eyebrow>If minimum only</Eyebrow>
-              <div className="ds-num" style={{ fontSize: 15, fontWeight: 500, marginTop: 4, color: 'var(--lf-muted)' }}>{minOnlyDate}</div>
+            <div className="mt-3 text-[13px] font-medium text-content-muted ui-tnum">
+              {debts.length} account{debts.length === 1 ? '' : 's'} · {apr}% blended APR
             </div>
           </div>
-          <Button variant="link" onClick={() => openChat('Should I use avalanche or snowball to pay off my debt?')}>
-            Why this strategy? →
-          </Button>
         </div>
-      </Section>
+        {debts.length > 0 && (
+          <div className="relative mt-6">
+            <CompositionBar debts={debts} />
+          </div>
+        )}
+      </section>
 
-      {/* Accounts table — the sort indicator now sits next to the strategy
-          toggle above (D2), so this section keeps just its title. */}
-      <Section
-        title="Accounts"
-      >
-        <Card flush>
-          <DataTable
-            columns={cols}
-            rows={orderedDebts}
-            rowKey={(d) => d.id}
-            hover
+      {/* ── KPI strip ── */}
+      <div className="mt-[18px] grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-3.5">
+        <StatCard label="Total debt" value={`−${formatCurrency(totalDebt)}`} sub={`${debts.length} account${debts.length === 1 ? '' : 's'}`} neg />
+        <StatCard label="Blended APR" value={`${apr}%`} sub="weighted average" />
+        <StatCard label="Monthly payment" value={formatCurrency(totalMonthlyPayment)} sub="suggested plan" />
+        <StatCard label="Total interest" value={formatCurrency(totalInterest)} sub="over plan" />
+      </div>
+
+      {/* ── Payoff strategy ── */}
+      <section className="mt-9">
+        <div className="flex items-end justify-between gap-3 pb-4">
+          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">Payoff strategy</h2>
+          <span className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-content-muted" aria-live="polite">
+            Sorted · {strategy}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2" role="radiogroup" aria-label="Payoff strategy">
+          <StrategyCard
+            active={strategy === 'avalanche'}
+            onSelect={() => onStrategyChange('avalanche')}
+            label="Avalanche"
+            title="Highest APR first"
+            amount={formatCurrency(Math.round(avalancheInterest))}
+            body="Mathematically optimal. Saves you the most money over the life of the plan."
+            footnote={interestSavedVsSnowball > 0 ? `Saves ${formatCurrency(interestSavedVsSnowball)} vs snowball` : undefined}
+            footnoteTone="good"
           />
-        </Card>
-      </Section>
+          <StrategyCard
+            active={strategy === 'snowball'}
+            onSelect={() => onStrategyChange('snowball')}
+            label="Snowball"
+            title="Smallest balance first"
+            amount={formatCurrency(Math.round(snowballInterest))}
+            body="Quick psychological wins. You close accounts faster — useful if motivation matters more than dollars."
+            footnote={interestSavedVsSnowball > 0 ? `Costs ${formatCurrency(interestSavedVsSnowball)} more in interest` : undefined}
+            footnoteTone="bad"
+          />
+        </div>
 
-      <Section>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-5">
+          <div className="flex flex-wrap gap-x-8 gap-y-3">
+            <div>
+              <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Debt-free</div>
+              <div className="mt-1 text-[15px] font-bold text-content ui-tnum">{debtFreeDate}</div>
+            </div>
+            <div>
+              <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">If minimum only</div>
+              <div className="mt-1 text-[15px] font-bold text-content-muted ui-tnum">{minOnlyDate}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => openChat('Should I use avalanche or snowball to pay off my debt?')}
+            className="group inline-flex items-center gap-1.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-colors hover:text-brand"
+          >
+            Why this strategy?
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </div>
+      </section>
+
+      {/* ── Accounts table ── */}
+      <section className="mt-9">
+        <h2 className="pb-3 font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">Accounts</h2>
+        <Surface pad="none" className="overflow-hidden">
+          <Table>
+            <THead>
+              <TR className="border-b border-line">
+                <TH>Account</TH>
+                <TH numeric>Balance</TH>
+                <TH numeric>APR</TH>
+                <TH numeric>Min pay</TH>
+                <TH numeric>Payoff</TH>
+                <TH numeric aria-label="Actions"><span className="sr-only">Actions</span></TH>
+              </TR>
+            </THead>
+            <TBody>
+              {orderedDebts.map((d) => {
+                const high = d.apr > 20;
+                return (
+                  <TR key={d.id}>
+                    <TD>
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="shrink-0 text-content-muted">
+                          {d.type === 'credit' ? <CreditCard size={16} /> : <Landmark size={16} />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-content">
+                            {d.name}{d.mask ? ` ··${d.mask}` : ''}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            <Badge tone="neutral" size="sm">{debtTypeLabel(d)}</Badge>
+                            {d.liabilitySource === 'plaid' && (
+                              <Badge tone="brand" size="sm">Synced</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </TD>
+                    <TD numeric>
+                      <span className="text-negative">−{formatCurrency(d.balance)}</span>
+                    </TD>
+                    <TD numeric>
+                      <span className={cn(high && 'font-bold text-negative')}>{d.apr}%</span>
+                    </TD>
+                    <TD numeric>{formatCurrency(d.minPayment)}/mo</TD>
+                    <TD numeric className="text-content-muted">
+                      {d.payoffDate
+                        ? new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                        : d.suggestedPayoffDate}
+                    </TD>
+                    <TD numeric>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {!isDemo && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onEditDebt(d); }}
+                            title="Edit loan details"
+                            aria-label="Edit loan details"
+                            className="ui-focus grid h-8 w-8 place-items-center rounded-ui-sm border border-line text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`);
+                          }}
+                          trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}
+                        >
+                          Plan
+                        </Button>
+                      </div>
+                    </TD>
+                  </TR>
+                );
+              })}
+            </TBody>
+          </Table>
+        </Surface>
+      </section>
+
+      <section className="mt-12">
         <PageActions types="debt" />
-      </Section>
+      </section>
 
       {editingDebt && (
         <LoanDetailsModal
@@ -785,145 +699,82 @@ function LoanDetailsModal({
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    marginTop: 4,
-    width: '100%',
-    background: 'var(--lf-cream)',
-    border: '1px solid var(--lf-rule)',
-    borderRadius: 8,
-    padding: '8px 12px',
-    fontSize: 14,
-    color: 'var(--lf-ink)',
-    outline: 'none',
-    boxSizing: 'border-box',
-    fontFamily: 'inherit',
-  };
-
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 50,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(31,26,22,0.5)',
-        backdropFilter: 'blur(4px)',
-      }}
-      onClick={onClose}
+    <Modal
+      open
+      onClose={onClose}
+      title={debt.name}
+      description="Update loan details"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit} loading={saving}>{saving ? "Saving…" : "Save"}</Button>
+        </>
+      }
     >
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, margin: '0 16px' }}>
-        <div style={{
-          background: 'var(--lf-paper)',
-          border: '1px solid var(--lf-rule)',
-          borderRadius: 12,
-          padding: 28,
-        }}>
-          {/* Header with hairline-bottom */}
-          <div style={{
-            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-            paddingBottom: 16, marginBottom: 20,
-            borderBottom: '1px solid var(--lf-rule)',
-          }}>
-            <div style={{ minWidth: 0 }}>
-              <Eyebrow>Update loan details</Eyebrow>
-              <h3 className="ds-h3" style={{ marginTop: 6 }}>{debt.name}</h3>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--lf-muted)', padding: 2 }}
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
-          </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {(loanType === "mortgage" || loanType === "other_loan") && (
+          <Field label="Maturity / Payoff date">
+            <Input type="date" value={maturityDate} onChange={e => setMaturityDate(e.target.value)} />
+          </Field>
+        )}
+        {loanType === "student_loan" && (
+          <Field label="Expected payoff date">
+            <Input type="date" value={expectedPayoffDate} onChange={e => setExpectedPayoffDate(e.target.value)} />
+          </Field>
+        )}
+        {loanType !== "credit_card" && (
+          <Field label="Interest rate (%)">
+            <Input
+              type="number" step="0.01" min="0"
+              value={interestRate}
+              onChange={e => setInterestRate(e.target.value)}
+              placeholder={loanType === "mortgage" ? "e.g. 3.5" : "e.g. 6.5"}
+              className="ui-tnum"
+            />
+          </Field>
+        )}
+        {(loanType === "mortgage" || loanType === "other_loan") && (
+          <Field label="Origination date">
+            <Input type="date" value={originationDate} onChange={e => setOriginationDate(e.target.value)} />
+          </Field>
+        )}
+        {loanType === "credit_card" && (
+          <Field label="Purchase APR (%)">
+            <Input
+              type="number" step="0.01" min="0"
+              value={purchaseApr}
+              onChange={e => setPurchaseApr(e.target.value)}
+              placeholder="e.g. 21.99"
+              className="ui-tnum"
+            />
+          </Field>
+        )}
+        {(loanType === "student_loan" || loanType === "credit_card" || loanType === "other_loan") && (
+          <Field label="Minimum payment ($)">
+            <Input
+              type="number" step="1" min="0"
+              value={minPayment}
+              onChange={e => setMinPayment(e.target.value)}
+              placeholder="e.g. 250"
+              className="ui-tnum"
+            />
+          </Field>
+        )}
+        {loanType === "student_loan" && (
+          <Field label="Repayment plan">
+            <Input
+              type="text"
+              value={repaymentPlanType}
+              onChange={e => setRepaymentPlanType(e.target.value)}
+              placeholder="e.g. income_driven, standard"
+            />
+          </Field>
+        )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {(loanType === "mortgage" || loanType === "other_loan") && (
-              <label>
-                <Eyebrow>Maturity / Payoff Date</Eyebrow>
-                <input type="date" value={maturityDate} onChange={e => setMaturityDate(e.target.value)} style={inputStyle} />
-              </label>
-            )}
-            {loanType === "student_loan" && (
-              <label>
-                <Eyebrow>Expected Payoff Date</Eyebrow>
-                <input type="date" value={expectedPayoffDate} onChange={e => setExpectedPayoffDate(e.target.value)} style={inputStyle} />
-              </label>
-            )}
-            {loanType !== "credit_card" && (
-              <label>
-                <Eyebrow>Interest Rate (%)</Eyebrow>
-                <input
-                  type="number" step="0.01" min="0"
-                  value={interestRate}
-                  onChange={e => setInterestRate(e.target.value)}
-                  placeholder={loanType === "mortgage" ? "e.g. 3.5" : "e.g. 6.5"}
-                  className="ds-num"
-                  style={inputStyle}
-                />
-              </label>
-            )}
-            {(loanType === "mortgage" || loanType === "other_loan") && (
-              <label>
-                <Eyebrow>Origination Date</Eyebrow>
-                <input type="date" value={originationDate} onChange={e => setOriginationDate(e.target.value)} style={inputStyle} />
-              </label>
-            )}
-            {loanType === "credit_card" && (
-              <label>
-                <Eyebrow>Purchase APR (%)</Eyebrow>
-                <input
-                  type="number" step="0.01" min="0"
-                  value={purchaseApr}
-                  onChange={e => setPurchaseApr(e.target.value)}
-                  placeholder="e.g. 21.99"
-                  className="ds-num"
-                  style={inputStyle}
-                />
-              </label>
-            )}
-            {(loanType === "student_loan" || loanType === "credit_card" || loanType === "other_loan") && (
-              <label>
-                <Eyebrow>Minimum Payment ($)</Eyebrow>
-                <input
-                  type="number" step="1" min="0"
-                  value={minPayment}
-                  onChange={e => setMinPayment(e.target.value)}
-                  placeholder="e.g. 250"
-                  className="ds-num"
-                  style={inputStyle}
-                />
-              </label>
-            )}
-            {loanType === "student_loan" && (
-              <label>
-                <Eyebrow>Repayment Plan</Eyebrow>
-                <input
-                  type="text"
-                  value={repaymentPlanType}
-                  onChange={e => setRepaymentPlanType(e.target.value)}
-                  placeholder="e.g. income_driven, standard"
-                  style={inputStyle}
-                />
-              </label>
-            )}
-
-            {error && <p className="ds-body ds-body--sm ds-neg">{error}</p>}
-
-            <div style={{
-              display: 'flex', gap: 8, marginTop: 8,
-              paddingTop: 16, borderTop: '1px solid var(--lf-rule)',
-            }}>
-              <Button type="button" variant="ghost" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="ink" disabled={saving} style={{ flex: 1, justifyContent: 'center' }}>
-                {saving ? "Saving…" : "Save"}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+        {error && <p className="text-[12px] font-semibold text-negative">{error}</p>}
+      </form>
+    </Modal>
   );
 }
 
@@ -932,33 +783,47 @@ function LoanDetailsModal({
 function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Debt</h1>
-          <span className="ds-page-bar__subtitle ds-pos">$0 — debt-free</span>
+      <DebtHeader
+        subtitle={<span className="text-[rgb(var(--ui-brand-ink))] font-extrabold ui-tnum">$0 — debt-free</span>}
+      />
+
+      <section className="mt-8">
+        <div className="mb-2 flex items-center gap-2.5">
+          <span
+            className="h-[7px] w-[7px] rounded-full bg-brand"
+            style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+            aria-hidden
+          />
+          <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+            Now that you're debt-free
+          </span>
         </div>
-      </header>
-      <div className="ds-page-bar__subtitle-mobile"><span className="ds-pos">$0 — debt-free</span></div>
-
-      <Section title="What's next?" eyebrow="now that you're debt-free">
-        <Card>
-          <p className="ds-body">
-            Redirect those payments into investments and savings.
-          </p>
-          <div style={{ marginTop: 16 }}>
-            <Button
-              variant="ink"
-              onClick={() => openChat('I just paid off all my debt. What should I do with the extra cash flow?')}
-            >
-              Walk me through this →
-            </Button>
+        <Surface pad="lg" className="relative overflow-hidden">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'radial-gradient(120% 90% at 100% 0%, var(--ui-brand-soft), transparent 60%)' }}
+          />
+          <div className="relative">
+            <h2 className="font-editorial text-[22px] font-bold tracking-[-0.018em] text-content">What's next?</h2>
+            <p className="mt-2 max-w-[52ch] text-[14.5px] leading-relaxed text-content-secondary">
+              Redirect those payments into investments and savings.
+            </p>
+            <div className="mt-5">
+              <Button
+                onClick={() => openChat('I just paid off all my debt. What should I do with the extra cash flow?')}
+                trailingIcon={<ArrowRight className="h-4 w-4" />}
+              >
+                Walk me through this
+              </Button>
+            </div>
           </div>
-        </Card>
-      </Section>
+        </Surface>
+      </section>
 
-      <Section>
+      <section className="mt-12">
         <PageActions types="debt" />
-      </Section>
+      </section>
     </>
   );
 }

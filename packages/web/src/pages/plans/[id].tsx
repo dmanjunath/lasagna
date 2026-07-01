@@ -4,7 +4,7 @@ import { History, Trash2, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api, API_BASE } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
-import { Button } from "../../components/ui/button.js";
+import { Button } from "../../components/uikit";
 import { EditableTitle } from "../../components/ui/editable-title.js";
 import { PromptTransition, type TransitionState } from "../../components/plan/prompt-transition.js";
 import { PlanResponse } from "../../components/plan-response/index.js";
@@ -207,7 +207,7 @@ export function PlanDetailPage() {
 
   if (!plan) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6 text-text-secondary">
+      <div className="flex-1 flex items-center justify-center p-6 text-content-secondary">
         Plan not found
       </div>
     );
@@ -228,14 +228,14 @@ export function PlanDetailPage() {
                     await api.updatePlan(plan.id, { title: newTitle });
                     setPlan({ ...plan, title: newTitle });
                   }}
-                  className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold"
+                  className="text-2xl md:text-3xl lg:text-4xl font-editorial font-semibold"
                 />
               ) : (
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text">
+                <h1 className="text-2xl md:text-3xl lg:text-4xl font-editorial font-semibold text-content">
                   {plan.title}
                 </h1>
               )}
-              <p className="text-text-secondary mt-1 capitalize">
+              <p className="text-content-secondary mt-1 capitalize">
                 {plan.type.replace("_", " ")} Plan
               </p>
             </div>
@@ -285,7 +285,7 @@ export function PlanDetailPage() {
             animate={{ width: 380, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="border-l border-border overflow-hidden h-full flex-shrink-0"
+            className="border-l border-line overflow-hidden h-full flex-shrink-0"
           >
             <ChatPanel
               threadId={thread.id}
@@ -313,10 +313,10 @@ export function PlanDetailPage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-bg-elevated border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+              className="bg-panel-raised border border-line rounded-ui-xl shadow-ui-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
             >
-              <div className="flex items-center justify-between p-4 border-b border-border">
-                <h2 className="text-lg font-semibold text-text">Plan History</h2>
+              <div className="flex items-center justify-between p-4 border-b border-line">
+                <h2 className="text-lg font-semibold text-content">Plan History</h2>
                 <Button variant="ghost" size="sm" onClick={() => setShowHistory(false)}>
                   <X className="w-4 h-4" />
                 </Button>
@@ -324,29 +324,29 @@ export function PlanDetailPage() {
               <div className="p-4 overflow-y-auto max-h-[calc(80vh-60px)]">
                 {historyLoading ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-accent" />
+                    <Loader2 className="w-6 h-6 animate-spin text-brand" />
                   </div>
                 ) : history.length === 0 ? (
-                  <p className="text-text-secondary text-center py-8">No previous versions found.</p>
+                  <p className="text-content-secondary text-center py-8">No previous versions found.</p>
                 ) : (
                   <div className="space-y-3">
                     {history.map((edit) => (
                       <div
                         key={edit.id}
-                        className="p-4 bg-surface rounded-xl border border-border hover:border-accent/50 transition-colors"
+                        className="p-4 bg-panel rounded-ui-lg border border-line hover:border-brand/50 transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-text font-medium">
+                            <p className="text-content font-medium">
                               {edit.changeDescription || "Plan updated"}
                             </p>
-                            <p className="text-text-secondary text-sm">
+                            <p className="text-content-secondary text-sm">
                               {new Date(edit.createdAt).toLocaleString()} • by {edit.editedBy}
                             </p>
                           </div>
                           {import.meta.env.VITE_DEMO_MODE !== "true" && (
                             <Button
-                              variant="outline"
+                              variant="secondary"
                               size="sm"
                               onClick={() => handleRestoreVersion(edit.id)}
                             >

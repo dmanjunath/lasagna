@@ -38,19 +38,19 @@ export function ChatTabs() {
   return (
     <div className="flex flex-col flex-1 min-h-0" data-testid="chat-tabs">
       {/* Tab bar */}
-      <div className="flex border-b border-border flex-shrink-0">
+      <div className="flex border-b border-line flex-shrink-0">
         <button
           onClick={() => setTab('chat')}
-          className={`flex-1 text-center py-2 text-xs font-semibold transition-colors ${
-            tab === 'chat' ? 'text-text border-b-2 border-accent' : 'text-text-secondary'
+          className={`flex-1 text-center py-2.5 text-xs font-semibold transition-colors ${
+            tab === 'chat' ? 'text-content border-b-2 border-brand' : 'text-content-muted hover:text-content-secondary'
           }`}
         >
           Chat
         </button>
         <button
           onClick={() => setTab('history')}
-          className={`flex-1 text-center py-2 text-xs font-semibold transition-colors ${
-            tab === 'history' ? 'text-text border-b-2 border-accent' : 'text-text-secondary'
+          className={`flex-1 text-center py-2.5 text-xs font-semibold transition-colors ${
+            tab === 'history' ? 'text-content border-b-2 border-brand' : 'text-content-muted hover:text-content-secondary'
           }`}
           data-testid="history-tab-button"
         >

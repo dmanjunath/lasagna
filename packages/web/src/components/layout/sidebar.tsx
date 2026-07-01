@@ -4,13 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Zap, Layers, TrendingUp, PieChart, Wallet,
   CreditCard, AlertCircle, Receipt, Target,
-  MessageSquare, ChevronUp, ChevronDown, type LucideIcon,
+  MessageSquare, ChevronUp, ChevronDown, Moon, Sun, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
 import { useChatStore } from '../../lib/chat-store';
-import { SidebarThemePicker } from './sidebar-theme-picker';
-import { Logo } from '../common/Logo';
+import { useUiMode } from '../uikit/mode';
+import { BrandMark } from '../common/BrandMark';
 
 interface NavItem {
   id: string;
@@ -47,6 +47,7 @@ export function Sidebar({ className }: SidebarProps) {
   const [location, navigate] = useLocation();
   const { tenant, logout, user } = useAuth();
   const { openChat } = useChatStore();
+  const { mode, toggle: toggleMode } = useUiMode();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -100,21 +101,26 @@ export function Sidebar({ className }: SidebarProps) {
   const rawName = tenant?.name || '';
   const firstName = rawName.startsWith('Seed ') ? 'User' : (rawName.split(' ')[0] || 'User');
   const initial = firstName[0]?.toUpperCase() || 'U';
+  const isDark = mode === 'dark';
 
   return (
-    <aside className={cn('w-full h-full flex flex-col bg-bg-elevated', className)}>
+    <aside
+      className={cn('w-full h-full flex flex-col px-4 pt-[22px] pb-[18px] text-content', className)}
+      style={{
+        backgroundImage:
+          'linear-gradient(180deg, rgb(var(--ui-canvas-sunken) / 0.45), transparent 220px)',
+      }}
+    >
       {/* Brand */}
-      <div className="px-4 pt-6 pb-5">
-        <div className="flex items-center gap-2.5 px-2">
-          <Logo width={22} />
-          <span className="lf-wordmark text-lg text-text">
-            Lasagna<span className="fi">fi</span>
-          </span>
+      <div className="flex items-center gap-3 px-2 pt-1.5">
+        <BrandMark size={38} />
+        <div className="font-editorial text-[19px] font-semibold leading-none tracking-[-0.01em] text-content">
+          LasagnaFi
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 overflow-y-auto scrollbar-thin">
+      <nav className="flex-1 mt-6 flex flex-col gap-0.5 overflow-y-auto scrollbar-thin">
         {/* Primary nav */}
         {PRIMARY_NAV.map((entry) => (
           <NavButton
@@ -141,15 +147,15 @@ export function Sidebar({ className }: SidebarProps) {
               type="button"
               onClick={toggleAdvanced}
               aria-expanded={advancedOpen}
-              className="w-full flex items-center justify-between gap-2 pl-4 pr-3 py-1.5 mt-4 mb-0.5 rounded-lg cursor-pointer hover:bg-bg-subtle transition-colors group"
+              className="w-full flex items-center justify-between gap-2 px-3 pt-4 pb-1.5 mt-1 rounded-ui-md cursor-pointer hover:bg-brand-softer transition-colors group"
             >
-              <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-text-muted group-hover:text-text-secondary transition-colors">
+              <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-content-muted group-hover:text-content transition-colors">
                 More
               </span>
               <ChevronDown
                 size={13}
                 className={cn(
-                  'text-text-muted group-hover:text-text-secondary transition-transform duration-200',
+                  'text-content-faint group-hover:text-content-muted transition-transform duration-200',
                   !advancedOpen && '-rotate-90',
                 )}
               />
@@ -163,6 +169,7 @@ export function Sidebar({ className }: SidebarProps) {
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                   style={{ overflow: 'hidden' }}
+                  className="flex flex-col gap-0.5"
                 >
                   {ADVANCED_NAV.map((entry) => (
                     <NavButton
@@ -181,11 +188,8 @@ export function Sidebar({ className }: SidebarProps) {
 
       </nav>
 
-      {/* Theme picker — compact swatch row above the account chip (admin only) */}
-      {user?.isAdmin && <SidebarThemePicker />}
-
-      {/* Account chip */}
-      <div className="px-3 py-3 relative" ref={userMenuRef}>
+      {/* Account chip + light/dark toggle */}
+      <div className="mt-3 pt-3.5 border-t border-line relative" ref={userMenuRef}>
         <AnimatePresence>
           {userMenuOpen && (
             <motion.div
@@ -193,26 +197,26 @@ export function Sidebar({ className }: SidebarProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4 }}
               transition={{ duration: 0.15 }}
-              className="absolute bottom-full left-3 right-3 mb-1.5 bg-bg border border-rule rounded-xl overflow-hidden shadow-lg z-50"
+              className="absolute bottom-full left-0 right-0 mb-2 bg-panel-raised border border-line-strong rounded-ui-md overflow-hidden shadow-ui-lg z-50"
             >
               {/* Connected Accounts + Profile live in this account menu (not the
                   main sidebar nav). */}
               <button
                 onClick={() => { setUserMenuOpen(false); navigate('/accounts'); }}
-                className="w-full text-left px-4 py-2.5 text-sm text-text-secondary hover:bg-bg-elevated transition-colors cursor-pointer"
+                className="w-full text-left px-4 py-2.5 text-sm text-content-secondary hover:bg-canvas-sunken transition-colors cursor-pointer"
               >
                 Connected Accounts
               </button>
               <button
                 onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
-                className="w-full text-left px-4 py-2.5 text-sm text-text-secondary hover:bg-bg-elevated transition-colors cursor-pointer"
+                className="w-full text-left px-4 py-2.5 text-sm text-content-secondary hover:bg-canvas-sunken transition-colors cursor-pointer"
               >
                 Profile
               </button>
-              <div className="h-px mx-3 my-1" style={{ background: 'var(--lf-rule-neutral)' }} />
+              <div className="h-px mx-3 my-1 bg-line" />
               <button
                 onClick={() => { setUserMenuOpen(false); logout(); }}
-                className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-bg-elevated transition-colors cursor-pointer"
+                className="w-full text-left px-4 py-2.5 text-sm text-brand hover:bg-canvas-sunken transition-colors cursor-pointer"
               >
                 Sign out
               </button>
@@ -220,29 +224,39 @@ export function Sidebar({ className }: SidebarProps) {
           )}
         </AnimatePresence>
 
-        <button
-          onClick={() => setUserMenuOpen(!userMenuOpen)}
-          aria-haspopup="menu"
-          aria-expanded={userMenuOpen}
-          className="w-full flex items-center gap-2.5 p-3 bg-bg border border-rule rounded-xl cursor-pointer hover:border-accent/30 transition"
-        >
-          <div className="w-7 h-7 rounded-lg bg-accent text-white flex items-center justify-center font-serif font-semibold text-sm shrink-0">
-            {initial}
-          </div>
-          <div className="flex-1 text-left min-w-0">
-            <div className="text-sm font-medium text-text truncate">{firstName}</div>
-            <div className="text-[11px] text-text-muted font-mono truncate">
-              {tenant?.plan === 'pro' ? 'pro plan' : 'free plan'}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            aria-haspopup="menu"
+            aria-expanded={userMenuOpen}
+            className="flex-1 min-w-0 flex items-center gap-3 cursor-pointer text-left rounded-ui-md p-1 -m-1 hover:bg-brand-softer transition-colors"
+          >
+            <div className="w-9 h-9 rounded-[11px] grid place-items-center font-semibold text-sm text-content bg-canvas-sunken border border-line shrink-0">
+              {initial}
             </div>
-          </div>
-          <ChevronUp
-            size={13}
-            className={cn(
-              'text-text-muted transition-transform duration-150',
-              !userMenuOpen && 'rotate-180',
-            )}
-          />
-        </button>
+            <div className="flex-1 min-w-0 leading-tight">
+              <div className="text-[13.5px] font-semibold text-content truncate">{firstName}</div>
+              <div className="text-[11.5px] text-content-muted truncate">{user?.email || (tenant?.plan === 'pro' ? 'pro plan' : 'free plan')}</div>
+            </div>
+            <ChevronUp
+              size={13}
+              className={cn(
+                'text-content-muted shrink-0 transition-transform duration-150',
+                !userMenuOpen && 'rotate-180',
+              )}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={toggleMode}
+            role="switch"
+            aria-checked={isDark}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="w-9 h-9 shrink-0 grid place-items-center rounded-[10px] border border-line bg-panel text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
+          >
+            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </div>
       </div>
     </aside>
   );
@@ -257,26 +271,24 @@ function NavButton({ active, icon: Icon, label, onClick }: {
   return (
     <motion.button
       onClick={onClick}
-      whileTap={{ scale: 0.98 }}
+      whileTap={{ scale: 0.985 }}
       className={cn(
-        'relative flex items-center gap-2.5 w-full text-left pl-4 pr-3 py-2 rounded-lg mb-0.5 border-0 cursor-pointer text-[14px] transition-colors',
+        'relative flex items-center gap-3 w-full text-left px-3 py-[9px] rounded-ui-md border-0 cursor-pointer text-[14.5px] transition-colors',
         active
-          ? 'bg-accent/10 text-accent font-semibold'
-          : 'text-text-secondary font-medium hover:bg-bg-subtle hover:text-text',
+          ? 'bg-brand-soft text-brand font-semibold'
+          : 'text-content-secondary font-medium hover:bg-brand-softer hover:text-content',
       )}
     >
       {active && (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-sm bg-accent"
+          className="absolute -left-4 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-[3px] bg-brand"
         />
       )}
       <Icon
-        size={16}
-        className={cn(
-          'shrink-0',
-          active ? 'text-accent opacity-100' : 'opacity-60',
-        )}
+        size={19}
+        strokeWidth={1.75}
+        className={cn('shrink-0', active ? 'text-brand' : 'text-content-muted')}
       />
       <span className="flex-1">{label}</span>
     </motion.button>

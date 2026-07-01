@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Plus, FileText, Loader2, Trash2, Info } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
-import { Button } from "../../components/ui/button.js";
+import { Button } from "../../components/uikit";
 import type { Plan, PlanType } from "../../lib/types.js";
 
 const planTypes = [
@@ -92,10 +92,10 @@ export function PlansPage() {
     <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-editorial font-semibold text-content">
             Financial Plans
           </h1>
-          <p className="text-text-secondary mt-1">
+          <p className="text-content-secondary mt-1">
             AI-powered plans tailored to your goals
           </p>
         </div>
@@ -110,11 +110,11 @@ export function PlansPage() {
       </div>
 
       {loading ? null : plans.length === 0 ? (
-        <div className="glass-card text-center py-12 px-6">
-          <h2 className="text-2xl font-display font-semibold text-text mb-2">
+        <div className="rounded-ui-lg border border-line bg-panel shadow-ui-sm text-center py-12 px-6">
+          <h2 className="text-2xl font-editorial font-semibold text-content mb-2">
             Create Your First Plan
           </h2>
-          <p className="text-text-secondary mb-8 max-w-2xl mx-auto">
+          <p className="text-content-secondary mb-8 max-w-2xl mx-auto">
             Choose a plan type to get started with AI-powered financial guidance
           </p>
 
@@ -128,28 +128,28 @@ export function PlansPage() {
                 transition={{ delay: i * 0.1 }}
                 onClick={() => handleCreatePlan(planType.type)}
                 disabled={creatingPlanType !== null}
-                className="relative p-6 rounded-xl border border-border bg-surface hover:border-accent/50 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="relative p-6 rounded-ui-lg border border-line bg-panel hover:border-brand/50 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex items-start gap-4">
                   <div className="text-3xl flex-shrink-0">
                     {creatingPlanType === planType.type ? (
-                      <Loader2 className="w-8 h-8 text-accent animate-spin" />
+                      <Loader2 className="w-8 h-8 text-brand animate-spin" />
                     ) : (
                       planType.icon
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-medium text-text">{planType.title}</h3>
+                      <h3 className="font-medium text-content">{planType.title}</h3>
                       <div className="group/tooltip relative">
-                        <Info className="w-4 h-4 text-text-secondary hover:text-text cursor-help" />
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 rounded-lg bg-bg-elevated border border-border shadow-lg text-sm text-text-secondary opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none z-10">
+                        <Info className="w-4 h-4 text-content-secondary hover:text-content cursor-help" />
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 rounded-ui-md bg-panel-raised border border-line shadow-ui-lg text-sm text-content-secondary opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none z-10">
                           {planType.tooltip}
-                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-border"></div>
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-line"></div>
                         </div>
                       </div>
                     </div>
-                    <p className="text-sm text-text-secondary">
+                    <p className="text-sm text-content-secondary">
                       {planType.description}
                     </p>
                   </div>
@@ -167,13 +167,13 @@ export function PlansPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="glass-card glass-card-hover p-6 cursor-pointer relative group"
+                className="rounded-ui-lg border border-line bg-panel shadow-ui-sm hover:border-brand/40 hover:shadow-ui-md transition-all p-6 cursor-pointer relative group"
               >
                 {import.meta.env.VITE_DEMO_MODE !== "true" && (
                   <button
                     onClick={(e) => handleDeletePlan(plan.id, plan.title, e)}
                     disabled={deletingPlanId === plan.id}
-                    className="absolute top-4 right-4 p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="absolute top-4 right-4 p-1.5 rounded-ui-sm hover:bg-negative-soft text-content-muted hover:text-negative opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Delete plan"
                   >
                     {deletingPlanId === plan.id ? (
@@ -184,15 +184,15 @@ export function PlansPage() {
                   </button>
                 )}
                 <div className="flex items-start justify-between mb-3">
-                  <span className="text-xs px-2 py-1 rounded-full bg-accent/10 text-accent">
+                  <span className="text-xs px-2 py-1 rounded-full bg-brand-soft text-brand">
                     {planTypeLabels[plan.type]}
                   </span>
-                  <span className="text-xs text-text-secondary capitalize">
+                  <span className="text-xs text-content-secondary capitalize">
                     {plan.status}
                   </span>
                 </div>
-                <h3 className="font-medium text-text mb-2">{plan.title}</h3>
-                <p className="text-sm text-text-secondary">
+                <h3 className="font-medium text-content mb-2">{plan.title}</h3>
+                <p className="text-sm text-content-secondary">
                   Updated {new Date(plan.updatedAt).toLocaleDateString()}
                 </p>
               </motion.div>

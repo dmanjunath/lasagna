@@ -1,4 +1,6 @@
-import { Logo } from '../common/Logo';
+import { Moon, Sun } from 'lucide-react';
+import { useUiMode } from '../uikit/mode';
+import { BrandMark } from '../common/BrandMark';
 
 interface AppHeaderProps {
   /** Hamburger / back-arrow / etc. Mounted on the left. */
@@ -11,24 +13,35 @@ interface AppHeaderProps {
 }
 
 /**
- * Shared top bar (mobile only). Lives `fixed top-0`. Renders the hamburger
- * and the brand mark; deliberately no centered page title since every page
- * brings its own editorial `<PageHeader>` below.
+ * Shared top bar (mobile only). Lives `fixed top-0`. Renders the hamburger,
+ * the brand mark + wordmark, and the global light/dark toggle on the right.
  */
-export function AppHeader({
-  leadingSlot,
-}: AppHeaderProps) {
+export function AppHeader({ leadingSlot }: AppHeaderProps) {
+  const { mode, toggle } = useUiMode();
+  const isDark = mode === 'dark';
   return (
-    <header className="fixed top-0 inset-x-0 z-30 bg-bg/95 backdrop-blur border-b border-rule/40 pt-safe-top">
-      <div className="max-w-md md:max-w-none md:px-6 mx-auto px-4 h-14 flex items-center gap-2">
+    <header
+      className="fixed top-0 inset-x-0 z-30 border-b border-line pt-safe-top backdrop-blur-md"
+      style={{ background: 'rgb(var(--ui-canvas) / 0.86)' }}
+    >
+      <div className="mx-auto px-4 h-14 flex items-center gap-2">
         <div className="w-11 -ml-2 shrink-0 flex items-center">{leadingSlot}</div>
-        <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
-          <Logo width={20} />
-          <span className="lf-wordmark text-[15px] text-text leading-none">
-            Lasagna<span className="fi">fi</span>
+        <div className="flex-1 flex items-center gap-2.5 min-w-0">
+          <BrandMark size={32} />
+          <span className="font-editorial text-[17px] font-semibold text-content leading-none tracking-[-0.01em]">
+            LasagnaFi
           </span>
         </div>
-        <div className="w-11 -mr-2 shrink-0" aria-hidden="true" />
+        <button
+          type="button"
+          onClick={toggle}
+          role="switch"
+          aria-checked={isDark}
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          className="w-11 h-11 -mr-2 shrink-0 grid place-items-center rounded-[10px] text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
+        >
+          {isDark ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
       </div>
     </header>
   );

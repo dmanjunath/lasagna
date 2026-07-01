@@ -9,7 +9,7 @@ export function GlobalChatSidebar() {
   } = useGlobalChat();
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-bg">
+    <div className="flex flex-col flex-1 min-h-0 bg-canvas">
       {activeThread ? (
         <ChatThreadView
           thread={activeThread.thread}

@@ -1,36 +1,27 @@
 import { useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Link, useLocation } from "wouter";
 import {
   RefreshCw,
-  X,
   Plus,
   Pencil,
   AlertTriangle,
   Sparkles,
   Building2,
   ChevronDown,
-  ChevronRight,
   MoreHorizontal,
+  SlidersHorizontal,
+  Trash2,
   Lock,
+  X,
 } from "lucide-react";
-import {
-  Page,
-  Section,
-  Button,
-  Pill,
-  Eyebrow,
-  EmptyState,
-  useConfirm,
-  RowMenu,
-  Favicon,
-  faviconUrl,
-  institutionDomainFor,
-} from "../components/ds";
 import { api } from "../lib/api.js";
 import { useAuth } from "../lib/auth";
 import { useBilling, startUpgrade } from "../lib/billing";
-import { stripAccountMask } from "../lib/utils";
+import { cn, stripAccountMask } from "../lib/utils";
+import { Button, EmptyState, Field, Input, Modal, Skeleton } from "../components/uikit";
+import { useConfirm } from "../components/ds";
+import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -98,25 +89,6 @@ interface PlaidItem {
 }
 
 // ---------------------------------------------------------------------------
-// Spinner
-// ---------------------------------------------------------------------------
-
-function Spinner({ size = 14 }: { size?: number }) {
-  return (
-    <svg
-      width={size} height={size}
-      viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2}
-      strokeLinecap="round"
-      style={{ animation: "lf-spin 0.8s linear infinite" }}
-    >
-      <style>{`@keyframes lf-spin { to { transform: rotate(360deg); } }`}</style>
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-    </svg>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Manual account types
 // ---------------------------------------------------------------------------
 
@@ -174,28 +146,6 @@ export function Accounts() {
   const [addingAccount, setAddingAccount] = useState(false);
   const [linkedBanner, setLinkedBanner] = useState<{ message: string; actionLabel: string; onAction: () => void } | null>(null);
   const [pendingLinkedId, setPendingLinkedId] = useState<string | null>(null);
-  // Iter 8 P1: mobile overflow menu state for the page-bar actions.
-  // <520px collapses Sync all + Add manual into a "···" sheet so Connect a
-  // bank (primary) stays inline. Sheet closes on click-outside / Escape.
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const overflowRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!overflowOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
-        setOverflowOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOverflowOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [overflowOpen]);
 
   const loadItems = (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -447,9 +397,6 @@ export function Accounts() {
   // Render
   // ---------------------------------------------------------------------------
 
-  // Iter 7 A: compact ds-page-bar replaces the serif PageHeader + editorial
-  // Lede. Caption inline carries the "N institutions · M accounts · total"
-  // line that the Lede block used to own.
   const lastSync = items
     .map((i) => i.lastSyncedAt)
     .filter((v): v is string => !!v)
@@ -462,82 +409,49 @@ export function Accounts() {
   if (lastSync) captionParts.push(`last sync ${formatRelativeTime(lastSync)}`);
 
   return (
-    <Page>
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Accounts</h1>
+    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      {/* ── Page header ── */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
+            Accounts
+          </h1>
           {!loading && captionParts.length > 0 && (
-            <span className="ds-page-bar__caption">{captionParts.join(' · ')}</span>
+            <p className="mt-1.5 text-[14px] font-medium text-content-muted">{captionParts.join(" · ")}</p>
           )}
         </div>
         {!isDemoMode && (
-          <span className="ds-page-bar__actions ds-accounts-header-actions">
-            {/* Primary action stays inline on every breakpoint. */}
-            <Button variant="ink" size="sm" onClick={handleLink} disabled={linking || syncing} icon={linking ? <Spinner size={13} /> : <Plus size={14} />} className="ds-accounts-cta-primary">
-              {linking ? "Connecting…" : "Connect a bank"}
-            </Button>
-            {/* Secondaries collapse into the "···" sheet at <=520px via the
-                .ds-page-bar__action--overflow utility. */}
+          <div className="flex flex-wrap items-center gap-2.5">
             {!isFree && items.length > 0 && (
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 onClick={handleSyncAll}
                 disabled={syncing || linking}
-                icon={syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}
-                className="ds-accounts-cta-secondary ds-page-bar__action--overflow"
+                leadingIcon={<RefreshCw size={15} className={syncing ? "animate-spin" : ""} />}
               >
                 {syncing ? "Syncing…" : "Sync all"}
               </Button>
             )}
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={() => setShowManualModal(true)}
-              icon={<Pencil size={14} />}
-              className="ds-accounts-cta-secondary ds-page-bar__action--overflow"
+              leadingIcon={<Pencil size={15} />}
             >
               Add manual
             </Button>
-            {/* Overflow trigger — only shown at <=520px via CSS. */}
-            <span className="ds-page-bar__overflow" ref={overflowRef}>
-              <button
-                type="button"
-                className="ds-page-bar__overflow-btn"
-                aria-label="More actions"
-                aria-haspopup="menu"
-                aria-expanded={overflowOpen}
-                onClick={() => setOverflowOpen((v) => !v)}
-              >
-                <MoreHorizontal size={16} />
-              </button>
-              {overflowOpen && (
-                <div className="ds-page-bar__overflow-menu" role="menu">
-                  {!isFree && items.length > 0 && (
-                    <button
-                      type="button"
-                      className="ds-page-bar__overflow-item"
-                      role="menuitem"
-                      disabled={syncing || linking}
-                      onClick={() => { setOverflowOpen(false); handleSyncAll(); }}
-                    >
-                      {syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}
-                      {syncing ? "Syncing…" : "Sync all"}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="ds-page-bar__overflow-item"
-                    role="menuitem"
-                    onClick={() => { setOverflowOpen(false); setShowManualModal(true); }}
-                  >
-                    <Pencil size={14} />
-                    Add manual
-                  </button>
-                </div>
-              )}
-            </span>
-          </span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleLink}
+              disabled={linking || syncing}
+              loading={linking}
+              leadingIcon={<Plus size={15} />}
+            >
+              {linking ? "Connecting…" : "Connect a bank"}
+            </Button>
+          </div>
         )}
       </header>
 
@@ -545,17 +459,17 @@ export function Accounts() {
           frozen) instead of the confusing "22 of 3 used"; otherwise the plain
           "N of M accounts used" with an upgrade nudge as the cap approaches. */}
       {billing && (
-        <p className={`ds-accounts-usage${overLimit ? " ds-accounts-usage--over" : ""}`}>
+        <p className="mt-3 text-[12.5px] font-medium text-content-muted">
           {overLimit ? (
             <>
-              <span className="ds-accounts-usage__count">
+              <span className="font-bold text-negative ui-tnum">
                 {billing.usage.maxAccounts} of {billing.usage.accounts}
               </span>{" "}
               accounts syncing on Free
             </>
           ) : (
             <>
-              <span className="ds-accounts-usage__count">
+              <span className="font-bold text-content ui-tnum">
                 {billing.usage.accounts} of {billing.usage.maxAccounts}
               </span>{" "}
               accounts used
@@ -564,7 +478,11 @@ export function Accounts() {
           {isFree && billing.usage.accounts >= billing.usage.maxAccounts && (
             <>
               {" · "}
-              <button type="button" className="ds-accounts-usage__upgrade" onClick={handleUpgrade}>
+              <button
+                type="button"
+                className="ui-focus rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2 hover:opacity-80"
+                onClick={handleUpgrade}
+              >
                 {overLimit ? "Upgrade to sync all" : "Upgrade for more"}
               </button>
             </>
@@ -572,16 +490,19 @@ export function Accounts() {
         </p>
       )}
 
-      {/* Quick Import CTA — kept as a soft inline marginalia line */}
-      <Link href="/quick-import" className="ds-accounts-quickimport">
-        <div className="ds-accounts-quickimport__icon">
-          <Sparkles size={14} />
-        </div>
-        <div className="ds-accounts-quickimport__body">
-          <span className="ds-accounts-quickimport__eyebrow">Quick import</span>
-          <span className="ds-accounts-quickimport__title">Describe your accounts in plain English</span>
-        </div>
-        <span className="ds-accounts-quickimport__arrow" aria-hidden="true">→</span>
+      {/* Quick Import CTA */}
+      <Link
+        href="/quick-import"
+        className="group mt-5 flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm px-4 py-3 transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong min-h-touch"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
+          <Sparkles size={16} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Quick import</span>
+          <span className="block truncate text-[13.5px] font-bold text-content">Describe your accounts in plain English</span>
+        </span>
+        <span className="text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" aria-hidden="true">→</span>
       </Link>
 
       {/* Error banner */}
@@ -589,10 +510,10 @@ export function Accounts() {
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="ds-accounts-banner ds-accounts-banner--error"
+          className="mt-5 flex items-center gap-2.5 rounded-ui-md border border-negative/30 bg-negative-soft px-4 py-3 text-[14px] font-medium text-negative"
         >
-          <AlertTriangle size={14} />
-          <span style={{ flex: 1 }}>{error}</span>
+          <AlertTriangle size={16} className="shrink-0" />
+          <span className="flex-1">{error}</span>
         </motion.div>
       )}
 
@@ -601,34 +522,36 @@ export function Accounts() {
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="ds-accounts-banner ds-accounts-banner--basil"
+          className="mt-5 flex items-center gap-2.5 rounded-ui-md border border-line bg-brand-soft px-4 py-3 text-[14px] font-medium text-content"
         >
-          <span style={{ flex: 1 }}>{linkedBanner.message}</span>
+          <span className="flex-1">{linkedBanner.message}</span>
           <Button variant="ghost" size="sm" onClick={linkedBanner.onAction}>
             {linkedBanner.actionLabel}
           </Button>
-          <Button variant="icon" size="sm" onClick={() => setLinkedBanner(null)} aria-label="Dismiss">
-            <X size={14} />
-          </Button>
+          <button
+            type="button"
+            onClick={() => setLinkedBanner(null)}
+            aria-label="Dismiss"
+            className="ui-focus grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm text-content-muted hover:bg-canvas-sunken hover:text-content"
+          >
+            <X size={15} />
+          </button>
         </motion.div>
       )}
 
-      {/* Loading state — mirror the institution feed outline so first paint
-          lands without a layout jolt (matched logo + name/meta + total rows). */}
+      {/* Loading skeleton — mirror the institution card outline. */}
       {loading && (
-        <div className="ds-accounts-feed" aria-hidden="true">
+        <div className="mt-6 space-y-[18px]" aria-hidden="true">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="ds-inst ds-inst--skeleton">
-              <div className="ds-inst__head">
-                <span className="ds-inst__head-chev">
-                  <ChevronRight size={14} />
-                </span>
-                <span className="ds-skeleton" style={{ display: "block", width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
-                <div className="ds-inst__head-body">
-                  <span className="ds-skeleton" style={{ display: "block", width: 120, height: 18, borderRadius: 5, marginBottom: 8 }} />
-                  <span className="ds-skeleton" style={{ display: "block", width: 90, height: 12, borderRadius: 4 }} />
+            <div key={i} className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+              <div className="flex items-center gap-3 px-4 py-4 sm:px-5">
+                <Skeleton className="h-4 w-4 rounded-[4px]" />
+                <Skeleton className="h-10 w-10 rounded-ui-md" />
+                <div className="flex-1">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="mt-2 h-3 w-24" />
                 </div>
-                <span className="ds-skeleton" style={{ display: "block", width: 96, height: 15, borderRadius: 4, flexShrink: 0 }} />
+                <Skeleton className="h-4 w-24" />
               </div>
             </div>
           ))}
@@ -637,30 +560,30 @@ export function Accounts() {
 
       {/* Empty state */}
       {!loading && items.length === 0 && (
-        <EmptyState
-          icon={<Building2 size={28} />}
-          title="No accounts linked yet"
-          body="Connect your bank to see balances, transactions, and synced insights."
-          cta={!isDemoMode ? (
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <Button variant="primary" onClick={handleLink} disabled={linking} icon={linking ? <Spinner size={13} /> : <Plus size={14} />}>
-                {linking ? "Connecting…" : "Connect a bank"}
-              </Button>
-              <Button variant="ghost" onClick={() => setShowManualModal(true)} icon={<Pencil size={14} />}>
-                Add manual
-              </Button>
-            </div>
-          ) : undefined}
-        />
+        <div className="mt-7">
+          <EmptyState
+            icon={<Building2 size={24} />}
+            title="No accounts linked yet"
+            description="Connect your bank to see balances, transactions, and synced insights."
+            action={!isDemoMode ? (
+              <div className="flex flex-wrap justify-center gap-2.5">
+                <Button variant="primary" onClick={handleLink} disabled={linking} loading={linking} leadingIcon={<Plus size={15} />}>
+                  {linking ? "Connecting…" : "Connect a bank"}
+                </Button>
+                <Button variant="secondary" onClick={() => setShowManualModal(true)} leadingIcon={<Pencil size={15} />}>
+                  Add manual
+                </Button>
+              </div>
+            ) : undefined}
+          />
+        </div>
       )}
 
-      {/* Linked institutions — editorial articles */}
+      {/* Linked institutions */}
       {!loading && linkedItems.length > 0 && (
-        <Section
-          title="Connected institutions"
-          eyebrow={`${linkedItems.length} linked`}
-        >
-          <div className="ds-accounts-feed">
+        <section className="mt-9">
+          <SectionHeader title="Connected institutions" meta={`${linkedItems.length} linked`} />
+          <div className="mt-4 space-y-[18px]">
             {linkedItems.map((item) => (
               <InstitutionArticle
                 key={item.id}
@@ -684,399 +607,178 @@ export function Accounts() {
               />
             ))}
           </div>
-        </Section>
+        </section>
       )}
 
-      {/* Manual accounts — drop H2 when only one entry (single divider + caption) */}
+      {/* Manual accounts */}
       {!loading && manualAccounts.length > 0 && (
-        manualAccounts.length === 1 ? (
-          <section className="ds-section">
-            <p className="ds-eyebrow ds-accounts-manual-caption">Manual · {manualAccounts.length} tracked</p>
-            <div className="ds-accounts-feed">
-              {manualItems.map((item) => (
-                <InstitutionArticle
-                  key={item.id}
-                  refCallback={(el) => { itemRefs.current[item.id] = el; }}
-                  item={item}
-                  isManual
-                  isHighlighted={false}
-                  syncing={false}
-                  isDemoMode={isDemoMode}
-                  showSyncSpinner={false}
-                  expanded={expandedIds.has(item.id)}
-                  onToggle={() => toggleExpand(item.id)}
-                  onSync={() => {}}
-                  onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
-                  onDeleteAccount={handleDeleteAccount}
-                  onRefresh={() => loadItems(false)}
-                  allAccounts={allAccounts}
-                  isFree={isFree}
-                  overLimit={overLimit}
-                  onUpgrade={handleUpgrade}
-                />
-              ))}
-            </div>
-          </section>
-        ) : (
-          <Section
-            title="Manual accounts"
-            eyebrow={`${manualAccounts.length} tracked`}
-          >
-            <div className="ds-accounts-feed">
-              {manualItems.map((item) => (
-                <InstitutionArticle
-                  key={item.id}
-                  refCallback={(el) => { itemRefs.current[item.id] = el; }}
-                  item={item}
-                  isManual
-                  isHighlighted={false}
-                  syncing={false}
-                  isDemoMode={isDemoMode}
-                  showSyncSpinner={false}
-                  expanded={expandedIds.has(item.id)}
-                  onToggle={() => toggleExpand(item.id)}
-                  onSync={() => {}}
-                  onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
-                  onDeleteAccount={handleDeleteAccount}
-                  onRefresh={() => loadItems(false)}
-                  allAccounts={allAccounts}
-                  isFree={isFree}
-                  overLimit={overLimit}
-                  onUpgrade={handleUpgrade}
-                />
-              ))}
-            </div>
-          </Section>
-        )
+        <section className="mt-9">
+          <SectionHeader title="Manual accounts" meta={`${manualAccounts.length} tracked`} />
+          <div className="mt-4 space-y-[18px]">
+            {manualItems.map((item) => (
+              <InstitutionArticle
+                key={item.id}
+                refCallback={(el) => { itemRefs.current[item.id] = el; }}
+                item={item}
+                isManual
+                isHighlighted={false}
+                syncing={false}
+                isDemoMode={isDemoMode}
+                showSyncSpinner={false}
+                expanded={expandedIds.has(item.id)}
+                onToggle={() => toggleExpand(item.id)}
+                onSync={() => {}}
+                onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
+                onDeleteAccount={handleDeleteAccount}
+                onRefresh={() => loadItems(false)}
+                allAccounts={allAccounts}
+                isFree={isFree}
+                overLimit={overLimit}
+                onUpgrade={handleUpgrade}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* ── Manual Account Modal ── */}
-      <AnimatePresence>
-        {showManualModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={(e) => { if (e.target === e.currentTarget) { setShowManualModal(false); resetManualForm(); } }}
-            style={{
-              position: "fixed", inset: 0, zIndex: 100,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              padding: 16,
-              background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)",
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 16 }}
-              style={{
-                width: "100%", maxWidth: 480,
-                background: "var(--lf-paper)",
-                border: "1px solid var(--lf-rule)",
-                borderRadius: 14, overflow: "hidden",
-              }}
+      <Modal
+        open={showManualModal}
+        onClose={() => { setShowManualModal(false); resetManualForm(); }}
+        title={activeType ? activeType.label : "Add an account"}
+        description="Manual balances are a snapshot — link accounts for automatic updates."
+        footer={activeType ? (
+          <>
+            <Button variant="ghost" onClick={() => { setShowManualModal(false); resetManualForm(); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleAddManualAccount}
+              disabled={!acctName.trim() || addingAccount}
+              loading={addingAccount}
+              leadingIcon={<Plus size={15} />}
             >
-              {/* Editorial modal header — eyebrow + serif h2 */}
-              <div className="ds-accounts-modal__head">
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <Eyebrow>Manual account</Eyebrow>
-                  <h2 className="ds-h2" style={{ marginTop: 6, fontSize: 26 }}>
-                    {activeType ? activeType.label : "Add an account"}
-                  </h2>
-                </div>
-                <Button
-                  variant="icon"
-                  size="sm"
-                  aria-label="Close"
-                  onClick={() => { setShowManualModal(false); resetManualForm(); }}
-                >
-                  <X size={14} />
-                </Button>
-              </div>
+              {addingAccount ? "Adding…" : "Add account"}
+            </Button>
+          </>
+        ) : undefined}
+      >
+        {activeType ? (
+          <div className="flex flex-col gap-5">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas-sunken px-2.5 py-1 text-[12px] font-semibold text-content-secondary">
+                <span>{activeType.emoji}</span> {activeType.label}
+              </span>
+              <button
+                type="button"
+                onClick={resetManualForm}
+                className="ui-focus ml-auto rounded-ui-sm text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:opacity-80"
+              >
+                change type
+              </button>
+            </div>
 
-              {/* Body */}
-              <div className="ds-accounts-modal__body">
-                {activeType ? (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    style={{ display: "flex", flexDirection: "column", gap: 18 }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <Pill tone="cream">{activeType.label}</Pill>
-                      <button
-                        type="button"
-                        onClick={resetManualForm}
-                        className="ds-btn ds-btn--link"
-                        style={{ marginLeft: "auto" }}
-                      >
-                        change type
-                      </button>
-                    </div>
+            <Field label="Account name">
+              <Input
+                type="text"
+                value={acctName}
+                onChange={(e) => setAcctName(e.target.value)}
+                autoFocus
+              />
+            </Field>
 
-                    <div>
-                      <Eyebrow>Account name</Eyebrow>
-                      <input
-                        type="text"
-                        value={acctName}
-                        onChange={(e) => setAcctName(e.target.value)}
-                        autoFocus
-                        className="ds-input"
-                        style={{ marginTop: 8 }}
-                      />
-                    </div>
+            <Field label={activeType.type === "real_estate" ? "Estimated value" : "Balance"}>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={acctBalance}
+                onChange={(e) => setAcctBalance(e.target.value.replace(/[^0-9.]/g, ""))}
+                placeholder="0"
+                className="ui-tnum"
+                leadingIcon={<span className="text-[13px]">$</span>}
+              />
+            </Field>
 
-                    <div>
-                      <Eyebrow>{activeType.type === "real_estate" ? "Estimated value" : "Balance"}</Eyebrow>
-                      <div style={{ position: "relative", marginTop: 8 }}>
-                        <span style={{
-                          position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
-                          color: "var(--lf-muted)", fontSize: 14,
-                          fontFamily: "'JetBrains Mono', monospace",
-                        }}>$</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={acctBalance}
-                          onChange={(e) => setAcctBalance(e.target.value.replace(/[^0-9.]/g, ""))}
-                          placeholder="0"
-                          className="ds-input ds-num"
-                          style={{ paddingLeft: 28 }}
-                        />
-                      </div>
-                    </div>
-
-                    {activeType.isDebt && (
-                      <div>
-                        <Eyebrow>Interest rate</Eyebrow>
-                        <div style={{ position: "relative", marginTop: 8 }}>
-                          <input
-                            type="number"
-                            min={0}
-                            max={40}
-                            step={0.1}
-                            value={acctRate}
-                            onChange={(e) => setAcctRate(e.target.value)}
-                            placeholder="5.5"
-                            className="ds-input ds-num"
-                            style={{ paddingRight: 32 }}
-                          />
-                          <span style={{
-                            position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
-                            color: "var(--lf-muted)", fontSize: 14,
-                            fontFamily: "'JetBrains Mono', monospace",
-                          }}>%</span>
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                ) : (
-                  <div style={{
-                    display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
-                  }}>
-                    {ACCOUNT_TYPES.map((at) => (
-                      <button
-                        key={at.label}
-                        type="button"
-                        onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(""); setAcctRate(""); }}
-                        className="ds-accounts-type-tile"
-                      >
-                        <span className="ds-accounts-type-tile__emoji">{at.emoji}</span>
-                        <span className="ds-accounts-type-tile__label">{at.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <p className="ds-caption" style={{
-                  textAlign: "center",
-                  marginTop: 18, marginBottom: 0,
-                }}>
-                  Manual balances are a snapshot — link accounts for automatic updates.
-                </p>
-              </div>
-
-              {/* Editorial modal footer — sauce primary + ghost secondary */}
-              {activeType && (
-                <div className="ds-accounts-modal__foot">
-                  <Button variant="ghost" onClick={() => { setShowManualModal(false); resetManualForm(); }}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="primary"
-                    onClick={handleAddManualAccount}
-                    disabled={!acctName.trim() || addingAccount}
-                    icon={addingAccount ? <Spinner size={13} /> : <Plus size={14} />}
-                  >
-                    {addingAccount ? "Adding…" : "Add account"}
-                  </Button>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
+            {activeType.isDebt && (
+              <Field label="Interest rate">
+                <Input
+                  type="number"
+                  min={0}
+                  max={40}
+                  step={0.1}
+                  value={acctRate}
+                  onChange={(e) => setAcctRate(e.target.value)}
+                  placeholder="5.5"
+                  className="ui-tnum"
+                />
+              </Field>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {ACCOUNT_TYPES.map((at) => (
+              <button
+                key={at.label}
+                type="button"
+                onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(""); setAcctRate(""); }}
+                className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md border border-line bg-panel px-3.5 py-3 text-left text-[13.5px] font-semibold text-content-secondary transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
+              >
+                <span className="text-[16px] leading-none">{at.emoji}</span>
+                <span className="leading-tight text-content">{at.label}</span>
+              </button>
+            ))}
+          </div>
         )}
-      </AnimatePresence>
-
-      {/* Page-local styles */}
-      <style>{`
-        .ds-accounts-manual-caption {
-          margin: 0 0 8px;
-          padding-bottom: 8px;
-          border-bottom: 1px solid var(--lf-rule-soft);
-        }
-        .ds-accounts-header-actions {
-          display: inline-flex; gap: 8px; flex-wrap: nowrap;
-          align-items: center;
-        }
-        /* Iter 8: on small screens the secondaries collapse into the
-           .ds-page-bar__overflow menu (handled by the design-system primitive),
-           so the page-scoped grid is no longer needed here. The primary
-           "Connect a bank" stays inline next to the overflow "···" button. */
-        .ds-accounts-usage {
-          margin: 0 0 8px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          color: var(--lf-muted);
-        }
-        .ds-accounts-usage__count {
-          font-variant-numeric: tabular-nums;
-          font-weight: 600;
-          color: var(--lf-ink-soft);
-        }
-        .ds-accounts-usage--over .ds-accounts-usage__count { color: var(--lf-sauce); }
-        .ds-accounts-usage__upgrade {
-          background: none; border: 0; padding: 0;
-          font: inherit; cursor: pointer;
-          color: var(--lf-sauce);
-          text-decoration: underline; text-underline-offset: 2px;
-        }
-        .ds-accounts-usage__upgrade:hover { color: var(--lf-sauce-deep); }
-        .ds-accounts-quickimport {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 6px 0;
-          margin-bottom: 24px;
-          text-decoration: none; color: var(--lf-muted);
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          transition: color 0.15s;
-        }
-        .ds-accounts-quickimport:hover { color: var(--lf-sauce); }
-        .ds-accounts-quickimport__icon {
-          width: 16px; height: 16px;
-          display: grid; place-items: center;
-          color: var(--lf-cheese);
-          flex-shrink: 0;
-        }
-        .ds-accounts-quickimport__body {
-          display: inline-flex; align-items: baseline; gap: 8px;
-          min-width: 0;
-        }
-        .ds-accounts-quickimport__eyebrow {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 10px; letter-spacing: 0.14em;
-          text-transform: uppercase; color: var(--lf-muted);
-        }
-        .ds-accounts-quickimport__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px; color: var(--lf-ink-soft);
-        }
-        .ds-accounts-quickimport__arrow {
-          font-family: 'Geist', system-ui, sans-serif;
-          color: var(--lf-muted);
-          flex-shrink: 0;
-          transition: transform 0.15s, color 0.15s;
-        }
-        .ds-accounts-quickimport:hover .ds-accounts-quickimport__arrow {
-          color: var(--lf-sauce);
-          transform: translateX(3px);
-        }
-        .ds-accounts-banner {
-          display: flex; align-items: center; gap: 10px;
-          padding: 12px 16px; margin-bottom: 20px;
-          border-radius: 10px;
-          font-family: 'Geist', system-ui, sans-serif; font-size: 13px;
-        }
-        .ds-accounts-banner--error {
-          background: rgba(201,84,58,0.08);
-          border: 1px solid rgba(201,84,58,0.25);
-          color: var(--lf-sauce);
-        }
-        .ds-accounts-banner--basil {
-          background: rgba(90,107,63,0.08);
-          border: 1px solid rgba(90,107,63,0.25);
-          color: var(--lf-ink);
-        }
-        .ds-accounts-feed { display: flex; flex-direction: column; }
-        /* Loading skeleton — InstitutionArticle's scoped <style> isn't mounted
-           during load, so mirror the head layout here (flex row + indented
-           body + right-aligned total) so the placeholder matches the real
-           feed and first paint doesn't jolt. */
-        .ds-inst--skeleton { border-top: 1px solid var(--lf-ink); }
-        .ds-inst--skeleton:last-child { border-bottom: 1px solid var(--lf-ink); }
-        .ds-inst--skeleton .ds-inst__head {
-          display: flex; align-items: center; gap: 12px;
-          width: 100%; padding: 18px 0;
-        }
-        .ds-inst--skeleton .ds-inst__head-chev { display: flex; flex-shrink: 0; color: var(--lf-muted); }
-        .ds-inst--skeleton .ds-inst__head-body { flex: 1; min-width: 0; }
-        /* Keep the collapsed header total + count off the gutter on mobile. */
-        @media (max-width: 640px) {
-          .ds-inst__head-total { margin-left: 10px; }
-        }
-        .ds-accounts-type-tile {
-          display: flex; align-items: center; gap: 10px;
-          padding: 12px 14px; border-radius: 10px;
-          border: 1px solid var(--lf-rule);
-          background: var(--lf-paper);
-          text-align: left; cursor: pointer;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; color: var(--lf-ink-soft);
-          font-weight: 500;
-          /* uniform height for grid visual rhythm regardless of label length */
-          min-height: 56px;
-          transition: background 0.12s, border-color 0.12s;
-        }
-        .ds-accounts-type-tile:hover {
-          background: var(--lf-cream);
-          border-color: var(--lf-cream-deep);
-        }
-        .ds-accounts-type-tile__emoji { font-size: 14px; flex-shrink: 0; line-height: 1; }
-        .ds-accounts-type-tile__label { text-align: left; line-height: 1.25; }
-        .ds-input {
-          width: 100%; padding: 10px 14px;
-          background: var(--lf-paper);
-          border: 1px solid var(--lf-rule);
-          border-radius: 8px;
-          /* 16px prevents iOS Safari auto-zoom on focus */
-          font-size: 16px;
-          font-family: 'Geist', system-ui, sans-serif;
-          color: var(--lf-ink); outline: none;
-          box-sizing: border-box;
-        }
-        .ds-input:focus { border-color: var(--lf-ink); }
-        .ds-accounts-modal__head {
-          display: flex; align-items: flex-start; justify-content: space-between;
-          gap: 16px;
-          padding: 22px 26px 20px;
-          border-bottom: 1px solid var(--lf-rule);
-        }
-        .ds-accounts-modal__body {
-          padding: 24px 26px;
-          max-height: 60vh; overflow-y: auto;
-        }
-        .ds-accounts-modal__foot {
-          display: flex; justify-content: flex-end; gap: 8px;
-          padding: 16px 26px;
-          border-top: 1px solid var(--lf-rule);
-          background: var(--lf-paper);
-        }
-      `}</style>
-    </Page>
+      </Modal>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Editorial institution article — hairline-separated, expands inline
+// Section header — brand dot + tracked label + right-aligned count
+// ---------------------------------------------------------------------------
+
+function SectionHeader({ title, meta }: { title: string; meta: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2.5">
+        <span
+          className="h-[7px] w-[7px] shrink-0 rounded-full bg-brand"
+          style={{ boxShadow: "0 0 0 4px var(--ui-brand-soft)" }}
+          aria-hidden
+        />
+        <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{title}</span>
+      </div>
+      <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">{meta}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Institution icon — favicon with monogram fallback
+// ---------------------------------------------------------------------------
+
+function InstIcon({ institution, isManual, size = 40 }: { institution: string; isManual: boolean; size?: number }) {
+  const url = isManual ? null : faviconUrl(institutionDomainFor(institution), 64);
+  const mono = (institution || "?").trim().charAt(0).toUpperCase();
+  const [err, setErr] = useState(false);
+  return (
+    <div
+      className="grid shrink-0 place-items-center overflow-hidden rounded-ui-md border border-line bg-canvas-sunken text-[13px] font-bold text-content-secondary"
+      style={{ width: size, height: size }}
+    >
+      {url && !err ? (
+        <img src={url} alt="" style={{ width: size * 0.6, height: size * 0.6 }} className="rounded-[5px]" onError={() => setErr(true)} />
+      ) : (
+        mono
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Institution card — collapsible header over nested account rows
 // ---------------------------------------------------------------------------
 
 function InstitutionArticle({
@@ -1117,19 +819,15 @@ function InstitutionArticle({
   onUpgrade: () => void;
 }) {
   const isError = item.status === "error" || item.status === "item_login_required";
-  // Manual accounts aren't "synced" — they're hand-entered, so the relative
-  // timestamp ("synced 63d ago") was misleading. Show a calm "Manual" pill.
   const statusLabel = isManual
-    ? "manual"
+    ? "Manual"
     : isError
-    ? "needs re-auth"
+    ? "Needs re-auth"
     : item.lastSyncedAt
-    ? `synced ${formatRelativeTime(item.lastSyncedAt)}`
-    : "synced";
+    ? `Synced ${formatRelativeTime(item.lastSyncedAt)}`
+    : "Synced";
 
   const institutionName = item.institutionName ?? (isManual ? "Manual" : "Unknown Bank");
-  const favicon = isManual ? null : faviconUrl(institutionDomainFor(institutionName), 64);
-  const monogram = institutionName.trim().charAt(0).toUpperCase() || "?";
   // Net total across the institution (debts reduce; depository/investment increase)
   const total = item.accounts.reduce((sum, a) => {
     if (a.balance === null) return sum;
@@ -1138,6 +836,7 @@ function InstitutionArticle({
     if (a.type === "credit" || a.type === "loan") return sum - v;
     return sum + v;
   }, 0);
+  const totalNeg = total < 0;
 
   return (
     <motion.article
@@ -1145,65 +844,67 @@ function InstitutionArticle({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="ds-inst"
-      style={{
-        background: isHighlighted ? 'rgba(90,107,63,0.06)' : undefined,
-      }}
+      className={cn(
+        "overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm transition-colors",
+        isHighlighted ? "border-brand" : "border-line",
+      )}
+      style={isHighlighted ? { background: "var(--ui-brand-softer)" } : undefined}
     >
-      {/* Header row — clickable to expand. Rendered as a div with role=button
-          (instead of <button>) so the sync icon-button inside can remain a
-          proper <button> element without nesting. */}
+      {/* Header row — clickable to expand. div role=button so the sync
+          icon-button inside stays a proper <button> without nesting. */}
       <div
         role="button"
         tabIndex={0}
         onClick={onToggle}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); }
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); }
         }}
-        className="ds-inst__head"
         aria-expanded={expanded}
+        className={cn(
+          "ui-focus flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-brand-softer sm:px-5",
+          expanded && "border-b border-line",
+        )}
       >
-        <span className="ds-inst__head-chev">
-          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span className="grid h-6 w-6 shrink-0 place-items-center text-content-faint">
+          <ChevronDown size={18} className={cn("transition-transform duration-200 ease-ui", !expanded && "-rotate-90")} />
         </span>
-        <span className="ds-inst__head-logo">
-          <Favicon icon={favicon} monogram={monogram} alt={institutionName} size={34} />
-        </span>
-        <div className="ds-inst__head-body">
-          <div className="ds-inst__head-name">{institutionName}</div>
-          <div className="ds-inst__head-meta">
-            <Pill tone={isError ? "sauce" : "ghost"}>{statusLabel}</Pill>
-            <span className="ds-inst__head-count">
-              {item.accounts.length} account{item.accounts.length === 1 ? "" : "s"}
-            </span>
+        <InstIcon institution={institutionName} isManual={isManual} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-editorial text-[17px] font-bold leading-tight tracking-[-0.01em]" title={institutionName}>
+            {institutionName}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-content-muted">
+            <span className={cn("font-semibold", isError && "text-caution")}>{statusLabel}</span>
+            <span className="text-content-faint">·</span>
+            <span>{item.accounts.length} account{item.accounts.length === 1 ? "" : "s"}</span>
           </div>
         </div>
-        <span className="ds-inst__head-total ds-num">{formatTotal(total)}</span>
+        <span className={cn("shrink-0 font-editorial text-[16px] font-extrabold tracking-[-0.015em] ui-tnum", totalNeg && "text-negative")}>
+          {totalNeg ? "−" : ""}{formatTotal(Math.abs(total))}
+        </span>
         {!isDemoMode && !isManual && !isFree && (
-          <span className="ds-inst__head-actions">
-            <Button
-              variant="icon"
-              size="sm"
-              aria-label={`Sync ${institutionName}`}
-              onClick={(e) => { e.stopPropagation(); onSync(); }}
-              disabled={syncing}
-            >
-              {syncing ? <Spinner size={13} /> : <RefreshCw size={14} />}
-            </Button>
-          </span>
+          <button
+            type="button"
+            aria-label={`Sync ${institutionName}`}
+            onClick={(e) => { e.stopPropagation(); onSync(); }}
+            disabled={syncing}
+            className="ui-focus grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
+          </button>
         )}
       </div>
 
       {/* Expanded body */}
       {expanded && (
-        <div className="ds-inst__body">
+        <div>
           {item.accounts.length === 0 && showSyncSpinner && (
-            <div className="ds-inst__empty">
-              <Spinner size={14} /> Syncing accounts…
+            <div className="flex items-center gap-2 px-4 py-4 text-[13.5px] text-content-muted sm:px-5">
+              <RefreshCw size={14} className="animate-spin" /> Syncing accounts…
             </div>
           )}
           {item.accounts.length === 0 && !showSyncSpinner && !isManual && (
-            <div className="ds-inst__empty">No accounts found for this institution.</div>
+            <div className="px-4 py-4 text-[13.5px] text-content-muted sm:px-5">No accounts found for this institution.</div>
           )}
           {item.accounts.length > 0 && (
             <div>
@@ -1226,106 +927,19 @@ function InstitutionArticle({
           )}
 
           {!isDemoMode && !isManual && (
-            <div className="ds-inst__danger-zone">
-              <Button
-                variant="ghost"
-                size="sm"
+            <div className="border-t border-line px-4 py-3 sm:px-5">
+              <button
+                type="button"
                 onClick={onDisconnect}
-                icon={<X size={13} />}
-                className="ds-inst__disconnect-btn"
+                className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13px] font-semibold text-negative transition-colors hover:bg-negative-soft"
               >
+                <X size={14} />
                 Disconnect this institution
-              </Button>
+              </button>
             </div>
           )}
         </div>
       )}
-
-      <style>{`
-        .ds-inst {
-          border-top: 1px solid var(--lf-ink);
-        }
-        .ds-inst:last-child { border-bottom: 1px solid var(--lf-ink); }
-        .ds-inst__head {
-          display: flex; align-items: center;
-          gap: 12px;
-          width: 100%;
-          padding: 18px 0;
-          background: none;
-          border: 0;
-          font-family: 'Geist', system-ui, sans-serif;
-          color: inherit;
-          cursor: pointer;
-          text-align: left;
-        }
-        .ds-inst__head-chev {
-          color: var(--lf-muted);
-          flex-shrink: 0;
-          display: flex;
-        }
-        /* Brand logo — same Favicon primitive as the rows, bumped to 34px so
-           the institution header reads as the parent of the accounts nested
-           under it. The expanded body indents to this logo's left edge. */
-        .ds-inst__head-logo { display: flex; flex-shrink: 0; }
-        .ds-inst__head-logo .ds-row__favicon,
-        .ds-inst__head-logo .ds-row__monogram {
-          width: 34px; height: 34px; border-radius: 8px;
-        }
-        .ds-inst__head-body { flex: 1; min-width: 0; }
-        .ds-inst__head-name {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 22px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.2;
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .ds-inst__head-meta {
-          display: flex; align-items: center; gap: 10px;
-          margin-top: 4px;
-          flex-wrap: wrap;
-        }
-        .ds-inst__head-count {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          color: var(--lf-muted);
-        }
-        .ds-inst__head-total {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 15px; font-weight: 500;
-          color: var(--lf-ink);
-          flex-shrink: 0;
-          min-width: 90px;
-          text-align: right;
-        }
-        .ds-inst__head-actions {
-          display: flex; gap: 4px;
-          flex-shrink: 0;
-        }
-        .ds-inst__body {
-          padding: 0 0 14px 26px;
-        }
-        .ds-inst__empty {
-          padding: 12px 0;
-          display: flex; align-items: center; gap: 8px;
-          color: var(--lf-muted); font-size: 13px;
-          font-family: 'Geist', system-ui, sans-serif;
-        }
-        .ds-inst__icon-danger:hover { color: var(--lf-sauce); border-color: rgba(201,84,58,0.4); }
-        .ds-inst__danger-zone {
-          margin-top: 12px;
-          padding-top: 12px;
-          border-top: 1px solid var(--lf-rule-soft);
-        }
-        .ds-inst__disconnect-btn {
-          color: var(--lf-sauce);
-          border-color: rgba(201,84,58,0.35);
-        }
-        .ds-inst__disconnect-btn:hover {
-          color: var(--lf-sauce-deep);
-          border-color: rgba(201,84,58,0.6);
-        }
-      `}</style>
     </motion.article>
   );
 }
@@ -1345,71 +959,68 @@ function AccountRow({ account, isManual, isFree, overLimit, onUpgrade, onDelete,
   const isFrozen = account.frozen === true;
   const [, setLocation] = useLocation();
   const [syncing, setSyncing] = useState(false);
-  const openSettings = () => setLocation('/accounts/' + account.id);
+  const openSettings = () => setLocation("/accounts/" + account.id);
 
   return (
-    <>
     <div
-      className={`ds-acctrow${isFrozen ? " ds-acctrow--frozen" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`Edit ${account.name}`}
       onClick={openSettings}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSettings(); } }}
+      className={cn(
+        "ui-focus group flex cursor-pointer items-center gap-3.5 border-t border-line px-4 py-3 transition-colors first:border-t-0 hover:bg-brand-softer sm:px-5",
+        isFrozen && "opacity-70",
+      )}
     >
-      <div className="ds-acctrow__name">
-        <span className="ds-acctrow__name-main">
-          {isFrozen && <Lock size={12} style={{ marginRight: 6, verticalAlign: "-1px", color: "var(--lf-muted)" }} />}
-          {stripAccountMask(account.name, account.mask)}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          {isFrozen && <Lock size={12} className="shrink-0 text-content-muted" />}
+          <span className="truncate text-[14.5px] font-bold leading-tight" title={stripAccountMask(account.name, account.mask)}>
+            {stripAccountMask(account.name, account.mask)}
+          </span>
           {account.mask && (
-            <span className="ds-row__acct-no" style={{ marginLeft: 8 }} aria-label={`account ending ${account.mask}`}>
-              <span className="ds-row__acct-dots" aria-hidden="true">••••</span>{account.mask}
+            <span className="shrink-0 text-[12px] text-content-muted ui-tnum" aria-label={`account ending ${account.mask}`}>
+              ····{account.mask}
             </span>
           )}
-        </span>
-        {isFrozen ? (
-          <span className="ds-caption" style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <span className="ds-row__badge">Frozen</span>
-            <button
-              type="button"
-              className="ds-acctrow__upgrade"
-              onClick={(e) => { e.stopPropagation(); onUpgrade(); }}
-            >
-              Upgrade to sync
-            </button>
-          </span>
-        ) : (
-          <>
-            {overLimit && (
-              <span className="ds-caption" style={{ fontSize: 11, color: "var(--lf-basil)", fontWeight: 600 }}>
-                Active
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] text-content-muted">
+          <span>{getAccountTypeLabel(account.type, account.subtype)}</span>
+          {linkedAccountName && (
+            <>
+              <span className="text-content-faint">·</span>
+              <span>linked to {linkedAccountName}</span>
+            </>
+          )}
+          {isFrozen ? (
+            <>
+              <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
+                <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
               </span>
-            )}
-            {linkedAccountName && (
-              <span className="ds-caption" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
-                linked to {linkedAccountName}
-              </span>
-            )}
-          </>
-        )}
+              <button
+                type="button"
+                className="ui-focus rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2 hover:opacity-80"
+                onClick={(e) => { e.stopPropagation(); onUpgrade(); }}
+              >
+                Upgrade to sync
+              </button>
+            </>
+          ) : overLimit ? (
+            <span className="inline-flex items-center rounded-full bg-positive-soft px-2 py-0.5 text-[11px] font-bold text-positive">
+              Active
+            </span>
+          ) : null}
+        </div>
       </div>
 
-      <Pill tone="cream">{getAccountTypeLabel(account.type, account.subtype)}</Pill>
-
-      <span className="ds-num" style={{
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 13, fontWeight: 500,
-        color: isNegative ? "var(--lf-sauce)" : "var(--lf-ink)",
-        minWidth: 90, textAlign: "right",
-        flexShrink: 0,
-      }}>
+      <span className={cn("shrink-0 text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum", isNegative && "text-negative")}>
         {balance !== null
-          ? formatCurrency(account.balance!, account.currency)
+          ? (isNegative ? "−" : "") + formatCurrency(String(Math.abs(balance)), account.currency)
           : "—"}
       </span>
 
       <RowMenu
-        name={account.name}
         onSettings={openSettings}
         onSync={isManual || isFree ? undefined : async () => {
           setSyncing(true);
@@ -1419,40 +1030,96 @@ function AccountRow({ account, isManual, isFree, overLimit, onUpgrade, onDelete,
         syncing={syncing}
         onDelete={isManual ? onDelete : undefined}
       />
-
-      <style>{`
-        .ds-acctrow {
-          display: flex; align-items: center;
-          padding: 8px 0;
-          gap: 12px;
-          border-top: 1px solid var(--lf-rule-soft);
-          cursor: pointer;
-          transition: background 0.12s;
-        }
-        .ds-acctrow:hover { background: rgba(31, 26, 22, 0.025); }
-        .ds-acctrow:first-child { border-top: 0; }
-        .ds-acctrow--frozen { opacity: 0.55; }
-        .ds-acctrow--frozen .ds-acctrow__name-main { color: var(--lf-muted); }
-        .ds-acctrow__name {
-          flex: 1; min-width: 0;
-          display: flex; flex-direction: column; gap: 2px;
-        }
-        .ds-acctrow__name-main {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; font-weight: 500;
-          color: var(--lf-ink);
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .ds-acctrow__upgrade {
-          background: none; border: 0; padding: 0;
-          font: inherit; cursor: pointer;
-          color: var(--lf-sauce);
-          text-decoration: underline; text-underline-offset: 2px;
-        }
-        .ds-acctrow__upgrade:hover { color: var(--lf-sauce-deep); }
-      `}</style>
     </div>
-    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Per-row overflow menu — settings / sync / remove. Destructive is red text.
+// ---------------------------------------------------------------------------
+
+function RowMenu({
+  onSettings, onSync, onDelete, syncing,
+}: {
+  onSettings: () => void;
+  onSync?: () => void;
+  onDelete?: () => void;
+  syncing: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const run = (fn?: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); setOpen(false); fn?.(); };
+
+  return (
+    <div ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        aria-label="Account actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        className="ui-focus grid h-9 w-9 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
+      >
+        <MoreHorizontal size={18} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="animate-scale-in absolute right-0 top-[calc(100%+6px)] z-30 w-52 origin-top-right rounded-ui-md border border-line-strong bg-panel-raised p-1.5 shadow-ui-lg"
+        >
+          <MenuItem icon={<SlidersHorizontal size={16} />} onClick={run(onSettings)}>Account settings</MenuItem>
+          {onSync && (
+            <MenuItem icon={<RefreshCw size={16} className={syncing ? "animate-spin" : ""} />} onClick={run(onSync)}>
+              {syncing ? "Syncing…" : "Sync now"}
+            </MenuItem>
+          )}
+          {onDelete && (
+            <>
+              <div className="my-1 h-px bg-line" />
+              <MenuItem icon={<Trash2 size={16} />} danger onClick={run(onDelete)}>Remove account</MenuItem>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  icon, children, onClick, danger,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  onClick: (e: React.MouseEvent) => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className={cn(
+        "ui-focus flex w-full items-center gap-2.5 rounded-ui-sm px-2.5 py-2 text-left text-[13.5px] font-medium transition-colors",
+        danger
+          ? "text-negative hover:bg-negative-soft"
+          : "text-content-secondary hover:bg-canvas-sunken hover:text-content",
+      )}
+    >
+      <span className="shrink-0">{icon}</span>
+      {children}
+    </button>
   );
 }
 

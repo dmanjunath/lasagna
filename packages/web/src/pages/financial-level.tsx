@@ -3,23 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
   TrendingUp, CreditCard, Rocket,
-  AlertCircle, Check,
+  AlertCircle, Check, ChevronRight, Sparkles, ArrowRight, Info,
   PiggyBank, Landmark, Layers,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import type { LucideIcon } from 'lucide-react';
-import {
-  Page,
-  Section,
-  Button,
-  Pill,
-  Eyebrow,
-  EmptyState,
-  StatStrip,
-  SkeletonLine,
-  SkeletonBlock,
-} from '../components/ds';
+import { Button, Eyebrow, EmptyState, Skeleton, Textarea } from '../components/uikit';
 
 // ── constants ────────────────────────────────────────────────────────────────
 
@@ -29,13 +19,11 @@ const iconMap: Record<string, LucideIcon> = {
   'alert-circle': AlertCircle, 'piggy-bank': PiggyBank, landmark: Landmark, layers: Layers,
 };
 
-// State drives color, not order. Three intentional, token-only states:
-//   done    → basil (green)  · settled, earned
-//   current → cheese (amber) · the hero — "you are here"
-//   future  → muted (neutral)· quiet, ahead of you
-//   skipped → muted, struck
-// The CSS reads a single `--st` custom property set per state class, so the
-// palette lives in one place and never drifts to a foreign hex.
+// State drives the whole palette. Four intentional, token-only states:
+//   done    → brand green (filled) · settled, earned
+//   current → brand green (loud)   · the focal "you are here"
+//   future  → neutral faint        · quiet, ahead of you
+//   skipped → neutral faint, struck
 type LevelState = 'done' | 'current' | 'future' | 'skipped';
 
 // ── types ────────────────────────────────────────────────────────────────────
@@ -82,89 +70,146 @@ function levelStateOf(step: PriorityStep, currentStepId: string, skipped: Set<st
   return 'future';
 }
 
-// ── LevelLadder — the hero. A 12-rung climb. Height AND color tell ONE story,
-// driven by state (never index): cleared levels stand tall, the current level
-// is the summit you're on, levels ahead sit low until you reach them. A done
-// rung can never appear "more advanced" than the amber "you are here" rung. ──
-
-const RUNG_HEIGHT: Record<LevelState, number> = {
-  done: 78,     // climbed — elevated, consistent
-  current: 100, // the summit — "you are here"
-  future: 46,   // ahead, not yet climbed
-  skipped: 46,  // stepped over, low
+// Per-state Bright accents. Green stays brand; current is the loudest green,
+// done is the calm brand-soft, future/skipped are quiet neutrals.
+const STATE_ACCENT: Record<LevelState, string> = {
+  done: 'rgb(var(--ui-brand))',
+  current: 'rgb(var(--ui-brand))',
+  future: 'rgb(var(--ui-content-faint))',
+  skipped: 'rgb(var(--ui-content-faint))',
 };
 
-function LevelLadder({ states }: { states: LevelState[] }) {
+// ── StatePill — small status chip, never color-only ──────────────────────────
+
+function StatePill({ state, className = '' }: { state: LevelState; className?: string }) {
+  const base = `inline-flex items-center gap-1 h-[22px] px-2.5 rounded-full text-[10.5px] font-extrabold uppercase tracking-[0.06em] whitespace-nowrap ${className}`;
+  // current: readable brand-ink on the soft tint + a brand ring + leading dot,
+  // so it passes AA on light and stays visually distinct from the "Done" pill.
+  if (state === 'current')
+    return (
+      <span
+        className={`${base} bg-brand-soft text-[rgb(var(--ui-brand-ink))]`}
+        style={{ boxShadow: 'inset 0 0 0 1.5px var(--ui-brand-ring)' }}
+      >
+        <span className="h-[7px] w-[7px] rounded-full bg-brand shrink-0" />
+        You are here
+      </span>
+    );
+  if (state === 'done')
+    return <span className={`${base} bg-brand-soft text-[rgb(var(--ui-brand-ink))]`}><Check className="h-3 w-3" strokeWidth={3} />Done</span>;
+  if (state === 'skipped')
+    return <span className={`${base} bg-canvas-sunken text-content-muted`}>Skipped</span>;
+  return <span className={`${base} bg-canvas-sunken text-content-muted`}>Ahead</span>;
+}
+
+// ── SegmentedRail — the hero's honest progress visual. One equal-height segment
+// per level, colored only by STATE (never index or height, since completion is
+// non-linear): done = brand-green fill, current = green with a ring/halo + a
+// centred marker dot ("you are here"), future = quiet neutral track, skipped =
+// muted dashed outline. No varying heights — order is non-linear, so a staircase
+// would lie. ──
+
+function SegmentedRail({ states }: { states: LevelState[] }) {
   return (
-    <div className="fl-ladder" aria-hidden="true">
-      {states.map((st, i) => (
-        <span
-          key={i}
-          className={`fl-ladder__rung is-${st}`}
-          style={{ height: `${RUNG_HEIGHT[st]}%` }}
-        />
-      ))}
+    <div className="flex items-stretch gap-[6px] h-10 px-1.5" aria-hidden="true">
+      {states.map((st, i) => {
+        const common = 'relative flex-1 min-w-0 rounded-[6px] transition-colors';
+        if (st === 'done')
+          return <span key={i} className={common} style={{ background: 'rgb(var(--ui-brand))' }} />;
+        if (st === 'current')
+          return (
+            <span
+              key={i}
+              className={`${common} grid place-items-center`}
+              style={{
+                background: 'rgb(var(--ui-brand))',
+                boxShadow: '0 0 0 2px rgb(var(--ui-panel)), 0 0 0 4px var(--ui-brand-ring)',
+              }}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: 'rgb(var(--ui-brand-fg))' }} />
+            </span>
+          );
+        if (st === 'skipped')
+          return (
+            <span
+              key={i}
+              className={common}
+              style={{ border: '1.5px dashed color-mix(in srgb, rgb(var(--ui-content-faint)) 60%, transparent)' }}
+            />
+          );
+        return (
+          <span
+            key={i}
+            className={common}
+            style={{ background: 'color-mix(in srgb, rgb(var(--ui-content-faint)) 22%, transparent)' }}
+          />
+        );
+      })}
     </div>
   );
 }
 
-// ── WhyThisOrderPopover ──────────────────────────────────────────────────────
+// Small swatch that mirrors a SegmentedRail segment for the legend.
+function LegendSwatch({ state }: { state: LevelState }) {
+  if (state === 'current')
+    return (
+      <span
+        className="grid place-items-center w-[11px] h-[11px] rounded-[3px] shrink-0 bg-brand"
+        style={{ boxShadow: '0 0 0 1.5px var(--ui-brand-ring)' }}
+      >
+        <span className="w-[4px] h-[4px] rounded-full" style={{ background: 'rgb(var(--ui-brand-fg))' }} />
+      </span>
+    );
+  if (state === 'done')
+    return <span className="w-[11px] h-[11px] rounded-[3px] shrink-0 bg-brand" />;
+  if (state === 'skipped')
+    return (
+      <span
+        className="w-[11px] h-[11px] rounded-[3px] shrink-0"
+        style={{ border: '1.5px dashed color-mix(in srgb, rgb(var(--ui-content-faint)) 60%, transparent)' }}
+      />
+    );
+  return (
+    <span
+      className="w-[11px] h-[11px] rounded-[3px] shrink-0"
+      style={{ background: 'color-mix(in srgb, rgb(var(--ui-content-faint)) 22%, transparent)' }}
+    />
+  );
+}
+
+// ── WhyThisOrderPopover — Bright panel ───────────────────────────────────────
 
 function WhyThisOrderPopover() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
+    <div className="relative inline-block">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        style={{
-          background: 'none',
-          border: 0,
-          padding: 0,
-          font: 'inherit',
-          fontSize: 12,
-          color: 'var(--lf-muted)',
-          textDecoration: 'underline',
-          textUnderlineOffset: 3,
-          cursor: 'pointer',
-        }}
+        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-ui-md text-[12.5px] font-bold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors"
       >
-        Why this order? ⓘ
+        <Info className="h-[15px] w-[15px]" />
+        Why this order?
       </button>
       {open && (
         <>
-          <div
-            onClick={() => setOpen(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 49 }}
-          />
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            marginTop: 8,
-            zIndex: 50,
-            width: 360,
-            background: 'var(--lf-paper)',
-            border: '1px solid var(--lf-rule)',
-            borderRadius: 14,
-            padding: '18px 20px',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.12)',
-          }}>
-            <Eyebrow style={{ marginBottom: 10 }}>Why this order</Eyebrow>
-            <p className="ds-body ds-body--sm" style={{ marginBottom: 10 }}>
-              Each layer builds on the one below it. Skip ahead and you risk undoing your own progress —
-              paying off debt while overdraft fees eat your checking account, or investing while 22% APR
-              credit cards compound against you.
+          <div onClick={() => setOpen(false)} className="fixed inset-0 z-[49]" />
+          <div className="absolute top-full right-0 mt-2 z-[50] w-[min(360px,calc(100vw-36px))] rounded-ui-xl border border-line bg-panel-raised shadow-ui-lg p-5">
+            <Eyebrow>Why this order</Eyebrow>
+            <p className="mt-2.5 mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
+              It's a priority order, not a rigid ladder. Chase a lower-priority move first and you can undo
+              your own progress — investing while 22% APR credit cards compound against you, or saving while
+              overdraft fees eat your checking account.
             </p>
-            <p className="ds-body ds-body--sm" style={{ marginBottom: 10 }}>
-              The order follows one rule: <strong style={{ color: 'var(--lf-ink)' }}>do the thing with the highest guaranteed
-              return first.</strong> Employer match (100% instant return) beats emergency fund (loss prevention)
-              beats investing (7–10% expected). Paying off 22% debt is a guaranteed 22% return — no
-              stock market year consistently beats that.
+            <p className="mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
+              The order follows one rule: <strong className="font-bold text-content">do the thing with the
+              highest guaranteed return first.</strong> Employer match (100% instant return) beats emergency
+              fund beats investing. Paying off 22% debt is a guaranteed 22% return — no stock market year
+              consistently beats that.
             </p>
-            <p className="ds-body ds-body--sm" style={{ margin: 0 }}>
-              The layers are the same for everyone. What changes is where you start and how fast you move.
+            <p className="text-[13.5px] leading-relaxed text-content-secondary">
+              The priorities are the same for everyone. What changes is where you start and how fast you move.
             </p>
           </div>
         </>
@@ -173,7 +218,7 @@ function WhyThisOrderPopover() {
   );
 }
 
-// ── LevelRow — editorial row, hairline separated ─────────────────────────────
+// ── LevelRow — a compact, tappable index row ─────────────────────────────────
 
 function LevelRow({ step, state, isSelected, onSelect }: {
   step: PriorityStep;
@@ -186,45 +231,82 @@ function LevelRow({ step, state, isSelected, onSelect }: {
   const isSkipped = state === 'skipped';
   const fill = isComplete ? 100 : Math.min(step.progress, 100);
   const Icon = iconMap[step.icon] ?? Layers;
+  const accent = STATE_ACCENT[state];
 
-  const pillTone: 'basil' | 'cheese' | 'ghost' | undefined =
-    isComplete ? 'basil' :
-    isCurrent ? 'cheese' :
-    isSkipped ? 'ghost' :
-    undefined;
-  const pillLabel = isComplete ? 'Done' : isCurrent ? 'You are here' : isSkipped ? 'Skipped' : null;
+  // chip surface per state
+  const chipBg = isCurrent
+    ? 'rgb(var(--ui-brand))'
+    : isComplete
+      ? 'var(--ui-brand-soft)'
+      : 'var(--ui-canvas-sunken)';
+  const chipFg = isCurrent
+    ? 'var(--ui-brand-fg)'
+    : isComplete
+      ? 'rgb(var(--ui-brand-ink))'
+      : 'rgb(var(--ui-content-muted))';
 
   return (
-    <li className={`fl-row is-${state} ${isSelected && !isCurrent ? 'is-selected' : ''}`}>
-      <button type="button" onClick={onSelect} className="fl-row__btn">
-        <span className="fl-row__chip" aria-hidden="true">
-          {isComplete
-            ? <Check size={16} strokeWidth={2.5} />
-            : String(step.order).padStart(2, '0')}
+    <li className="relative border-t border-line first:border-t-0">
+      {(isCurrent || isSelected) && (
+        <span
+          className="absolute left-0 top-0 bottom-0 w-1 rounded-full"
+          style={{ background: isCurrent ? 'rgb(var(--ui-brand))' : 'var(--ui-line-strong)' }}
+          aria-hidden
+        />
+      )}
+      <button
+        type="button"
+        onClick={onSelect}
+        className={`flex items-center gap-3.5 w-full text-left min-h-touch py-3.5 px-3.5 transition-colors group ${
+          isCurrent ? 'rounded-ui-md' : ''
+        }`}
+        style={isCurrent ? { background: 'var(--ui-brand-soft)' } : undefined}
+      >
+        <span
+          className="grid place-items-center h-[42px] w-[42px] shrink-0 rounded-[13px]"
+          style={{ background: chipBg, color: chipFg, opacity: isSkipped ? 0.6 : 1 }}
+        >
+          {isComplete ? <Check className="h-[18px] w-[18px]" strokeWidth={2.6} /> : <Icon className="h-[18px] w-[18px]" />}
         </span>
-        <span className="fl-row__icon" aria-hidden="true">
-          <Icon size={14} />
-        </span>
-        <span className="fl-row__body">
-          <span className="fl-row__title">{step.title}</span>
-          {!isComplete && !isSkipped && fill > 0 && (
-            <span className="fl-row__progress">
-              <span style={{ width: `${fill}%` }} />
+
+        <span className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <span className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-content-muted">
+            Level {String(step.order).padStart(2, '0')}
+          </span>
+          <span
+            className={`font-editorial text-[15.5px] font-bold leading-[1.2] tracking-[-0.012em] line-clamp-2 transition-colors group-hover:text-brand ${
+              isSkipped ? 'line-through text-content-muted' : 'text-content'
+            }`}
+          >
+            {step.title}
+          </span>
+          {isCurrent && fill > 0 && fill < 100 && (
+            <span className="mt-0.5 flex items-center gap-2 max-w-[260px]">
+              <span className="h-[6px] flex-1 rounded-full bg-canvas-sunken overflow-hidden">
+                <span className="block h-full rounded-full" style={{ width: `${fill}%`, background: accent }} />
+              </span>
+              <span className="text-[11px] font-bold text-[rgb(var(--ui-brand-ink))] ui-tnum">{fill}%</span>
             </span>
           )}
+          {/* Mobile: the pill lives on its own line so it never eats the name. */}
+          <StatePill state={state} className="sm:hidden mt-0.5 self-start" />
         </span>
-        {pillLabel && pillTone && <Pill tone={pillTone}>{pillLabel}</Pill>}
+
+        {/* Desktop/tablet: pill sits inline at the end of the row. */}
+        <StatePill state={state} className="hidden sm:inline-flex" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" />
       </button>
     </li>
   );
 }
 
-// ── FocusArticle — the selected level, rendered as editorial article ─────────
+// ── FocusArticle — the selected level, as a Bright action card ───────────────
 
-function FocusArticle({ step, state, skipped, onSkip, onAsk, onComplete, onUndoComplete }: {
+function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk, onComplete, onUndoComplete }: {
   step: PriorityStep;
   state: LevelState;
   skipped: boolean;
+  hideHeader?: boolean;
   onSkip: () => void;
   onAsk: () => void;
   onComplete: (id: string, note: string) => void;
@@ -235,6 +317,8 @@ function FocusArticle({ step, state, skipped, onSkip, onAsk, onComplete, onUndoC
   const isComplete = step.status === 'complete';
   const fill = isComplete ? 100 : Math.min(step.progress, 100);
   const Icon = iconMap[step.icon] ?? Layers;
+  const accent = STATE_ACCENT[state];
+  const greenText = state === 'done' || state === 'current';
 
   let progressDetail = '';
   if (step.target !== null && step.current !== null) {
@@ -246,34 +330,53 @@ function FocusArticle({ step, state, skipped, onSkip, onAsk, onComplete, onUndoC
   const hasProgress = !isComplete && fill > 0;
 
   return (
-    <article className={`fl-focus is-${state}`}>
-      <div className="fl-focus__head">
-        <span className="fl-focus__chip" aria-hidden="true">
-          {`L${String(step.order).padStart(2, '0')}`}
-        </span>
-        <span className="fl-focus__icon" aria-hidden="true">
-          <Icon size={16} />
-        </span>
-        {isComplete && <Pill tone="basil">Complete</Pill>}
-        {!isComplete && state === 'current' && <Pill tone="cheese">You are here</Pill>}
-        {!isComplete && state === 'future' && <Pill tone="ghost">Ahead</Pill>}
-        {skipped && <Pill tone="ghost">Skipped</Pill>}
-      </div>
+    <article className="relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
+      {/* left accent rail */}
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: accent }} aria-hidden />
 
-      <h3 className="fl-focus__title">{step.title}</h3>
-      {step.subtitle && <p className="fl-focus__sub">{step.subtitle}</p>}
-      {step.description && <p className="fl-focus__body">{step.description}</p>}
+      {/* When inline under its own row (mobile accordion) the row already shows
+          the icon, "Level NN" and the pill — suppress this header to avoid the
+          duplicate. */}
+      {!hideHeader && (
+        <div className="flex items-center gap-3 flex-wrap mb-4">
+          <span
+            className="grid place-items-center h-11 w-11 shrink-0 rounded-[13px]"
+            style={{
+              background: greenText ? 'var(--ui-brand-soft)' : 'var(--ui-canvas-sunken)',
+              color: greenText ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-muted))',
+            }}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+          <span className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-content-muted">
+            Level {String(step.order).padStart(2, '0')}
+          </span>
+          <span className="ml-auto"><StatePill state={state} /></span>
+        </div>
+      )}
+
+      <h3 className="font-editorial text-[20px] sm:text-[22px] font-bold leading-[1.18] tracking-[-0.02em] text-content">
+        {step.title}
+      </h3>
+      {step.subtitle && (
+        <p className="mt-2 text-[14.5px] leading-[1.5] text-content-secondary max-w-[58ch]">{step.subtitle}</p>
+      )}
+      {step.description && (
+        <p className="mt-2.5 text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]">{step.description}</p>
+      )}
 
       {hasProgress && (
-        <div className="fl-focus__progress">
-          <div className="fl-focus__progress-meta">
-            <Eyebrow>Progress</Eyebrow>
-            <span className="ds-caption ds-num">
+        <div className="mt-5">
+          <div className="flex items-baseline justify-between gap-3 mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Progress</span>
+            <span className="text-[12.5px] font-bold text-[rgb(var(--ui-brand-ink))] ui-tnum">
               {fill}%{progressDetail ? ` · ${progressDetail}` : ''}
             </span>
           </div>
-          <div className="fl-focus__bar">
+          <div className="h-[9px] rounded-full bg-canvas-sunken overflow-hidden">
             <motion.div
+              className="h-full rounded-full"
+              style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 60%, transparent), ${accent})` }}
               initial={{ width: 0 }}
               animate={{ width: `${fill}%` }}
               transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
@@ -282,72 +385,63 @@ function FocusArticle({ step, state, skipped, onSkip, onAsk, onComplete, onUndoC
         </div>
       )}
 
-      {step.action && (
-        <div className="fl-focus__callout">
-          <Eyebrow style={{ marginBottom: 6 }}>Next step</Eyebrow>
-          <p className="ds-body ds-body--sm" style={{ color: 'var(--lf-ink)', margin: 0 }}>
-            {step.action}
-          </p>
+      {/* "Next step" is only real for the level you're on — future levels would
+          just show generic filler, so hide it for them. */}
+      {state === 'current' && step.action && (
+        <div className="mt-5 rounded-ui-lg border border-line bg-canvas-sunken/50 p-3.5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted mb-1.5">Next step</div>
+          <p className="text-[14px] leading-[1.5] font-semibold text-content">{step.action}</p>
         </div>
       )}
 
       {isComplete && step.note && (
-        <div style={{ marginBottom: 16 }}>
-          <Eyebrow style={{ marginBottom: 4 }}>Your note</Eyebrow>
-          <p className="ds-body ds-body--sm" style={{ fontStyle: 'italic', margin: 0 }}>
-            "{step.note}"
-          </p>
+        <div className="mt-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted mb-1">Your note</div>
+          <p className="text-[14px] italic text-content-secondary">"{step.note}"</p>
         </div>
       )}
 
-      <div className="fl-focus__actions">
-        <Button variant="ink" size="sm" onClick={onAsk}>
-          Walk me through this →
+      <div className="flex items-center gap-2 mt-5 pt-4 flex-wrap border-t border-line">
+        <Button size="sm" onClick={onAsk} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+          Walk me through this
         </Button>
         {!isComplete && !isAutoTracked(step) && !pendingDone && (
-          <Button variant="ghost" size="sm" onClick={() => setPendingDone(true)}>
-            Mark done ✓
+          <Button size="sm" variant="ghost" onClick={() => setPendingDone(true)} leadingIcon={<Check className="h-3.5 w-3.5" />}>
+            Mark done
           </Button>
         )}
         {isComplete && !isAutoTracked(step) && (
-          <Button variant="link" onClick={() => onUndoComplete(step.id)}>
+          <button
+            type="button"
+            onClick={() => onUndoComplete(step.id)}
+            className="touch-target h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+          >
             Undo
-          </Button>
+          </button>
         )}
         {!isComplete && (
-          <Button variant="link" onClick={onSkip}>
+          <button
+            type="button"
+            onClick={onSkip}
+            className="touch-target h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+          >
             {skipped ? 'Unskip' : 'Skip this step'}
-          </Button>
+          </button>
         )}
       </div>
 
       {!isComplete && !isAutoTracked(step) && pendingDone && (
-        <div style={{ marginTop: 12 }}>
-          <textarea
+        <div className="mt-3.5">
+          <Textarea
             autoFocus
             value={noteText}
             onChange={e => setNoteText(e.target.value)}
             placeholder="Add a note (optional) — e.g. 'Got Geico quote, saved $340/year'"
             rows={2}
-            style={{
-              width: '100%',
-              fontSize: 13,
-              fontFamily: 'inherit',
-              color: 'var(--lf-ink)',
-              background: 'var(--lf-cream)',
-              border: '1px solid var(--lf-rule)',
-              borderRadius: 8,
-              padding: '8px 10px',
-              resize: 'vertical',
-              boxSizing: 'border-box',
-              outline: 'none',
-              lineHeight: 1.5,
-              marginBottom: 8,
-            }}
+            className="ui-tnum"
           />
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="flex gap-2 mt-2.5">
             <Button
-              variant="primary"
               size="sm"
               onClick={() => {
                 onComplete(step.id, noteText);
@@ -357,10 +451,7 @@ function FocusArticle({ step, state, skipped, onSkip, onAsk, onComplete, onUndoC
             >
               Save
             </Button>
-            <Button
-              variant="link"
-              onClick={() => { setPendingDone(false); setNoteText(''); }}
-            >
+            <Button size="sm" variant="ghost" onClick={() => { setPendingDone(false); setNoteText(''); }}>
               Cancel
             </Button>
           </div>
@@ -370,16 +461,24 @@ function FocusArticle({ step, state, skipped, onSkip, onAsk, onComplete, onUndoC
   );
 }
 
-// ── AllCompleteView ──────────────────────────────────────────────────────────
+// ── StatTile ─────────────────────────────────────────────────────────────────
 
-function AllCompleteView({ onAsk }: { onAsk: () => void }) {
+function StatTile({ label, value, sub, tone }: {
+  label: string; value: string; sub: string; tone?: 'pos' | 'neg';
+}) {
+  const valueColor =
+    tone === 'pos' ? 'rgb(var(--ui-positive))' : tone === 'neg' ? 'rgb(var(--ui-negative))' : undefined;
   return (
-    <EmptyState
-      icon={<Rocket size={32} />}
-      title="All levels complete"
-      body="You've worked through every layer of the financial level stack. Time to fine-tune your plan — ask Lasagna what's next."
-      cta={<Button variant="ink" onClick={onAsk}>Ask what's next →</Button>}
-    />
+    <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-4 sm:p-5">
+      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{label}</div>
+      <div
+        className="mt-1.5 font-editorial text-[24px] sm:text-[27px] font-extrabold leading-none tracking-[-0.02em] ui-tnum"
+        style={{ color: valueColor }}
+      >
+        {value}
+      </div>
+      <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">{sub}</div>
+    </div>
   );
 }
 
@@ -468,74 +567,71 @@ export function FinancialLevel() {
       .finally(() => setLoading(false));
   }, []);
 
+  // ── Loading ──
   if (loading) return (
-    <Page>
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Financial Level</h1>
-        </div>
-      </header>
-      <div className="fl-hero fl-hero--skeleton">
-        <div className="fl-hero__lead">
-          <SkeletonLine width="92px" height={11} style={{ marginBottom: 14 }} />
-          <SkeletonLine width="118px" height={46} style={{ marginBottom: 14 }} />
-          <SkeletonLine width="210px" height={13} />
-        </div>
-        <div className="fl-hero__meter">
-          <SkeletonBlock height={66} />
-          <SkeletonLine width="70%" height={12} style={{ marginTop: 14 }} />
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      <Skeleton className="h-4 w-28" />
+      <Skeleton className="mt-3 h-9 w-64" />
+      <div className="mt-7 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+        <div className="grid gap-7 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] items-center">
+          <div>
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="mt-4 h-12 w-40" />
+            <Skeleton className="mt-4 h-3 w-56" />
+            <Skeleton className="mt-5 h-2.5 w-full rounded-full" />
+          </div>
+          <Skeleton className="h-[78px] w-full rounded-ui-lg" />
         </div>
       </div>
-      <SkeletonBlock height={88} style={{ borderRadius: 12, margin: '24px 0 28px' }} />
-      <div className="fl-list fl-list--skeleton">
+      <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        {[0, 1, 2].map(i => <Skeleton key={i} className="h-[92px] w-full rounded-ui-xl" />)}
+      </div>
+      <div className="mt-8 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-3.5">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div className="fl-row-sk" key={i}>
-            <span className="ds-skeleton" style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0 }} />
-            <SkeletonLine width={`${52 - i * 4}%`} height={16} />
+          <div key={i} className="flex items-center gap-3.5 py-3.5 px-2 border-t border-line first:border-t-0">
+            <Skeleton className="h-[42px] w-[42px] rounded-[13px]" />
+            <Skeleton className={`h-4 ${['w-1/2', 'w-2/5', 'w-2/5', 'w-1/3', 'w-1/3', 'w-1/4'][i]}`} />
           </div>
         ))}
       </div>
-      <style>{flStyles}</style>
-    </Page>
+    </div>
   );
 
+  // ── Error ──
   if (error) return (
-    <Page>
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
       <EmptyState
-        icon={<AlertCircle size={28} />}
+        icon={<AlertCircle className="h-7 w-7" />}
         title="Couldn't load your levels"
-        body={error}
+        description={error}
       />
-    </Page>
+    </div>
   );
 
   if (!data) return null;
 
   const { steps, currentStepId, summary } = data;
 
-  // No data empty state
+  // ── No-data empty state ──
   const hasNoData = summary.monthlyIncome === 0 && summary.totalCash === 0 && summary.totalInvested === 0;
   if (hasNoData) return (
-    <Page>
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Financial Level</h1>
-          <span className="ds-page-bar__subtitle">Get started</span>
-        </div>
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      <header className="animate-fade-in">
+        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">Financial Level</h1>
       </header>
-      <div className="ds-page-bar__subtitle-mobile">Get started</div>
       <EmptyState
-        icon={<Rocket size={32} />}
+        className="mt-8"
+        icon={<Rocket className="h-8 w-8" />}
         title="Let's build your plan"
-        body="Add your income and accounts to see your personalized priority levels."
-        cta={
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <a href="/onboarding" className="ds-btn ds-btn--ink">Get started →</a>
-            <a href="/accounts" className="ds-btn ds-btn--ghost">Link account</a>
+        description="Add your income and accounts to see your personalized priority levels."
+        action={
+          <div className="flex flex-wrap justify-center gap-2.5">
+            <a href="/onboarding" className="inline-flex items-center justify-center h-11 px-5 rounded-ui-md bg-brand-soft text-[rgb(var(--ui-brand-ink))] text-sm font-bold hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]">Get started →</a>
+            <a href="/accounts" className="inline-flex items-center justify-center h-11 px-5 rounded-ui-md bg-panel border border-line-strong text-content text-sm font-semibold shadow-ui-sm hover:bg-canvas-sunken transition-colors">Link account</a>
           </div>
         }
       />
-    </Page>
+    </div>
   );
 
   const completeCount = steps.filter(s => s.status === 'complete').length;
@@ -543,13 +639,19 @@ export function FinancialLevel() {
   const allComplete = completeCount === steps.length;
   const currentStep = steps.find(s => s.id === currentStepId) ?? steps[0];
 
+  const states = steps.map(s => levelStateOf(s, currentStepId, skippedStepIds));
+  const futureCount = states.filter(s => s === 'future').length;
+  const skippedCount = states.filter(s => s === 'skipped').length;
+  const clearedPct = Math.round((completeCount / steps.length) * 100);
+
   // Shared between the inline accordion (mobile/tablet) and the sticky side
   // panel (desktop) so the detail markup stays in one place.
-  const renderFocus = (step: PriorityStep) => (
+  const renderFocus = (step: PriorityStep, inline = false) => (
     <FocusArticle
       step={step}
       state={levelStateOf(step, currentStepId, skippedStepIds)}
       skipped={skippedStepIds.has(step.id)}
+      hideHeader={inline}
       onSkip={() => handleSkipStep(step.id)}
       onComplete={handleCompleteStep}
       onUndoComplete={handleUndoComplete}
@@ -559,130 +661,203 @@ export function FinancialLevel() {
     />
   );
 
-  const surplusTone: 'pos' | 'neg' | 'default' =
-    summary.monthlySurplus == null ? 'default' :
+  const surplusTone: 'pos' | 'neg' | undefined =
+    summary.monthlySurplus == null ? undefined :
     summary.monthlySurplus >= 0 ? 'pos' : 'neg';
   const investedOrCash = summary.totalInvested > 0 ? summary.totalInvested : summary.totalCash;
   const investedLabel = summary.totalInvested > 0 ? 'total portfolio' : summary.totalCash > 0 ? 'cash holdings' : 'link accounts';
 
-  const states = steps.map(s => levelStateOf(s, currentStepId, skippedStepIds));
-  const futureCount = states.filter(s => s === 'future').length;
-
   return (
-    <Page>
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Financial Level</h1>
-        </div>
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      {/* ════════ Header ════════ */}
+      <header className="animate-fade-in">
+        <span className="inline-flex items-center gap-2.5 mb-3">
+          <span className="w-[7px] h-[7px] rounded-full bg-brand" style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }} />
+          <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Your climb</span>
+        </span>
+        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
+          Financial Level
+        </h1>
+        <p className="mt-2 text-[14px] font-semibold text-content-muted">
+          {allComplete
+            ? 'Every level cleared — time to fine-tune your plan.'
+            : <>{steps.length} money milestones, ordered by impact — we spotlight your highest-impact next move.</>}
+        </p>
       </header>
 
-      {/* ── Hero: the climb. Geist level number (tabular, matches the app's
-          canonical hero figures) + a 12-rung ladder that reads done / here /
-          ahead at a glance. ── */}
-      <section className="fl-hero">
-        <div className="fl-hero__lead">
-          <Eyebrow>Your climb</Eyebrow>
-          <div className="fl-hero__level">
-            <span className="fl-hero__num ds-num">
-              {allComplete ? steps.length : currentStep.order}
-            </span>
-            <span className="fl-hero__of">of {steps.length}</span>
+      {/* ════════ Hero — the climb ════════ */}
+      <section className="relative mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7 animate-fade-in">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: 'radial-gradient(95% 80% at 0% 8%, var(--ui-brand-softer), transparent 60%)',
+          }}
+        />
+        <div className="relative grid gap-7 sm:gap-10 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] items-center">
+          {/* lead */}
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              {allComplete ? 'All levels complete' : 'Current level'}
+            </div>
+            <div className="mt-2 flex items-baseline gap-2.5">
+              <span className="font-editorial text-[58px] sm:text-[68px] font-extrabold leading-[0.85] tracking-[-0.03em] text-[rgb(var(--ui-brand-ink))] ui-tnum">
+                {allComplete ? steps.length : currentStep.order}
+              </span>
+              <span className="font-editorial text-[18px] font-bold text-content-muted ui-tnum">of {steps.length}</span>
+            </div>
+            <p className="mt-3 text-[14.5px] font-medium leading-[1.5] text-content-secondary max-w-[40ch]">
+              {allComplete ? (
+                <>You've worked through every layer of the stack.</>
+              ) : (
+                <>Working on <strong className="font-bold text-content">{currentStep.title}</strong></>
+              )}
+              {summary.retirementAge ? <span className="text-content-muted"> · FI target age {summary.retirementAge}</span> : null}
+            </p>
+
+            {/* overall progress through the stack */}
+            <div className="mt-5 max-w-[420px]">
+              <div className="h-[10px] rounded-full bg-canvas-sunken overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(clearedPct, completeCount === 0 ? 0 : 4)}%`,
+                    background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))',
+                    minWidth: completeCount === 0 ? 0 : undefined,
+                  }}
+                />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-[12.5px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum">
+                  {completeCount} {completeCount === 1 ? 'level' : 'levels'} cleared
+                </span>
+                <span className="text-[12px] font-semibold text-content-muted ui-tnum">· {clearedPct}%</span>
+              </div>
+            </div>
           </div>
-          <p className="fl-hero__now">
-            {allComplete ? (
-              <>Every level cleared — time to fine-tune.</>
-            ) : (
-              <>Working on <strong>{currentStep.title}</strong></>
-            )}
-            {summary.retirementAge ? <> · FI target age {summary.retirementAge}</> : null}
-          </p>
-        </div>
-        <div className="fl-hero__meter">
-          <LevelLadder states={states} />
-          <div className="fl-hero__legend">
-            <span className="fl-hero__key is-done"><i aria-hidden="true" />{completeCount} done</span>
-            {!allComplete && <span className="fl-hero__key is-current"><i aria-hidden="true" />1 here</span>}
-            {futureCount > 0 && <span className="fl-hero__key is-future"><i aria-hidden="true" />{futureCount} ahead</span>}
+
+          {/* progress rail — one segment per level, colored by state */}
+          <div className="min-w-0 w-full">
+            <SegmentedRail states={states} />
+            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+              <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                <LegendSwatch state="done" />
+                {completeCount} done
+              </span>
+              {!allComplete && (
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                  <LegendSwatch state="current" />
+                  You are here
+                </span>
+              )}
+              {futureCount > 0 && (
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                  <LegendSwatch state="future" />
+                  {futureCount} ahead
+                </span>
+              )}
+              {skippedCount > 0 && (
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                  <LegendSwatch state="skipped" />
+                  {skippedCount} skipped
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
-      <StatStrip
-        className="fl-stats"
-        items={[
-          {
-            label: 'Monthly income',
-            value: <span className="ds-num">{summary.monthlyIncome > 0 ? fmt(summary.monthlyIncome) : '—'}</span>,
-            sub: 'per month',
-          },
-          {
-            label: 'Surplus/mo',
-            value: <span className="ds-num">{summary.monthlySurplus !== null ? fmt(summary.monthlySurplus) : '—'}</span>,
-            sub: 'income − expenses',
-            tone: surplusTone,
-          },
-          {
-            label: summary.totalInvested > 0 ? 'Invested' : 'Cash',
-            value: <span className="ds-num">{investedOrCash > 0 ? fmt(investedOrCash) : '—'}</span>,
-            sub: investedLabel,
-          },
-        ]}
-      />
+      {/* ════════ Stat tiles ════════ */}
+      <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <StatTile
+          label="Monthly income"
+          value={summary.monthlyIncome > 0 ? fmt(summary.monthlyIncome) : '—'}
+          sub="per month"
+        />
+        <StatTile
+          label="Surplus / mo"
+          value={summary.monthlySurplus !== null ? fmt(summary.monthlySurplus) : '—'}
+          sub="income − expenses"
+          tone={surplusTone}
+        />
+        <StatTile
+          label={summary.totalInvested > 0 ? 'Invested' : 'Cash'}
+          value={investedOrCash > 0 ? fmt(investedOrCash) : '—'}
+          sub={investedLabel}
+        />
+      </div>
 
+      {/* ════════ Levels ════════ */}
       {allComplete ? (
-        <Section title="All levels complete">
-          <AllCompleteView
-            onAsk={() => openChat("I've completed all 12 financial levels. What should I focus on next?")}
-          />
-        </Section>
-      ) : (
-        <div className="fl-layout">
-          <div className="fl-layout__main">
-            <Section title="The 12 levels" actions={<WhyThisOrderPopover />}>
-              <p className="ds-caption" style={{ margin: '0 0 14px', color: 'var(--lf-muted)' }}>
-                Levels can be completed in any order — we highlight your highest-impact next step.
-              </p>
-              <motion.ul
-                className="fl-list"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35 }}
+        <div className="mt-10">
+          <EmptyState
+            icon={<Rocket className="h-8 w-8" />}
+            title="All levels complete"
+            description="You've worked through every layer of the financial level stack. Time to fine-tune your plan — ask Lasagna what's next."
+            action={
+              <Button
+                onClick={() => openChat("I've completed all 12 financial levels. What should I focus on next?")}
+                trailingIcon={<ArrowRight className="h-4 w-4" />}
               >
-                {steps.map((step) => (
-                  <Fragment key={step.id}>
-                    <LevelRow
-                      step={step}
-                      state={levelStateOf(step, currentStepId, skippedStepIds)}
-                      isSelected={selectedStepId === step.id}
-                      onSelect={() => handleSelectStep(step.id)}
-                    />
-                    {/* Mobile/tablet: detail expands inline beneath the row. */}
-                    {isStacked && (
-                      <AnimatePresence initial={false}>
-                        {selectedStepId === step.id && (
-                          <motion.li
-                            className="fl-row-detail"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                            style={{ overflow: 'hidden' }}
-                          >
-                            {renderFocus(step)}
-                          </motion.li>
-                        )}
-                      </AnimatePresence>
-                    )}
-                  </Fragment>
-                ))}
-              </motion.ul>
-            </Section>
+                Ask what's next
+              </Button>
+            }
+          />
+        </div>
+      ) : (
+        <>
+          {/* section header */}
+          <div className="mt-10 flex items-center gap-3 flex-wrap">
+            <span className="inline-flex items-center gap-2.5">
+              <span className="w-[7px] h-[7px] rounded-full bg-brand" style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }} />
+              <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">The {steps.length} levels</span>
+            </span>
+            <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
+            <WhyThisOrderPopover />
           </div>
+          <p className="mt-2 text-[13.5px] font-medium text-content-muted">
+            Ordered by impact — earlier levels usually pay off most, but you can work them in any order.
+          </p>
 
-          {/* Desktop: sticky side panel. */}
-          {!isStacked && selectedStep && (
-            <div className="fl-layout__detail" ref={focusRef}>
-              <Section title="Current focus">
+          <div className="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6 items-start">
+            {/* list */}
+            <motion.ul
+              className="rounded-ui-xl border border-line bg-panel shadow-ui-sm px-2 sm:px-3.5 py-1"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              {steps.map((step) => (
+                <Fragment key={step.id}>
+                  <LevelRow
+                    step={step}
+                    state={levelStateOf(step, currentStepId, skippedStepIds)}
+                    isSelected={selectedStepId === step.id}
+                    onSelect={() => handleSelectStep(step.id)}
+                  />
+                  {/* Mobile/tablet: detail expands inline beneath the row. */}
+                  {isStacked && (
+                    <AnimatePresence initial={false}>
+                      {selectedStepId === step.id && (
+                        <motion.li
+                          className="list-none overflow-hidden"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                        >
+                          <div className="pb-3.5 pt-1 px-1">{renderFocus(step, true)}</div>
+                        </motion.li>
+                      )}
+                    </AnimatePresence>
+                  )}
+                </Fragment>
+              ))}
+            </motion.ul>
+
+            {/* Desktop: sticky side panel. */}
+            {!isStacked && selectedStep && (
+              <div className="sticky top-6" ref={focusRef}>
+                <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted mb-3">Current focus</div>
                 <motion.div
                   key={selectedStep.id}
                   initial={{ opacity: 0, y: 8 }}
@@ -691,367 +866,11 @@ export function FinancialLevel() {
                 >
                   {renderFocus(selectedStep)}
                 </motion.div>
-              </Section>
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
-
-      <style>{flStyles}</style>
-    </Page>
+    </div>
   );
 }
-
-// Page-scoped styles — shared by the loading shell and the loaded page.
-// Palette is token-only; state is carried by a single `--st` custom property
-// set per state class (is-done / is-current / is-future / is-skipped).
-const flStyles = `
-        .fl-stats { margin: 24px 0 28px; }
-
-        /* ── Hero: serif level number + the climb ladder ── */
-        .fl-hero {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 22px;
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 16px;
-          box-shadow: var(--shadow-card);
-          padding: 24px 24px;
-          margin-top: 4px;
-        }
-        @media (min-width: 760px) {
-          .fl-hero {
-            grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-            align-items: center;
-            gap: 44px;
-            padding: 28px 32px;
-          }
-        }
-        .fl-hero__lead { min-width: 0; }
-        .fl-hero__level {
-          display: flex;
-          align-items: baseline;
-          gap: 10px;
-          margin: 6px 0 10px;
-        }
-        .fl-hero__num {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: clamp(52px, 13vw, 66px);
-          line-height: 0.85;
-          color: var(--lf-ink);
-        }
-        .fl-hero__of {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 16px;
-          font-weight: 500;
-          color: var(--lf-muted);
-        }
-        .fl-hero__now {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
-          line-height: 1.5;
-          color: var(--lf-muted);
-          margin: 0;
-        }
-        .fl-hero__now strong { color: var(--lf-ink); font-weight: 600; }
-
-        .fl-hero__meter { min-width: 0; }
-        .fl-ladder {
-          display: flex;
-          align-items: flex-end;
-          gap: 6px;
-          height: 72px;
-        }
-        .fl-ladder__rung {
-          flex: 1;
-          min-width: 0;
-          border-radius: 4px 4px 2px 2px;
-          background: var(--lf-cream-deep);
-          transition: background 0.2s ease;
-        }
-        .fl-ladder__rung.is-done    { background: var(--lf-basil); }
-        .fl-ladder__rung.is-current {
-          background: var(--lf-cheese);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-cheese) 24%, transparent);
-        }
-        .fl-ladder__rung.is-skipped { background: var(--lf-cream-deep); opacity: 0.65; }
-
-        .fl-hero__legend {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px 18px;
-          margin-top: 14px;
-        }
-        .fl-hero__key {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          font-weight: 500;
-          color: var(--lf-muted);
-        }
-        .fl-hero__key i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
-        .fl-hero__key.is-done i    { background: var(--lf-basil); }
-        .fl-hero__key.is-current i { background: var(--lf-cheese); }
-        .fl-hero__key.is-future i  { background: var(--lf-cream-deep); border: 1px solid var(--lf-rule); }
-
-        /* Skeleton list rows */
-        .fl-list--skeleton .fl-row-sk {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 16px 0;
-          border-top: 1px solid var(--lf-rule);
-        }
-        .fl-list--skeleton .fl-row-sk:first-child { border-top: 0; }
-
-        /* Two-column layout: 12-level list on the left, the selected level's
-           detail in a sticky panel on the right (desktop). On mobile it stacks
-           and the detail scrolls into view on select. */
-        .fl-layout { display: block; }
-        .fl-layout__detail { margin-top: 28px; }
-        @media (min-width: 1080px) {
-          .fl-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
-            gap: 24px;
-            align-items: start;
-          }
-          .fl-layout__detail { margin-top: 0; position: sticky; top: 24px; }
-          .fl-layout__detail .ds-section { margin-bottom: 0; }
-        }
-
-        .fl-list {
-          list-style: none;
-          margin: 0;
-          padding: 2px 18px;
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 12px;
-          box-shadow: var(--shadow-card);
-        }
-        .fl-row {
-          border-top: 1px solid var(--lf-rule);
-        }
-        .fl-row:first-child { border-top: 0; }
-        .fl-row:last-child { border-bottom: 0; }
-
-        /* ── State palette — one source of truth via --st ── */
-        .fl-row.is-done    { --st: var(--lf-basil); }
-        .fl-row.is-current { --st: var(--lf-cheese); }
-        .fl-row.is-future  { --st: var(--lf-muted); }
-        .fl-row.is-skipped { --st: var(--lf-muted); opacity: 0.6; }
-        .fl-row.is-skipped .fl-row__title { text-decoration: line-through; }
-
-        .fl-row__btn {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          width: 100%;
-          min-height: 56px;
-          background: none;
-          border: 0;
-          padding: 14px 0;
-          text-align: left;
-          cursor: pointer;
-          color: inherit;
-          transition: color 0.15s;
-        }
-        /* Current step: soft amber wash bleeding to the card edges + a left
-           accent bar — the "you are here" focal row. */
-        .fl-row.is-current .fl-row__btn {
-          background: color-mix(in srgb, var(--lf-cheese) 8%, var(--lf-surface));
-          box-shadow: inset 3px 0 0 var(--lf-cheese);
-          /* width grows by the 36px the negative margins consume so the box
-             bleeds to both card edges; plain width:100% would only shift it
-             left, dragging the right-aligned pill inward. */
-          width: calc(100% + 36px);
-          margin: 0 -18px;
-          padding-left: 18px;
-          padding-right: 18px;
-          border-radius: 8px;
-        }
-        /* A non-current row that's been clicked to inspect uses a subtle inset rule. */
-        .fl-row.is-selected .fl-row__btn { box-shadow: inset 2px 0 0 var(--lf-ink); width: calc(100% + 36px); margin: 0 -18px; padding-left: 18px; padding-right: 18px; }
-        .fl-row__btn:hover .fl-row__title { color: var(--lf-sauce); }
-
-        .fl-row__chip {
-          flex-shrink: 0;
-          width: 44px;
-          height: 44px;
-          border-radius: 8px;
-          background: color-mix(in srgb, var(--st) 13%, var(--lf-surface));
-          color: var(--st);
-          display: grid;
-          place-items: center;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-          font-weight: 700;
-          letter-spacing: 0.04em;
-        }
-        /* Current chip: solid amber, the boldest mark on the list. */
-        .fl-row.is-current .fl-row__chip { background: var(--st); color: var(--lf-paper); }
-        .fl-row__icon {
-          width: 28px;
-          height: 28px;
-          border-radius: 6px;
-          display: grid;
-          place-items: center;
-          flex-shrink: 0;
-          background: color-mix(in srgb, var(--st) 10%, transparent);
-          color: var(--st);
-        }
-        .fl-row__body {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        .fl-row__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 16px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.25;
-          letter-spacing: -0.005em;
-          transition: color 0.15s;
-        }
-        .fl-row__progress {
-          display: block;
-          height: 3px;
-          background: var(--lf-cream-deep);
-          border-radius: 2px;
-          overflow: hidden;
-          max-width: 320px;
-        }
-        .fl-row__progress > span {
-          display: block;
-          height: 100%;
-          border-radius: 2px;
-          background: var(--st);
-          transition: width 0.4s ease;
-        }
-
-        /* ── Focus article — state-tinted ── */
-        .fl-focus.is-done    { --st: var(--lf-basil); }
-        .fl-focus.is-current { --st: var(--lf-cheese); }
-        .fl-focus.is-future  { --st: var(--lf-muted); }
-        .fl-focus.is-skipped { --st: var(--lf-muted); }
-        .fl-focus {
-          padding: 28px 0 8px;
-          border-top: 3px solid var(--st);
-        }
-        /* Inline accordion detail (mobile/tablet): lives inside the list card,
-           so soften the heavy 3px divider to a hairline and tighten padding. */
-        .fl-row-detail { list-style: none; }
-        .fl-row-detail .fl-focus {
-          border-top: 1px solid var(--lf-rule);
-          padding: 14px 0 18px;
-        }
-        .fl-focus__head {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-bottom: 18px;
-          flex-wrap: wrap;
-        }
-        .fl-focus__chip {
-          width: 44px;
-          height: 44px;
-          border-radius: 10px;
-          display: grid;
-          place-items: center;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-          font-weight: 700;
-          letter-spacing: 0.06em;
-          flex-shrink: 0;
-          background: var(--st);
-          color: var(--lf-paper);
-        }
-        .fl-focus__icon {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
-          display: grid;
-          place-items: center;
-          flex-shrink: 0;
-          background: color-mix(in srgb, var(--st) 14%, transparent);
-          color: var(--st);
-        }
-        .fl-focus__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 600;
-          font-size: clamp(18px, 2vw, 22px);
-          line-height: 1.2;
-          letter-spacing: -0.015em;
-          color: var(--lf-ink);
-          margin: 0 0 12px;
-        }
-        .fl-focus__sub {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 15px;
-          line-height: 1.55;
-          color: var(--lf-ink-soft);
-          margin: 0 0 12px;
-          max-width: 60ch;
-        }
-        .fl-focus__body {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 15px;
-          line-height: 1.6;
-          color: var(--lf-ink-soft);
-          max-width: 60ch;
-          margin: 0 0 24px;
-        }
-        .fl-focus__progress { margin-bottom: 20px; max-width: 480px; }
-        .fl-focus__progress-meta {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          margin-bottom: 8px;
-        }
-        .fl-focus__bar {
-          height: 6px;
-          background: var(--lf-cream-deep);
-          border-radius: 3px;
-          overflow: hidden;
-        }
-        .fl-focus__bar > div {
-          height: 100%;
-          background: var(--st);
-          border-radius: 3px;
-        }
-        .fl-focus__callout {
-          background: var(--lf-rule-soft);
-          border: 1px solid var(--lf-rule);
-          border-radius: 10px;
-          padding: 12px 14px;
-          margin-bottom: 20px;
-        }
-        .fl-focus__actions {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          align-items: center;
-          padding-top: 16px;
-          border-top: 1px solid var(--lf-rule);
-        }
-
-        @media (max-width: 640px) {
-          /* Free horizontal room for the title: drop the secondary icon box and
-             shrink the number chip so titles stop wrapping to two lines. */
-          .fl-list { padding: 2px 14px; }
-          .fl-row__btn { gap: 12px; }
-          .fl-row__icon { display: none; }
-          .fl-row__chip { width: 34px; height: 34px; font-size: 12px; border-radius: 7px; }
-          .fl-row__title { font-size: 16px; }
-          .fl-row.is-current .fl-row__btn,
-          .fl-row.is-selected .fl-row__btn { margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
-          .fl-hero { padding: 22px 20px; }
-          .fl-ladder { gap: 5px; height: 64px; }
-        }
-`;

@@ -1,25 +1,29 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FileText, Trash2, RefreshCw, Upload, X, HelpCircle, ShieldCheck, FolderOpen, ArrowRight } from "lucide-react";
+import {
+  FileText,
+  Trash2,
+  RefreshCw,
+  Upload,
+  X,
+  ShieldCheck,
+  FolderOpen,
+  ArrowRight,
+  Sparkles,
+  TrendingUp,
+  AlertTriangle,
+  Info,
+  Receipt,
+} from "lucide-react";
 import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
 import type { TaxDocument, TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
+import { cn } from "../lib/utils.js";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
 import { useChatStore } from "../lib/chat-store.js";
 import { LegalDisclaimer } from "../components/common/legal-disclaimer.js";
-import {
-  Page,
-  Section,
-  Card,
-  Button,
-  Pill,
-  Eyebrow,
-  DataTable,
-  EmptyState,
-  StatStrip,
-} from "../components/ds";
-import type { DataTableColumn } from "../components/ds/DataTable";
+import { Button, Badge, EmptyState, Skeleton } from "../components/uikit";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -141,11 +145,23 @@ function getDocLabel(doc: { llmFields?: Record<string, unknown> | null; llmSumma
   return { label: nameNoExt, formType: null };
 }
 
-function urgencyPill(color?: string) {
-  // map insight impactColor to a Pill tone
-  if (color === 'red') return { tone: 'sauce' as const, label: 'High priority' };
-  if (color === 'green') return { tone: 'basil' as const, label: 'Opportunity' };
-  return { tone: 'cheese' as const, label: 'Worth a look' };
+// impactColor (red / green / amber) → tinted value colors, mirroring insights.
+function impactColorVar(color?: string | null): string {
+  if (color === "red") return "rgb(var(--ui-negative))";
+  if (color === "green") return "rgb(var(--ui-positive))";
+  return "rgb(var(--ui-caution))";
+}
+function impactSoftVar(color?: string | null): string {
+  if (color === "red") return "var(--ui-negative-soft)";
+  if (color === "green") return "var(--ui-positive-soft)";
+  return "var(--ui-caution-soft)";
+}
+
+// impactColor → a priority tag (icon + tone + label), meaning never color-only.
+function priorityTag(color?: string | null): { label: string; tone: "negative" | "positive" | "caution"; Icon: typeof Sparkles } {
+  if (color === "red") return { label: "High priority", tone: "negative", Icon: AlertTriangle };
+  if (color === "green") return { label: "Opportunity", tone: "positive", Icon: TrendingUp };
+  return { label: "Worth a look", tone: "caution", Icon: Sparkles };
 }
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -301,130 +317,21 @@ export function TaxStrategy() {
     }
   }, [profile, setPageContext]);
 
-  // Document table columns
-  const docCols: DataTableColumn<TaxDocumentSummary>[] = [
-    {
-      key: 'name',
-      header: 'Name',
-      cell: (doc) => {
-        const { label, formType } = getDocLabel(doc);
-        const isSelected = selectedDoc?.id === doc.id;
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <FileText
-              size={14}
-              style={{ color: isSelected ? 'var(--lf-cheese)' : 'var(--lf-muted)', flexShrink: 0 }}
-            />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 500, color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {label}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--lf-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {doc.fileName}
-              </div>
-              {/* Mobile-only inline type pill (Type column is hidden on mobile) */}
-              {formType && (
-                <span className="tax-doc-type-mobile" style={{ marginTop: 6 }}>
-                  <Pill tone="cream">{formType}</Pill>
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'type',
-      header: 'Type',
-      cell: (doc) => {
-        const { formType } = getDocLabel(doc);
-        return formType
-          ? <Pill tone="cream">{formType}</Pill>
-          : <span className="ds-caption">—</span>;
-      },
-    },
-    {
-      key: 'year',
-      header: 'Year',
-      muted: true,
-      cell: (doc) => doc.taxYear ? <span className="ds-num">{doc.taxYear}</span> : '—',
-    },
-    {
-      key: 'uploaded',
-      header: 'Uploaded',
-      muted: true,
-      cell: (doc) => doc.createdAt
-        ? <span className="ds-num">{new Date(doc.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-        : '—',
-    },
-    {
-      key: 'actions',
-      header: '',
-      cell: (doc) => {
-        const isLoading = docLoading === doc.id;
-        const isConfirming = deleteConfirmId === doc.id;
-        return (
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
-            {isLoading && <RefreshCw size={12} style={{ color: 'var(--lf-muted)', animation: 'spin 1s linear infinite' }} />}
-            {import.meta.env.VITE_DEMO_MODE !== "true" && (
-              isConfirming ? (
-                <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 4 }}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); setDeleteConfirmId(null); }}
-                    className="ds-btn ds-btn--primary ds-btn--sm"
-                  >
-                    Delete
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }}
-                    className="ds-btn ds-btn--ghost ds-btn--sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(doc.id); }}
-                  style={{
-                    background: 'transparent', border: '1px solid var(--lf-rule)', borderRadius: 6,
-                    cursor: 'pointer', color: 'var(--lf-muted)', padding: 6, lineHeight: 0,
-                  }}
-                  aria-label="Delete document"
-                >
-                  <Trash2 size={13} />
-                </button>
-              )
-            )}
-          </div>
-        );
-      },
-    },
-  ];
-
-  const renderUploadBtn = () => (
-    <Button
-      variant="primary"
-      icon={<Upload size={14} />}
-      onClick={() => {
-        const el = document.getElementById("tax-documents-section");
-        el?.scrollIntoView({ behavior: "smooth" });
-      }}
-    >
-      Upload documents
-    </Button>
-  );
   const showUpload = import.meta.env.VITE_DEMO_MODE !== "true";
 
+  const scrollToUpload = () => {
+    document.getElementById("tax-documents-section")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Subtitle bits — filing year + live document/action counts.
+  const subBits: string[] = [`${FILING_YEAR} filing year`];
+  if (documents.length > 0) subBits.push(`${documents.length} doc${documents.length === 1 ? "" : "s"}`);
+  if (insights.length > 0) subBits.push(`${insights.length} action${insights.length === 1 ? "" : "s"}`);
+  const subtitleText = subBits.join(" · ");
+
   return (
-    <Page>
+    <div className="mx-auto max-w-[1120px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .tax-strip { margin: 32px 0 48px; }
-        .tax-upload-mobile { display: none; }
-        .tax-upload-desktop { display: inline-flex; }
-        .tax-refresh-btn { min-height: 44px; min-width: 44px; padding: 0 12px; }
-        .tax-doc-type-mobile { display: none; }
-        /* iOS Safari auto-zooms inputs <16px; force 16px on mobile inside tax input panel */
         @media (max-width: 640px) {
           .tax-input-wrap input[type="text"],
           .tax-input-wrap input[type="url"],
@@ -435,218 +342,118 @@ export function TaxStrategy() {
             font-size: 16px !important;
           }
         }
-        @media (max-width: 640px) {
-          .tax-strip { margin: 16px 0 24px; }
-          .tax-upload-mobile {
-            display: block;
-            margin: 0 0 20px;
-          }
-          .tax-upload-mobile > * { width: 100%; }
-          .tax-upload-desktop { display: none; }
-          /* Hide type-pill column on mobile DataTable for documents */
-          .tax-doc-table th:nth-child(2),
-          .tax-doc-table td:nth-child(2) { display: none; }
-          .tax-doc-type-mobile { display: inline-flex; }
-        }
-        .tax-feed { list-style: none; margin: 0; padding: 0; }
-        .tax-feed li {
-          padding: 22px 0;
-          border-top: 1px solid var(--lf-rule);
-        }
-        .tax-feed li:last-child { padding-bottom: 0; }
-        .tax-feed__row {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 16px;
-          align-items: start;
-        }
-        .tax-feed__main { min-width: 0; }
-        .tax-feed__head {
-          display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
-          margin-bottom: 8px;
-        }
-        .tax-feed__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 500;
-          font-size: clamp(20px, 2.2vw, 26px);
-          line-height: 1.15;
-          color: var(--lf-ink);
-          margin: 0;
-          letter-spacing: -0.01em;
-        }
-        .tax-feed__body {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
-          line-height: 1.55;
-          color: var(--lf-ink-soft);
-          margin: 0;
-          max-width: 60ch;
-        }
-        .tax-feed__impact {
-          margin-top: 8px;
-          display: inline-block;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-        }
-        .tax-feed__actions {
-          display: flex; gap: 4px;
-          align-items: flex-start; padding-top: 4px;
-        }
-        .tax-feed__open {
-          display: inline-flex; align-items: center; gap: 6px;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-          color: var(--lf-muted);
-          background: transparent; border: none; cursor: pointer;
-          padding: 4px 6px;
-          transition: color 0.15s, transform 0.15s;
-        }
-        .tax-feed__open:hover { color: var(--lf-sauce); transform: translateX(2px); }
-        .tax-feed__dismiss {
-          display: flex; align-items: center; justify-content: center;
-          width: 28px; height: 28px; border-radius: 6px;
-          border: none; background: transparent;
-          color: var(--lf-muted); cursor: pointer;
-        }
-        .tax-feed__dismiss:hover { background: var(--lf-cream); color: var(--lf-ink); }
-        .tax-doc-layout { display: grid; grid-template-columns: 1fr; gap: 0; }
-        @media (min-width: 900px) {
-          .tax-doc-layout.is-split { grid-template-columns: 1fr 1fr; }
-        }
-        .tax-doc-detail-wrap { border-top: 1px solid var(--lf-rule); }
-        @media (min-width: 900px) {
-          .tax-doc-layout.is-split .tax-doc-detail-wrap {
-            border-top: none;
-            border-left: 1px solid var(--lf-rule);
-          }
-        }
       `}</style>
 
-      {/* Iter 8: ds-page-bar replaces the editorial PageHeader + Lede.
-          Filing year + document/insight counts ride the subtitle slot. */}
-      {(() => {
-        const subBits: string[] = [`${FILING_YEAR} filing year`];
-        if (documents.length > 0) subBits.push(`${documents.length} doc${documents.length === 1 ? '' : 's'}`);
-        if (insights.length > 0) subBits.push(`${insights.length} action${insights.length === 1 ? '' : 's'}`);
-        const subtitleText = subBits.join(' · ');
-        return (
-          <>
-            <header className="ds-page-bar">
-              <div className="ds-page-bar__title-group">
-                <h1 className="ds-page-bar__title">Tax</h1>
-                <span className="ds-page-bar__subtitle">{subtitleText}</span>
-              </div>
-              {showUpload && (
-                <span className="tax-upload-desktop">{renderUploadBtn()}</span>
-              )}
-            </header>
-            <div className="ds-page-bar__subtitle-mobile">{subtitleText}</div>
-          </>
-        );
-      })()}
-
-      {/* Mobile-only: stacked full-width Upload below header */}
-      {showUpload && (
-        <div className="tax-upload-mobile">
-          {renderUploadBtn()}
+      {/* ── Header ── */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <span className="inline-flex items-center gap-2.5 mb-2.5">
+            <span
+              className="w-[7px] h-[7px] rounded-full bg-brand"
+              style={{ boxShadow: "0 0 0 4px var(--ui-brand-soft)" }}
+              aria-hidden
+            />
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              Tax workspace
+            </span>
+          </span>
+          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
+            Tax
+          </h1>
+          <p className="mt-1.5 text-[14px] font-medium text-content-muted">{subtitleText}</p>
         </div>
-      )}
+        {showUpload && (
+          <Button
+            variant="primary"
+            size="sm"
+            className="w-full sm:w-auto"
+            leadingIcon={<Upload size={15} />}
+            onClick={scrollToUpload}
+          >
+            Upload documents
+          </Button>
+        )}
+      </header>
 
-      {/* Stat strip */}
-      <StatStrip
-        className="tax-strip"
-        items={[
-          {
-            label: 'Estimated savings',
-            value: <span className="ds-num">{insightsLoading ? '…' : estimatedSavings ? formatMoney(estimatedSavings) : '—'}</span>,
-            sub: insightsLoading ? 'calculating' : estimatedSavings ? '/yr from insights' : 'upload documents',
-            tone: estimatedSavings ? 'pos' : 'default',
-          },
-          {
-            label: 'Filing status',
-            value: filingAbbr ?? '—',
-            sub: filingLabel
-              ? (profile?.stateOfResidence ? `${filingLabel} · ${profile.stateOfResidence}` : filingLabel)
-              : (profile?.stateOfResidence ?? undefined),
-          },
-          {
-            label: 'Documents',
-            value: <span className="ds-num">{documents.length}</span>,
-            sub: documents.length === 1 ? 'uploaded' : 'uploaded',
-          },
-          {
-            label: 'Open actions',
-            value: <span className="ds-num">{insightsLoading ? '…' : insights.length}</span>,
-            sub: insights.length === 1 ? 'tax action' : 'tax actions',
-          },
-        ]}
-      />
+      {/* ── KPI row ── */}
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCell
+          label="Estimated savings"
+          value={insightsLoading ? "…" : estimatedSavings ? formatMoney(estimatedSavings) : "—"}
+          accent={estimatedSavings ? "text-[rgb(var(--ui-brand-ink))]" : undefined}
+          sub={insightsLoading ? "calculating" : estimatedSavings ? "/yr from actions" : "upload documents"}
+        />
+        <StatCell
+          label="Filing status"
+          value={filingAbbr ?? "—"}
+          sub={
+            filingLabel
+              ? profile?.stateOfResidence
+                ? `${filingLabel} · ${profile.stateOfResidence}`
+                : filingLabel
+              : profile?.stateOfResidence ?? undefined
+          }
+        />
+        <StatCell label="Documents" value={String(documents.length)} sub="uploaded" />
+        <StatCell
+          label="Open actions"
+          value={insightsLoading ? "…" : String(insights.length)}
+          sub={insights.length === 1 ? "tax action" : "tax actions"}
+        />
+      </div>
 
-      {/* Tax inputs */}
-      {import.meta.env.VITE_DEMO_MODE !== "true" && (
-        <Section
-          title="Tax inputs"
-          eyebrow="Upload or describe"
-          actions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* ── Tax inputs ── */}
+      {showUpload && (
+        <section id="tax-documents-section" className="mt-9">
+          <div className="flex items-end justify-between gap-4 px-1 pb-3">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-brand">
+                Upload or describe
+              </span>
+              <h2 className="mt-1 font-editorial text-[19px] font-bold tracking-[-0.018em]">Tax inputs</h2>
+            </div>
+            <div className="flex items-center gap-2">
               {insightStatus === "generating" && (
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.16em',
-                  textTransform: 'uppercase', color: "var(--lf-cheese)",
-                }}>
-                  <RefreshCw size={11} style={{ animation: "spin 1s linear infinite" }} />
-                  Updating insights…
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-caution-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-caution">
+                  <RefreshCw size={11} className="animate-spin" />
+                  Updating
                 </span>
               )}
               {insightStatus === "done" && (
-                <span style={{
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.16em',
-                  textTransform: 'uppercase', color: "var(--lf-basil)",
-                }}>
-                  Actions updated ✓
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-positive-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-positive">
+                  Actions updated
                 </span>
               )}
-              <div style={{ position: "relative" }} ref={safetyRef}>
+              <div className="relative" ref={safetyRef}>
                 <button
                   onClick={() => setShowSafety((p) => !p)}
-                  style={{
-                    background: "transparent", border: "1px solid var(--lf-rule)",
-                    borderRadius: 6, cursor: "pointer", padding: 6,
-                    color: "var(--lf-muted)", display: "flex", alignItems: "center", lineHeight: 0,
-                  }}
+                  className="ui-focus grid h-9 w-9 place-items-center rounded-ui-md border border-line text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
                   aria-label="Privacy & safety information"
                 >
-                  <HelpCircle size={13} />
+                  <ShieldCheck size={15} />
                 </button>
                 {showSafety && (
-                  <div
-                    style={{
-                      position: "absolute", right: 0, top: 32, zIndex: 50, width: 280,
-                      borderRadius: 12, border: "1px solid var(--lf-rule)",
-                      background: "var(--lf-paper)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                      padding: 16, textAlign: 'left',
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <ShieldCheck size={14} style={{ color: "var(--lf-basil)", flexShrink: 0 }} />
-                      <span className="ds-h3" style={{ fontSize: 13 }}>Privacy & security</span>
+                  <div className="animate-scale-in absolute right-0 top-[calc(100%+8px)] z-50 w-[280px] origin-top-right rounded-ui-lg border border-line-strong bg-panel-raised p-4 text-left shadow-ui-lg">
+                    <div className="mb-2.5 flex items-center gap-2">
+                      <ShieldCheck size={14} className="shrink-0 text-positive" />
+                      <span className="text-[13px] font-bold text-content">Privacy & security</span>
                       <button
                         onClick={() => setShowSafety(false)}
-                        style={{ marginLeft: "auto", background: "transparent", border: "none", cursor: "pointer", padding: 0, color: "var(--lf-muted)" }}
+                        className="ml-auto text-content-muted hover:text-content"
+                        aria-label="Close"
                       >
-                        <X size={12} />
+                        <X size={13} />
                       </button>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div className="flex flex-col gap-2">
                       {[
                         "Open-weight models with zero data retention — documents never used for training.",
                         "Documents sent over HTTPS, used only for field extraction.",
                         "Only extracted tax fields are stored — not the original file.",
                         "Prefer not to upload? Use the text option to describe your situation.",
                       ].map((item) => (
-                        <div key={item} className="ds-body ds-body--sm" style={{ display: "flex", gap: 6 }}>
-                          <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--lf-muted)", flexShrink: 0, marginTop: 7, opacity: 0.5 }} />
+                        <div key={item} className="flex gap-2 text-[12.5px] leading-relaxed text-content-secondary">
+                          <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-content-faint" />
                           {item}
                         </div>
                       ))}
@@ -655,109 +462,113 @@ export function TaxStrategy() {
                 )}
               </div>
             </div>
-          }
-        >
-          <div id="tax-documents-section">
-            <Card>
-              <div className="tax-input-wrap">
-                <TaxInputPanel onSuccess={handleInputSuccess} />
-              </div>
-            </Card>
           </div>
-        </Section>
+          <div className="tax-input-wrap rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
+            <TaxInputPanel onSuccess={handleInputSuccess} />
+          </div>
+        </section>
       )}
 
-      {/* Recommended actions — editorial article list */}
-      {!insightsLoading && insights.length > 0 && (
-        <Section
-          title="Recommended actions"
-          eyebrow={estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} action${insights.length === 1 ? '' : 's'}`}
-          actions={
+      {/* ── Recommended actions ── */}
+      {insightsLoading ? (
+        <section className="mt-9" aria-hidden>
+          <Skeleton className="h-6 w-52" />
+          <div className="mt-4 flex flex-col gap-3.5">
+            {[0, 1].map((i) => (
+              <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-6">
+                <Skeleton className="h-[26px] w-28 rounded-full" />
+                <Skeleton className="mt-3 h-5 w-2/3" />
+                <Skeleton className="mt-2 h-4 w-full" />
+                <Skeleton className="mt-4 h-9 w-40 rounded-ui-md" />
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : insights.length > 0 ? (
+        <section className="mt-9">
+          <div className="flex items-end justify-between gap-4 px-1 pb-3">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-brand">
+                {estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} action${insights.length === 1 ? "" : "s"}`}
+              </span>
+              <h2 className="mt-1 font-editorial text-[19px] font-bold tracking-[-0.018em]">Recommended actions</h2>
+            </div>
             <Button
               variant="ghost"
               size="sm"
-              icon={<RefreshCw size={13} style={refreshingInsights ? { animation: "spin 1s linear infinite" } : undefined} />}
               onClick={handleRefreshInsights}
               disabled={refreshingInsights}
-              className="tax-refresh-btn"
+              className="bg-brand-soft text-[rgb(var(--ui-brand-ink))] font-bold hover:bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm"
+              leadingIcon={<RefreshCw size={15} className={refreshingInsights ? "animate-spin" : ""} />}
             >
               {refreshingInsights ? "Refreshing…" : "Refresh"}
             </Button>
-          }
-        >
-          <ul className="tax-feed">
-            {insights.map((ins) => {
-              const pill = urgencyPill(ins.impactColor as string | undefined);
-              const impactTone = ins.impactColor === 'green' ? 'var(--lf-basil)'
-                : ins.impactColor === 'red' ? 'var(--lf-sauce)'
-                : 'var(--lf-cheese)';
-              return (
-                <li key={ins.id}>
-                  <div className="tax-feed__row">
-                    <div className="tax-feed__main">
-                      <div className="tax-feed__head">
-                        <Pill tone={pill.tone}>{pill.label}</Pill>
-                        <h3 className="tax-feed__title">{ins.title}</h3>
-                      </div>
-                      {ins.description && <p className="tax-feed__body">{ins.description}</p>}
-                      {ins.impact && (
-                        <span className="tax-feed__impact" style={{ color: impactTone }}>
-                          {ins.impact}
-                        </span>
-                      )}
-                    </div>
-                    <div className="tax-feed__actions">
-                      <button
-                        type="button"
-                        className="tax-feed__dismiss"
-                        onClick={() => dismiss(ins.id)}
-                        title="Dismiss"
-                        aria-label="Dismiss"
-                      >
-                        <X size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        className="tax-feed__open"
-                        onClick={() => openChat(ins.chatPrompt ?? ins.title)}
-                        aria-label="Open"
-                      >
-                        <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          <div style={{ marginTop: 24 }}>
+          </div>
+
+          <div className="flex flex-col gap-3.5">
+            {insights.map((ins, idx) => (
+              <TaxActionCard
+                key={ins.id}
+                index={idx}
+                title={ins.title}
+                description={ins.description}
+                impact={ins.impact}
+                impactColor={ins.impactColor}
+                onAsk={() => openChat(ins.chatPrompt ?? ins.title)}
+                onDismiss={() => dismiss(ins.id)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-6">
             <LegalDisclaimer variant="insights" />
           </div>
-        </Section>
-      )}
+        </section>
+      ) : null}
 
-      {/* Documents */}
-      <Section
-        title="Documents"
-        eyebrow={documents.length > 0 ? `${documents.length} uploaded` : 'None yet'}
-      >
+      {/* ── Documents ── */}
+      <section className="mt-10">
+        <div className="flex items-baseline justify-between gap-3 px-1 pb-3">
+          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Documents</h2>
+          <span className="text-[13px] font-semibold text-content-muted">
+            {documents.length > 0 ? `${documents.length} uploaded` : "None yet"}
+          </span>
+        </div>
+
         {documents.length === 0 ? (
           <EmptyState
-            icon={<FolderOpen size={40} />}
+            icon={<FolderOpen size={24} />}
             title="No documents uploaded yet"
-            body="Upload W-2s, 1099s, or any tax form. We extract the fields, surface deductions, and never store the original file."
+            description="Upload W-2s, 1099s, or any tax form. We extract the fields, surface deductions, and never store the original file."
+            action={
+              showUpload ? (
+                <Button variant="primary" size="sm" leadingIcon={<Upload size={15} />} onClick={scrollToUpload}>
+                  Upload documents
+                </Button>
+              ) : undefined
+            }
           />
         ) : (
-          <Card flush>
-            <div className={`tax-doc-layout ${selectedDoc ? 'is-split' : ''}`}>
-              <div className="tax-doc-table">
-                <DataTable
-                  columns={docCols}
-                  rows={documents}
-                  rowKey={(d) => d.id}
-                  hover
-                  onRowClick={(d) => handleSelectDocument(d.id)}
-                />
+          <div className="overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+            <div className={cn("grid grid-cols-1", selectedDoc && "lg:grid-cols-2")}>
+              <div className={cn(selectedDoc && "lg:border-r lg:border-line")}>
+                {documents.map((doc) => (
+                  <DocRow
+                    key={doc.id}
+                    doc={doc}
+                    selected={selectedDoc?.id === doc.id}
+                    loading={docLoading === doc.id}
+                    confirming={deleteConfirmId === doc.id}
+                    showDelete={showUpload}
+                    onSelect={() => handleSelectDocument(doc.id)}
+                    onAskDelete={() => setDeleteConfirmId(doc.id)}
+                    onConfirmDelete={() => {
+                      handleDeleteDocument(doc.id);
+                      setDeleteConfirmId(null);
+                    }}
+                    onCancelDelete={() => setDeleteConfirmId(null)}
+                  />
+                ))}
               </div>
 
               <AnimatePresence>
@@ -767,21 +578,231 @@ export function TaxStrategy() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2, ease: "easeInOut" }}
-                    className="tax-doc-detail-wrap"
+                    className="border-t border-line lg:border-t-0 bg-canvas-sunken/30"
                   >
                     <DocumentDetail doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-          </Card>
+          </div>
         )}
-      </Section>
-    </Page>
+      </section>
+    </div>
   );
 }
 
 // ─── sub-components ──────────────────────────────────────────────────────────
+
+function StatCell({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: string;
+}) {
+  return (
+    <div className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4 sm:p-[18px]">
+      <div className="text-[10.5px] sm:text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-2 font-editorial text-[22px] sm:text-[26px] font-extrabold leading-none tracking-[-0.02em] ui-tnum",
+          accent ?? "text-content",
+        )}
+      >
+        {value}
+      </div>
+      {sub && <div className="mt-1.5 truncate text-[12px] font-medium text-content-muted">{sub}</div>}
+    </div>
+  );
+}
+
+// Recommended-action card — home "three moves" anatomy, Bright actions skin.
+function TaxActionCard({
+  index,
+  title,
+  description,
+  impact,
+  impactColor,
+  onAsk,
+  onDismiss,
+}: {
+  index: number;
+  title: string;
+  description: string;
+  impact: string | null;
+  impactColor: string | null;
+  onAsk: () => void;
+  onDismiss: () => void;
+}) {
+  const tag = priorityTag(impactColor);
+  const TagIcon = tag.Icon;
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
+      className="relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[20px_18px] sm:p-[22px_24px] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md"
+    >
+      <span
+        className="absolute left-0 top-0 bottom-0 w-1"
+        style={{ background: impactColorVar(impactColor) }}
+        aria-hidden
+      />
+
+      <div className="flex items-start sm:items-center gap-5 flex-wrap sm:flex-nowrap">
+        <div className="flex-1 min-w-0">
+          <Badge tone={tag.tone} size="sm" className="mb-3 font-bold uppercase tracking-[0.05em]">
+            <TagIcon className="h-3 w-3" />
+            {tag.label}
+          </Badge>
+          <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em] text-content">
+            {title}
+          </h3>
+          {description && (
+            <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary max-w-[52ch]">
+              {description}
+            </p>
+          )}
+        </div>
+
+        {impact && (
+          <div className="w-full sm:w-auto mt-3.5 sm:mt-0 pt-3.5 sm:pt-0 border-t sm:border-t-0 border-line shrink-0">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-ui-md px-2.5 py-1.5 font-editorial text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap"
+              style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
+            >
+              {impact}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 mt-5 flex-wrap">
+        <Button size="sm" onClick={onAsk} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+          Ask Lasagna about this
+        </Button>
+        <span className="hidden sm:block flex-1 min-w-[8px]" aria-hidden />
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="touch-target h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+        >
+          Dismiss
+        </button>
+      </div>
+    </motion.article>
+  );
+}
+
+// Document list row — icon · label/filename · type/year/date · delete.
+function DocRow({
+  doc,
+  selected,
+  loading,
+  confirming,
+  showDelete,
+  onSelect,
+  onAskDelete,
+  onConfirmDelete,
+  onCancelDelete,
+}: {
+  doc: TaxDocumentSummary;
+  selected: boolean;
+  loading: boolean;
+  confirming: boolean;
+  showDelete: boolean;
+  onSelect: () => void;
+  onAskDelete: () => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
+}) {
+  const { label, formType } = getDocLabel(doc);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "ui-focus flex cursor-pointer items-center gap-3.5 border-t border-line px-4 py-3.5 transition-colors first:border-t-0 sm:px-5",
+        selected ? "bg-brand-soft" : "hover:bg-brand-softer",
+      )}
+    >
+      <span
+        className={cn(
+          "grid h-10 w-10 shrink-0 place-items-center rounded-ui-md",
+          selected ? "bg-brand text-brand-fg" : "bg-canvas-sunken text-content-secondary",
+        )}
+      >
+        <FileText size={16} />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[14.5px] font-bold leading-tight text-content" title={label}>
+          {label}
+        </div>
+        <div className="mt-0.5 truncate text-[12.5px] text-content-muted">{doc.fileName}</div>
+        {formType && (
+          <span className="mt-1.5 inline-flex sm:hidden">
+            <Badge tone="neutral" size="sm">{formType}</Badge>
+          </span>
+        )}
+      </div>
+
+      <div className="hidden shrink-0 items-center gap-4 sm:flex">
+        {formType && <Badge tone="neutral" size="sm">{formType}</Badge>}
+        {doc.taxYear && <span className="text-[13px] font-medium text-content-muted ui-tnum">{doc.taxYear}</span>}
+        {doc.createdAt && (
+          <span className="text-[13px] font-medium text-content-muted ui-tnum">
+            {new Date(doc.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+          </span>
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        {loading && <RefreshCw size={13} className="animate-spin text-content-muted" />}
+        {showDelete &&
+          (confirming ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={onConfirmDelete}
+                className="ui-focus rounded-ui-sm bg-negative-soft px-2.5 py-1 text-[12px] font-bold text-negative hover:bg-negative/15"
+              >
+                Delete
+              </button>
+              <button
+                onClick={onCancelDelete}
+                className="ui-focus rounded-ui-sm px-2.5 py-1 text-[12px] font-semibold text-content-muted hover:bg-canvas-sunken"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onAskDelete}
+              className="ui-focus grid h-9 w-9 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-negative-soft hover:text-negative"
+              aria-label="Delete document"
+            >
+              <Trash2 size={15} />
+            </button>
+          ))}
+      </div>
+    </div>
+  );
+}
 
 function formatFieldKey(key: string): string {
   return key
@@ -817,6 +838,28 @@ function isNestedObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function FieldGrid({ entries }: { entries: [string, unknown][] }) {
+  return (
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-ui-md border border-line bg-line">
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex flex-col gap-1 bg-panel px-3 py-2">
+          <div className="text-[11px] font-medium uppercase tracking-[0.04em] text-content-muted">
+            {formatFieldKey(key)}
+          </div>
+          <div
+            className={cn(
+              "text-[14px] font-semibold text-content",
+              typeof value === "number" && "ui-tnum",
+            )}
+          >
+            {formatFieldValue(value)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => void }) {
   const fields = doc.llmFields as Record<string, unknown>;
   const fieldEntries = Object.entries(fields).filter(
@@ -834,67 +877,46 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
   );
 
   return (
-    <div style={{ padding: 16, overflowY: 'auto', maxHeight: 480 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {docType && <Pill tone="ink">{String(docType)}</Pill>}
-          {taxYear && <Pill tone="cream">Tax Year {String(taxYear)}</Pill>}
-          <Eyebrow>Extracted fields</Eyebrow>
+    <div className="max-h-[480px] overflow-y-auto p-4 sm:p-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {docType && (
+            <Badge tone="brand" size="sm">
+              <Receipt className="h-3 w-3" />
+              {String(docType)}
+            </Badge>
+          )}
+          {taxYear && <Badge tone="neutral" size="sm">Tax Year {String(taxYear)}</Badge>}
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+            Extracted fields
+          </span>
         </div>
         <button
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
-          style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            padding: 2, color: 'var(--lf-muted)', borderRadius: 4,
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
           }}
+          className="ui-focus grid h-8 w-8 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
           aria-label="Close detail"
         >
-          <X size={14} />
+          <X size={15} />
         </button>
       </div>
 
-      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--lf-ink)', marginBottom: 8 }}>
-        {doc.fileName}
-      </div>
+      <div className="mb-2.5 text-[14px] font-bold text-content">{doc.fileName}</div>
 
       {doc.llmSummary && (
-        <div className="ds-body ds-body--sm" style={{
-          color: 'var(--lf-ink-soft)', marginBottom: 14,
-          padding: '10px 12px', background: 'var(--lf-cream)', borderRadius: 8,
-        }}>
+        <div className="mb-3.5 flex gap-2 rounded-ui-md bg-canvas-sunken px-3 py-2.5 text-[13px] leading-relaxed text-content-secondary">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-muted" />
           {doc.llmSummary}
         </div>
       )}
 
       {flatFields.length > 0 ? (
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1,
-          background: 'var(--lf-rule)', borderRadius: 8, overflow: 'hidden',
-          border: '1px solid var(--lf-rule)',
-        }}>
-          {flatFields.map(([key, value]) => (
-            <div key={key} style={{
-              display: 'flex', flexDirection: 'column', gap: 2,
-              padding: '8px 10px', background: 'var(--lf-paper)',
-            }}>
-              <div style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 11, color: 'var(--lf-muted)', letterSpacing: '0.04em',
-              }}>
-                {formatFieldKey(key)}
-              </div>
-              <div className={typeof value === 'number' ? 'ds-num' : ''} style={{
-                fontSize: 14, fontWeight: 500, color: 'var(--lf-ink)',
-                fontFamily: typeof value === 'number' ? "'JetBrains Mono', monospace" : 'inherit',
-              }}>
-                {formatFieldValue(value)}
-              </div>
-            </div>
-          ))}
-        </div>
+        <FieldGrid entries={flatFields} />
       ) : (
         !nestedFields.length && (
-          <div className="ds-caption" style={{ textAlign: 'center', padding: '16px 0' }}>
+          <div className="py-4 text-center text-[13px] text-content-muted">
             No extracted fields available.
           </div>
         )
@@ -907,34 +929,11 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
         );
         if (!entries.length) return null;
         return (
-          <div key={key} style={{ marginTop: 14 }}>
-            <Eyebrow>{formatFieldKey(key)}</Eyebrow>
-            <div style={{
-              marginTop: 6,
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1,
-              background: 'var(--lf-rule)', borderRadius: 8, overflow: 'hidden',
-              border: '1px solid var(--lf-rule)',
-            }}>
-              {entries.map(([subKey, subValue]) => (
-                <div key={subKey} style={{
-                  display: 'flex', flexDirection: 'column', gap: 2,
-                  padding: '8px 10px', background: 'var(--lf-paper)',
-                }}>
-                  <div style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 11, color: 'var(--lf-muted)', letterSpacing: '0.04em',
-                  }}>
-                    {formatFieldKey(subKey)}
-                  </div>
-                  <div className={typeof subValue === 'number' ? 'ds-num' : ''} style={{
-                    fontSize: 14, fontWeight: 500, color: 'var(--lf-ink)',
-                    fontFamily: typeof subValue === 'number' ? "'JetBrains Mono', monospace" : 'inherit',
-                  }}>
-                    {formatFieldValue(subValue)}
-                  </div>
-                </div>
-              ))}
+          <div key={key} className="mt-3.5">
+            <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              {formatFieldKey(key)}
             </div>
+            <FieldGrid entries={entries} />
           </div>
         );
       })}

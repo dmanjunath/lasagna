@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Upload, FileText, Loader2, Settings2, ChevronDown, X, PenLine } from "lucide-react";
+import { Upload, FileText, Settings2, ChevronDown, X, PenLine, AlertCircle } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 import { api } from "../../lib/api.js";
 import type { TaxInputResult } from "../../lib/types.js";
+import { Button } from "../uikit";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemma-4-26b-a4b-it";
@@ -124,10 +125,10 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               {/* Dropzone */}
               <div
                 className={cn(
-                  "flex flex-col items-center justify-center gap-3 rounded-xl border cursor-pointer transition-all min-h-[120px] p-5",
+                  "ui-focus flex min-h-[140px] cursor-pointer flex-col items-center justify-center gap-3 rounded-ui-lg border-2 border-dashed p-6 transition-colors",
                   isDragging
-                    ? "border-accent/60 bg-accent/5"
-                    : "border-border/60 hover:border-border hover:bg-surface-hover/20"
+                    ? "border-brand bg-brand-soft"
+                    : "border-line-strong hover:border-brand hover:bg-brand-softer"
                 )}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
@@ -146,38 +147,38 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                   onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); }}
                 />
                 <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                  isDragging ? "bg-accent/15" : "bg-surface-hover"
+                  "flex h-11 w-11 items-center justify-center rounded-ui-md transition-colors",
+                  isDragging ? "bg-brand text-brand-fg" : "bg-brand-soft text-brand"
                 )}>
-                  <Upload className={cn("w-5 h-5", isDragging ? "text-accent" : "text-text-secondary")} />
+                  <Upload className="h-5 w-5" />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-medium text-text-secondary">
+                  <div className="text-[14px] font-semibold text-content">
                     {isDragging ? "Drop to upload" : "Drop files or click to browse"}
                   </div>
-                  <div className="text-sm text-text-secondary mt-1">PDF · PNG · JPG · up to 20 MB each · multiple files OK</div>
+                  <div className="mt-1 text-[12.5px] text-content-muted">PDF · PNG · JPG · up to 20 MB each · multiple files OK</div>
                 </div>
               </div>
 
               {/* Selected files list — side on desktop, below on mobile */}
               {files.length > 0 && (
                 <div className="flex flex-col gap-2">
-                  <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
                     Ready to upload · {files.length}
                   </div>
                   {files.map((f, i) => (
-                    <div key={`${f.name}-${i}`} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface-hover/40 border border-border/40">
-                      <FileText className="w-4 h-4 text-accent shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium truncate">{f.name}</div>
-                        <div className="text-[11px] text-text-secondary">{(f.size / 1024 / 1024).toFixed(1)} MB</div>
+                    <div key={`${f.name}-${i}`} className="flex items-center gap-2.5 rounded-ui-md border border-line bg-canvas-sunken px-3 py-2">
+                      <FileText className="h-4 w-4 shrink-0 text-brand" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13px] font-semibold text-content">{f.name}</div>
+                        <div className="text-[11px] text-content-muted ui-tnum">{(f.size / 1024 / 1024).toFixed(1)} MB</div>
                       </div>
                       <button
                         type="button"
-                        className="text-text-secondary hover:text-danger transition-colors shrink-0"
+                        className="ui-focus shrink-0 rounded-ui-sm p-1 text-content-muted transition-colors hover:text-negative"
                         onClick={(e) => { e.stopPropagation(); setFiles((prev) => prev.filter((_, j) => j !== i)); }}
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))}
@@ -190,10 +191,10 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               <button
                 type="button"
                 onClick={switchToText}
-                className="text-xs text-text-secondary hover:text-text-secondary transition-colors"
+                className="ui-focus rounded-ui-sm text-[13px] text-content-muted transition-colors"
               >
                 Don't feel comfortable uploading tax documents?{" "}
-                <span className="text-accent hover:underline">Describe your situation instead →</span>
+                <span className="font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline">Describe your situation instead →</span>
               </button>
             </div>
 
@@ -215,13 +216,13 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
         {/* ── Text describe zone ── */}
         {inputMode === "text" && (
           <>
-            <div className="flex flex-col rounded-xl border border-border/60 hover:border-border transition-all">
-              <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border/40">
-                <PenLine className="w-3.5 h-3.5 text-text-secondary shrink-0" />
-                <span className="text-xs font-semibold text-text-secondary">Describe your taxes</span>
+            <div className="flex flex-col overflow-hidden rounded-ui-lg border border-line-strong bg-panel shadow-ui-sm transition-[border-color] focus-within:border-brand">
+              <div className="flex items-center gap-2 border-b border-line px-3.5 py-2.5">
+                <PenLine className="h-3.5 w-3.5 shrink-0 text-content-muted" />
+                <span className="text-[12.5px] font-semibold text-content-secondary">Describe your taxes</span>
               </div>
               <textarea
-                className="min-h-[160px] bg-transparent px-4 py-3 text-sm resize-none focus:outline-none placeholder:text-text-muted text-text-secondary"
+                className="min-h-[160px] resize-none bg-transparent px-4 py-3 text-[14px] text-content placeholder:text-content-faint focus:outline-none"
                 placeholder={"e.g. married filing jointly, 2023\nW-2 income $120k, withheld $18k\nstandard deduction, no dependents"}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -234,62 +235,62 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               <button
                 type="button"
                 onClick={switchToFile}
-                className="text-xs text-text-secondary hover:text-text-secondary transition-colors"
+                className="ui-focus rounded-ui-sm text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:underline"
               >
-                <span className="text-accent hover:underline">← Upload a document instead</span>
+                ← Upload a document instead
               </button>
             </div>
           </>
         )}
 
         {/* Extraction settings */}
-        <div className="rounded-xl border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-ui-md border border-line">
           <button
             type="button"
             onClick={() => setShowSettings((p) => !p)}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-surface-elevated hover:bg-surface-hover transition-colors text-left"
+            className="ui-focus flex w-full items-center justify-between bg-canvas-sunken px-4 py-2.5 text-left transition-colors hover:bg-canvas-sunken/70"
           >
             <div className="flex items-center gap-2">
-              <Settings2 className="w-3.5 h-3.5 text-text-secondary" />
-              <span className="text-xs font-medium text-text-secondary">Extraction settings</span>
+              <Settings2 className="h-3.5 w-3.5 text-content-muted" />
+              <span className="text-[12.5px] font-semibold text-content-secondary">Extraction settings</span>
               {providerUrl !== OPENROUTER_URL && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent font-semibold">custom</span>
+                <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold text-brand">custom</span>
               )}
             </div>
             <ChevronDown className={cn(
-              "w-3.5 h-3.5 text-text-secondary transition-transform duration-150",
+              "h-3.5 w-3.5 text-content-muted transition-transform duration-150",
               showSettings && "rotate-180"
             )} />
           </button>
 
           {showSettings && (
-            <div className="px-4 py-4 border-t border-border bg-bg-elevated space-y-3">
+            <div className="space-y-3 border-t border-line bg-panel px-4 py-4">
               <div>
-                <label className="block text-xs text-text-secondary mb-1.5">LLM endpoint</label>
+                <label className="mb-1.5 block text-[12px] font-medium text-content-secondary">LLM endpoint</label>
                 <input
                   type="url"
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+                  className="w-full rounded-ui-sm border border-line-strong bg-panel px-3 py-2 font-mono text-[12px] text-content transition-[border-color,box-shadow] focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] focus:outline-none"
                   value={providerUrl}
                   onChange={(e) => setProviderUrl(e.target.value)}
                   placeholder="https://openrouter.ai/api/v1/chat/completions"
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">Model</label>
+                  <label className="mb-1.5 block text-[12px] font-medium text-content-secondary">Model</label>
                   <input
                     type="text"
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+                    className="w-full rounded-ui-sm border border-line-strong bg-panel px-3 py-2 font-mono text-[12px] text-content transition-[border-color,box-shadow] focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] focus:outline-none"
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
                     placeholder="google/gemma-4-26b-a4b-it"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">API key <span className="opacity-50">(optional)</span></label>
+                  <label className="mb-1.5 block text-[12px] font-medium text-content-secondary">API key <span className="opacity-60">(optional)</span></label>
                   <input
                     type="password"
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+                    className="w-full rounded-ui-sm border border-line-strong bg-panel px-3 py-2 font-mono text-[12px] text-content transition-[border-color,box-shadow] focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] focus:outline-none"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="sk-or-…"
@@ -302,37 +303,30 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
 
         {/* Error */}
         {error && (
-          <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20 text-danger text-sm">
-            <X className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2.5 rounded-ui-md border border-negative/30 bg-negative-soft px-4 py-3 text-[13.5px] text-negative">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             {error}
           </div>
         )}
 
         {/* Footer */}
         <div className="flex items-center justify-end">
-          <button
+          <Button
             type="button"
+            variant="primary"
             disabled={!canSubmit}
             onClick={handleSubmit}
-            className={cn(
-              "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all",
-              canSubmit
-                ? "bg-accent text-white hover:bg-accent/90 shadow-sm shadow-accent/20"
-                : "bg-surface-hover text-text-secondary cursor-not-allowed"
-            )}
+            loading={loading}
           >
             {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {hasFiles ? `Extracting${files.length > 1 ? ` (${files.length} files)` : ""}…` : "Saving…"}
-              </>
+              hasFiles ? `Extracting${files.length > 1 ? ` (${files.length} files)` : ""}…` : "Saving…"
             ) : (
               mode === "file"
                 ? `Extract & save${files.length > 1 ? ` (${files.length})` : ""}`
                 : mode === "text" ? "Save"
                 : inputMode === "file" ? "Extract & save" : "Save"
             )}
-          </button>
+          </Button>
         </div>
     </div>
   );

@@ -1,28 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Building2, ChevronRight } from 'lucide-react';
-import { formatMoney } from '../lib/utils';
+import { Plus, Building2, ChevronRight, ChevronDown, Check } from 'lucide-react';
+import { formatMoney, cn } from '../lib/utils';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useLocation } from 'wouter';
 import { PageActions } from '../components/common/page-actions';
-import {
-  Page,
-  Section,
-  Card,
-  Button,
-  Pill,
-  Eyebrow,
-  EmptyState,
-  CompositionRibbon,
-  StatStrip,
-  Favicon,
-  SkeletonChart,
-  SkeletonRow,
-  SkeletonLine,
-} from '../components/ds';
+import { Button, Surface, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
 import { faviconUrl, tickerToIssuer } from '../components/ds/institutions';
-import type { CompositionSegment } from '../components/ds/CompositionRibbon';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,32 +40,31 @@ interface Holding {
 }
 
 // ---------------------------------------------------------------------------
-// Asset class color mapping — LasagnaFi palette
+// Asset-class colour mapping — Bright --ui-viz palette
 // ---------------------------------------------------------------------------
 
-// Iter 4: sauce-free data palette. Asset-class colors are still mapped
-// (so US Equity is always the same hue) but they're drawn from the
-// neutral data palette — no more "one orange blob" donuts.
-const ASSET_CLASS_COLORS: Record<string, string> = {
-  'US Equity':         'var(--lf-data-1)',
-  'Intl Equity':       'var(--lf-data-4)',
-  'International Equity': 'var(--lf-data-4)',
-  'Bonds':             'var(--lf-data-2)',
-  'Fixed Income':      'var(--lf-data-2)',
-  'REITs':             'var(--lf-data-5)',
-  'Real Estate':       'var(--lf-data-5)',
-  'Alt':               'var(--lf-data-3)',
-  'Alternative':       'var(--lf-data-3)',
-  'Commodity':         'var(--lf-data-3)',
-  'Cash':              'var(--lf-muted)',
-  'Cash & Equivalents':'var(--lf-muted)',
-};
-
+// Coral (viz-4) reads as "loss/debt", so it sits last and is skipped for
+// equity/asset buckets — asset classes draw from the calmer viz slots.
 const FALLBACK_COLORS = [
-  'var(--lf-data-1)', 'var(--lf-data-2)', 'var(--lf-data-3)',
-  'var(--lf-data-4)', 'var(--lf-data-5)', 'var(--lf-muted)',
-  'var(--lf-ink-soft)', 'var(--lf-crust)',
+  'var(--ui-viz-2)', 'var(--ui-viz-1)', 'var(--ui-viz-3)',
+  'var(--ui-viz-5)', 'var(--ui-viz-6)', 'var(--ui-viz-7)',
+  'var(--ui-viz-4)',
 ];
+
+const ASSET_CLASS_COLORS: Record<string, string> = {
+  'US Equity':            'var(--ui-viz-2)',
+  'Intl Equity':         'var(--ui-viz-5)',
+  'International Equity': 'var(--ui-viz-5)',
+  'Bonds':               'var(--ui-viz-6)',
+  'Fixed Income':        'var(--ui-viz-6)',
+  'REITs':               'var(--ui-viz-3)',
+  'Real Estate':         'var(--ui-viz-3)',
+  'Alt':                 'var(--ui-viz-7)',
+  'Alternative':         'var(--ui-viz-7)',
+  'Commodity':           'var(--ui-viz-7)',
+  'Cash':                'var(--ui-viz-1)',
+  'Cash & Equivalents':  'var(--ui-viz-1)',
+};
 
 function colorForAssetClass(name: string, index: number): string {
   return ASSET_CLASS_COLORS[name] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
@@ -104,11 +88,19 @@ function cleanAccountLabel(raw: string): string {
   return first.replace(/[\s-]*\d{5,}(?:[-_]\d+)*$/, '').trim() || first;
 }
 
-// Abbreviate verbose asset-class labels for the composition ribbon.
+// Abbreviate verbose asset-class labels for the composition bar.
 function abbreviateClassLabel(name: string): string {
   return name
     .replace(/^INTERNATIONAL\s+STOCKS$/i, "INT'L STOCKS")
     .replace(/^INTERNATIONAL\s+/i, "INT'L ");
+}
+
+// Sentence-case group-by labels — shared by the segmented control + breadcrumb.
+function labelFor(g: GroupBy): string {
+  return g === 'assetClass' ? 'Asset class'
+    : g === 'category' ? 'Category'
+    : g === 'holding' ? 'Holdings'
+    : 'Account';
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +156,8 @@ function PortfolioDonut({
   }
 
   const hp = hovered !== null ? paths[hovered] : null;
+  const editorial = "'Bricolage Grotesque', system-ui, sans-serif";
+  const body = "'Plus Jakarta Sans', system-ui, sans-serif";
 
   return (
     <svg width={280} height={280} viewBox="0 0 280 280" style={{ flexShrink: 0, cursor: 'pointer' }}>
@@ -172,7 +166,9 @@ function PortfolioDonut({
           key={i}
           d={p.d}
           fill={p.color}
-          opacity={hovered === null ? 0.92 : hovered === i ? 1 : 0.5}
+          stroke="rgb(var(--ui-panel))"
+          strokeWidth={2}
+          opacity={hovered === null ? 1 : hovered === i ? 1 : 0.42}
           style={{ transition: 'opacity 0.15s' }}
           onMouseEnter={() => setHovered(i)}
           onMouseLeave={() => setHovered(null)}
@@ -183,27 +179,90 @@ function PortfolioDonut({
       {/* Center text — shows hover info or total */}
       {hp ? (
         <>
-          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fill: 'var(--lf-muted)' }}>
+          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontFamily: body, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fill: 'rgb(var(--ui-content-muted))' }}>
             {hp.name}
           </text>
-          <text x={cx} y={cy + 4} textAnchor="middle" style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontSize: 22, fill: 'var(--lf-ink)' }}>
+          <text x={cx} y={cy + 6} textAnchor="middle" style={{ fontFamily: editorial, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontSize: 24, fill: 'rgb(var(--ui-content))' }}>
             {formatMoney(hp.value, true)}
           </text>
-          <text x={cx} y={cy + 22} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fill: hp.color }}>
+          <text x={cx} y={cy + 24} textAnchor="middle" style={{ fontFamily: body, fontSize: 11.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', fill: hp.color }}>
             {hp.pct.toFixed(1)}%
           </text>
         </>
       ) : (
         <>
-          <text x={cx} y={cy - 6} textAnchor="middle" style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', fontSize: 26, fill: 'var(--lf-ink)' }}>
+          <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontFamily: editorial, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em', fontSize: 28, fill: 'rgb(var(--ui-content))' }}>
             {formatMoney(total, true)}
           </text>
-          <text x={cx} y={cy + 16} textAnchor="middle" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', fill: 'var(--lf-muted)' }}>
+          <text x={cx} y={cy + 18} textAnchor="middle" style={{ fontFamily: body, fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', fill: 'rgb(var(--ui-content-muted))' }}>
             Total
           </text>
         </>
       )}
     </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Composition bar — stacked ribbon of asset-class buckets + legend
+// ---------------------------------------------------------------------------
+
+interface CompSegment { label: string; value: number; color: string }
+
+function CompositionBar({ segments, total }: { segments: CompSegment[]; total: number }) {
+  const sum = total || segments.reduce((s, x) => s + x.value, 0) || 1;
+  return (
+    <Surface pad="md">
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-canvas-sunken">
+        {segments.map((seg, i) => {
+          const pct = (seg.value / sum) * 100;
+          if (pct <= 0) return null;
+          return (
+            <span
+              key={`${seg.label}-${i}`}
+              title={`${seg.label} · ${pct.toFixed(1)}%`}
+              className="h-full first:rounded-l-full last:rounded-r-full"
+              style={{ width: `${pct}%`, background: seg.color, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.15)' }}
+            />
+          );
+        })}
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+        {segments.map((seg, i) => {
+          const pct = (seg.value / sum) * 100;
+          return (
+            <div key={`${seg.label}-legend-${i}`} className="flex items-center gap-2.5 min-w-0">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: seg.color }} aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-content" title={seg.label}>
+                {seg.label}
+              </span>
+              <span className="shrink-0 text-[12.5px] font-semibold text-content-muted ui-tnum">
+                {pct.toFixed(1)}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </Surface>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ticker / issuer icon
+// ---------------------------------------------------------------------------
+
+function TickerIcon({ ticker }: { ticker: string }) {
+  const url = faviconUrl(tickerToIssuer(ticker), 64);
+  const mono = ticker.slice(0, 2).toUpperCase();
+  const [err, setErr] = useState(false);
+  return (
+    <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-ui-md border border-line bg-canvas-sunken text-[11px] font-bold text-content-secondary">
+      {url && !err ? (
+        <img src={url} alt="" className="h-5 w-5 rounded-[5px]" onError={() => setErr(true)} />
+      ) : (
+        mono
+      )}
+    </div>
   );
 }
 
@@ -222,101 +281,6 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-function FilterDropdown({
-  label: triggerLabel,
-  allLabel,
-  options,
-  activeSet,
-  onToggle,
-  onSelectAll,
-  renderOption,
-}: {
-  label: string;
-  allLabel: string;
-  options: string[];
-  activeSet: Set<string> | null;
-  onToggle: (value: string) => void;
-  onSelectAll: () => void;
-  renderOption?: (value: string) => React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const allActive = activeSet === null;
-  const activeCount = allActive ? options.length : activeSet.size;
-  const displayLabel = allActive ? triggerLabel : `${triggerLabel}: ${activeCount}`;
-
-  return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="ds-btn ds-btn--ghost ds-btn--sm"
-        style={{ gap: 6 }}
-      >
-        {displayLabel}
-        <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0,
-          background: 'var(--lf-paper)', border: '1px solid var(--lf-rule)',
-          borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          zIndex: 50, minWidth: 200, maxHeight: 320, overflowY: 'auto',
-          padding: '6px 0',
-        }}>
-          <button
-            onClick={() => { onSelectAll(); setOpen(false); }}
-            style={{
-              width: '100%', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
-              background: 'none', border: 'none', cursor: 'pointer', fontSize: 13,
-              color: 'var(--lf-ink)', textAlign: 'left',
-              fontFamily: 'Geist, system-ui, sans-serif',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-          >
-            <Checkbox checked={allActive} />
-            <span style={{ fontWeight: 600 }}>{allLabel}</span>
-          </button>
-          <div style={{ height: 1, background: 'var(--lf-rule)', margin: '4px 0' }} />
-          {options.map(value => {
-            const checked = activeSet === null || activeSet.has(value);
-            return (
-              <button
-                key={value}
-                onClick={() => onToggle(value)}
-                style={{
-                  width: '100%', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
-                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 13,
-                  color: 'var(--lf-ink)', textAlign: 'left',
-                  fontFamily: 'Geist, system-ui, sans-serif',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--lf-cream)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >
-                <Checkbox checked={checked} />
-                {renderOption ? renderOption(value) : (
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AccountFilterDropdown({
   accounts,
   activeAccounts,
@@ -330,47 +294,79 @@ function AccountFilterDropdown({
   onToggle: (name: string) => void;
   onSelectAll: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const allActive = activeAccounts === null;
+  const activeCount = allActive ? accounts.length : activeAccounts.size;
+  const displayLabel = allActive ? 'All accounts' : `${activeCount} account${activeCount === 1 ? '' : 's'}`;
+
   return (
-    <FilterDropdown
-      label="Accounts"
-      allLabel="All accounts"
-      options={accounts}
-      activeSet={activeAccounts}
-      onToggle={onToggle}
-      onSelectAll={onSelectAll}
-      renderOption={name => (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{name}</span>
-          {accountTypeMap.has(name) && (
-            <span style={{
-              fontSize: 11, padding: '1px 6px', borderRadius: 4,
-              background: 'var(--lf-cream)', color: 'var(--lf-muted)',
-              border: '1px solid var(--lf-rule)', flexShrink: 0,
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
-              {ACCOUNT_TYPE_LABELS[accountTypeMap.get(name)!] ?? accountTypeMap.get(name)}
-            </span>
-          )}
-        </span>
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="ui-focus inline-flex items-center gap-1.5 rounded-ui-md border border-line bg-canvas-sunken px-3 py-1.5 text-[13px] font-semibold text-content transition-colors hover:border-line-strong"
+      >
+        {displayLabel}
+        <ChevronDown size={14} className={cn('text-content-muted transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="animate-scale-in absolute left-0 top-[calc(100%+6px)] z-30 max-h-[320px] w-[240px] origin-top-left overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised p-1.5 shadow-ui-lg">
+          <button
+            type="button"
+            onClick={() => { onSelectAll(); setOpen(false); }}
+            className="ui-focus flex w-full items-center gap-2.5 rounded-ui-sm px-2.5 py-2 text-left text-[13px] font-semibold text-content transition-colors hover:bg-canvas-sunken"
+          >
+            <FilterCheck checked={allActive} />
+            <span>All accounts</span>
+          </button>
+          <div className="my-1 h-px bg-line" />
+          {accounts.map(name => {
+            const checked = activeAccounts === null || activeAccounts.has(name);
+            const type = accountTypeMap.get(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => onToggle(name)}
+                className="ui-focus flex w-full items-center gap-2.5 rounded-ui-sm px-2.5 py-2 text-left text-[13px] font-medium text-content-secondary transition-colors hover:bg-canvas-sunken"
+              >
+                <FilterCheck checked={checked} />
+                <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
+                {type && (
+                  <span className="shrink-0 rounded-full bg-canvas-sunken px-1.5 py-0.5 text-[10px] font-semibold text-content-muted ui-tnum">
+                    {ACCOUNT_TYPE_LABELS[type] ?? type}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       )}
-    />
+    </div>
   );
 }
 
-function Checkbox({ checked }: { checked: boolean }) {
+function FilterCheck({ checked }: { checked: boolean }) {
   return (
-    <span style={{
-      width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-      border: `2px solid ${checked ? 'var(--lf-sauce)' : 'var(--lf-rule)'}`,
-      background: checked ? 'var(--lf-sauce)' : 'transparent',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      transition: 'all 0.12s',
-    }}>
-      {checked && (
-        <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-          <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+    <span
+      className={cn(
+        'grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border transition-colors',
+        checked ? 'border-transparent bg-brand text-brand-fg' : 'border-line-strong bg-transparent',
       )}
+    >
+      {checked && <Check size={11} strokeWidth={3} />}
     </span>
   );
 }
@@ -452,12 +448,12 @@ export default function PortfolioComposition() {
         // Build account-level allocation as fallback
         if (compData.assetClasses.length === 0 && balanceData.balances.length > 0) {
           const ACCT_COLORS: Record<string, string> = {
-            depository: 'var(--lf-basil)',
-            investment: 'var(--lf-sauce)',
-            credit: 'var(--lf-burgundy)',
-            loan: 'var(--lf-cheese)',
-            real_estate: 'var(--lf-noodle)',
-            alternative: 'var(--lf-crust)',
+            depository: 'var(--ui-viz-1)',
+            investment: 'var(--ui-viz-2)',
+            credit: 'var(--ui-viz-4)',
+            loan: 'var(--ui-viz-6)',
+            real_estate: 'var(--ui-viz-3)',
+            alternative: 'var(--ui-viz-5)',
           };
           // Exclude liabilities — a mortgage/credit balance is debt, not an
           // asset, so it must not appear as a slice of "Asset allocation".
@@ -473,7 +469,7 @@ export default function PortfolioComposition() {
             name: a.name,
             value: a.value,
             percentage: total > 0 ? (a.value / total) * 100 : 0,
-            color: ACCT_COLORS[a.type] || 'var(--lf-muted)',
+            color: ACCT_COLORS[a.type] || 'var(--ui-viz-7)',
           })));
         }
       } catch (error) {
@@ -733,25 +729,37 @@ export default function PortfolioComposition() {
   // ---------------------------------------------------------------------------
 
   if (loading) {
-    // Iter 7 D: cached shell. Matches the loaded layout — page-bar + donut +
-    // 6 holding rows — so first paint reserves space without jolt.
     return (
-      <Page>
-        <header className="ds-page-bar">
-          <div className="ds-page-bar__title-group">
-            <h1 className="ds-page-bar__title">Portfolio</h1>
-            <SkeletonLine width="180px" height={12} style={{ marginTop: 4 }} />
+      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+        <Skeleton className="h-9 w-40" />
+        <Skeleton className="mt-3 h-4 w-64" />
+        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <Skeleton className="h-3 w-full rounded-full" />
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-4 w-full" />)}
           </div>
-        </header>
-        <div style={{ marginBottom: 28 }}>
-          <SkeletonChart height={240} />
         </div>
-        <Section>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <SkeletonRow key={i} />
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="mt-3 h-7 w-24" />
+            </div>
           ))}
-        </Section>
-      </Page>
+        </div>
+        <div className="mt-8 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <div className="flex justify-center"><Skeleton className="h-[240px] w-[240px] rounded-full" /></div>
+        </div>
+        <div className="mt-8 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+          {[0, 1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="flex items-center gap-3.5 border-t border-line px-5 py-3.5 first:border-t-0">
+              <Skeleton className="h-9 w-9 rounded-ui-md" />
+              <div className="flex-1"><Skeleton className="h-3.5 w-24" /><Skeleton className="mt-2 h-3 w-40" /></div>
+              <Skeleton className="h-4 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
 
@@ -765,57 +773,38 @@ export default function PortfolioComposition() {
     }));
 
     return (
-      <Page>
-        <header className="ds-page-bar">
-          <div className="ds-page-bar__title-group">
-            <h1 className="ds-page-bar__title">Portfolio</h1>
-            <span className="ds-page-bar__subtitle">
-              {formatMoney(accountTotal, true)} · {accountAllocation.length} account{accountAllocation.length === 1 ? '' : 's'} · no holdings yet
-            </span>
-          </div>
-        </header>
-        <div className="ds-page-bar__subtitle-mobile">
-          {formatMoney(accountTotal, true)} · {accountAllocation.length} account{accountAllocation.length === 1 ? '' : 's'} · no holdings yet
-        </div>
+      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+        <PageHead
+          subtitle={`${formatMoney(accountTotal, true)} · ${accountAllocation.length} account${accountAllocation.length === 1 ? '' : 's'} · no holdings yet`}
+        />
 
-        <Section title="Asset allocation">
-          <Card>
-            <div className="ds-portfolio-grid">
-              <div className="ds-portfolio-grid__chart">
-                <PortfolioDonut slices={acctSlices} total={accountTotal} />
-              </div>
-              <div className="ds-portfolio-grid__legend">
+        <section className="mt-7 space-y-4">
+          <h2 className="text-[18px] font-semibold text-content">Asset allocation</h2>
+          <Surface pad="lg">
+            <AllocationGrid>
+              <PortfolioDonut slices={acctSlices} total={accountTotal} />
+              <div className="grid grid-cols-1 gap-2.5 min-w-0 sm:grid-cols-2 md:grid-cols-1">
                 {accountAllocation.map(acct => (
-                  <div key={acct.name} className="ds-portfolio-legend-row">
-                    <span className="ds-portfolio-legend-dot" style={{ background: acct.color }} />
-                    <div className="ds-portfolio-legend-text">
-                      <div className="ds-portfolio-legend-name">{acct.name}</div>
-                      <div className="ds-portfolio-legend-meta ds-num">
-                        {acct.percentage.toFixed(1)}% · {formatMoney(acct.value, true)}
-                      </div>
-                    </div>
-                  </div>
+                  <LegendRow key={acct.name} color={acct.color} name={acct.name} pct={acct.percentage} value={acct.value} />
                 ))}
               </div>
-            </div>
-          </Card>
-        </Section>
+            </AllocationGrid>
+          </Surface>
+        </section>
 
-        <Section>
+        <div className="mt-8">
           <EmptyState
-            icon={<Building2 size={28} />}
+            icon={<Building2 size={24} />}
             title="Link an investment account"
-            body="Connect a brokerage via Plaid to see individual holdings and ticker-level analysis."
-            cta={
-              <Button variant="ink" icon={<Plus size={14} />} onClick={() => setLocation('/accounts')}>
+            description="Connect a brokerage via Plaid to see individual holdings and ticker-level analysis."
+            action={
+              <Button leadingIcon={<Plus size={16} />} onClick={() => setLocation('/accounts')}>
                 Link investment account
               </Button>
             }
           />
-        </Section>
-
-        <PortfolioStyles />
-      </Page>
+        </div>
+      </div>
     );
   }
 
@@ -825,26 +814,21 @@ export default function PortfolioComposition() {
 
   if (assetClasses.length === 0) {
     return (
-      <Page>
-        <header className="ds-page-bar">
-          <div className="ds-page-bar__title-group">
-            <h1 className="ds-page-bar__title">Portfolio</h1>
-            <span className="ds-page-bar__caption">No accounts linked</span>
-          </div>
-        </header>
-        <Section>
+      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+        <PageHead subtitle="No accounts linked" />
+        <div className="mt-8">
           <EmptyState
-            icon={<Building2 size={32} />}
+            icon={<Building2 size={24} />}
             title="No holdings found"
-            body="Connect your investment accounts to see your portfolio composition and asset allocation."
-            cta={
-              <Button variant="ink" icon={<Plus size={14} />} onClick={() => setLocation('/accounts')}>
+            description="Connect your investment accounts to see your portfolio composition and asset allocation."
+            action={
+              <Button leadingIcon={<Plus size={16} />} onClick={() => setLocation('/accounts')}>
                 Link account
               </Button>
             }
           />
-        </Section>
-      </Page>
+        </div>
+      </div>
     );
   }
 
@@ -852,23 +836,22 @@ export default function PortfolioComposition() {
   // Main render — full holdings view
   // ---------------------------------------------------------------------------
 
-  // ── Composition ribbon: enumerate every asset class. If the backend
-  // returned a class literally named "Other", drill in and replace it with
-  // its constituent holdings so the bar never shows the word "Other".
-  // CompositionRibbon owns the palette so `color` here is ignored.
-  const ribbonSegments: CompositionSegment[] = [...filteredAssetClasses]
+  // ── Composition bar: enumerate every asset class. If the backend returned a
+  // class literally named "Other", drill in and replace it with its constituent
+  // holdings so the bar never shows the word "Other".
+  const ribbonSegments: CompSegment[] = [...filteredAssetClasses]
     .sort((a, b) => b.value - a.value)
-    .flatMap<CompositionSegment>((ac, i) => {
+    .flatMap<CompSegment>((ac, i) => {
       if (/^other$/i.test(ac.name.trim())) {
         const holdings = (ac.categories ?? [])
           .flatMap((sc) => sc.holdings)
           .filter((h) => h.value > 0)
           .sort((a, b) => b.value - a.value);
         if (holdings.length > 0) {
-          return holdings.map((h) => ({
+          return holdings.map((h, j) => ({
             label: holdingLabel(h),
             value: h.value,
-            color: '',
+            color: FALLBACK_COLORS[(i + j) % FALLBACK_COLORS.length],
           }));
         }
       }
@@ -881,114 +864,92 @@ export default function PortfolioComposition() {
 
   const biggestHolding = holdingsByTicker[0];
 
-  return (
-    <Page>
-      {/* Iter 8 P1: title-only H1 + subtitle slot. Money never lives in the
-          H1, so mobile (<520px) shows only "Portfolio" while desktop and the
-          dropped-below mobile sub-row carry the dollar total. */}
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Portfolio</h1>
-          <span className="ds-page-bar__subtitle ds-num">
-            {formatMoney(filteredTotal, true)} · {positionCount} position{positionCount !== 1 ? 's' : ''} · {accountCount} account{accountCount !== 1 ? 's' : ''}
-            {blendedReturn !== null && (
-              <>
-                {'  ·  '}
-                <span className={blendedReturn >= 0 ? 'ds-pos' : 'ds-neg'}>
-                  {blendedReturn.toFixed(1)}% blended return
-                </span>
-              </>
-            )}
+  const subtitle = (
+    <>
+      {formatMoney(filteredTotal, true)} · {positionCount} position{positionCount !== 1 ? 's' : ''} · {accountCount} account{accountCount !== 1 ? 's' : ''}
+      {blendedReturn !== null && (
+        <>
+          {'  ·  '}
+          <span className={cn('font-semibold', blendedReturn >= 0 ? 'text-positive' : 'text-negative')}>
+            {blendedReturn >= 0 ? '+' : '−'}{Math.abs(blendedReturn).toFixed(1)}% blended return
           </span>
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      <PageHead subtitle={subtitle} />
+
+      {/* Composition bar */}
+      {ribbonSegments.length > 0 && (
+        <div className="mt-6">
+          <CompositionBar segments={ribbonSegments} total={filteredTotal} />
         </div>
-      </header>
-      <div className="ds-page-bar__subtitle-mobile ds-num">
-        {formatMoney(filteredTotal, true)} · {positionCount} position{positionCount !== 1 ? 's' : ''} · {accountCount} account{accountCount !== 1 ? 's' : ''}
-        {blendedReturn !== null && (
-          <>
-            {'  ·  '}
-            <span className={blendedReturn >= 0 ? 'ds-pos' : 'ds-neg'}>
-              {blendedReturn.toFixed(1)}% blended return
-            </span>
-          </>
+      )}
+
+      {/* KPI strip */}
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Total value" value={formatMoney(filteredTotal, true)} />
+        <KpiCard
+          label="Blended return"
+          value={blendedReturn !== null ? `${blendedReturn >= 0 ? '+' : '−'}${Math.abs(blendedReturn).toFixed(1)}%` : '—'}
+          valueClass={blendedReturn !== null ? (blendedReturn >= 0 ? 'text-positive' : 'text-negative') : undefined}
+          sub={blendedReturn !== null ? 'per year' : 'unavailable'}
+        />
+        <KpiCard label="Positions" value={String(positionCount)} sub={`${accountCount} account${accountCount === 1 ? '' : 's'}`} />
+        {biggestHolding && (
+          <KpiCard
+            label="Largest holding"
+            value={biggestHolding.ticker}
+            sub={`${biggestHolding.percentage.toFixed(1)}% · ${formatMoney(biggestHolding.totalValue, true)}`}
+          />
         )}
       </div>
 
-      {/* Composition ribbon */}
-      {ribbonSegments.length > 0 && (
-        <Section>
-          <CompositionRibbon
-            leadDelta={`${positionCount} position${positionCount === 1 ? '' : 's'}`}
-            segments={ribbonSegments}
-            groupBelowPct={2}
-          />
-        </Section>
-      )}
-
-      {/* Stat strip */}
-      <StatStrip
-        className="ds-portfolio-stats"
-        items={[
-          { label: 'Total value', value: formatMoney(filteredTotal) },
-          {
-            label: 'Blended return',
-            value: blendedReturn !== null ? `${blendedReturn.toFixed(1)}%` : '—',
-            sub: blendedReturn !== null ? 'per year' : 'unavailable',
-            tone: blendedReturn !== null && blendedReturn >= 0 ? 'pos' : 'default',
-          },
-          {
-            label: 'Positions',
-            value: String(positionCount),
-            sub: `${accountCount} account${accountCount === 1 ? '' : 's'}`,
-          },
-          ...(biggestHolding
-            ? [{
-                label: 'Largest holding',
-                value: biggestHolding.ticker,
-                sub: `${biggestHolding.percentage.toFixed(1)}% · ${formatMoney(biggestHolding.totalValue, true)}`,
-              }]
-            : []),
-        ]}
-      />
-
       {/* ── Insights (preserved) ── */}
-      <PageActions types="portfolio" />
+      <div className="mt-10">
+        <PageActions types="portfolio" />
+      </div>
 
       {/* ── Asset allocation chart ── */}
-      <Section
-        title="Asset allocation"
-        eyebrow={
-          drillLevel1 ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <button
-                onClick={() => setDrillLevel1(null)}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--lf-ink-soft)', fontFamily: 'inherit', fontSize: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3 }}
-              >
-                {labelFor(groupBy)}
-              </button>
-              <ChevronRight size={11} />
-              <span style={{ color: 'var(--lf-ink)' }}>{drillLevel1}</span>
-            </span>
-          ) : undefined
-        }
-        actions={
-          <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6 }}>
-            {(['assetClass', 'category', 'holding', 'account'] as GroupBy[]).map((g) => (
-              <button
-                key={g}
-                onClick={() => handleGroupByChange(g)}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-              >
-                <Pill tone={groupBy === g ? 'ink' : 'ghost'}>{labelFor(g)}</Pill>
-              </button>
-            ))}
+      <section className="mt-10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-[18px] font-semibold text-content">Asset allocation</h2>
+            {drillLevel1 && (
+              <div className="mt-1 flex items-center gap-1.5 text-[13px]">
+                <button
+                  type="button"
+                  onClick={() => setDrillLevel1(null)}
+                  className="ui-focus rounded-ui-sm font-semibold text-content-muted underline underline-offset-2 hover:text-brand"
+                >
+                  {labelFor(groupBy)}
+                </button>
+                <ChevronRight size={13} className="text-content-faint" />
+                <span className="font-semibold text-content">{drillLevel1}</span>
+              </div>
+            )}
           </div>
-        }
-      >
-        {/* Filter row */}
+          <SegmentedControl
+            aria-label="Group allocation by"
+            value={groupBy}
+            onChange={(g) => handleGroupByChange(g as GroupBy)}
+            size="sm"
+            options={[
+              { value: 'assetClass', label: 'Class' },
+              { value: 'category', label: 'Category' },
+              { value: 'holding', label: 'Holding' },
+              { value: 'account', label: 'Account' },
+            ]}
+          />
+        </div>
+
+        {/* Account filter row */}
         {allAccounts.length > 1 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Eyebrow>Account</Eyebrow>
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted">Account</span>
             <AccountFilterDropdown
               accounts={allAccounts}
               activeAccounts={activeAccounts}
@@ -999,7 +960,7 @@ export default function PortfolioComposition() {
           </div>
         )}
 
-        <Card>
+        <Surface pad="lg" className="mt-4">
           <AnimatePresence mode="wait">
             <motion.div
               key={`${groupBy}-${drillLevel1}`}
@@ -1008,29 +969,31 @@ export default function PortfolioComposition() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18 }}
             >
-              <div className="ds-portfolio-grid">
-                <div className="ds-portfolio-grid__chart">
-                  <PortfolioDonut
-                    slices={chartSlices}
-                    total={drillLevel1
-                      ? chartSlices.reduce((s, sl) => s + sl.value, 0)
-                      : filteredTotal}
-                    onSliceClick={handleSliceClick}
-                  />
-                </div>
-                <div className="ds-portfolio-grid__legend">
+              <AllocationGrid>
+                <PortfolioDonut
+                  slices={chartSlices}
+                  total={drillLevel1
+                    ? chartSlices.reduce((s, sl) => s + sl.value, 0)
+                    : filteredTotal}
+                  onSliceClick={handleSliceClick}
+                />
+                <div className="grid grid-cols-1 gap-1.5 min-w-0 sm:grid-cols-2 md:grid-cols-1">
                   {chartSlices.slice(0, 10).map(sl => {
                     const isActive = drillLevel1 === sl.name;
                     return (
                       <button
                         key={sl.name}
+                        type="button"
                         onClick={() => handleSliceClick(sl.name)}
-                        className={`ds-portfolio-legend-row ds-portfolio-legend-btn${isActive ? ' is-active' : ''}`}
+                        className={cn(
+                          'ui-focus flex min-h-touch items-center gap-2.5 rounded-ui-sm px-2 py-1.5 text-left transition-colors hover:bg-brand-softer',
+                          isActive && 'bg-brand-soft',
+                        )}
                       >
-                        <span className="ds-portfolio-legend-dot" style={{ background: sl.color }} />
-                        <div className="ds-portfolio-legend-text">
-                          <div className="ds-portfolio-legend-name">{sl.name}</div>
-                          <div className="ds-portfolio-legend-meta ds-num">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: sl.color }} aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[13px] font-semibold text-content" title={sl.name}>{sl.name}</div>
+                          <div className="text-[12px] font-medium text-content-muted ui-tnum">
                             {sl.pct.toFixed(1)}% · {formatMoney(sl.value, true)}
                           </div>
                         </div>
@@ -1038,23 +1001,23 @@ export default function PortfolioComposition() {
                     );
                   })}
                 </div>
-              </div>
+              </AllocationGrid>
             </motion.div>
           </AnimatePresence>
-        </Card>
-      </Section>
+        </Surface>
+      </section>
 
-      {/* ── Holdings — HoldingRow primitive built on `.ds-row`.
-          Mobile rule (iter 2 P0): value, %, and historical return ALL stay
-          visible. Ticker is the primary line, class+account is the eyebrow,
-          right-rail shows value + %, with hist.ret as a delta under the value. */}
-      <Section
-        title="Holdings"
-        eyebrow={`${holdingsByTicker.length} position${holdingsByTicker.length === 1 ? '' : 's'}`}
-      >
-        <Card flush>
+      {/* ── Holdings ── */}
+      <section className="mt-10">
+        <div className="flex items-end justify-between gap-4 pb-1">
+          <h2 className="text-[18px] font-semibold text-content">Holdings</h2>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted">
+            {holdingsByTicker.length} position{holdingsByTicker.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div className="mt-3 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
           {holdingsByTicker.length === 0 ? (
-            <div className="ds-caption" style={{ padding: '32px 16px', textAlign: 'center' }}>
+            <div className="px-4 py-8 text-center text-[13px] text-content-muted">
               No holdings match the current filter.
             </div>
           ) : (
@@ -1063,130 +1026,93 @@ export default function PortfolioComposition() {
               const classLabel = isOther && h.category ? h.category : h.assetClass;
               const account = cleanAccountLabel(h.accountLabel);
               const meta = `${classLabel}${account ? ` · ${account}` : ''}`;
-              const issuerDomain = tickerToIssuer(h.ticker);
-              const tickerIcon = faviconUrl(issuerDomain, 64);
               return (
-                <div key={h.ticker} className="ds-row ds-row--holding">
-                  <Favicon icon={tickerIcon} monogram={h.ticker.slice(0, 2).toUpperCase()} alt={h.ticker} size={28} />
-                  <div className="ds-row__main">
-                    <div className="ds-row__primary" title={h.ticker}>
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{h.ticker}</span>
-                    </div>
-                    <div className="ds-row__meta" title={meta}>{meta}</div>
+                <div key={h.ticker} className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
+                  <TickerIcon ticker={h.ticker} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14.5px] font-bold leading-tight ui-tnum" title={h.ticker}>{h.ticker}</div>
+                    <div className="mt-0.5 truncate text-[12.5px] text-content-muted" title={meta}>{meta}</div>
                   </div>
-                  <div className="ds-row__right">
-                    <span className="ds-row__value ds-num">{formatMoney(h.totalValue, true)}</span>
-                    <span className="ds-row__delta ds-num">
+                  <div className="shrink-0 text-right">
+                    <div className="font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
+                      {formatMoney(h.totalValue, true)}
+                    </div>
+                    <div className="mt-0.5 text-[12px] font-medium text-content-muted ui-tnum">
                       {h.percentage.toFixed(1)}%
                       {h.historicalReturn !== null && (
                         <>
                           {'  ·  '}
-                          <span className={h.historicalReturn >= 0 ? 'ds-pos' : 'ds-neg'}>
-                            {h.historicalReturn.toFixed(1)}%
+                          <span className={cn('font-semibold', h.historicalReturn >= 0 ? 'text-positive' : 'text-negative')}>
+                            {h.historicalReturn >= 0 ? '+' : '−'}{Math.abs(h.historicalReturn).toFixed(1)}%
                           </span>
                         </>
                       )}
-                    </span>
+                    </div>
                   </div>
                 </div>
               );
             })
           )}
-        </Card>
-      </Section>
-
-      <PortfolioStyles />
-    </Page>
+        </div>
+      </section>
+    </div>
   );
 }
 
-// Iter 7 F: sentence-case lowercase so eyebrow ("by asset class") + pill
-// chip labels read with the same voice across the page.
-function labelFor(g: GroupBy): string {
-  return g === 'assetClass' ? 'asset class'
-    : g === 'category' ? 'category'
-    : g === 'holding' ? 'holdings'
-    : 'account';
+// ---------------------------------------------------------------------------
+// Small presentational helpers
+// ---------------------------------------------------------------------------
+
+function PageHead({ subtitle }: { subtitle: React.ReactNode }) {
+  return (
+    <header className="animate-fade-in">
+      <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+        Portfolio
+      </h1>
+      <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">{subtitle}</p>
+    </header>
+  );
 }
 
-function PortfolioStyles() {
+function KpiCard({
+  label, value, sub, valueClass,
+}: {
+  label: string; value: string; sub?: string; valueClass?: string;
+}) {
   return (
-    <style>{`
-      .ds-portfolio-stats { margin: 32px 0 56px; }
-      .ds-portfolio-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 32px;
-        align-items: center;
-      }
-      .ds-portfolio-grid__chart {
-        display: flex;
-        justify-content: center;
-        min-width: 0;
-      }
-      .ds-portfolio-grid__legend {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 10px;
-        min-width: 0;
-      }
-      @media (max-width: 640px) {
-        .ds-portfolio-grid__legend {
-          grid-template-columns: 1fr;
-        }
-        /* P2 — composition ribbon legend: 1 column on mobile */
-        .ds-comp-ribbon__legend,
-        .ds-comp__legend {
-          grid-template-columns: 1fr !important;
-        }
-      }
-      .ds-portfolio-legend-btn {
-        background: none;
-        border: 0;
-        padding: 8px 6px;
-        margin: -8px -6px;
-        cursor: pointer;
-        text-align: left;
-        width: 100%;
-        border-radius: 6px;
-        min-height: 44px;
-        transition: background 0.12s;
-      }
-      .ds-portfolio-legend-btn:hover {
-        background: var(--lf-cream);
-      }
-      .ds-portfolio-legend-btn.is-active {
-        background: var(--lf-cream);
-        outline: 2px solid var(--lf-sauce);
-        outline-offset: -2px;
-      }
-      @media (min-width: 820px) {
-        .ds-portfolio-grid {
-          grid-template-columns: 280px minmax(0, 1fr);
-          gap: 40px;
-          align-items: center;
-        }
-      }
-      .ds-portfolio-legend-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-width: 0;
-      }
-      .ds-portfolio-legend-dot {
-        width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-      }
-      .ds-portfolio-legend-text { min-width: 0; flex: 1; }
-      .ds-portfolio-legend-name {
-        font-family: 'Geist', system-ui, sans-serif;
-        font-size: 13px; font-weight: 600;
-        color: var(--lf-ink);
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      }
-      .ds-portfolio-legend-meta {
-        font-family: 'Geist', system-ui, sans-serif;
-        font-size: 12px; color: var(--lf-muted);
-      }
-    `}</style>
+    <div className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
+      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{label}</div>
+      <div className={cn('mt-1.5 font-editorial text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum', valueClass)}>
+        {value}
+      </div>
+      {sub && <div className="mt-1.5 text-[11.5px] font-medium text-content-muted ui-tnum">{sub}</div>}
+    </div>
+  );
+}
+
+function AllocationGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[280px_minmax(0,1fr)] md:gap-10">
+      <div className="flex min-w-0 justify-center">{Array.isArray(children) ? children[0] : children}</div>
+      {Array.isArray(children) && children[1]}
+    </div>
+  );
+}
+
+function LegendRow({
+  color, name, pct, value,
+}: {
+  color: string; name: string; pct: number; value: number;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 min-w-0">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-semibold text-content" title={name}>{name}</div>
+        <div className="text-[12px] font-medium text-content-muted ui-tnum">
+          {pct.toFixed(1)}% · {formatMoney(value, true)}
+        </div>
+      </div>
+    </div>
   );
 }

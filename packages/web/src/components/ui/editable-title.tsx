@@ -117,16 +117,16 @@ export const EditableTitle = React.forwardRef<
           onBlur={handleBlur}
           disabled={isSaving}
           className={cn(
-            'w-full px-3 py-1 rounded-lg',
-            'bg-bg-elevated border-2 border-accent/50',
-            'text-text text-lg font-medium',
-            'focus:outline-none focus:ring-2 focus:ring-accent/20',
+            'w-full px-3 py-1 rounded-ui-md',
+            'bg-panel border-2 border-brand/50',
+            'text-content text-lg font-medium',
+            'focus:outline-none focus:ring-2 focus:ring-brand/20',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             'transition-all duration-200'
           )}
         />
         {isSaving && (
-          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent animate-spin" />
+          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand animate-spin" />
         )}
       </div>
     );
@@ -143,7 +143,7 @@ export const EditableTitle = React.forwardRef<
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleStartEdit}
     >
-      <span className={cn("text-text", className)}>
+      <span className={cn("text-content", className)}>
         {value}
       </span>
 
@@ -152,7 +152,7 @@ export const EditableTitle = React.forwardRef<
       ) : (
         <Pencil
           className={cn(
-            'h-4 w-4 text-text-secondary transition-opacity duration-200',
+            'h-4 w-4 text-content-secondary transition-opacity duration-200',
             isHovered ? 'opacity-100' : 'opacity-0'
           )}
         />

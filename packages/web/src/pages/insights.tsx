@@ -1,22 +1,28 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, RefreshCw, Zap, CheckCircle2 } from 'lucide-react';
+import {
+  RefreshCw,
+  CheckCircle2,
+  Check,
+  Sparkles,
+  ArrowRight,
+  Receipt,
+  Flame,
+  TrendingUp,
+  PiggyBank,
+  CreditCard,
+  Target,
+} from 'lucide-react';
 import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
 import { formatRelativeTime } from '../lib/utils';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
-import {
-  Page,
-  Section,
-  Button,
-  Pill,
-  EmptyState,
-} from '../components/ds';
+import { Button, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 
 // ---------------------------------------------------------------------------
-// Urgency → display group mapping
+// Urgency → display group mapping (faithful to the API's urgency field)
 // ---------------------------------------------------------------------------
 
 type UrgencyGroup = 'do_now' | 'this_week' | 'watch';
@@ -35,171 +41,255 @@ const URGENCY_RANK: Record<string, number> = {
   low: 1,
 };
 
+const GROUP_ORDER: UrgencyGroup[] = ['do_now', 'this_week', 'watch'];
+
 const GROUP_META: Record<
   UrgencyGroup,
-  { label: string; hint: string; pillTone: 'sauce' | 'cheese' | 'basil' }
+  { label: string; note: string; flag: string }
 > = {
   do_now: {
     label: 'Do now',
-    hint: 'Address first',
-    pillTone: 'sauce',
+    note: 'High urgency — biggest impact first',
+    flag: 'rgb(var(--ui-negative))',
   },
   this_week: {
     label: 'This week',
-    hint: 'Worth doing soon',
-    pillTone: 'cheese',
+    note: 'Worth setting aside time for',
+    flag: 'rgb(var(--ui-caution))',
   },
   watch: {
-    label: 'Watch',
-    hint: 'No rush',
-    pillTone: 'basil',
+    label: 'Keep an eye on',
+    note: 'No rush — just on the radar',
+    flag: 'rgb(var(--ui-content-faint))',
   },
 };
 
-const GROUP_ORDER: UrgencyGroup[] = ['do_now', 'this_week', 'watch'];
-
-// Filter pill definition
-type FilterValue = null | 'do_now' | 'this_week' | 'watch' | 'completed';
-
-const FILTER_PILLS: { label: string; value: FilterValue }[] = [
-  { label: 'All', value: null },
-  { label: 'High priority', value: 'do_now' },
-  { label: 'Important', value: 'this_week' },
-  { label: 'Watch', value: 'watch' },
-  { label: 'Completed', value: 'completed' },
-];
-
 // ---------------------------------------------------------------------------
-// Area chip → ds-Pill tone
+// Category (type) → tag, accent bar, icon, page link, friendly label
 // ---------------------------------------------------------------------------
 
-function areaPillTone(type: string | null): 'sauce' | 'cheese' | 'basil' | 'cream' | 'ghost' {
-  const t = (type ?? '').toLowerCase();
-  if (t === 'spending' || t === 'behavioral') return 'sauce';
-  if (t === 'debt') return 'cheese';
-  if (t === 'tax' || t === 'portfolio') return 'basil';
-  if (t === 'savings' || t === 'retirement') return 'cream';
-  return 'ghost';
+type CatStyle = {
+  label: string;
+  icon: typeof Receipt;
+  /** soft tag background + text color */
+  tagBg: string;
+  tagFg: string;
+  /** left accent bar color */
+  bar: string;
+  /** destination page for the primary action */
+  link: string;
+};
+
+const CATEGORY: Record<string, CatStyle> = {
+  tax: {
+    label: 'Taxes',
+    icon: Receipt,
+    tagBg: 'var(--ui-caution-soft)',
+    tagFg: 'rgb(var(--ui-caution))',
+    bar: 'var(--ui-viz-3)',
+    link: '/tax',
+  },
+  debt: {
+    label: 'Debt',
+    icon: Flame,
+    tagBg: 'var(--ui-negative-soft)',
+    tagFg: 'rgb(var(--ui-negative))',
+    bar: 'var(--ui-viz-4)',
+    link: '/debt',
+  },
+  portfolio: {
+    label: 'Investing',
+    icon: TrendingUp,
+    tagBg: 'var(--ui-info-soft)',
+    tagFg: 'rgb(var(--ui-info))',
+    bar: 'var(--ui-viz-2)',
+    link: '/portfolio',
+  },
+  retirement: {
+    label: 'Retirement',
+    icon: Target,
+    tagBg: 'var(--ui-brand-soft)',
+    tagFg: 'rgb(var(--ui-brand))',
+    bar: 'rgb(var(--ui-brand))',
+    link: '/retirement',
+  },
+  savings: {
+    label: 'Savings',
+    icon: PiggyBank,
+    tagBg: 'var(--ui-brand-soft)',
+    tagFg: 'rgb(var(--ui-brand))',
+    bar: 'rgb(var(--ui-brand))',
+    link: '/goals',
+  },
+  spending: {
+    label: 'Spending',
+    icon: CreditCard,
+    tagBg: 'var(--ui-canvas-sunken)',
+    tagFg: 'rgb(var(--ui-content-secondary))',
+    bar: 'rgb(var(--ui-content-faint))',
+    link: '/spending',
+  },
+  behavioral: {
+    label: 'Spending',
+    icon: CreditCard,
+    tagBg: 'var(--ui-canvas-sunken)',
+    tagFg: 'rgb(var(--ui-content-secondary))',
+    bar: 'rgb(var(--ui-content-faint))',
+    link: '/spending',
+  },
+  general: {
+    label: 'Overview',
+    icon: Sparkles,
+    tagBg: 'var(--ui-canvas-sunken)',
+    tagFg: 'rgb(var(--ui-content-secondary))',
+    bar: 'rgb(var(--ui-content-faint))',
+    link: '/',
+  },
+};
+
+function catFor(type: string | null, category: string | null): CatStyle {
+  return CATEGORY[type ?? ''] ?? CATEGORY[category ?? ''] ?? CATEGORY.general;
 }
 
-// Page links per area type
-const PAGE_LINKS: Record<string, string> = {
-  spending: '/spending',
-  behavioral: '/spending',
-  debt: '/debt',
-  tax: '/tax',
-  portfolio: '/portfolio',
-  savings: '/goals',
-  retirement: '/retirement',
-  general: '/',
+// impactColor (red / amber / green) → impact value color
+function impactColorVar(color: string | null): string {
+  if (color === 'red') return 'rgb(var(--ui-negative))';
+  if (color === 'amber') return 'rgb(var(--ui-caution))';
+  return 'rgb(var(--ui-positive))';
+}
+function impactSoftVar(color: string | null): string {
+  if (color === 'red') return 'var(--ui-negative-soft)';
+  if (color === 'amber') return 'var(--ui-caution-soft)';
+  return 'var(--ui-positive-soft)';
+}
+
+// ---------------------------------------------------------------------------
+// Category filters (mockup: All / Taxes / Debt / Investing / Spending).
+// Only the filters with real matching insights are rendered.
+// ---------------------------------------------------------------------------
+
+type FilterValue = 'all' | 'tax' | 'debt' | 'investing' | 'spending';
+
+const FILTER_TYPES: Record<Exclude<FilterValue, 'all'>, string[]> = {
+  tax: ['tax'],
+  debt: ['debt'],
+  investing: ['portfolio', 'retirement', 'savings'],
+  spending: ['spending', 'behavioral'],
+};
+
+const FILTER_LABELS: Record<FilterValue, string> = {
+  all: 'All',
+  tax: 'Taxes',
+  debt: 'Debt',
+  investing: 'Investing',
+  spending: 'Spending',
 };
 
 // ---------------------------------------------------------------------------
-// Action row — editorial hairline-separated, expands inline
+// Action card — the locked home "three moves" anatomy, Bright actions skin
 // ---------------------------------------------------------------------------
 
-interface ActionRowProps {
-  title: string;
+interface ActionCardProps {
+  index: number;
   type: string | null;
+  category: string | null;
+  title: string;
   description: string;
+  impact: string | null;
+  impactColor: string | null;
   chatPrompt: string;
-  onDismiss: () => void;
-  onOpenArea?: () => void;
-  areaLabel: string;
-  defaultOpen?: boolean;
-  priority?: 'do_now' | 'this_week' | 'watch';
+  calm?: boolean;
+  onPrimary: () => void;
+  onAsk: () => void;
+  onSkip: () => void;
 }
 
-function ActionRow({
-  title,
+function ActionCard({
+  index,
   type,
+  category,
+  title,
   description,
+  impact,
+  impactColor,
   chatPrompt,
-  onDismiss,
-  onOpenArea,
-  areaLabel,
-  defaultOpen = false,
-  priority = 'watch',
-}: ActionRowProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  const { openChat } = useChatStore();
+  calm = false,
+  onPrimary,
+  onAsk,
+  onSkip,
+}: ActionCardProps) {
+  void chatPrompt;
+  const cat = catFor(type, category);
+  const Icon = cat.icon;
 
   return (
-    <li className={`ins-row ins-row--${priority}${open ? ' ins-row--open' : ''}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="ins-row__btn"
-        aria-expanded={open}
-      >
-        <Pill tone={areaPillTone(type)}>{areaLabel}</Pill>
-        <span className="ins-row__title">{title}</span>
-        <ChevronDown
-          size={16}
-          className="ins-row__chev"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
-        />
-      </button>
+    <motion.article
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
+      className={`relative overflow-hidden rounded-ui-lg p-[20px_18px] sm:p-[22px_24px] transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 ${
+        calm
+          ? 'border border-dashed border-line bg-transparent hover:bg-panel hover:border-solid hover:shadow-ui-sm'
+          : 'border border-line bg-panel shadow-ui-sm hover:shadow-ui-md'
+      }`}
+    >
+      {/* left accent bar */}
+      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="body"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div className="ins-row__body">
-              <p className="ds-body" style={{ margin: '0 0 14px', maxWidth: '62ch' }}>
-                {description}
-              </p>
+      <div className="flex items-start sm:items-center gap-5 flex-wrap sm:flex-nowrap">
+        <div className="flex-1 min-w-0">
+          <span className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-[0.05em] mb-3 bg-canvas-sunken text-content-muted">
+            <Icon className="h-3 w-3" />
+            {cat.label}
+          </span>
+          <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em] text-content">
+            {title}
+          </h3>
+          <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-2 max-w-[52ch]">
+            {description}
+          </p>
+        </div>
 
-              <div className="ins-row__actions">
-                <Button
-                  variant="ink"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openChat(
-                      `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\n\n${chatPrompt}`
-                    );
-                  }}
-                >
-                  Walk me through this →
-                </Button>
-
-                {onOpenArea && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenArea();
-                    }}
-                  >
-                    Open in {areaLabel}
-                  </Button>
-                )}
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ins-dismiss-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDismiss();
-                  }}
-                >
-                  Dismiss
-                </Button>
-              </div>
-            </div>
-          </motion.div>
+        {/* right-aligned impact — vertically centered, auto-width, tinted by impactColor.
+            On mobile it reflows below a hairline. (Matches home's impact placement.) */}
+        {impact && (
+          <div className="w-full sm:w-auto mt-3.5 sm:mt-0 pt-3.5 sm:pt-0 border-t sm:border-t-0 border-line shrink-0">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-ui-md px-2.5 py-1.5 font-editorial text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap"
+              style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
+            >
+              {impact}
+            </span>
+          </div>
         )}
-      </AnimatePresence>
-    </li>
+      </div>
+
+      <div className="flex items-center gap-2 mt-5 flex-wrap">
+        <Button size="sm" onClick={onPrimary} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+          Open {cat.label}
+        </Button>
+
+        <button
+          type="button"
+          onClick={onAsk}
+          className="touch-target inline-flex items-center gap-1.5 h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors group"
+        >
+          <Sparkles className="h-[15px] w-[15px]" />
+          Ask Lasagna about this
+          <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
+        </button>
+
+        <span className="hidden sm:block flex-1 min-w-[8px]" aria-hidden />
+
+        <button
+          type="button"
+          onClick={onSkip}
+          className="touch-target h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+        >
+          Skip
+        </button>
+      </div>
+    </motion.article>
   );
 }
 
@@ -208,8 +298,9 @@ function ActionRow({
 // ---------------------------------------------------------------------------
 
 export function Insights() {
-  const [activeFilter, setActiveFilter] = useState<FilterValue>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterValue>('all');
   const [, navigate] = useLocation();
+  const { openChat } = useChatStore();
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -223,7 +314,6 @@ export function Insights() {
   const { insights, lastActionsGeneratedAt, isLoading, refresh } = useInsights();
 
   const UNDO_WINDOW_MS = 6000;
-
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
   const msSinceLastGen = lastActionsGeneratedAt
     ? Date.now() - lastActionsGeneratedAt.getTime()
@@ -290,176 +380,209 @@ export function Insights() {
     };
   }, []);
 
-  const activeInsights = insights.filter((i) => !dismissed.has(i.id));
-  const completedInsights = insights.filter((i) => dismissed.has(i.id));
-
-  const grouped = GROUP_ORDER.reduce<
-    Record<UrgencyGroup, typeof activeInsights>
-  >(
-    (acc, g) => {
-      acc[g] = activeInsights.filter(
-        (i) => (URGENCY_GROUP[i.urgency] ?? 'watch') === g
-      );
-      return acc;
-    },
-    { do_now: [], this_week: [], watch: [] }
+  const activeInsights = useMemo(
+    () => insights.filter((i) => !dismissed.has(i.id)),
+    [insights, dismissed],
   );
 
-  const doNowCount = grouped.do_now.length;
-  const totalCount = activeInsights.length;
+  // Which category filters actually have data → only render those.
+  const availableFilters = useMemo<FilterValue[]>(() => {
+    const present = new Set(
+      activeInsights.map((i) => (i.type ?? i.category ?? 'general')),
+    );
+    const order: Exclude<FilterValue, 'all'>[] = ['tax', 'debt', 'investing', 'spending'];
+    const some = order.filter((f) => FILTER_TYPES[f].some((t) => present.has(t)));
+    return some.length > 1 ? ['all', ...some] : [];
+  }, [activeInsights]);
 
-  // Top action for the lede
-  const topAction = [...activeInsights].sort(
-    (a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0),
-  )[0];
+  // Keep the active filter valid if the data shifts under it.
+  useEffect(() => {
+    if (activeFilter !== 'all' && !availableFilters.includes(activeFilter)) {
+      setActiveFilter('all');
+    }
+  }, [availableFilters, activeFilter]);
 
-  const visibleGroups: UrgencyGroup[] =
-    activeFilter === null
-      ? GROUP_ORDER
-      : activeFilter === 'completed'
-      ? []
-      : [activeFilter as UrgencyGroup];
+  // Apply the category filter, then bucket by urgency.
+  const filteredInsights = useMemo(() => {
+    if (activeFilter === 'all') return activeInsights;
+    const types = FILTER_TYPES[activeFilter];
+    return activeInsights.filter((i) => types.includes(i.type ?? i.category ?? ''));
+  }, [activeInsights, activeFilter]);
 
-  const showCompleted =
-    activeFilter === null || activeFilter === 'completed';
+  // Header status counts — recomputed from the currently-filtered set so the
+  // line stays in sync when a category filter is active.
+  const statusCounts = useMemo(() => {
+    let now = 0;
+    let week = 0;
+    let watch = 0;
+    for (const i of filteredInsights) {
+      const g = URGENCY_GROUP[i.urgency] ?? 'watch';
+      if (g === 'do_now') now++;
+      else if (g === 'this_week') week++;
+      else watch++;
+    }
+    return { now, week, watch };
+  }, [filteredInsights]);
 
-  // Iter 8: ds-page-bar replaces the editorial PageHeader + Lede. Title is
-  // always terse; the live action count rides the subtitle slot (inline on
-  // desktop, dropped to a sub-row on mobile).
-  const captionBits: string[] = [];
-  if (!isLoading && totalCount > 0) {
-    captionBits.push(`${totalCount} open`);
-    if (doNowCount > 0) captionBits.push(`${doNowCount} urgent`);
-  }
-  const subtitleText = captionBits.length > 0 ? captionBits.join(' · ') : null;
+  const grouped = useMemo(() => {
+    const acc: Record<UrgencyGroup, typeof filteredInsights> = { do_now: [], this_week: [], watch: [] };
+    for (const i of filteredInsights) {
+      (acc[URGENCY_GROUP[i.urgency] ?? 'watch']).push(i);
+    }
+    for (const g of GROUP_ORDER) {
+      acc[g].sort((a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0));
+    }
+    return acc;
+  }, [filteredInsights]);
+
+  const totalActive = activeInsights.length;
+
+  const askAbout = (title: string, description: string, chatPrompt: string) =>
+    openChat(
+      `Walk me through this action:\n\nTitle: ${title}\nDescription: ${description}\n\n${chatPrompt}`,
+    );
 
   return (
-    <Page>
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Actions</h1>
-          {subtitleText && (
-            <span className="ds-page-bar__subtitle">{subtitleText}</span>
+    <div className="mx-auto max-w-[1160px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      {/* ════════ Header ════════ */}
+      <header className="flex items-start justify-between gap-6 flex-wrap animate-fade-in">
+        <div>
+          <span className="inline-flex items-center gap-2.5 mb-3">
+            <span
+              className="w-[7px] h-[7px] rounded-full bg-brand"
+              style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+            />
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              Your queue
+            </span>
+          </span>
+          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.03em] text-content">
+            Actions
+          </h1>
+          {!isLoading && totalActive > 0 && (
+            <p className="mt-2 flex items-center gap-2.5 flex-wrap text-[14px] font-semibold text-content-secondary">
+              <span>
+                <b className="font-extrabold text-content ui-tnum">{statusCounts.now}</b> worth doing now
+              </span>
+              {statusCounts.week > 0 && (
+                <>
+                  <span className="w-1 h-1 rounded-full bg-content-faint" aria-hidden />
+                  <span>
+                    <b className="font-extrabold text-content ui-tnum">{statusCounts.week}</b> this week
+                  </span>
+                </>
+              )}
+              {statusCounts.watch > 0 && (
+                <>
+                  <span className="w-1 h-1 rounded-full bg-content-faint" aria-hidden />
+                  <span>
+                    <b className="font-extrabold text-content ui-tnum">{statusCounts.watch}</b> to keep an eye on
+                  </span>
+                </>
+              )}
+            </p>
           )}
         </div>
-      </header>
-      {subtitleText && (
-        <div className="ds-page-bar__subtitle-mobile">{subtitleText}</div>
-      )}
 
-      <LegalDisclaimer variant="insights" />
-
-      {/* Loading — shaped skeleton matching the toolbar + grouped feed so the
-          first paint reserves the same space the loaded page consumes. */}
-      {isLoading && (
-        <div className="ins-skeleton" aria-hidden="true">
-          <div className="ins-skeleton__toolbar">
-            {[64, 92, 84, 64].map((w, i) => (
-              <span key={i} className="ds-skeleton" style={{ height: 30, width: w, borderRadius: 999 }} />
-            ))}
-          </div>
-          {[2, 3].map((count, s) => (
-            <div className="ins-skeleton__section" key={s}>
-              <span className="ds-skeleton" style={{ display: 'block', height: 10, width: 150, borderRadius: 4, marginBottom: 12 }} />
-              <span className="ds-skeleton" style={{ display: 'block', height: 22, width: 110, borderRadius: 6, marginBottom: 16 }} />
-              <ul className="ins-list">
-                {Array.from({ length: count }).map((_, i) => (
-                  <li key={i} className="ins-row ins-row--skeleton">
-                    <div className="ins-row__btn" style={{ cursor: 'default' }}>
-                      <span className="ds-skeleton" style={{ height: 20, width: 56, borderRadius: 999, flexShrink: 0 }} />
-                      <span className="ds-skeleton" style={{ height: 16, width: `${[62, 74, 48][i % 3]}%`, borderRadius: 4 }} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Filter pills + refresh meta — one aligned toolbar row */}
-      {!isLoading && insights.length > 0 && (
-        <div className="ins-toolbar">
-          <div className="ins-filter-scroll">
-            <div className="ins-filter-pills">
-              {FILTER_PILLS.map((pill) => {
-                const active = activeFilter === pill.value;
-                return (
-                  <Button
-                    key={pill.label}
-                    variant={active ? 'ink' : 'ghost'}
-                    size="sm"
-                    className="ins-filter-pill"
-                    onClick={() => setActiveFilter(pill.value)}
-                  >
-                    {pill.label}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="ins-meta">
-            {lastActionsGeneratedAt && (
-              <span className="ds-caption" style={{ whiteSpace: 'nowrap' }}>
-                Updated {formatRelativeTime(lastActionsGeneratedAt)}
-              </span>
-            )}
+        {!isLoading && (
+          <div className="flex flex-col items-end gap-2">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleRefresh}
               disabled={refreshing || !refreshReady}
               title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
-              icon={
+              className="bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm font-bold"
+              leadingIcon={
                 <RefreshCw
-                  size={12}
-                  style={{
-                    animation: refreshing ? 'spin 1s linear infinite' : undefined,
-                  }}
+                  className="h-[15px] w-[15px]"
+                  style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }}
                 />
               }
             >
-              {refreshing ? 'Refreshing…' : 'Refresh'}
+              {refreshing ? 'Generating…' : 'Generate'}
             </Button>
+            {lastActionsGeneratedAt && (
+              <span className="text-[12px] font-semibold text-content-muted">
+                Updated {formatRelativeTime(lastActionsGeneratedAt)}
+              </span>
+            )}
           </div>
+        )}
+      </header>
+
+      {/* ════════ Loading skeleton ════════ */}
+      {isLoading && (
+        <div className="mt-8" aria-hidden>
+          <div className="flex gap-2 mb-8">
+            {['w-[60px]', 'w-[78px]', 'w-[70px]', 'w-[96px]'].map((w, i) => (
+              <Skeleton key={i} className={`h-11 rounded-full ${w}`} />
+            ))}
+          </div>
+          {[2, 3].map((count, s) => (
+            <div key={s} className="mb-9">
+              <Skeleton className="h-5 w-44 mb-4" />
+              <div className="flex flex-col gap-3.5">
+                {Array.from({ length: count }).map((_, i) => (
+                  <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-6">
+                    <Skeleton className="h-[26px] w-24 rounded-full" />
+                    <Skeleton className="mt-3 h-5 w-2/3" />
+                    <Skeleton className="mt-2 h-4 w-full" />
+                    <Skeleton className="mt-4 h-9 w-36 rounded-ui-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
+      {/* ════════ Category filter — shared SegmentedControl ════════ */}
+      {!isLoading && availableFilters.length > 1 && (
+        <div className="mt-7 -mx-[18px] sm:mx-0 px-[18px] sm:px-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden animate-fade-in">
+          <SegmentedControl<FilterValue>
+            aria-label="Filter actions by area"
+            tone="brand"
+            value={activeFilter}
+            onChange={setActiveFilter}
+            options={availableFilters.map((f) => ({ value: f, label: FILTER_LABELS[f] }))}
+          />
+        </div>
+      )}
+
+      {/* refresh error */}
       {refreshError && (
         <div
           role="alert"
+          className="mt-5 rounded-ui-md px-3.5 py-2.5 text-[13px] leading-snug"
           style={{
-            marginBottom: 16,
-            padding: '10px 14px',
-            background: 'color-mix(in srgb, var(--lf-neg) 8%, transparent)',
-            border: '1px solid var(--lf-neg)',
-            borderRadius: 10,
-            color: 'var(--lf-neg)',
-            fontSize: 13,
-            lineHeight: 1.4,
+            background: 'var(--ui-negative-soft)',
+            border: '1px solid rgb(var(--ui-negative))',
+            color: 'rgb(var(--ui-negative))',
           }}
         >
           {refreshError}
         </div>
       )}
 
-      {/* Empty state — adaptive. If we've never generated, invite the user to
-          generate; if a run produced nothing, they're caught up. */}
-      {!isLoading && insights.length === 0 && (
+      {/* ════════ Empty states ════════ */}
+      {!isLoading && totalActive === 0 && (
         lastActionsGeneratedAt ? (
           <EmptyState
-            icon={<CheckCircle2 size={28} />}
+            className="mt-8"
+            icon={<CheckCircle2 className="h-7 w-7" />}
             title="You're all caught up"
-            body="No open actions right now. We'll surface new ones as your accounts, spending, and goals change."
-            cta={
+            description="No open actions right now. We'll surface new ones as your accounts, spending, and goals change."
+            action={
               <Button
-                variant="ghost"
+                variant="secondary"
+                size="sm"
                 onClick={handleRefresh}
                 disabled={refreshing || !refreshReady}
                 title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
-                icon={
+                leadingIcon={
                   <RefreshCw
-                    size={14}
+                    className="h-4 w-4"
                     style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }}
                   />
                 }
@@ -470,12 +593,13 @@ export function Insights() {
           />
         ) : (
           <EmptyState
-            icon={<Zap size={28} />}
+            className="mt-8"
+            icon={<Sparkles className="h-7 w-7" />}
             title="No actions yet"
-            body="Generate a personalized set of actions from your accounts, spending, and goals."
-            cta={
+            description="Generate a personalized set of actions from your accounts, spending, and goals."
+            action={
               <Button
-                variant="ink"
+                size="sm"
                 onClick={handleRefresh}
                 disabled={refreshing || !refreshReady}
                 title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
@@ -487,92 +611,92 @@ export function Insights() {
         )
       )}
 
-      {/* Grouped action lists — each section renders rows as editorial articles */}
+      {/* ════════ Urgency groups ════════ */}
       {!isLoading &&
-        visibleGroups.map((group) => {
+        totalActive > 0 &&
+        GROUP_ORDER.map((group) => {
           const items = grouped[group];
           if (!items.length) return null;
           const meta = GROUP_META[group];
           return (
-            <motion.div
-              key={group}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35 }}
-            >
-              <Section
-                title={meta.label}
-                eyebrow={`${items.length} ${items.length === 1 ? 'action' : 'actions'} · ${meta.hint}`}
-              >
-                <ul className="ins-list">
-                  {items.map((insight, idx) => {
-                    const insightType = insight.type ?? insight.category ?? 'general';
-                    const contextLink = PAGE_LINKS[insightType];
-                    const areaLabel = insightType.charAt(0).toUpperCase() + insightType.slice(1);
+            <section key={group} className="mt-9 first:mt-8">
+              <div className="flex items-center gap-3">
+                <span
+                  className="w-[9px] h-[9px] rounded-full shrink-0"
+                  style={{ background: meta.flag, boxShadow: `0 0 0 4px color-mix(in srgb, ${meta.flag} 18%, transparent)` }}
+                  aria-hidden
+                />
+                <h2 className="font-editorial text-[19px] font-bold tracking-[-0.02em] text-content">
+                  {meta.label}
+                </h2>
+                <span className="text-[12px] font-extrabold px-2.5 py-0.5 rounded-full bg-canvas-sunken text-content-muted ui-tnum">
+                  {items.length}
+                </span>
+                <span className="hidden sm:block text-[12.5px] font-semibold text-content-muted">
+                  {meta.note}
+                </span>
+                <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
+              </div>
 
-                    return (
-                      <ActionRow
-                        key={insight.id}
-                        title={insight.title}
-                        type={insight.type}
-                        description={insight.description}
-                        chatPrompt={insight.chatPrompt ?? insight.title}
-                        areaLabel={areaLabel}
-                        defaultOpen={idx === 0 && group === 'do_now'}
-                        priority={group}
-                        onDismiss={() => handleDismiss(insight.id)}
-                        onOpenArea={
-                          contextLink ? () => navigate(contextLink) : undefined
-                        }
-                      />
-                    );
-                  })}
-                </ul>
-              </Section>
-            </motion.div>
+              <div className="mt-4 flex flex-col gap-3.5">
+                {items.map((insight, idx) => {
+                  const cat = catFor(insight.type, insight.category);
+                  return (
+                    <ActionCard
+                      key={insight.id}
+                      index={idx}
+                      type={insight.type}
+                      category={insight.category}
+                      title={insight.title}
+                      description={insight.description}
+                      impact={insight.impact}
+                      impactColor={insight.impactColor}
+                      chatPrompt={insight.chatPrompt ?? insight.title}
+                      calm={group === 'watch'}
+                      onPrimary={() => navigate(cat.link)}
+                      onAsk={() =>
+                        askAbout(insight.title, insight.description, insight.chatPrompt ?? insight.title)
+                      }
+                      onSkip={() => handleDismiss(insight.id)}
+                    />
+                  );
+                })}
+              </div>
+            </section>
           );
         })}
 
-      {/* Completed / dismissed */}
-      {!isLoading && showCompleted && completedInsights.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
+      {/* ════════ All caught up — closing seal ════════ */}
+      {!isLoading && totalActive > 0 && activeFilter === 'all' && (
+        <section
+          className="mt-7 px-6 py-8 rounded-ui-xl border border-dashed border-line flex flex-col items-center text-center gap-2.5"
+          style={{ background: 'linear-gradient(180deg, var(--ui-brand-softer), transparent 80%)' }}
         >
-          <Section
-            title="Completed"
-            eyebrow={`${completedInsights.length} dismissed`}
+          <span
+            className="w-[50px] h-[50px] rounded-ui-md grid place-items-center text-brand-fg"
+            style={{
+              background: 'linear-gradient(145deg, var(--ui-viz-1), rgb(var(--ui-brand)))',
+              boxShadow: '0 8px 22px color-mix(in srgb, rgb(var(--ui-brand)) 30%, transparent)',
+            }}
           >
-            <ul className="ins-list ins-list--dim">
-              {completedInsights.map((insight) => {
-                const insightType = insight.type ?? insight.category ?? 'general';
-                const areaLabel =
-                  insightType.charAt(0).toUpperCase() + insightType.slice(1);
-
-                return (
-                  <li key={insight.id} className="ins-row ins-row--done">
-                    <div className="ins-row__btn" style={{ cursor: 'default' }}>
-                      <Pill tone={areaPillTone(insight.type)}>{areaLabel}</Pill>
-                      <span
-                        className="ins-row__title"
-                        style={{
-                          color: 'var(--lf-muted)',
-                          textDecoration: 'line-through',
-                        }}
-                      >
-                        {insight.title}
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </Section>
-        </motion.div>
+            <Check className="h-[26px] w-[26px]" strokeWidth={2.6} />
+          </span>
+          <h3 className="font-editorial text-[19px] font-bold tracking-[-0.02em] text-content">
+            That's everything for now
+          </h3>
+          <p className="max-w-[42ch] text-[13.5px] font-semibold text-content-muted">
+            Clear these and you're all caught up. Lasagna checks your accounts daily and surfaces the next
+            move when it matters.
+          </p>
+        </section>
       )}
 
-      {/* Undo affordance — deferred server commit means a mis-tap is recoverable */}
+      {/* legal disclaimer footnote */}
+      <div className="mt-8 pt-5 border-t border-hairline">
+        <LegalDisclaimer variant="insights" />
+      </div>
+
+      {/* ════════ Undo affordance ════════ */}
       <AnimatePresence>
         {pendingUndo && (
           <motion.div
@@ -581,37 +705,14 @@ export function Insights() {
             exit={{ opacity: 0, x: '-50%', y: 12 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             role="status"
-            style={{
-              position: 'fixed',
-              bottom: 24,
-              left: '50%',
-              zIndex: 60,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 16,
-              padding: '12px 18px',
-              background: 'var(--lf-ink)',
-              color: 'var(--lf-paper)',
-              borderRadius: 12,
-              boxShadow: 'var(--shadow-card)',
-              fontSize: 14,
-            }}
+            className="fixed bottom-6 left-1/2 z-[60] flex items-center gap-4 px-[18px] py-3 rounded-ui-md shadow-ui-md text-[14px]"
+            style={{ background: 'rgb(var(--ui-content))', color: 'rgb(var(--ui-panel))' }}
           >
-            <span>Action dismissed</span>
+            <span className="font-semibold">Action skipped</span>
             <button
               type="button"
               onClick={handleUndo}
-              style={{
-                background: 'none',
-                border: 0,
-                padding: 0,
-                font: 'inherit',
-                fontWeight: 600,
-                color: 'var(--lf-paper)',
-                textDecoration: 'underline',
-                textUnderlineOffset: 3,
-                cursor: 'pointer',
-              }}
+              className="font-bold underline underline-offset-[3px]"
             >
               Undo
             </button>
@@ -619,145 +720,7 @@ export function Insights() {
         )}
       </AnimatePresence>
 
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-        /* Loading skeleton — mirrors the toolbar + grouped feed rhythm. */
-        .ins-skeleton__toolbar {
-          display: flex;
-          gap: 8px;
-          margin: 0 0 28px;
-        }
-        .ins-skeleton__section { margin-bottom: 28px; }
-        .ins-skeleton__section:last-child { margin-bottom: 0; }
-        .ins-row--skeleton { cursor: default; }
-        @media (max-width: 640px) {
-          .ins-skeleton__section { margin-bottom: 20px; }
-        }
-
-        /* Filter pills + meta share one vertically-centered row. */
-        .ins-toolbar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-          margin: 0 0 20px;
-        }
-        @media (max-width: 640px) {
-          .ins-toolbar { flex-wrap: wrap; gap: 10px; }
-          .ins-filter-scroll { flex: 1 1 100%; }
-          .ins-meta { width: 100%; justify-content: flex-end; }
-        }
-
-        /* Header CTA: full width on mobile is overkill — shrink to sm sizing. */
-        @media (max-width: 640px) {
-          .ins-walk-cta {
-            font-size: 13px;
-            padding: 8px 12px;
-          }
-        }
-
-        /* Filter pills: horizontally scroll on mobile rather than wrap. */
-        .ins-filter-scroll {
-          flex: 1;
-          min-width: 0;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          margin: 0 -16px;
-          padding: 0 16px;
-          scrollbar-width: none;
-        }
-        .ins-filter-scroll::-webkit-scrollbar { display: none; }
-        .ins-filter-pills {
-          display: flex;
-          gap: 8px;
-          flex-wrap: nowrap;
-          white-space: nowrap;
-        }
-        .ins-filter-pill { flex-shrink: 0; }
-        @media (min-width: 768px) {
-          .ins-filter-scroll { overflow-x: visible; margin: 0; padding: 0; }
-          .ins-filter-pills { flex-wrap: wrap; white-space: normal; }
-        }
-
-        /* Action row: push Dismiss to the right on desktop only — on mobile it
-           wraps into the next row naturally. */
-        @media (min-width: 768px) {
-          .ins-row__actions .ins-dismiss-btn { margin-left: auto; }
-        }
-        .ins-meta {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-shrink: 0;
-        }
-
-        /* Each action is its own card (matches the dashboard Card surface), in
-           a simple gap stack — not a single hairline-row panel. */
-        .ins-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .ins-list--dim { opacity: 0.7; }
-
-        .ins-row {
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 12px;
-          box-shadow: var(--shadow-card);
-          overflow: hidden;
-        }
-
-        .ins-row__btn {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          width: 100%;
-          background: none;
-          border: 0;
-          padding: 16px 18px;
-          text-align: left;
-          cursor: pointer;
-          color: inherit;
-        }
-        .ins-row__btn:hover .ins-row__title { color: var(--lf-sauce); }
-        .ins-row__title {
-          flex: 1;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 16px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.25;
-          letter-spacing: -0.005em;
-          transition: color 0.15s;
-        }
-        .ins-row__chev {
-          color: var(--lf-muted);
-          flex-shrink: 0;
-          transition: transform 0.2s ease;
-        }
-
-        .ins-row__body {
-          padding: 0 18px 18px;
-        }
-        .ins-row__actions {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-
-        @media (max-width: 640px) {
-          .ins-row__btn { padding: 16px 14px; }
-          .ins-row__body { padding: 0 14px 18px; }
-          /* Expanded action buttons meet the 44px touch minimum on mobile. */
-          .ins-row__actions .ds-btn { min-height: 44px; }
-        }
-      `}</style>
-    </Page>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
   );
 }

@@ -6,7 +6,6 @@ import { useChatStore, setChatExpanded } from '../../lib/chat-store';
 import { useGlobalChat } from './use-global-chat';
 import { ChatThreadView } from './chat-thread-view';
 import { ChatThreadList } from './chat-thread-list';
-import { Eyebrow } from '../ds';
 
 // Compact composer + suggested prompts shown in the conversation pane when no
 // thread is active (the "new chat" state).
@@ -37,23 +36,23 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6">
-      <div className="w-full max-w-[760px] animate-fade-in">
-        <div className="flex flex-col items-center text-center mb-7">
-          <div className="w-12 h-12 rounded-2xl bg-accent/10 ring-1 ring-accent/15 grid place-items-center mb-4">
-            <Sparkles className="w-5 h-5 text-accent" />
+    <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6 py-10">
+      <div className="w-full max-w-[620px] animate-fade-in">
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="w-12 h-12 rounded-ui-lg bg-brand-soft grid place-items-center mb-4">
+            <Sparkles className="w-[22px] h-[22px] text-[rgb(var(--ui-brand-ink))]" />
           </div>
-          <Eyebrow variant="sauce">AI Assistant</Eyebrow>
-          <h2 className="font-serif font-semibold text-3xl text-text mt-2 leading-tight">
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-brand-ink))]">AI Assistant</span>
+          <h2 className="font-editorial font-bold text-[30px] sm:text-[34px] text-content mt-2.5 leading-[1.05] tracking-[-0.025em]">
             Ask anything about your finances
           </h2>
-          <p className="text-sm text-text-secondary mt-2 max-w-sm">
+          <p className="text-[14px] font-medium text-content-muted mt-3 max-w-md leading-relaxed">
             I can analyze your accounts, spending, and plans — and walk you through what to do next.
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-2xl border border-border bg-surface shadow-[var(--shadow-card)] transition-all focus-within:border-accent/40 focus-within:ring-2 focus-within:ring-accent/15">
+          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-transparent transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
             <textarea
               ref={inputRef}
               value={input}
@@ -62,27 +61,27 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
               placeholder="Ask anything…"
               aria-label="Message Lasagna"
               rows={1}
-              className="flex-1 py-2 bg-transparent text-text text-sm placeholder:text-text-muted focus:outline-none resize-none overflow-y-auto"
+              className="flex-1 min-w-0 py-2 bg-transparent text-content text-[15px] placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto"
               style={{ maxHeight: 120 }}
             />
             <button
               type="submit"
               disabled={!input.trim()}
               aria-label="Send message"
-              className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+              className={`shrink-0 grid place-items-center w-10 h-10 rounded-full transition-[transform,box-shadow,background-color] ${
                 input.trim()
-                  ? 'bg-accent hover:bg-accent/90 shadow-sm shadow-accent/20'
-                  : 'bg-border text-text-muted cursor-not-allowed'
+                  ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm'
+                  : 'bg-canvas-sunken text-content-muted cursor-not-allowed'
               }`}
             >
-              <Send className="w-4 h-4 text-white" />
+              <Send className="w-4 h-4" />
             </button>
           </div>
         </form>
 
         {suggestions.length > 0 && (
           <div className="mt-5">
-            <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-text-muted text-center mb-2.5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted text-center mb-3">
               Try asking
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
@@ -90,10 +89,10 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
                 <button
                   key={i}
                   onClick={() => onSend(s)}
-                  className="group inline-flex items-center gap-1.5 pl-3.5 pr-3 py-2 rounded-full text-[13px] font-medium bg-surface border border-border text-text-secondary hover:bg-surface-hover hover:text-text hover:border-accent/30 transition-all"
+                  className="group inline-flex items-center gap-1.5 min-h-[36px] pl-3.5 pr-3 rounded-full text-[13px] font-semibold bg-panel border border-line-strong text-content-secondary hover:bg-brand-soft hover:text-[rgb(var(--ui-brand-ink))] hover:border-transparent active:scale-[0.98] transition-[background,color,border-color,transform]"
                 >
                   {s}
-                  <ArrowUpRight className="w-3 h-3 text-text-muted group-hover:text-accent transition-colors" />
+                  <ArrowUpRight className="w-3 h-3 text-content-muted group-hover:text-[rgb(var(--ui-brand-ink))] transition-colors" />
                 </button>
               ))}
             </div>
@@ -135,7 +134,7 @@ export function ChatFullPage() {
   // the thread view's back affordance.
   if (isMobile) {
     return (
-      <div className="flex flex-col h-full min-h-0 bg-bg">
+      <div className="flex flex-col h-full min-h-0 bg-canvas">
         {activeThread ? (
           <ChatThreadView
             thread={activeThread.thread}
@@ -166,19 +165,19 @@ export function ChatFullPage() {
   return (
     <div className="flex h-full min-h-0">
       {/* History rail */}
-      <div className="w-[300px] flex-shrink-0 border-r border-border flex flex-col bg-surface min-h-0">
-        <div className="flex items-center justify-between px-3 py-2.5 border-b border-border flex-shrink-0">
+      <div className="w-[300px] flex-shrink-0 border-r border-line flex flex-col bg-canvas min-h-0">
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-line flex-shrink-0">
           <button
             onClick={handleCollapse}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-secondary hover:text-text"
+            className="flex items-center gap-1.5 px-2 py-2 rounded-ui-md hover:bg-canvas-sunken transition-colors text-content-secondary hover:text-content"
             title="Collapse to sidebar"
           >
             <Minimize2 className="w-4 h-4" />
-            <span className="text-xs font-medium">Collapse</span>
+            <span className="text-xs font-semibold">Collapse</span>
           </button>
           <button
             onClick={() => setActiveThread(null)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-ui-md bg-brand-soft text-[rgb(var(--ui-brand-ink))] text-xs font-bold hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
           >
             <Plus className="w-3.5 h-3.5" />
             New chat
@@ -187,44 +186,45 @@ export function ChatFullPage() {
 
         <div className="flex-1 overflow-y-auto min-h-0">
           {threadSummaries.length === 0 ? (
-            <p className="px-4 py-6 text-xs text-text-muted">No conversations yet.</p>
+            <p className="px-4 py-6 text-xs text-content-muted">No conversations yet.</p>
           ) : (
-            <div className="py-1">
-              <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted">
+            <div className="px-2 py-2">
+              <p className="px-2.5 pt-2 pb-2 text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">
                 Conversations
               </p>
+              <div className="flex flex-col gap-0.5">
               {threadSummaries.map((thread, index) => {
                 const active = index === activeThreadIndex;
                 return (
                 <div
                   key={thread.id}
-                  className={`group flex items-start gap-1 border-b border-border/50 last:border-b-0 transition-colors relative ${
-                    active ? 'bg-accent/[0.06]' : 'hover:bg-surface-hover'
+                  className={`group relative flex items-start rounded-ui-md transition-colors ${
+                    active ? 'bg-brand-soft' : 'hover:bg-canvas-sunken'
                   }`}
                 >
                   {active && (
-                    <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-accent" />
+                    <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-full bg-brand" />
                   )}
                   {thread.unread && !active && (
-                    <span className="absolute left-1.5 top-5 w-2 h-2 rounded-full bg-accent flex-shrink-0" />
+                    <span className="absolute left-2 top-[18px] w-1.5 h-1.5 rounded-full bg-brand flex-shrink-0" />
                   )}
                   <button
                     onClick={() => handleSelectThread(index)}
-                    className="flex-1 text-left flex flex-col gap-1 px-4 py-3.5 min-w-0"
+                    className={`flex-1 text-left flex flex-col gap-1 py-3 min-w-0 ${thread.unread && !active ? 'pl-4 pr-3' : 'px-4'}`}
                   >
-                    <span className={`text-sm leading-snug line-clamp-2 ${thread.unread || active ? 'font-semibold text-text' : 'font-medium text-text'}`}>
+                    <span className={`text-[13.5px] leading-snug line-clamp-2 break-words ${active ? 'font-semibold text-[rgb(var(--ui-brand-ink))]' : thread.unread ? 'font-semibold text-content' : 'font-medium text-content'}`}>
                       {thread.question}
                     </span>
                     {thread.answerPreview && (
-                      <span className="text-xs text-text-secondary leading-snug line-clamp-2">
+                      <span className="text-[12px] text-content-muted leading-snug line-clamp-1 break-words">
                         {thread.answerPreview}
                       </span>
                     )}
-                    <span className="text-[11px] text-text-muted mt-0.5">{thread.timestamp}</span>
+                    <span className="text-[11px] text-content-muted mt-0.5">{thread.timestamp}</span>
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDeleteThread(index); }}
-                    className="flex-shrink-0 p-2 mt-3 mr-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-danger/10 hover:text-danger text-text-muted transition-all"
+                    className="flex-shrink-0 p-2 mt-2.5 mr-1.5 rounded-ui-sm opacity-0 group-hover:opacity-100 hover:bg-negative-soft hover:text-negative text-content-muted transition-all"
                     aria-label="Delete conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -232,6 +232,7 @@ export function ChatFullPage() {
                 </div>
                 );
               })}
+              </div>
             </div>
           )}
         </div>

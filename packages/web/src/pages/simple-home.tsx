@@ -1,20 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ChevronRight } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
-import {
-  Page,
-  Section,
-  Card,
-  Button,
-  CompositionRibbon,
-  SkeletonBlock,
-  SkeletonLine,
-  SkeletonRow,
-} from '../components/ds';
+import { Button, Skeleton } from '../components/uikit';
 import { formatCurrency, goalColor, iconFor } from './goal-shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -101,15 +92,55 @@ function formatMoneyShort(n: number): string {
 }
 
 const formatDateLong = (d: Date) =>
-  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const formatDateShort = (d: Date) =>
+  d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 function greetingForHour(h: number) {
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
 }
+
+// ─── Small presentational primitives (Bright --ui-* tokens) ────────────────────
+
+/** A rounded progress track with a colored fill. */
+function Track({ pct, color, shine = false }: { pct: number; color: string; shine?: boolean }) {
+  return (
+    <div className="h-[9px] rounded-full bg-canvas-sunken overflow-hidden">
+      <div
+        className="h-full rounded-full relative"
+        style={{
+          width: `${Math.max(0, Math.min(100, pct))}%`,
+          background: color,
+          boxShadow: shine ? 'inset 0 1px 0 rgba(255,255,255,0.4)' : undefined,
+        }}
+      />
+    </div>
+  );
+}
+
+/** Net-worth 30-day delta chip — sign + arrow + tinted color (never color-only). */
+function DeltaChip({ delta, suffix }: { delta: number; suffix?: string }) {
+  const positive = delta >= 0;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
+      style={{
+        background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
+        color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
+      </svg>
+      {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}{suffix ? ` · ${suffix}` : ''}
+    </span>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function SimpleHome() {
   const { user, tenant } = useAuth();
@@ -244,7 +275,8 @@ export function SimpleHome() {
   const ranked = [...insights].sort(
     (a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0),
   );
-  const sideActions = ranked.slice(0, 3);
+  // Three moves total: the priority step (when present) takes one slot.
+  const sideActions = currentStep ? ranked.slice(0, 2) : ranked.slice(0, 3);
 
   const topGoal = goals.find((g) => g.status === 'active');
 
@@ -266,7 +298,7 @@ export function SimpleHome() {
     };
     const prompts: string[] = [];
     if (breakdown && breakdown.debts > 0) {
-      prompts.push(`How fast can I pay off my ${shortUsd(breakdown.debts)} in debt?`);
+      prompts.push(`Pay off ${shortUsd(breakdown.debts)} faster?`);
     }
     if (topGoal) {
       const target = parseFloat(topGoal.targetAmount);
@@ -276,276 +308,482 @@ export function SimpleHome() {
       if (target > 0) {
         prompts.push(
           remaining > 0
-            ? `What's the fastest path to ${shortUsd(remaining)} for ${label}?`
-            : `What should I focus on after hitting my ${label}?`
+            ? `Fastest path to ${shortUsd(remaining)}?`
+            : `What's next after my ${label}?`
         );
       }
     }
     if (breakdown && breakdown.netWorth > 0) {
-      prompts.push(`Can I retire by 65 on ${shortUsd(breakdown.netWorth)}?`);
+      prompts.push(`Retire at 65 on ${shortUsd(breakdown.netWorth)}?`);
     }
-    prompts.push('Should I tax-loss harvest before year-end?');
-    prompts.push('What is my safe withdrawal rate?');
-    return prompts.slice(0, 4);
+    prompts.push('Tax-loss harvest this year?');
+    prompts.push('My safe withdrawal rate?');
+    return prompts.slice(0, 3);
   }, [breakdown, topGoal]);
 
+  const hasComposition =
+    breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0);
+
+  const moveCount = (currentStep ? 1 : 0) + sideActions.length;
+
   return (
-    <Page>
-      {/* Compact masthead — single row: greeting + inline net-worth caption.
-          Date moves to a tiny subline; no separate eyebrow band. Saves ~80px
-          of vertical real estate vs the old PageHeader + Lede stack. */}
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">{greeting}, {firstName}.</h1>
-          <span className="ds-page-bar__caption">{formatDateLong(new Date())}</span>
-        </div>
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      {/* Greeting */}
+      <header className="animate-fade-in">
+        <h1 className="font-editorial text-[26px] sm:text-[33px] font-bold leading-[1.05] tracking-[-0.025em] text-content">
+          {greeting}, {firstName} <span className="inline-block origin-[70%_70%]">👋</span>
+        </h1>
+        <p className="mt-1.5 text-[14px] font-medium text-content-muted">
+          {formatDateLong(new Date())} · here's what's worth a look
+        </p>
       </header>
 
-      {/* First-paint skeleton — reserves the hero + ribbon footprint so the
-          top of the page doesn't pop in. Matches the loaded outline (dark
-          hero block, then ribbon card) the way the Money page does. */}
+      {/* First-paint skeleton — reserves the hero + grid footprint. */}
       {loading && !breakdown && (
-        <>
-          <div className="ds-hero-skel">
-            {/* Height is owned by .ds-hero-skel (responsive) so the block
-                matches the loaded .ds-hero footprint at every breakpoint and
-                nothing shifts when the number lands. */}
-            <SkeletonBlock height={137} style={{ height: '100%', borderRadius: 16 }} />
+        <div className="mt-7 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-7 items-start">
+          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+            <Skeleton className="h-4 w-52" />
+            <Skeleton className="mt-5 h-8 w-full rounded-[11px]" />
+            <Skeleton className="mt-3 h-3 w-2/3" />
+            <Skeleton className="mt-8 h-8 w-32 rounded-[11px]" />
+            <Skeleton className="mt-6 h-16 w-full rounded-ui-lg" />
           </div>
-          <div className="ds-ribbon-skel">
-            <SkeletonLine width="90px" height={11} style={{ marginBottom: 14 }} />
-            <SkeletonBlock height={36} style={{ borderRadius: 4, marginBottom: 14 }} />
-            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-              {[0, 1, 2, 3].map((i) => (
-                <SkeletonLine key={i} width="96px" height={13} />
-              ))}
-            </div>
+          <div className="flex flex-col gap-[18px]">
+            <Skeleton className="h-[230px] w-full rounded-ui-xl" />
+            <Skeleton className="h-[160px] w-full rounded-ui-xl" />
           </div>
-        </>
+        </div>
       )}
 
-      {/* Net-worth hero — the focal figure of the page */}
+      {/* ════════ CONSISTENT 2/3 + 1/3 GRID ════════ */}
       {breakdown && (
-        <div className="ds-hero">
-          <span className="ds-hero__label">Net worth</span>
-          <div className="ds-hero__row">
-            <span className="ds-hero__value ds-num">{fmtUsd(breakdown.netWorth)}</span>
-            {monthDelta !== null && (
-              <span className={`ds-delta-chip ds-delta-chip--${monthDelta >= 0 ? 'pos' : 'neg'}`}>
-                {monthDelta >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(monthDelta))} this month
-              </span>
+        <div className="mt-7 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-7 items-start">
+
+          {/* ░░░░ LEFT COLUMN (2/3) ░░░░ */}
+          <div className="min-w-0 flex flex-col">
+            {hasComposition && (
+              <NetWorthBreakdown
+                breakdown={breakdown}
+                monthDelta={monthDelta}
+                onOpenMoney={() => setLocation('/money')}
+              />
             )}
-          </div>
-        </div>
-      )}
 
-      {/* Composition ribbon — visual KPI strip, primary signal at top */}
-      {breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0) && (() => {
-        const totalAccounts = breakdown.cashCount + breakdown.investmentsCount + breakdown.assetsCount + breakdown.debtsCount;
-        return (
-          <Section>
-            <CompositionRibbon
-              leadLabel="By account"
-              leadDelta={totalAccounts > 0 ? `${totalAccounts} account${totalAccounts === 1 ? '' : 's'}` : undefined}
-              segments={[
-                ...(breakdown.cash > 0 ? [{ label: 'Cash', value: breakdown.cash, color: 'var(--data-cash)' }] : []),
-                ...(breakdown.investments > 0 ? [{ label: 'Investments', value: breakdown.investments, color: 'var(--data-investments)' }] : []),
-                ...(breakdown.assets > 0 ? [{ label: assetsLabel(breakdown), value: breakdown.assets, color: 'var(--data-assets)' }] : []),
-                ...(breakdown.debts > 0 ? [{ label: 'Debt', value: breakdown.debts, color: 'var(--data-debt)', negative: true }] : []),
-              ]}
-            />
-          </Section>
-        );
-      })()}
-
-      {/* Ask Lasagna — moved above the focus card so chat suggestions sit
-          near the top, right under the net-worth breakdown. */}
-      <AskStrip
-        value={askDraft}
-        onChange={setAskDraft}
-        onSubmit={submitAsk}
-        prompts={suggestedPrompts}
-        onPick={(q) => openChat(q)}
-      />
-
-      {/* Combined "Where you are + What to do" — Financial Level current step
-          stacked with the top actions, so the user sees both at a glance
-          without scrolling. */}
-      {levelLoading ? (
-        <Section title="Do this next">
-          <Card>
-            <SkeletonLine width="46%" height={18} style={{ marginBottom: 12, display: 'block' }} />
-            <SkeletonLine width="80%" height={13} style={{ marginBottom: 7, display: 'block' }} />
-            <SkeletonLine width="64%" height={13} style={{ marginBottom: 18, display: 'block' }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <SkeletonBlock height={36} style={{ width: 96, borderRadius: 999 }} />
-              <SkeletonBlock height={36} style={{ width: 96, borderRadius: 999 }} />
+            {/* Today — three moves */}
+            <div className="mt-10 flex items-center gap-3.5 flex-wrap">
+              <span className="inline-flex items-center gap-2.5">
+                <span
+                  className="w-[7px] h-[7px] rounded-full bg-brand"
+                  style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+                />
+                <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Today</span>
+              </span>
+              <div>
+                <h2 className="font-editorial text-[24px] sm:text-[28px] font-bold leading-[1.05] tracking-[-0.025em]">
+                  {moveCount > 1 ? `${moveCount} moves to make today` : 'Your next move'}
+                </h2>
+                <p className="mt-1 text-[14px] font-medium text-content-muted">
+                  Lined up biggest-impact first — quick wins for your wealth.
+                </p>
+              </div>
             </div>
-          </Card>
-        </Section>
-      ) : (currentStep || sideActions.length > 0) ? (
-        <LevelAndActionsCard
-          step={currentStep}
-          actions={ranked.slice(0, 3)}
-          generating={generatingInsights}
-          onGenerateActions={async () => {
-            setGeneratingInsights(true);
-            try { await refreshInsights(); } finally { setGeneratingInsights(false); }
-          }}
-          onStepComplete={async () => {
-            if (!currentStep) return;
-            try { await api.completePriorityStep(currentStep.id, true); } catch {}
-            await loadPriorities();
-          }}
-          onStepSkip={async () => {
-            if (!currentStep) return;
-            try { await api.skipPriorityStep(currentStep.id, true); } catch {}
-            await loadPriorities();
-          }}
-          onStepUnskip={async () => {
-            if (!currentStep) return;
-            try { await api.skipPriorityStep(currentStep.id, false); } catch {}
-            await loadPriorities();
-          }}
-          onStepHelp={() => {
-            if (!currentStep) return;
-            const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
-            openChat(prompt);
-          }}
-          onActionDone={async (id) => {
-            try { await api.actOnInsight(id); } catch {}
-            await reloadInsights();
-          }}
-        />
-      ) : (
-        <div className="ds-focus-wrap">
-          <Card variant="ghost">
-            <h3 className="ds-h2">Set up your financial profile</h3>
-            <p className="ds-body" style={{ marginTop: 8, marginBottom: 16 }}>
-              Tell us the basics and we'll show you exactly what to do next.
-            </p>
-            <Button variant="ink" onClick={() => setLocation('/profile')}>Get started →</Button>
-          </Card>
+
+            <MovesQueue
+              step={currentStep}
+              actions={sideActions}
+              levelLoading={levelLoading}
+              generating={generatingInsights}
+              onOpenInsight={(id) => setLocation(`/insights?id=${id}`)}
+              onGenerateActions={async () => {
+                setGeneratingInsights(true);
+                try { await refreshInsights(); } finally { setGeneratingInsights(false); }
+              }}
+              onStepComplete={async () => {
+                if (!currentStep) return;
+                try { await api.completePriorityStep(currentStep.id, true); } catch {}
+                await loadPriorities();
+              }}
+              onStepSkip={async () => {
+                if (!currentStep) return;
+                try { await api.skipPriorityStep(currentStep.id, true); } catch {}
+                await loadPriorities();
+              }}
+              onStepUnskip={async () => {
+                if (!currentStep) return;
+                try { await api.skipPriorityStep(currentStep.id, false); } catch {}
+                await loadPriorities();
+              }}
+              onStepHelp={() => {
+                if (!currentStep) return;
+                const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
+                openChat(prompt);
+              }}
+              onActionDone={async (id) => {
+                try { await api.actOnInsight(id); } catch {}
+                await reloadInsights();
+              }}
+              onSetupProfile={() => setLocation('/profile')}
+            />
+          </div>
+
+          {/* ░░░░ RIGHT COLUMN (1/3) ░░░░ */}
+          <aside className="min-w-0 flex flex-col gap-[18px]">
+            <NetWorthChart history={nwHistory} monthDelta={monthDelta} netWorth={breakdown.netWorth} />
+            <AskComposer
+              value={askDraft}
+              onChange={setAskDraft}
+              onSubmit={submitAsk}
+              prompts={suggestedPrompts}
+              onPick={(q) => openChat(q)}
+            />
+            <GoalsRail goals={goals} loading={loading} />
+          </aside>
         </div>
       )}
-
-      {/* Goals — active savings goals as compact progress rows */}
-      <GoalsSection goals={goals} loading={loading} />
 
       {/* Upcoming bill — a single marginalia note when one is due soon */}
       {upcomingBill && (
-        <div className="ds-home-aside">
-          <MarginaliaBill bill={upcomingBill} account={upcomingBill.accountId ? accountsById.get(upcomingBill.accountId) ?? null : null} />
-        </div>
+        <MarginaliaBill
+          bill={upcomingBill}
+          account={upcomingBill.accountId ? accountsById.get(upcomingBill.accountId) ?? null : null}
+        />
       )}
-
-      {/* Local layout helpers — page-specific only, no typography tokens.
-          NOTE: AskStrip mobile-hide is owned by the <AskStrip> component. */}
-      <style>{`
-        .ds-home-aside {
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-        /* First-paint skeletons — mirror the hero (dark panel) + ribbon (card)
-           footprints so content swaps in without a layout jolt. Heights are
-           pinned to the measured loaded surfaces: .ds-hero ≈137px desktop /
-           ≈152px mobile (the delta chip wraps below the value), and .ds-ribbon
-           ≈143px desktop / ≈214px mobile (legend wraps to multiple rows). */
-        .ds-hero-skel { margin: 2px 0 14px; height: 137px; }
-        .ds-ribbon-skel {
-          margin: 0 0 28px;
-          min-height: 143px;
-          padding: 20px;
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 12px;
-          box-shadow: var(--shadow-card);
-        }
-        @media (max-width: 640px) {
-          .ds-hero-skel { height: 152px; }
-          .ds-ribbon-skel { min-height: 214px; }
-        }
-      `}</style>
-    </Page>
+    </div>
   );
 }
 
-// ─── Combined "Level + Actions" card ───────────────────────────────────────
-// Stacked layout: current Financial Level step on top (with progress and
-// primary CTA), then a divider, then the top 2-3 actions as a tight list.
-// Designed to show the user "where you are" + "what's next" in one card
-// above the fold, so the Actions tab is never out of reach on the home view.
+// ─── Card shell ────────────────────────────────────────────────────────────────
 
-function LevelAndActionsCard({
-  step,
-  actions,
-  generating,
-  onStepComplete,
-  onStepSkip,
-  onStepUnskip,
-  onStepHelp,
-  onActionDone,
-  onGenerateActions,
+function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-ui-xl border border-line bg-panel shadow-ui-sm ${className}`}>
+      {children}
+    </section>
+  );
+}
+
+// ─── Net-worth breakdown — vertical assets / debt equation ──────────────────────
+
+function NetWorthBreakdown({
+  breakdown, monthDelta, onOpenMoney,
+}: {
+  breakdown: NetBreakdown;
+  monthDelta: number | null;
+  onOpenMoney: () => void;
+}) {
+  const assetTotal = breakdown.cash + breakdown.investments + breakdown.assets;
+  const assetAccounts = breakdown.cashCount + breakdown.investmentsCount + breakdown.assetsCount;
+
+  // Assets stacked-bar segments (Cash · Investments · Property) — proportional.
+  const segments = [
+    breakdown.cash > 0 && { key: 'cash', label: 'Cash', value: breakdown.cash, count: breakdown.cashCount, viz: 1 },
+    breakdown.investments > 0 && { key: 'inv', label: 'Investments', value: breakdown.investments, count: breakdown.investmentsCount, viz: 2 },
+    breakdown.assets > 0 && { key: 'prop', label: assetsLabel(breakdown), value: breakdown.assets, count: breakdown.assetsCount, viz: 3 },
+  ].filter(Boolean) as { key: string; label: string; value: number; count: number; viz: number }[];
+
+  // Debt bar shares the assets' left origin, proportionally shorter.
+  const debtPct = assetTotal > 0 ? Math.min(100, (breakdown.debts / assetTotal) * 100) : 0;
+  const debtRatioLabel = assetTotal > 0 ? Math.round((breakdown.debts / assetTotal) * 100) : 0;
+
+  return (
+    <Card className="relative overflow-hidden p-6 sm:p-7 animate-fade-in" >
+      {/* atmospheric wash */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(120% 80% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+            'radial-gradient(90% 70% at 0% 8%, var(--ui-brand-softer), transparent 60%)',
+        }}
+      />
+      <div className="relative flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Where your wealth stands</h2>
+          <p className="mt-1 text-[13.5px] font-medium text-content-muted max-w-[52ch]">
+            What you own, minus what you owe — across {assetAccounts + breakdown.debtsCount} connected account{assetAccounts + breakdown.debtsCount === 1 ? '' : 's'}.
+          </p>
+        </div>
+        <button
+          onClick={onOpenMoney}
+          className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+        >
+          Open Money <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="relative mt-6 flex flex-col">
+        {/* ASSETS — full-width stacked bar */}
+        <div>
+          <div className="flex items-baseline gap-2.5 flex-wrap mb-3">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</span>
+            <span className="font-editorial text-[21px] font-extrabold tracking-[-0.02em] ui-tnum">{fmtUsd(assetTotal)}</span>
+            <span className="ml-auto text-[12px] font-semibold text-content-muted">{assetAccounts} account{assetAccounts === 1 ? '' : 's'}</span>
+          </div>
+          <div
+            className="flex gap-[3px] h-8 rounded-[11px] overflow-hidden"
+            style={{ boxShadow: 'var(--ui-shadow-sm), inset 0 1.5px 0 rgba(255,255,255,0.32)' }}
+            role="img"
+            aria-label="Assets breakdown bar"
+          >
+            {segments.map((s, i) => {
+              const pct = Math.round((s.value / (assetTotal || 1)) * 100);
+              const wide = pct >= 12;
+              return (
+                <div
+                  key={s.key}
+                  className="relative h-full flex items-center px-[11px]"
+                  style={{
+                    flexGrow: s.value,
+                    minWidth: 6,
+                    background: `var(--ui-viz-${s.viz})`,
+                    backgroundImage: 'linear-gradient(170deg, rgba(255,255,255,0.30), rgba(255,255,255,0) 50%, rgba(0,0,0,0.06))',
+                    borderRadius: i === 0 ? '9px 3px 3px 9px' : i === segments.length - 1 ? '3px 9px 9px 3px' : '3px',
+                  }}
+                  title={`${s.label} · ${pct}%`}
+                >
+                  {wide && (
+                    <span className="text-[12px] font-extrabold text-white truncate" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.24)' }}>
+                      {s.label} · {pct}%
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {/* legend */}
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 ui-tnum">
+            {segments.map((s) => {
+              const pct = Math.round((s.value / (assetTotal || 1)) * 100);
+              return (
+                <span key={s.key} className="inline-flex items-center gap-2 text-[13px]">
+                  <span className="w-[9px] h-[9px] rounded-[3px] shrink-0" style={{ background: `var(--ui-viz-${s.viz})` }} />
+                  <span className="font-bold">{s.label}</span>
+                  <span className="font-editorial font-extrabold tracking-[-0.01em]">{fmtUsd(s.value)}</span>
+                  <span className="text-[12px] font-semibold text-content-muted">{pct}% · {s.count} acct{s.count === 1 ? '' : 's'}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* minus */}
+        <div aria-hidden className="self-start ml-[3px] my-3 font-editorial font-semibold text-[26px] leading-none text-content-faint">−</div>
+
+        {/* DEBT — aligned to same left origin, proportionally shorter */}
+        <div>
+          <div className="flex items-baseline gap-2.5 flex-wrap mb-3">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Debt</span>
+            <span className="font-editorial text-[21px] font-extrabold tracking-[-0.02em] ui-tnum" style={{ color: 'rgb(var(--ui-negative))' }}>
+              −{fmtUsd(breakdown.debts)}
+            </span>
+            <span className="ml-auto text-[12px] font-semibold text-content-muted">{breakdown.debtsCount} account{breakdown.debtsCount === 1 ? '' : 's'}</span>
+          </div>
+          <div style={{ width: `${debtPct}%`, minWidth: 92 }}>
+            <div
+              className="h-8 rounded-[11px]"
+              role="img"
+              aria-label={`Total debt, about ${debtRatioLabel} percent the size of assets`}
+              style={{
+                backgroundColor: 'var(--ui-viz-4)',
+                backgroundImage:
+                  'repeating-linear-gradient(-45deg, rgba(255,255,255,0.32) 0 2px, transparent 2px 9px),' +
+                  'linear-gradient(170deg, rgba(255,255,255,0.20), rgba(0,0,0,0.08))',
+                boxShadow: 'var(--ui-shadow-sm), inset 0 1.5px 0 rgba(255,255,255,0.28)',
+              }}
+            />
+          </div>
+          {breakdown.debts > 0 && (
+            <div className="mt-2.5 text-[12px] font-semibold text-content-muted">
+              Liabilities you owe — about {debtRatioLabel}% the size of your assets
+            </div>
+          )}
+        </div>
+
+        {/* equals */}
+        <div aria-hidden className="self-start ml-[3px] my-3 font-editorial font-semibold text-[26px] leading-none text-content-faint">=</div>
+
+        {/* NET WORTH — the payoff */}
+        <div
+          className="flex items-center justify-between gap-4 flex-wrap px-5 py-4 rounded-ui-lg"
+          style={{ background: 'var(--ui-brand-soft)' }}
+        >
+          <div>
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</span>
+            <div className="mt-1 font-editorial font-extrabold tracking-[-0.03em] leading-none text-brand text-[30px] sm:text-[36px] ui-tnum">
+              {fmtUsd(breakdown.netWorth)}
+            </div>
+          </div>
+          {monthDelta !== null && <DeltaChip delta={monthDelta} suffix="30 days" />}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Three moves queue ──────────────────────────────────────────────────────────
+
+const ACCENT = {
+  brand: { text: 'rgb(var(--ui-brand))', bar: 'rgb(var(--ui-brand))', soft: 'var(--ui-brand-soft)', border: 'var(--ui-brand-soft)' },
+  negative: { text: 'rgb(var(--ui-negative))', bar: 'var(--ui-viz-4)', soft: 'var(--ui-negative-soft)', border: 'var(--ui-negative-soft)' },
+  caution: { text: 'rgb(var(--ui-caution))', bar: 'var(--ui-viz-3)', soft: 'var(--ui-caution-soft)', border: 'var(--ui-caution-soft)' },
+} as const;
+
+type AccentKey = keyof typeof ACCENT;
+
+function urgencyAccent(urgency: string): { accent: AccentKey; label: string } {
+  if (urgency === 'critical' || urgency === 'high') return { accent: 'negative', label: 'High priority' };
+  if (urgency === 'medium') return { accent: 'caution', label: 'Worth doing' };
+  return { accent: 'brand', label: 'When you can' };
+}
+
+/** One numbered move card with the timeline node. */
+function MoveCard({
+  node, accent, tag, tagIcon, title, why, impactVal, impactLab, progress, progressDetail, footer,
+}: {
+  node: React.ReactNode;
+  accent: AccentKey;
+  tag: string;
+  tagIcon?: React.ReactNode;
+  title: string;
+  why?: React.ReactNode;
+  impactVal?: string;
+  impactLab?: string;
+  progress?: number;
+  progressDetail?: string | null;
+  footer: React.ReactNode;
+}) {
+  const a = ACCENT[accent];
+  return (
+    <article className="relative pl-[50px]">
+      {/* timeline node */}
+      <div
+        className="absolute left-0 top-[22px] w-10 h-10 rounded-[13px] grid place-items-center font-editorial font-extrabold text-[17px] bg-panel shadow-ui-sm z-[2]"
+        style={{ color: a.text, border: `2px solid ${a.border}` }}
+      >
+        {node}
+      </div>
+      <div className="relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[18px_20px] sm:p-[22px_24px] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md">
+        <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: a.bar }} />
+        <div className="flex items-start gap-5">
+          <div className="flex-1 min-w-0">
+            <span
+              className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-[0.05em] mb-3"
+              style={{ background: a.soft, color: a.text }}
+            >
+              {tagIcon}{tag}
+            </span>
+            <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em]">{title}</h3>
+            {why && <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-3 max-w-[50ch]">{why}</p>}
+          </div>
+          {impactVal && (
+            <div className="text-right shrink-0 pl-2.5 min-w-[88px]">
+              <div className="font-editorial text-[24px] sm:text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum" style={{ color: a.text }}>
+                {impactVal}
+              </div>
+              {impactLab && <div className="mt-1.5 text-[12px] font-semibold text-content-muted">{impactLab}</div>}
+            </div>
+          )}
+        </div>
+        {progress != null && progress > 0 && (
+          <div className="mt-3.5">
+            <Track pct={progress} color="rgb(var(--ui-brand))" />
+            {progressDetail && <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">{progressDetail}</div>}
+          </div>
+        )}
+        <div className="flex items-center gap-2 mt-4 flex-wrap">{footer}</div>
+      </div>
+    </article>
+  );
+}
+
+function MovesQueue({
+  step, actions, levelLoading, generating,
+  onOpenInsight, onGenerateActions,
+  onStepComplete, onStepSkip, onStepUnskip, onStepHelp, onActionDone, onSetupProfile,
 }: {
   step: LevelStep | null;
   actions: InsightLike[];
+  levelLoading: boolean;
   generating: boolean;
+  onOpenInsight: (id: string) => void;
+  onGenerateActions: () => void | Promise<void>;
   onStepComplete: () => void | Promise<void>;
   onStepSkip: () => void | Promise<void>;
   onStepUnskip: () => void | Promise<void>;
   onStepHelp: () => void;
   onActionDone: (id: string) => void | Promise<void>;
-  onGenerateActions: () => void | Promise<void>;
+  onSetupProfile: () => void;
 }) {
   const [stepBusy, setStepBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
-  // Show inline "Skipped — Undo" affordance for ~4s after skipping so the
-  // action is reversible without leaving the dashboard.
   const [justSkipped, setJustSkipped] = useState(false);
 
-  const isComplete = step?.status === 'complete';
-  const progress = step ? Math.max(0, Math.min(100, Math.round(step.progress || 0))) : 0;
-  const hasProgress = step && !isComplete && progress > 0;
-  const progressDetail =
+  if (levelLoading) {
+    return (
+      <div className="mt-6 relative pl-[50px] flex flex-col gap-4">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-6">
+            <Skeleton className="h-5 w-24 rounded-full" />
+            <Skeleton className="mt-3 h-5 w-3/4" />
+            <Skeleton className="mt-2 h-4 w-full" />
+            <Skeleton className="mt-4 h-9 w-32 rounded-ui-md" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Nothing at all → onboarding affordance.
+  if (!step && actions.length === 0) {
+    return (
+      <div className="mt-6">
+        <Card className="p-6 sm:p-7">
+          <h3 className="font-editorial text-[20px] font-bold tracking-[-0.018em]">Set up your financial profile</h3>
+          <p className="mt-2 mb-4 text-[14px] leading-relaxed text-content-secondary">
+            Tell us the basics and we'll show you exactly what to do next.
+          </p>
+          <Button size="sm" onClick={onSetupProfile} trailingIcon={<ArrowRight className="h-4 w-4" />}>
+            Get started
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const isStepComplete = step?.status === 'complete';
+  const stepProgress = step ? Math.max(0, Math.min(100, Math.round(step.progress || 0))) : 0;
+  const stepDetail =
     step?.current != null && step?.target != null
       ? `${formatMoneyShort(step.current)} of ${formatMoneyShort(step.target)}`
       : null;
-  const body = step?.description || step?.subtitle;
 
   return (
-    <>
-      <Section
-        title="Do this next"
-        actions={<Link href="/financial-level" className="ds-btn ds-btn--link">View all steps →</Link>}
-      >
-        <Card>
-          {step && (
-            <div className="ds-combo__step">
-              <h3 className="ds-combo__title">{step.title}</h3>
-              {body && <p className="ds-combo__body">{body}</p>}
-              {hasProgress && (
-                <div className="ds-combo__progress">
-                  <div className="ds-combo__progress-meta">
-                    <span className="ds-combo__progress-label">Progress</span>
-                    <span className="ds-caption ds-num">
-                      {progress}%{progressDetail ? ` · ${progressDetail}` : ''}
-                    </span>
-                  </div>
-                  <div className="ds-combo__progress-bar">
-                    <div style={{ width: `${progress}%` }} />
-                  </div>
-                </div>
-              )}
-              <div className="ds-combo__level-actions">
-                <Button
-                  variant="ink"
-                  disabled={stepBusy}
-                  onClick={() => onStepHelp()}
-                >
-                  Start →
+    <div className="mt-6 relative">
+      {/* connecting rail */}
+      <div
+        className="absolute left-[19px] top-[30px] bottom-[28px] w-[2.5px] rounded-full"
+        style={{ background: 'linear-gradient(180deg, var(--ui-line), var(--ui-hairline) 86%, transparent)' }}
+      />
+      <div className="relative flex flex-col gap-4">
+        {step && (
+          <MoveCard
+            node="1"
+            accent="brand"
+            tag={`Level ${step.order}`}
+            tagIcon={<Check className="h-3 w-3" />}
+            title={step.title}
+            why={step.description || step.subtitle}
+            impactVal={isStepComplete ? '✓' : `${stepProgress}%`}
+            impactLab={isStepComplete ? 'complete' : 'progress'}
+            progress={isStepComplete ? 0 : stepProgress}
+            progressDetail={stepDetail}
+            footer={
+              <>
+                <Button size="sm" disabled={stepBusy} onClick={onStepHelp} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                  Start
                 </Button>
                 <Button
+                  size="sm"
                   variant="ghost"
                   disabled={stepBusy}
                   onClick={async () => {
@@ -553,9 +791,10 @@ function LevelAndActionsCard({
                     try { await onStepComplete(); } finally { setStepBusy(false); }
                   }}
                 >
-                  {stepBusy ? '…' : 'I did this ✓'}
+                  {stepBusy ? '…' : 'I did it'}
                 </Button>
                 <Button
+                  size="sm"
                   variant="ghost"
                   disabled={stepBusy}
                   onClick={async () => {
@@ -572,7 +811,7 @@ function LevelAndActionsCard({
                 {justSkipped && (
                   <button
                     type="button"
-                    className="ds-combo__undo"
+                    className="text-[12px] font-semibold text-content-secondary underline underline-offset-2 hover:text-brand"
                     onClick={async () => {
                       setStepBusy(true);
                       try { await onStepUnskip(); setJustSkipped(false); } finally { setStepBusy(false); }
@@ -581,460 +820,237 @@ function LevelAndActionsCard({
                     Skipped · Undo
                   </button>
                 )}
-              </div>
-            </div>
-          )}
+              </>
+            }
+          />
+        )}
 
-          {step && actions.length > 0 && <div className="ds-combo__divider" />}
-
-          {actions.length > 0 ? (
-            <ul className="ds-combo__list">
-              {actions.map((a) => {
-                const busy = actionBusy === a.id;
-                return (
-                  <li key={a.id} className="ds-combo__item">
-                    <Link href={`/insights?id=${a.id}`} className="ds-combo__item-body">
-                      <div className="ds-combo__item-title">{a.title}</div>
-                      {a.description && <p className="ds-combo__item-desc">{a.description}</p>}
-                    </Link>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        setActionBusy(a.id);
-                        try { await onActionDone(a.id); } finally { setActionBusy(null); }
-                      }}
-                      className="ds-combo__item-done"
-                      aria-label="Mark done"
-                    >
-                      {busy ? '…' : 'Done ✓'}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <div className="ds-combo__empty">
-              <span>No actions yet — get personalized ones based on your finances.</span>
-              <button
-                type="button"
-                className="ds-combo__empty-btn"
-                onClick={() => onGenerateActions()}
-                disabled={generating}
-              >
-                {generating ? 'Generating…' : 'Generate actions'}
-              </button>
-            </div>
-          )}
-        </Card>
-      </Section>
-
-      <style>{`
-        .ds-combo__step { margin-bottom: 4px; }
-        .ds-combo__divider {
-          height: 1px;
-          background: var(--lf-rule-neutral);
-          margin: 16px 0;
-        }
-        .ds-combo__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 600;
-          /* 18px keeps the focal step title clearly subordinate to the 22px
-             section H2 ("Do this next") sitting directly above it. */
-          font-size: 18px;
-          line-height: 1.3;
-          letter-spacing: -0.01em;
-          color: var(--lf-ink);
-          margin: 0 0 10px;
-        }
-        .ds-combo__body {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
-          line-height: 1.55;
-          color: var(--lf-ink-soft);
-          max-width: 60ch;
-          margin: 0 0 14px;
-        }
-        .ds-combo__progress { margin-bottom: 14px; max-width: 480px; }
-        .ds-combo__progress-meta {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          margin-bottom: 6px;
-        }
-        .ds-combo__progress-label {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 11px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          font-weight: 600;
-          color: var(--lf-muted);
-        }
-        .ds-combo__progress-bar {
-          height: 6px;
-          background: var(--lf-cream-deep);
-          border-radius: 3px;
-          overflow: hidden;
-        }
-        .ds-combo__progress-bar > div {
-          height: 100%;
-          background: var(--lf-pos);
-          border-radius: 3px;
-          transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .ds-combo__level-actions {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .ds-combo__list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-        }
-        .ds-combo__item {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 12px 0;
-          border-top: 1px solid var(--lf-rule-neutral);
-        }
-        .ds-combo__item:first-child { border-top: 0; padding-top: 4px; }
-        .ds-combo__item-body {
-          flex: 1;
-          min-width: 0;
-          text-decoration: none;
-          color: inherit;
-        }
-        .ds-combo__item-body:hover .ds-combo__item-title { color: var(--lf-sauce); }
-        .ds-combo__item-title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
-          font-weight: 500;
-          line-height: 1.35;
-          color: var(--lf-ink);
-          transition: color 0.15s;
-        }
-        .ds-combo__item-desc {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12.5px;
-          line-height: 1.5;
-          color: var(--lf-muted);
-          margin: 4px 0 0;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        .ds-combo__item-done {
-          flex-shrink: 0;
-          background: transparent;
-          border: 1px solid var(--lf-rule);
-          color: var(--lf-ink-soft);
-          padding: 5px 11px;
-          border-radius: 999px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 0.15s, color 0.15s, border-color 0.15s;
-          min-height: 28px;
-        }
-        .ds-combo__item-done:hover {
-          background: var(--lf-sauce);
-          border-color: var(--lf-sauce);
-          color: white;
-        }
-        .ds-combo__item-done:disabled { opacity: 0.6; cursor: default; }
-        .ds-combo__empty {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-          flex-wrap: wrap;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-          color: var(--lf-muted);
-          margin: 4px 0 0;
-        }
-        .ds-combo__empty-btn {
-          background: var(--lf-ink);
-          color: var(--lf-paper);
-          border: 1px solid var(--lf-ink);
-          padding: 7px 14px;
-          border-radius: 999px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 0.15s, transform 0.1s;
-          white-space: nowrap;
-        }
-        .ds-combo__empty-btn:hover { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
-        .ds-combo__empty-btn:disabled { opacity: 0.6; cursor: default; }
-        .ds-combo__undo {
-          background: var(--lf-cream);
-          border: 1px solid var(--lf-rule);
-          color: var(--lf-ink-soft);
-          padding: 6px 12px;
-          border-radius: 999px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 0.15s, color 0.15s;
-        }
-        .ds-combo__undo:hover {
-          background: var(--lf-sauce);
-          border-color: var(--lf-sauce);
-          color: white;
-        }
-        /* At ≤640px the section H2 ("Do this next") floors to 18px (the bottom
-           of its clamp), so an 18px focus title reads as a peer. Drop the
-           focus title to 16px on mobile to keep it clearly subordinate. */
-        @media (max-width: 640px) {
-          .ds-combo__title { font-size: 16px; }
-        }
-      `}</style>
-    </>
-  );
-}
-
-// ─── Goals section — active savings goals as compact progress rows ─────────
-// Mirrors the goals-page visual language (category-tinted icon tile, a real
-// progress bar with the color-mix gradient + a basil "Reached" state at 100%),
-// but in a tighter row built for the dashboard. Each row deep-links to the
-// goal detail page; "See all" goes to the full goals list.
-
-function GoalsSection({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
-  const active = goals.filter((g) => g.status === 'active');
-
-  if (loading) {
-    return (
-      <Section title="Goals">
-        <div className="ds-home-goals">
-          {[0, 1, 2].map((i) => (
-            <SkeletonRow key={i} />
-          ))}
-        </div>
-      </Section>
-    );
-  }
-
-  if (active.length === 0) {
-    return (
-      <Section title="Goals">
-        <Card variant="ghost">
-          <p className="ds-body" style={{ margin: 0, color: 'var(--lf-muted)' }}>
-            No active goals yet.{' '}
-            <Link href="/goals" className="ds-btn ds-btn--link" style={{ display: 'inline' }}>
-              Set a savings goal →
-            </Link>
-          </p>
-        </Card>
-      </Section>
-    );
-  }
-
-  const shown = active.slice(0, 4);
-
-  return (
-    <Section
-      title="Goals"
-      eyebrow={`${active.length} active`}
-      actions={<Link href="/goals" className="ds-btn ds-btn--link">View all goals →</Link>}
-    >
-      <ul className="ds-home-goals">
-        {shown.map((g) => {
-          const target = parseFloat(g.targetAmount);
-          const current = parseFloat(g.currentAmount);
-          const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
-          const reached = target > 0 && current >= target;
-          const color = goalColor(g.category);
+        {actions.map((a, i) => {
+          const { accent, label } = urgencyAccent(a.urgency);
+          const busy = actionBusy === a.id;
           return (
-            <li key={g.id}>
-              <Link href={`/plans/savings/${g.id}`} className="ds-home-goals__row">
-                <span
-                  className="ds-home-goals__icon"
-                  style={{
-                    background: `color-mix(in srgb, ${color} 10%, transparent)`,
-                    border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`,
-                    color,
-                  }}
-                >
-                  {iconFor(g.icon, 18)}
-                </span>
-                <span className="ds-home-goals__main">
-                  <span className="ds-home-goals__head">
-                    <span className="ds-home-goals__name">{g.name}</span>
-                    <span className="ds-home-goals__amt ds-num">
-                      {formatCurrency(current)}{' '}
-                      <span style={{ color: 'var(--lf-muted)' }}>/ {formatCurrency(target)}</span>
-                    </span>
-                  </span>
-                  <span className="ds-home-goals__bar">
-                    {reached ? (
-                      <span style={{ width: '100%', background: 'var(--lf-basil)' }} />
-                    ) : pct > 0 ? (
-                      <span
-                        style={{
-                          width: `${pct}%`,
-                          background: `linear-gradient(90deg, color-mix(in srgb, ${color} 70%, transparent), ${color})`,
-                        }}
-                      />
-                    ) : (
-                      <span style={{ width: 8, background: color }} />
-                    )}
-                  </span>
-                  <span className="ds-home-goals__meta">
-                    {reached ? (
-                      <span className="ds-home-goals__reached">✓ Reached</span>
-                    ) : (
-                      <>{Math.round(pct)}% · {formatCurrency(Math.max(0, target - current))} to go</>
-                    )}
-                  </span>
-                </span>
-                <ChevronRight size={16} className="ds-home-goals__chev" />
-              </Link>
-            </li>
+            <MoveCard
+              key={a.id}
+              node={String((step ? 1 : 0) + i + 1)}
+              accent={accent}
+              tag={label}
+              title={a.title}
+              why={a.description}
+              footer={
+                <>
+                  <Button size="sm" onClick={() => onOpenInsight(a.id)} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                    View details
+                  </Button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      setActionBusy(a.id);
+                      try { await onActionDone(a.id); } finally { setActionBusy(null); }
+                    }}
+                    className="h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-secondary hover:bg-brand-softer hover:text-content transition-colors disabled:opacity-60"
+                  >
+                    {busy ? '…' : 'I did it'}
+                  </button>
+                </>
+              }
+            />
           );
         })}
-      </ul>
-      <style>{`
-        .ds-home-goals {
-          list-style: none;
-          margin: 0;
-          padding: 4px 20px;
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 12px;
-          box-shadow: var(--shadow-card);
-        }
-        .ds-home-goals li {
-          border-top: 1px solid var(--lf-rule-neutral);
-        }
-        .ds-home-goals li:first-child { border-top: 0; }
-        .ds-home-goals__row {
-          display: grid;
-          grid-template-columns: 36px minmax(0, 1fr) 16px;
-          gap: 14px;
-          align-items: center;
-          padding: 14px 0;
-          text-decoration: none;
-          color: inherit;
-        }
-        .ds-home-goals__icon {
-          width: 36px; height: 36px;
-          border-radius: 8px;
-          display: grid; place-items: center;
-        }
-        .ds-home-goals__main { min-width: 0; }
-        .ds-home-goals__head {
-          display: flex;
-          align-items: baseline;
-          justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 7px;
-        }
-        .ds-home-goals__name {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 15px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.2;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          transition: color 0.15s;
-        }
-        .ds-home-goals__row:hover .ds-home-goals__name { color: var(--lf-sauce); }
-        .ds-home-goals__amt {
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          flex-shrink: 0;
-          font-variant-numeric: tabular-nums;
-        }
-        .ds-home-goals__bar {
-          display: block;
-          height: 8px;
-          background: var(--lf-rule-soft);
-          border-radius: 4px;
-          overflow: hidden;
-          margin-bottom: 6px;
-        }
-        .ds-home-goals__bar > span {
-          display: block;
-          height: 100%;
-          border-radius: 4px;
-        }
-        .ds-home-goals__meta {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          color: var(--lf-muted);
-          font-variant-numeric: tabular-nums;
-        }
-        .ds-home-goals__reached { color: var(--lf-basil); font-weight: 600; }
-        .ds-home-goals__chev { color: var(--lf-muted); }
-        .ds-home-goals__row:hover .ds-home-goals__chev { color: var(--lf-sauce); }
-      `}</style>
-    </Section>
-  );
-}
 
-// ─── Marginalia (right column) ─────────────────────────────────────────────
-
-function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: string; balance: number } | null }) {
-  const when = bill.daysAway <= 0 ? 'today' : bill.daysAway === 1 ? 'tomorrow' : `in ${bill.daysAway} days`;
-  const covered = account ? account.balance >= bill.amount : null;
-  return (
-    <div className="ds-margin">
-      <div className="ds-margin__title" style={{ fontSize: 18 }}>
-        {bill.name} · <span className="ds-num">{fmtUsd(bill.amount)}</span>
-      </div>
-      <p className="ds-margin__desc">
-        Due {when}
-        {account && (
-          <>
-            {' '}from {account.name}.{' '}
-            {covered
-              ? <>You're covered — balance <span className="ds-num">{fmtUsd(account.balance)}</span>.</>
-              : <span className="ds-neg">Balance <span className="ds-num">{fmtUsd(account.balance)}</span> may not cover.</span>}
-          </>
+        {/* No insights yet → generate affordance (keeps the queue useful). */}
+        {actions.length === 0 && step && (
+          <div className="relative pl-[50px]">
+            <div
+              className="absolute left-0 top-[18px] w-10 h-10 rounded-[13px] grid place-items-center bg-panel shadow-ui-sm z-[2] text-content-muted"
+              style={{ border: '2px solid var(--ui-hairline)' }}
+            >
+              <Sparkles className="h-[18px] w-[18px]" />
+            </div>
+            <div className="rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap">
+              <span className="text-[13.5px] text-content-muted">Want more? Get personalized actions based on your finances.</span>
+              <Button size="sm" disabled={generating} onClick={onGenerateActions}>
+                {generating ? 'Generating…' : 'Generate actions'}
+              </Button>
+            </div>
+          </div>
         )}
-      </p>
-      <style>{`
-        .ds-margin { border-top: 1px solid var(--lf-rule-neutral); padding-top: 20px; }
-        .ds-margin__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 18px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          line-height: 1.2;
-          margin: 10px 0 12px;
-        }
-        .ds-margin__desc {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px;
-          line-height: 1.55;
-          color: var(--lf-muted);
-          margin: 0;
-        }
-      `}</style>
+      </div>
     </div>
   );
 }
 
-// ─── Ask Lasagna — compact composer strip ──────────────────────────────────
-// Treated as a tool, not the hero. Single input row (~52px) with inline send,
-// then a horizontal row of chip-style suggestions. No headline, no card chrome.
-// The page-level voice lives elsewhere (the page bar caption, Today's focus).
+// ─── 30-day net-worth chart (real axes) ─────────────────────────────────────────
 
-function AskStrip({
+function NetWorthChart({
+  history, monthDelta, netWorth,
+}: {
+  history: { date: string; value: number }[];
+  monthDelta: number | null;
+  netWorth: number;
+}) {
+  const VB_W = 340, VB_H = 210;
+  const chart = useMemo(() => {
+    if (history.length < 2) return null;
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    let pts = history.filter((p) => new Date(p.date).getTime() >= cutoff);
+    if (pts.length < 2) pts = history.slice(-31);
+
+    const values = pts.map((p) => p.value);
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    if (min === max) { min -= 1; max += 1; }
+    const pad = (max - min) * 0.12;
+    min -= pad; max += pad;
+
+    // plot area inside the 340×210 viewBox
+    const X0 = 40, X1 = 330, Y0 = 16, Y1 = 180;
+    const sx = (i: number) => X0 + (i / (pts.length - 1)) * (X1 - X0);
+    const sy = (v: number) => Y1 - ((v - min) / (max - min)) * (Y1 - Y0);
+
+    const coords = pts.map((p, i) => ({ x: sx(i), y: sy(p.value), value: p.value, date: p.date }));
+    const line = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+    const area = `${line} L${X1},${Y1} L${X0},${Y1} Z`;
+
+    // Y gridlines (4 ticks)
+    const yTicks = [0, 1, 2, 3].map((k) => {
+      const v = max - (k / 3) * (max - min);
+      return { y: Y0 + (k / 3) * (Y1 - Y0), label: formatMoneyShort(v) };
+    });
+
+    return {
+      line, area, coords,
+      lastX: sx(pts.length - 1), lastY: sy(pts[pts.length - 1].value),
+      yTicks,
+      firstDate: formatDateShort(new Date(pts[0].date)),
+      lastDate: formatDateShort(new Date(pts[pts.length - 1].date)),
+      X0, X1, Y0, Y1,
+    };
+  }, [history]);
+
+  const down = (monthDelta ?? 0) < 0;
+  const stroke = down ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-positive))';
+  const pctChange = monthDelta != null && netWorth !== 0
+    ? (monthDelta / (netWorth - monthDelta)) * 100
+    : null;
+
+  // Hover crosshair — snaps to the nearest data point (mouse/touch only;
+  // chart stays fully readable without hover and for keyboard users).
+  const svgRef = useRef<HTMLDivElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const pointerToIdx = (clientX: number): number | null => {
+    const root = svgRef.current;
+    if (!root || !chart || chart.coords.length === 0) return null;
+    const rect = root.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const vbX = ((clientX - rect.left) / rect.width) * VB_W;
+    const ratio = (vbX - chart.X0) / Math.max(1, chart.X1 - chart.X0);
+    return Math.min(chart.coords.length - 1, Math.max(0, Math.round(ratio * (chart.coords.length - 1))));
+  };
+  const hovered = chart && hoverIdx !== null ? chart.coords[hoverIdx] : null;
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-editorial text-[16px] font-bold tracking-[-0.012em]">Net worth · last 30 days</div>
+          <div className="mt-0.5 text-[12px] font-semibold text-content-muted">
+            {monthDelta != null
+              ? `${monthDelta < 0 ? 'Down' : 'Up'} ${fmtUsd(Math.abs(monthDelta))} this month`
+              : 'Tracking your trend'}
+          </div>
+        </div>
+        {pctChange != null && (
+          <span
+            className="inline-flex items-center gap-1 h-[26px] px-2.5 rounded-full text-[12px] font-bold ui-tnum"
+            style={{
+              background: down ? 'var(--ui-negative-soft)' : 'var(--ui-positive-soft)',
+              color: stroke,
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              {down ? <path d="M12 17 5 9h14z" /> : <path d="M12 7l7 8H5z" />}
+            </svg>
+            {down ? '−' : '+'}{Math.abs(pctChange).toFixed(1)}%
+          </span>
+        )}
+      </div>
+
+      {chart ? (
+        <div ref={svgRef} className="relative mt-4 select-none">
+          <svg className="w-full h-auto overflow-visible block" viewBox="0 0 340 210" role="img" aria-label="Net worth over the last 30 days" style={{ pointerEvents: 'none' }}>
+            <defs>
+              <linearGradient id="nwArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor={stroke} stopOpacity="0.20" />
+                <stop offset="1" stopColor={stroke} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {/* Y axis + gridlines + labels */}
+            <line x1={chart.X0} y1={chart.Y0} x2={chart.X0} y2={chart.Y1} stroke="var(--ui-line)" strokeWidth="1.2" />
+            {chart.yTicks.map((t, i) => (
+              <g key={i}>
+                <line x1={chart.X0} y1={t.y} x2={chart.X1} y2={t.y} stroke="var(--ui-hairline)" strokeWidth="1" />
+                <text x={chart.X0 - 5} y={t.y + 3} textAnchor="end" className="ui-tnum" fontSize="12" fontWeight="600" fill="rgb(var(--ui-content-muted))">{t.label}</text>
+              </g>
+            ))}
+            <line x1={chart.X0} y1={chart.Y1} x2={chart.X1} y2={chart.Y1} stroke="var(--ui-line)" strokeWidth="1.2" />
+            {/* trend */}
+            <path d={chart.area} fill="url(#nwArea)" />
+            <path d={chart.line} fill="none" stroke={stroke} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            {/* hover crosshair + marker, else the trailing point */}
+            {hovered ? (
+              <g>
+                <line x1={hovered.x} y1={chart.Y0} x2={hovered.x} y2={chart.Y1} stroke="rgb(var(--ui-content-muted))" strokeOpacity="0.5" strokeWidth="1" strokeDasharray="2 4" />
+                <circle cx={hovered.x} cy={hovered.y} r="7" fill={stroke} fillOpacity="0.18" />
+                <circle cx={hovered.x} cy={hovered.y} r="4" fill={stroke} stroke="rgb(var(--ui-panel))" strokeWidth="2" />
+              </g>
+            ) : (
+              <circle cx={chart.lastX} cy={chart.lastY} r="3.6" fill={stroke} />
+            )}
+            {/* X labels */}
+            <text x={chart.X0} y="197" textAnchor="start" className="ui-tnum" fontSize="12" fontWeight="600" fill="rgb(var(--ui-content-muted))">{chart.firstDate}</text>
+            <text x={chart.X1} y="197" textAnchor="end" className="ui-tnum" fontSize="12" fontWeight="600" fill="rgb(var(--ui-content-muted))">{chart.lastDate}</text>
+          </svg>
+
+          {/* Tooltip — positioned by viewBox percentage so it tracks the point across any width */}
+          {hovered && (
+            <div
+              className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-ui-md border border-line bg-panel-raised px-2.5 py-1.5 shadow-ui-md whitespace-nowrap"
+              style={{
+                left: `${(hovered.x / VB_W) * 100}%`,
+                top: `${(hovered.y / VB_H) * 100}%`,
+                transform: 'translate(-50%, calc(-100% - 10px))',
+              }}
+            >
+              <div className="text-[11px] font-semibold text-content-muted">
+                {new Date(hovered.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+              <div className="text-[13.5px] font-extrabold text-content ui-tnum">{fmtUsd(hovered.value)}</div>
+            </div>
+          )}
+
+          {/* Pointer overlay — snaps hover to the nearest x-domain point */}
+          <div
+            className="absolute inset-0"
+            style={{ touchAction: 'none', cursor: 'crosshair' }}
+            onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
+            onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
+            onPointerLeave={() => setHoverIdx(null)}
+            onPointerCancel={() => setHoverIdx(null)}
+          />
+        </div>
+      ) : (
+        <div className="mt-4 h-[150px] grid place-items-center text-[13px] text-content-muted">
+          Not enough history yet — check back in a few days.
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── Ask Lasagna composer ───────────────────────────────────────────────────────
+
+function AskComposer({
   value, onChange, onSubmit, prompts, onPick,
 }: {
   value: string;
@@ -1044,43 +1060,180 @@ function AskStrip({
   onPick: (q: string) => void;
 }) {
   return (
-    // hidden md:block — mobile users get the global chat tab in the bottom
-    // nav; the strip lands far below-fold on phones. Owned by the component,
-    // not a sibling <style> tag.
-    <section className="ds-ask-strip hidden md:block" aria-label="Ask Lasagna">
-      <form onSubmit={onSubmit} className="ds-ask-strip__form">
-        <div className="ds-ask-strip__box">
+    <section
+      className="relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5"
+      aria-label="Ask Lasagna"
+    >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(80% 130% at 0% 0%, var(--ui-brand-softer), transparent 58%),' +
+            'radial-gradient(70% 130% at 100% 0%, var(--ui-info-soft), transparent 64%)',
+        }}
+      />
+      <div className="relative mb-3 flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden />
+        <span className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Ask Lasagna</span>
+      </div>
+      <form onSubmit={onSubmit} className="relative">
+        <label className="flex items-center gap-2 h-[52px] pl-4 pr-1.5 rounded-[14px] bg-canvas-sunken border-[1.5px] border-transparent focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft transition-[background,border-color,box-shadow]">
           <input
             type="text"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Ask Lasagna anything…"
-            className="ds-ask-strip__input"
+            placeholder="Ask about your money…"
+            className="flex-1 min-w-0 h-full bg-transparent outline-none text-[15px] font-semibold text-content placeholder:font-medium placeholder:text-content-muted"
             autoComplete="off"
             aria-label="Ask Lasagna a question"
           />
           <button
             type="submit"
-            disabled={!value.trim()}
-            className="ds-ask-strip__submit"
-            aria-label="Send question"
+            className="shrink-0 grid place-items-center w-10 h-10 rounded-full bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+            aria-label="Ask Lasagna"
           >
-            Ask <span aria-hidden="true">→</span>
+            <ArrowRight className="h-[18px] w-[18px]" />
           </button>
-        </div>
+        </label>
       </form>
 
       {prompts.length > 0 && (
-        <ul className="ds-ask-strip__chips">
+        <div className="relative mt-3 flex flex-wrap gap-2">
           {prompts.map((q) => (
-            <li key={q}>
-              <button type="button" onClick={() => onPick(q)} className="ds-ask-strip__chip">
-                {q}
-              </button>
-            </li>
+            <button
+              key={q}
+              type="button"
+              onClick={() => onPick(q)}
+              className="inline-flex max-w-full items-center min-h-[36px] px-3.5 rounded-full bg-panel border border-line-strong text-[13px] font-semibold text-content-secondary hover:bg-brand-soft hover:border-transparent hover:text-brand active:scale-[0.98] transition-[background,color,border-color,transform]"
+            >
+              <span className="truncate">{q}</span>
+            </button>
           ))}
-        </ul>
+        </div>
       )}
     </section>
+  );
+}
+
+// ─── Goals rail ──────────────────────────────────────────────────────────────────
+
+function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
+  const active = goals.filter((g) => g.status === 'active');
+
+  if (loading) {
+    return (
+      <Card className="p-[22px]">
+        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted mb-2">Goals</div>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="mt-4">
+            <Skeleton className="h-3.5 w-40" />
+            <Skeleton className="mt-2.5 h-2 w-full rounded-full" />
+            <Skeleton className="mt-2 h-3 w-28" />
+          </div>
+        ))}
+      </Card>
+    );
+  }
+
+  if (active.length === 0) {
+    return (
+      <Card className="p-[22px]">
+        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted mb-2.5">Goals</div>
+        <p className="text-[14px] text-content-muted">
+          No active goals yet.{' '}
+          <Link href="/goals" className="font-semibold text-brand hover:underline">Set a savings goal →</Link>
+        </p>
+      </Card>
+    );
+  }
+
+  const shown = active.slice(0, 4);
+
+  return (
+    <Card className="p-[22px]">
+      <div className="flex items-baseline justify-between">
+        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Goals</div>
+        <Link href="/goals" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
+      </div>
+      <ul>
+        {shown.map((g) => {
+          const target = parseFloat(g.targetAmount);
+          const current = parseFloat(g.currentAmount);
+          const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+          const reached = target > 0 && current >= target;
+          const notStarted = current <= 0;
+          const color = goalColor(g.category);
+          return (
+            <li
+              key={g.id}
+              className={reached ? 'mt-4 -mx-2.5 px-3 py-3.5 rounded-ui-md' : 'mt-[18px] first:mt-4'}
+              style={reached ? { background: 'linear-gradient(135deg, var(--ui-brand-soft), transparent 70%)' } : undefined}
+            >
+              <Link href={`/plans/savings/${g.id}`} className="block no-underline text-inherit group">
+                <div className="flex items-baseline justify-between gap-2.5">
+                  <span className="flex items-center gap-2 min-w-0 text-[14px] font-bold">
+                    {reached && (
+                      <span className="w-4 h-4 rounded-full grid place-items-center text-white bg-brand shrink-0">
+                        <Check className="h-[11px] w-[11px]" />
+                      </span>
+                    )}
+                    <span className="truncate group-hover:text-brand transition-colors">{g.name}</span>
+                  </span>
+                  {reached ? (
+                    <span className="text-[11px] font-extrabold uppercase tracking-[0.04em] text-brand bg-panel px-2 py-0.5 rounded-full shadow-ui-sm shrink-0">Funded</span>
+                  ) : (
+                    <span className="font-editorial text-[13px] font-extrabold text-content-muted shrink-0 ui-tnum">{Math.round(pct)}%</span>
+                  )}
+                </div>
+                <div className="mt-2.5">
+                  <Track
+                    pct={reached ? 100 : Math.max(pct, notStarted ? 2 : pct)}
+                    color={reached ? 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))' : color}
+                    shine={reached}
+                  />
+                </div>
+                <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">
+                  {reached
+                    ? 'Fully funded — surplus ready to reallocate 🎉'
+                    : notStarted
+                      ? 'Not started yet — kick it off anytime'
+                      : <>{formatCurrency(current)} of {formatCurrency(target)}</>}
+                </div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+// ─── Upcoming bill marginalia ────────────────────────────────────────────────────
+
+function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: string; balance: number } | null }) {
+  const when = bill.daysAway <= 0 ? 'today' : bill.daysAway === 1 ? 'tomorrow' : `in ${bill.daysAway} days`;
+  const covered = account ? account.balance >= bill.amount : null;
+  return (
+    <Card className="mt-7 p-5 sm:p-6 max-w-[760px]">
+      <div className="flex items-center gap-2 text-[15px] font-bold">
+        <ChevronRight className="h-4 w-4 text-content-faint" />
+        {bill.name} · <span className="ui-tnum">{fmtUsd(bill.amount)}</span>
+      </div>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-content-muted">
+        Due {when}
+        {account && (
+          <>
+            {' '}from {account.name}.{' '}
+            {covered ? (
+              <>You're covered — balance <span className="ui-tnum">{fmtUsd(account.balance)}</span>.</>
+            ) : (
+              <span style={{ color: 'rgb(var(--ui-negative))' }}>
+                Balance <span className="ui-tnum">{fmtUsd(account.balance)}</span> may not cover.
+              </span>
+            )}
+          </>
+        )}
+      </p>
+    </Card>
   );
 }

@@ -1,21 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { ChevronDown, ChevronLeft, ChevronRight, RefreshCw, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api';
-import {
-  Page,
-  Section,
-  Card,
-  Button,
-  Pill,
-  useConfirm,
-  SkeletonLine,
-  SkeletonBlock,
-  TrendChart,
-  filterByRange,
-  type Range,
-  type TrendPoint,
-} from '../components/ds';
+import { cn } from '../lib/utils';
+import { Button, Field, Input, Select, SegmentedControl, Skeleton } from '../components/uikit';
+import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
+import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney } from '../components/ds/TrendChart';
 
 // ---------------------------------------------------------------------------
 // Account detail page. Shows the account's balance-over-time history as the
@@ -206,39 +196,33 @@ export function AccountDetail() {
 
   if (loading) {
     return (
-      <Page>
-        <Section>
-          <Card>
-            <SkeletonLine width="40%" height={28} style={{ marginBottom: 16 }} />
-            <SkeletonBlock height={150} />
-          </Card>
-        </Section>
-        <Section>
-          <Card>
-            <SkeletonBlock height={120} />
-          </Card>
-        </Section>
-      </Page>
+      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+        <Skeleton className="h-8 w-16 rounded-ui-md" />
+        <div className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mt-3 h-11 w-56" />
+          <Skeleton className="mt-6 h-[200px] w-full rounded-ui-md" />
+        </div>
+        <div className="mt-8 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5">
+          <Skeleton className="h-5 w-40" />
+        </div>
+      </div>
     );
   }
 
   if (notFound || !data) {
     return (
-      <Page>
-        <header className="ds-page-bar">
-          <div className="ds-page-bar__title-group">
-            <h1 className="ds-page-bar__title">Account not found</h1>
-          </div>
-        </header>
-        <Section>
-          <Card>
-            <p style={{ margin: '0 0 16px', color: 'var(--lf-muted)', fontFamily: "'Geist', system-ui, sans-serif" }}>
-              We couldn't find this account. It may have been deleted.
-            </p>
-            <Button variant="ink" onClick={() => setLocation('/money')}>Back to money</Button>
-          </Card>
-        </Section>
-      </Page>
+      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+        <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
+          Account not found
+        </h1>
+        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <p className="mb-4 text-[14px] text-content-muted">
+            We couldn't find this account. It may have been deleted.
+          </p>
+          <Button variant="primary" onClick={() => setLocation('/money')}>Back to money</Button>
+        </div>
+      </div>
     );
   }
 
@@ -388,30 +372,6 @@ export function AccountDetail() {
     }
   };
 
-  const headerActions = (
-    <div className="ds-money-header-actions">
-      <Button variant="ghost" size="sm" onClick={openSettings} icon={<Pencil size={12} />}>
-        Edit
-      </Button>
-      {!isManual && (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={actionPending}
-          onClick={handleSync}
-          icon={<RefreshCw size={12} className={actionPending ? 'animate-spin' : ''} />}
-        >
-          {actionPending ? 'Syncing…' : 'Sync'}
-        </Button>
-      )}
-      {isManual && (
-        <Button variant="ghost" size="sm" className="ad-delete" disabled={actionPending} onClick={handleDelete}>
-          {actionPending ? '…' : 'Delete'}
-        </Button>
-      )}
-    </div>
-  );
-
   const settingsSummary = [
     typeLabel,
     excludeFromNetWorth && 'Not counted',
@@ -420,47 +380,55 @@ export function AccountDetail() {
   ].filter(Boolean).join(' · ');
 
   return (
-    <Page>
-      <style>{`
-        .ad-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; }
-        .ad-delete:hover { color: var(--lf-sauce); }
-        .ds-money-header-actions { display: none; }
-        @media (min-width: 640px) {
-          .ds-money-header-actions { display: flex; flex-direction: row; align-items: center; gap: 10px; }
-        }
-        .ad-settings-toggle {
-          display: flex; align-items: center; gap: 8px; width: 100%;
-          padding: 14px 16px; background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral); border-radius: 12px;
-          box-shadow: var(--shadow-card); cursor: pointer; color: var(--lf-ink);
-          font: inherit; text-align: left; transition: border-color 0.15s;
-        }
-        .ad-settings-toggle:hover { border-color: var(--lf-rule); }
-        .ad-settings-toggle svg { color: var(--lf-muted); flex-shrink: 0; }
-        .ad-settings-toggle__label {
-          font-family: 'Geist', system-ui, sans-serif; font-size: 15px; font-weight: 500;
-        }
-        .ad-settings-toggle__summary {
-          margin-left: auto; font-family: 'Geist', system-ui, sans-serif; font-size: 13px;
-          color: var(--lf-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          min-width: 0;
-        }
-      `}</style>
+    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      {/* ── Back ── */}
+      <button
+        type="button"
+        onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/money'); }}
+        className="ui-focus mb-2 inline-flex items-center gap-1 rounded-ui-sm text-[13px] font-semibold text-content-muted transition-colors hover:text-content"
+      >
+        <ChevronLeft size={16} /> Back
+      </button>
 
-      <Button variant="ghost" size="sm" className="ad-back" onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/money'); }} icon={<ChevronLeft size={16} />}>
-        Back
-      </Button>
-
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">{titleCase(acct.name)}</h1>
-          <span className="ds-page-bar__caption">{acct.mask ? `${institution} · ••${acct.mask}` : institution}</span>
+      {/* ── Page header ── */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
+            {titleCase(acct.name)}
+          </h1>
+          <p className="mt-1.5 text-[14px] font-medium text-content-muted">
+            {acct.mask ? `${institution} · ••${acct.mask}` : institution}
+          </p>
         </div>
-        {headerActions}
+        <div className="hidden items-center gap-2.5 sm:flex">
+          <Button variant="secondary" size="sm" onClick={openSettings} leadingIcon={<Pencil size={14} />}>
+            Edit
+          </Button>
+          {!isManual && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={actionPending}
+              onClick={handleSync}
+              leadingIcon={<RefreshCw size={14} className={actionPending ? 'animate-spin' : ''} />}
+            >
+              {actionPending ? 'Syncing…' : 'Sync'}
+            </Button>
+          )}
+          {isManual && (
+            <Button variant="destructive" size="sm" disabled={actionPending} onClick={handleDelete} leadingIcon={<Trash2 size={14} />}>
+              {actionPending ? '…' : 'Delete'}
+            </Button>
+          )}
+        </div>
       </header>
 
       {(actionError || flash) && (
-        <p role="status" aria-live="polite" style={{ margin: '0 0 8px', fontSize: 12, color: actionError ? 'var(--lf-neg)' : 'var(--lf-sauce)', fontFamily: "'Geist', system-ui, sans-serif" }}>
+        <p
+          role="status"
+          aria-live="polite"
+          className={cn('mt-3 text-[12.5px] font-semibold', actionError ? 'text-negative' : 'text-[rgb(var(--ui-brand-ink))]')}
+        >
           {actionError ?? flash}
         </p>
       )}
@@ -474,196 +442,400 @@ export function AccountDetail() {
         const displayValue = hoveredPoint ? hoveredPoint.value : latest.value;
         const change = latest.value - first.value;
         return (
-          <figure className="ds-figure">
-            <div className="ds-figure__head">
-              <div className="ds-figure__lead">
-                <span className="ds-figure__label">Value history</span>
-                <span className="ds-figure__value ds-num">{fmtUsd(displayValue)}</span>
-                {hoveredPoint ? (
-                  <span className="ds-figure__delta ds-num" style={{ color: 'var(--lf-muted)' }}>
-                    {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                ) : change !== 0 && (
-                  <span className={`ds-delta-chip ds-delta-chip--${change >= 0 ? 'pos' : 'neg'}`}>
-                    {change >= 0 ? '↑' : '↓'} {fmtUsd(Math.abs(change))}
-                  </span>
-                )}
+          <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+                  'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
+              }}
+            />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Value history</div>
+                <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
+                  {fmtUsd(displayValue)}
+                </div>
+                <div className="mt-3 flex items-center gap-2.5 flex-wrap">
+                  {hoveredPoint ? (
+                    <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
+                      {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  ) : change !== 0 ? (
+                    <DeltaChip delta={change} />
+                  ) : null}
+                </div>
               </div>
-              <div role="radiogroup" aria-label="Time range" className="ds-figure__range">
-                {(['1M', '6M', '1Y', 'All'] as Range[]).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRange(r)}
-                    role="radio"
-                    aria-checked={range === r}
-                    className="ds-figure__range-btn"
-                  >
-                    <Pill tone={range === r ? 'ink' : 'ghost'}>{r}</Pill>
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl
+                aria-label="Time range"
+                value={range}
+                onChange={(r) => setRange(r as Range)}
+                options={[
+                  { value: '1M', label: '1M' },
+                  { value: '6M', label: '6M' },
+                  { value: '1Y', label: '1Y' },
+                  { value: 'All', label: 'All' },
+                ]}
+              />
             </div>
             {chartPoints.length >= 2 ? (
-              <TrendChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+              <div className="relative mt-5 pr-2 sm:pr-0">
+                <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+              </div>
             ) : (
-              <p className="ds-caption" style={{ padding: '36px 0', textAlign: 'center', color: 'var(--lf-muted)' }}>
+              <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
                 No data in this range.
               </p>
             )}
-          </figure>
+          </section>
         );
       })() : (
-        <figure className="ds-figure">
-          <div className="ds-figure__head">
-            <div className="ds-figure__lead">
-              <span className="ds-figure__label">Value</span>
-              <span className="ds-figure__value ds-num">{fmtUsd(allPoints[0]?.value ?? balance)}</span>
-            </div>
+        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+          <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Value</div>
+          <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
+            {fmtUsd(allPoints[0]?.value ?? balance)}
           </div>
-          <p className="ds-caption" style={{ marginTop: 4, color: 'var(--lf-muted)' }}>No history yet</p>
-        </figure>
+          <div className="mt-4 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-9 text-center">
+            <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-brand-soft text-brand">
+              <TrendingUp size={20} />
+            </div>
+            <div className="text-[15px] font-semibold">No history yet</div>
+            <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-content-muted">
+              A value trend appears once we have a few days of history.
+            </p>
+          </div>
+        </section>
       )}
 
-      {/* ── Settings — collapsed behind a toggle (hidden by default). ── */}
-      <Section>
+      {/* ── Settings — collapsible Bright accordion (hidden by default). ── */}
+      <section className="mt-8 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
         <button
           ref={settingsRef}
           type="button"
-          className="ad-settings-toggle"
           aria-expanded={settingsOpen}
           onClick={() => setSettingsOpen((o) => !o)}
+          className={cn(
+            'ui-focus flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-brand-softer sm:px-5',
+            settingsOpen && 'border-b border-line',
+          )}
         >
-          {settingsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <span className="ad-settings-toggle__label">Account settings</span>
-          {!settingsOpen && <span className="ad-settings-toggle__summary">{settingsSummary}</span>}
+          <span className="grid h-6 w-6 shrink-0 place-items-center text-content-faint">
+            <ChevronDown size={18} className={cn('transition-transform duration-200 ease-ui', !settingsOpen && '-rotate-90')} />
+          </span>
+          <span className="shrink-0 font-editorial text-[16.5px] font-bold tracking-[-0.01em]">Account settings</span>
+          {!settingsOpen && (
+            <span className="ml-auto min-w-0 truncate text-[13px] font-medium text-content-muted">{settingsSummary}</span>
+          )}
         </button>
 
         {settingsOpen && (
-        <Card style={{ marginTop: 12 }}>
-          {isManual ? (
-            <>
-              <Field label="Name">
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-              </Field>
-              <Field label="Value">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  style={inputStyle}
-                />
-              </Field>
-            </>
-          ) : (
-            <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, background: 'var(--lf-cream-deep)', color: 'var(--lf-muted)' }}>
-              <span style={{ color: 'var(--lf-ink)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleCase(acct.name)}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>Synced · read-only</span>
-            </div>
-          )}
-
-          <Field label="Account type">
-            <div style={{ position: 'relative' }}>
-              <select value={typeKey} onChange={(e) => setTypeKey(e.target.value)} style={{ ...inputStyle, appearance: 'none', WebkitAppearance: 'none', paddingRight: 36, cursor: 'pointer' }}>
-                {options.map((o) => (
-                  <option key={keyFor(o.type, o.subtype)} value={keyFor(o.type, o.subtype)}>{o.label}</option>
-                ))}
-              </select>
-              <ChevronDown size={16} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--lf-muted)', pointerEvents: 'none' }} />
-            </div>
-            {crossesBucket && (
-              <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.4, color: 'var(--lf-neg)' }}>
-                This moves the account {willBeLiability ? 'into debt' : 'into assets'} — it will change your net worth.
-              </p>
+          <div className="p-4 sm:p-6">
+            {isManual ? (
+              <div className="space-y-4">
+                <Field label="Name">
+                  <Input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+                </Field>
+                <Field label="Value">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="ui-tnum"
+                  />
+                </Field>
+              </div>
+            ) : (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-ui-md border border-line bg-canvas-sunken px-3.5 py-3">
+                <span className="min-w-0 truncate text-[14px] font-semibold text-content">{titleCase(acct.name)}</span>
+                <span className="shrink-0 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.06em] text-content-muted">Synced · read-only</span>
+              </div>
             )}
-          </Field>
 
-          <div style={{ height: 1, background: 'var(--lf-rule)', margin: '16px 0' }} />
+            <div className="mt-4">
+              <Field label="Account type">
+                <Select value={typeKey} onChange={(e) => setTypeKey(e.target.value)}>
+                  {options.map((o) => (
+                    <option key={keyFor(o.type, o.subtype)} value={keyFor(o.type, o.subtype)}>{o.label}</option>
+                  ))}
+                </Select>
+                {crossesBucket && (
+                  <p className="mt-2 text-[12px] leading-relaxed text-negative">
+                    This moves the account {willBeLiability ? 'into debt' : 'into assets'} — it will change your net worth.
+                  </p>
+                )}
+              </Field>
+            </div>
 
-          <Toggle
-            checked={excludeFromNetWorth}
-            onChange={setExcludeNW}
-            label="Exclude from net worth"
-            description={`Keep the account visible but leave its ${fmtUsd(Math.abs(displayedBalance))} out of net-worth totals and the chart.`}
-          />
-          <Toggle
-            checked={excludeTransactions}
-            onChange={setExcludeTx}
-            label="Exclude transactions"
-            description="Hide this account's transactions from spending and activity views."
-          />
-          <Toggle
-            checked={invertBalance}
-            onChange={setInvert}
-            label="Invert balance"
-            description={`Flip the sign of the balance. Currently counts as ${fmtUsd(displayedBalance)}${invertBalance ? ` (was ${fmtUsd(balance)})` : ''}.`}
-          />
+            <div className="my-5 h-px bg-line" />
 
-          {isLiabilityAcct && (
-            <>
-              <div style={{ height: 1, background: 'var(--lf-rule)', margin: '16px 0' }} />
-              <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 600, color: 'var(--lf-ink-soft)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                Loan details
-              </p>
-              {(loanType === 'mortgage' || loanType === 'other_loan') && (
-                <Field label="Maturity / payoff date">
-                  <input type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} style={inputStyle} />
-                </Field>
-              )}
-              {loanType === 'student_loan' && (
-                <Field label="Expected payoff date">
-                  <input type="date" value={expectedPayoffDate} onChange={(e) => setExpectedPayoffDate(e.target.value)} style={inputStyle} />
-                </Field>
-              )}
-              {loanType !== 'credit_card' && (
-                <Field label="Interest rate (APR %)">
-                  <input type="number" step="0.01" min="0" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} style={inputStyle} />
-                </Field>
-              )}
-              {loanType === 'credit_card' && (
-                <Field label="Purchase APR (%)">
-                  <input type="number" step="0.01" min="0" value={purchaseApr} onChange={(e) => setPurchaseApr(e.target.value)} style={inputStyle} />
-                </Field>
-              )}
-              {(loanType === 'mortgage' || loanType === 'other_loan') && (
-                <Field label="Origination date">
-                  <input type="date" value={originationDate} onChange={(e) => setOriginationDate(e.target.value)} style={inputStyle} />
-                </Field>
-              )}
-              {(loanType === 'student_loan' || loanType === 'credit_card' || loanType === 'other_loan') && (
-                <Field label="Minimum payment ($)">
-                  <input type="number" step="1" min="0" value={minPayment} onChange={(e) => setMinPayment(e.target.value)} style={inputStyle} />
-                </Field>
-              )}
-              {loanType === 'student_loan' && (
-                <Field label="Repayment plan type">
-                  <input type="text" value={repaymentPlanType} onChange={(e) => setRepaymentPlanType(e.target.value)} style={inputStyle} />
-                </Field>
-              )}
-            </>
-          )}
+            <div className="divide-y divide-line">
+              <Toggle
+                checked={excludeFromNetWorth}
+                onChange={setExcludeNW}
+                label="Exclude from net worth"
+                description={`Keep the account visible but leave its ${fmtUsd(Math.abs(displayedBalance))} out of net-worth totals and the chart.`}
+              />
+              <Toggle
+                checked={excludeTransactions}
+                onChange={setExcludeTx}
+                label="Exclude transactions"
+                description="Hide this account's transactions from spending and activity views."
+              />
+              <Toggle
+                checked={invertBalance}
+                onChange={setInvert}
+                label="Invert balance"
+                description={`Flip the sign of the balance. Currently counts as ${fmtUsd(displayedBalance)}${invertBalance ? ` (was ${fmtUsd(balance)})` : ''}.`}
+              />
+            </div>
 
-          <div style={{ marginTop: 20 }}>
-            <Button variant="ink" disabled={saving} onClick={save}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
+            {isLiabilityAcct && (
+              <>
+                <div className="my-5 h-px bg-line" />
+                <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
+                  Loan details
+                </p>
+                <div className="space-y-4">
+                  {(loanType === 'mortgage' || loanType === 'other_loan') && (
+                    <Field label="Maturity / payoff date">
+                      <Input type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} />
+                    </Field>
+                  )}
+                  {loanType === 'student_loan' && (
+                    <Field label="Expected payoff date">
+                      <Input type="date" value={expectedPayoffDate} onChange={(e) => setExpectedPayoffDate(e.target.value)} />
+                    </Field>
+                  )}
+                  {loanType !== 'credit_card' && (
+                    <Field label="Interest rate (APR %)">
+                      <Input type="number" step="0.01" min="0" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} className="ui-tnum" />
+                    </Field>
+                  )}
+                  {loanType === 'credit_card' && (
+                    <Field label="Purchase APR (%)">
+                      <Input type="number" step="0.01" min="0" value={purchaseApr} onChange={(e) => setPurchaseApr(e.target.value)} className="ui-tnum" />
+                    </Field>
+                  )}
+                  {(loanType === 'mortgage' || loanType === 'other_loan') && (
+                    <Field label="Origination date">
+                      <Input type="date" value={originationDate} onChange={(e) => setOriginationDate(e.target.value)} />
+                    </Field>
+                  )}
+                  {(loanType === 'student_loan' || loanType === 'credit_card' || loanType === 'other_loan') && (
+                    <Field label="Minimum payment ($)">
+                      <Input type="number" step="1" min="0" value={minPayment} onChange={(e) => setMinPayment(e.target.value)} className="ui-tnum" />
+                    </Field>
+                  )}
+                  {loanType === 'student_loan' && (
+                    <Field label="Repayment plan type">
+                      <Input type="text" value={repaymentPlanType} onChange={(e) => setRepaymentPlanType(e.target.value)} />
+                    </Field>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center gap-2.5">
+              <Button variant="primary" disabled={saving} loading={saving} onClick={save}>
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+              {/* Sync / delete also surfaced here for mobile (header actions are desktop-only). */}
+              {!isManual && (
+                <Button
+                  variant="secondary"
+                  disabled={actionPending}
+                  onClick={handleSync}
+                  className="sm:hidden"
+                  leadingIcon={<RefreshCw size={14} className={actionPending ? 'animate-spin' : ''} />}
+                >
+                  {actionPending ? 'Syncing…' : 'Sync'}
+                </Button>
+              )}
+              {isManual && (
+                <Button
+                  variant="destructive"
+                  disabled={actionPending}
+                  onClick={handleDelete}
+                  className="sm:hidden"
+                  leadingIcon={<Trash2 size={14} />}
+                >
+                  Delete
+                </Button>
+              )}
+            </div>
           </div>
-        </Card>
         )}
-      </Section>
-    </Page>
+      </section>
+    </div>
   );
 }
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+
+// ---------------------------------------------------------------------------
+// Delta chip — sign + arrow + tinted color (never color-only). Mirrors Money.
+// ---------------------------------------------------------------------------
+
+function DeltaChip({ delta }: { delta: number }) {
+  const positive = delta >= 0;
   return (
-    <label style={{ display: 'block', marginBottom: 14 }}>
-      <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--lf-ink-soft)', marginBottom: 6, letterSpacing: '0.02em' }}>
-        {label}
-      </span>
-      {children}
-    </label>
+    <span
+      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
+      style={{
+        background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
+        color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
+      </svg>
+      {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}
+    </span>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Value trend chart — brand area+line on --ui-* tokens. Mirrors Money's chart:
+// smooth spline + nice ticks + hover crosshair that bubbles the index up.
+// ---------------------------------------------------------------------------
+
+const CHART_H = 250;
+const CHART_M = { top: 16, right: 12, bottom: 34, left: 56 };
+
+function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [chartW, setChartW] = useState(680);
+  const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
+  const setHoverIdx = (i: number | null) => { setHoverIdxRaw(i); onHoverChange?.(i); };
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => setChartW(el.clientWidth || 680);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const innerW = chartW - CHART_M.left - CHART_M.right;
+  const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
+
+  const { yMin, yMax, yTicks } = useMemo(() => {
+    const values = points.map((p) => p.value);
+    const rawMin = Math.min(...values);
+    const rawMax = Math.max(...values);
+    const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
+    return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
+  }, [points]);
+
+  const xAt = (i: number) => CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
+  const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
+
+  const xy = useMemo<Array<[number, number]>>(
+    () => points.map((p, i) => [xAt(i), yAt(p.value)]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [points, chartW, yMin, yMax],
+  );
+  const linePath = useMemo(() => smoothLinePath(xy), [xy]);
+  const baseY = (CHART_M.top + innerH).toFixed(2);
+  const areaPath = linePath
+    ? `${linePath} L ${xAt(points.length - 1).toFixed(2)} ${baseY} L ${xAt(0).toFixed(2)} ${baseY} Z`
+    : '';
+
+  const hover = hoverIdx !== null ? points[hoverIdx] : null;
+  const xLabels = useMemo(() => pickXLabels(points, range), [points, range]);
+
+  const pointerToIdx = (clientX: number): number | null => {
+    const root = wrapRef.current;
+    if (!root || points.length <= 0) return null;
+    const rect = root.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const scale = chartW / rect.width;
+    const localX = (clientX - rect.left) * scale;
+    const ratio = (localX - CHART_M.left) / Math.max(1, innerW);
+    return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
+  };
+
+  return (
+    <div ref={wrapRef} className="relative select-none">
+      <svg
+        viewBox={`0 0 ${chartW} ${CHART_H}`}
+        role="img"
+        aria-label="Account value trend chart"
+        className="block w-full touch-none"
+        style={{ pointerEvents: 'none' }}
+      >
+        <defs>
+          <linearGradient id="ad-area-ui" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity="0.24" />
+            <stop offset="55%" stopColor="var(--ui-viz-2)" stopOpacity="0.07" />
+            <stop offset="100%" stopColor="var(--ui-viz-2)" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="ad-line-ui" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="var(--ui-viz-2)" />
+          </linearGradient>
+        </defs>
+
+        {yTicks.map((t) => (
+          <g key={t}>
+            <line
+              x1={CHART_M.left} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
+              stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
+            />
+            <text
+              x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
+              fill="rgb(var(--ui-content-faint))"
+              style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+            >
+              {formatShortMoney(t)}
+            </text>
+          </g>
+        ))}
+
+        <path d={areaPath} fill="url(#ad-area-ui)" />
+        <path
+          d={linePath} fill="none" stroke="url(#ad-line-ui)"
+          strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+        />
+
+        {!hover && points.length > 0 && (
+          <>
+            <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={11} fill="var(--ui-viz-2)" fillOpacity={0.12} />
+            <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={5.5} fill="var(--ui-viz-2)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
+          </>
+        )}
+        {hover && hoverIdx !== null && (
+          <g>
+            <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} stroke="rgb(var(--ui-content-muted))" strokeOpacity={0.5} strokeWidth={1} strokeDasharray="2 4" />
+            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={14} fill="var(--ui-viz-2)" fillOpacity={0.16} />
+            <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={5.5} fill="var(--ui-viz-2)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
+          </g>
+        )}
+
+        {xLabels.map(({ idx, label }) => (
+          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 10} textAnchor="middle" fill="rgb(var(--ui-content-muted))" style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+        ))}
+      </svg>
+
+      {/* Pointer overlay — snaps hover to the nearest x-domain point. */}
+      <div
+        className="absolute inset-0"
+        style={{ touchAction: 'none', cursor: 'crosshair' }}
+        onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
+        onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
+        onPointerLeave={() => setHoverIdx(null)}
+        onPointerCancel={() => setHoverIdx(null)}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Toggle — Bright switch (brand when on).
+// ---------------------------------------------------------------------------
 
 function Toggle({
   checked,
@@ -683,66 +855,27 @@ function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 12,
-        width: '100%',
-        padding: '12px 0',
-        background: 'none',
-        border: 0,
-        textAlign: 'left',
-        cursor: 'pointer',
-        font: 'inherit',
-      }}
+      className="ui-focus flex w-full items-start gap-3 py-3.5 text-left"
     >
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: 'var(--lf-ink)' }}>{label}</span>
-        <span style={{ display: 'block', fontSize: 12, color: 'var(--lf-muted)', marginTop: 2, lineHeight: 1.4 }}>{description}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-semibold text-content">{label}</span>
+        <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">{description}</span>
       </span>
       <span
         aria-hidden="true"
-        style={{
-          flexShrink: 0,
-          width: 38,
-          height: 22,
-          borderRadius: 999,
-          background: checked ? 'var(--lf-sauce)' : 'var(--lf-rule)',
-          position: 'relative',
-          transition: 'background 0.15s ease',
-          marginTop: 2,
-        }}
+        className={cn(
+          'relative mt-0.5 h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-150 ease-ui',
+          checked ? 'bg-brand' : 'bg-line-strong',
+        )}
       >
         <span
-          style={{
-            position: 'absolute',
-            top: 2,
-            left: checked ? 18 : 2,
-            width: 18,
-            height: 18,
-            borderRadius: '50%',
-            background: 'var(--lf-paper)',
-            transition: 'left 0.15s ease',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-          }}
+          className="absolute top-[2px] h-[18px] w-[18px] rounded-full bg-panel shadow-ui-sm transition-[left] duration-150 ease-ui"
+          style={{ left: checked ? 18 : 2 }}
         />
       </span>
     </button>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  background: 'var(--lf-cream)',
-  border: '1px solid var(--lf-rule)',
-  borderRadius: 8,
-  fontSize: 16,
-  color: 'var(--lf-ink)',
-  outline: 'none',
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-};
 
 // Matches the dashboard's titleCase (short words like "CPC"/"529" stay caps).
 function titleCase(raw: string): string {

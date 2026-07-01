@@ -1,0 +1,28 @@
+// LasagnaFi Design System v3 — public surface.
+export { Button } from './Button';
+export type { ButtonProps } from './Button';
+export { Surface, CardHeader } from './Surface';
+export type { SurfaceProps } from './Surface';
+export { Input, Textarea, Label, Field } from './Field';
+export type { InputProps } from './Field';
+export { Select } from './Select';
+export type { SelectProps } from './Select';
+export { Badge } from './Badge';
+export type { BadgeProps } from './Badge';
+export { Stat, Delta } from './Stat';
+export type { DeltaDirection } from './Stat';
+export { PageHeader, Section, Eyebrow } from './Section';
+export { SegmentedControl } from './SegmentedControl';
+export type { SegmentOption } from './SegmentedControl';
+export { Table, THead, TBody, TR, TH, TD, CellStack } from './Table';
+export { EmptyState } from './EmptyState';
+export { Skeleton, SkeletonText } from './Skeleton';
+export { Alert } from './Alert';
+export { ToastProvider, useToast } from './Toast';
+export { Modal } from './Modal';
+export { Tooltip, TooltipProvider } from './Tooltip';
+export { ThemeToggle } from './ThemeToggle';
+export { useUiMode, applyMode, getStoredMode } from './mode';
+export type { UiMode } from './mode';
+export { VIZ_KEYS, VIZ_CATEGORY_LABELS, vizColor, vizVar } from './viz';
+export type { VizKey } from './viz';

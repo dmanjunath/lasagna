@@ -48,10 +48,17 @@ export function ActionItem({
   return (
     <div className="border-b border-border last:border-b-0">
       {/* Header */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full flex items-center gap-3 py-3 px-1 text-left group"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen((prev) => !prev);
+          }
+        }}
+        className="w-full flex items-center gap-3 py-3 px-1 text-left group cursor-pointer"
       >
         {/* Checkbox circle */}
         <button
@@ -114,7 +121,7 @@ export function ActionItem({
             open && 'rotate-180'
           )}
         />
-      </button>
+      </div>
 
       {/* Expandable body */}
       <AnimatePresence initial={false}>

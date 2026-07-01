@@ -3,7 +3,8 @@ import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
-import { formatMoney } from '../lib/utils';
+import { cn, formatMoney } from '../lib/utils';
+import { Building2 } from 'lucide-react';
 import { PageActions } from '../components/common/page-actions';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import {
@@ -11,19 +12,7 @@ import {
   type WithdrawalStrategy, type BacktestYearData, type BacktestRow,
   computeWithdrawal, eraLabel, runBacktest, buildBands,
 } from '../lib/retirement-engine';
-import {
-  Page as DSPage,
-  Section as DSSection,
-  Card as DSCard,
-  Button as DSButton,
-  Eyebrow as DSEyebrow,
-  EmptyState as DSEmptyState,
-  StatStrip as DSStatStrip,
-  CompositionRibbon as DSCompositionRibbon,
-  ChartHover,
-  SkeletonChart,
-  SkeletonLine,
-} from '../components/ds';
+import { Button, EmptyState, Skeleton } from '../components/uikit';
 
 // ── MC constants ─────────────────────────────────────────────────────────────
 const HISTORICAL_RETURNS: Record<string, number> = {
@@ -45,11 +34,11 @@ const MC_PRESETS = [
 const MC_RETURNS: Record<string, number> = { us: 10.0, intl: 7.5, bonds: 5.0, reit: 9.5, cash: 2.0 };
 const MC_LABELS: Record<string, string> = { us: 'US Stocks', intl: "Int'l Stocks", bonds: 'Bonds', reit: 'REITs', cash: 'Cash' };
 const MC_ACCENT: Record<string, string> = {
-  us: 'var(--lf-sauce)',   // terracotta
-  intl: 'var(--lf-cheese)', // ochre
-  bonds: 'var(--lf-basil)', // sage green
-  reit: 'var(--lf-noodle)', // warm yellow
-  cash: 'var(--lf-crust)',  // warm brown
+  us: 'var(--ui-viz-2)',   // periwinkle
+  intl: 'var(--ui-viz-5)', // sky
+  bonds: 'var(--ui-viz-1)', // teal
+  reit: 'var(--ui-viz-3)', // tangerine
+  cash: 'var(--ui-viz-7)',  // slate
 };
 
 
@@ -66,27 +55,97 @@ function getExpectedReturn(allocation: Record<string, number>): number {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-function Eyebrow({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+function Eyebrow({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
-    <p style={{
-      fontFamily: "'JetBrains Mono', monospace",
-      fontSize: 13, letterSpacing: '0.14em',
-      textTransform: 'uppercase', color: 'var(--lf-muted)',
-      marginBottom: 6, ...style,
-    }}>
+    <div
+      className={cn('text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted', className)}
+      style={style}
+    >
       {children}
-    </p>
+    </div>
   );
 }
 
-function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+function Card({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
-    <div style={{
-      background: 'var(--lf-paper)',
-      border: '1px solid var(--lf-rule)',
-      borderRadius: 14, padding: 20, ...style,
-    }}>
+    <div
+      className={cn('rounded-ui-xl border border-line bg-panel shadow-ui-sm', className)}
+      style={{ padding: 20, ...style }}
+    >
       {children}
+    </div>
+  );
+}
+
+// Local titled section — replaces the ds Section (eyebrow + editorial title).
+function Section({ title, eyebrow, children, className }: { title?: React.ReactNode; eyebrow?: React.ReactNode; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={cn('mt-8', className)}>
+      {(title || eyebrow) && (
+        <div className="mb-4 flex items-baseline justify-between gap-3">
+          {title && <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h2>}
+          {eyebrow && <span className="text-[12px] font-semibold text-content-muted ui-tnum">{eyebrow}</span>}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+// Local chart-hover overlay — crosshair + curve dot + floating value pill, on
+// the Bright --ui palette. Same API as the former ds ChartHover.
+function ChartHover({
+  width, height, paddingLeft, paddingRight, count,
+  getValue, getLabel, getSubline, getCurvePoint, hidePill = false,
+}: {
+  width: number; height: number; paddingLeft: number; paddingRight: number; count: number;
+  getValue: (i: number) => React.ReactNode; getLabel: (i: number) => React.ReactNode;
+  getSubline?: (i: number) => React.ReactNode;
+  getCurvePoint?: (i: number) => { x: number; y: number } | null;
+  hidePill?: boolean;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const innerW = Math.max(1, width - paddingLeft - paddingRight);
+  const pointerToIdx = (clientX: number): number | null => {
+    const root = rootRef.current;
+    if (!root || count <= 0) return null;
+    const rect = root.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const localX = (clientX - rect.left) * (width / rect.width);
+    const ratio = (localX - paddingLeft) / innerW;
+    return Math.min(count - 1, Math.max(0, Math.round(ratio * (count - 1))));
+  };
+  const xAt = (i: number) => (count <= 1 ? paddingLeft + innerW / 2 : paddingLeft + (i / (count - 1)) * innerW);
+  const hx = hoverIdx !== null ? xAt(hoverIdx) : null;
+  const curve = hoverIdx !== null && getCurvePoint ? getCurvePoint(hoverIdx) : null;
+  const PILL_W = 140;
+  const pillLeftPx = hx !== null ? Math.max(4, Math.min(width - PILL_W - 4, hx - PILL_W / 2)) : 0;
+  const pct = (px: number, denom: number) => `${(px / denom) * 100}%`;
+  return (
+    <div
+      ref={rootRef}
+      style={{ position: 'absolute', inset: 0, touchAction: 'none', cursor: 'crosshair', userSelect: 'none' }}
+      onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
+      onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
+      onPointerLeave={() => setHoverIdx(null)}
+      onPointerCancel={() => setHoverIdx(null)}
+    >
+      {hx !== null && (
+        <>
+          <div style={{ position: 'absolute', left: pct(hx, width), top: 0, bottom: 0, width: 1, borderLeft: '1px dashed rgb(var(--ui-content-muted))', opacity: 0.5, transform: 'translateX(-0.5px)', pointerEvents: 'none' }} />
+          {curve && (
+            <div style={{ position: 'absolute', left: pct(curve.x, width), top: pct(curve.y, height), width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: '50%', background: 'var(--ui-viz-2)', boxShadow: '0 0 0 2px rgb(var(--ui-panel))', pointerEvents: 'none' }} />
+          )}
+          {!hidePill && (
+            <div style={{ position: 'absolute', left: pct(pillLeftPx, width), top: '4px', width: PILL_W, padding: '6px 10px', background: 'rgb(var(--ui-content))', color: 'rgb(var(--ui-panel))', borderRadius: 8, boxShadow: 'var(--ui-shadow-md)', fontVariantNumeric: 'tabular-nums', pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{getValue(hoverIdx!)}</span>
+              <span style={{ fontSize: 10, opacity: 0.7, lineHeight: 1.3 }}>{getLabel(hoverIdx!)}</span>
+              {getSubline && <span style={{ fontSize: 10, opacity: 0.55, lineHeight: 1.3 }}>{getSubline(hoverIdx!)}</span>}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -166,8 +225,8 @@ function ProjectionFan({
       {/* Gridlines + Y-axis labels */}
       {yTicks.map(({ pct, val, y }) => (
         <g key={pct}>
-          <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--lf-rule)" strokeDasharray="2 4" />
-          <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)">
+          <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
+          <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))">
             {fmt(val)}
           </text>
         </g>
@@ -177,8 +236,8 @@ function ProjectionFan({
       {retireIdx > 0 && retireIdx < n && (
         <>
           <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={H - PB}
-            stroke="var(--lf-basil)" strokeDasharray="4 4" strokeWidth={1} />
-          <text x={xf(retireIdx) + 5} y={PT + 14} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-basil)">
+            stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
+          <text x={xf(retireIdx) + 5} y={PT + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-brand))">
             retire {retirementAge}
           </text>
         </>
@@ -187,19 +246,19 @@ function ProjectionFan({
       {/* MC bands — outer (p5–p95) under inner (p25–p75), then median.
           Iter 6: switch from CSS `opacity` (which some renderers cache) to the
           SVG `fill-opacity` attribute so the values stick. */}
-      <path d={band(bands.p95, bands.p5)} fill="var(--lf-data-2)" fillOpacity={0.08} data-band="p5-p95" />
-      <path d={band(bands.p75, bands.p25)} fill="var(--lf-data-2)" fillOpacity={0.18} data-band="p25-p75" />
-      <path d={linePath(bands.p50)} fill="none" stroke="var(--lf-ink-soft)" strokeWidth={1.5}
+      <path d={band(bands.p95, bands.p5)} fill="var(--ui-viz-2)" fillOpacity={0.08} data-band="p5-p95" />
+      <path d={band(bands.p75, bands.p25)} fill="var(--ui-viz-2)" fillOpacity={0.18} data-band="p25-p75" />
+      <path d={linePath(bands.p50)} fill="none" stroke="rgb(var(--ui-content-secondary))" strokeWidth={1.5}
         strokeDasharray="5 4" strokeLinecap="round" data-band="p50" />
 
       {/* X-axis age labels */}
-      <text x={xf(0)} y={H - 6} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)">
+      <text x={xf(0)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))">
         {currentAge}
       </text>
-      <text x={xf(Math.floor((n - 1) / 2))} y={H - 6} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)" textAnchor="middle">
+      <text x={xf(Math.floor((n - 1) / 2))} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))" textAnchor="middle">
         {currentAge + Math.floor((n - 1) / 2)}
       </text>
-      <text x={xf(n - 1)} y={H - 6} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)" textAnchor="end">
+      <text x={xf(n - 1)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))" textAnchor="end">
         {currentAge + n - 1}
       </text>
 
@@ -223,20 +282,20 @@ function ReadinessRing({ pct }: { pct: number }) {
   const r = 52;
   const circ = 2 * Math.PI * r;
   const dash = (pct / 100) * circ;
-  const color = pct >= 80 ? 'var(--lf-basil)' : pct >= 50 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
+  const color = pct >= 80 ? 'rgb(var(--ui-brand))' : pct >= 50 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
   return (
     <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
       <svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block', transform: 'rotate(-90deg)' }}>
-        <circle cx="60" cy="60" r={r} fill="none" stroke="var(--lf-rule)" strokeWidth={8} />
+        <circle cx="60" cy="60" r={r} fill="none" stroke="var(--ui-line)" strokeWidth={8} />
         <circle cx="60" cy="60" r={r} fill="none" stroke={color} strokeWidth={8}
           strokeLinecap="round" strokeDasharray={`${dash} ${circ}`}
           style={{ transition: 'stroke-dasharray 0.8s ease' }} />
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 24, color, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ fontFamily: 'inherit', fontWeight: 600, fontSize: 24, color, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
           {pct.toFixed(0)}%
         </span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginTop: 2 }}>
+        <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgb(var(--ui-content-muted))', marginTop: 2 }}>
           ready
         </span>
       </div>
@@ -270,22 +329,22 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
       data-testid="fan-chart"
     >
       {[0, 1, 2, 3, 4].map(i => (
-        <line key={i} x1={0} x2={W} y1={i * H / 4} y2={i * H / 4} stroke="var(--lf-rule)" strokeDasharray="2 4" />
+        <line key={i} x1={0} x2={W} y1={i * H / 4} y2={i * H / 4} stroke="var(--ui-line)" strokeDasharray="2 4" />
       ))}
-      <path d={path(bands.p95, bands.p5)} fill="var(--lf-data-2)" fillOpacity="0.08" data-band="p5-p95" />
-      <path d={path(bands.p75, bands.p25)} fill="var(--lf-data-2)" fillOpacity="0.18" data-band="p25-p75" />
-      <path d={path(bands.p50)} stroke="var(--lf-ink-soft)" strokeWidth="1.5" strokeDasharray="5 4" fill="none" data-band="p50" />
-      <line x1={retirePos} x2={retirePos} y1={0} y2={H} stroke="var(--lf-basil)" strokeDasharray="4 4" />
-      <text x={retirePos + 6} y={16} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-basil)">
+      <path d={path(bands.p95, bands.p5)} fill="var(--ui-viz-2)" fillOpacity="0.08" data-band="p5-p95" />
+      <path d={path(bands.p75, bands.p25)} fill="var(--ui-viz-2)" fillOpacity="0.18" data-band="p25-p75" />
+      <path d={path(bands.p50)} stroke="rgb(var(--ui-content-secondary))" strokeWidth="1.5" strokeDasharray="5 4" fill="none" data-band="p50" />
+      <line x1={retirePos} x2={retirePos} y1={0} y2={H} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" />
+      <text x={retirePos + 6} y={16} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-brand))">
         retire {retireAge}
       </text>
-      <text x={0} y={H + 14} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-muted)">
+      <text x={0} y={H + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-content-muted))">
         age {currentAge}
       </text>
-      <text x={W / 2} y={H + 14} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-muted)" textAnchor="middle">
+      <text x={W / 2} y={H + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-content-muted))" textAnchor="middle">
         age {Math.round(currentAge + (n - 1) / 2)}
       </text>
-      <text x={W} y={H + 14} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-muted)" textAnchor="end">
+      <text x={W} y={H + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-content-muted))" textAnchor="end">
         age {currentAge + n - 1}
       </text>
     </svg>
@@ -338,23 +397,23 @@ function DistributionBar({ finalValues }: { finalValues: number[] }) {
             onTouchStart={() => setHovered(hovered === i ? null : i)}
           >
             <rect x={bx} y={H - barH} width={bw} height={barH}
-              fill={h.success ? 'var(--lf-basil)' : 'var(--lf-sauce)'}
+              fill={h.success ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))'}
               opacity={isHov ? 1 : 0.82} rx="3"
               style={{ transition: 'opacity 0.15s' }} />
             <text x={bx + bw / 2} y={H + 14} textAnchor="middle"
-              fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-muted)">
+              fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-content-muted))">
               {h.label}
             </text>
             {h.pct >= 1 && (
               <text x={bx + bw / 2} y={H - barH - 4} textAnchor="middle"
-                fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-ink)">
+                fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-content))">
                 {h.pct.toFixed(1)}%
               </text>
             )}
             {isHov && (
               <g>
-                <rect x={ttX} y={H + 22} width={120} height={22} rx={5} fill="var(--lf-ink)" />
-                <text x={ttX + 8} y={H + 37} fontFamily="'JetBrains Mono', monospace" fontSize="10" fill="var(--lf-paper)">
+                <rect x={ttX} y={H + 22} width={120} height={22} rx={5} fill="rgb(var(--ui-content))" />
+                <text x={ttX + 8} y={H + 37} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="10" fill="rgb(var(--ui-panel))">
                   {h.pct.toFixed(1)}% → {h.label}
                 </text>
               </g>
@@ -426,10 +485,10 @@ function BacktestDetailChart({ yearByYear, dollars }: { yearByYear: BacktestYear
 
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--lf-muted)', marginBottom: 6, display: 'flex', gap: 16 }}>
-        <span><span style={{ display: 'inline-block', width: 10, height: 3, background: 'var(--lf-sauce)', borderRadius: 2, marginRight: 4, verticalAlign: 'middle' }} />Portfolio value</span>
-        {retireIdx > 0 && <span><span style={{ display: 'inline-block', width: 10, height: 8, background: 'var(--lf-basil)', borderRadius: 1, marginRight: 4, verticalAlign: 'middle', opacity: 0.15 }} />Accumulation</span>}
-        <span><span style={{ display: 'inline-block', width: 10, height: 8, background: 'var(--lf-cheese)', borderRadius: 1, marginRight: 4, verticalAlign: 'middle', opacity: 0.5 }} />Withdrawal</span>
+      <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'rgb(var(--ui-content-muted))', marginBottom: 6, display: 'flex', gap: 16 }}>
+        <span><span style={{ display: 'inline-block', width: 10, height: 3, background: 'var(--ui-viz-2)', borderRadius: 2, marginRight: 4, verticalAlign: 'middle' }} />Portfolio value</span>
+        {retireIdx > 0 && <span><span style={{ display: 'inline-block', width: 10, height: 8, background: 'rgb(var(--ui-brand))', borderRadius: 1, marginRight: 4, verticalAlign: 'middle', opacity: 0.15 }} />Accumulation</span>}
+        <span><span style={{ display: 'inline-block', width: 10, height: 8, background: 'rgb(var(--ui-caution))', borderRadius: 1, marginRight: 4, verticalAlign: 'middle', opacity: 0.5 }} />Withdrawal</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', cursor: 'crosshair' }}
         onMouseMove={handleMouseMove}
@@ -445,51 +504,51 @@ function BacktestDetailChart({ yearByYear, dollars }: { yearByYear: BacktestYear
         {/* Y-axis gridlines + labels */}
         {[0.25, 0.5, 0.75, 1].map(pct => (
           <g key={pct}>
-            <line x1={PL} x2={W - PR} y1={yf(maxV * pct)} y2={yf(maxV * pct)} stroke="var(--lf-rule)" strokeDasharray="2 4" />
-            <text x={PL - 6} y={yf(maxV * pct) + 4} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)">{fmt(maxV * pct)}</text>
+            <line x1={PL} x2={W - PR} y1={yf(maxV * pct)} y2={yf(maxV * pct)} stroke="var(--ui-line)" strokeDasharray="2 4" />
+            <text x={PL - 6} y={yf(maxV * pct) + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))">{fmt(maxV * pct)}</text>
           </g>
         ))}
         {/* Accumulation area (green) */}
-        {accAreaPath && <path d={accAreaPath} fill="var(--lf-basil)" opacity={0.08} />}
+        {accAreaPath && <path d={accAreaPath} fill="rgb(var(--ui-brand))" opacity={0.08} />}
         {/* Withdrawal area (red) */}
-        <path d={wdAreaPath} fill="var(--lf-sauce)" opacity={0.08} />
+        <path d={wdAreaPath} fill="rgb(var(--ui-caution))" opacity={0.08} />
         {/* Withdrawal bars */}
         {yearByYear.map((y, i) => {
           if (y.phase === 'accumulation') return null;
           const bH = Math.max(1, (withdrawals[i] / maxV) * chartH);
-          return <rect key={i} x={xf(i) - barW / 2} y={PT + chartH - bH} width={barW} height={bH} fill="var(--lf-cheese)" opacity={0.35} rx={1} />;
+          return <rect key={i} x={xf(i) - barW / 2} y={PT + chartH - bH} width={barW} height={bH} fill="rgb(var(--ui-caution))" opacity={0.35} rx={1} />;
         })}
         {/* Portfolio line */}
-        <path d={valueLine} fill="none" stroke="var(--lf-sauce)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={valueLine} fill="none" stroke="var(--ui-viz-2)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         {/* Retirement marker */}
         {retireIdx > 0 && (
           <>
-            <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={PT + chartH} stroke="var(--lf-basil)" strokeDasharray="4 4" strokeWidth={1} />
-            <text x={xf(retireIdx) + 4} y={PT + 12} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-basil)">retire</text>
+            <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={PT + chartH} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
+            <text x={xf(retireIdx) + 4} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-brand))">retire</text>
           </>
         )}
         {/* X-axis labels */}
         {xLabels.map(i => (
-          <text key={i} x={xf(i)} y={H - 4} fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="var(--lf-muted)"
+          <text key={i} x={xf(i)} y={H - 4} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={9} fill="rgb(var(--ui-content-muted))"
             textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}>{yearByYear[i].year}</text>
         ))}
         {/* Hover crosshair + tooltip */}
         {hoverIdx !== null && hd && (
           <g>
-            <line x1={hx} x2={hx} y1={PT} y2={PT + chartH} stroke="var(--lf-ink)" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
-            <circle cx={hx} cy={yf(hv)} r={4} fill="var(--lf-sauce)" />
-            <rect x={ttX} y={PT} width={166} height={hd.phase === 'accumulation' ? 52 : 66} rx={6} fill="var(--lf-ink)" opacity={0.92} />
-            <text x={ttX + 8} y={PT + 14} fontFamily="'JetBrains Mono', monospace" fontSize={10} fill="var(--lf-cheese)">
+            <line x1={hx} x2={hx} y1={PT} y2={PT + chartH} stroke="rgb(var(--ui-content))" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+            <circle cx={hx} cy={yf(hv)} r={4} fill="var(--ui-viz-2)" />
+            <rect x={ttX} y={PT} width={166} height={hd.phase === 'accumulation' ? 52 : 66} rx={6} fill="rgb(var(--ui-content))" opacity={0.92} />
+            <text x={ttX + 8} y={PT + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} fill="rgb(var(--ui-caution))">
               {hd.year} · {hd.phase === 'accumulation' ? 'saving' : 'withdrawing'}
             </text>
-            <text x={ttX + 8} y={PT + 28} fontFamily="'JetBrains Mono', monospace" fontSize={10} fill="var(--lf-paper)">
+            <text x={ttX + 8} y={PT + 28} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} fill="rgb(var(--ui-panel))">
               portfolio {fmt(hv)}
             </text>
-            <text x={ttX + 8} y={PT + 42} fontFamily="'JetBrains Mono', monospace" fontSize={10} fill="rgba(251,246,236,0.6)">
+            <text x={ttX + 8} y={PT + 42} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} fill="rgb(var(--ui-panel) / 0.6)">
               return {hd.marketReturn >= 0 ? '+' : ''}{(hd.marketReturn * 100).toFixed(1)}%
             </text>
             {hd.phase === 'withdrawal' && (
-              <text x={ttX + 8} y={PT + 56} fontFamily="'JetBrains Mono', monospace" fontSize={10} fill="var(--lf-cheese)">
+              <text x={ttX + 8} y={PT + 56} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} fill="rgb(var(--ui-caution))">
                 withdrew {fmt(hw)}
               </text>
             )}
@@ -515,20 +574,20 @@ function BacktestSection({ backtestRows, portfolioValue, monthlySpend, lifeHoriz
   return (
     <>
       <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--lf-rule)', fontSize: 13, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--ui-line)', fontSize: 13, color: 'rgb(var(--ui-content-secondary))', fontFamily: 'inherit' }}>
           Starts with {formatMoney(portfolioValue, true)} and <strong>accumulates for {accumulationYears} years</strong> using historical returns + savings, then <strong>withdraws {formatMoney(monthlySpend * 12, true)}/yr</strong> for {lifeHorizon} years. Each row is a different historical starting point.
         </div>
         <div className="ret-backtest-wrap" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-              <tr style={{ background: 'var(--lf-cream)' }}>
+              <tr style={{ background: 'rgb(var(--ui-canvas-sunken))' }}>
                 {['Start', 'Retired', 'Through', 'At retirement', 'Worst year', 'Final value', 'Result'].map(h => (
                   <th key={h} style={{
                     textAlign: 'left', padding: '10px 16px',
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 13,
-                    color: 'var(--lf-muted)', textTransform: 'uppercase',
+                    fontVariantNumeric: 'tabular-nums', fontSize: 13,
+                    color: 'rgb(var(--ui-content-muted))', textTransform: 'uppercase',
                     letterSpacing: '0.1em', fontWeight: 500, whiteSpace: 'nowrap',
-                    borderBottom: '1px solid var(--lf-rule)',
+                    borderBottom: '1px solid var(--ui-line)',
                   }}>
                     {h}
                   </th>
@@ -541,38 +600,38 @@ function BacktestSection({ backtestRows, portfolioValue, monthlySpend, lifeHoriz
                   <tr
                     onClick={() => setExpandedRow(prev => prev === row.accStartYear ? null : row.accStartYear)}
                     style={{
-                      borderTop: '1px solid var(--lf-rule)',
-                      background: expandedRow === row.accStartYear ? 'rgba(201,84,58,0.06)' : row.survived ? 'transparent' : 'rgba(201,84,58,0.04)',
+                      borderTop: '1px solid var(--ui-line)',
+                      background: expandedRow === row.accStartYear ? 'rgb(var(--ui-canvas-sunken))' : row.survived ? 'transparent' : 'var(--ui-negative-soft)',
                       cursor: 'pointer',
                       transition: 'background 0.15s',
                     }}
                   >
-                    <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink)', fontWeight: 600 }}>
+                    <td style={{ padding: '10px 16px', fontVariantNumeric: 'tabular-nums', color: 'rgb(var(--ui-content))', fontWeight: 600 }}>
                       {row.accStartYear}
                     </td>
-                    <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-basil)', fontWeight: 600, fontSize: 13 }}>
+                    <td style={{ padding: '10px 16px', fontVariantNumeric: 'tabular-nums', color: 'rgb(var(--ui-brand))', fontWeight: 600, fontSize: 13 }}>
                       {row.startYear}
                     </td>
-                    <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-muted)', fontSize: 13 }}>
+                    <td style={{ padding: '10px 16px', fontVariantNumeric: 'tabular-nums', color: 'rgb(var(--ui-content-muted))', fontSize: 13 }}>
                       {row.endYear}
                     </td>
-                    <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink)', fontSize: 13 }}>
+                    <td style={{ padding: '10px 16px', fontVariantNumeric: 'tabular-nums', color: 'rgb(var(--ui-content))', fontSize: 13 }}>
                       {formatMoney(row.portfolioAtRetirement, true)}
                     </td>
-                    <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, whiteSpace: 'nowrap' }}>
-                      <span style={{ color: row.worstReturn < -0.2 ? 'var(--lf-sauce)' : row.worstReturn < 0 ? 'var(--lf-cheese)' : 'var(--lf-muted)' }}>
+                    <td style={{ padding: '10px 16px', fontVariantNumeric: 'tabular-nums', fontSize: 13, whiteSpace: 'nowrap' }}>
+                      <span style={{ color: row.worstReturn < -0.2 ? 'rgb(var(--ui-negative))' : row.worstReturn < 0 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-content-muted))' }}>
                         {row.worstYear} ({row.worstReturn >= 0 ? '+' : ''}{(row.worstReturn * 100).toFixed(1)}%)
                       </span>
                     </td>
-                    <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink)' }}>
+                    <td style={{ padding: '10px 16px', fontVariantNumeric: 'tabular-nums', color: 'rgb(var(--ui-content))' }}>
                       {row.survived
                         ? formatMoney(dollars === 'real' ? row.finalValueReal : row.finalValue, true)
-                        : <span style={{ color: 'var(--lf-sauce)' }}>depleted {row.depletedYear}</span>
+                        : <span style={{ color: 'rgb(var(--ui-negative))' }}>depleted {row.depletedYear}</span>
                       }
                     </td>
-                    <td style={{ padding: '10px 16px', fontFamily: "'JetBrains Mono', monospace" }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: row.survived ? 'var(--lf-pos)' : 'var(--lf-sauce)', fontSize: 13 }}>
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: row.survived ? 'var(--lf-pos)' : 'var(--lf-sauce)', flexShrink: 0 }} />
+                    <td style={{ padding: '10px 16px', fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: row.survived ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))', fontSize: 13 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: row.survived ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))', flexShrink: 0 }} />
                         {row.survived ? 'survived' : 'depleted'}
                       </span>
                     </td>
@@ -580,7 +639,7 @@ function BacktestSection({ backtestRows, portfolioValue, monthlySpend, lifeHoriz
                   {expandedRow === row.accStartYear && (
                     <tr>
                       <td colSpan={7} style={{ padding: 0 }}>
-                        <div style={{ padding: '16px 20px', background: 'var(--lf-cream)', borderTop: '1px solid var(--lf-rule)' }}>
+                        <div style={{ padding: '16px 20px', background: 'rgb(var(--ui-canvas-sunken))', borderTop: '1px solid var(--ui-line)' }}>
                           {/* Chart */}
                           <BacktestDetailChart yearByYear={row.yearByYear} dollars={dollars} />
                           {/* Year-by-year table */}
@@ -591,11 +650,11 @@ function BacktestSection({ backtestRows, portfolioValue, monthlySpend, lifeHoriz
                                   {['Year', 'Phase', 'Start value', 'End value', 'Contribution / Withdrawal', 'Return'].map(h => (
                                     <th key={h} style={{
                                       textAlign: 'left', padding: '6px 12px',
-                                      fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-                                      color: 'var(--lf-muted)', textTransform: 'uppercase',
+                                      fontVariantNumeric: 'tabular-nums', fontSize: 11,
+                                      color: 'rgb(var(--ui-content-muted))', textTransform: 'uppercase',
                                       letterSpacing: '0.08em', fontWeight: 500,
-                                      borderBottom: '1px solid var(--lf-rule)', position: 'sticky', top: 0,
-                                      background: 'var(--lf-cream)',
+                                      borderBottom: '1px solid var(--ui-line)', position: 'sticky', top: 0,
+                                      background: 'rgb(var(--ui-canvas-sunken))',
                                     }}>
                                       {h}
                                     </th>
@@ -611,19 +670,19 @@ function BacktestSection({ backtestRows, portfolioValue, monthlySpend, lifeHoriz
                                   const flow = isAcc ? y.contribution : Math.round(y.withdrawal / deflator);
                                   return (
                                     <tr key={y.year} style={{
-                                      borderTop: '1px solid var(--lf-rule)',
-                                      background: isAcc ? 'rgba(159,209,142,0.04)' : undefined,
+                                      borderTop: '1px solid var(--ui-line)',
+                                      background: isAcc ? 'var(--ui-brand-softer)' : undefined,
                                     }}>
-                                      <td style={{ padding: '5px 12px', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, color: 'var(--lf-ink)' }}>{y.year}</td>
-                                      <td style={{ padding: '5px 12px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: isAcc ? 'var(--lf-basil)' : 'var(--lf-sauce)' }}>
+                                      <td style={{ padding: '5px 12px', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'rgb(var(--ui-content))' }}>{y.year}</td>
+                                      <td style={{ padding: '5px 12px', fontVariantNumeric: 'tabular-nums', fontSize: 11, color: isAcc ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))' }}>
                                         {isAcc ? 'saving' : 'withdraw'}
                                       </td>
-                                      <td style={{ padding: '5px 12px', fontFamily: "'JetBrains Mono', monospace", color: 'var(--lf-ink-soft)' }}>{formatMoney(sv, true)}</td>
-                                      <td style={{ padding: '5px 12px', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, color: y.endValue <= 0 ? 'var(--lf-sauce)' : 'var(--lf-ink)' }}>{formatMoney(ev, true)}</td>
-                                      <td style={{ padding: '5px 12px', fontFamily: "'JetBrains Mono', monospace", color: isAcc ? 'var(--lf-basil)' : 'var(--lf-cheese)' }}>
+                                      <td style={{ padding: '5px 12px', fontVariantNumeric: 'tabular-nums', color: 'rgb(var(--ui-content-secondary))' }}>{formatMoney(sv, true)}</td>
+                                      <td style={{ padding: '5px 12px', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: y.endValue <= 0 ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-content))' }}>{formatMoney(ev, true)}</td>
+                                      <td style={{ padding: '5px 12px', fontVariantNumeric: 'tabular-nums', color: isAcc ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-caution))' }}>
                                         {isAcc ? '+' : '-'}{formatMoney(flow, true)}
                                       </td>
-                                      <td style={{ padding: '5px 12px', fontFamily: "'JetBrains Mono', monospace", color: y.marketReturn >= 0 ? 'var(--lf-pos)' : 'var(--lf-sauce)' }}>
+                                      <td style={{ padding: '5px 12px', fontVariantNumeric: 'tabular-nums', color: y.marketReturn >= 0 ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))' }}>
                                         {y.marketReturn >= 0 ? '+' : ''}{(y.marketReturn * 100).toFixed(1)}%
                                       </td>
                                     </tr>
@@ -741,7 +800,7 @@ function SimulateView({
   );
 
   const mcSuccessRate = bands.mcSuccessRate;
-  const mcSuccessColor = mcSuccessRate >= 80 ? 'var(--lf-pos)' : mcSuccessRate >= 60 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
+  const mcSuccessColor = mcSuccessRate >= 80 ? 'rgb(var(--ui-brand))' : mcSuccessRate >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
 
   // Real vs nominal: deflate by 3% / yr from current age
   const displayBands = useMemo(() => {
@@ -780,7 +839,7 @@ function SimulateView({
   };
 
   const backtestSuccessRate = backtestRows.length > 0 ? Math.round((survived / backtestRows.length) * 100) : 0;
-  const btSuccessColor = backtestSuccessRate >= 80 ? 'var(--lf-pos)' : backtestSuccessRate >= 60 ? 'var(--lf-cheese)' : 'var(--lf-sauce)';
+  const btSuccessColor = backtestSuccessRate >= 80 ? 'rgb(var(--ui-brand))' : backtestSuccessRate >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
 
   useEffect(() => { onRatesChange?.(mcSuccessRate, backtestSuccessRate); }, [mcSuccessRate, backtestSuccessRate, onRatesChange]);
 
@@ -798,23 +857,23 @@ function SimulateView({
           ]).map(s => (
             <button key={s.id} onClick={() => setStrategy(s.id)} style={{
               padding: '8px 14px', fontSize: 13, cursor: 'pointer',
-              fontFamily: "'Geist', system-ui, sans-serif", borderRadius: 8, fontWeight: 500,
-              background: strategy === s.id ? 'rgba(201,84,58,0.08)' : 'var(--lf-paper)',
-              color: strategy === s.id ? 'var(--lf-sauce)' : 'var(--lf-ink-soft)',
-              border: `1px solid ${strategy === s.id ? 'rgba(201,84,58,0.3)' : 'var(--lf-rule)'}`,
+              fontFamily: 'inherit', borderRadius: 8, fontWeight: 500,
+              background: strategy === s.id ? 'var(--ui-brand-soft)' : 'rgb(var(--ui-panel))',
+              color: strategy === s.id ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-secondary))',
+              border: `1px solid ${strategy === s.id ? 'var(--ui-brand-ring)' : 'var(--ui-line)'}`,
             }}>
               {s.label}
             </button>
           ))}
         </div>
         {/* Body copy → Geist (mono only for numeric displays). */}
-        <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 14, color: 'var(--lf-ink-soft)', lineHeight: 1.55, marginBottom: 20 }}>
+        <div style={{ fontFamily: 'inherit', fontSize: 14, color: 'rgb(var(--ui-content-secondary))', lineHeight: 1.55, marginBottom: 20 }}>
           {strategyDescriptions[strategy]}
         </div>
         <div className="ret-withdrawal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28, width: '100%' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <label style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500, fontFamily: "'Geist', system-ui, sans-serif" }}>
+              <label style={{ fontSize: 13, color: 'rgb(var(--ui-content-secondary))', fontWeight: 500, fontFamily: 'inherit' }}>
                 Monthly spending
               </label>
               <input
@@ -833,35 +892,35 @@ function SimulateView({
                   setMonthlySpend(clamped);
                   setMonthlySpendStr(String(clamped));
                 }}
-                style={{ width: 100, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#C9543A', fontWeight: 600, background: 'transparent' }}
+                style={{ width: 100, textAlign: 'right', border: '1px solid var(--ui-line)', borderRadius: 6, padding: '2px 6px', fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-brand-ink))', fontWeight: 600, background: 'transparent' }}
               />
             </div>
             <input type="range" min={2000} max={20000} step={500} value={monthlySpend}
               onChange={e => setMonthlySpend(+e.target.value)}
-              style={{ width: '100%', accentColor: '#C9543A' }} />
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 4 }}>
+              style={{ width: '100%', accentColor: 'rgb(var(--ui-brand))' }} />
+            <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 4 }}>
               annual withdrawal ≈ {formatMoney(monthlySpend * 12, true)}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontWeight: 500, marginBottom: 8, fontFamily: "'Geist', system-ui, sans-serif" }}>
+            <div style={{ fontSize: 13, color: 'rgb(var(--ui-content-secondary))', fontWeight: 500, marginBottom: 8, fontFamily: 'inherit' }}>
               Parameters
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, padding: '8px 0', cursor: 'pointer', fontFamily: "'Geist', system-ui, sans-serif", color: 'var(--lf-ink-soft)' }}>
-              <input type="checkbox" checked={inflAdj} onChange={e => setInflAdj(e.target.checked)} style={{ accentColor: '#C9543A' }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, padding: '8px 0', cursor: 'pointer', fontFamily: 'inherit', color: 'rgb(var(--ui-content-secondary))' }}>
+              <input type="checkbox" checked={inflAdj} onChange={e => setInflAdj(e.target.checked)} style={{ accentColor: 'rgb(var(--ui-brand))' }} />
               Inflation-adjusted withdrawals
             </label>
             {strategy === 'constant_dollar' && (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 8, lineHeight: 1.7 }}>
+              <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'rgb(var(--ui-content-muted))', marginTop: 8, lineHeight: 1.7 }}>
                 Withdrawal rate: {portfolioValue > 0 ? ((annualWithdrawal / portfolioValue) * 100).toFixed(1) : '—'}% of current portfolio
               </div>
             )}
             {strategy === 'percent_portfolio' && (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 8, lineHeight: 1.7 }}>
+              <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'rgb(var(--ui-content-muted))', marginTop: 8, lineHeight: 1.7 }}>
                 <div>Rate: 4% of portfolio each year</div>
                 <div>Year 1 withdrawal: {formatMoney(portfolioValue * 0.04, true)}/yr ({formatMoney(Math.round(portfolioValue * 0.04 / 12), true)}/mo)</div>
                 {annualWithdrawal !== portfolioValue * 0.04 && (
-                  <div style={{ color: annualWithdrawal > portfolioValue * 0.04 ? 'var(--lf-sauce)' : 'var(--lf-basil)' }}>
+                  <div style={{ color: annualWithdrawal > portfolioValue * 0.04 ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-brand))' }}>
                     vs your planned spending: {formatMoney(annualWithdrawal, true)}/yr ({annualWithdrawal > portfolioValue * 0.04 ? '+' : ''}{formatMoney(annualWithdrawal - Math.round(portfolioValue * 0.04), true)})
                   </div>
                 )}
@@ -872,7 +931,7 @@ function SimulateView({
               const upperPct = (initialRate * 0.8 * 100).toFixed(1);
               const lowerPct = (initialRate * 1.2 * 100).toFixed(1);
               return (
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginTop: 8, lineHeight: 1.7 }}>
+                <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'rgb(var(--ui-content-muted))', marginTop: 8, lineHeight: 1.7 }}>
                   <div>Initial rate: {(initialRate * 100).toFixed(1)}% of portfolio</div>
                   <div>If rate drops below {upperPct}% → increase withdrawal 10%</div>
                   <div>If rate exceeds {lowerPct}% → decrease withdrawal 10%</div>
@@ -891,10 +950,10 @@ function SimulateView({
           {MC_PRESETS.map(p => (
             <button key={p.id} onClick={() => selectPreset(p)} style={{
               padding: '8px 14px', fontSize: 13, cursor: 'pointer',
-              fontFamily: "'Geist', system-ui, sans-serif", borderRadius: 8, fontWeight: 500,
-              background: preset === p.id ? 'rgba(201,84,58,0.08)' : 'var(--lf-paper)',
-              color: preset === p.id ? 'var(--lf-sauce)' : 'var(--lf-ink-soft)',
-              border: `1px solid ${preset === p.id ? 'rgba(201,84,58,0.3)' : 'var(--lf-rule)'}`,
+              fontFamily: 'inherit', borderRadius: 8, fontWeight: 500,
+              background: preset === p.id ? 'var(--ui-brand-soft)' : 'rgb(var(--ui-panel))',
+              color: preset === p.id ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-secondary))',
+              border: `1px solid ${preset === p.id ? 'var(--ui-brand-ring)' : 'var(--ui-line)'}`,
             }}>
               {p.label}
             </button>
@@ -902,8 +961,8 @@ function SimulateView({
           {preset === 'custom' && (
             <span style={{
               padding: '8px 14px', fontSize: 13, borderRadius: 8,
-              background: 'var(--lf-cream)', color: 'var(--lf-muted)',
-              border: '1px solid var(--lf-rule)', fontFamily: "'JetBrains Mono', monospace",
+              background: 'rgb(var(--ui-canvas-sunken))', color: 'rgb(var(--ui-content-muted))',
+              border: '1px solid var(--ui-line)', fontVariantNumeric: 'tabular-nums',
             }}>Custom</span>
           )}
         </div>
@@ -911,7 +970,7 @@ function SimulateView({
           {Object.keys(MC_LABELS).map(k => (
             <div key={k}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, color: 'var(--lf-ink-soft)', fontFamily: "'Geist', system-ui, sans-serif" }}>
+                <span style={{ fontSize: 13, color: 'rgb(var(--ui-content-secondary))', fontFamily: 'inherit' }}>
                   {MC_LABELS[k]}
                 </span>
                 <input
@@ -929,21 +988,21 @@ function SimulateView({
                     updateAlloc(k, clamped);
                     setAllocStrs(prev => ({ ...prev, [k]: String(clamped) }));
                   }}
-                  style={{ width: 44, textAlign: 'right', border: '1px solid var(--lf-rule)', borderRadius: 6, padding: '2px 4px', fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', background: 'transparent' }}
+                  style={{ width: 44, textAlign: 'right', border: '1px solid var(--ui-line)', borderRadius: 6, padding: '2px 4px', fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 600, color: 'rgb(var(--ui-content))', background: 'transparent' }}
                 />
               </div>
               <input type="range" min={0} max={100} step={5}
                 value={mcAlloc[k as keyof typeof mcAlloc]}
                 onChange={e => updateAlloc(k, +e.target.value)}
                 style={{ width: '100%', accentColor: MC_ACCENT[k] }} />
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 3 }}>
+              <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 3 }}>
                 {MC_RETURNS[k]}% avg · hist.
               </div>
             </div>
           ))}
         </div>
         {/* Stacked allocation bar */}
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--lf-rule)' }}>
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ui-line)' }}>
           <div style={{ display: 'flex', height: 36, borderRadius: 8, overflow: 'hidden', gap: 1 }}>
             {Object.keys(MC_LABELS).map(k => {
               const pct = allocTotal > 0 ? (mcAlloc[k as keyof McAlloc] / allocTotal) * 100 : 0;
@@ -953,7 +1012,7 @@ function SimulateView({
                   display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                 }}>
                   {pct >= 10 && (
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.3)', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, fontWeight: 600, color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.3)', whiteSpace: 'nowrap' }}>
                       {MC_LABELS[k]} {mcAlloc[k as keyof McAlloc]}%
                     </span>
                   )}
@@ -965,23 +1024,23 @@ function SimulateView({
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           marginTop: 12, fontSize: 13,
-          fontFamily: "'Geist', system-ui, sans-serif", color: 'var(--lf-ink-soft)',
+          fontFamily: 'inherit', color: 'rgb(var(--ui-content-secondary))',
         }}>
           <span>
             Blended return · <strong>{expReturn.toFixed(2)}%</strong>
             {preset !== 'current' && actualBlendedReturn !== null && (
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginLeft: 8 }}>
+              <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'rgb(var(--ui-content-muted))', marginLeft: 8 }}>
                 (your actual portfolio: {actualBlendedReturn.toFixed(1)}%)
               </span>
             )}
             {preset === 'current' && actualBlendedReturn !== null && (
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)', marginLeft: 8 }}>
+              <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'rgb(var(--ui-content-muted))', marginLeft: 8 }}>
                 · from your actual holdings
               </span>
             )}
           </span>
           {allocTotal !== 100 && (
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-sauce)' }}>
+            <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-negative))' }}>
               ⚠ allocation totals {allocTotal}%
             </span>
           )}
@@ -989,16 +1048,16 @@ function SimulateView({
       </Card>
 
       {/* ── Real / Nominal toggle — applies to both tabs ───────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))' }}>
         <span>Values in:</span>
-        <div style={{ display: 'flex', border: '1px solid var(--lf-rule)', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: '1px solid var(--ui-line)', borderRadius: 8, overflow: 'hidden' }}>
           {(['real', 'nominal'] as const).map((d, i) => (
             <button key={d} onClick={() => setDollars(d)} style={{
               padding: '5px 12px', fontSize: 13, cursor: 'pointer',
-              fontFamily: "'JetBrains Mono', monospace",
-              background: dollars === d ? 'rgba(201,84,58,0.08)' : 'transparent',
-              color: dollars === d ? 'var(--lf-sauce)' : 'var(--lf-muted)',
-              border: 0, borderRight: i === 0 ? '1px solid var(--lf-rule)' : 'none',
+              fontVariantNumeric: 'tabular-nums',
+              background: dollars === d ? 'var(--ui-brand-soft)' : 'transparent',
+              color: dollars === d ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-muted))',
+              border: 0, borderRight: i === 0 ? '1px solid var(--ui-line)' : 'none',
               transition: 'background 0.15s, color 0.15s',
             }}>
               {d === 'real' ? 'Real $' : 'Nominal $'}
@@ -1011,7 +1070,7 @@ function SimulateView({
       </div>
 
       {/* ── Tab bar ────────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 20, border: '1px solid var(--lf-rule)', borderRadius: 10, overflow: 'hidden', background: 'var(--lf-cream)' }}>
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, border: '1px solid var(--ui-line)', borderRadius: 10, overflow: 'hidden', background: 'rgb(var(--ui-canvas-sunken))' }}>
         {([
           { id: 'mc', label: 'Monte Carlo', rate: mcSuccessRate, color: mcSuccessColor },
           { id: 'backtest', label: 'Historical Backtest', rate: backtestSuccessRate, color: btSuccessColor },
@@ -1023,17 +1082,17 @@ function SimulateView({
               onClick={() => setSimTab(tab.id)}
               style={{
                 flex: 1, padding: '12px 16px', cursor: 'pointer', border: 0,
-                borderRight: i === 0 ? '1px solid var(--lf-rule)' : 'none',
-                borderBottom: isActive ? `2px solid var(--lf-sauce)` : '2px solid transparent',
-                background: isActive ? 'var(--lf-paper)' : 'transparent',
+                borderRight: i === 0 ? '1px solid var(--ui-line)' : 'none',
+                borderBottom: isActive ? `2px solid rgb(var(--ui-brand))` : '2px solid transparent',
+                background: isActive ? 'rgb(var(--ui-panel))' : 'transparent',
                 transition: 'background 0.15s, border-color 0.15s',
                 display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3,
               }}
             >
-              <span style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--lf-ink)' : 'var(--lf-muted)' }}>
+              <span style={{ fontFamily: 'inherit', fontSize: 13, fontWeight: isActive ? 600 : 500, color: isActive ? 'rgb(var(--ui-content))' : 'rgb(var(--ui-content-muted))' }}>
                 {tab.label}
               </span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: tab.color }}>
+              <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 600, color: tab.color }}>
                 {tab.rate}% success
               </span>
             </button>
@@ -1047,18 +1106,18 @@ function SimulateView({
           <Card style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
               <Eyebrow style={{ marginBottom: 0 }}>Portfolio projection · 1,000 randomized runs</Eyebrow>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)' }}>
+              <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))' }}>
                 accumulate {currentAge}–{retirementAge} · withdraw {retirementAge}–{lifeExp}
               </span>
             </div>
             <FanChart bands={displayBands} retireAge={retirementAge} currentAge={currentAge} />
-            <div style={{ display: 'flex', gap: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 12, flexWrap: 'wrap' }}>
-              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-data-2)', opacity: 0.18, marginRight: 6, verticalAlign: 'middle' }}></span>p5–p95</span>
-              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-data-2)', opacity: 0.36, marginRight: 6, verticalAlign: 'middle' }}></span>p25–p75</span>
-              <span><span style={{ display: 'inline-block', width: 12, height: 2, background: 'var(--lf-ink-soft)', marginRight: 6, verticalAlign: 'middle' }}></span>median (p50)</span>
+            <div style={{ display: 'flex', gap: 24, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 12, flexWrap: 'wrap' }}>
+              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--ui-viz-2)', opacity: 0.18, marginRight: 6, verticalAlign: 'middle' }}></span>p5–p95</span>
+              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--ui-viz-2)', opacity: 0.36, marginRight: 6, verticalAlign: 'middle' }}></span>p25–p75</span>
+              <span><span style={{ display: 'inline-block', width: 12, height: 2, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }}></span>median (p50)</span>
               <span style={{ marginLeft: 'auto' }}>
                 median @ age {lifeExp}: <strong>{formatMoney(displayBands.p50[displayBands.p50.length - 1] || 0, true)}</strong>
-                &nbsp;·&nbsp; worst 5%: <strong style={{ color: displayBands.p5[displayBands.p5.length - 1] === 0 ? 'var(--lf-sauce)' : undefined }}>
+                &nbsp;·&nbsp; worst 5%: <strong style={{ color: displayBands.p5[displayBands.p5.length - 1] === 0 ? 'rgb(var(--ui-negative))' : undefined }}>
                   {displayBands.p5[displayBands.p5.length - 1] === 0 ? 'depleted' : formatMoney(displayBands.p5[displayBands.p5.length - 1], true)}
                 </strong>
               </span>
@@ -1067,9 +1126,9 @@ function SimulateView({
           <Card style={{ marginBottom: 20 }}>
             <Eyebrow style={{ marginBottom: 10 }}>Distribution of final portfolio values at age {lifeExp}</Eyebrow>
             <DistributionBar finalValues={displayBands.finalValues} />
-            <div style={{ display: 'flex', gap: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: 'var(--lf-muted)', marginTop: 4, flexWrap: 'wrap' }}>
-              <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--lf-basil)', borderRadius: 2, marginRight: 6, verticalAlign: 'middle' }}></span>portfolio survived</span>
-              <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--lf-sauce)', borderRadius: 2, marginRight: 6, verticalAlign: 'middle' }}></span>depleted before end</span>
+            <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 4, flexWrap: 'wrap' }}>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgb(var(--ui-brand))', borderRadius: 2, marginRight: 6, verticalAlign: 'middle' }}></span>portfolio survived</span>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgb(var(--ui-negative))', borderRadius: 2, marginRight: 6, verticalAlign: 'middle' }}></span>depleted before end</span>
               <span style={{ marginLeft: 'auto' }}>each bar = % of 1,000 runs</span>
             </div>
           </Card>
@@ -1102,19 +1161,19 @@ function SimulateView({
             });
 
             return (
-              <Card style={{ marginBottom: 20, background: 'rgba(201,84,58,0.04)', border: '1px solid rgba(201,84,58,0.15)' }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--lf-sauce)', marginBottom: 12 }}>
+              <Card style={{ marginBottom: 20, background: 'var(--ui-negative-soft)', border: '1px solid var(--ui-negative-soft)' }}>
+                <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgb(var(--ui-negative))', marginBottom: 12 }}>
                   Why {failPct}% of runs fail · what to do
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {fixes.map((fix, i) => (
                     <div key={i} style={{ display: 'flex', gap: 12 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(201,84,58,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--lf-sauce)', fontWeight: 600 }}>{i + 1}</span>
+                      <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--ui-negative-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                        <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'rgb(var(--ui-negative))', fontWeight: 600 }}>{i + 1}</span>
                       </div>
                       <div>
-                        <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--lf-ink)', marginBottom: 3 }}>{fix.label}</div>
-                        <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontSize: 13, color: 'var(--lf-ink-soft)', lineHeight: 1.6 }}>{fix.detail}</div>
+                        <div style={{ fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'rgb(var(--ui-content))', marginBottom: 3 }}>{fix.label}</div>
+                        <div style={{ fontFamily: 'inherit', fontSize: 13, color: 'rgb(var(--ui-content-secondary))', lineHeight: 1.6 }}>{fix.detail}</div>
                       </div>
                     </div>
                   ))}
@@ -1294,40 +1353,35 @@ export function Retirement() {
     // accounts query + MC compute spin up. Same outline as the loaded page
     // (page-bar + projection fan height) so swap-in doesn't jolt.
     return (
-      <DSPage>
-        <header className="ds-page-bar">
-          <div className="ds-page-bar__title-group">
-            <h1 className="ds-page-bar__title">Retirement</h1>
-            <SkeletonLine width="200px" height={12} style={{ marginTop: 4 }} />
-          </div>
+      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+        <header>
+          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">Retirement</h1>
+          <Skeleton className="mt-2 h-3 w-52" />
         </header>
-        <div style={{ marginBottom: 16 }}>
-          <SkeletonLine width="120px" height={11} />
-        </div>
-        <SkeletonChart height={320} />
-      </DSPage>
+        <Skeleton className="mt-8 h-3 w-32" />
+        <Skeleton className="mt-4 h-[320px] w-full rounded-ui-xl" />
+      </div>
     );
   }
 
   if (!hasAccounts) {
     return (
-      <DSPage>
-        <header className="ds-page-bar">
-          <div className="ds-page-bar__title-group">
-            <h1 className="ds-page-bar__title">Retirement</h1>
-            <span className="ds-page-bar__caption">Link accounts to project your timeline</span>
-          </div>
+      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+        <header className="mb-8">
+          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">Retirement</h1>
+          <p className="mt-1.5 text-[14px] font-medium text-content-muted">Link accounts to project your timeline</p>
         </header>
-        <DSEmptyState
+        <EmptyState
+          icon={<Building2 size={24} />}
           title="No accounts linked"
-          body="Connect your bank and investment accounts to see your retirement projections based on real data."
-          cta={
-            <DSButton variant="ink" onClick={() => navigate('/accounts')}>
-              + Link your first account
-            </DSButton>
+          description="Connect your bank and investment accounts to see your retirement projections based on real data."
+          action={
+            <Button variant="primary" onClick={() => navigate('/accounts')}>
+              Link your first account
+            </Button>
           }
         />
-      </DSPage>
+      </div>
     );
   }
 
@@ -1336,7 +1390,7 @@ export function Retirement() {
 
   // Page-scoped responsive helpers — kept inline since they're page-specific.
   return (
-    <DSPage>
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
       <style>{`
         @media (max-width: 800px) {
           .ret-hero-grid { grid-template-columns: repeat(3, 1fr) !important; }
@@ -1362,16 +1416,16 @@ export function Retirement() {
           display: inline-flex;
           padding: 4px;
           gap: 2px;
-          background: var(--lf-cream);
-          border: 1px solid var(--lf-rule);
+          background: rgb(var(--ui-canvas-sunken));
+          border: 1px solid var(--ui-line);
           border-radius: 999px;
         }
         .ret-view-toggle button {
           padding: 7px 16px;
           font-size: 12px;
           font-weight: 500;
-          font-family: 'Geist', system-ui, sans-serif;
-          color: var(--lf-ink-soft);
+          font-family: inherit;
+          color: rgb(var(--ui-content-secondary));
           background: transparent;
           border: 0;
           border-radius: 999px;
@@ -1379,29 +1433,31 @@ export function Retirement() {
           transition: background 0.15s, color 0.15s;
         }
         .ret-view-toggle button.is-active {
-          background: var(--lf-ink);
-          color: var(--lf-paper);
+          background: rgb(var(--ui-panel));
+          color: rgb(var(--ui-brand-ink));
+          font-weight: 700;
+          box-shadow: var(--ui-shadow-sm);
         }
         .ret-slider-row {
           display: grid;
           gap: 24px;
         }
         .ret-slider-label {
-          font-family: 'Geist', system-ui, sans-serif;
+          font-family: inherit;
           font-size: 13px;
-          color: var(--lf-ink-soft);
+          color: rgb(var(--ui-content-secondary));
           font-weight: 500;
         }
         .ret-slider-input {
           width: 64px;
           text-align: right;
-          border: 1px solid var(--lf-rule);
+          border: 1px solid var(--ui-line);
           border-radius: 6px;
           padding: 2px 6px;
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
+          font-variant-numeric: tabular-nums;
           font-size: 13px;
           /* Typed value reads as content (the user's choice), not a CTA. */
-          color: var(--lf-ink);
+          color: rgb(var(--ui-content));
           font-weight: 600;
           background: transparent;
         }
@@ -1416,7 +1472,7 @@ export function Retirement() {
           width: 100%;
           height: 4px;
           border-radius: 999px;
-          background: rgba(31, 26, 22, 0.12);
+          background: var(--ui-line);
           outline: none;
           margin: 8px 0;
           cursor: pointer;
@@ -1428,7 +1484,7 @@ export function Retirement() {
         }
         .ret-slider::-moz-range-track {
           height: 4px;
-          background: rgba(31, 26, 22, 0.12);
+          background: var(--ui-line);
           border-radius: 999px;
         }
         .ret-slider::-webkit-slider-thumb {
@@ -1437,9 +1493,9 @@ export function Retirement() {
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: var(--lf-sauce);
-          border: 2px solid var(--lf-paper);
-          box-shadow: 0 1px 3px rgba(31, 26, 22, 0.18);
+          background: rgb(var(--ui-brand));
+          border: 2px solid rgb(var(--ui-panel));
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
           margin-top: -6px;
           cursor: pointer;
         }
@@ -1447,13 +1503,13 @@ export function Retirement() {
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: var(--lf-sauce);
-          border: 2px solid var(--lf-paper);
-          box-shadow: 0 1px 3px rgba(31, 26, 22, 0.18);
+          background: rgb(var(--ui-brand));
+          border: 2px solid rgb(var(--ui-panel));
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
           cursor: pointer;
         }
         .ret-slider:focus-visible::-webkit-slider-thumb {
-          box-shadow: 0 0 0 4px rgba(201, 84, 58, 0.18);
+          box-shadow: 0 0 0 4px var(--ui-brand-ring);
         }
         .ret-stats { margin: 0 0 40px; }
       `}</style>
@@ -1463,16 +1519,16 @@ export function Retirement() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
       >
-        <header className="ds-page-bar">
-          <div className="ds-page-bar__title-group">
-            <h1 className="ds-page-bar__title">
-              On track to {formatMoney(portfolioAtRetirement, true)} by {retirementAge}
+        <header className="ret-header-row flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
+              On track to <span className="ui-tnum">{formatMoney(portfolioAtRetirement, true)}</span> by {retirementAge}
             </h1>
-            <span className="ds-page-bar__caption ds-num">
+            <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">
               {Math.max(0, retirementAge - currentAge)} years away · lasts{' '}
               {yearsMoneyLasts >= lifeHorizon ? `${lifeHorizon}+ yrs` : `${yearsMoneyLasts} yr${yearsMoneyLasts === 1 ? '' : 's'}`}
               {'  ·  '}{formatMoney(monthlyRetirementSpend, true)}/mo
-            </span>
+            </p>
           </div>
           <div className="ret-view-toggle" role="tablist" aria-label="View mode">
             {(['simple', 'advanced'] as const).map(v => (
@@ -1489,11 +1545,8 @@ export function Retirement() {
           </div>
         </header>
 
-        {/* Editorial lede removed in iter 2 — page-bar carries the signal. */}
-
         {/* Composition ribbon — only when we have a real allocation to show */}
         {Object.keys(allocation).length > 0 && portfolioValue > 0 && (() => {
-          // Convert allocation (decimals or percents) to dollar segments by share of portfolioValue
           const total = Object.values(allocation).reduce((s, v) => s + v, 0);
           if (total <= 0) return null;
           const labelMap: Record<string, string> = {
@@ -1503,73 +1556,87 @@ export function Retirement() {
             reits: 'REITs', reit: 'REITs',
             cash: 'Cash',
           };
-          // CompositionRibbon owns the palette — passing `color` here is
-          // intentionally redundant; the component reassigns from the
-          // sauce-free data palette so adjacent segments stay distinct
-          // without re-introducing brand orange as a data fill.
           const segments = Object.entries(allocation)
             .filter(([, v]) => v > 0)
-            .map(([k, v]) => ({
+            .map(([k, v], i) => ({
               label: labelMap[k] ?? k,
               value: Math.round((v / total) * portfolioValue),
+              pct: (v / total) * 100,
+              color: `var(--ui-viz-${(i % 7) + 1})`,
             }));
           if (segments.length === 0) return null;
           return (
-            <DSSection>
-              <DSCompositionRibbon
-                leadDelta={`${expectedReturn.toFixed(1)}% blended return`}
-                segments={segments}
-              />
-            </DSSection>
+            <Card className="mt-6">
+              <div className="flex items-baseline justify-between gap-3">
+                <Eyebrow>Portfolio composition</Eyebrow>
+                <span className="text-[12.5px] font-bold text-[rgb(var(--ui-brand-ink))] ui-tnum">{expectedReturn.toFixed(1)}% blended return</span>
+              </div>
+              <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-canvas-sunken" style={{ gap: 1 }}>
+                {segments.map((s) => (
+                  <div key={s.label} style={{ width: `${s.pct}%`, background: s.color, minWidth: 2 }} title={`${s.label} · ${s.pct.toFixed(0)}%`} />
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                {segments.map((s) => (
+                  <span key={s.label} className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-content-secondary ui-tnum">
+                    <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} aria-hidden />
+                    {s.label} {s.pct.toFixed(0)}%
+                  </span>
+                ))}
+              </div>
+            </Card>
           );
         })()}
 
-        {/* Stat strip — secondary KPIs as typographic ribbon, never a card grid */}
-        <DSStatStrip
-          className="ret-stats"
-          items={[
+        {/* Stat strip — secondary KPIs */}
+        <div className="ret-stats mt-6 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+          {([
             {
               label: 'Portfolio at retirement',
-              value: <span className="ds-num">{formatMoney(portfolioAtRetirement, true)}</span>,
+              value: formatMoney(portfolioAtRetirement, true),
               sub: `age ${retirementAge} · ${expectedReturn.toFixed(1)}% return`,
+              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
             {
               label: 'FIRE number',
-              value: <span className="ds-num">{formatMoney(fireNumber, true)}</span>,
+              value: formatMoney(fireNumber, true),
               sub: '25× annual spend',
+              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
             {
               label: 'Years money lasts',
-              value: (
-                <span className="ds-num">
-                  {yearsMoneyLasts >= lifeHorizon ? 'lifetime' : yearsMoneyLasts}
-                </span>
-              ),
+              value: yearsMoneyLasts >= lifeHorizon ? 'lifetime' : String(yearsMoneyLasts),
               sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}`,
+              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
             view === 'simple'
-              ? {
-                  label: 'Readiness',
-                  value: <span className="ds-num">{readiness.toFixed(0)}%</span>,
-                  sub: readinessLabel,
-                  tone: readinessTone,
-                }
-              : {
-                  label: 'Monte Carlo',
-                  value: <span className="ds-num">{mcRate}%</span>,
-                  sub: '1,000 runs',
-                  tone: mcRate >= 80 ? 'pos' : mcRate >= 60 ? 'neg' : 'neg',
-                },
-          ]}
-        />
+              ? { label: 'Readiness', value: `${readiness.toFixed(0)}%`, sub: readinessLabel, tone: readinessTone }
+              : { label: 'Monte Carlo', value: `${mcRate}%`, sub: '1,000 runs', tone: (mcRate >= 80 ? 'pos' : 'neg') as 'pos' | 'neg' },
+          ]).map((item) => (
+            <div key={item.label} className="border-l-2 border-line pl-3.5">
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{item.label}</div>
+              <div
+                className={cn(
+                  'mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
+                  item.tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
+                  item.tone === 'warn' && 'text-caution',
+                  item.tone === 'neg' && 'text-negative',
+                )}
+              >
+                {item.value}
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">{item.sub}</div>
+            </div>
+          ))}
+        </div>
 
         <LegalDisclaimer variant="projections" />
 
         <PageActions types="retirement" />
 
         {/* Assumptions sliders */}
-        <DSSection title="Assumptions">
-          <DSCard>
+        <Section title="Assumptions">
+          <Card>
             <div
               className="ret-slider-row ret-sliders-grid"
               style={{ gridTemplateColumns: view === 'simple' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}
@@ -1592,15 +1659,15 @@ export function Retirement() {
                       setRetirementAge(clamped);
                       setRetAgeStr(String(clamped));
                     }}
-                    className="ret-slider-input ds-num"
+                    className="ret-slider-input ui-tnum"
                   />
                 </div>
                 <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
                   onChange={e => setRetirementAge(+e.target.value)}
                   className="ret-slider" />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                  <span className="ds-caption ds-num">{currentAge}</span>
-                  <span className="ds-caption ds-num">100</span>
+                  <span className="text-[11px] font-semibold text-content-muted ui-tnum">{currentAge}</span>
+                  <span className="text-[11px] font-semibold text-content-muted ui-tnum">100</span>
                 </div>
               </div>
               <div>
@@ -1619,15 +1686,15 @@ export function Retirement() {
                       setLifeExpectancy(clamped);
                       setLifeExpStr(String(clamped));
                     }}
-                    className="ret-slider-input ds-num"
+                    className="ret-slider-input ui-tnum"
                   />
                 </div>
                 <input type="range" min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
                   onChange={e => setLifeExpectancy(+e.target.value)}
                   className="ret-slider" />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                  <span className="ds-caption ds-num">{retirementAge + 1}</span>
-                  <span className="ds-caption ds-num">120</span>
+                  <span className="text-[11px] font-semibold text-content-muted ui-tnum">{retirementAge + 1}</span>
+                  <span className="text-[11px] font-semibold text-content-muted ui-tnum">120</span>
                 </div>
               </div>
               {view === 'simple' && (
@@ -1656,7 +1723,7 @@ export function Retirement() {
                         setMonthlyRetirementSpend(clamped);
                         setMonthlySpendStr(String(clamped));
                       }}
-                      className="ret-slider-input ds-num"
+                      className="ret-slider-input ui-tnum"
                       style={{ width: 96 }}
                     />
                   </div>
@@ -1664,78 +1731,78 @@ export function Retirement() {
                     onChange={e => setMonthlyRetirementSpend(+e.target.value)}
                     className="ret-slider" />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                    <span className="ds-caption ds-num">$2k</span>
-                    <span className="ds-caption ds-num">$20k</span>
+                    <span className="text-[11px] font-semibold text-content-muted ui-tnum">$2k</span>
+                    <span className="text-[11px] font-semibold text-content-muted ui-tnum">$20k</span>
                   </div>
                 </div>
               )}
             </div>
-          </DSCard>
-        </DSSection>
+          </Card>
+        </Section>
 
         {/* ── SIMPLE VIEW ──────────────────────────────────────────────────────── */}
         {view === 'simple' && (
           <>
             {/* Readiness + Income sub-cards */}
-            <DSSection title="Income & longevity">
+            <Section title="Income & longevity">
               <div
                 className="ret-3col"
                 style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}
               >
-                <DSCard>
-                  <DSEyebrow>Sustainable monthly income</DSEyebrow>
-                  <div className="ds-num" style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 26, color: 'var(--lf-ink)', lineHeight: 1.1, marginTop: 8, letterSpacing: '-0.02em' }}>
+                <Card>
+                  <Eyebrow>Sustainable monthly income</Eyebrow>
+                  <div className="ui-tnum font-editorial" style={{ fontWeight: 800, fontSize: 28, color: 'rgb(var(--ui-content))', lineHeight: 1.1, marginTop: 8, letterSpacing: '-0.02em' }}>
                     {formatMoney(monthlyRetirementIncome)}
                   </div>
-                  <p className="ds-caption" style={{ marginTop: 6 }}>4% rule from projected portfolio</p>
-                  <div style={{ height: 4, background: 'var(--lf-rule)', borderRadius: 2, marginTop: 12, overflow: 'hidden' }}>
+                  <p className="text-[12.5px] text-content-muted" style={{ marginTop: 6 }}>4% rule from projected portfolio</p>
+                  <div style={{ height: 4, background: 'var(--ui-line)', borderRadius: 2, marginTop: 12, overflow: 'hidden' }}>
                     <div style={{
                       height: '100%',
                       width: `${Math.min(100, (monthlyRetirementIncome / Math.max(monthlyRetirementSpend, 1)) * 100)}%`,
-                      background: monthlyRetirementIncome >= monthlyRetirementSpend ? 'var(--lf-basil)' : 'var(--lf-sauce)',
+                      background: monthlyRetirementIncome >= monthlyRetirementSpend ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))', /* income coverage bar */
                       borderRadius: 2,
                       transition: 'width 0.6s ease',
                     }} />
                   </div>
-                  <p className="ds-caption" style={{ marginTop: 6 }}>
+                  <p className="text-[12.5px] text-content-muted" style={{ marginTop: 6 }}>
                     {monthlyRetirementIncome >= monthlyRetirementSpend
                       ? 'covers your planned spending'
                       : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))} short of plan`}
                   </p>
-                </DSCard>
-                <DSCard style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 220, padding: 24 }}>
+                </Card>
+                <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 220, padding: 24 }}>
                   <ReadinessRing pct={readiness} />
-                  <p className="ds-caption" style={{ textAlign: 'center', margin: 0 }}>
+                  <p className="text-[12.5px] text-content-muted" style={{ textAlign: 'center', margin: 0 }}>
                     {readinessLabel}
                   </p>
-                </DSCard>
+                </Card>
               </div>
-            </DSSection>
+            </Section>
 
             {/* Projection chart — Monte Carlo bands (1,000 randomized paths).
                 Plan tab now shows the same uncertainty as the Advanced tab so
                 users don't read a single deterministic line as a guarantee. */}
-            <DSSection title="Projection" eyebrow={`Age ${currentAge} → ${Math.max(retirementAge + 20, 90)}`}>
-              <DSCard flush>
+            <Section title="Projection" eyebrow={`Age ${currentAge} → ${Math.max(retirementAge + 20, 90)}`}>
+              <Card style={{ padding: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 20px 12px', gap: 16, flexWrap: 'wrap' }}>
                   <div>
-                    <DSEyebrow>Portfolio projection · 1,000 randomized runs</DSEyebrow>
-                    <p className="ds-body ds-body--sm" style={{ marginTop: 6 }}>
+                    <Eyebrow>Portfolio projection · 1,000 randomized runs</Eyebrow>
+                    <p className="text-[13px] leading-relaxed text-content-secondary" style={{ marginTop: 6 }}>
                       At {expectedReturn.toFixed(1)}% avg return · {annualSavings > 0 ? `${formatMoney(annualSavings, true)}/yr contributions` : 'no contributions estimated'}
                     </p>
-                    <p className="ds-caption" style={{ marginTop: 4, opacity: 0.7 }}>
+                    <p className="text-[12.5px] text-content-muted" style={{ marginTop: 4, opacity: 0.7 }}>
                       Bands show the range across 1,000 simulated market outcomes — not a guarantee.
                     </p>
                   </div>
                 </div>
                 <ProjectionFan bands={planBands} currentAge={currentAge} retirementAge={retirementAge} />
-                <div style={{ display: 'flex', gap: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--lf-muted)', padding: '4px 20px 20px', flexWrap: 'wrap' }}>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-data-2)', opacity: 0.18, marginRight: 6, verticalAlign: 'middle' }} />p5–p95 range</span>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--lf-data-2)', opacity: 0.36, marginRight: 6, verticalAlign: 'middle' }} />p25–p75 likely</span>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'var(--lf-ink-soft)', marginRight: 6, verticalAlign: 'middle' }} />median (p50)</span>
+                <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'rgb(var(--ui-content-muted))', padding: '4px 20px 20px', flexWrap: 'wrap' }}>
+                  <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--ui-viz-2)', opacity: 0.18, marginRight: 6, verticalAlign: 'middle' }} />p5–p95 range</span>
+                  <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--ui-viz-2)', opacity: 0.36, marginRight: 6, verticalAlign: 'middle' }} />p25–p75 likely</span>
+                  <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median (p50)</span>
                 </div>
-              </DSCard>
-            </DSSection>
+              </Card>
+            </Section>
           </>
         )}
 
@@ -1758,6 +1825,6 @@ export function Retirement() {
           />
         )}
       </motion.div>
-    </DSPage>
+    </div>
   );
 }

@@ -68,10 +68,27 @@ export default {
 
     extend: {
       fontFamily: {
-        sans:    ['Geist', 'system-ui', 'sans-serif'],
+        sans:    ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
         mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
-        serif:   ['Geist', 'system-ui', 'sans-serif'],
-        display: ['Geist', 'system-ui', 'sans-serif'],
+        serif:   ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        display: ['Bricolage Grotesque', 'system-ui', 'sans-serif'],
+        // DS Bright editorial display face — Bricolage Grotesque.
+        editorial: ['Bricolage Grotesque', 'system-ui', 'sans-serif'],
+      },
+
+      // DS v3 radius scale (prefixed; legacy radii untouched)
+      borderRadius: {
+        'ui-xs': 'var(--ui-r-xs)',
+        'ui-sm': 'var(--ui-r-sm)',
+        'ui-md': 'var(--ui-r-md)',
+        'ui-lg': 'var(--ui-r-lg)',
+        'ui-xl': 'var(--ui-r-xl)',
+      },
+
+      // DS v3 motion
+      transitionTimingFunction: {
+        ui: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        'ui-soft': 'cubic-bezier(0.4, 0, 0.2, 1)',
       },
 
       // ─────────────────────────────────────────────────────────
@@ -137,6 +154,64 @@ export default {
         success: v('--color-success'),
         warning: v('--color-warning'),
         danger:  v('--color-danger'),
+
+        // ─────────────────────────────────────────────────────────
+        // DESIGN SYSTEM v3 (--ui-* tokens, src/styles/theme.css)
+        // New warm/calm language. Additive + namespaced so legacy
+        // keys above are untouched. Light = :root, dark = .dark.
+        // ─────────────────────────────────────────────────────────
+        canvas: {
+          DEFAULT: v('--ui-canvas'),
+          sunken:  v('--ui-canvas-sunken'),
+        },
+        panel: {
+          DEFAULT: v('--ui-panel'),
+          raised:  v('--ui-panel-raised'),
+        },
+        content: {
+          DEFAULT:   v('--ui-content'),
+          secondary: v('--ui-content-secondary'),
+          muted:     v('--ui-content-muted'),
+          faint:     v('--ui-content-faint'),
+        },
+        line: {
+          DEFAULT: 'var(--ui-hairline)',
+          strong:  'var(--ui-line)',
+          heavy:   'var(--ui-line-strong)',
+        },
+        brand: {
+          DEFAULT: v('--ui-brand'),
+          hover:   v('--ui-brand-hover'),
+          active:  v('--ui-brand-active'),
+          fg:      v('--ui-brand-fg'),
+          soft:    'var(--ui-brand-soft)',
+          softer:  'var(--ui-brand-softer)',
+        },
+        positive: {
+          DEFAULT: v('--ui-positive'),
+          soft:    'var(--ui-positive-soft)',
+        },
+        negative: {
+          DEFAULT: v('--ui-negative'),
+          soft:    'var(--ui-negative-soft)',
+        },
+        caution: {
+          DEFAULT: v('--ui-caution'),
+          soft:    'var(--ui-caution-soft)',
+        },
+        info: {
+          DEFAULT: v('--ui-info'),
+          soft:    'var(--ui-info-soft)',
+        },
+        viz: {
+          1: 'var(--ui-viz-1)',
+          2: 'var(--ui-viz-2)',
+          3: 'var(--ui-viz-3)',
+          4: 'var(--ui-viz-4)',
+          5: 'var(--ui-viz-5)',
+          6: 'var(--ui-viz-6)',
+          7: 'var(--ui-viz-7)',
+        },
 
         // LasagnaFi brand palette (direct CSS vars, no alpha modifier needed)
         lf: {
@@ -215,6 +290,11 @@ export default {
       boxShadow: {
         'mobile-nav': '0 -4px 20px rgba(0, 0, 0, 0.1)',
         'mobile-card': '0 2px 8px rgba(0, 0, 0, 0.08)',
+        // DS v3 elevation
+        'ui-sm': 'var(--ui-shadow-sm)',
+        'ui-md': 'var(--ui-shadow-md)',
+        'ui-lg': 'var(--ui-shadow-lg)',
+        'ui-xl': 'var(--ui-shadow-xl)',
       },
     },
   },

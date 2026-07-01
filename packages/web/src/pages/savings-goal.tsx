@@ -1,19 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { Check, ChevronLeft } from 'lucide-react';
+import { Check, ChevronLeft, Clock, Sparkles } from 'lucide-react';
 import { api } from '../lib/api';
-import {
-  Page,
-  PageHeader,
-  Section,
-  Card,
-  Button,
-  Eyebrow,
-  DataTable,
-  useConfirm,
-  SkeletonLine,
-  SkeletonBlock,
-} from '../components/ds';
+import { Button, Eyebrow, EmptyState, Skeleton } from '../components/uikit';
+import { useConfirm } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountChips } from './goal-shared';
 
 // ---------------------------------------------------------------------------
@@ -150,53 +140,52 @@ export function SavingsGoal() {
 
   if (loading) {
     return (
-      <Page>
-        <Section>
-          <Card>
-            <SkeletonLine width="40%" height={28} style={{ marginBottom: 16 }} />
-            <SkeletonBlock height={13} style={{ marginBottom: 16 }} />
-            <SkeletonLine width="30%" height={14} />
-          </Card>
-        </Section>
-        <Section>
-          <Card>
-            <SkeletonBlock height={120} />
-          </Card>
-        </Section>
-      </Page>
+      <div className="mx-auto max-w-[900px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+        <Skeleton className="h-4 w-16" />
+        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mt-3 h-10 w-72" />
+          <Skeleton className="mt-5 h-2.5 w-full rounded-full" />
+          <Skeleton className="mt-4 h-3 w-2/3" />
+        </div>
+        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="mt-4 h-12 w-full rounded-ui-md" />
+          <Skeleton className="mt-2.5 h-12 w-full rounded-ui-md" />
+        </div>
+      </div>
     );
   }
 
   if (notFound || !goal) {
     return (
-      <Page>
-        <PageHeader title="Goal not found" eyebrow="savings" />
-        <Section>
-          <Card>
-            <p style={{ margin: '0 0 16px', color: 'var(--lf-muted)', fontFamily: "'Geist', system-ui, sans-serif" }}>
-              We couldn't find this goal. It may have been deleted.
-            </p>
-            <Button variant="ink" onClick={() => setLocation('/goals')}>Back to goals</Button>
-          </Card>
-        </Section>
-      </Page>
+      <div className="mx-auto max-w-[900px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+        <EmptyState
+          icon={<Sparkles className="h-6 w-6" />}
+          title="Goal not found"
+          description="We couldn't find this goal. It may have been deleted."
+          action={<Button onClick={() => setLocation('/goals')}>Back to goals</Button>}
+        />
+      </div>
     );
   }
 
   const target = parseFloat(goal.targetAmount);
   const current = parseFloat(goal.currentAmount);
   const pct = target > 0 ? (current / target) * 100 : 0;
-  const barPct = Math.min(100, pct);
+  const barPct = Math.min(100, Math.max(0, pct));
   const complete = current >= target && target > 0;
   const remaining = Math.max(0, target - current);
-  const color = goalColor(goal.category);
+  const surplus = current - target;
+  const notStarted = current <= 0;
+  const accent = complete ? 'rgb(var(--ui-brand))' : goalColor(goal.category, goal.name);
   const categoryLabel = goal.category ? goal.category.replace(/_/g, ' ') : 'savings';
 
   // Deadline labels
   let deadlineMonth: string | null = null;
   let deadlineCountdown: string | null = null;
   if (goal.deadline) {
-    deadlineMonth = new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    deadlineMonth = new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
     const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     deadlineCountdown = daysLeft > 0 ? `${daysLeft} days left` : 'Past deadline';
   }
@@ -335,232 +324,187 @@ export function SavingsGoal() {
 
   // -- Render -----------------------------------------------------------------
 
-  const headerActions = (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      <Button variant="ghost" onClick={openEdit}>Edit</Button>
-      {goal.status === 'active' && (
-        <Button variant="ink" disabled={actionPending} onClick={markComplete}>
-          {actionPending ? '…' : 'Mark complete'}
-        </Button>
-      )}
-      {goal.status === 'completed' && (
-        <Button variant="ghost" disabled={actionPending} onClick={reactivate}>
-          {actionPending ? '…' : 'Reactivate'}
-        </Button>
-      )}
-      <Button variant="ghost" className="sg-delete" disabled={actionPending} onClick={handleDelete}>
-        {actionPending ? '…' : 'Delete'}
-      </Button>
-    </div>
-  );
+  const inputClass =
+    'w-full h-11 min-h-touch rounded-ui-md border border-line-strong bg-panel px-3.5 text-[16px] text-content ' +
+    'shadow-ui-sm placeholder:text-content-faint outline-none transition-[border-color,box-shadow] ' +
+    'focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)]';
 
   return (
-    <Page>
-      <style>{`
-        .sg-back {
-          display: inline-flex; align-items: center; gap: 4px;
-          margin-bottom: 12px;
-        }
-        .sg-delete:hover { color: var(--lf-sauce); }
+    <div className="mx-auto max-w-[900px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      {/* ── Back ── */}
+      <button
+        type="button"
+        onClick={() => setLocation('/goals')}
+        className="ui-focus -ml-2 inline-flex min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13.5px] font-bold text-content-muted transition-colors hover:text-content"
+      >
+        <ChevronLeft className="h-4 w-4" /> Back to goals
+      </button>
 
-        /* ── Progress hero ── */
-        .sg-hero {
-          display: flex; flex-direction: column; gap: 18px;
-        }
-        .sg-hero__top {
-          display: flex; align-items: flex-end; justify-content: space-between;
-          gap: 20px; flex-wrap: wrap;
-        }
-        .sg-hero__amount {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 600;
-          font-size: clamp(28px, 4vw, 40px);
-          line-height: 1.0;
-          letter-spacing: -0.025em;
-          color: var(--lf-ink);
-          font-variant-numeric: tabular-nums;
-        }
-        .sg-hero__amount-target {
-          color: var(--lf-muted);
-          font-weight: 400;
-          font-size: 0.55em;
-        }
-        .sg-hero__pct {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 600;
-          font-size: clamp(28px, 4vw, 36px);
-          letter-spacing: -0.02em;
-          color: var(--lf-ink);
-          font-variant-numeric: tabular-nums;
-          line-height: 1;
-        }
-        .sg-hero__pct--complete {
-          display: inline-flex; align-items: center; gap: 7px;
-          font-size: 16px; font-weight: 600; letter-spacing: 0.01em;
-          color: var(--lf-basil);
-          background: color-mix(in srgb, var(--lf-basil) 14%, transparent);
-          border: 1px solid color-mix(in srgb, var(--lf-basil) 30%, transparent);
-          border-radius: 999px; padding: 7px 16px;
-        }
-        .sg-hero__bar {
-          height: 13px;
-          background: var(--lf-rule-soft);
-          border-radius: 999px;
-          overflow: hidden;
-        }
-        .sg-hero__bar > div {
-          height: 100%; border-radius: 999px;
-          transition: width 0.6s cubic-bezier(0.16,1,0.3,1);
-        }
-        .sg-hero__meta {
-          display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px;
-          color: var(--lf-muted);
-          font-variant-numeric: tabular-nums;
-        }
-        .sg-hero__meta strong {
-          color: var(--lf-ink); font-weight: 600;
-        }
-        .sg-hero__meta-sep { opacity: 0.4; }
-        .sg-hero__auto {
-          display: inline-flex; align-items: center; gap: 6px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px; font-weight: 500;
-          color: var(--lf-ink-soft);
-          background: color-mix(in srgb, var(--lf-basil) 14%, transparent);
-          border: 1px solid color-mix(in srgb, var(--lf-basil) 24%, transparent);
-          border-radius: 999px; padding: 3px 10px;
-          align-self: flex-start;
-        }
-        .sg-hero__auto-caption {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px; color: var(--lf-muted);
-          margin: 0;
-        }
-
-        /* ── Forms ── */
-        .sg-form-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 16px;
-        }
-        .sg-field { display: flex; flex-direction: column; gap: 6px; }
-        .sg-help {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px; color: var(--lf-muted);
-          margin: 8px 0 0;
-        }
-        .sg-error {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px; color: var(--lf-sauce);
-          margin: 10px 0 0;
-        }
-      `}</style>
-
-      <Button variant="ghost" className="sg-back" onClick={() => setLocation('/goals')} icon={<ChevronLeft size={16} />}>
-        Back
-      </Button>
-
-      <PageHeader
-        title={
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ color, display: 'inline-flex' }}>{iconFor(goal.icon, 24)}</span>
-            {goal.name}
+      {/* ── Header ── */}
+      <header className="mt-3 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <span
+            className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[15px] text-white"
+            style={{ background: accent, boxShadow: 'var(--ui-shadow-sm), inset 0 1px 0 rgba(255,255,255,0.3)' }}
+          >
+            {iconFor(goal.icon, 26)}
           </span>
-        }
-        eyebrow={categoryLabel}
-        actions={headerActions}
-      />
+          <div className="min-w-0">
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">
+              {categoryLabel}
+            </div>
+            <h1 className="mt-0.5 font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.05] tracking-[-0.024em] text-content">
+              {goal.name}
+            </h1>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={openEdit}>Edit</Button>
+          {goal.status === 'active' && (
+            <Button variant="primary" size="sm" disabled={actionPending} onClick={markComplete}>
+              {actionPending ? '…' : 'Mark complete'}
+            </Button>
+          )}
+          {goal.status === 'completed' && (
+            <Button variant="secondary" size="sm" disabled={actionPending} onClick={reactivate}>
+              {actionPending ? '…' : 'Reactivate'}
+            </Button>
+          )}
+          <Button variant="destructive" size="sm" disabled={actionPending} onClick={handleDelete}>
+            {actionPending ? '…' : 'Delete'}
+          </Button>
+        </div>
+      </header>
 
       {actionError && (
-        <p className="sg-error" role="status" aria-live="polite" style={{ marginTop: 0 }}>
+        <p className="mt-3 text-[12.5px] font-semibold text-negative" role="status" aria-live="polite">
           {actionError}
         </p>
       )}
 
       {/* ── Progress hero ── */}
-      <Section>
-        <Card>
-          <div className="sg-hero">
-            <div className="sg-hero__top">
-              <div className="sg-hero__amount">
-                {formatCurrency(current)}
-                <span className="sg-hero__amount-target"> / {formatCurrency(target)}</span>
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+              'radial-gradient(90% 80% at 0% 10%, var(--ui-brand-softer), transparent 60%)',
+          }}
+        />
+        <div className="relative">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+                Saved toward goal
+              </span>
+              <div className="mt-2 font-editorial text-[32px] sm:text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
+                {formatCurrency(current)}{' '}
+                <span className="text-[0.5em] font-bold text-content-muted">of {formatCurrency(target)}</span>
               </div>
-              {complete ? (
-                <span className="sg-hero__pct sg-hero__pct--complete">
-                  <Check size={18} /> Reached
-                </span>
-              ) : (
-                <span className="sg-hero__pct">{Math.round(pct)}%</span>
-              )}
             </div>
+            {complete ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3.5 py-1.5 font-editorial text-[15px] font-extrabold text-[rgb(var(--ui-brand-ink))]">
+                <Check className="h-4 w-4" strokeWidth={3} /> Reached
+              </span>
+            ) : (
+              <span className="shrink-0 font-editorial text-[30px] sm:text-[34px] font-extrabold leading-none tracking-[-0.02em] ui-tnum">
+                {Math.round(pct)}%
+              </span>
+            )}
+          </div>
 
-            <div className="sg-hero__bar">
-              {complete ? (
-                <div style={{ width: '100%', background: 'var(--lf-basil)' }} />
-              ) : barPct > 0 ? (
-                <div style={{ width: `${barPct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${color} 70%, transparent), ${color})` }} />
-              ) : (
-                <div style={{ width: 8, background: color }} />
-              )}
-            </div>
-
-            <div className="sg-hero__meta">
-              {[
-                complete
-                  ? <span><strong>Reached</strong></span>
-                  : <span><strong>{formatCurrency(remaining)}</strong> to go</span>,
-                deadlineMonth ? <span>Target: {deadlineMonth}</span> : null,
-                // Countdown is incoherent on a reached goal — suppress it.
-                !complete && deadlineCountdown ? <span>{deadlineCountdown}</span> : null,
-              ]
-                .filter(Boolean)
-                .map((item, i) => (
-                  <span key={i} style={{ display: 'contents' }}>
-                    {i > 0 && <span className="sg-hero__meta-sep">·</span>}
-                    {item}
-                  </span>
-                ))}
-            </div>
-
-            {goal.isAutoTracked && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span
-                  className="sg-hero__auto"
-                  title={
-                    linkedAccounts.length > 0
-                      ? `Tracked from: ${linkedAccounts.map((a) => a.name).join(', ')}`
-                      : undefined
-                  }
-                >
-                  Auto · {goal.accountIds.length} account{goal.accountIds.length === 1 ? '' : 's'}
-                </span>
-                <p className="sg-hero__auto-caption">
-                  Progress is tracked automatically from the linked accounts below.
-                </p>
+          {/* progress bar — each terminal state intentionally distinct */}
+          <div className="mt-5">
+            {complete ? (
+              <div className="h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
+                <div
+                  className="h-full w-full rounded-full"
+                  style={{ background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))' }}
+                />
+              </div>
+            ) : notStarted ? (
+              <div className="relative h-2.5 overflow-hidden rounded-full bg-canvas-sunken" style={{ color: accent }}>
+                <div
+                  className="absolute inset-0 opacity-[0.16]"
+                  style={{ backgroundImage: 'repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 11px)' }}
+                />
+                <div className="absolute inset-y-0 left-0 w-3.5 rounded-full" style={{ background: 'currentColor' }} />
+              </div>
+            ) : (
+              <div className="h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{ width: `${barPct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 60%, transparent), ${accent})` }}
+                />
               </div>
             )}
           </div>
-        </Card>
-      </Section>
+
+          {/* meta — real state + real target date only */}
+          <div className="mt-3.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] font-semibold text-content-secondary ui-tnum">
+            {complete ? (
+              <span className="font-bold text-content">
+                {surplus >= 1 ? `${formatCurrency(surplus)} over target` : 'Fully funded'}
+              </span>
+            ) : (
+              <span><span className="font-bold text-content">{formatCurrency(remaining)}</span> to go</span>
+            )}
+            {deadlineMonth && (
+              <>
+                <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+                <span className="inline-flex items-center gap-1.5 font-medium text-content-muted">
+                  <Clock className="h-3.5 w-3.5 text-content-faint" /> Target {deadlineMonth}
+                </span>
+              </>
+            )}
+            {!complete && deadlineCountdown && (
+              <>
+                <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+                <span className="font-medium text-content-muted">{deadlineCountdown}</span>
+              </>
+            )}
+          </div>
+
+          {goal.isAutoTracked && (
+            <div className="mt-4 flex flex-col gap-1.5">
+              <span
+                className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-bold text-[rgb(var(--ui-brand-ink))]"
+                title={
+                  linkedAccounts.length > 0
+                    ? `Tracked from: ${linkedAccounts.map((a) => a.name).join(', ')}`
+                    : undefined
+                }
+              >
+                Auto · {goal.accountIds.length} account{goal.accountIds.length === 1 ? '' : 's'}
+              </span>
+              <p className="text-[12px] text-content-muted">
+                Progress is tracked automatically from the linked accounts below.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ── Linked accounts ── */}
-      <Section
-        title="Linked accounts"
-        eyebrow={linkedAccounts.length > 0 ? `${linkedAccounts.length} linked` : undefined}
-        actions={
-          !editingAccounts ? (
-            <Button variant="ghost" onClick={openAccountsEditor}>Manage accounts</Button>
-          ) : undefined
-        }
-      >
+      <section className="mt-8">
+        <div className="flex items-end justify-between gap-4">
+          <div className="flex items-baseline gap-2.5">
+            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Linked accounts</h2>
+            {linkedAccounts.length > 0 && (
+              <span className="text-[12.5px] font-semibold text-content-muted">{linkedAccounts.length} linked</span>
+            )}
+          </div>
+          {!editingAccounts && (
+            <Button variant="secondary" size="sm" onClick={openAccountsEditor}>Manage accounts</Button>
+          )}
+        </div>
+
         {editingAccounts ? (
-          <div ref={accountsPanelRef}>
-          <Card>
+          <div ref={accountsPanelRef} className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
             <Eyebrow>Linked accounts</Eyebrow>
-            <p className="sg-help" style={{ marginTop: 4, marginBottom: 12 }}>
+            <p className="mt-1.5 mb-4 text-[12.5px] text-content-muted">
               Remove all accounts to track this goal manually.
             </p>
             {fundableAccounts.length > 0 ? (
@@ -570,141 +514,125 @@ export function SavingsGoal() {
                 onToggle={(id) => setDraftAccountIds((prev) => toggleId(prev, id))}
               />
             ) : (
-              <p className="sg-help" style={{ margin: 0 }}>No fundable accounts available.</p>
+              <p className="text-[12.5px] text-content-muted">No fundable accounts available.</p>
             )}
-            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <Button variant="ink" disabled={savingAccounts} onClick={saveAccounts}>
+            <div className="mt-5 flex gap-2.5">
+              <Button variant="primary" size="sm" loading={savingAccounts} disabled={savingAccounts} onClick={saveAccounts}>
                 {savingAccounts ? 'Saving…' : 'Save'}
               </Button>
-              <Button variant="ghost" disabled={savingAccounts} onClick={() => setEditingAccounts(false)}>
+              <Button variant="ghost" size="sm" disabled={savingAccounts} onClick={() => setEditingAccounts(false)}>
                 Cancel
               </Button>
             </div>
-            {accountsError && <p className="sg-error" role="status" aria-live="polite">{accountsError}</p>}
-          </Card>
+            {accountsError && (
+              <p className="mt-2.5 text-[12.5px] font-semibold text-negative" role="status" aria-live="polite">{accountsError}</p>
+            )}
+          </div>
+        ) : linkedAccounts.length > 0 ? (
+          <div className="mt-4 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+            {linkedAccounts.map((row) => (
+              <div
+                key={row.id}
+                className="flex items-center gap-3.5 border-t border-line px-4 py-3.5 first:border-t-0 sm:px-5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14.5px] font-bold leading-tight">
+                    {row.name}
+                    {row.mask && <span className="font-medium text-content-muted ui-tnum"> ••{row.mask}</span>}
+                  </div>
+                  <div className="mt-0.5 text-[12.5px] text-content-muted">
+                    {humanizeType(row.type)}
+                    <span className="mx-1 text-content-faint">·</span>
+                    updated {shortDate(row.asOf)}
+                  </div>
+                </div>
+                <span className="shrink-0 font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
+                  {formatCurrency(parseFloat(row.balance ?? '0'))}
+                </span>
+              </div>
+            ))}
           </div>
         ) : (
-          <DataTable<LinkedAccount>
-            columns={[
-              {
-                key: 'name',
-                header: 'Name',
-                cell: (row) => (
-                  <span>
-                    {row.name}
-                    {row.mask && <span style={{ color: 'var(--lf-muted)' }}> ••{row.mask}</span>}
-                  </span>
-                ),
-              },
-              { key: 'type', header: 'Type', cell: (row) => humanizeType(row.type) },
-              {
-                key: 'balance',
-                header: 'Balance',
-                num: true,
-                cell: (row) => formatCurrency(parseFloat(row.balance ?? '0')),
-              },
-              { key: 'asOf', header: 'Updated', muted: true, cell: (row) => shortDate(row.asOf) },
-            ]}
-            rows={linkedAccounts}
-            rowKey={(row) => row.id}
-            emptyMessage="Not linked to any accounts — this goal's amount is tracked manually."
-          />
+          <div className="mt-4 rounded-ui-xl border border-dashed border-line-strong bg-canvas-sunken/40 px-5 py-6 text-center">
+            <p className="text-[13.5px] text-content-muted">
+              Not linked to any accounts — this goal's amount is tracked manually.
+            </p>
+          </div>
         )}
-      </Section>
+      </section>
 
       {/* ── Edit goal ── */}
       {editing && (
-        <div ref={editPanelRef}>
-        <Section title="Edit goal">
-          <Card>
-            <div className="sg-form-grid">
-              <label className="sg-field">
-                <Eyebrow>Goal name</Eyebrow>
+        <section ref={editPanelRef} className="mt-8">
+          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Edit goal</h2>
+          <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+              <label className="space-y-1.5">
+                <span className="block text-[13px] font-medium text-content-secondary">Goal name</span>
                 <input
                   ref={editNameRef}
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  style={inputStyle}
+                  className={inputClass}
                 />
               </label>
-              <label className="sg-field">
-                <Eyebrow>Target amount</Eyebrow>
-                <div style={{ position: 'relative' }}>
-                  <span style={{
-                    position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                    color: 'var(--lf-muted)', fontSize: 13, pointerEvents: 'none',
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}>$</span>
+              <label className="space-y-1.5">
+                <span className="block text-[13px] font-medium text-content-secondary">Target amount</span>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] text-content-muted">$</span>
                   <input
                     type="number"
                     value={editTarget}
                     onChange={(e) => setEditTarget(e.target.value)}
-                    className="ds-num"
-                    style={{ ...inputStyle, paddingLeft: 24 }}
+                    className={`${inputClass} pl-7 ui-tnum`}
                   />
                 </div>
               </label>
-              <label className="sg-field">
-                <Eyebrow>Target date</Eyebrow>
+              <label className="space-y-1.5">
+                <span className="block text-[13px] font-medium text-content-secondary">Target date</span>
                 <input
                   type="date"
                   value={editDeadline}
                   onChange={(e) => setEditDeadline(e.target.value)}
-                  style={inputStyle}
+                  className={inputClass}
                 />
               </label>
               {!goal.isAutoTracked && (
-                <label className="sg-field">
-                  <Eyebrow>Current amount</Eyebrow>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{
-                      position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                      color: 'var(--lf-muted)', fontSize: 13, pointerEvents: 'none',
-                      fontFamily: "'JetBrains Mono', monospace",
-                    }}>$</span>
+                <label className="space-y-1.5">
+                  <span className="block text-[13px] font-medium text-content-secondary">Current amount</span>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] text-content-muted">$</span>
                     <input
                       type="number"
                       value={editCurrent}
                       onChange={(e) => setEditCurrent(e.target.value)}
-                      className="ds-num"
-                      style={{ ...inputStyle, paddingLeft: 24 }}
+                      className={`${inputClass} pl-7 ui-tnum`}
                     />
                   </div>
                 </label>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <Button variant="ink" disabled={!editName || !editTarget || savingEdit} onClick={saveEdit}>
+            <div className="mt-5 flex gap-2.5">
+              <Button
+                variant="primary"
+                size="sm"
+                loading={savingEdit}
+                disabled={!editName || !editTarget || savingEdit}
+                onClick={saveEdit}
+              >
                 {savingEdit ? 'Saving…' : 'Save changes'}
               </Button>
-              <Button variant="ghost" disabled={savingEdit} onClick={() => setEditing(false)}>
+              <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditing(false)}>
                 Cancel
               </Button>
             </div>
-            {editError && <p className="sg-error" role="status" aria-live="polite">{editError}</p>}
-          </Card>
-        </Section>
-        </div>
+            {editError && (
+              <p className="mt-2.5 text-[12.5px] font-semibold text-negative" role="status" aria-live="polite">{editError}</p>
+            )}
+          </div>
+        </section>
       )}
-    </Page>
+    </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Local style helpers
-// ---------------------------------------------------------------------------
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  background: 'var(--lf-cream)',
-  border: '1px solid var(--lf-rule)',
-  borderRadius: 8,
-  // 16px prevents iOS Safari auto-zoom on focus
-  fontSize: 16,
-  color: 'var(--lf-ink)',
-  outline: 'none',
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-};

@@ -10,9 +10,10 @@ import {
   Loader2,
   Link2,
   PencilLine,
+  Sparkles,
 } from 'lucide-react';
-import { Logo } from '../components/common/Logo';
-import { Card, Button, Eyebrow, Pill } from '../components/ds';
+import { BrandMark } from '../components/common/BrandMark';
+import { Button, Surface, Field, Input, Label, Select, Badge, Eyebrow } from '../components/uikit';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
@@ -38,18 +39,18 @@ interface AccountTypeDef {
 }
 
 const ACCOUNT_TYPES: AccountTypeDef[] = [
-  { label: 'Checking / Savings', emoji: '\uD83D\uDCB5', type: 'depository', isDebt: false },
-  { label: '401(k) / 403(b)', emoji: '\uD83D\uDCC8', type: 'investment', subtype: '401k', isDebt: false },
-  { label: 'Roth IRA', emoji: '\uD83C\uDF31', type: 'investment', subtype: 'roth_ira', isDebt: false },
-  { label: 'Traditional IRA', emoji: '\uD83D\uDCCA', type: 'investment', subtype: 'ira', isDebt: false },
-  { label: 'Brokerage', emoji: '\uD83D\uDCBC', type: 'investment', subtype: 'brokerage', isDebt: false },
-  { label: 'HSA', emoji: '\uD83C\uDFE5', type: 'investment', subtype: 'hsa', isDebt: false },
-  { label: 'Primary Residence', emoji: '\uD83C\uDFE1', type: 'real_estate', subtype: 'primary', isDebt: false },
-  { label: 'Rental Property', emoji: '\uD83C\uDFE2', type: 'real_estate', subtype: 'rental', isDebt: false },
-  { label: 'Credit Card', emoji: '\uD83D\uDCB3', type: 'credit', isDebt: true },
-  { label: 'Student Loan', emoji: '\uD83C\uDF93', type: 'loan', subtype: 'student', isDebt: true },
-  { label: 'Auto Loan', emoji: '\uD83D\uDE97', type: 'loan', subtype: 'auto', isDebt: true },
-  { label: 'Mortgage', emoji: '\uD83C\uDFE0', type: 'loan', subtype: 'mortgage', isDebt: true },
+  { label: 'Checking / Savings', emoji: '💵', type: 'depository', isDebt: false },
+  { label: '401(k) / 403(b)', emoji: '📈', type: 'investment', subtype: '401k', isDebt: false },
+  { label: 'Roth IRA', emoji: '🌱', type: 'investment', subtype: 'roth_ira', isDebt: false },
+  { label: 'Traditional IRA', emoji: '📊', type: 'investment', subtype: 'ira', isDebt: false },
+  { label: 'Brokerage', emoji: '💼', type: 'investment', subtype: 'brokerage', isDebt: false },
+  { label: 'HSA', emoji: '🏥', type: 'investment', subtype: 'hsa', isDebt: false },
+  { label: 'Primary Residence', emoji: '🏡', type: 'real_estate', subtype: 'primary', isDebt: false },
+  { label: 'Rental Property', emoji: '🏢', type: 'real_estate', subtype: 'rental', isDebt: false },
+  { label: 'Credit Card', emoji: '💳', type: 'credit', isDebt: true },
+  { label: 'Student Loan', emoji: '🎓', type: 'loan', subtype: 'student', isDebt: true },
+  { label: 'Auto Loan', emoji: '🚗', type: 'loan', subtype: 'auto', isDebt: true },
+  { label: 'Mortgage', emoji: '🏠', type: 'loan', subtype: 'mortgage', isDebt: true },
 ];
 
 const RISK_LEVELS = [
@@ -81,27 +82,29 @@ const slideVariants = {
   exit: (direction: number) => ({ x: direction > 0 ? -300 : 300, opacity: 0 }),
 };
 
-function CurrencyInput({ value, onChange, placeholder = '0', className = '' }: {
-  value: string; onChange: (val: string) => void; placeholder?: string; className?: string;
+// ─── Shared Bright class recipes ─────────────────────────
+const chipBase =
+  'flex items-center justify-between gap-2 w-full min-h-[48px] px-4 py-3 rounded-ui-md border text-sm text-left transition-[background-color,border-color,color] duration-150 ease-ui';
+const chipInactive =
+  'border-line-strong bg-panel text-content-secondary hover:bg-canvas-sunken hover:border-line-heavy';
+const chipActive =
+  'border-brand bg-brand-soft text-[rgb(var(--ui-brand-ink))]';
+
+function CurrencyInput({ value, onChange, placeholder = '0', autoFocus }: {
+  value: string; onChange: (val: string) => void; placeholder?: string; autoFocus?: boolean;
 }) {
   return (
-    <div className={cn('ob-affix', className)}>
-      <span className="ob-affix__sym ob-affix__sym--left">$</span>
-      <input
-        type="text"
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
-        placeholder={placeholder}
-        className="ob-input ds-num"
-        style={{ paddingLeft: 28 }}
-      />
-    </div>
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      className="ui-tnum"
+      leadingIcon={<span className="text-[13px]">$</span>}
+    />
   );
-}
-
-function FieldHint({ children }: { children: React.ReactNode }) {
-  return <p className="ds-caption" style={{ marginTop: 6 }}>{children}</p>;
 }
 
 const STAGE_TO_STEP: Record<string, number> = {
@@ -262,10 +265,12 @@ export function Onboarding() {
     switch (step) {
       case 0:
         return (
-          <div className="ob-stack">
-            <div className="ob-head">
-              <h2 className="ds-h1">Let&apos;s get to know you</h2>
-              <p className="ds-body ob-sub">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
+                Let&apos;s get to know you
+              </h2>
+              <p className="text-[15px] leading-relaxed text-content-secondary">
                 A few basics so we can personalize your projections and tax insights.
               </p>
             </div>
@@ -273,176 +278,193 @@ export function Onboarding() {
             <button
               type="button"
               onClick={() => navigate('/quick-import?from=onboarding')}
-              className="ob-quick"
+              className="ui-focus block w-full text-left rounded-ui-lg border border-brand-soft bg-brand-softer p-4 transition-[border-color,box-shadow] duration-150 ease-ui hover:border-brand hover:shadow-ui-sm"
             >
-              <div className="ob-quick__head">
-                <span aria-hidden>✨</span>
-                <span className="ob-quick__title">Quick Import — describe yourself instead</span>
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="h-4 w-4 text-brand" aria-hidden />
+                <span className="text-sm font-semibold text-brand">
+                  Quick Import — describe yourself instead
+                </span>
               </div>
-              <div className="ds-caption">
+              <div className="text-[13px] text-content-muted">
                 Type a sentence or two and we&apos;ll fill out your profile and accounts.
               </div>
             </button>
 
-            <div className="ob-fields">
-              <div>
-                <Eyebrow>Your name</Eyebrow>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)}
-                  placeholder="Alex" autoFocus className="ob-input" style={{ marginTop: 8 }} />
-              </div>
+            <div className="flex flex-col gap-5">
+              <Field label="Your name">
+                <Input type="text" value={name} onChange={(e) => setName(e.target.value)}
+                  placeholder="Alex" autoFocus />
+              </Field>
 
-              <div>
-                <Eyebrow>Date of birth</Eyebrow>
-                <input type="date" value={dob} onChange={(e) => setDob(e.target.value)}
-                  className="ob-input" style={{ marginTop: 8 }} />
-                <FieldHint>Used for age-based retirement projections and catch-up contribution eligibility (50+).</FieldHint>
-              </div>
+              <Field label="Date of birth"
+                hint="Used for age-based retirement projections and catch-up contribution eligibility (50+).">
+                <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+              </Field>
 
-              <div>
-                <Eyebrow>Filing status</Eyebrow>
-                <select value={filingStatus} onChange={(e) => setFilingStatus(e.target.value)}
-                  className="ob-input ob-select" style={{ marginTop: 8 }}>
+              <Field label="Filing status"
+                hint="Determines tax bracket thresholds, Roth IRA income limits, and capital gains rates.">
+                <Select value={filingStatus} onChange={(e) => setFilingStatus(e.target.value)}>
                   <option value="">Select...</option>
                   {FILING_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <FieldHint>Determines tax bracket thresholds, Roth IRA income limits, and capital gains rates.</FieldHint>
-              </div>
+                </Select>
+              </Field>
 
-              <div>
-                <Eyebrow>State of residence</Eyebrow>
-                <select value={stateOfResidence} onChange={(e) => setStateOfResidence(e.target.value)}
-                  className="ob-input ob-select" style={{ marginTop: 8 }}>
+              <Field label="State of residence"
+                hint="Some states have no income tax — this affects your take-home pay and retirement planning.">
+                <Select value={stateOfResidence} onChange={(e) => setStateOfResidence(e.target.value)}>
                   <option value="">Select...</option>
                   {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <FieldHint>Some states have no income tax — this affects your take-home pay and retirement planning.</FieldHint>
-              </div>
+                </Select>
+              </Field>
             </div>
           </div>
         );
 
       case 1:
         return (
-          <div className="ob-stack">
-            <div className="ob-head">
-              <h2 className="ds-h1">Your income &amp; goals</h2>
-              <p className="ds-body ob-sub">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
+                Your income &amp; goals
+              </h2>
+              <p className="text-[15px] leading-relaxed text-content-secondary">
                 This drives your savings rate calculations, FIRE number, and retirement projections.
               </p>
             </div>
 
-            <div className="ob-fields">
-              <div>
-                <Eyebrow>Annual gross income</Eyebrow>
-                <div style={{ marginTop: 8 }}>
-                  <CurrencyInput value={annualIncome} onChange={setAnnualIncome} placeholder="75000" />
-                </div>
-                <FieldHint>Used to calculate your savings rate, tax bracket, and how much to allocate to each financial layer.</FieldHint>
-              </div>
+            <div className="flex flex-col gap-5">
+              <Field label="Annual gross income"
+                hint="Used to calculate your savings rate, tax bracket, and how much to allocate to each financial layer.">
+                <CurrencyInput value={annualIncome} onChange={setAnnualIncome} placeholder="75000" />
+              </Field>
 
               <div>
-                <Eyebrow>Employer 401(k) match</Eyebrow>
-                <label className="ob-inline-check" style={{ marginTop: 8 }}>
-                  <input type="checkbox" checked={!has401k} onChange={(e) => setHas401k(!e.target.checked)} className="ob-check" />
+                <Label>Employer 401(k) match</Label>
+                <label className="mt-2 flex items-center gap-2 min-h-touch text-sm text-content-secondary cursor-pointer select-none">
+                  <input type="checkbox" checked={!has401k} onChange={(e) => setHas401k(!e.target.checked)}
+                    className="h-4 w-4 accent-[rgb(var(--ui-brand))]" />
                   I don&apos;t have a 401(k)
                 </label>
                 {has401k && (
                   <>
-                    <div className="ob-affix" style={{ marginTop: 10 }}>
-                      <input type="number" min={0} max={10} step={0.5} value={matchPercent} onChange={(e) => setMatchPercent(e.target.value)}
-                        placeholder="3" className="ob-input ds-num" style={{ paddingRight: 32 }} />
-                      <span className="ob-affix__sym ob-affix__sym--right">%</span>
+                    <div className="relative mt-2.5">
+                      <Input type="number" min={0} max={10} step={0.5} value={matchPercent}
+                        onChange={(e) => setMatchPercent(e.target.value)}
+                        placeholder="3" className="ui-tnum pr-9" />
+                      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-content-muted text-sm">%</span>
                     </div>
-                    <FieldHint>Not maxing your employer match is leaving free money on the table — we&apos;ll flag this.</FieldHint>
+                    <p className="mt-1.5 text-[12px] text-content-muted">
+                      Not maxing your employer match is leaving free money on the table — we&apos;ll flag this.
+                    </p>
                   </>
                 )}
               </div>
 
               <div>
-                <Eyebrow>Risk tolerance</Eyebrow>
-                <div className="ob-chip-col" style={{ marginTop: 8 }}>
-                  {RISK_LEVELS.map((r) => (
-                    <button key={r.value} type="button" onClick={() => setRiskTolerance(r.value)}
-                      className={cn('ob-chip', riskTolerance === r.value && 'ob-chip--active')}>
-                      <span className="ob-chip__label">{r.label}</span>
-                      <span className="ob-chip__meta">{r.desc}</span>
-                    </button>
-                  ))}
+                <Label>Risk tolerance</Label>
+                <div className="mt-2 flex flex-col gap-2">
+                  {RISK_LEVELS.map((r) => {
+                    const active = riskTolerance === r.value;
+                    return (
+                      <button key={r.value} type="button" onClick={() => setRiskTolerance(r.value)}
+                        className={cn('ui-focus', chipBase, active ? chipActive : chipInactive)}>
+                        <span className="font-semibold">{r.label}</span>
+                        <span className={cn('text-[12px]', active ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-content-muted')}>{r.desc}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <FieldHint>Shapes your portfolio allocation suggestions and retirement simulation parameters.</FieldHint>
+                <p className="mt-1.5 text-[12px] text-content-muted">
+                  Shapes your portfolio allocation suggestions and retirement simulation parameters.
+                </p>
               </div>
 
-              <div>
-                <Eyebrow>Target retirement age</Eyebrow>
-                <input type="number" min={30} max={80} value={retirementAge} onChange={(e) => setRetirementAge(e.target.value)}
-                  className="ob-input ds-num" style={{ marginTop: 8 }} />
-                <FieldHint>We&apos;ll project whether your current savings rate gets you there.</FieldHint>
-              </div>
+              <Field label="Target retirement age"
+                hint="We'll project whether your current savings rate gets you there.">
+                <Input type="number" min={30} max={80} value={retirementAge}
+                  onChange={(e) => setRetirementAge(e.target.value)} className="ui-tnum" />
+              </Field>
             </div>
           </div>
         );
 
       case 2:
         return (
-          <div className="ob-stack">
-            <div className="ob-head">
-              <h2 className="ds-h1">Your situation</h2>
-              <p className="ds-body ob-sub">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
+                Your situation
+              </h2>
+              <p className="text-[15px] leading-relaxed text-content-secondary">
                 Shapes which financial layers apply to you and in what order.
               </p>
             </div>
 
-            <div className="ob-fields">
+            <div className="flex flex-col gap-5">
               {/* Employment type */}
               <div>
-                <Eyebrow>Employment type</Eyebrow>
-                <div className="ob-grid-2" style={{ marginTop: 8 }}>
+                <Label>Employment type</Label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   {[
                     { value: 'w2',             label: 'W2 employee' },
                     { value: 'self_employed',  label: 'Self-employed' },
                     { value: '1099',           label: '1099 / contractor' },
                     { value: 'business_owner', label: 'Business owner' },
-                  ].map(opt => (
-                    <button key={opt.value} type="button" onClick={() => setEmploymentType(opt.value)}
-                      className={cn('ob-chip', employmentType === opt.value && 'ob-chip--active')}>
-                      <span className="ob-chip__label">{opt.label}</span>
-                    </button>
-                  ))}
+                  ].map(opt => {
+                    const active = employmentType === opt.value;
+                    return (
+                      <button key={opt.value} type="button" onClick={() => setEmploymentType(opt.value)}
+                        className={cn('ui-focus justify-start', chipBase, active ? chipActive : chipInactive)}>
+                        <span className="font-semibold">{opt.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <FieldHint>Determines which retirement accounts apply — 401(k), solo 401(k), SEP IRA, etc.</FieldHint>
+                <p className="mt-1.5 text-[12px] text-content-muted">
+                  Determines which retirement accounts apply — 401(k), solo 401(k), SEP IRA, etc.
+                </p>
               </div>
 
               {/* Dependents */}
               <div>
-                <Eyebrow>Number of dependents</Eyebrow>
-                <div className="ob-stepper" style={{ marginTop: 8 }}>
-                  {[0, 1, 2, 3, 4].map(n => (
-                    <button key={n} type="button" onClick={() => setDependentCount(n)}
-                      className={cn('ob-step-num', dependentCount === n && 'ob-step-num--active')}>
-                      {n === 4 ? '4+' : n}
-                    </button>
-                  ))}
+                <Label>Number of dependents</Label>
+                <div className="mt-2 flex items-center gap-2">
+                  {[0, 1, 2, 3, 4].map(n => {
+                    const active = dependentCount === n;
+                    return (
+                      <button key={n} type="button" onClick={() => setDependentCount(n)}
+                        className={cn(
+                          'ui-focus h-12 w-12 rounded-ui-md border font-semibold text-[15px] ui-tnum transition-[background-color,border-color,color] duration-150 ease-ui',
+                          active ? chipActive : chipInactive,
+                        )}>
+                        {n === 4 ? '4+' : n}
+                      </button>
+                    );
+                  })}
                 </div>
-                <FieldHint>Surfaces life insurance, 529 savings, and dependent care FSA layers.</FieldHint>
+                <p className="mt-1.5 text-[12px] text-content-muted">
+                  Surfaces life insurance, 529 savings, and dependent care FSA layers.
+                </p>
               </div>
 
               {/* HDHP */}
-              <label className="ob-check-row">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
                 <input type="checkbox" checked={hasHDHP} onChange={e => setHasHDHP(e.target.checked)}
-                  className="ob-check" style={{ marginTop: 2 }} />
+                  className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]" />
                 <div>
-                  <p className="ob-check-row__title">Enrolled in a high-deductible health plan (HDHP)</p>
-                  <p className="ds-caption">Enables HSA contributions — the only account with triple tax advantages.</p>
+                  <p className="text-sm text-content">Enrolled in a high-deductible health plan (HDHP)</p>
+                  <p className="text-[12px] text-content-muted">Enables HSA contributions — the only account with triple tax advantages.</p>
                 </div>
               </label>
 
               {/* PSLF */}
-              <label className="ob-check-row">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
                 <input type="checkbox" checked={isPSLFEligible} onChange={e => setIsPSLFEligible(e.target.checked)}
-                  className="ob-check" style={{ marginTop: 2 }} />
+                  className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]" />
                 <div>
-                  <p className="ob-check-row__title">Work in public service (government or non-profit)</p>
-                  <p className="ds-caption">May qualify for PSLF — changes your student loan strategy significantly.</p>
+                  <p className="text-sm text-content">Work in public service (government or non-profit)</p>
+                  <p className="text-[12px] text-content-muted">May qualify for PSLF — changes your student loan strategy significantly.</p>
                 </div>
               </label>
             </div>
@@ -451,58 +473,68 @@ export function Onboarding() {
 
       case 3:
         return (
-          <div className="ob-stack">
-            <div className="ob-head">
-              <h2 className="ds-h1">Connect your accounts</h2>
-              <p className="ds-body ob-sub">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
+                Connect your accounts
+              </h2>
+              <p className="text-[15px] leading-relaxed text-content-secondary">
                 Link your bank and investment accounts for automatic balance tracking, portfolio analysis, and spending insights.
               </p>
             </div>
 
             {/* Primary CTA: Link via Plaid */}
-            <Card variant="cream" className="ob-link-cta">
-              <Link2 className="ob-link-cta__icon" />
-              <h3 className="ds-h2">Link your accounts</h3>
-              <p className="ds-body ob-sub" style={{ maxWidth: '24rem', margin: '0 auto' }}>
+            <Surface tone="brand" className="flex flex-col items-center gap-2.5 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-ui-md bg-panel/70 text-brand">
+                <Link2 className="h-6 w-6" />
+              </div>
+              <h3 className="font-editorial text-[20px] font-medium tracking-[-0.01em] text-content">Link your accounts</h3>
+              <p className="max-w-sm text-[14px] leading-relaxed text-content-secondary">
                 Securely connect via Plaid. Your balances and holdings update automatically so your projections stay current.
               </p>
-              <Button variant="ink" onClick={handleLinkPlaid} icon={<Link2 className="ob-ico-14" />} style={{ marginTop: 4 }}>
+              <Button onClick={handleLinkPlaid} leadingIcon={<Link2 className="h-4 w-4" />} className="mt-1">
                 Link Bank Account
               </Button>
-              <p className="ds-caption">
+              <p className="text-[12px] text-content-muted">
                 256-bit encryption. Read-only access. We never store your bank credentials.
               </p>
-            </Card>
+            </Surface>
 
             {/* Divider */}
-            <div className="ds-rule-label"><Eyebrow>or enter manually</Eyebrow></div>
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-line" />
+              <Eyebrow className="text-content-muted">or enter manually</Eyebrow>
+              <span className="h-px flex-1 bg-line" />
+            </div>
 
             {/* Manual entry toggle */}
             {!showManualEntry ? (
-              <Button variant="ghost" onClick={() => setShowManualEntry(true)}
-                icon={<PencilLine className="ob-ico-16" />} className="ob-btn-block">
+              <Button variant="secondary" onClick={() => setShowManualEntry(true)}
+                leadingIcon={<PencilLine className="h-4 w-4" />} className="w-full">
                 Add accounts manually instead
               </Button>
             ) : (
-              <div className="ob-fields">
+              <div className="flex flex-col gap-5">
                 {/* Added accounts */}
                 {addedAccounts.length > 0 && (
-                  <div className="ob-acct-list">
-                    <Eyebrow>Added accounts</Eyebrow>
+                  <div className="flex flex-col gap-2">
+                    <Label>Added accounts</Label>
                     {addedAccounts.map((acct) => (
                       <motion.div key={acct.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                        className="ob-acct-row">
-                        <div className="ob-acct-row__main">
-                          <span className="ob-emoji">{acct.emoji}</span>
+                        className="flex items-center justify-between rounded-ui-md border border-line bg-panel px-3.5 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg leading-none">{acct.emoji}</span>
                           <div>
-                            <p className="ob-acct-row__name">{acct.name}</p>
-                            <p className="ds-caption">{acct.type}</p>
+                            <p className="text-sm font-semibold text-content">{acct.name}</p>
+                            <p className="text-[12px] text-content-muted">{acct.type}</p>
                           </div>
                         </div>
-                        <div className="ob-acct-row__end">
-                          <span className="ob-acct-row__bal ds-num">{formatMoney(acct.balance, true)}</span>
-                          <button onClick={() => handleRemoveAccount(acct.id)} className="ob-icon-btn" aria-label="Remove account">
-                            <X className="ob-ico-16" />
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-content-secondary ui-tnum">{formatMoney(acct.balance, true)}</span>
+                          <button onClick={() => handleRemoveAccount(acct.id)}
+                            className="ui-focus inline-flex h-8 w-8 items-center justify-center rounded-ui-md text-content-muted transition-colors hover:text-negative hover:bg-canvas-sunken"
+                            aria-label="Remove account">
+                            <X className="h-4 w-4" />
                           </button>
                         </div>
                       </motion.div>
@@ -513,60 +545,55 @@ export function Onboarding() {
                 {/* Inline add form */}
                 {activeType && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                    <Card variant="cream" className="ob-add-form">
-                      <div className="ob-add-form__head">
-                        <span className="ob-emoji">{activeType.emoji}</span>
-                        <Pill tone="cream">{activeType.label}</Pill>
+                    <Surface tone="sunken" className="flex flex-col gap-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg leading-none">{activeType.emoji}</span>
+                        <Badge tone="brand">{activeType.label}</Badge>
                       </div>
-                      <div>
-                        <Eyebrow>Account name</Eyebrow>
-                        <input type="text" value={acctName} onChange={(e) => setAcctName(e.target.value)} autoFocus
-                          className="ob-input" style={{ marginTop: 8 }} />
-                      </div>
-                      <div>
-                        <Eyebrow>Balance</Eyebrow>
-                        <div style={{ marginTop: 8 }}>
-                          <CurrencyInput value={acctBalance} onChange={setAcctBalance} />
-                        </div>
-                      </div>
+                      <Field label="Account name">
+                        <Input type="text" value={acctName} onChange={(e) => setAcctName(e.target.value)} autoFocus />
+                      </Field>
+                      <Field label="Balance">
+                        <CurrencyInput value={acctBalance} onChange={setAcctBalance} />
+                      </Field>
                       {activeType.isDebt && (
-                        <div>
-                          <Eyebrow>Interest rate</Eyebrow>
-                          <div className="ob-affix" style={{ marginTop: 8 }}>
-                            <input type="number" min={0} max={40} step={0.1} value={acctRate} onChange={(e) => setAcctRate(e.target.value)}
-                              placeholder="5.5" className="ob-input ds-num" style={{ paddingRight: 32 }} />
-                            <span className="ob-affix__sym ob-affix__sym--right">%</span>
+                        <Field label="Interest rate">
+                          <div className="relative">
+                            <Input type="number" min={0} max={40} step={0.1} value={acctRate}
+                              onChange={(e) => setAcctRate(e.target.value)} placeholder="5.5" className="ui-tnum pr-9" />
+                            <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-content-muted text-sm">%</span>
                           </div>
-                        </div>
+                        </Field>
                       )}
-                      <div className="ob-add-form__actions">
-                        <Button variant="ink" onClick={handleAddAccount} disabled={!acctName.trim() || addingAccount}
-                          icon={addingAccount ? <Loader2 className="ob-ico-14 ob-spin" /> : <Plus className="ob-ico-14" />}>
+                      <div className="flex gap-2 pt-0.5">
+                        <Button onClick={handleAddAccount} disabled={!acctName.trim() || addingAccount}
+                          loading={addingAccount}
+                          leadingIcon={!addingAccount ? <Plus className="h-4 w-4" /> : undefined}>
                           Add
                         </Button>
                         <Button variant="ghost" onClick={() => { setActiveType(null); setAcctName(''); setAcctBalance(''); setAcctRate(''); }}>
                           Cancel
                         </Button>
                       </div>
-                    </Card>
+                    </Surface>
                   </motion.div>
                 )}
 
                 {/* Account type grid */}
                 {!activeType && (
-                  <div className="ob-grid-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {ACCOUNT_TYPES.map((at) => (
                       <button key={at.label}
                         onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(''); setAcctRate(''); }}
-                        className="ob-type-tile">
-                        <span className="ob-emoji">{at.emoji}</span>
-                        <span className="ob-type-tile__label">{at.label}</span>
+                        className="ui-focus flex items-center gap-2.5 min-h-[56px] rounded-ui-md border border-line-strong bg-panel px-3.5 py-3 text-left text-[13px] font-medium text-content-secondary transition-[background-color,border-color] duration-150 ease-ui hover:bg-canvas-sunken hover:border-line-heavy">
+                        <span className="text-lg leading-none">{at.emoji}</span>
+                        <span className="leading-tight">{at.label}</span>
                       </button>
                     ))}
                   </div>
                 )}
 
-                <p className="ds-caption" style={{ textAlign: 'center' }}>
+                <p className="text-center text-[12px] text-content-muted">
                   Manual balances are a snapshot — consider linking accounts for automatic updates.
                 </p>
               </div>
@@ -576,48 +603,49 @@ export function Onboarding() {
 
       case 4:
         return (
-          <div className="ob-stack ob-complete">
+          <div className="flex flex-col items-center gap-6">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
-              className="ob-done-badge"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft text-brand"
             >
-              <Check className="ob-ico-32" />
+              <Check className="h-8 w-8" />
             </motion.div>
 
-            <div className="ob-head ob-head--center">
-              <h2 className="ds-h1">You&apos;re all set!</h2>
-              <p className="ds-body ob-sub" style={{ maxWidth: '24rem', margin: '0 auto' }}>
+            <div className="flex flex-col gap-2 text-center">
+              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
+                You&apos;re all set!
+              </h2>
+              <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-content-secondary">
                 Your dashboard is ready. We&apos;ll use this information to personalize your projections and recommendations.
               </p>
             </div>
 
-            <Card variant="cream" className="ob-summary">
+            <Surface tone="sunken" className="w-full max-w-[360px] flex flex-col gap-2.5">
               <Eyebrow>Summary</Eyebrow>
-              {name && <div className="ob-summary__row"><span>Name</span><span className="ob-summary__val">{name}</span></div>}
-              {annualIncome && <div className="ob-summary__row"><span>Income</span><span className="ob-summary__val ds-num">{formatMoney(parseFloat(annualIncome), true)}</span></div>}
-              {employmentType && (
-                <div className="ob-summary__row">
-                  <span>Employment</span>
-                  <span className="ob-summary__val" style={{ textTransform: 'capitalize' }}>{employmentType.replace(/_/g, ' ')}</span>
+              {name && <SummaryRow label="Name" value={name} />}
+              {annualIncome && <SummaryRow label="Income" value={formatMoney(parseFloat(annualIncome), true)} mono />}
+              {employmentType && <SummaryRow label="Employment" value={employmentType.replace(/_/g, ' ')} capitalize />}
+              {riskTolerance && <SummaryRow label="Risk" value={riskTolerance.replace(/_/g, ' ')} capitalize />}
+              {retirementAge && <SummaryRow label="Retire at" value={retirementAge} mono />}
+              {addedAccounts.length > 0 && <SummaryRow label="Accounts" value={`${addedAccounts.length} added`} />}
+              {linkedViaPlaid && (
+                <div className="flex items-baseline justify-between text-sm text-content-muted">
+                  <span>Bank</span>
+                  <span className="font-semibold text-brand">Linked via Plaid</span>
                 </div>
               )}
-              {riskTolerance && <div className="ob-summary__row"><span>Risk</span><span className="ob-summary__val" style={{ textTransform: 'capitalize' }}>{riskTolerance.replace(/_/g, ' ')}</span></div>}
-              {retirementAge && <div className="ob-summary__row"><span>Retire at</span><span className="ob-summary__val ds-num">{retirementAge}</span></div>}
-              {addedAccounts.length > 0 && <div className="ob-summary__row"><span>Accounts</span><span className="ob-summary__val">{addedAccounts.length} added</span></div>}
-              {linkedViaPlaid && <div className="ob-summary__row"><span>Bank</span><span className="ob-summary__val" style={{ color: 'var(--lf-sauce)' }}>Linked via Plaid</span></div>}
-            </Card>
+            </Surface>
 
-            <div className="ob-complete__actions">
-              <Button variant="ink" className="ob-btn-block"
+            <div className="w-full max-w-[360px] flex flex-col gap-2.5 pt-1">
+              <Button className="w-full" trailingIcon={<ChevronRight className="h-4 w-4" />}
                 onClick={async () => { await api.updateOnboardingStage(null).catch(() => {}); setOnboardingStage(null); }}>
                 Go to Dashboard
-                <ChevronRight className="ob-ico-16" />
               </Button>
               {!linkedViaPlaid && (
-                <Button variant="ghost" className="ob-btn-block" onClick={() => navigate('/accounts')}
-                  icon={<Link2 className="ob-ico-16" />}>
+                <Button variant="ghost" className="w-full" onClick={() => navigate('/accounts')}
+                  leadingIcon={<Link2 className="h-4 w-4" />}>
                   Link bank accounts for automatic updates
                 </Button>
               )}
@@ -640,308 +668,89 @@ export function Onboarding() {
 
   if (initializing) {
     return (
-      <div className="ob-shell ob-shell--center">
-        <Loader2 className="ob-ico-24 ob-spin" style={{ color: 'var(--lf-muted)' }} />
-        <ObStyles />
+      <div className="ui-root min-h-screen bg-canvas flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
       </div>
     );
   }
 
   return (
-    <div className="ob-shell">
-      <header className="ob-topbar">
-        <div className="ob-brand">
-          <Logo width={28} animate={false} />
-          <span className="lf-wordmark text-lg" style={{ color: 'var(--lf-ink)' }}>Lasagna<span className="fi">fi</span></span>
+    <div className="ui-root min-h-screen bg-canvas flex flex-col text-content">
+      {/* Ambient warm glow — faint, single brand accent for atmosphere. */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <div
+          className="absolute -top-32 left-1/2 -translate-x-1/2 w-[720px] h-[720px] rounded-full blur-3xl"
+          style={{ background: 'radial-gradient(circle, var(--ui-brand-soft), transparent 68%)' }}
+        />
+      </div>
+
+      <header className="relative flex items-center justify-between px-6 py-[18px]">
+        <div className="flex items-center gap-2">
+          <BrandMark size={28} />
+          <span className="font-editorial text-lg font-medium tracking-[-0.015em] text-content">
+            Lasagna<span className="text-brand">Fi</span>
+          </span>
         </div>
         {step < totalSteps - 1 && (
-          <Eyebrow>Step {step + 1} of {totalSteps - 1}</Eyebrow>
+          <Eyebrow className="text-content-muted">Step {step + 1} of {totalSteps - 1}</Eyebrow>
         )}
       </header>
 
       {step < 4 && (
-        <div className="ob-progress-wrap">
-          <div className="ob-progress">
-            <motion.div className="ob-progress__fill" initial={false}
+        <div className="relative px-6">
+          <div className="mx-auto h-1.5 w-full max-w-[640px] overflow-hidden rounded-full bg-canvas-sunken">
+            <motion.div className="h-full rounded-full bg-brand" initial={false}
               animate={{ width: `${((step + 1) / totalSteps) * 100}%` }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }} />
           </div>
         </div>
       )}
 
-      <main className="ob-main">
-        <div className="ob-col">
+      <main className="relative flex-1 flex items-start justify-center overflow-y-auto px-4 py-8">
+        <div className="w-full max-w-[540px]">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div key={step} custom={direction} variants={slideVariants}
               initial="enter" animate="center" exit="exit"
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
-              <Card className="ob-card">{renderStep()}</Card>
+              <Surface tone="panel" className="shadow-ui-lg p-6 sm:p-7">{renderStep()}</Surface>
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
 
       {step < 4 && (
-        <footer className="ob-footer">
-          <div className="ob-footer__inner">
+        <footer className="relative border-t border-line px-6 py-4">
+          <div className="mx-auto flex w-full max-w-[540px] items-center justify-between">
             <div>
               {step > 0 && (
-                <Button variant="ghost" onClick={goBack} icon={<ChevronLeft className="ob-ico-16" />}>
+                <Button variant="ghost" onClick={goBack} leadingIcon={<ChevronLeft className="h-4 w-4" />}>
                   Back
                 </Button>
               )}
             </div>
-            <div className="ob-footer__end">
+            <div className="flex items-center gap-3">
               {step === 3 && (
-                <Button variant="link" onClick={goNext}>Skip for now</Button>
+                <Button variant="ghost" onClick={goNext}>Skip for now</Button>
               )}
-              <Button variant="ink" onClick={goNext} disabled={!canProceed || saving}>
-                {saving ? <Loader2 className="ob-ico-16 ob-spin" /> : <>{step === 3 ? 'Finish' : 'Next'}<ChevronRight className="ob-ico-16" /></>}
+              <Button onClick={goNext} disabled={!canProceed || saving} loading={saving}
+                trailingIcon={!saving ? <ChevronRight className="h-4 w-4" /> : undefined}>
+                {step === 3 ? 'Finish' : 'Next'}
               </Button>
             </div>
           </div>
         </footer>
       )}
-      <ObStyles />
     </div>
   );
 }
 
-function ObStyles() {
+function SummaryRow({ label, value, mono, capitalize }: {
+  label: string; value: string; mono?: boolean; capitalize?: boolean;
+}) {
   return (
-    <style>{`
-      .ob-shell {
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        background: var(--lf-cream);
-      }
-      .ob-shell--center { align-items: center; justify-content: center; }
-
-      .ob-topbar {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 18px 24px;
-      }
-      .ob-brand { display: flex; align-items: center; gap: 8px; }
-
-      .ob-progress-wrap { padding: 0 24px; }
-      .ob-progress {
-        width: 100%; max-width: 640px; margin: 0 auto;
-        height: 4px; border-radius: 999px; overflow: hidden;
-        background: var(--lf-rule);
-      }
-      .ob-progress__fill { height: 100%; border-radius: 999px; background: var(--lf-ink); }
-
-      .ob-main {
-        flex: 1; display: flex; align-items: flex-start; justify-content: center;
-        padding: 32px 16px; overflow-y: auto;
-      }
-      .ob-col { width: 100%; max-width: 540px; }
-      .ob-card { padding: 28px; }
-
-      .ob-stack { display: flex; flex-direction: column; gap: 24px; }
-      .ob-head { display: flex; flex-direction: column; gap: 8px; }
-      .ob-head--center { text-align: center; }
-      .ob-sub { color: var(--lf-muted); }
-      .ob-fields { display: flex; flex-direction: column; gap: 20px; }
-
-      /* Inputs */
-      .ob-input {
-        width: 100%; padding: 12px 14px; min-height: 44px; box-sizing: border-box;
-        background: var(--lf-paper);
-        border: 1px solid var(--lf-rule); border-radius: 8px;
-        font-size: 16px; font-family: 'Geist', system-ui, sans-serif;
-        color: var(--lf-ink); outline: none;
-        transition: border-color 0.12s, box-shadow 0.12s;
-      }
-      .ob-input:focus {
-        border-color: var(--lf-ink);
-        box-shadow: 0 0 0 3px var(--lf-rule-neutral);
-      }
-      .ob-input::placeholder { color: var(--lf-noodle); }
-      .ob-select {
-        appearance: none; -webkit-appearance: none;
-        padding-right: 38px;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 12px center;
-      }
-      .ob-affix { position: relative; }
-      .ob-affix__sym {
-        position: absolute; top: 50%; transform: translateY(-50%);
-        color: var(--lf-muted); font-size: 16px;
-        font-family: 'JetBrains Mono', monospace;
-        pointer-events: none;
-      }
-      .ob-affix__sym--left { left: 14px; }
-      .ob-affix__sym--right { right: 14px; }
-
-      /* Quick-import CTA */
-      .ob-quick {
-        display: block; width: 100%; text-align: left; cursor: pointer;
-        padding: 16px; border-radius: 12px;
-        background: var(--lf-cream);
-        border: 1px solid var(--lf-cream-deep);
-        transition: border-color 0.12s, background 0.12s;
-      }
-      .ob-quick:hover { border-color: var(--lf-sauce); }
-      .ob-quick__head {
-        display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
-      }
-      .ob-quick__title {
-        font-family: 'Geist', system-ui, sans-serif;
-        font-size: 14px; font-weight: 600; color: var(--lf-sauce);
-      }
-
-      /* Selection chips (risk, employment) */
-      .ob-chip-col { display: flex; flex-direction: column; gap: 8px; }
-      .ob-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-      .ob-chip {
-        display: flex; align-items: center; justify-content: space-between; gap: 8px;
-        width: 100%; min-height: 48px; padding: 12px 16px;
-        border: 1px solid var(--lf-rule); border-radius: 8px;
-        background: var(--lf-paper); color: var(--lf-ink-soft);
-        font-family: 'Geist', system-ui, sans-serif; font-size: 14px;
-        text-align: left; cursor: pointer;
-        transition: border-color 0.12s, background 0.12s, color 0.12s;
-      }
-      .ob-chip:hover { background: var(--lf-cream); border-color: var(--lf-cream-deep); }
-      .ob-chip--active {
-        border-color: var(--lf-ink); background: var(--lf-cream); color: var(--lf-ink);
-      }
-      .ob-chip:focus-visible { outline: 2px solid var(--lf-sauce); outline-offset: 2px; }
-      .ob-chip__label { font-weight: 600; }
-      .ob-chip__meta { font-size: 12px; color: var(--lf-muted); }
-      .ob-chip--active .ob-chip__meta { color: var(--lf-ink-soft); }
-
-      /* Number stepper (dependents) */
-      .ob-stepper { display: flex; align-items: center; gap: 8px; }
-      .ob-step-num {
-        width: 48px; height: 48px; border-radius: 8px;
-        border: 1px solid var(--lf-rule); background: var(--lf-paper);
-        color: var(--lf-ink-soft); font-weight: 600; font-size: 15px;
-        font-family: 'Geist', system-ui, sans-serif; cursor: pointer;
-        transition: border-color 0.12s, background 0.12s, color 0.12s;
-      }
-      .ob-step-num:hover { background: var(--lf-cream); border-color: var(--lf-cream-deep); }
-      .ob-step-num--active {
-        border-color: var(--lf-ink); background: var(--lf-ink); color: var(--lf-paper);
-      }
-      .ob-step-num:focus-visible { outline: 2px solid var(--lf-sauce); outline-offset: 2px; }
-
-      /* Checkboxes */
-      .ob-check {
-        width: 18px; height: 18px; flex-shrink: 0;
-        accent-color: var(--lf-sauce); cursor: pointer;
-      }
-      .ob-inline-check {
-        display: flex; align-items: center; gap: 8px;
-        font-family: 'Geist', system-ui, sans-serif; font-size: 14px;
-        color: var(--lf-ink-soft); cursor: pointer; user-select: none;
-        min-height: 44px;
-      }
-      .ob-check-row {
-        display: flex; align-items: flex-start; gap: 12px;
-        cursor: pointer; user-select: none;
-      }
-      .ob-check-row__title {
-        font-family: 'Geist', system-ui, sans-serif; font-size: 14px;
-        color: var(--lf-ink); margin: 0 0 2px;
-      }
-
-      /* Link CTA card */
-      .ob-link-cta { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-      .ob-link-cta__icon { width: 36px; height: 36px; color: var(--lf-sauce); }
-
-      /* Added account rows */
-      .ob-acct-list { display: flex; flex-direction: column; gap: 8px; }
-      .ob-acct-row {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 12px 14px; border-radius: 10px;
-        background: var(--lf-paper); border: 1px solid var(--lf-rule);
-      }
-      .ob-acct-row__main { display: flex; align-items: center; gap: 12px; }
-      .ob-acct-row__name {
-        font-family: 'Geist', system-ui, sans-serif; font-size: 14px;
-        font-weight: 600; color: var(--lf-ink); margin: 0;
-      }
-      .ob-acct-row__end { display: flex; align-items: center; gap: 12px; }
-      .ob-acct-row__bal { font-size: 14px; font-weight: 600; color: var(--lf-ink-soft); }
-      .ob-emoji { font-size: 18px; line-height: 1; }
-
-      /* Inline add form */
-      .ob-add-form { display: flex; flex-direction: column; gap: 14px; }
-      .ob-add-form__head { display: flex; align-items: center; gap: 10px; }
-      .ob-add-form__actions { display: flex; gap: 8px; padding-top: 2px; }
-
-      /* Account type tiles */
-      .ob-type-tile {
-        display: flex; align-items: center; gap: 10px;
-        padding: 12px 14px; min-height: 56px; border-radius: 10px;
-        border: 1px solid var(--lf-rule); background: var(--lf-paper);
-        text-align: left; cursor: pointer;
-        font-family: 'Geist', system-ui, sans-serif; font-size: 13px;
-        color: var(--lf-ink-soft); font-weight: 500;
-        transition: background 0.12s, border-color 0.12s;
-      }
-      .ob-type-tile:hover { background: var(--lf-cream); border-color: var(--lf-cream-deep); }
-      .ob-type-tile__label { line-height: 1.25; }
-
-      .ob-icon-btn {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 32px; height: 32px; border-radius: 8px;
-        color: var(--lf-muted); cursor: pointer;
-        background: none; border: none; transition: color 0.12s, background 0.12s;
-      }
-      .ob-icon-btn:hover { color: var(--lf-neg); background: var(--lf-cream); }
-
-      /* Complete step */
-      .ob-complete { align-items: center; }
-      .ob-done-badge {
-        width: 64px; height: 64px; border-radius: 999px;
-        display: flex; align-items: center; justify-content: center;
-        background: var(--lf-cream); border: 1px solid var(--lf-cream-deep);
-        color: var(--lf-sauce);
-      }
-      .ob-summary {
-        width: 100%; max-width: 360px; text-align: left;
-        display: flex; flex-direction: column; gap: 10px;
-      }
-      .ob-summary__row {
-        display: flex; justify-content: space-between; align-items: baseline;
-        font-family: 'Geist', system-ui, sans-serif; font-size: 14px;
-        color: var(--lf-muted);
-      }
-      .ob-summary__val { color: var(--lf-ink); font-weight: 600; }
-      .ob-complete__actions {
-        width: 100%; max-width: 360px;
-        display: flex; flex-direction: column; gap: 10px; padding-top: 4px;
-      }
-
-      /* Footer */
-      .ob-footer { padding: 16px 24px; border-top: 1px solid var(--lf-rule); }
-      .ob-footer__inner {
-        width: 100%; max-width: 540px; margin: 0 auto;
-        display: flex; align-items: center; justify-content: space-between;
-      }
-      .ob-footer__end { display: flex; align-items: center; gap: 12px; }
-
-      .ob-btn-block { width: 100%; justify-content: center; }
-
-      /* Icon sizing */
-      .ob-ico-14 { width: 14px; height: 14px; }
-      .ob-ico-16 { width: 16px; height: 16px; }
-      .ob-ico-24 { width: 24px; height: 24px; }
-      .ob-ico-32 { width: 32px; height: 32px; }
-      .ob-spin { animation: ob-spin 0.8s linear infinite; }
-      @keyframes ob-spin { to { transform: rotate(360deg); } }
-
-      @media (max-width: 480px) {
-        .ob-card { padding: 20px; }
-        .ob-topbar { padding: 16px; }
-        .ob-progress-wrap { padding: 0 16px; }
-        .ob-footer { padding: 14px 16px; }
-      }
-    `}</style>
+    <div className="flex items-baseline justify-between text-sm text-content-muted">
+      <span>{label}</span>
+      <span className={cn('font-semibold text-content', mono && 'ui-tnum', capitalize && 'capitalize')}>{value}</span>
+    </div>
   );
 }

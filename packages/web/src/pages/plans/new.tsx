@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import { Target, TrendingUp, Sparkles, CreditCard, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
-import { Button } from "../../components/ui/button.js";
 import { cn } from "../../lib/utils.js";
 import type { PlanType } from "../../lib/types.js";
 
@@ -51,10 +50,10 @@ export function NewPlanPage() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto">
-      <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-semibold text-text mb-2">
+      <h1 className="text-2xl md:text-3xl lg:text-4xl font-editorial font-semibold text-content mb-2">
         Create a Plan
       </h1>
-      <p className="text-text-secondary mb-8">
+      <p className="text-content-secondary mb-8">
         Choose a plan type to get started.
       </p>
 
@@ -69,30 +68,30 @@ export function NewPlanPage() {
               onClick={() => handleSelectType(pt.type)}
               disabled={creating}
               className={cn(
-                "w-full p-4 rounded-xl border text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
+                "w-full p-4 rounded-ui-lg border text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                 creating
                   ? "opacity-50 cursor-not-allowed"
-                  : "border-border bg-surface hover:border-accent/50"
+                  : "border-line bg-panel hover:border-brand/50"
               )}
             >
               <div className="flex items-start gap-4">
-                <div className="p-2 rounded-lg bg-bg-elevated">
+                <div className="p-2 rounded-ui-md bg-canvas-sunken">
                   {creating ? (
-                    <Loader2 className="w-5 h-5 text-accent animate-spin" />
+                    <Loader2 className="w-5 h-5 text-brand animate-spin" />
                   ) : (
-                    <pt.icon className="w-5 h-5 text-accent" />
+                    <pt.icon className="w-5 h-5 text-brand" />
                   )}
                 </div>
                 <div>
-                  <h3 className="font-medium text-text">{pt.label}</h3>
-                  <p className="text-sm text-text-secondary mt-1">{pt.description}</p>
+                  <h3 className="font-medium text-content">{pt.label}</h3>
+                  <p className="text-sm text-content-secondary mt-1">{pt.description}</p>
                 </div>
               </div>
             </motion.button>
           ))}
         </div>
       ) : (
-        <p className="text-text-secondary text-sm">Plan creation is disabled in demo mode.</p>
+        <p className="text-content-secondary text-sm">Plan creation is disabled in demo mode.</p>
       )}
     </div>
   );

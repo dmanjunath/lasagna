@@ -1,19 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Check, Target, ArrowRight, ChevronRight } from 'lucide-react';
+import { Plus, Check, Target, ArrowRight, ChevronRight, Clock, Sparkles, RotateCw } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageActions } from '../components/common/page-actions';
-import {
-  Page,
-  Section,
-  Card,
-  Button,
-  Eyebrow,
-  EmptyState,
-  SkeletonLine,
-} from '../components/ds';
-import { formatCurrency, goalColor, iconFor, toggleId, AccountChips, IconKey } from './goal-shared';
+import { Button, EmptyState, Eyebrow, Field, Input, Skeleton } from '../components/uikit';
+import { formatCurrency, iconFor, toggleId, AccountChips, IconKey } from './goal-shared';
 
 // ---------------------------------------------------------------------------
 // Presets
@@ -52,6 +44,48 @@ interface Goal {
   isAutoTracked: boolean;
 }
 
+interface Account {
+  id: string;
+  name: string;
+  mask: string | null;
+  type: string;
+  balance: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Bright accent per category — mirrors the redesign mockup's --b-viz mapping.
+// Returns a CSS color string (a viz token, or the brand green for safety nets)
+// so light/dark adapt automatically and goals stay visually distinct.
+// ---------------------------------------------------------------------------
+
+function goalAccent(category: string, name = ''): string {
+  // Category strings are coarse (a "New car fund" is stored as category
+  // "savings"), so fold the goal name in too — keeps each goal's accent
+  // matched to its real intent rather than the generic-savings fallback.
+  const c = `${category ?? ''} ${name}`.toLowerCase();
+  if (c.includes('emergency') || c.includes('safety')) return 'rgb(var(--ui-brand))';
+  if (c.includes('home') || c.includes('house') || c.includes('down_payment')) return 'var(--ui-viz-2)';
+  if (c.includes('retire')) return 'var(--ui-viz-1)';
+  if (c.includes('educat') || c.includes('529')) return 'var(--ui-viz-6)';
+  if (c.includes('travel') || c.includes('vacation') || c.includes('relocation')) return 'var(--ui-viz-5)';
+  if (c.includes('car') || c.includes('vehicle') || c.includes('transport')) return 'var(--ui-viz-3)';
+  if (c.includes('wedding') || c.includes('life')) return 'var(--ui-viz-4)';
+  if (c.includes('debt')) return 'var(--ui-viz-7)';
+  if (c.includes('repair') || c.includes('major')) return 'var(--ui-viz-3)';
+  return 'var(--ui-viz-2)';
+}
+
+// Real target date → a short "Target Mon YYYY" line. The API has a deadline but
+// no monthly-pace / projected-ETA, so we surface the actual target date only —
+// never a fabricated finish projection.
+function targetDateLabel(deadline: string | null): string | null {
+  if (!deadline) return null;
+  const d = new Date(deadline);
+  if (Number.isNaN(d.getTime())) return null;
+  if (d.getTime() < Date.now()) return 'Past target date';
+  return `Target ${d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -69,7 +103,7 @@ export function Goals() {
   const [newIcon, setNewIcon] = useState<string>('target');
   const [newDeadline, setNewDeadline] = useState('');
   const [newCategory, setNewCategory] = useState('savings');
-  const [accounts, setAccounts] = useState<Array<{ id: string; name: string; mask: string | null; type: string; balance: string | null }>>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [newAccountIds, setNewAccountIds] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -132,519 +166,144 @@ export function Goals() {
 
   const totalTarget = activeGoals.reduce((s, g) => s + parseFloat(g.targetAmount), 0);
   const totalSaved = activeGoals.reduce((s, g) => s + parseFloat(g.currentAmount), 0);
+  // "Funded" = an active goal that has reached its target (distinct from the
+  // status==='completed' archive, which the seed data doesn't use).
+  const fundedCount = activeGoals.filter(
+    g => parseFloat(g.targetAmount) > 0 && parseFloat(g.currentAmount) >= parseFloat(g.targetAmount),
+  ).length;
+  // Mean per-goal completion — a real, non-duplicative figure (the hero foot
+  // already states the dollar amount "to go", so the second KPI shouldn't).
+  const avgPct = activeGoals.length
+    ? Math.round(
+        activeGoals.reduce((s, g) => {
+          const t = parseFloat(g.targetAmount);
+          const c = parseFloat(g.currentAmount);
+          return s + (t > 0 ? Math.min(100, (c / t) * 100) : 0);
+        }, 0) / activeGoals.length,
+      )
+    : 0;
 
-  const newGoalBtn = import.meta.env.VITE_DEMO_MODE !== 'true' ? (
-    <Button variant="ink" onClick={() => setShowCreate(v => !v)} icon={<Plus size={14} />}>
-      New goal
-    </Button>
-  ) : null;
+  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
+  const open = (id: string) => setLocation(`/plans/savings/${id}`);
 
-  return (
-    <Page>
-      <style>{`
-        .goals-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-        .goals-feed li {
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 12px;
-          box-shadow: var(--shadow-card);
-          padding: 18px 20px;
-          cursor: pointer;
-          transition: box-shadow 0.18s ease, transform 0.18s ease;
-        }
-        .goals-feed li:hover {
-          box-shadow: var(--shadow-card-hover);
-          transform: translateY(-1px);
-        }
-        .goals-feed li:focus-visible {
-          outline: 2px solid var(--lf-rule);
-          outline-offset: 2px;
-        }
-        .goals-feed__row {
-          display: grid;
-          grid-template-columns: 44px minmax(0, 1fr) auto;
-          gap: 16px;
-          align-items: start;
-        }
-        .goals-feed__icon {
-          width: 44px; height: 44px;
-          border-radius: 8px;
-          display: grid; place-items: center;
-          font-size: 22px;
-          flex-shrink: 0;
-        }
-        .goals-feed__main { min-width: 0; }
-        .goals-feed__head {
-          display: flex; align-items: baseline; justify-content: space-between;
-          gap: 16px; margin-bottom: 8px;
-        }
-        .goals-feed__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 500;
-          font-size: clamp(20px, 2.2vw, 26px);
-          line-height: 1.15;
-          color: var(--lf-ink);
-          margin: 0;
-          letter-spacing: -0.01em;
-        }
-        .goals-feed__amount {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 15px;
-          font-weight: 500;
-          color: var(--lf-ink);
-          flex-shrink: 0;
-          font-variant-numeric: tabular-nums;
-          display: inline-flex; align-items: center; gap: 8px;
-        }
-        /* Iter 9: progress is the hero of each row — a thick, legible rail
-           with a clear track and a category-colored gradient fill. */
-        .goals-feed__bar {
-          height: 10px;
-          background: var(--lf-rule-soft);
-          border-radius: 999px;
-          overflow: hidden;
-          margin: 14px 0 10px;
-        }
-        .goals-feed__bar > div { height: 100%; border-radius: 999px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); }
-        .goals-feed__meta {
-          display: flex; gap: 10px; align-items: baseline;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 13px; letter-spacing: 0.02em;
-          color: var(--lf-muted);
-          font-variant-numeric: tabular-nums;
-        }
-        .goals-feed__meta-sep { opacity: 0.4; }
-        /* Percentage is the key metric — render it large and confident. */
-        .goals-feed__pct {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 600;
-          font-size: 17px;
-          letter-spacing: -0.01em;
-          color: var(--lf-ink);
-          font-variant-numeric: tabular-nums;
-        }
-        /* 100% complete: a strong basil "Reached" badge that reads obviously
-           different from an in-progress row. */
-        .goals-feed__complete {
-          display: inline-flex; align-items: center; gap: 5px;
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 600; font-size: 13px; letter-spacing: 0.02em;
-          color: var(--lf-basil);
-          background: color-mix(in srgb, var(--lf-basil) 14%, transparent);
-          border: 1px solid color-mix(in srgb, var(--lf-basil) 30%, transparent);
-          border-radius: 999px; padding: 2px 10px;
-        }
-        .goals-feed__actions {
-          display: flex; flex-shrink: 0;
-          align-items: center; align-self: stretch;
-        }
-        /* Open affordance — the whole row is clickable; the chevron signals it. */
-        .goals-feed__open {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 32px; height: 32px;
-          color: var(--lf-muted); flex-shrink: 0;
-          transition: color 0.15s, transform 0.15s;
-        }
-        .goals-feed li:hover .goals-feed__open { color: var(--lf-sauce); transform: translateX(2px); }
+  // "active" must exclude goals that have already hit their target, otherwise
+  // the header reads "3 active · 1 funded" (implying 4) when only 3 exist.
+  const inProgressCount = activeGoals.length - fundedCount;
 
-        /* Reached / exceeded goals are a distinct surface — faint basil wash +
-           green-tinted hairline so a completed row reads as "done" at a glance,
-           not just another neutral card. */
-        .goals-feed li.is-complete {
-          border-color: color-mix(in srgb, var(--lf-basil) 32%, var(--lf-rule-neutral));
-          background:
-            linear-gradient(180deg,
-              color-mix(in srgb, var(--lf-basil) 6%, var(--lf-surface)),
-              color-mix(in srgb, var(--lf-basil) 3%, var(--lf-surface)));
-        }
-        /* Check seal on the icon — the second cue that a goal landed. */
-        .goals-feed__icon { position: relative; }
-        .goals-feed__icon-check {
-          position: absolute; right: -5px; bottom: -5px;
-          width: 18px; height: 18px; border-radius: 999px;
-          background: var(--lf-basil); color: var(--lf-paper);
-          display: grid; place-items: center;
-          border: 2px solid var(--lf-surface);
-          box-shadow: 0 1px 2px rgba(15,23,42,0.08);
-        }
-        /* Exceeded → solid (filled) badge; outlined "Reached" stays calmer.
-           The filled fill is the louder, "you beat it" signal. */
-        .goals-feed__complete--exceeded {
-          color: var(--lf-paper);
-          background: var(--lf-basil);
-          border-color: var(--lf-basil);
-        }
-        /* Skeleton rows reuse the feed shell but stay inert. */
-        .goals-feed li.is-skeleton { cursor: default; }
-        .goals-feed li.is-skeleton:hover { transform: none; box-shadow: var(--shadow-card); }
-        @media (max-width: 640px) {
-          .goals-feed li { padding: 16px; }
-          .goals-feed__row {
-            grid-template-columns: 36px minmax(0, 1fr) auto;
-            gap: 12px;
-          }
-          .goals-feed__icon {
-            width: 36px; height: 36px;
-            font-size: 18px;
-          }
-          .goals-feed__head {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 4px;
-          }
-        }
-
-        /* ── Iter 7 B: "Saving this month" strip ──
-           Three KPI cards, same neutral surface as .ds-card but flattened
-           into a 3-up grid. Drops to single column under 640px. */
-        .goals-strip-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 14px;
-          margin: 0 0 36px;
-        }
-        .goals-strip-card {
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 10px;
-          padding: 16px 18px;
-          box-shadow: var(--shadow-card);
-          display: flex; flex-direction: column; gap: 6px;
-        }
-        .goals-strip-card__eyebrow {
-          /* sentence-case lowercase per iter 7 F */
-          text-transform: lowercase;
-          letter-spacing: 0.10em;
-        }
-        .goals-strip-card__value {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 600;
-          font-size: 30px;
-          line-height: 1.02;
-          letter-spacing: -0.025em;
-          color: var(--lf-ink);
-          font-variant-numeric: tabular-nums;
-        }
-        /* Primary KPI (saved so far) carries the accent rule + largest value */
-        .goals-strip-card:first-child {
-          border-top: 2px solid var(--lf-sauce);
-        }
-        .goals-strip-card:first-child .goals-strip-card__value {
-          color: var(--lf-sauce-deep);
-        }
-        .goals-strip-card__caption {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 12px;
-          color: var(--lf-muted);
-        }
-        @media (max-width: 640px) {
-          .goals-strip-grid {
-            grid-template-columns: 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
-          }
-          .goals-strip-card { padding: 12px 14px; }
-          .goals-strip-card__value { font-size: 18px; }
-        }
-
-        /* ── Iter 7 B: Suggested goals gallery ── */
-        .goals-suggested-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 12px;
-        }
-        @media (max-width: 900px) {
-          .goals-suggested-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        @media (max-width: 520px) {
-          .goals-suggested-grid { grid-template-columns: 1fr; }
-        }
-        .goals-suggested-card {
-          background: var(--lf-surface);
-          border: 1px solid var(--lf-rule-neutral);
-          border-radius: 10px;
-          padding: 14px 16px;
-          display: flex; gap: 12px; align-items: center;
-          text-align: left;
-          cursor: pointer;
-          font-family: inherit;
-          transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
-          box-shadow: var(--shadow-card);
-        }
-        .goals-suggested-card:hover {
-          border-color: var(--lf-rule);
-          background: var(--lf-paper);
-        }
-        .goals-suggested-card__icon {
-          width: 36px; height: 36px;
-          border-radius: 8px;
-          display: grid; place-items: center;
-          flex-shrink: 0;
-        }
-        .goals-suggested-card__body { flex: 1; min-width: 0; }
-        .goals-suggested-card__title {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-weight: 500;
-          font-size: 14px;
-          line-height: 1.2;
-          color: var(--lf-ink);
-          display: block;
-          margin-bottom: 2px;
-        }
-        .goals-suggested-card__sub {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 11px;
-          color: var(--lf-muted);
-        }
-        .goals-suggested-card__arrow {
-          color: var(--lf-muted);
-          flex-shrink: 0;
-          transition: transform 0.12s, color 0.12s;
-        }
-        .goals-suggested-card:hover .goals-suggested-card__arrow {
-          color: var(--lf-sauce);
-          transform: translateX(2px);
-        }
-
-        /* ── Iter 7 B: Completed-goals archive (ghost styling) ── */
-        .goals-archive {
-          list-style: none; margin: 0; padding: 0;
-        }
-        .goals-archive li {
-          padding: 14px 0;
-          border-top: 1px solid var(--lf-rule-soft);
-          display: flex; align-items: center; gap: 12px;
-        }
-        .goals-archive li[role="button"] { cursor: pointer; }
-        .goals-archive li[role="button"]:hover .goals-archive__name { color: var(--lf-ink-soft); }
-        .goals-archive li[role="button"]:focus-visible {
-          outline: 2px solid var(--lf-rule);
-          outline-offset: 2px;
-        }
-        .goals-archive__open {
-          color: var(--lf-muted); flex-shrink: 0;
-          transition: color 0.15s, transform 0.15s;
-        }
-        .goals-archive li[role="button"]:hover .goals-archive__open {
-          color: var(--lf-sauce); transform: translateX(2px);
-        }
-        .goals-archive__icon {
-          width: 32px; height: 32px;
-          border-radius: 6px;
-          display: grid; place-items: center;
-          background: rgba(90, 107, 63, 0.10);
-          color: var(--lf-basil);
-          flex-shrink: 0;
-        }
-        .goals-archive__body { flex: 1; min-width: 0; }
-        .goals-archive__name {
-          font-family: 'Geist', system-ui, sans-serif;
-          font-size: 14px; font-weight: 500;
-          color: var(--lf-muted);
-          text-decoration: line-through;
-          display: block;
-        }
-        .goals-archive__meta {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 11px;
-          color: var(--lf-muted);
-        }
-        .goals-archive__value {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 13px;
-          color: var(--lf-muted);
-          font-variant-numeric: tabular-nums;
-        }
-      `}</style>
-
-      {/* Iter 8 P1: title is the page name only. Live monetary data lives in
-          the subtitle slot — inline on desktop, dropped to a sub-row on
-          mobile where the H1 would otherwise truncate mid-dollar-amount. */}
-      <header className="ds-page-bar">
-        <div className="ds-page-bar__title-group">
-          <h1 className="ds-page-bar__title">Goals</h1>
-          {!loading && activeGoals.length > 0 && (
-            <span className="ds-page-bar__subtitle">
-              {formatCurrency(totalTarget)} target · {activeGoals.length} active
-              {completedGoals.length > 0 && (
-                <> · <span className="ds-pos">{completedGoals.length} complete</span></>
-              )}
-            </span>
-          )}
-        </div>
-        {newGoalBtn}
-      </header>
-      {!loading && activeGoals.length > 0 && (
-        <div className="ds-page-bar__subtitle-mobile">
-          {formatCurrency(totalTarget)} target · {activeGoals.length} active
-          {completedGoals.length > 0 && (
-            <> · <span className="ds-pos">{completedGoals.length} complete</span></>
-          )}
-        </div>
-      )}
-
-      {/* Loading skeleton — matched outline: KPI strip + a few goal rows so
-          first paint reserves the same space the loaded page consumes. */}
-      {loading && (
+  const summaryLine = !loading && activeGoals.length > 0 && (
+    <span className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      <span><b className="font-extrabold text-content">{inProgressCount}</b> active</span>
+      {fundedCount > 0 && (
         <>
-          <div className="goals-strip-grid" aria-hidden="true">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="goals-strip-card">
-                <SkeletonLine width="42%" height={11} />
-                <SkeletonLine width="70%" height={28} style={{ marginTop: 2 }} />
-                <SkeletonLine width="56%" height={11} />
-              </div>
-            ))}
-          </div>
-          <ul className="goals-feed" aria-hidden="true">
-            {[35, 68, 100].map((w, i) => (
-              <li key={i} className="is-skeleton">
-                <div className="goals-feed__row">
-                  <span className="ds-skeleton goals-feed__icon" />
-                  <div className="goals-feed__main">
-                    <SkeletonLine width="46%" height={22} />
-                    <div className="goals-feed__bar">
-                      <div style={{ width: `${w}%`, background: 'var(--lf-rule)' }} />
-                    </div>
-                    <SkeletonLine width="34%" height={13} />
-                  </div>
-                  <div className="goals-feed__actions" />
-                </div>
-              </li>
-            ))}
-          </ul>
+          <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+          <span><b className="font-extrabold text-content">{fundedCount}</b> funded</span>
         </>
       )}
-
-      {/* Iter 7 B: "Saving this month" KPI strip. Built from the active-goal
-          aggregates we already have — total saved against total target, with
-          a coarse "added this month" derived from delta-against-target as a
-          proxy until we wire per-goal monthly contribution history. */}
-      {!loading && activeGoals.length > 0 && (
-        <section className="goals-strip-grid" aria-label="Savings totals across all active goals">
-          <div className="goals-strip-card">
-            <span className="ds-eyebrow goals-strip-card__eyebrow">saved so far</span>
-            <span className="goals-strip-card__value ds-num">{formatCurrency(totalSaved)}</span>
-            <span className="goals-strip-card__caption">
-              {totalTarget > 0
-                ? `${Math.round((totalSaved / totalTarget) * 100)}% of total target`
-                : 'across all active goals'}
-            </span>
-          </div>
-          <div className="goals-strip-card">
-            <span className="ds-eyebrow goals-strip-card__eyebrow">still to go</span>
-            <span className="goals-strip-card__value ds-num">
-              {formatCurrency(Math.max(0, totalTarget - totalSaved))}
-            </span>
-            <span className="goals-strip-card__caption">
-              across {activeGoals.length} active goal{activeGoals.length === 1 ? '' : 's'}
-            </span>
-          </div>
-          <div className="goals-strip-card">
-            <span className="ds-eyebrow goals-strip-card__eyebrow">avg / goal</span>
-            <span className="goals-strip-card__value ds-num">
-              {formatCurrency(activeGoals.length > 0 ? totalSaved / activeGoals.length : 0)}
-            </span>
-            <span className="goals-strip-card__caption">
-              average saved per active goal
-            </span>
-          </div>
-        </section>
+      <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+      <span><b className="font-extrabold text-content">{activeGoals.length}</b> goal{activeGoals.length === 1 ? '' : 's'} tracked</span>
+      {completedGoals.length > 0 && (
+        <>
+          <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+          <span><b className="font-extrabold text-content">{completedGoals.length}</b> complete</span>
+        </>
       )}
+    </span>
+  );
 
-      {/* Savings insights */}
-      <Section>
-        <PageActions types="savings" />
-      </Section>
+  return (
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      <style>{`
+        .g-shine::after {
+          content: ""; position: absolute; inset: 0; border-radius: 999px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+          transform: translateX(-100%); animation: gshine 2.8s ease-in-out 1s infinite;
+        }
+        @keyframes gshine { 0% { transform: translateX(-100%) } 55%, 100% { transform: translateX(220%) } }
+        @media (prefers-reduced-motion: reduce) { .g-shine::after { animation: none } }
+        .g-rise { opacity: 0; transform: translateY(12px); animation: grise 0.55s cubic-bezier(0.22,1,0.36,1) forwards; }
+        @keyframes grise { to { opacity: 1; transform: none } }
+        @media (prefers-reduced-motion: reduce) { .g-rise { animation: none; opacity: 1; transform: none } }
+      `}</style>
 
-      {/* Create goal panel — Card variant only when expanded */}
+      {/* ════════ Header ════════ */}
+      <header className="flex flex-wrap items-end justify-between gap-4 animate-fade-in">
+        <div className="min-w-0">
+          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+            Goals
+          </h1>
+          {summaryLine && (
+            <p className="mt-2 text-[14.5px] font-semibold text-content-muted">{summaryLine}</p>
+          )}
+        </div>
+        {!isDemo && (
+          <Button onClick={() => setShowCreate(v => !v)} leadingIcon={<Plus className="h-4 w-4" />}>
+            New goal
+          </Button>
+        )}
+      </header>
+
+      {/* ════════ Create goal panel ════════ */}
       <AnimatePresence>
-        {showCreate && import.meta.env.VITE_DEMO_MODE !== 'true' && (
+        {showCreate && !isDemo && (
           <motion.section
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            style={{ overflow: 'hidden', marginBottom: 40 }}
+            style={{ overflow: 'hidden' }}
           >
-            <Card>
+            <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
               <Eyebrow>New goal</Eyebrow>
-              <h3 className="ds-h3" style={{ marginTop: 6, marginBottom: 16 }}>What are you saving for?</h3>
+              <h3 className="mt-1.5 mb-5 font-editorial text-[20px] font-bold tracking-[-0.018em]">
+                What are you saving for?
+              </h3>
 
-              {/* Form-first: name, amount, date — primary fields */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: 16,
-                marginBottom: 20,
-              }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <Eyebrow>Goal name</Eyebrow>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {/* Icon preview — chosen via the category chip below. */}
+              <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                <Field label="Goal name">
+                  <div className="flex gap-2">
                     <div
                       aria-label="Icon"
-                      style={{
-                        ...inputStyle,
-                        width: 56, flexShrink: 0,
-                        display: 'grid', placeItems: 'center',
-                        color: 'var(--lf-ink-soft)',
-                      }}
+                      className="grid w-14 shrink-0 place-items-center rounded-ui-md border border-line-strong bg-canvas-sunken text-content-secondary"
                     >
                       {iconFor(newIcon, 20)}
                     </div>
-                    <input
+                    <Input
                       type="text"
                       value={newName}
                       onChange={e => setNewName(e.target.value)}
                       placeholder="e.g. Emergency Fund"
-                      style={inputStyle}
                     />
                   </div>
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <Eyebrow>Target amount</Eyebrow>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{
-                      position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                      color: 'var(--lf-muted)', fontSize: 13, pointerEvents: 'none',
-                      fontFamily: "'JetBrains Mono', monospace",
-                    }}>$</span>
-                    <input
-                      type="number"
-                      value={newTarget}
-                      onChange={e => setNewTarget(e.target.value)}
-                      placeholder="25000"
-                      className="ds-num"
-                      style={{ ...inputStyle, paddingLeft: 24 }}
-                    />
-                  </div>
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <Eyebrow>Target date (optional)</Eyebrow>
-                  <input
-                    type="date"
-                    value={newDeadline}
-                    onChange={e => setNewDeadline(e.target.value)}
-                    style={inputStyle}
+                </Field>
+                <Field label="Target amount">
+                  <Input
+                    type="number"
+                    value={newTarget}
+                    onChange={e => setNewTarget(e.target.value)}
+                    placeholder="25000"
+                    className="ui-tnum"
+                    leadingIcon={<span className="text-[13px]">$</span>}
                   />
-                </label>
+                </Field>
+                <Field label="Target date (optional)">
+                  <Input type="date" value={newDeadline} onChange={e => setNewDeadline(e.target.value)} />
+                </Field>
               </div>
 
-              {/* Category chips — now BELOW as optional quick-start */}
-              <div style={{ marginBottom: 20 }}>
-                <Eyebrow>Category (optional)</Eyebrow>
+              {/* Category chips — optional quick-start */}
+              <div className="mb-5">
+                <Eyebrow className="text-content-muted">Category (optional)</Eyebrow>
                 <div className="goals-presets" style={{ marginTop: 8 }}>
                   {GOAL_PRESETS.map((preset) => {
                     const active = newCategory === preset.category;
-                    const color = goalColor(preset.category);
+                    const color = goalAccent(preset.category);
                     return (
                       <button
                         key={preset.category}
                         onClick={() => selectPreset(preset)}
                         className="goals-preset"
                         style={{
-                          borderColor: active ? color : 'var(--lf-rule)',
-                          color: active ? color : 'var(--lf-muted)',
+                          borderColor: active ? color : 'var(--ui-line)',
+                          color: active ? color : 'rgb(var(--ui-content-muted))',
                           display: 'inline-flex', alignItems: 'center', gap: 8,
                         }}
                       >
@@ -658,14 +317,9 @@ export function Goals() {
 
               {/* Accounts — linking ≥1 makes the goal auto-track its balance */}
               {accounts.length > 0 && (
-                <div style={{ marginBottom: 20 }}>
-                  <Eyebrow>Accounts (optional)</Eyebrow>
-                  <p style={{
-                    margin: '4px 0 8px',
-                    fontFamily: "'Geist', system-ui, sans-serif",
-                    fontSize: 12,
-                    color: 'var(--lf-muted)',
-                  }}>
+                <div className="mb-5">
+                  <Eyebrow className="text-content-muted">Accounts (optional)</Eyebrow>
+                  <p className="mt-1 mb-2 text-[12px] text-content-muted">
                     Linked accounts auto-track this goal's progress.
                   </p>
                   <AccountChips
@@ -676,295 +330,439 @@ export function Goals() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <Button
-                  variant="ink"
-                  disabled={!newName || !newTarget || creating}
-                  onClick={handleCreate}
-                >
+              <div className="flex gap-2.5">
+                <Button disabled={!newName || !newTarget || creating} loading={creating} onClick={handleCreate}>
                   {creating ? 'Creating…' : 'Create goal'}
                 </Button>
-                <Button variant="ghost" onClick={() => setShowCreate(false)}>
-                  Cancel
-                </Button>
+                <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
               </div>
-              {formError && (
-                <p style={{
-                  margin: '10px 0 0',
-                  fontFamily: "'Geist', system-ui, sans-serif",
-                  fontSize: 12,
-                  color: 'var(--lf-sauce)',
-                }}>
-                  {formError}
-                </p>
-              )}
-            </Card>
+              {formError && <p className="mt-2.5 text-[12px] font-semibold text-negative">{formError}</p>}
+            </div>
           </motion.section>
         )}
       </AnimatePresence>
 
-      {/* Active goals — editorial article list */}
+      {/* ════════ Loading skeleton ════════ */}
+      {loading && (
+        <>
+          <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="mt-3 h-9 w-72" />
+            <Skeleton className="mt-4 h-2.5 w-full rounded-full" />
+            <Skeleton className="mt-3 h-3 w-2/3" />
+          </div>
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {[0, 1].map(i => (
+              <div key={i} className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+                <div className="flex items-start gap-3.5">
+                  <Skeleton className="h-[46px] w-[46px] rounded-[14px]" />
+                  <div className="flex-1">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="mt-2 h-5 w-40" />
+                  </div>
+                </div>
+                <Skeleton className="mt-5 h-2.5 w-full rounded-full" />
+                <Skeleton className="mt-4 h-9 w-full rounded-ui-md" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ════════ Summary hero — saved vs target ════════ */}
+      {!loading && activeGoals.length > 0 && totalTarget > 0 && (
+        <SummaryHero
+          totalSaved={totalSaved}
+          totalTarget={totalTarget}
+          fundedCount={fundedCount}
+          activeCount={activeGoals.length}
+          avgPct={avgPct}
+        />
+      )}
+
+      {/* ════════ Goals grid / empty state ════════ */}
       {!loading && (
         activeGoals.length === 0 && !showCreate ? (
-          <Section>
+          <div className="mt-8">
             <EmptyState
-              icon={<Target size={32} />}
+              icon={<Target className="h-8 w-8" />}
               title="No goals yet"
-              body="Setting financial goals is the first step toward achieving them. Create a goal to start tracking your progress."
-              cta={import.meta.env.VITE_DEMO_MODE !== 'true' ? (
-                <Button variant="ink" onClick={() => setShowCreate(true)} icon={<Plus size={14} />}>
+              description="Setting financial goals is the first step toward achieving them. Create a goal to start tracking your progress."
+              action={!isDemo ? (
+                <Button onClick={() => setShowCreate(true)} leadingIcon={<Plus className="h-4 w-4" />}>
                   Create your first goal
                 </Button>
               ) : undefined}
             />
-          </Section>
+          </div>
         ) : activeGoals.length > 0 ? (
-          <Section title="Active goals" eyebrow={`${activeGoals.length} goal${activeGoals.length === 1 ? '' : 's'}`}>
-            <ul className="goals-feed">
-              {activeGoals.map((goal) => {
-                const target = parseFloat(goal.targetAmount);
-                const current = parseFloat(goal.currentAmount);
-                const autoTracked = goal.isAutoTracked;
-                const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
-                const remaining = Math.max(0, target - current);
-                const surplus = current - target;
-                const color = goalColor(goal.category);
-
-                let deadlineLabel: string | null = null;
-                if (goal.deadline) {
-                  const daysLeft = Math.ceil(
-                    (new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-                  );
-                  deadlineLabel = daysLeft > 0 ? `${daysLeft}d left` : 'Past deadline';
-                }
-
-                const complete = pct >= 100;
-                // Over-target: landed AND a real dollar surplus past the goal.
-                const exceeded = complete && surplus >= 1;
-                const open = () => setLocation(`/plans/savings/${goal.id}`);
-
-                return (
-                  <li
-                    key={goal.id}
-                    className={complete ? 'is-complete' : undefined}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Open ${goal.name}`}
-                    onClick={open}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-                    }}
-                  >
-                    <div className="goals-feed__row">
-                      <div
-                        className="goals-feed__icon"
-                        style={complete
-                          ? { background: 'color-mix(in srgb, var(--lf-basil) 14%, transparent)', border: '1px solid color-mix(in srgb, var(--lf-basil) 30%, transparent)', color: 'var(--lf-basil)' }
-                          : { background: `color-mix(in srgb, ${color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`, color }}
-                      >
-                        {iconFor(goal.icon, 22)}
-                        {complete && (
-                          <span className="goals-feed__icon-check" aria-hidden="true">
-                            <Check size={11} strokeWidth={3} />
-                          </span>
-                        )}
-                      </div>
-                      <div className="goals-feed__main">
-                        <div className="goals-feed__head">
-                          <h3 className="goals-feed__title">{goal.name}</h3>
-                          <span className="goals-feed__amount" title={autoTracked ? 'Tracked from linked accounts' : undefined}>
-                            <span>
-                              {formatCurrency(current)} <span style={{ color: 'var(--lf-muted)', fontWeight: 400 }}>/ {formatCurrency(target)}</span>
-                            </span>
-                            {autoTracked && (
-                              <span
-                                title={`Tracked from: ${
-                                  goal.accountIds
-                                    .map(id => accounts.find(a => a.id === id)?.name)
-                                    .filter(Boolean)
-                                    .join(', ')
-                                  || `${goal.accountIds.length} account${goal.accountIds.length === 1 ? '' : 's'}`
-                                }`}
-                                style={{
-                                  fontFamily: "'Geist', system-ui, sans-serif",
-                                  fontSize: 12, fontWeight: 500,
-                                  color: 'var(--lf-ink-soft)',
-                                  background: 'color-mix(in srgb, var(--lf-basil) 14%, transparent)',
-                                  border: '1px solid color-mix(in srgb, var(--lf-basil) 24%, transparent)',
-                                  borderRadius: 999, padding: '2px 8px',
-                                }}>
-                                Auto · {goal.accountIds.length} acct{goal.accountIds.length === 1 ? '' : 's'}
-                              </span>
-                            )}
-                          </span>
-                        </div>
-
-                        <div className="goals-feed__bar">
-                          {/* 100% fills basil (success); otherwise a category
-                              gradient. At 0% we render a tiny tick so the rail
-                              reads as "alive but empty" rather than absent. */}
-                          {complete ? (
-                            <div style={{ width: '100%', background: 'var(--lf-basil)' }} />
-                          ) : pct > 0 ? (
-                            <div style={{ width: `${pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${color} 70%, transparent), ${color})` }} />
-                          ) : (
-                            <div style={{ width: 8, background: color }} />
-                          )}
-                        </div>
-
-                        <div className="goals-feed__meta">
-                          {[
-                            exceeded
-                              ? <span className="goals-feed__complete goals-feed__complete--exceeded"><Check size={13} /> Exceeded</span>
-                              : complete
-                                ? <span className="goals-feed__complete"><Check size={13} /> Reached</span>
-                                : <span className="goals-feed__pct">{Math.round(pct)}%</span>,
-                            exceeded
-                              ? <span>{formatCurrency(surplus)} over target</span>
-                              : complete ? null : <span>{formatCurrency(remaining)} to go</span>,
-                            deadlineLabel ? <span>{deadlineLabel}</span> : null,
-                            goal.category ? <span>{goal.category.replace(/_/g, ' ')}</span> : null,
-                          ]
-                            .filter(Boolean)
-                            .map((item, i) => (
-                              <span key={i} style={{ display: 'contents' }}>
-                                {i > 0 && <span className="goals-feed__meta-sep">·</span>}
-                                {item}
-                              </span>
-                            ))}
-                        </div>
-                      </div>
-                      <div className="goals-feed__actions">
-                        <span className="goals-feed__open" aria-hidden="true">
-                          <ChevronRight size={18} />
-                        </span>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </Section>
+          <>
+            <div className="mt-9 flex items-center gap-2.5">
+              <span
+                className="h-[7px] w-[7px] rounded-full bg-brand"
+                style={{ boxShadow: '0 0 0 4px var(--ui-brand-soft)' }}
+                aria-hidden
+              />
+              <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Your goals</span>
+            </div>
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+              {activeGoals.map((goal, i) => (
+                <GoalCard key={goal.id} goal={goal} accounts={accounts} onOpen={open} index={i} />
+              ))}
+              {!isDemo && <AddGoalTile onClick={() => setShowCreate(true)} index={activeGoals.length} />}
+            </div>
+          </>
         ) : null
       )}
 
-      {/* Iter 7 B: Completed-goals archive — compact ghost rows.
-          When the user has none, show a single example "empty" row so the
-          section reads as "this exists, you just haven't filled it" instead
-          of being skipped entirely. */}
+      {/* ════════ Savings insights ════════ */}
       {!loading && (
-        <Section
-          title="Completed"
-          eyebrow={completedGoals.length > 0 ? `${completedGoals.length} reached` : 'archive'}
-        >
-          {completedGoals.length > 0 ? (
-            <ul className="goals-archive">
-              {completedGoals.map((goal) => {
-                const open = () => setLocation(`/plans/savings/${goal.id}`);
-                return (
-                  <li
-                    key={goal.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Open ${goal.name}`}
-                    onClick={open}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-                    }}
-                  >
-                    <div className="goals-archive__icon">{iconFor(goal.icon, 16)}</div>
-                    <div className="goals-archive__body">
-                      <span className="goals-archive__name">{goal.name}</span>
-                      <span className="goals-archive__meta">
-                        reached
-                        {goal.category && <> · {goal.category.replace(/_/g, ' ')}</>}
-                      </span>
-                    </div>
-                    <span className="goals-archive__value">
-                      {formatCurrency(parseFloat(goal.targetAmount))}
-                    </span>
-                    <ChevronRight size={16} className="goals-archive__open" aria-hidden="true" />
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <ul className="goals-archive">
-              <li style={{ opacity: 0.6 }}>
-                <div className="goals-archive__icon" style={{ background: 'var(--lf-cream)', color: 'var(--lf-muted)' }}>
-                  <Target size={16} />
-                </div>
-                <div className="goals-archive__body">
-                  <span className="goals-archive__name" style={{ textDecoration: 'none' }}>
-                    No completed goals yet
-                  </span>
-                  <span className="goals-archive__meta">
-                    finished goals will land here as a record
-                  </span>
-                </div>
-              </li>
-            </ul>
-          )}
-        </Section>
+        <section className="mt-12">
+          <PageActions types="savings" />
+        </section>
       )}
 
-      {/* Iter 7 B: Suggested-goals template gallery. 6 cards keyed off the
-          existing GOAL_PRESETS so we don't duplicate that list. Clicking a
-          card pre-fills the New-goal form so the user can review/edit
-          before committing — same flow as selectPreset() in the form. */}
-      {!loading && import.meta.env.VITE_DEMO_MODE !== 'true' && (
-        <Section title="Suggested">
-          <div className="goals-suggested-grid">
+      {/* ════════ Suggested-goal templates ════════ */}
+      {!loading && !isDemo && (
+        <section className="mt-12">
+          <h2 className="text-[18px] font-semibold text-content">Suggested</h2>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {GOAL_PRESETS.slice(0, 6).map((preset) => {
-              const color = goalColor(preset.category);
+              const color = goalAccent(preset.category);
               return (
                 <button
                   key={preset.category}
                   type="button"
-                  className="goals-suggested-card"
-                  onClick={() => {
-                    selectPreset(preset);
-                    setShowCreate(true);
-                  }}
+                  onClick={() => { selectPreset(preset); setShowCreate(true); }}
                   aria-label={`Add ${preset.name} goal · suggested target ${formatCurrency(preset.suggestedTarget)}`}
+                  className="group flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-3.5 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong min-h-touch"
                 >
                   <span
-                    className="goals-suggested-card__icon"
-                    style={{ background: `color-mix(in srgb, ${color} 10%, transparent)`, color }}
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm"
+                    style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}
                   >
                     {iconFor(preset.icon, 18)}
                   </span>
-                  <span className="goals-suggested-card__body">
-                    <span className="goals-suggested-card__title">{preset.name}</span>
-                    <span className="goals-suggested-card__sub">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-bold text-content">{preset.name}</span>
+                    <span className="text-[11.5px] font-semibold text-content-muted ui-tnum">
                       suggested {formatCurrency(preset.suggestedTarget)}
                     </span>
                   </span>
-                  <ArrowRight size={14} className="goals-suggested-card__arrow" />
+                  <ArrowRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" />
                 </button>
               );
             })}
           </div>
-        </Section>
+        </section>
       )}
-    </Page>
+
+      {/* ════════ Completed archive ════════ */}
+      {!loading && (
+        <section className="mt-12">
+          <div className="flex items-end justify-between gap-4">
+            <h2 className="text-[18px] font-semibold text-content">Completed</h2>
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              {completedGoals.length > 0 ? `${completedGoals.length} reached` : 'archive'}
+            </span>
+          </div>
+          {completedGoals.length > 0 ? (
+            <ul className="mt-3">
+              {completedGoals.map((goal) => (
+                <li
+                  key={goal.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${goal.name}`}
+                  onClick={() => open(goal.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(goal.id); } }}
+                  className="group flex items-center gap-3 border-t border-line py-3.5 cursor-pointer min-h-touch focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
+                    {iconFor(goal.icon, 16)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-semibold text-content-muted line-through">{goal.name}</span>
+                    <span className="text-[11.5px] font-semibold text-content-muted">
+                      reached{goal.category && <> · {goal.category.replace(/_/g, ' ')}</>}
+                    </span>
+                  </span>
+                  <span className="text-[13px] font-bold text-content-muted ui-tnum">
+                    {formatCurrency(parseFloat(goal.targetAmount))}
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-3 flex items-center gap-3 border-t border-line py-3.5 opacity-70">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-muted">
+                <Target className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-semibold text-content-muted">No completed goals yet</span>
+                <span className="text-[11.5px] font-semibold text-content-muted">finished goals will land here as a record</span>
+              </span>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Local style helpers
+// Summary hero
 // ---------------------------------------------------------------------------
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  background: 'var(--lf-cream)',
-  border: '1px solid var(--lf-rule)',
-  borderRadius: 8,
-  // 16px prevents iOS Safari auto-zoom on focus
-  fontSize: 16,
-  color: 'var(--lf-ink)',
-  outline: 'none',
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-};
+function SummaryHero({
+  totalSaved, totalTarget, fundedCount, activeCount, avgPct,
+}: {
+  totalSaved: number; totalTarget: number; fundedCount: number; activeCount: number; avgPct: number;
+}) {
+  const pct = Math.min(100, Math.round((totalSaved / totalTarget) * 100));
+  const remaining = Math.max(0, totalTarget - totalSaved);
+  return (
+    <section className="g-rise relative mt-6 flex flex-wrap items-center gap-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+            'radial-gradient(90% 80% at 0% 10%, var(--ui-brand-softer), transparent 60%)',
+        }}
+      />
+      <div className="relative min-w-[280px] flex-1">
+        <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+          Total saved toward goals
+        </span>
+        <div className="mt-2 font-editorial text-[30px] sm:text-[40px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
+          {formatCurrency(totalSaved)}{' '}
+          <span className="text-[0.55em] font-bold text-content-muted">of {formatCurrency(totalTarget)}</span>
+        </div>
+        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
+          <div
+            className="g-shine relative h-full rounded-full"
+            style={{ width: `${Math.max(pct, 2)}%`, background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))' }}
+          />
+        </div>
+        <div className="mt-2.5 flex items-center justify-between gap-3">
+          <span className="font-editorial text-[13px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum">{pct}% of all targets</span>
+          <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">{formatCurrency(remaining)} to go</span>
+        </div>
+      </div>
+      <div className="relative flex w-full gap-3.5 sm:w-auto">
+        <div className="min-w-[112px] flex-1 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
+          <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Funded</div>
+          <div className="mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] text-[rgb(var(--ui-brand-ink))] ui-tnum">{fundedCount}</div>
+          <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">of {activeCount} goal{activeCount === 1 ? '' : 's'}</div>
+        </div>
+        <div className="min-w-[112px] flex-1 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
+          <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Avg. progress</div>
+          <div className="mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum">{avgPct}%</div>
+          <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">across active goals</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Goal card
+// ---------------------------------------------------------------------------
+
+function GoalCard({
+  goal, accounts, onOpen, index,
+}: {
+  goal: Goal; accounts: Account[]; onOpen: (id: string) => void; index: number;
+}) {
+  const target = parseFloat(goal.targetAmount);
+  const current = parseFloat(goal.currentAmount);
+  const rawPct = target > 0 ? (current / target) * 100 : 0;
+  const pct = Math.min(100, Math.max(0, rawPct));
+  const remaining = Math.max(0, target - current);
+  const surplus = current - target;
+  const complete = target > 0 && current >= target;
+  const exceeded = complete && surplus >= 1;
+  const notStarted = current <= 0;
+  const accent = complete ? 'rgb(var(--ui-brand))' : goalAccent(goal.category, goal.name);
+  const eta = targetDateLabel(goal.deadline);
+
+  const linkedNames = goal.accountIds
+    .map(id => accounts.find(a => a.id === id)?.name)
+    .filter(Boolean)
+    .join(', ');
+
+  return (
+    <article
+      className="g-rise group relative flex flex-col overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm p-6 sm:p-[22px_24px] transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md"
+      style={{
+        animationDelay: `${0.04 * index}s`,
+        borderColor: complete ? 'color-mix(in srgb, rgb(var(--ui-brand)) 34%, var(--ui-hairline))' : 'var(--ui-hairline)',
+      }}
+    >
+      {/* left accent rail */}
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: accent }} aria-hidden />
+      {/* funded corner wash */}
+      {complete && (
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'radial-gradient(120% 90% at 100% 0%, var(--ui-brand-soft), transparent 60%)' }}
+          aria-hidden
+        />
+      )}
+
+      {/* top: icon · name · pct */}
+      <div className="relative flex items-start gap-3.5">
+        <span
+          className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-[14px] text-white"
+          style={{ background: accent, boxShadow: 'var(--ui-shadow-sm), inset 0 1px 0 rgba(255,255,255,0.3)' }}
+        >
+          {iconFor(goal.icon, 23)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10.5px] font-extrabold uppercase tracking-[0.09em] text-content-muted">
+            {goal.category ? goal.category.replace(/_/g, ' ') : 'Savings goal'}
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 font-editorial text-[18.5px] font-bold leading-[1.2] tracking-[-0.018em]">
+            {complete && (
+              <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-brand text-white">
+                <Check className="h-3 w-3" strokeWidth={3} />
+              </span>
+            )}
+            <span className="min-w-0 truncate">{goal.name}</span>
+          </div>
+        </div>
+        <span
+          className="shrink-0 pt-0.5 font-editorial text-[26px] font-extrabold leading-none tracking-[-0.02em] ui-tnum"
+          style={{ color: complete ? 'rgb(var(--ui-brand-ink))' : undefined }}
+        >
+          {Math.round(pct)}%
+        </span>
+      </div>
+
+      {/* amounts */}
+      <div className="relative mt-[18px] flex flex-wrap items-center gap-2 text-[13.5px] font-semibold text-content-secondary ui-tnum">
+        <span>
+          <span className="font-editorial text-[17px] font-extrabold tracking-[-0.01em] text-content">{formatCurrency(current)}</span>
+          <span className="text-content-muted"> of {formatCurrency(target)}</span>
+        </span>
+        {goal.isAutoTracked && (
+          <span
+            title={linkedNames ? `Tracked from: ${linkedNames}` : `${goal.accountIds.length} linked account${goal.accountIds.length === 1 ? '' : 's'}`}
+            className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-bold text-[rgb(var(--ui-brand-ink))]"
+          >
+            Auto · {goal.accountIds.length} acct{goal.accountIds.length === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+
+      {/* progress bar — each terminal state intentionally distinct */}
+      <div className="relative mt-3">
+        {complete ? (
+          <div className="h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
+            <div
+              className="g-shine relative h-full w-full rounded-full"
+              style={{ background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))' }}
+            />
+          </div>
+        ) : notStarted ? (
+          // 0% — "alive but empty": faint accent dashes + a starter nub, never a flat invisible bar.
+          <div className="relative h-2.5 overflow-hidden rounded-full bg-canvas-sunken" style={{ color: accent }}>
+            <div
+              className="absolute inset-0 opacity-[0.16]"
+              style={{ backgroundImage: 'repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 11px)' }}
+            />
+            <div className="absolute inset-y-0 left-0 w-3.5 rounded-full" style={{ background: 'currentColor' }} />
+          </div>
+        ) : (
+          <div className="h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${pct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 60%, transparent), ${accent})` }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* meta — real state + real target date only (no fabricated pace/ETA) */}
+      <div className="relative mt-3.5 flex flex-wrap items-center gap-2.5">
+        {complete ? (
+          <>
+            <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.05em] text-[rgb(var(--ui-brand-ink))]">
+              <Check className="h-3 w-3" strokeWidth={3} /> Funded 🎉
+            </span>
+            <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">
+              {exceeded ? `${formatCurrency(surplus)} over target` : 'Fully funded'}
+            </span>
+          </>
+        ) : notStarted ? (
+          <>
+            <span className="inline-flex items-center gap-1 rounded-full bg-canvas-sunken px-2.5 py-1 text-[12.5px] font-bold text-content-secondary">
+              <Sparkles className="h-3 w-3" /> Just getting started
+            </span>
+            {eta && (
+              <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-content-muted">
+                <Clock className="h-3.5 w-3.5 text-content-faint" /> {eta}
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="text-[12.5px] font-bold text-content-secondary ui-tnum">{formatCurrency(remaining)} to go</span>
+            {eta && (
+              <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-content-muted">
+                <Clock className="h-3.5 w-3.5 text-content-faint" /> {eta}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* footer actions */}
+      <div className="relative mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-4">
+        <button
+          type="button"
+          onClick={() => onOpen(goal.id)}
+          className="inline-flex min-h-touch flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft px-3.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-ui-sm sm:flex-none"
+        >
+          {complete ? <RotateCw className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          {complete ? 'Reallocate surplus' : notStarted ? 'Make first deposit' : 'Add contribution'}
+        </button>
+        <span className="hidden flex-1 sm:block" />
+        <button
+          type="button"
+          onClick={() => onOpen(goal.id)}
+          className="group/link inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13.5px] font-bold text-content-secondary transition-colors hover:bg-brand-softer hover:text-[rgb(var(--ui-brand-ink))]"
+        >
+          View goal
+          <ChevronRight className="h-4 w-4 transition-transform group-hover/link:translate-x-0.5" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add-goal tile
+// ---------------------------------------------------------------------------
+
+function AddGoalTile({ onClick, index }: { onClick: () => void; index: number }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Set up another goal"
+      className="g-rise group flex min-h-[150px] flex-col items-center justify-center gap-1 self-start rounded-ui-xl border-[1.5px] border-dashed border-line-strong bg-canvas-sunken p-6 text-center transition-[transform,background,border-color,box-shadow] hover:-translate-y-0.5 hover:border-brand hover:bg-brand-soft hover:shadow-ui-sm"
+      style={{ animationDelay: `${0.04 * index}s` }}
+    >
+      <span className="mb-1.5 grid h-[50px] w-[50px] place-items-center rounded-ui-lg bg-brand-soft text-brand transition-colors group-hover:bg-brand group-hover:text-brand-fg">
+        <Plus className="h-6 w-6" />
+      </span>
+      <span className="font-editorial text-[16px] font-bold tracking-[-0.01em] text-content">Set up another goal</span>
+      <span className="max-w-[24ch] text-[13px] font-semibold text-content-muted">
+        Pick a preset — emergency, home, travel — or start from scratch.
+      </span>
+    </button>
+  );
+}

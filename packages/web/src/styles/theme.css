@@ -1,0 +1,224 @@
+/* ============================================================================
+   LasagnaFi — Design System "Bright" token layer  (namespace: --ui-*)
+   ----------------------------------------------------------------------------
+   A clean, modern, fresh, lightly-whimsical fintech language. Cool near-white
+   light mode, deep cool-slate dark mode. Grin-green brand accent for primary
+   CTAs, teal gains, coral losses. This file is the SINGLE SOURCE OF TRUTH for
+   the system and is intentionally isolated from the legacy --color-* / --lf-*
+   tokens so the existing app keeps running.
+
+   Mode switching: add/remove `.dark` on <html>. Light is the default (:root).
+   Dark mode is a cool deep slate, never warm.
+
+   Color vars that feed Tailwind opacity modifiers (bg-canvas/60) are stored as
+   space-separated RGB triplets ("251 247 242"). Tints / lines / shadows that
+   carry baked-in opacity are stored as full rgba() and consumed via var().
+   ============================================================================ */
+
+:root {
+  /* ── Surfaces / elevation (light) — Bright cool near-white ─────────────── */
+  --ui-canvas:          247 249 252;   /* cool near-white page background      */
+  --ui-canvas-sunken:   238 242 247;   /* wells, inset tracks                  */
+  --ui-panel:           255 255 255;   /* cards/surfaces, +1 level             */
+  --ui-panel-raised:    255 255 255;   /* popovers/modals, +2 level            */
+
+  /* ── Text hierarchy (light) — Bright v4 readability-tuned (AA) ─────────── */
+  --ui-content:           16 24 38;    /* primary                             */
+  --ui-content-secondary: 56 70 90;    /* supporting                          */
+  --ui-content-muted:     92 107 128;  /* metadata                            */
+  --ui-content-faint:     134 147 166; /* placeholder / disabled              */
+
+  /* ── Hairlines & borders (light, baked opacity) ───────────────────────── */
+  --ui-hairline:     rgba(16, 24, 38, 0.07);
+  --ui-line:         rgba(16, 24, 38, 0.12);
+  --ui-line-strong:  rgba(16, 24, 38, 0.20);
+
+  /* ── Brand accent — Bright grin-green (CTAs) ──────────────────────────── */
+  --ui-brand:        5 178 121;        /* green fills, white text AA          */
+  --ui-brand-hover:  4 158 107;
+  --ui-brand-active: 3 138 93;
+  --ui-brand-ink:    4 122 84;         /* dark green TEXT on light/tints, AA   */
+  --ui-brand-fg:     255 255 255;      /* text/icon on a brand fill           */
+  --ui-brand-soft:   rgba(5, 178, 121, 0.12);   /* tinted backgrounds        */
+  --ui-brand-softer: rgba(5, 178, 121, 0.06);
+  --ui-brand-ring:   rgba(5, 178, 121, 0.42);   /* focus ring                */
+
+  /* ── Semantic — Bright teal gains / coral loss ────────────────────────── */
+  --ui-positive:       13 110 103;     /* teal-700 gains, AA on tint (≥5:1)   */
+  --ui-positive-soft:  rgba(13, 148, 136, 0.13);
+  --ui-negative:       190 20 62;      /* coral-red losses, AA on tint (≥5:1) */
+  --ui-negative-soft:  rgba(244, 73, 110, 0.14);
+  --ui-danger-solid:   201 24 68;      /* destructive button fill             */
+  --ui-danger-on:      255 255 255;    /* text on a destructive fill          */
+  --ui-caution:        140 86 0;       /* deep amber warning text, AA on tint */
+  --ui-caution-soft:   rgba(245, 158, 11, 0.16);
+  --ui-info:           79 70 229;      /* periwinkle info, AA on white        */
+  --ui-info-soft:      rgba(99, 102, 241, 0.13);
+
+  /* ── Elevation shadows (light, Bright cool-tinted) ────────────────────── */
+  --ui-shadow-sm: 0 1px 2px rgba(20, 33, 61, 0.06), 0 2px 6px rgba(20, 33, 61, 0.05);
+  --ui-shadow-md: 0 2px 6px rgba(20, 33, 61, 0.06), 0 10px 24px rgba(20, 33, 61, 0.09);
+  --ui-shadow-lg: 0 8px 18px rgba(20, 33, 61, 0.10), 0 26px 56px rgba(20, 33, 61, 0.14);
+  --ui-shadow-xl: 0 24px 56px rgba(20, 33, 61, 0.18);
+
+  /* ── Data-viz categorical palette (light) — Bright ────────────────────── */
+  --ui-viz-1: #14B8A6;   /* cash        — mint-teal    */
+  --ui-viz-2: #6366F1;   /* investments — periwinkle   */
+  --ui-viz-3: #F59E0B;   /* property    — tangerine    */
+  --ui-viz-4: #F4496E;   /* debt        — coral-pink   */
+  --ui-viz-5: #0EA5E9;   /* other       — sky          */
+  --ui-viz-6: #84CC16;   /* extra       — lime         */
+  --ui-viz-7: #64748B;   /* extra       — slate        */
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  --ui-ease:      cubic-bezier(0.22, 1, 0.36, 1);   /* gentle ease-out      */
+  --ui-ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --ui-dur-fast:  150ms;
+  --ui-dur:       200ms;
+  --ui-dur-slow:  260ms;
+
+  /* ── Radius scale ─────────────────────────────────────────────────────── */
+  --ui-r-xs: 6px;
+  --ui-r-sm: 8px;
+  --ui-r-md: 12px;
+  --ui-r-lg: 16px;
+  --ui-r-xl: 22px;
+}
+
+/* ── Dark mode — Bright deep slate (cool, not warm) ─────────────────────── */
+.dark {
+  --ui-canvas:          13 17 23;
+  --ui-canvas-sunken:   9 12 17;
+  --ui-panel:           22 27 35;
+  --ui-panel-raised:    28 35 45;
+
+  --ui-content:           244 247 251;  /* near-pure white                       */
+  --ui-content-secondary: 226 232 240;  /* very bright, minimal gray             */
+  --ui-content-muted:     203 212 224;  /* still legible, only slightly dimmer    */
+  --ui-content-faint:     160 172 190;  /* decorative / disabled only            */
+
+  --ui-hairline:     rgba(255, 255, 255, 0.08);
+  --ui-line:         rgba(255, 255, 255, 0.14);
+  --ui-line-strong:  rgba(255, 255, 255, 0.24);
+
+  --ui-brand:        30 216 148;       /* brighter grin-green for dark        */
+  --ui-brand-hover:  64 226 165;
+  --ui-brand-active: 22 196 132;
+  --ui-brand-ink:    30 216 148;       /* green TEXT already passes on dark    */
+  --ui-brand-fg:     6 32 23;          /* near-black on bright green           */
+  --ui-brand-soft:   rgba(30, 216, 148, 0.16);
+  --ui-brand-softer: rgba(30, 216, 148, 0.09);
+  --ui-brand-ring:   rgba(30, 216, 148, 0.50);
+
+  --ui-positive:       94 234 212;     /* pale teal gains                     */
+  --ui-positive-soft:  rgba(94, 234, 212, 0.16);
+  --ui-negative:       255 109 140;    /* coral losses                        */
+  --ui-negative-soft:  rgba(255, 109, 140, 0.18);
+  --ui-danger-solid:   201 24 68;       /* coral fill, white-readable on dark */
+  --ui-danger-on:      255 255 255;
+  --ui-caution:        251 191 36;     /* amber                               */
+  --ui-caution-soft:   rgba(251, 191, 36, 0.16);
+  --ui-info:           165 173 250;    /* periwinkle info                     */
+  --ui-info-soft:      rgba(129, 140, 248, 0.18);
+
+  --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --ui-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45), 0 12px 28px rgba(0, 0, 0, 0.40);
+  --ui-shadow-lg: 0 14px 34px rgba(0, 0, 0, 0.55), 0 6px 12px rgba(0, 0, 0, 0.42);
+  --ui-shadow-xl: 0 28px 60px rgba(0, 0, 0, 0.62);
+
+  --ui-viz-1: #2DD4BF;
+  --ui-viz-2: #818CF8;
+  --ui-viz-3: #FBBF24;
+  --ui-viz-4: #FB7185;
+  --ui-viz-5: #38BDF8;
+  --ui-viz-6: #A3E635;
+  --ui-viz-7: #94A3B8;
+}
+
+/* ── Root wrapper for any surface using the new system ───────────────────── */
+.ui-root {
+  background-color: rgb(var(--ui-canvas));
+  color: rgb(var(--ui-content));
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 450;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Ambient app-canvas wash — soft multi-radial glow (green touch top-left). */
+.app-wash {
+  background-image:
+    radial-gradient(58% 42% at 84% -6%, rgba(99,102,241,0.10), transparent 70%),
+    radial-gradient(50% 40% at 6% 2%, rgba(5,178,121,0.10), transparent 72%),
+    radial-gradient(40% 36% at 96% 90%, rgba(245,158,11,0.07), transparent 70%);
+}
+.dark .app-wash {
+  background-image:
+    radial-gradient(58% 42% at 84% -6%, rgba(129,140,248,0.14), transparent 70%),
+    radial-gradient(50% 40% at 6% 2%, rgba(30,216,148,0.12), transparent 72%),
+    radial-gradient(40% 36% at 96% 90%, rgba(251,191,36,0.08), transparent 70%);
+}
+
+/* Brand mark — the original "noodle" draw-on: each wave strokes itself in,
+   staggered (matches packages/landing WaveMark). */
+@keyframes brand-wave-draw {
+  to { stroke-dashoffset: 0; }
+}
+.brand-wave-path {
+  stroke-dasharray: 44;
+  stroke-dashoffset: 44;
+  animation: brand-wave-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.brand-wave-path:nth-child(1) { animation-delay: 0.05s; }
+.brand-wave-path:nth-child(2) { animation-delay: 0.17s; }
+.brand-wave-path:nth-child(3) { animation-delay: 0.29s; }
+@media (prefers-reduced-motion: reduce) {
+  .brand-wave-path { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+}
+
+/* Tabular, lining numerals for all money / aligned figures. */
+.ui-tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* Shared keyboard-focus ring for interactive primitives. */
+.ui-focus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--ui-canvas)), 0 0 0 4px var(--ui-brand-ring);
+}
+
+/* Skeleton shimmer. */
+@keyframes ui-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Overlay / dialog motion (gentle, ~160–220ms). */
+@keyframes ui-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes ui-scale-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes ui-slide-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes ui-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Respect reduced-motion within the new system only. */
+@media (prefers-reduced-motion: reduce) {
+  .ui-root *,
+  .ui-root *::before,
+  .ui-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

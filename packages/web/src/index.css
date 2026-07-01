@@ -401,7 +401,8 @@
 
   body {
     @apply bg-bg text-text antialiased;
-    font-family: 'Geist', 'Söhne', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-weight: 450;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -416,12 +417,12 @@
    at large sizes. The brand wordmark keeps its Fraunces italic "fi".
    ============================================================ */
 .lf-serif {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 .lf-serif--display {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -434,7 +435,7 @@
 /* Eyebrow: clean sans uppercase, tracked. Reserve mono for code-like data
    (sync timestamps, account masks) via .lf-mono. */
 .lf-eyebrow {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -453,7 +454,7 @@
    .lf-h3 for cards / sub-sections. .lf-eyebrow above any title.
    ============================================================ */
 .lf-h1 {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: 28px;
   line-height: 1.1;
@@ -463,7 +464,7 @@
 @media (min-width: 768px) { .lf-h1 { font-size: 36px; } }
 
 .lf-h2 {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: 20px;
   line-height: 1.25;
@@ -472,7 +473,7 @@
 }
 
 .lf-h3 {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: 16px;
   line-height: 1.3;
@@ -484,12 +485,12 @@
    WORDMARK — "Lasagna" grotesque + italic serif "fi"
    ============================================================ */
 .lf-wordmark {
-  font-family: 'Bricolage Grotesque', 'Geist', system-ui, sans-serif;
+  font-family: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: -0.025em;
 }
 .lf-wordmark .fi {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
   font-style: italic;
   font-weight: 500;
   letter-spacing: 0;
@@ -521,7 +522,7 @@
   gap: 8px;
   padding: 10px 18px;
   border-radius: 999px;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 13px;
   font-weight: 500;
   border: 1px solid transparent;
@@ -629,6 +630,42 @@
   select,
   textarea {
     font-size: 16px !important;
+  }
+}
+
+/* Coarse-pointer (touch) hit-targets. Fine pointers (desktop) are untouched —
+   these only widen the tap area to the 44px iOS minimum on touch devices, so
+   the rendered desktop size of shared controls is unchanged. */
+@media (hover: none) and (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Inline links: pad the hit area and cancel it with negative margin so the
+     text stays visually where it was. */
+  .touch-target-inline {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}
+
+/* Mobile WIDTH (not only coarse pointer): narrow viewports get the same 44px
+   minimum tap targets regardless of pointer type. Desktop (≥641px, fine
+   pointer) keeps the rendered sizes above — this block never applies there. */
+@media (max-width: 640px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .touch-target-inline {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-block: 12px;
+    margin-block: -12px;
   }
 }
 
@@ -765,7 +802,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Geist', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     font-size: 32px;
     font-weight: 600;
     color: var(--lf-paper);
@@ -832,7 +869,7 @@
     font-size: 18px;
     font-weight: 600;
     margin-bottom: 8px;
-    font-family: 'Geist', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
   
   .a2hs-prompt p {
@@ -917,7 +954,7 @@
   overflow: hidden;
 }
 .ds-page-bar__title {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   /* Iter 6: bumped 18 → 24 so page H1 always reads as MORE prominent than
      section H2 (22px). Iter 5 critic flagged the typographic inversion. */
@@ -933,7 +970,7 @@
   min-width: 0;
 }
 .ds-page-bar__caption {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 13px;
   color: var(--lf-muted);
   line-height: 1.4;
@@ -948,7 +985,7 @@
    terse ("Goals" not "Goals — $0 of $6,025,..."). Use this when the
    secondary line carries live monetary data that would truncate at 390px. */
 .ds-page-bar__subtitle {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 13px;
   color: var(--lf-muted);
   line-height: 1.4;
@@ -1015,7 +1052,7 @@
   border: 0;
   background: transparent;
   color: var(--lf-ink);
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 14px;
   text-align: left;
   cursor: pointer;
@@ -1046,7 +1083,7 @@
   .ds-page-bar__subtitle { display: none; }
   .ds-page-bar__subtitle-mobile {
     display: block;
-    font-family: 'Geist', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     font-size: 13px;
     color: var(--lf-muted);
     line-height: 1.4;
@@ -1136,7 +1173,7 @@
   min-width: 0;
 }
 .ds-figure__label {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1147,7 +1184,7 @@
   margin-bottom: 2px;
 }
 .ds-figure__value {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: clamp(36px, 4.6vw, 52px);
   line-height: 1.02;
@@ -1156,7 +1193,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ds-figure__delta {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 13px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -1204,7 +1241,7 @@
   background: transparent;
   border: 0;
   outline: 0;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 14px;
   color: var(--lf-ink);
   padding: 14px 16px;
@@ -1220,7 +1257,7 @@
   color: var(--lf-paper);
   border: 0;
   padding: 0 18px;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
@@ -1242,7 +1279,7 @@
   background: var(--lf-surface);
   border: 1px solid var(--lf-rule-neutral);
   color: var(--lf-ink-soft);
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   font-weight: 500;
   padding: 7px 12px;
@@ -1277,7 +1314,7 @@
 .ds-page-header__title-block { flex: 1 1 auto; min-width: 0; }
 .ds-page-header__actions     { display: flex; gap: 8px; flex-wrap: wrap; }
 .ds-page-header__lede {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.55;
   color: var(--lf-ink-soft);
@@ -1314,7 +1351,7 @@
 }
 .ds-hero__label {
   position: relative;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1331,7 +1368,7 @@
   gap: 14px;
 }
 .ds-hero__value {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: clamp(40px, 6vw, 60px);
   line-height: 1;
@@ -1356,7 +1393,7 @@
   gap: 4px;
   padding: 4px 11px;
   border-radius: 999px;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
@@ -1378,7 +1415,7 @@
 
 /* ── Typography scale ───────────────────────────────────────── */
 .ds-display {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: clamp(40px, 6vw, 64px);
   line-height: 1;
@@ -1387,7 +1424,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ds-h1 {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: clamp(28px, 4vw, 40px);
   line-height: 1.05;
@@ -1396,7 +1433,7 @@
   margin: 0;
 }
 .ds-h2 {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: clamp(18px, 2vw, 22px);
   line-height: 1.25;
@@ -1405,7 +1442,7 @@
   margin: 0;
 }
 .ds-h3 {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: 15px;
   line-height: 1.35;
@@ -1414,7 +1451,7 @@
   margin: 0;
 }
 .ds-body {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.55;
   color: var(--lf-ink-soft);
@@ -1423,14 +1460,14 @@
 .ds-body--sm { font-size: 13px; }
 
 .ds-caption {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   line-height: 1.4;
   color: var(--lf-muted);
 }
 
 .ds-eyebrow {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1539,7 +1576,7 @@
 
 .ds-kpi { padding: 20px 24px; min-width: 0; }
 .ds-kpi__eyebrow {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1549,7 +1586,7 @@
   margin-bottom: 8px;
 }
 .ds-kpi__value {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: clamp(22px, 2.6vw, 28px);
   line-height: 1.1;
@@ -1562,7 +1599,7 @@
   white-space: nowrap;
 }
 .ds-kpi__sub {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   line-height: 1.4;
   color: var(--lf-muted);
@@ -1587,11 +1624,11 @@
   width: 100%;
   min-width: 480px;
   border-collapse: collapse;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 .ds-table th {
   text-align: left;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1626,7 +1663,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
@@ -1714,7 +1751,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1770,7 +1807,7 @@
   background: color-mix(in srgb, var(--lf-sauce) 12%, transparent);
   color: var(--lf-sauce);
 }
-.ds-empty__title { font-family: 'Geist', system-ui, sans-serif; font-size: 22px; font-weight: 600; color: var(--lf-ink); margin: 0 0 8px; }
+.ds-empty__title { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 22px; font-weight: 600; color: var(--lf-ink); margin: 0 0 8px; }
 .ds-empty__body  { font-size: 14px; color: var(--lf-muted); margin: 0 auto 24px; max-width: 360px; line-height: 1.55; }
 
 /* Confirm dialog — replaces window.confirm() for destructive actions. */
@@ -1804,7 +1841,7 @@
   to   { transform: translateY(0) scale(1); opacity: 1; }
 }
 .ds-confirm__title {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: 18px;
   line-height: 1.3;
@@ -1813,7 +1850,7 @@
   margin: 0 0 12px;
 }
 .ds-confirm__body {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.55;
   color: var(--lf-ink-soft);
@@ -1864,7 +1901,7 @@
 }
 .ds-strip__label {
   display: block;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1874,7 +1911,7 @@
 }
 .ds-strip__value {
   display: block;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: clamp(20px, 2vw, 26px);
   line-height: 1.15;
@@ -1910,7 +1947,7 @@
 .ds-strip__value--warn { color: #B8801E; }
 .ds-strip__sub {
   display: block;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   color: var(--lf-muted);
   margin-top: 4px;
@@ -1962,7 +1999,7 @@
   flex-wrap: wrap;
 }
 .ds-ribbon__lead-label {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1970,7 +2007,7 @@
   color: var(--lf-muted);
 }
 .ds-ribbon__lead-value {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   font-size: clamp(28px, 3.5vw, 38px);
   line-height: 1.05;
@@ -1979,7 +2016,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ds-ribbon__lead-delta {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 13px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -2022,7 +2059,7 @@
   color: var(--lf-paper);
   padding: 8px 12px;
   border-radius: 8px;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   white-space: nowrap;
   pointer-events: none;
   display: flex;
@@ -2074,7 +2111,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 13px;
   color: var(--lf-ink-soft);
 }
@@ -2087,7 +2124,7 @@
   top: 1px;
 }
 .ds-ribbon__legend-label {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2103,7 +2140,7 @@
   display: block;
   width: 100%;
   margin-top: 2px;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 11px;
   color: var(--lf-muted);
   font-variant-numeric: tabular-nums;
@@ -2113,7 +2150,7 @@
 /* Editorial Lede ── large serif paragraph with inline tabular numbers.
    Used as the page's opening voice — addresses the user directly. */
 .ds-lede {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 400;
   font-size: clamp(20px, 2.4vw, 28px);
   line-height: 1.4;
@@ -2272,7 +2309,7 @@
   border-radius: 6px;
   background: var(--lf-ink);
   color: var(--lf-paper);
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;
   border: 1px solid var(--lf-ink);
   flex-shrink: 0;
@@ -2299,7 +2336,7 @@
   gap: 3px;
 }
 .ds-row__primary {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: var(--lf-ink);
@@ -2325,7 +2362,7 @@
 }
 .ds-row__acct-no {
   flex-shrink: 0;
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: var(--lf-muted);
@@ -2344,7 +2381,7 @@
 /* Frozen rows recede the account-number tail along with the name. */
 .ds-row--muted .ds-row__acct-no { opacity: 0.7; }
 .ds-row__meta {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   color: var(--lf-muted);
   line-height: 1.45;
@@ -2393,7 +2430,7 @@
   min-width: 6ch;
 }
 .ds-row__value {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: var(--lf-ink);
@@ -2425,7 +2462,7 @@
 }
 .ds-row__status--frozen svg { opacity: 0.8; }
 .ds-row__amount {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: var(--lf-ink);

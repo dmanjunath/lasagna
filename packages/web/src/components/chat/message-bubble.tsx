@@ -9,8 +9,8 @@ import type { ChatMessage } from "../../lib/chat-store.js";
 // conversation reads as a dialogue (user bubble right, assistant prose left).
 function AssistantAvatar() {
   return (
-    <div className="w-7 h-7 rounded-full bg-accent/10 ring-1 ring-accent/15 grid place-items-center flex-shrink-0 mt-0.5">
-      <Sparkles className="w-3.5 h-3.5 text-accent" />
+    <div className="w-7 h-7 rounded-full bg-brand-soft grid place-items-center flex-shrink-0 mt-0.5">
+      <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-brand-ink))]" />
     </div>
   );
 }
@@ -51,15 +51,15 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
     return (
       <div className="flex gap-3 items-start animate-fade-in">
         <AssistantAvatar />
-        <div className="rounded-2xl rounded-tl-md px-4 py-3 bg-danger/[0.06] border border-danger/25 text-text min-w-0">
+        <div className="rounded-ui-lg rounded-tl-md px-4 py-3 bg-negative-soft border border-negative/25 text-content min-w-0">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-text-secondary leading-relaxed">{message.content}</p>
+            <AlertTriangle className="w-4 h-4 text-negative flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-content-secondary leading-relaxed">{message.content}</p>
           </div>
           {onRetry && (
             <button
               onClick={onRetry}
-              className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface border border-border text-[12px] font-medium text-text-secondary hover:text-text hover:border-danger/40 transition-colors"
+              className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-ui-sm bg-panel border border-line-strong text-[12px] font-medium text-content-secondary hover:text-content hover:border-negative/40 transition-colors"
             >
               <RotateCw className="w-3 h-3" />
               Retry
@@ -83,7 +83,7 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
 
   if (!isUser && !message.content?.trim()) return null;
 
-  // ── User turn — right-aligned warm bubble with an optional context chip. ──
+  // ── User turn — right-aligned warm brand-tinted bubble with an optional context chip. ──
   if (isUser) {
     return (
       <div className="flex flex-col items-end gap-1.5 animate-fade-in">
@@ -91,32 +91,32 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
           <div className="max-w-[85%]">
             <button
               onClick={() => setContextOpen(!contextOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/[0.07] border border-accent/15 text-[11px] text-accent/80 hover:text-accent hover:border-accent/25 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-soft border border-transparent text-[11px] font-medium text-[rgb(var(--ui-brand-ink))] hover:bg-brand-soft/80 transition-colors"
             >
               <Database className="w-3 h-3" />
               <span>{contextMeta.page} data included</span>
               <ChevronDown className={cn("w-3 h-3 transition-transform", contextOpen && "rotate-180")} />
             </button>
             {contextOpen && (
-              <div className="mt-1 px-3 py-2 rounded-lg bg-bg-elevated/80 border border-border text-[11px] space-y-1">
+              <div className="mt-1 px-3 py-2 rounded-ui-sm bg-canvas-sunken border border-line text-[11px] space-y-1">
                 {contextMeta.items.map((item, i) => (
                   <div key={i} className="flex justify-between gap-4">
-                    <span className="text-text-secondary">{item.label}</span>
-                    <span className="text-text-secondary font-medium tabular-nums">{item.value}</span>
+                    <span className="text-content-secondary">{item.label}</span>
+                    <span className="text-content-secondary font-medium tabular-nums">{item.value}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
-        <div className="max-w-[80%] rounded-2xl rounded-br-md px-4 py-2.5 bg-accent text-white shadow-sm shadow-accent/15 break-words">
+        <div className="max-w-[80%] rounded-ui-lg rounded-br-md px-4 py-2.5 bg-brand-soft border border-brand-soft text-content break-words">
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
         </div>
       </div>
     );
   }
 
-  // ── Assistant turn — left avatar + open prose (no heavy bubble). ──
+  // ── Assistant turn — left avatar + reply on a calm soft panel. ──
   return (
     <div className="flex gap-3 items-start animate-fade-in">
       <AssistantAvatar />
@@ -126,17 +126,17 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
           <div>
             <button
               onClick={() => setToolsOpen(!toolsOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-border text-[11px] text-text-secondary hover:text-text hover:border-accent/25 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-panel border border-line-strong text-[11px] text-content-secondary hover:text-content hover:border-brand/30 transition-colors"
             >
               <Wrench className="w-3 h-3" />
               <span>Used {uniqueTools.length} tool{uniqueTools.length > 1 ? 's' : ''}</span>
               <ChevronDown className={cn("w-3 h-3 transition-transform", toolsOpen && "rotate-180")} />
             </button>
             {toolsOpen && (
-              <div className="mt-1 px-3 py-2 rounded-lg bg-bg-elevated/80 border border-border text-[11px] space-y-1">
+              <div className="mt-1 px-3 py-2 rounded-ui-sm bg-canvas-sunken border border-line text-[11px] space-y-1">
                 {uniqueTools.map((name, i) => (
-                  <div key={i} className="flex items-center gap-2 text-text-secondary">
-                    <span className="w-1 h-1 rounded-full bg-accent/50 flex-shrink-0" />
+                  <div key={i} className="flex items-center gap-2 text-content-secondary">
+                    <span className="w-1 h-1 rounded-full bg-brand/50 flex-shrink-0" />
                     <span>{formatToolName(name)}</span>
                   </div>
                 ))}
@@ -145,27 +145,27 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
           </div>
         )}
 
-        <div className="text-sm space-y-3 break-words">
+        <div className="rounded-ui-lg rounded-tl-md bg-panel border border-line shadow-ui-sm px-4 py-3 sm:px-[18px] sm:py-3.5 text-sm space-y-3 break-words">
           <Markdown
             remarkPlugins={[remarkGfm]}
             components={{
               h1: ({ children }) => (
-                <h1 className="text-base font-semibold text-text mb-2">{children}</h1>
+                <h1 className="font-editorial text-lg font-bold text-content mb-2 tracking-[-0.01em]">{children}</h1>
               ),
               h2: ({ children }) => (
-                <h2 className="text-sm font-semibold text-text mt-4 mb-2 first:mt-0">{children}</h2>
+                <h2 className="text-base font-semibold text-content mt-4 mb-2 first:mt-0 tracking-[-0.01em]">{children}</h2>
               ),
               h3: ({ children }) => (
-                <h3 className="text-sm font-medium text-text mt-3 mb-1">{children}</h3>
+                <h3 className="text-[15px] font-semibold text-content mt-3 mb-1">{children}</h3>
               ),
               p: ({ children }) => (
-                <p className="text-text-secondary leading-relaxed">{children}</p>
+                <p className="text-content-secondary leading-relaxed">{children}</p>
               ),
               strong: ({ children }) => (
-                <strong className="font-semibold text-text">{children}</strong>
+                <strong className="font-semibold text-content">{children}</strong>
               ),
               blockquote: ({ children }) => (
-                <blockquote className="border-l-2 border-accent/40 pl-3 py-1 my-2 text-text-secondary italic">
+                <blockquote className="border-l-2 border-brand/40 pl-3 py-1 my-2 text-content-secondary italic">
                   {children}
                 </blockquote>
               ),
@@ -176,32 +176,32 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
                 <ol className="space-y-1.5 my-2 list-decimal list-inside">{children}</ol>
               ),
               li: ({ children }) => (
-                <li className="flex gap-2 text-text-secondary">
-                  <span className="text-accent mt-1.5 text-[6px] flex-shrink-0">●</span>
+                <li className="flex gap-2 text-content-secondary">
+                  <span className="text-[rgb(var(--ui-brand-ink))] mt-1.5 text-[6px] flex-shrink-0">●</span>
                   <span className="min-w-0 flex-1 break-words">{children}</span>
                 </li>
               ),
-              hr: () => <hr className="border-border my-4" />,
+              hr: () => <hr className="border-line my-4" />,
               table: ({ children }) => (
-                <div className="my-2 overflow-x-auto rounded-lg border border-border">
+                <div className="my-2 overflow-x-auto rounded-ui-sm border border-line">
                   <table className="w-full text-xs border-collapse">{children}</table>
                 </div>
               ),
-              thead: ({ children }) => <thead className="bg-bg-elevated">{children}</thead>,
+              thead: ({ children }) => <thead className="bg-canvas-sunken">{children}</thead>,
               th: ({ children }) => (
-                <th className="text-left font-semibold text-text px-3 py-2 border-b border-border whitespace-nowrap">{children}</th>
+                <th className="text-left font-semibold text-content px-3 py-2 border-b border-line whitespace-nowrap">{children}</th>
               ),
               td: ({ children }) => (
-                <td className="text-text-secondary px-3 py-2 border-b border-border/60 tabular-nums">{children}</td>
+                <td className="text-content-secondary px-3 py-2 border-b border-line tabular-nums">{children}</td>
               ),
               code: ({ children, className }) => {
                 const isBlock = className?.startsWith('language-');
                 return isBlock ? (
-                  <pre className="bg-bg-elevated border border-border rounded-lg px-3 py-2 my-2 overflow-x-auto text-xs font-mono">
+                  <pre className="bg-canvas-sunken border border-line rounded-ui-sm px-3 py-2 my-2 overflow-x-auto text-xs font-mono">
                     <code>{children}</code>
                   </pre>
                 ) : (
-                  <code className="bg-bg-elevated border border-border rounded px-1 py-0.5 text-xs font-mono">{children}</code>
+                  <code className="bg-canvas-sunken border border-line rounded px-1 py-0.5 text-xs font-mono">{children}</code>
                 );
               },
             }}
