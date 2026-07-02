@@ -34,6 +34,11 @@ export function VerifyEmail() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Consent is normally collected on the signup page and carried in the stash — don't ask
+  // again here. Only surface the checkboxes for login-initiated verification, where the user
+  // reached this screen without a signup consent step (stash has no accepted flags).
+  const consentGiven = Boolean(stash?.acceptedTos && stash?.acceptedPrivacy && stash?.acceptedNotRia);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stash) return;
@@ -109,16 +114,18 @@ export function VerifyEmail() {
                 />
               </Field>
 
-              {/* Consent checkboxes — pre-checked from the signup stash, unchecked
-                  for login-initiated verification. */}
-              <ConsentCheckboxes
-                values={{ acceptedTos, acceptedPrivacy, acceptedNotRia }}
-                onChange={(key, checked) => {
-                  if (key === "acceptedTos") setAcceptedTos(checked);
-                  else if (key === "acceptedPrivacy") setAcceptedPrivacy(checked);
-                  else setAcceptedNotRia(checked);
-                }}
-              />
+              {/* Only shown for login-initiated verification (no consent captured at signup).
+                  In the normal signup flow consent was already accepted and is carried silently. */}
+              {!consentGiven && (
+                <ConsentCheckboxes
+                  values={{ acceptedTos, acceptedPrivacy, acceptedNotRia }}
+                  onChange={(key, checked) => {
+                    if (key === "acceptedTos") setAcceptedTos(checked);
+                    else if (key === "acceptedPrivacy") setAcceptedPrivacy(checked);
+                    else setAcceptedNotRia(checked);
+                  }}
+                />
+              )}
 
               {error && (
                 <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
