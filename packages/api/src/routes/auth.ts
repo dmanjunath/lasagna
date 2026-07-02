@@ -112,7 +112,7 @@ authRoutes.post("/login", async (c) => {
   const user = await db.query.users.findFirst({
     where: eq(users.email, email),
   });
-  if (!user) {
+  if (!user || !user.passwordHash) {
     return c.json({ error: "Invalid email or password" }, 401);
   }
 

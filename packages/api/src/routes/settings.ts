@@ -80,6 +80,9 @@ settingsRoutes.post("/change-password", async (c) => {
   if (!user) {
     return c.json({ error: "User not found" }, 404);
   }
+  if (!user.passwordHash) {
+    return c.json({ error: "Current password is incorrect" }, 401);
+  }
 
   const valid = await verifyPassword(currentPassword, user.passwordHash);
   if (!valid) {

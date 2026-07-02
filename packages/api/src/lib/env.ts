@@ -50,4 +50,14 @@ export const env = {
   get APP_URL() {
     return optional("APP_URL", "http://localhost:5173");
   },
+  get WORKOS_API_KEY() {
+    return optional("WORKOS_API_KEY", "");
+  },
+  get WORKOS_CLIENT_ID() {
+    return optional("WORKOS_CLIENT_ID", "");
+  },
+  // Where WorkOS sends the browser back after Google OAuth. Must be registered in WorkOS.
+  get WORKOS_REDIRECT_URI() {
+    return optional("WORKOS_REDIRECT_URI", `${this.APP_URL}/api/auth/google/callback`);
+  },
 };
