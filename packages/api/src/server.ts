@@ -69,6 +69,11 @@ app.use("/api/*", async (ctx, next) => {
     "/api/auth/logout",
     "/api/auth/signup",
     "/api/auth/me",
+    "/api/auth/verify-email",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
+    "/api/auth/google/start",
+    "/api/auth/google/callback",
     "/api/health",
     "/api/billing/webhook",
   ];
