@@ -11,6 +11,7 @@ import {
   Link2,
   PencilLine,
   Sparkles,
+  LogOut,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
 import { Button, Surface, Field, Input, Label, Select, Badge, Eyebrow } from '../components/uikit';
@@ -113,7 +114,7 @@ const STAGE_TO_STEP: Record<string, number> = {
 
 export function Onboarding() {
   const [, navigate] = useLocation();
-  const { setOnboardingStage } = useAuth();
+  const { setOnboardingStage, logout } = useAuth();
   const [initializing, setInitializing] = useState(true);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -691,9 +692,19 @@ export function Onboarding() {
             Lasagna<span className="text-brand">Fi</span>
           </span>
         </div>
-        {step < totalSteps - 1 && (
-          <Eyebrow className="text-content-muted">Step {step + 1} of {totalSteps - 1}</Eyebrow>
-        )}
+        <div className="flex items-center gap-4">
+          {step < totalSteps - 1 && (
+            <Eyebrow className="text-content-muted">Step {step + 1} of {totalSteps - 1}</Eyebrow>
+          )}
+          <button
+            type="button"
+            onClick={() => { void logout(); }}
+            className="ui-focus inline-flex items-center gap-1.5 rounded-ui-md text-[13px] font-medium text-content-muted transition-colors hover:text-content"
+          >
+            <LogOut className="h-3.5 w-3.5" aria-hidden />
+            Exit
+          </button>
+        </div>
       </header>
 
       {step < 4 && (
