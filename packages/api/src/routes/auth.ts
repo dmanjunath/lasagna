@@ -266,3 +266,30 @@ authRoutes.post("/accept-terms", requireAuth, async (c) => {
   await db.update(users).set({ acceptedTermsAt: new Date() }).where(eq(users.id, session.userId));
   return c.json({ ok: true });
 });
+
+authRoutes.get("/google/start", (c) => {
+  if (authMode() !== "workos") return c.redirect(`${env.APP_URL}/?error=google_unavailable`);
+  const state = createOauthState();
+  // APP_URL-derived flags: this cookie must survive the round-trip back from the IdP.
+  setCookie(c, OAUTH_STATE_COOKIE, state, { httpOnly: true, ...appUrlCookieFlags(), maxAge: 600, path: "/" });
+  return c.redirect(workos.googleAuthUrl({ state, redirectUri: env.WORKOS_REDIRECT_URI }));
+});
+
+authRoutes.get("/google/callback", async (c) => {
+  if (authMode() !== "workos") return c.redirect(`${env.APP_URL}/`);
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  const cookieState = getCookie(c, OAUTH_STATE_COOKIE);
+  deleteCookie(c, OAUTH_STATE_COOKIE, { path: "/", ...appUrlCookieFlags() });
+  if (!code || !statesMatch(state, cookieState)) return c.redirect(`${env.APP_URL}/?error=oauth`);
+
+  let identity;
+  try { identity = await workos.handleCallback({ code }); }
+  catch { return c.redirect(`${env.APP_URL}/?error=oauth`); }
+
+  const { user, isNew } = await provisionUser(identity);
+  // Referer here is the IdP, so pass APP_URL-derived flags explicitly.
+  await issueSession(c, user, appUrlCookieFlags());
+  if (isNew && user.acceptedTermsAt == null) return c.redirect(`${env.APP_URL}/welcome/consent`);
+  return c.redirect(`${env.APP_URL}/`);
+});
