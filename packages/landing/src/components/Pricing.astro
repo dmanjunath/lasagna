@@ -1,0 +1,55 @@
+---
+import { APP_URL } from "../config";
+---
+
+<!-- PRICING -->
+<section class="band pricing-band" id="pricing">
+  <div class="wrap">
+    <div class="sec-head center rv">
+      <span class="eyebrow">Pricing</span>
+      <h2 class="display">Start free. <span class="hl">Upgrade when it pays for itself.</span></h2>
+      <p>The whole planning engine is free. Pro is for when you want more accounts, instant syncs, and the sharpest models working on your money.</p>
+    </div>
+
+    <div class="tiers">
+      <div class="tier rv">
+        <div class="tier-head">
+          <span class="tier-name display">Free</span>
+          <span class="tier-badge">Open source</span>
+        </div>
+        <div class="price"><span class="amt display">$0</span><span class="per">forever</span></div>
+        <p class="tier-sub">Everything you need to find your next move.</p>
+        <ul class="feat">
+          <li>Up to <b>3</b> connected accounts</li>
+          <li>Daily automatic refresh</li>
+          <li>Full AI chat — standard model</li>
+          <li>Every planning tool: plan, levels, retirement, tax</li>
+          <li>Open source &amp; self-hostable</li>
+        </ul>
+        <a class="btn btn-ghost full" href={APP_URL}>Get started</a>
+      </div>
+
+      <div class="tier featured rv" style="animation-delay:.08s">
+        <span class="ribbon">Most popular</span>
+        <div class="tier-head">
+          <span class="tier-name display">Pro</span>
+          <span class="tier-badge accent">Sharper &amp; faster</span>
+        </div>
+        <div class="price"><span class="amt display">$11.99</span><span class="per">/ month</span></div>
+        <p class="tier-sub">For bigger balance sheets and on-demand answers.</p>
+        <ul class="feat accent-feat">
+          <li>Up to <b>50</b> connected accounts</li>
+          <li>On-demand <b>“Sync now”</b> — refresh instantly</li>
+          <li>Every AI model — chat on Claude Sonnet or higher</li>
+          <li>Priority processing</li>
+          <li>Everything in Free</li>
+        </ul>
+        <a class="btn btn-primary full" href={APP_URL}>Upgrade to Pro</a>
+      </div>
+    </div>
+
+    <p class="pricing-foot rv">
+      <b>Why upgrade?</b> A single tax or debt move LasagnaFi surfaces usually covers a year of Pro — many times over.
+    </p>
+  </div>
+</section>
