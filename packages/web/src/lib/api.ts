@@ -29,8 +29,22 @@ export const api = {
   signup: (data: { email: string; password: string; name?: string; acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) =>
     request("/auth/signup", { method: "POST", body: JSON.stringify(data) }),
 
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; password: string }): Promise<
+    | { user: { id: string; email: string; name: string | null; role: string; onboardingStage: string | null; isAdmin: boolean; hasAcceptedTerms: boolean }; tenant: { id: string; name: string; plan: string } | null }
+    | { needsVerification: true; workosUserId: string; email: string }
+  > =>
     request("/auth/login", { method: "POST", body: JSON.stringify(data) }),
+
+  verifyEmail: (data: { workosUserId: string; code: string; acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) =>
+    request("/auth/verify-email", { method: "POST", body: JSON.stringify(data) }),
+
+  forgotPassword: (email: string) =>
+    request("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    request("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, newPassword }) }),
+
+  acceptTerms: () => request("/auth/accept-terms", { method: "POST" }),
 
   logout: () => request("/auth/logout", { method: "POST" }),
 
@@ -43,6 +57,7 @@ export const api = {
         role: string;
         onboardingStage: string | null;
         isAdmin: boolean;
+        hasAcceptedTerms: boolean;
         notifyDaily: boolean;
         notifyBills: boolean;
         notifyWeeklyEmail: boolean;
@@ -59,6 +74,7 @@ export const api = {
         role: string;
         onboardingStage: string | null;
         isAdmin: boolean;
+        hasAcceptedTerms: boolean;
         notifyDaily: boolean;
         notifyBills: boolean;
         notifyWeeklyEmail: boolean;

@@ -61,8 +61,12 @@ authRoutes.post("/signup", async (c) => {
     return c.json({ error: "You must accept the Terms of Service, Privacy Policy, and RIA acknowledgment" }, 400);
 
   if (authMode() === "workos") {
-    const r = await workos.signUp({ email, password, name });
-    return c.json({ needsVerification: true, workosUserId: r.workosUserId, email: r.email });
+    try {
+      const r = await workos.signUp({ email, password, name });
+      return c.json({ needsVerification: true, workosUserId: r.workosUserId, email: r.email });
+    } catch (err) {
+      return c.json({ error: workos.friendlyError(err, "Could not create your account. Please check your details and try again.") }, 400);
+    }
   }
 
   const res = await localSignUp({ email, password, name });
@@ -258,9 +262,9 @@ authRoutes.post("/forgot-password", async (c) => {
 authRoutes.post("/reset-password", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
   const { token, newPassword } = await c.req.json();
-  if (!token || !newPassword || newPassword.length < 6) return c.json({ error: "Invalid request" }, 400);
+  if (!token || !newPassword || newPassword.length < 8) return c.json({ error: "Invalid request" }, 400);
   try { await workos.resetPassword({ token, newPassword }); }
-  catch { return c.json({ error: "Reset link is invalid or expired" }, 400); }
+  catch (err) { return c.json({ error: workos.friendlyError(err, "Reset link is invalid or expired, or the new password is too weak.") }, 400); }
   return c.json({ ok: true });
 });
 

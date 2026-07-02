@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
+import { API_BASE } from "../lib/api.js";
 import { Button, Input, Field } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 
 export function Login() {
   const { login, signup } = useAuth();
+  const [, navigate] = useLocation();
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,9 +34,11 @@ export function Login() {
     setLoading(true);
     try {
       if (isSignup) {
-        await signup(email, password, name || undefined, { acceptedTos, acceptedPrivacy, acceptedNotRia });
+        const res = await signup(email, password, name || undefined, { acceptedTos, acceptedPrivacy, acceptedNotRia });
+        if (res) { sessionStorage.setItem("lf_verify", JSON.stringify({ workosUserId: res.workosUserId, email: res.email, acceptedTos, acceptedPrivacy, acceptedNotRia })); navigate("/verify-email"); return; }
       } else {
-        await login(email, password);
+        const res = await login(email, password);
+        if (res) { sessionStorage.setItem("lf_verify", JSON.stringify({ workosUserId: res.workosUserId, email: res.email })); navigate("/verify-email"); return; }
       }
     } catch (err) {
       if (err instanceof TypeError && err.message.includes("fetch")) {
@@ -109,14 +114,14 @@ export function Login() {
                 autoComplete="email"
               />
             </Field>
-            <Field label="Password">
+            <Field label="Password" hint={isSignup ? "At least 10 characters" : undefined}>
               <Input
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={isSignup ? 10 : 6}
                 autoComplete={isSignup ? "new-password" : "current-password"}
               />
             </Field>
@@ -193,6 +198,40 @@ export function Login() {
               {loading ? "Processing…" : isSignup ? "Create Account" : "Sign In"}
             </Button>
           </form>
+
+          {/* Forgot password — login view only */}
+          {!isSignup && (
+            <p className="text-center mt-3.5">
+              <button
+                type="button"
+                onClick={() => navigate("/forgot-password")}
+                className="text-sm text-content-secondary hover:text-content underline underline-offset-2"
+              >
+                Forgot password?
+              </button>
+            </p>
+          )}
+
+          {/* Sign in / up with Google — hide in demo mode */}
+          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+            <>
+              <div className="flex items-center gap-3 my-5">
+                <div className="h-px flex-1 bg-line" />
+                <span className="text-xs text-content-muted">or</span>
+                <div className="h-px flex-1 bg-line" />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="w-full"
+                disabled={isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)}
+                onClick={() => window.location.assign(`${API_BASE}/api/auth/google/start`)}
+              >
+                {isSignup ? "Sign up with Google" : "Sign in with Google"}
+              </Button>
+            </>
+          )}
 
           {/* Sign-up toggle button — hide in demo mode */}
           {import.meta.env.VITE_DEMO_MODE !== "true" && (

@@ -12,6 +12,11 @@ function toIdentity(u: { id: string; email: string; firstName?: string | null; l
   return { workosUserId: u.id, email: u.email, name: name || null };
 }
 
+export function friendlyError(err: unknown, fallback: string): string {
+  const e = err as { rawData?: { message?: string; errors?: Array<{ message?: string }> }; message?: string; errors?: Array<{ message?: string }> } | undefined;
+  return e?.rawData?.errors?.[0]?.message || e?.rawData?.message || e?.errors?.[0]?.message || e?.message || fallback;
+}
+
 function isVerificationRequired(err: unknown): boolean {
   const e = err as { code?: string; rawData?: { code?: string }; message?: string } | undefined;
   return e?.code === "email_verification_required"

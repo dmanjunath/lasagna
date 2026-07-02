@@ -15,6 +15,7 @@ interface User {
   role: string;
   onboardingStage: string | null;
   isAdmin: boolean;
+  hasAcceptedTerms: boolean;
   notifyDaily: boolean;
   notifyBills: boolean;
   notifyWeeklyEmail: boolean;
@@ -25,6 +26,8 @@ interface Tenant {
   name: string;
   plan: string;
 }
+
+export type NeedsVerification = { needsVerification: true; workosUserId: string; email: string };
 
 // Mirror of the last-known user/tenant so we can render the app shell
 // optimistically on boot instead of a blank screen while /me is in flight.
@@ -62,8 +65,8 @@ interface AuthState {
   user: User | null;
   tenant: Tenant | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => Promise<void>;
+  login: (email: string, password: string) => Promise<NeedsVerification | null>;
+  signup: (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => Promise<NeedsVerification | null>;
   logout: () => Promise<void>;
   updateTenant: (updates: Partial<Tenant>) => void;
   setOnboardingStage: (stage: string | null) => void;
@@ -93,21 +96,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [commitAuth]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const data = (await api.login({ email, password })) as {
-      user: User;
-      tenant: Tenant | null;
-    };
+  const login = useCallback(async (email: string, password: string): Promise<NeedsVerification | null> => {
+    const data = (await api.login({ email, password })) as any;
+    if (data.needsVerification) return data as NeedsVerification;
     commitAuth({ user: data.user, tenant: data.tenant });
+    return null;
   }, [commitAuth]);
 
   const signup = useCallback(
-    async (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => {
-      const data = (await api.signup({ email, password, name, acceptedTos: agreements?.acceptedTos ?? false, acceptedPrivacy: agreements?.acceptedPrivacy ?? false, acceptedNotRia: agreements?.acceptedNotRia ?? false })) as {
-        user: User;
-        tenant: Tenant | null;
-      };
+    async (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }): Promise<NeedsVerification | null> => {
+      const data = (await api.signup({ email, password, name, acceptedTos: agreements?.acceptedTos ?? false, acceptedPrivacy: agreements?.acceptedPrivacy ?? false, acceptedNotRia: agreements?.acceptedNotRia ?? false })) as any;
+      if (data.needsVerification) return data as NeedsVerification;
       commitAuth({ user: data.user, tenant: data.tenant });
+      return null;
     },
     [commitAuth],
   );
