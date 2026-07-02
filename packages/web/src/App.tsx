@@ -36,6 +36,13 @@ const AccountDetail = lazy(() => import('./pages/account-detail').then(m => ({ d
 // Design system styleguide — renders OUTSIDE the auth shell (no login required).
 const Styleguide = lazy(() => import('./pages/_styleguide').then(m => ({ default: m.Styleguide })));
 
+// Auth pages — verify-email/forgot/reset render logged-out (public); welcome-consent
+// gates logged-in-but-not-yet-consented users.
+const VerifyEmail = lazy(() => import('./pages/verify-email').then(m => ({ default: m.VerifyEmail })));
+const ForgotPassword = lazy(() => import('./pages/forgot-password').then(m => ({ default: m.ForgotPassword })));
+const ResetPassword = lazy(() => import('./pages/reset-password').then(m => ({ default: m.ResetPassword })));
+const WelcomeConsent = lazy(() => import('./pages/welcome-consent').then(m => ({ default: m.WelcomeConsent })));
+
 // Unified pages
 const SimpleHome = lazy(() => import('./pages/simple-home').then(m => ({ default: m.SimpleHome })));
 const SimpleMoney = lazy(() => import('./pages/simple-money').then(m => ({ default: m.SimpleMoney })));
@@ -54,8 +61,29 @@ function AppRoutes() {
     );
   }
 
+  // Public auth pages — render logged out (email verification + password reset flows).
+  if (location.startsWith('/verify-email') || location.startsWith('/forgot-password') || location.startsWith('/reset-password')) {
+    return (
+      <Suspense fallback={null}>
+        <Switch>
+          <Route path="/verify-email" component={VerifyEmail} />
+          <Route path="/forgot-password" component={ForgotPassword} />
+          <Route path="/reset-password" component={ResetPassword} />
+        </Switch>
+      </Suspense>
+    );
+  }
+
   if (!user) {
     return <Login />;
+  }
+
+  // Consent gate — relies on hasAcceptedTerms from /me (AuthProvider), not the
+  // optimistic post-login commit. A brand-new Google user has hasAcceptedTerms
+  // === false until they accept here. Strict === false so an undefined value from
+  // an optimistic commit never wrongly gates; a returning user with true passes.
+  if (user.hasAcceptedTerms === false) {
+    return <Suspense fallback={null}><WelcomeConsent /></Suspense>;
   }
 
   // Redirect to onboarding if not complete (unless demo mode).
