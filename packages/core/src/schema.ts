@@ -92,7 +92,12 @@ export const users = pgTable("users", {
     .references(() => tenants.id, { onDelete: "cascade" }),
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
-  passwordHash: text("password_hash").notNull(),
+  // Nullable: WorkOS/Google users have no local hash. Local-mode users still set it.
+  passwordHash: text("password_hash"),
+  // Set when this row is linked to a WorkOS user (workos mode). Null for local-mode users.
+  workosUserId: text("workos_user_id").unique(),
+  // When the user accepted ToS/Privacy/RIA. Null ⇒ client routes them to /welcome/consent.
+  acceptedTermsAt: timestamp("accepted_terms_at", { withTimezone: true }),
   role: roleEnum("role").notNull().default("owner"),
   isDemo: boolean("is_demo").default(false).notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),

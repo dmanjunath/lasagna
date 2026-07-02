@@ -37,7 +37,7 @@ async function seedDemo() {
   if (existing) {
     await db
       .update(users)
-      .set({ isDemo: true })
+      .set({ isDemo: true, acceptedTermsAt: new Date() })
       .where(eq(users.email, DEMO_EMAIL));
     console.log("Demo user already exists. Ensured isDemo=true.");
     return;
@@ -61,6 +61,7 @@ async function seedDemo() {
       email: DEMO_EMAIL,
       passwordHash: await hashPassword(DEMO_PASSWORD),
       isDemo: true,
+      acceptedTermsAt: new Date(),
     })
     .where(eq(users.id, user.id));
 

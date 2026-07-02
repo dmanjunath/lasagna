@@ -40,6 +40,7 @@ export async function createBaseEntities(
       email: userEmail,
       passwordHash,
       role: "owner",
+      acceptedTermsAt: new Date(),
     })
     .returning();
 
