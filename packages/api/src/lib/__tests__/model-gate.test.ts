@@ -6,8 +6,19 @@ describe("resolveModelLevel", () => {
     expect(resolveModelLevel("free", undefined)).toBe("free");
   });
 
-  it("pro + no requested level → fast-claude default", () => {
-    expect(resolveModelLevel("pro", undefined)).toBe("fast-claude");
+  it("pro + no requested level → floored to medium (Sonnet)", () => {
+    expect(resolveModelLevel("pro", undefined)).toBe("medium");
+  });
+
+  it("pro + a below-Sonnet level → floored up to medium", () => {
+    expect(resolveModelLevel("pro", "free")).toBe("medium");
+    expect(resolveModelLevel("pro", "fast")).toBe("medium");
+    expect(resolveModelLevel("pro", "fast-claude")).toBe("medium");
+    expect(resolveModelLevel("pro", "medium-google")).toBe("medium");
+  });
+
+  it("pro + medium stays medium", () => {
+    expect(resolveModelLevel("pro", "medium")).toBe("medium");
   });
 
   it("free + a premium level → silently served the free model (no throw)", () => {

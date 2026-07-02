@@ -223,19 +223,6 @@ export function Login() {
             </p>
           )}
         </div>
-
-        {/* Try the demo link — shown only when not in demo mode */}
-        {import.meta.env.VITE_DEMO_MODE !== "true" && (
-          <p className="text-center text-xs text-content-muted mt-4">
-            Want to explore first?{" "}
-            <a
-              href="https://demo.lasagnafi.com"
-              className="text-content-secondary underline underline-offset-2 hover:text-content"
-            >
-              Try the demo →
-            </a>
-          </p>
-        )}
       </div>
     </div>
   );

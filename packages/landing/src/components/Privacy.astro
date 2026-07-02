@@ -1,14 +1,17 @@
 ---
+import { GITHUB_URL } from "../config";
 ---
 
-<!-- PRIVACY (demoted, dark band) -->
-<section class="band" id="privacy" style="padding-top:8px">
+<!-- PRIVACY / OPEN SOURCE (dark band) -->
+<section class="band" id="privacy">
   <div class="wrap">
     <div class="priv rv">
       <div class="in">
-        <div>
-          <h2 class="serif">Hide your identity<br>from ChatGPT and Claude.</h2>
-          <p>Before any question reaches the AI, your identity is stripped and tokenized. The model reasons over balances and ratios, never your name, bank, or account numbers. The core and the scrub layer are open source. Host it yourself if you'd rather keep everything on your own server.</p>
+        <div class="priv-copy">
+          <span class="eyebrow on-dark">Private by design</span>
+          <h2 class="display">Hide your identity<br />from the AI.</h2>
+          <p>Before any question reaches ChatGPT or Claude, your identity is stripped and tokenized. The model reasons over balances and ratios — never your name, bank, or account numbers. Connections are read-only.</p>
+          <p class="oss">The core and the scrub layer are <a href={GITHUB_URL}>open source</a>. Host it yourself if you'd rather keep everything on your own server.</p>
         </div>
         <div class="scrub">
           <div class="scol">

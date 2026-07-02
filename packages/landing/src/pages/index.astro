@@ -5,38 +5,70 @@ import Nav from "../components/Nav.astro";
 import Hero from "../components/Hero.astro";
 import Truths from "../components/Truths.astro";
 import WhatYouGet from "../components/WhatYouGet.astro";
+import Pricing from "../components/Pricing.astro";
 import Privacy from "../components/Privacy.astro";
 import FinalCTA from "../components/FinalCTA.astro";
 import Footer from "../components/Footer.astro";
 ---
 
-<Layout title="LasagnaFi // See what you get">
+<Layout title="LasagnaFi // Stop guessing with your money">
   <Nav />
   <Hero />
   <Truths />
   <WhatYouGet />
+  <Pricing />
   <Privacy />
   <FinalCTA />
   <Footer />
 </Layout>
 
 <script>
-  // Reveal elements as they scroll into view (staggered via each element's animation-delay).
-  const els = document.querySelectorAll<HTMLElement>(".rv");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ── Count-up numbers (fire once, on reveal) ───────────────────────────────
+  function runCount(el: HTMLElement) {
+    const to = Number(el.dataset.countTo || "0");
+    const prefix = el.dataset.countPrefix ?? "";
+    const suffix = el.dataset.countSuffix ?? "";
+    const fmt = (n: number) => prefix + Math.round(n).toLocaleString("en-US") + suffix;
+    if (reduced) { el.textContent = fmt(to); return; }
+    const dur = 1100;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      el.textContent = fmt(to * eased);
+      if (t < 1) requestAnimationFrame(tick);
+      else el.textContent = fmt(to);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // ── Reveal-on-scroll — adds `.in-view`, which also triggers CSS chart draws ─
+  const revealEls = document.querySelectorAll<HTMLElement>(".rv");
+  const counted = new WeakSet<HTMLElement>();
+
+  function activate(el: HTMLElement) {
+    el.classList.add("in-view");
+    el.querySelectorAll<HTMLElement>("[data-count-to]").forEach((c) => {
+      if (!counted.has(c)) { counted.add(c); runCount(c); }
+    });
+  }
+
   if (!("IntersectionObserver" in window)) {
-    els.forEach((el) => el.classList.add("in-view"));
+    revealEls.forEach(activate);
   } else {
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (e.isIntersecting) {
-            e.target.classList.add("in-view");
+            activate(e.target as HTMLElement);
             io.unobserve(e.target);
           }
         }
       },
-      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+      { threshold: 0.14, rootMargin: "0px 0px -8% 0px" }
     );
-    els.forEach((el) => io.observe(el));
+    revealEls.forEach((el) => io.observe(el));
   }
 </script>

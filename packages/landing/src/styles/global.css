@@ -2,44 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   LasagnaFi marketing — shared base.
+   Mirrors the app's "Bright" design system (packages/web/src/styles/theme.css).
+   Cool near-white canvas, white panels, hairline borders, soft cool shadows,
+   grin-green brand fills, periwinkle accent, teal gains / coral losses.
+   Astro can't import across packages, so the token VALUES are copied here.
+   Legacy aliases (--ink / --sauce / --serif …) are kept for LegalLayout.
+   ============================================================================ */
 @layer base {
   :root {
-    /* Brand tokens — minty (matches webapp default theme) */
-    --cream: #F4F7F5;
-    --cream-deep: #E2EDE7;
-    --paper: #FFFFFF;
-    --ink: #0F172A;
-    --ink-soft: #334155;
-    --muted: #64748B;
-    --rule: #E5E7EB;
-    --rule-soft: #EEF0F4;
+    /* ── Surfaces ── */
+    --canvas:        #F7F9FC;   /* cool near-white page bg      */
+    --canvas-sunken: #EEF2F7;   /* wells, inset tracks          */
+    --panel:         #FFFFFF;   /* cards / surfaces             */
 
-    /* Brand — the lasagna stack (emerald primary, amber, slate) */
-    --sauce: #10B981;
-    --sauce-deep: #059669;
-    --cheese: #F59E0B;
-    --basil: #10B981;
-    --noodle: #94A3B8;
-    --crust: #475569;
-    --burgundy: #B91C1C;
+    /* ── Text hierarchy (AA on canvas/panel) ── */
+    --content:   #101826;
+    --content-2: #38465A;
+    --muted:     #5C6B80;
+    --faint:     #8693A6;
 
-    --pos: #10B981;
-    --neg: #EF4444;
+    /* ── Hairlines ── */
+    --hairline:    rgba(16, 24, 38, 0.07);
+    --line:        rgba(16, 24, 38, 0.12);
+    --line-strong: rgba(16, 24, 38, 0.20);
 
-    /* Type */
-    --serif: "Instrument Serif", "Cormorant Garamond", Georgia, serif;
-    --sans: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
-    --mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+    /* ── Brand — grin-green ── */
+    --brand:        #05B279;   /* fills; white text = AA        */
+    --brand-hover:  #049E6B;
+    --brand-active: #038A5D;
+    --brand-ink:    #047A54;   /* green TEXT on light = AA      */
+    --brand-soft:   rgba(5, 178, 121, 0.12);
+    --brand-softer: rgba(5, 178, 121, 0.06);
+    --brand-ring:   rgba(5, 178, 121, 0.42);
+
+    /* ── Accent — periwinkle (net-worth graph line) ── */
+    --accent:       #6366F1;
+    --accent-ink:   #4F46E5;
+    --accent-soft:  rgba(99, 102, 241, 0.12);
+    --accent-softer:rgba(99, 102, 241, 0.06);
+
+    /* ── Semantic ── */
+    --positive:      #0D6E67;  /* teal gains text, AA           */
+    --positive-soft: rgba(13, 148, 136, 0.13);
+    --negative:      #BE143E;  /* coral loss text, AA           */
+    --negative-soft: rgba(244, 73, 110, 0.14);
+    --caution:       #8C5600;  /* deep amber warning text, AA   */
+    --caution-soft:  rgba(245, 158, 11, 0.16);
+    --amber:         #F59E0B;  /* wave logo / tangerine viz     */
+
+    /* ── Data-viz categorical ── */
+    --viz-cash:     #14B8A6;
+    --viz-invest:   #6366F1;
+    --viz-property: #F59E0B;
+    --viz-debt:     #F4496E;
+
+    /* ── Elevation (cool-tinted, matches app) ── */
+    --shadow-sm: 0 1px 2px rgba(20, 33, 61, 0.06), 0 2px 6px rgba(20, 33, 61, 0.05);
+    --shadow-md: 0 2px 6px rgba(20, 33, 61, 0.06), 0 10px 24px rgba(20, 33, 61, 0.09);
+    --shadow-lg: 0 8px 18px rgba(20, 33, 61, 0.10), 0 26px 56px rgba(20, 33, 61, 0.14);
+    --glow:      0 0 0 1px var(--brand-soft), 0 18px 40px -18px rgba(5, 178, 121, 0.35);
+
+    /* ── Radius ── */
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+    --r-xl: 22px;
+
+    /* ── Motion ── */
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* ── Type — same faces as the app ── */
+    --display: "Bricolage Grotesque", system-ui, sans-serif;
+    --sans:    "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    --mono:    "JetBrains Mono", ui-monospace, monospace;
+
+    /* ── Legacy aliases consumed by LegalLayout.astro ── */
+    --serif:      var(--display);
+    --ink:        var(--content);
+    --ink-soft:   var(--content-2);
+    --rule:       var(--line);
+    --rule-soft:  var(--hairline);
+    --sauce:      var(--brand-ink);
+    --sauce-deep: var(--brand-hover);
+    --cream:      var(--canvas);
+    --paper:      var(--panel);
   }
 
   *, *::before, *::after { box-sizing: border-box; }
-
   html { scroll-behavior: smooth; }
 
   body {
-    background: var(--paper);
-    color: var(--ink);
+    background: var(--canvas);
+    color: var(--content);
     font-family: var(--sans);
+    font-weight: 450;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     margin: 0;
@@ -47,34 +105,26 @@
   }
 
   a { color: inherit; text-decoration: none; }
-  h1, h2, h3, h4 { margin: 0; font-weight: 500; }
+  h1, h2, h3, h4 { margin: 0; font-weight: 700; }
 }
 
 /* ── Shared utilities ── */
-.serif { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em; }
-.mono  { font-family: var(--mono); }
-.tabular { font-variant-numeric: tabular-nums; }
+.display,
+.serif {
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.mono   { font-family: var(--mono); font-variant-numeric: tabular-nums lining-nums; }
+.tabular, .tnum { font-variant-numeric: tabular-nums lining-nums; }
 
 .eyebrow {
   font-family: var(--sans);
-  font-size: 13px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* ── Wordmark — "Lasagna" grotesque + italic serif "fi" ── */
-.brand-name {
-  font-family: 'Bricolage Grotesque', 'Geist', system-ui, sans-serif;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: -0.025em;
-}
-.brand-name em {
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
-  font-weight: 500;
-  letter-spacing: 0;
-  color: var(--sauce);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
 }
 
 /* ── Buttons ── */
@@ -82,24 +132,33 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 11px 20px;
+  padding: 12px 22px;
   border-radius: 999px;
   font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 14.5px;
+  font-weight: 700;
   text-decoration: none;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.18s var(--ease), background 0.18s var(--ease),
+    border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
   white-space: nowrap;
 }
-.btn:hover { transform: translateY(-1px); }
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--brand-ring);
+}
+.btn:hover { transform: translateY(-2px); }
 
-.btn-primary { background: var(--ink); color: var(--paper); }
-.btn-primary:hover { background: var(--sauce-deep); }
+.btn-primary { background: var(--brand); color: #fff; box-shadow: var(--shadow-sm); }
+.btn-primary:hover { background: var(--brand-hover); box-shadow: var(--shadow-md); }
 
-.btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
-.btn-ghost:hover { background: var(--cream); border-color: var(--cream-deep); }
+.btn-ghost { background: var(--panel); color: var(--content); border-color: var(--line); }
+.btn-ghost:hover { border-color: var(--line-strong); background: var(--panel); }
 
-.btn-cheese { background: var(--cheese); color: var(--ink); }
-.btn-cheese:hover { background: var(--noodle); }
+.btn-sm { padding: 9px 16px; font-size: 13.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .btn:hover { transform: none; }
+}

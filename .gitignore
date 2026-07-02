@@ -24,3 +24,9 @@ opencode.json
 
 # LLM benchmark results (local only)
 packages/api/src/agent/__tests__/benchmarks/results/
+
+# Local, throwaway visual artifacts — never commit (design mockups + screenshot scratch)
+mockups/
+_mockup*
+_shots/
+_shots*/

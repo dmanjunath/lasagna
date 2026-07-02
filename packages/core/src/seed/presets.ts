@@ -34,14 +34,27 @@ export const PRESETS: Record<string, SeedConfig> = {
 
   "1.8M": {
     assets: {
-      cash: 50000,
-      savings: 100000,
-      roth_401k: 200000,
-      trad_401k: 300000,
-      brokerage: 600000,
+      cash: 45000,
+      savings: 85000,
+      // Investments — a couple of taxable accounts…
+      brokerage: 520000,
+      crypto: 40000,
+      // …and a full spread of retirement accounts.
+      trad_401k: 310000,
+      roth_401k: 180000,
+      trad_ira: 120000,
+      roth_ira: 90000,
+      hsa: 32000,
     },
-    property: { primary: 800000, rental1: 400000 },
-    loans: { primary_mortgage: 500000, rental1_mortgage: 150000 },
+    property: { primary: 850000, rental1: 420000 },
+    // Mortgages plus real consumer debt (credit card, auto, student) with APRs.
+    loans: {
+      primary_mortgage: "560000@6.75",
+      rental1_mortgage: "210000@7.25",
+      credit_card: "12500@24.99",
+      car: "28000@7.40",
+      student_loan: "24000@6.50",
+    },
     profile: { annualIncome: 250000, age: 45, filingStatus: "married_joint", riskTolerance: "moderate", retirementAge: 58, employerMatch: 6, stateOfResidence: "NY" },
   },
 

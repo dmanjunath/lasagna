@@ -3,54 +3,66 @@ import { APP_URL } from "../config";
 ---
 
 <a id="top"></a>
-<div class="wrap">
+<section class="hero wrap">
+  <div class="hero-copy rv">
+    <h1 class="display">Stop guessing<br /><span class="hl">with your money.</span></h1>
+    <p class="hero-sub">
+      LasagnaFi connects your accounts, looks at everything at once, and hands
+      you a ranked list of the best next moves — with the exact math behind each one.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href={APP_URL}>Get started — free</a>
+      <a class="btn btn-ghost" href="#pricing">See pricing</a>
+    </div>
+    <p class="hero-trust">
+      <span class="tick">✓</span> Free to start · open source · read-only connections
+    </p>
+  </div>
 
-  <!-- HERO -->
-  <section class="hero">
-    <div class="rv" style="animation-delay:.05s">
-      <h1 class="serif">Stop guessing<br><em>with your money.</em></h1>
-      <p class="hero-sub">LasagnaFi looks at all your financial information and suggests the best next steps to improve your finances.</p>
-      <div class="hero-cta">
-        <a class="btn btn-primary" href={APP_URL}>Get started →</a>
-        <a class="btn btn-ghost" href="#get">See what you get ↓</a>
+  <div class="hero-art rv" style="animation-delay:.14s">
+    <div class="wealth card">
+      <div class="c-head">
+        <span class="eyebrow accent">Where your wealth stands</span>
+        <span class="live"><span class="pulse"></span>updated today</span>
+      </div>
+
+      <div class="equation">
+        <div class="eq-term">
+          <span class="lbl">Assets</span>
+          <span class="val tnum" data-count-to="246900" data-count-prefix="$">$0</span>
+        </div>
+        <span class="eq-op">−</span>
+        <div class="eq-term">
+          <span class="lbl">Debt</span>
+          <span class="val neg tnum" data-count-to="64470" data-count-prefix="$">$0</span>
+        </div>
+        <span class="eq-op">=</span>
+        <div class="eq-term net">
+          <span class="lbl">Net worth</span>
+          <span class="val tnum" data-count-to="182430" data-count-prefix="$">$0</span>
+        </div>
+      </div>
+
+      <div class="wealth-delta">
+        <span class="chip pos">▲ $4,120</span> this month
+        <span class="sep">·</span> <span class="tnum">+2.3%</span>
+      </div>
+
+      <div class="compbar" aria-hidden="true">
+        <span class="seg cash" style="--w:14%"></span>
+        <span class="seg invest" style="--w:58%"></span>
+        <span class="seg prop" style="--w:28%"></span>
+      </div>
+      <div class="complegend">
+        <span><i class="d cash"></i>Cash 14%</span>
+        <span><i class="d invest"></i>Investments 58%</span>
+        <span><i class="d prop"></i>Property 28%</span>
+      </div>
+
+      <div class="wealth-foot">
+        <span class="foot-move"><span class="rank">1</span>Next move · <b>Kill the $6,240 card @ 23.9%</b></span>
+        <span class="foot-impact tnum">+$1,490/yr</span>
       </div>
     </div>
-
-    <div class="rv" style="animation-delay:.2s">
-      <div class="plan">
-        <div class="plan-head">
-          <span class="t">Your plan · this week</span>
-          <span class="live"><span class="pulse"></span>updated today</span>
-        </div>
-        <div class="move m-now">
-          <div class="rank">1</div>
-          <div class="body">
-            <div class="tag">Do this now</div>
-            <h4>Kill the $6,240 card balance.</h4>
-            <p>It's at 23.9%, costing you $124/mo in interest. Nothing you could invest in beats a guaranteed 23.9% return.</p>
-          </div>
-          <div class="impact"><div class="n">+$1,490</div><div class="l">saved / yr</div></div>
-        </div>
-        <div class="move m-next">
-          <div class="rank">2</div>
-          <div class="body">
-            <div class="tag">Next</div>
-            <h4>Get term life + a will.</h4>
-            <p>2 dependents, $0 coverage. If something happens to you, they're not protected. ~$42/mo fixes it.</p>
-          </div>
-          <div class="impact"><div class="n">$42</div><div class="l">/ mo</div></div>
-        </div>
-        <div class="move m-then">
-          <div class="rank">3</div>
-          <div class="body">
-            <div class="tag">Then</div>
-            <h4>Top off your Roth. $4,800 to go.</h4>
-            <p>Tax-free growth, and you can't add to your 2025 Roth after April 16.</p>
-          </div>
-          <div class="impact"><div class="n">$2,200</div><div class="l">of $7,000</div></div>
-        </div>
-        <div class="plan-foot"><span>3 of 12 layers active</span><span>net worth $182,430 ↑</span></div>
-      </div>
-    </div>
-  </section>
-</div>
+  </div>
+</section>
