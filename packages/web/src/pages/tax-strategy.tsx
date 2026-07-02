@@ -53,6 +53,11 @@ function formatMoney(n: number): string {
 
 const FILING_YEAR = new Date().getFullYear() - 1;
 
+// How many document rows to show before collapsing behind a "show all" toggle —
+// keeps a long library (e.g. a full return's 19 schedules) from becoming an
+// endless scroll on mobile.
+const DOC_PREVIEW_COUNT = 6;
+
 /** Extract dollar amount from impact strings like "Save $2,400/yr" or "Earn $3,400 free money" */
 function parseDollarAmount(s: string): number {
   const match = s.match(/\$[\d,]+(?:\.\d+)?/);
@@ -190,6 +195,7 @@ export function TaxStrategy() {
   const [showSafety, setShowSafety] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [refreshingInsights, setRefreshingInsights] = useState(false);
+  const [showAllDocs, setShowAllDocs] = useState(false);
   const safetyRef = useRef<HTMLDivElement>(null);
 
   const { insights, isLoading: insightsLoading, reload, refresh, dismiss } = useInsights("tax");
@@ -381,8 +387,8 @@ export function TaxStrategy() {
               Tax workspace
             </span>
           </span>
-          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
-            Tax
+          <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
+            How do I lower my taxes?
           </h1>
           <p className="mt-1.5 text-[14px] font-medium text-content-muted">{subtitleText}</p>
         </div>
@@ -749,7 +755,7 @@ export function TaxStrategy() {
               />
             ) : (
               <div className="overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-                {documents.map((doc) => (
+                {(showAllDocs ? documents : documents.slice(0, DOC_PREVIEW_COUNT)).map((doc) => (
                   <Fragment key={doc.id}>
                     <DocRow
                       doc={doc}
@@ -783,6 +789,22 @@ export function TaxStrategy() {
                     </AnimatePresence>
                   </Fragment>
                 ))}
+
+                {documents.length > DOC_PREVIEW_COUNT && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllDocs((p) => !p)}
+                    className="touch-target ui-focus flex w-full items-center justify-center gap-1.5 border-t border-line bg-canvas-sunken/40 px-4 py-3 text-[13px] font-bold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-canvas-sunken"
+                  >
+                    {showAllDocs
+                      ? "Show fewer"
+                      : `Show all ${documents.length} documents`}
+                    <ArrowRight
+                      size={14}
+                      className={cn("transition-transform", showAllDocs ? "-rotate-90" : "rotate-90")}
+                    />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1008,10 +1030,10 @@ function DocRow({
           ) : (
             <button
               onClick={onAskDelete}
-              className="touch-target ui-focus grid h-9 w-9 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-negative-soft hover:text-negative"
+              className="touch-target ui-focus grid h-11 w-11 place-items-center rounded-ui-md border border-line bg-canvas-sunken text-content-muted transition-colors hover:border-negative/30 hover:bg-negative-soft hover:text-negative sm:h-9 sm:w-9 sm:rounded-ui-sm sm:border-0 sm:bg-transparent"
               aria-label="Delete document"
             >
-              <Trash2 size={15} />
+              <Trash2 size={16} />
             </button>
           ))}
       </div>

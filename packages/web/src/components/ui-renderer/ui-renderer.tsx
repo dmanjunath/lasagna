@@ -35,29 +35,29 @@ const layoutClasses = {
 
 function ProjectionBlockRenderer({ block }: { block: UIBlock & { type: "projection" } }) {
   return (
-    <div className="glass-card p-6 col-span-full">
+    <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 col-span-full">
       {block.title && (
-        <h3 className="text-base font-semibold tracking-tight text-text mb-2">
+        <h3 className="text-base font-bold tracking-tight text-content mb-2">
           {block.title}
         </h3>
       )}
       {block.description && (
-        <p className="text-text-secondary text-sm mb-4">{block.description}</p>
+        <p className="text-content-secondary text-sm mb-4">{block.description}</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {block.scenarios.map((scenario, idx) => (
           <div
             key={idx}
-            className="p-4 bg-surface rounded-xl border border-border"
+            className="p-4 bg-canvas-sunken rounded-ui-lg border border-line"
           >
-            <div className="text-text font-medium">{scenario.name}</div>
+            <div className="text-content font-bold">{scenario.name}</div>
             {scenario.value && (
-              <div className="text-accent text-lg font-semibold mt-1">
+              <div className="text-[rgb(var(--ui-accent-ink))] text-lg font-bold mt-1 ui-tnum">
                 {scenario.value}
               </div>
             )}
             {scenario.description && (
-              <p className="text-text-secondary text-sm mt-2">
+              <p className="text-content-secondary text-sm mt-2">
                 {scenario.description}
               </p>
             )}
@@ -74,21 +74,21 @@ function ActionBlockRenderer({ block }: { block: UIBlock & { type: "action" } })
   const items = block.actions || (block.action ? [block.action] : []);
 
   return (
-    <div className="glass-card p-6 col-span-full">
+    <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 col-span-full">
       {title && (
-        <h3 className="text-base font-semibold tracking-tight text-text mb-2">
+        <h3 className="text-base font-bold tracking-tight text-content mb-2">
           {title}
         </h3>
       )}
       {block.description && (
-        <p className="text-text-secondary text-sm mb-4">{block.description}</p>
+        <p className="text-content-secondary text-sm mb-4">{block.description}</p>
       )}
       {items.length > 0 && (
         <ul className="space-y-2">
           {items.map((item, idx) => (
             <li key={idx} className="flex items-start gap-3">
-              <span className="text-accent mt-0.5">→</span>
-              <span className="text-text-secondary">{item}</span>
+              <span className="text-[rgb(var(--ui-accent-ink))] mt-0.5">→</span>
+              <span className="text-content-secondary">{item}</span>
             </li>
           ))}
         </ul>

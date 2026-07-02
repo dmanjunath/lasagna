@@ -20,7 +20,7 @@ export function PlanResponse({ response, toolResults }: PlanResponseProps) {
         <MetricsBar metrics={response.metrics} />
       )}
 
-      <div className="p-6 rounded-2xl bg-gradient-to-b from-[#141416] to-[#0f0f11] border border-accent/10">
+      <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
         <MarkdownRenderer content={response.content} toolResults={toolResultsMap} />
       </div>
 

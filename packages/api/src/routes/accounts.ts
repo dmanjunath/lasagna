@@ -37,6 +37,7 @@ accountRoutes.get("/balances", async (c) => {
         accountId: acct.id,
         name: acct.name,
         type: acct.type,
+        subtype: acct.subtype,
         mask: acct.mask,
         balance: latest?.balance ?? null,
         effectiveBalance:

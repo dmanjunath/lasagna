@@ -12,22 +12,19 @@ interface InsightCardProps {
 
 const variantStyles = {
   default: {
-    border: 'border-accent/20',
-    bg: 'bg-accent/5',
-    icon: 'text-accent',
-    label: 'text-accent',
+    border: 'border-[rgb(var(--ui-accent))]/25',
+    bg: 'bg-[var(--ui-accent-soft)]',
+    icon: 'text-[rgb(var(--ui-accent-ink))]',
   },
   warning: {
-    border: 'border-amber-500/20',
-    bg: 'bg-amber-500/5',
-    icon: 'text-amber-500',
-    label: 'text-amber-500',
+    border: 'border-[rgb(var(--ui-caution))]/25',
+    bg: 'bg-[var(--ui-caution-soft)]',
+    icon: 'text-[rgb(var(--ui-caution))]',
   },
   success: {
-    border: 'border-emerald-500/20',
-    bg: 'bg-emerald-500/5',
-    icon: 'text-emerald-500',
-    label: 'text-emerald-500',
+    border: 'border-[rgb(var(--ui-brand))]/25',
+    bg: 'bg-brand-soft',
+    icon: 'text-[rgb(var(--ui-brand-ink))]',
   },
 };
 
@@ -36,11 +33,11 @@ export function InsightCard({ headline, details, variant = 'default' }: InsightC
   const styles = variantStyles[variant];
 
   return (
-    <div className={cn('rounded-xl border p-4', styles.border, styles.bg)}>
+    <div className={cn('rounded-ui-lg border p-4', styles.border, styles.bg)}>
       <div className="flex items-start gap-3">
         <Lightbulb className={cn('w-4 h-4 mt-0.5 flex-shrink-0', styles.icon)} />
         <div className="flex-1 min-w-0">
-          <p className="text-[15px] text-text leading-relaxed">{headline}</p>
+          <p className="text-[15px] font-semibold text-content leading-relaxed">{headline}</p>
 
           {details && (
             <>
@@ -53,8 +50,8 @@ export function InsightCard({ headline, details, variant = 'default' }: InsightC
               </div>
 
               {expanded && (
-                <div className="mt-3 pt-3 border-t border-white/5">
-                  <div className="response-text prose prose-sm prose-invert max-w-none">
+                <div className="mt-3 pt-3 border-t border-line">
+                  <div className="response-text prose prose-sm max-w-none prose-p:text-content-secondary prose-strong:text-content prose-li:text-content-secondary marker:text-content-faint">
                     <ReactMarkdown>{details}</ReactMarkdown>
                   </div>
                 </div>

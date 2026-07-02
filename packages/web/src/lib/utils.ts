@@ -14,8 +14,10 @@ export function cn(...inputs: ClassValue[]) {
 export function stripAccountMask(name: string, mask?: string | null): string {
   if (!mask) return name;
   const m = mask.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Optional separator/marker (•• · ... … # * x X - ( ) and whitespace) then the mask, anchored to the end.
-  const re = new RegExp('[\\s(]*(?:[•·]{1,2}|\\.{2,3}|…|[#*xX])?\\s*' + m + '[)\\s]*$');
+  // Optional separator/marker (•• · ... … # * x X dashes ( ) and whitespace) then
+  // the mask, anchored to the end. Markers may repeat (e.g. "****1158") so the
+  // whole masked suffix is stripped, not just one glyph.
+  const re = new RegExp('[\\s(–—-]*(?:[•·]{1,4}|\\.{2,4}|…|[#*xX]{1,4})?\\s*' + m + '[)\\s]*$');
   if (!re.test(name)) return name;
   const stripped = name.replace(re, '').trim();
   return stripped.length >= 2 ? stripped : name;

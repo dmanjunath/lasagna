@@ -34,10 +34,27 @@ const tooltipStyle = {
 };
 
 function fmtShort(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
-  if (value < 0) return `-$${Math.abs(value).toFixed(0)}`;
-  return `$${value.toFixed(0)}`;
+  const sign = value < 0 ? "-" : "";
+  const v = Math.abs(value);
+  if (v >= 1_000_000) return `${sign}$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${sign}$${(v / 1_000).toFixed(0)}K`;
+  return `${sign}$${v.toFixed(0)}`;
+}
+
+// Track the `.dark` class on <html> so chart fills can be strengthened in dark mode.
+function useIsDark(): boolean {
+  const [dark, setDark] = useState(
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark"),
+  );
+  useEffect(() => {
+    const el = document.documentElement;
+    const update = () => setDark(el.classList.contains("dark"));
+    update();
+    const obs = new MutationObserver(update);
+    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  return dark;
 }
 
 // ── Types (formerly imported from the shared simulation components) ──────────
@@ -224,47 +241,95 @@ function EditableStatCard({
 
 interface FanDatum { year: number; p5: number; p25: number; p50: number; p75: number; p95: number; }
 
+// Fixed-order tooltip (5th → 25th → median → 75th → 95th), so the percentile
+// list never appears jumbled by recharts' series-declaration order.
+const FAN_ROWS: { key: keyof FanDatum; label: string }[] = [
+  { key: "p95", label: "95th pct" },
+  { key: "p75", label: "75th pct" },
+  { key: "p50", label: "Median" },
+  { key: "p25", label: "25th pct" },
+  { key: "p5", label: "5th pct" },
+];
+function FanTooltip({ active, payload, label }: any) {
+  if (!active || !payload || payload.length === 0) return null;
+  const d: FanDatum = payload[0].payload;
+  return (
+    <div style={tooltipStyle} className="px-3 py-2">
+      <div className="mb-1 font-semibold text-content">Year {label}</div>
+      {FAN_ROWS.map((r) => (
+        <div key={r.key} className="flex items-center justify-between gap-6 text-[12px]">
+          <span className="text-content-muted">{r.label}</span>
+          <span className="font-semibold text-content">{fmtShort(d[r.key])}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function FanChart({ data, height = 300 }: { data: FanDatum[]; height?: number }) {
+  const isDark = useIsDark();
   if (!data || data.length === 0) {
     return <div style={{ height }} className="flex items-center justify-center text-content-muted">No data available</div>;
   }
-  const allValues = data.flatMap((d) => [d.p5, d.p25, d.p50, d.p75, d.p95]);
-  const minVal = Math.min(...allValues);
-  const maxVal = Math.max(...allValues);
-  const padding = (maxVal - minVal) * 0.1;
+  // Right-skewed outcomes: the 95th-percentile tail is orders of magnitude above
+  // the median, which flattens the typical band. Clip the y-axis to a headroom
+  // above the 75th-percentile band so the median / middle-50% stay legible; the
+  // upper tail simply extends past the top edge.
+  const p5Min = Math.min(...data.map((d) => d.p5));
+  const p75Max = Math.max(...data.map((d) => d.p75));
+  const p95Max = Math.max(...data.map((d) => d.p95));
+  const yMin = Math.max(0, p5Min);
+  const yMax = Math.min(p95Max, Math.max(p75Max * 1.35, yMin + 1));
+  // Fills need more presence on the near-black dark card.
+  const outerFrom = isDark ? 0.3 : 0.16;
+  const outerTo = isDark ? 0.12 : 0.05;
+  const innerFrom = isDark ? 0.52 : 0.36;
+  const innerTo = isDark ? 0.28 : 0.16;
   return (
     <div style={{ height, width: "100%" }} className="ui-tnum">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
           <defs>
             <linearGradient id="pos-outer" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={VIZ} stopOpacity={0.16} />
-              <stop offset="100%" stopColor={VIZ} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={VIZ} stopOpacity={outerFrom} />
+              <stop offset="100%" stopColor={VIZ} stopOpacity={outerTo} />
             </linearGradient>
             <linearGradient id="pos-inner" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={VIZ} stopOpacity={0.36} />
-              <stop offset="100%" stopColor={VIZ} stopOpacity={0.16} />
+              <stop offset="0%" stopColor={VIZ} stopOpacity={innerFrom} />
+              <stop offset="100%" stopColor={VIZ} stopOpacity={innerTo} />
             </linearGradient>
           </defs>
           <XAxis dataKey="year" tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `Yr ${v}`} />
-          <YAxis tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={fmtShort} domain={[Math.max(0, minVal - padding), maxVal + padding]} />
-          <Tooltip
-            contentStyle={tooltipStyle}
-            labelFormatter={(label) => `Year ${label}`}
-            formatter={(value, name) => {
-              const labels: Record<string, string> = { p5: "5th pct", p25: "25th pct", p50: "Median", p75: "75th pct", p95: "95th pct" };
-              const s = String(name ?? "");
-              return [fmtShort(typeof value === "number" ? value : 0), labels[s] || s];
-            }}
-          />
+          <YAxis tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={fmtShort} domain={[yMin, yMax]} allowDataOverflow />
+          <Tooltip content={<FanTooltip />} />
           <ReferenceLine y={0} stroke={C_GRID} strokeDasharray="3 3" />
-          <Area type="monotone" dataKey="p95" stroke="none" fill="url(#pos-outer)" fillOpacity={1} />
-          <Area type="monotone" dataKey="p5" stroke="none" fill={C_PANEL} fillOpacity={1} />
-          <Area type="monotone" dataKey="p75" stroke="none" fill="url(#pos-inner)" fillOpacity={1} />
-          <Area type="monotone" dataKey="p25" stroke="none" fill={C_PANEL} fillOpacity={1} />
-          <Line type="monotone" dataKey="p50" stroke={VIZ} strokeWidth={2.5} dot={false} name="p50" />
+          <Area type="monotone" dataKey="p95" stroke="none" fill="url(#pos-outer)" fillOpacity={1} isAnimationActive={false} />
+          <Area type="monotone" dataKey="p5" stroke="none" fill={C_PANEL} fillOpacity={1} isAnimationActive={false} />
+          <Area type="monotone" dataKey="p75" stroke="none" fill="url(#pos-inner)" fillOpacity={1} isAnimationActive={false} />
+          <Area type="monotone" dataKey="p25" stroke="none" fill={C_PANEL} fillOpacity={1} isAnimationActive={false} />
+          <Line type="monotone" dataKey="p50" stroke={VIZ} strokeWidth={2.5} dot={false} name="p50" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+// Static legend so the band meanings aren't hover-only.
+function FanLegend() {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[12px] text-content-secondary">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-3 w-4 rounded-[3px]" style={{ background: VIZ, opacity: 0.5 }} />
+        Middle 50% (25th–75th)
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-3 w-4 rounded-[3px]" style={{ background: VIZ, opacity: 0.22 }} />
+        90% range (5th–95th)
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-[3px] w-4 rounded-full" style={{ background: VIZ }} />
+        Median
+      </span>
     </div>
   );
 }
@@ -282,15 +347,19 @@ function SpaghettiChart({ paths, years, height = 300 }: { paths: number[][]; yea
   });
   const pathColors = paths.map((p) => (p[p.length - 1] > 0 ? C_GOOD : C_RISK));
   const allValues = paths.flat();
-  const minVal = Math.min(...allValues);
   const maxVal = Math.max(...allValues);
-  const padding = (maxVal - minVal) * 0.1;
+  // A single lucky path can be an order of magnitude above the rest, flattening
+  // everything else. Clip the top to ~90th percentile of the ending values so
+  // the bulk of the paths stay readable; the outlier simply runs off the top.
+  const finals = paths.map((p) => p[p.length - 1]).sort((a, b) => a - b);
+  const capIdx = Math.min(finals.length - 1, Math.floor(finals.length * 0.9));
+  const yMax = Math.min(maxVal, Math.max(finals[capIdx] * 1.1, 1));
   return (
     <div style={{ height, width: "100%" }} className="ui-tnum">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
           <XAxis dataKey="year" tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `Yr ${v}`} />
-          <YAxis tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={fmtShort} domain={[Math.min(0, minVal - padding), maxVal + padding]} />
+          <YAxis tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={fmtShort} domain={[0, yMax]} allowDataOverflow />
           <Tooltip contentStyle={tooltipStyle} labelFormatter={(l) => `Year ${l}`} formatter={(value) => [fmtShort(typeof value === "number" ? value : 0), "Portfolio"]} />
           <ReferenceLine y={0} stroke={C_GRID} strokeDasharray="3 3" />
           {paths.map((_, i) => (
@@ -431,7 +500,7 @@ function StrategyConfig({ strategy, params, monthlySpend, onMonthlySpendChange, 
               key={tab.value}
               onClick={() => onStrategyChange(tab.value)}
               className={cn(
-                "rounded-ui-md border px-3.5 py-2 text-[13px] font-bold transition-colors",
+                "inline-flex min-h-[44px] items-center justify-center rounded-ui-md border px-3.5 text-[13px] font-bold transition-colors sm:min-h-0 sm:py-2",
                 active
                   ? "border-transparent bg-brand-soft text-[rgb(var(--ui-brand-ink))]"
                   : "border-line text-content-secondary hover:text-content hover:border-line-strong",
@@ -554,6 +623,8 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
   const [sortKey, setSortKey] = useState<SortKey>("startYear");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const VISIBLE_ROWS = 12;
 
   const successCount = periods.filter((p) => p.status === "success").length;
   const closeCount = periods.filter((p) => p.status === "close").length;
@@ -575,6 +646,9 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
     }
     return sortDir === "asc" ? cmp : -cmp;
   });
+
+  const visibleRows = showAll ? rows : rows.slice(0, VISIBLE_ROWS);
+  const hiddenCount = rows.length - visibleRows.length;
 
   const toggleFilter = (status: "success" | "close" | "failed") => setFilter((prev) => (prev === status ? null : status));
 
@@ -607,7 +681,12 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
         ))}
       </div>
 
-      <div className="overflow-auto rounded-ui-md border border-line">
+      <p className="text-[12px] text-content-muted sm:hidden">Swipe the table sideways to see every column →</p>
+
+      <div className="relative">
+        {/* Right edge fade — a scroll affordance hinting at clipped columns on narrow screens */}
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 rounded-r-ui-md bg-gradient-to-l from-panel to-transparent sm:hidden" />
+        <div className="overflow-auto rounded-ui-md border border-line">
         <table className="w-full ui-tnum">
           <thead>
             <tr className="border-b border-line bg-canvas-sunken">
@@ -621,7 +700,7 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
                 <th
                   key={key}
                   onClick={() => handleSort(key)}
-                  className="cursor-pointer select-none px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted hover:text-content"
+                  className="cursor-pointer select-none whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted hover:text-content"
                 >
                   {label}
                   <SortIcon column={key} />
@@ -630,7 +709,7 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
             </tr>
           </thead>
           <tbody>
-            {rows.map((period) => (
+            {visibleRows.map((period) => (
               <Fragment key={period.startYear}>
                 <tr
                   onClick={() => setExpandedRow((prev) => (prev === period.startYear ? null : period.startYear))}
@@ -655,7 +734,17 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
             ))}
           </tbody>
         </table>
+        </div>
       </div>
+
+      {rows.length > VISIBLE_ROWS && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="ui-focus inline-flex min-h-[44px] w-full items-center justify-center rounded-ui-md border border-line px-4 text-[13px] font-bold text-content-secondary transition-colors hover:border-line-strong hover:text-content sm:min-h-0 sm:py-2.5"
+        >
+          {showAll ? "Show fewer" : `Show all ${rows.length} periods`}
+        </button>
+      )}
     </div>
   );
 }
@@ -1034,7 +1123,7 @@ export function ProbabilityOfSuccess() {
               <button
                 onClick={selectCurrentAllocation}
                 className={cn(
-                  "rounded-ui-md border px-3.5 py-1.5 text-[13px] font-bold transition-colors",
+                  "inline-flex min-h-[44px] items-center justify-center rounded-ui-md border px-3.5 text-[13px] font-bold transition-colors sm:min-h-0 sm:py-1.5",
                   activePreset === "current" ? "border-transparent bg-brand-soft text-[rgb(var(--ui-brand-ink))]" : "border-line text-content-secondary hover:text-content hover:border-line-strong",
                 )}
               >
@@ -1046,7 +1135,7 @@ export function ProbabilityOfSuccess() {
                 key={p.id}
                 onClick={() => selectPreset(p)}
                 className={cn(
-                  "rounded-ui-md border px-3.5 py-1.5 text-[13px] font-bold transition-colors",
+                  "inline-flex min-h-[44px] items-center justify-center rounded-ui-md border px-3.5 text-[13px] font-bold transition-colors sm:min-h-0 sm:py-1.5",
                   activePreset === p.id ? "border-transparent bg-brand-soft text-[rgb(var(--ui-brand-ink))]" : "border-line text-content-secondary hover:text-content hover:border-line-strong",
                 )}
               >
@@ -1142,7 +1231,7 @@ export function ProbabilityOfSuccess() {
                   key={v}
                   onClick={() => setUseRealDollars(v === "real")}
                   className={cn(
-                    "rounded-[calc(var(--ui-r-md)-3px)] px-3 py-1 text-[12.5px] font-semibold transition-all",
+                    "inline-flex min-h-[44px] items-center justify-center rounded-[calc(var(--ui-r-md)-3px)] px-3 text-[12.5px] font-semibold transition-all sm:min-h-0 sm:py-1",
                     active ? "bg-panel text-[rgb(var(--ui-brand-ink))] shadow-ui-sm" : "text-content-muted hover:text-content",
                   )}
                 >
@@ -1166,7 +1255,7 @@ export function ProbabilityOfSuccess() {
                   key={v}
                   onClick={() => setMcView(v)}
                   className={cn(
-                    "rounded-[calc(var(--ui-r-md)-3px)] px-3 py-1 text-[12.5px] font-semibold transition-all",
+                    "inline-flex min-h-[44px] items-center justify-center rounded-[calc(var(--ui-r-md)-3px)] px-3 text-[12.5px] font-semibold transition-all sm:min-h-0 sm:py-1",
                     mcView === v ? "bg-panel text-[rgb(var(--ui-brand-ink))] shadow-ui-sm" : "text-content-muted hover:text-content",
                   )}
                 >
@@ -1177,8 +1266,13 @@ export function ProbabilityOfSuccess() {
           }
         >
           <Card>
-            {mcView === "fan" && fanData.length > 0 && <FanChart data={fanData} />}
-            {mcView === "spaghetti" && samplePaths.length > 0 && <SpaghettiChart paths={samplePaths} years={projectionYears} />}
+            {mcView === "fan" && (
+              <>
+                <FanChart data={fanData} />
+                <FanLegend />
+              </>
+            )}
+            {mcView === "spaghetti" && <SpaghettiChart paths={samplePaths} years={projectionYears} />}
           </Card>
         </Section>
       )}

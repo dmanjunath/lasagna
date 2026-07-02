@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRoute, useLocation } from 'wouter';
 import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api';
-import { cn } from '../lib/utils';
+import { cn, stripAccountMask } from '../lib/utils';
 import { Button, Field, Input, Select, SegmentedControl, Skeleton } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
-import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney } from '../components/ds/TrendChart';
+import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
+import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 
 // ---------------------------------------------------------------------------
 // Account detail page. Shows the account's balance-over-time history as the
@@ -60,6 +61,8 @@ interface LoadedData {
   acct: DetailAccount;
   institution: string;
   isManual: boolean;
+  status: string;
+  lastSyncedAt: string | null;
   snapshots: Snapshot[];
 }
 
@@ -139,6 +142,8 @@ export function AccountDetail() {
             acct: match,
             institution: item.institutionName || 'Manual',
             isManual: item.institutionId === 'manual',
+            status: item.status,
+            lastSyncedAt: item.lastSyncedAt,
           };
           break;
         }
@@ -226,9 +231,11 @@ export function AccountDetail() {
     );
   }
 
-  const { acct, institution, isManual, snapshots } = data;
+  const { acct, institution, isManual, status, lastSyncedAt, snapshots } = data;
   const balance = parseFloat(acct.balance ?? '0');
   const typeLabel = titleCaseType(acct.type, acct.subtype);
+  const displayName = titleCase(stripAccountMask(acct.name, acct.mask));
+  const needsAttention = status === 'error' || status === 'item_login_required';
 
   // Snapshots → ascending TrendPoints for the shared interactive chart.
   const allPoints: TrendPoint[] = snapshots
@@ -265,6 +272,31 @@ export function AccountDetail() {
         : acct.subtype === 'student' || acct.subtype === 'student_loan' || lowerName.includes('student')
           ? 'student_loan'
           : 'other_loan';
+
+  // Key facts strip — read-only, derived straight from the persisted account so
+  // it stays stable while the Settings form is being edited. Only defined keys
+  // render, so the strip is naturally short for simple accounts.
+  const meta = (acct.metadata ?? {}) as Record<string, unknown>;
+  const metaNum = (v: unknown) =>
+    typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v)) ? Number(v) : null;
+  const metaDate = (v: unknown) => {
+    if (typeof v !== 'string') return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+  const aprVal = metaNum(meta.interestRatePercentage) ?? (acct.apr != null ? metaNum(acct.apr) : null);
+  const minPmtVal = metaNum(meta.minimumPaymentAmount);
+  const payoffVal = metaDate(meta.maturityDate) ?? metaDate(meta.expectedPayoffDate);
+  const facts: Array<{ label: string; value: string }> = [
+    { label: 'Type', value: typeLabel },
+    {
+      label: isManual ? 'Source' : 'Synced',
+      value: isManual ? 'Manual entry' : lastSyncedAt ? relativeTime(lastSyncedAt) : 'Connected',
+    },
+  ];
+  if (isLiabilityAcct && aprVal != null) facts.push({ label: 'APR', value: `${aprVal}%` });
+  if (isLiabilityAcct && minPmtVal != null) facts.push({ label: 'Min payment', value: fmtUsd(minPmtVal) });
+  if (isLiabilityAcct && payoffVal) facts.push({ label: loanType === 'credit_card' ? 'Due' : 'Payoff', value: payoffVal });
 
   const save = async () => {
     setActionError(null);
@@ -379,26 +411,45 @@ export function AccountDetail() {
     invertBalance && 'Inverted',
   ].filter(Boolean).join(' · ');
 
+  const hoveredPoint = hasHistory && chartHoverIdx !== null ? chartPoints[chartHoverIdx] : null;
+  const heroPts = chartPoints.length > 0 ? chartPoints : allPoints;
+  const heroLatest = heroPts.length > 0 ? heroPts[heroPts.length - 1] : null;
+  const heroFirst = heroPts.length > 0 ? heroPts[0] : null;
+  const heroValue = hoveredPoint ? hoveredPoint.value : heroLatest ? heroLatest.value : balance;
+  const heroChange = heroLatest && heroFirst ? heroLatest.value - heroFirst.value : 0;
+  const balanceLabel = isLiabilityAcct ? 'Balance owed' : 'Account value';
+
   return (
     <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
       {/* ── Back ── */}
       <button
         type="button"
         onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/money'); }}
-        className="ui-focus mb-2 inline-flex items-center gap-1 rounded-ui-sm text-[13px] font-semibold text-content-muted transition-colors hover:text-content"
+        className="ui-focus -ml-2 mb-2 inline-flex min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content sm:mb-3 sm:ml-0 sm:min-h-0 sm:px-0"
       >
         <ChevronLeft size={16} /> Back
       </button>
 
-      {/* ── Page header ── */}
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
-            {titleCase(acct.name)}
-          </h1>
-          <p className="mt-1.5 text-[14px] font-medium text-content-muted">
-            {acct.mask ? `${institution} · ••${acct.mask}` : institution}
-          </p>
+      {/* ── Identity header — avatar · name · institution/mask/type · actions ── */}
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <InstIcon institution={institution} isManual={isManual} />
+          <div className="min-w-0">
+            <h1 className="font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.1] tracking-[-0.028em]">
+              {displayName}
+            </h1>
+            {/* Type lives in the key-facts strip below — keep it out of here to
+                avoid repeating it three times (title + pill + Type row). */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13.5px] font-medium text-content-muted">
+              <span>{institution}</span>
+              {acct.mask && (
+                <>
+                  <span className="text-content-faint">·</span>
+                  <span className="ui-tnum">••{acct.mask}</span>
+                </>
+              )}
+            </div>
+          </div>
         </div>
         <div className="hidden items-center gap-2.5 sm:flex">
           <Button variant="secondary" size="sm" onClick={openSettings} leadingIcon={<Pencil size={14} />}>
@@ -423,6 +474,21 @@ export function AccountDetail() {
         </div>
       </header>
 
+      {needsAttention && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 rounded-ui-md border border-caution/30 bg-caution-soft px-4 py-3">
+          <span className="text-[13.5px] font-semibold text-caution">
+            {status === 'item_login_required' ? 'Login expired — reconnect to resume syncing.' : 'This account needs attention — try reconnecting.'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setLocation('/accounts')}
+            className="ui-focus shrink-0 rounded-ui-sm text-[13px] font-bold text-brand hover:underline"
+          >
+            Reconnect →
+          </button>
+        </div>
+      )}
+
       {(actionError || flash) && (
         <p
           role="status"
@@ -433,71 +499,67 @@ export function AccountDetail() {
         </p>
       )}
 
-      {/* ── Value history — full-width interactive chart (matches Money). ── */}
-      {hasHistory ? (() => {
-        const hoveredPoint = chartHoverIdx !== null ? chartPoints[chartHoverIdx] : null;
-        const pts = chartPoints.length > 0 ? chartPoints : allPoints;
-        const latest = pts[pts.length - 1];
-        const first = pts[0];
-        const displayValue = hoveredPoint ? hoveredPoint.value : latest.value;
-        const change = latest.value - first.value;
-        return (
-          <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
-                  'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
-              }}
-            />
-            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Value history</div>
-                <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
-                  {fmtUsd(displayValue)}
-                </div>
-                <div className="mt-3 flex items-center gap-2.5 flex-wrap">
-                  {hoveredPoint ? (
-                    <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
-                      {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
-                  ) : change !== 0 ? (
-                    <DeltaChip delta={change} />
-                  ) : null}
-                </div>
-              </div>
-              <SegmentedControl
-                aria-label="Time range"
-                value={range}
-                onChange={(r) => setRange(r as Range)}
-                options={[
-                  { value: '1M', label: '1M' },
-                  { value: '6M', label: '6M' },
-                  { value: '1Y', label: '1Y' },
-                  { value: 'All', label: 'All' },
-                ]}
-              />
+      {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+              'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
+          }}
+        />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
+            <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
+              {fmtUsd(heroValue)}
             </div>
-            {chartPoints.length >= 2 ? (
-              <div className="relative mt-5 pr-2 sm:pr-0">
-                <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
-              </div>
-            ) : (
-              <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
-                No data in this range.
-              </p>
-            )}
-          </section>
-        );
-      })() : (
-        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
-          <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Value</div>
-          <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
-            {fmtUsd(allPoints[0]?.value ?? balance)}
+            <div className="mt-3 flex min-h-[28px] items-center gap-2.5 flex-wrap">
+              {hoveredPoint ? (
+                <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
+                  {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              ) : hasHistory && heroChange !== 0 ? (
+                <>
+                  <DeltaChip delta={heroChange} />
+                  <span className="text-[13px] font-medium text-content-muted">over this period</span>
+                </>
+              ) : (
+                <span className="text-[13px] font-medium text-content-muted">
+                  {isManual ? 'Manually tracked' : lastSyncedAt ? `Synced ${relativeTime(lastSyncedAt)}` : 'Connected'}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="mt-4 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-9 text-center">
+          {hasHistory && chartPoints.length >= 2 && (
+            <SegmentedControl
+              aria-label="Time range"
+              value={range}
+              onChange={(r) => setRange(r as Range)}
+              options={[
+                { value: '1M', label: '1M' },
+                { value: '6M', label: '6M' },
+                { value: '1Y', label: '1Y' },
+                { value: 'All', label: 'All' },
+              ]}
+            />
+          )}
+        </div>
+
+        {hasHistory ? (
+          chartPoints.length >= 2 ? (
+            <div className="relative mt-5 pr-2 sm:pr-0">
+              <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+            </div>
+          ) : (
+            <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
+              No data in this range.
+            </p>
+          )
+        ) : (
+          <div className="relative mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-8 text-center">
             <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
               <TrendingUp size={20} />
             </div>
@@ -506,11 +568,21 @@ export function AccountDetail() {
               A value trend appears once we have a few days of history.
             </p>
           </div>
-        </section>
-      )}
+        )}
 
-      {/* ── Settings — collapsible Bright accordion (hidden by default). ── */}
-      <section className="mt-8 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+        {/* Key facts — read-only, at-a-glance context for this one account. */}
+        <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
+          {facts.map((f) => (
+            <div key={f.label} className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-faint">{f.label}</div>
+              <div className="mt-1 truncate text-[15px] font-bold text-content ui-tnum">{f.value}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Settings — collapsible, organized into on-skin sub-sections. ── */}
+      <section className="mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
         <button
           ref={settingsRef}
           type="button"
@@ -521,40 +593,47 @@ export function AccountDetail() {
             settingsOpen && 'border-b border-line',
           )}
         >
-          <span className="grid h-6 w-6 shrink-0 place-items-center text-content-faint">
-            <ChevronDown size={18} className={cn('transition-transform duration-200 ease-ui', !settingsOpen && '-rotate-90')} />
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
+            <Pencil size={14} />
           </span>
-          <span className="shrink-0 font-editorial text-[16.5px] font-bold tracking-[-0.01em]">Account settings</span>
+          <span className="shrink-0 font-editorial text-[16.5px] font-bold tracking-[-0.01em]">Settings</span>
           {!settingsOpen && (
             <span className="ml-auto min-w-0 truncate text-[13px] font-medium text-content-muted">{settingsSummary}</span>
           )}
+          <span className="grid h-6 w-6 shrink-0 place-items-center text-content-faint sm:ml-3">
+            <ChevronDown size={18} className={cn('transition-transform duration-200 ease-ui', !settingsOpen && '-rotate-90')} />
+          </span>
         </button>
 
         {settingsOpen && (
           <div className="p-4 sm:p-6">
+            {/* Details — name/value for manual accounts, or a read-only chip. */}
             {isManual ? (
-              <div className="space-y-4">
-                <Field label="Name">
-                  <Input type="text" value={name} onChange={(e) => setName(e.target.value)} />
-                </Field>
-                <Field label="Value">
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className="ui-tnum"
-                  />
-                </Field>
-              </div>
+              <SettingsGroup title="Details">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Name">
+                    <Input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+                  </Field>
+                  <Field label="Value">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="ui-tnum"
+                    />
+                  </Field>
+                </div>
+              </SettingsGroup>
             ) : (
-              <div className="mb-4 flex items-center justify-between gap-3 rounded-ui-md border border-line bg-canvas-sunken px-3.5 py-3">
-                <span className="min-w-0 truncate text-[14px] font-semibold text-content">{titleCase(acct.name)}</span>
+              <div className="flex items-center justify-between gap-3 rounded-ui-md border border-line bg-canvas-sunken px-3.5 py-3">
+                <span className="min-w-0 truncate text-[14px] font-semibold text-content">{displayName}</span>
                 <span className="shrink-0 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.06em] text-content-muted">Synced · read-only</span>
               </div>
             )}
 
-            <div className="mt-4">
+            {/* Classification — the reclassify select + cross-bucket warning. */}
+            <SettingsGroup title="Classification" className="mt-6">
               <Field label="Account type">
                 <Select value={typeKey} onChange={(e) => setTypeKey(e.target.value)}>
                   {options.map((o) => (
@@ -567,38 +646,35 @@ export function AccountDetail() {
                   </p>
                 )}
               </Field>
-            </div>
+            </SettingsGroup>
 
-            <div className="my-5 h-px bg-line" />
-
-            <div className="divide-y divide-line">
-              <Toggle
-                checked={excludeFromNetWorth}
-                onChange={setExcludeNW}
-                label="Exclude from net worth"
-                description={`Keep the account visible but leave its ${fmtUsd(Math.abs(displayedBalance))} out of net-worth totals and the chart.`}
-              />
-              <Toggle
-                checked={excludeTransactions}
-                onChange={setExcludeTx}
-                label="Exclude transactions"
-                description="Hide this account's transactions from spending and activity views."
-              />
-              <Toggle
-                checked={invertBalance}
-                onChange={setInvert}
-                label="Invert balance"
-                description={`Flip the sign of the balance. Currently counts as ${fmtUsd(displayedBalance)}${invertBalance ? ` (was ${fmtUsd(balance)})` : ''}.`}
-              />
-            </div>
+            {/* Display — the three balance-override toggles. */}
+            <SettingsGroup title="Display" className="mt-6">
+              <div className="divide-y divide-line">
+                <Toggle
+                  checked={excludeFromNetWorth}
+                  onChange={setExcludeNW}
+                  label="Exclude from net worth"
+                  description={`Keep the account visible but leave its ${fmtUsd(Math.abs(displayedBalance))} out of net-worth totals and the chart.`}
+                />
+                <Toggle
+                  checked={excludeTransactions}
+                  onChange={setExcludeTx}
+                  label="Exclude transactions"
+                  description="Hide this account's transactions from spending and activity views."
+                />
+                <Toggle
+                  checked={invertBalance}
+                  onChange={setInvert}
+                  label="Invert balance"
+                  description={`Flip the sign of the balance. Currently counts as ${fmtUsd(displayedBalance)}${invertBalance ? ` (was ${fmtUsd(balance)})` : ''}.`}
+                />
+              </div>
+            </SettingsGroup>
 
             {isLiabilityAcct && (
-              <>
-                <div className="my-5 h-px bg-line" />
-                <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
-                  Loan details
-                </p>
-                <div className="space-y-4">
+              <SettingsGroup title="Loan details" className="mt-6">
+                <div className="grid gap-4 sm:grid-cols-2">
                   {(loanType === 'mortgage' || loanType === 'other_loan') && (
                     <Field label="Maturity / payoff date">
                       <Input type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} />
@@ -635,12 +711,12 @@ export function AccountDetail() {
                     </Field>
                   )}
                 </div>
-              </>
+              </SettingsGroup>
             )}
 
-            <div className="mt-6 flex flex-wrap items-center gap-2.5">
+            <div className="mt-7 flex flex-wrap items-center gap-2.5 border-t border-line pt-5">
               <Button variant="primary" disabled={saving} loading={saving} onClick={save}>
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? 'Saving…' : 'Save changes'}
               </Button>
               {/* Sync / delete also surfaced here for mobile (header actions are desktop-only). */}
               {!isManual && (
@@ -659,7 +735,7 @@ export function AccountDetail() {
                   variant="destructive"
                   disabled={actionPending}
                   onClick={handleDelete}
-                  className="sm:hidden"
+                  className="ml-auto sm:hidden"
                   leadingIcon={<Trash2 size={14} />}
                 >
                   Delete
@@ -671,6 +747,49 @@ export function AccountDetail() {
       </section>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Settings sub-section — an eyebrow label over grouped controls.
+// ---------------------------------------------------------------------------
+
+function SettingsGroup({ title, className, children }: { title: string; className?: string; children: ReactNode }) {
+  return (
+    <div className={className}>
+      <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Institution avatar — favicon on a soft tile, initial fallback. Mirrors Money.
+// ---------------------------------------------------------------------------
+
+function InstIcon({ institution, isManual }: { institution: string; isManual: boolean }) {
+  const url = isManual ? null : faviconUrl(institutionDomainFor(institution), 64);
+  const mono = (institution || '?').trim().charAt(0).toUpperCase();
+  const [err, setErr] = useState(false);
+  return (
+    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-ui-md border border-line bg-canvas-sunken text-[16px] font-bold text-content-secondary shadow-ui-sm">
+      {url && !err ? (
+        <img src={url} alt="" className="h-7 w-7 rounded-[6px]" onError={() => setErr(true)} />
+      ) : (
+        mono
+      )}
+    </div>
+  );
+}
+
+// Relative time for the "synced" facts/subtitle (e.g. "3h ago").
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 // ---------------------------------------------------------------------------
@@ -729,6 +848,26 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
     const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
     return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
   }, [points]);
+
+  // Y-axis label formatter that keeps adjacent gridlines distinct. For a
+  // small-range account (e.g. 17,001–17,078) the default "$17K" abbreviation
+  // collapses every tick to the same string — so add precision, and fall back
+  // to a full grouped figure once one decimal still isn't enough.
+  const formatYTick = useMemo(() => {
+    const maxAbs = Math.max(...yTicks.map((t) => Math.abs(t)), 1);
+    const step = yTicks.length > 1 ? Math.abs(yTicks[1] - yTicks[0]) : 0;
+    const unit = maxAbs >= 1e6 ? 1e6 : maxAbs >= 1e3 ? 1e3 : 1;
+    const suffix = unit >= 1e6 ? 'M' : unit >= 1e3 ? 'K' : '';
+    const decimals = unit > 1 && step > 0 && step < unit
+      ? Math.min(2, Math.max(1, Math.ceil(Math.log10(unit / step))))
+      : 0;
+    return (t: number): string => {
+      if (unit > 1 && decimals >= 2) {
+        return t.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+      }
+      return `${t < 0 ? '-' : ''}$${(Math.abs(t) / unit).toFixed(decimals)}${suffix}`;
+    };
+  }, [yTicks]);
 
   const xAt = (i: number) => CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
   const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
@@ -790,7 +929,7 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
               fill="rgb(var(--ui-content-faint))"
               style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
             >
-              {formatShortMoney(t)}
+              {formatYTick(t)}
             </text>
           </g>
         ))}

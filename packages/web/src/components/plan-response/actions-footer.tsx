@@ -8,15 +8,19 @@ export function ActionsFooter({ actions }: ActionsFooterProps) {
   if (!actions.length) return null;
 
   return (
-    <div data-testid="actions-footer" className="mt-8 p-6 rounded-2xl bg-gradient-to-b from-[#141416] to-[#0f0f11] border border-accent/10">
-      <h3 className="font-mono text-[11px] font-semibold text-accent uppercase tracking-[0.14em] mb-4">
-        Recommended Next Steps
+    <div
+      data-testid="actions-footer"
+      className="relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7"
+    >
+      <span className="absolute inset-y-0 left-0 w-1 bg-[rgb(var(--ui-accent))]" aria-hidden />
+      <h3 className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--ui-accent-ink))]">
+        Recommended next steps
       </h3>
       <ul className="space-y-3">
         {actions.map((action, i) => (
           <li key={i} className="flex items-start gap-3">
-            <ArrowRight className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
-            <span className="text-text-secondary">{action}</span>
+            <ArrowRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-[rgb(var(--ui-accent-ink))]" />
+            <span className="text-[14.5px] leading-relaxed text-content-secondary">{action}</span>
           </li>
         ))}
       </ul>

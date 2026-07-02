@@ -12,19 +12,19 @@ export function CollapseDirective({ title, content }: CollapseDirectiveProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="my-6 border border-border/50 rounded-xl overflow-hidden">
+    <div className="my-6 border border-line rounded-ui-lg overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 bg-surface/30 hover:bg-surface/50 transition-colors"
+        className="w-full flex items-center justify-between p-4 bg-canvas-sunken hover:bg-canvas-sunken/70 transition-colors min-h-touch"
       >
-        <span className="text-sm font-medium text-text">{title}</span>
+        <span className="text-[14px] font-bold text-content">{title}</span>
         <ChevronDown
-          className={cn('w-4 h-4 text-text-secondary transition-transform', isOpen && 'rotate-180')}
+          className={cn('w-4 h-4 text-content-muted transition-transform', isOpen && 'rotate-180')}
         />
       </button>
       {isOpen && (
-        <div className="p-4 border-t border-border/50">
-          <div className="prose prose-sm prose-invert max-w-none prose-p:text-text-secondary">
+        <div className="p-4 border-t border-line">
+          <div className="prose prose-sm max-w-none prose-p:text-content-secondary prose-strong:text-content prose-li:text-content-secondary marker:text-content-faint">
             <ReactMarkdown>{content}</ReactMarkdown>
           </div>
         </div>

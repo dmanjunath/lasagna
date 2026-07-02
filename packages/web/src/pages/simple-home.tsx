@@ -130,7 +130,7 @@ function DeltaChip({ delta, suffix }: { delta: number; suffix?: string }) {
   const positive = delta >= 0;
   return (
     <span
-      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
+      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum whitespace-nowrap shrink-0"
       style={{
         background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
         color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
@@ -542,7 +542,7 @@ function NetWorthBreakdown({
   const segments = [
     breakdown.cash > 0 && { key: 'cash', label: 'Cash', value: breakdown.cash, count: breakdown.cashCount, color: 'var(--ui-viz-1)' },
     breakdown.investments > 0 && { key: 'inv', label: 'Investments', value: breakdown.investments, count: breakdown.investmentsCount, color: 'var(--ui-viz-2)' },
-    breakdown.assets > 0 && { key: 'prop', label: assetsLabel(breakdown), value: breakdown.assets, count: breakdown.assetsCount, color: 'var(--ui-viz-3)' },
+    breakdown.assets > 0 && { key: 'prop', label: assetsLabel(breakdown), value: breakdown.assets, count: breakdown.assetsCount, color: 'var(--ui-viz-5)' },
   ].filter(Boolean) as CompSegment[];
 
   // Debt stacked-bar segments (Credit cards · Loans) — warm/coral, reads as liability.
@@ -562,7 +562,7 @@ function NetWorthBreakdown({
             'radial-gradient(90% 70% at 0% 8%, var(--ui-accent-softer), transparent 60%)',
         }}
       />
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Where your wealth stands</h2>
           <p className="mt-1 text-[13.5px] font-medium text-content-muted max-w-[52ch]">
@@ -571,15 +571,38 @@ function NetWorthBreakdown({
         </div>
         <button
           onClick={onOpenMoney}
-          className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+          className="self-start shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
         >
           Open Money <ArrowRight className="h-4 w-4" />
         </button>
       </div>
 
       <div className="relative mt-6">
-        {/* Assets − Debt = Net worth — one horizontal line on desktop (terms stack on mobile) */}
-        <div className="flex flex-col sm:flex-row sm:items-end gap-x-6 lg:gap-x-9 gap-y-4 sm:flex-wrap">
+        {/* Mobile: statement rows fill the width (label left, value right); the
+            rule marks net worth as the own − owe total. Desktop keeps the
+            single-line equation below. */}
+        <div className="sm:hidden">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</span>
+            <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{fmtUsd(assetTotal)}</span>
+          </div>
+          <div className="mt-3 flex items-baseline justify-between gap-3">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em]" style={{ color: 'rgb(var(--ui-negative))' }}>Debt</span>
+            <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum" style={{ color: 'rgb(var(--ui-negative))' }}>{fmtUsd(breakdown.debts)}</span>
+          </div>
+          <div className="mt-3 pt-3 border-t border-line flex items-baseline justify-between gap-3">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</span>
+            <span className="font-editorial text-[31px] font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">{fmtUsd(breakdown.netWorth)}</span>
+          </div>
+          {monthDelta !== null && (
+            <div className="mt-2 flex justify-end">
+              <DeltaChip delta={monthDelta} suffix="30d" />
+            </div>
+          )}
+        </div>
+
+        {/* Assets − Debt = Net worth — one horizontal line on desktop */}
+        <div className="hidden sm:flex sm:items-end gap-x-6 lg:gap-x-9 sm:flex-wrap">
           {/* ASSETS */}
           <div className="min-w-0">
             <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets · what you own</div>
@@ -607,7 +630,7 @@ function NetWorthBreakdown({
               Assets/Debt so all three numbers share a baseline under items-end. */}
           <div className="min-w-0">
             <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</div>
-            <div className="mt-1 flex items-end gap-2.5">
+            <div className="mt-1 flex items-end gap-x-2.5 gap-y-2 flex-wrap">
               <span className="font-editorial text-[30px] sm:text-[34px] font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">
                 {fmtUsd(breakdown.netWorth)}
               </span>
@@ -683,7 +706,7 @@ function MoveCard({
       </div>
       <div className="relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[18px_20px] sm:p-[22px_24px] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md">
         <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: a.bar }} />
-        <div className="flex items-start gap-5">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-5">
           <div className="flex-1 min-w-0">
             <span
               className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-[0.05em] mb-3"
@@ -695,11 +718,11 @@ function MoveCard({
             {why && <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-3 max-w-[50ch]">{why}</p>}
           </div>
           {impactVal && (
-            <div className="text-right shrink-0 pl-2.5 min-w-[88px]">
-              <div className="font-editorial text-[24px] sm:text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum" style={{ color: a.text }}>
+            <div className="w-full sm:w-auto flex items-baseline gap-1.5 sm:block border-t border-line pt-2.5 sm:border-t-0 sm:pt-0 text-left sm:text-right shrink-0 sm:pl-2.5 sm:min-w-[88px]">
+              <div className="font-editorial text-[22px] sm:text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum" style={{ color: a.text }}>
                 {impactVal}
               </div>
-              {impactLab && <div className="mt-1.5 text-[12px] font-semibold text-content-muted">{impactLab}</div>}
+              {impactLab && <div className="text-[12px] font-semibold text-content-muted sm:mt-1.5">{impactLab}</div>}
             </div>
           )}
         </div>

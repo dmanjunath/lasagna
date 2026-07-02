@@ -1,4 +1,5 @@
 import { Moon, Sun } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { useUiMode } from '../uikit/mode';
 import { BrandMark } from '../common/BrandMark';
 
@@ -18,7 +19,13 @@ interface AppHeaderProps {
  */
 export function AppHeader({ leadingSlot }: AppHeaderProps) {
   const { mode, toggle } = useUiMode();
+  const [location] = useLocation();
   const isDark = mode === 'dark';
+  // Home has no page H1 (just a greeting), so it carries the brand wordmark.
+  // Inner pages already lead with their own large title, so the top bar drops
+  // the redundant wordmark and shows a centered mark — a slim utility strip
+  // instead of a second stacked header band.
+  const isHome = location === '/';
   return (
     <header
       className="fixed top-0 inset-x-0 z-30 border-b border-line pt-safe-top backdrop-blur-md"
@@ -26,12 +33,18 @@ export function AppHeader({ leadingSlot }: AppHeaderProps) {
     >
       <div className="mx-auto px-4 h-14 flex items-center gap-2">
         <div className="w-11 -ml-2 shrink-0 flex items-center">{leadingSlot}</div>
-        <div className="flex-1 flex items-center gap-2.5 min-w-0">
-          <BrandMark size={32} />
-          <span className="font-editorial text-[17px] font-semibold text-content leading-none tracking-[-0.01em]">
-            LasagnaFi
-          </span>
-        </div>
+        {isHome ? (
+          <div className="flex-1 flex items-center gap-2.5 min-w-0">
+            <BrandMark size={32} />
+            <span className="font-editorial text-[17px] font-semibold text-content leading-none tracking-[-0.01em]">
+              LasagnaFi
+            </span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center min-w-0">
+            <BrandMark size={28} />
+          </div>
+        )}
         <button
           type="button"
           onClick={toggle}

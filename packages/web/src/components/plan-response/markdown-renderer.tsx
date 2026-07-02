@@ -32,25 +32,26 @@ export function MarkdownRenderer({ content, toolResults }: MarkdownRendererProps
               <div key={i} className="response-text">
                 <div
                   className={cn(
-                    'prose prose-invert max-w-none',
-                    // Paragraphs - editorial quality with proper spacing
-                    'prose-p:text-text-secondary prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4',
-                    // H2 - Section headers with accent underline
-                    'prose-h2:text-[22px] prose-h2:font-semibold prose-h2:text-white prose-h2:mt-8 prose-h2:mb-4 prose-h2:tracking-tight',
-                    '[&_h2]:after:content-[""] [&_h2]:after:block [&_h2]:after:w-10 [&_h2]:after:h-[3px] [&_h2]:after:bg-accent [&_h2]:after:mt-3 [&_h2]:after:rounded-sm',
+                    'prose max-w-none',
+                    // Paragraphs - editorial quality, on-skin secondary text
+                    'prose-p:text-content-secondary prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4',
+                    // H2 - Section headers with periwinkle accent underline
+                    'prose-h2:text-[22px] prose-h2:font-bold prose-h2:text-content prose-h2:mt-8 prose-h2:mb-4 prose-h2:tracking-tight',
+                    '[&_h2]:after:content-[""] [&_h2]:after:block [&_h2]:after:w-10 [&_h2]:after:h-[3px] [&_h2]:after:bg-[rgb(var(--ui-accent))] [&_h2]:after:mt-3 [&_h2]:after:rounded-sm',
                     // H3 - Subsection headers
-                    'prose-h3:text-[16px] prose-h3:font-semibold prose-h3:text-accent prose-h3:mt-6 prose-h3:mb-3',
-                    // Strong text - accent color for emphasis
-                    'prose-strong:text-accent prose-strong:font-semibold',
+                    'prose-h3:text-[16px] prose-h3:font-semibold prose-h3:text-[rgb(var(--ui-accent-ink))] prose-h3:mt-6 prose-h3:mb-3',
+                    // Strong text - emphasis
+                    'prose-strong:text-content prose-strong:font-bold',
                     // Lists - proper spacing
                     'prose-ul:my-4 prose-ul:space-y-2 prose-ol:my-4 prose-ol:space-y-2',
-                    'prose-li:text-text-secondary prose-li:leading-relaxed prose-li:mb-1',
+                    'prose-li:text-content-secondary prose-li:leading-relaxed prose-li:mb-1',
+                    'marker:text-content-faint',
                     // Links
-                    'prose-a:text-accent prose-a:no-underline hover:prose-a:underline',
+                    'prose-a:text-[rgb(var(--ui-accent-ink))] prose-a:no-underline hover:prose-a:underline',
                     // Code
-                    'prose-code:text-accent prose-code:bg-black/30 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm',
+                    'prose-code:text-content prose-code:bg-canvas-sunken prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-semibold',
                     // HR - subtle divider
-                    'prose-hr:border-accent/20 prose-hr:my-6'
+                    'prose-hr:border-line prose-hr:my-6'
                   )}
                 >
                   <ReactMarkdown>{segment.content}</ReactMarkdown>
@@ -117,7 +118,7 @@ export function MarkdownRenderer({ content, toolResults }: MarkdownRendererProps
           }
           case 'unknown':
             return (
-              <pre key={i} className="p-4 bg-surface rounded-xl text-xs text-text-secondary overflow-x-auto">
+              <pre key={i} className="p-4 bg-canvas-sunken rounded-ui-md text-xs text-content-secondary overflow-x-auto">
                 {segment.raw}
               </pre>
             );

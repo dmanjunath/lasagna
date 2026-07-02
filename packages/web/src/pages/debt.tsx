@@ -497,13 +497,14 @@ function AccountStat({ label, value, neg }: { label: string; value: string; neg?
 }
 
 function AccountCard({
-  debt: d, maxBalance, isDemo, onEdit, onPlan,
+  debt: d, maxBalance, isDemo, onEdit, onPlan, className,
 }: {
   debt: DebtAccount;
   maxBalance: number;
   isDemo: boolean;
   onEdit: () => void;
   onPlan: () => void;
+  className?: string;
 }) {
   const high = d.apr > 20;
   const share = maxBalance > 0 ? Math.max(4, (Math.abs(d.balance) / maxBalance) * 100) : 0;
@@ -511,7 +512,7 @@ function AccountCard({
     ? new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : d.suggestedPayoffDate;
   return (
-    <div className="flex flex-col rounded-ui-xl border border-line bg-panel p-4 shadow-ui-sm transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md">
+    <div className={cn("flex flex-col rounded-ui-xl border border-line bg-panel p-4 shadow-ui-sm transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md", className)}>
       <div className="flex items-start gap-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-secondary">
           {d.type === 'credit' ? <CreditCard size={16} /> : <Landmark size={16} />}
@@ -775,12 +776,19 @@ function HasDebtView({
         </div>
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {orderedDebts.map((d) => (
+          {orderedDebts.map((d, i) => (
             <AccountCard
               key={d.id}
               debt={d}
               maxBalance={maxBalance}
               isDemo={isDemo}
+              // A lone final card in the 2-col grid would leave an empty right
+              // column — center it across the row instead of orphaning it.
+              className={
+                orderedDebts.length % 2 === 1 && i === orderedDebts.length - 1
+                  ? "lg:col-span-2 lg:mx-auto lg:w-[calc(50%-6px)]"
+                  : undefined
+              }
               onEdit={() => onEditDebt(d)}
               onPlan={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`)}
             />

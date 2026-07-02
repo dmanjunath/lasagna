@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactElement } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { Check, ChevronLeft, Clock, Sparkles } from 'lucide-react';
+import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { Button, Eyebrow, EmptyState, Skeleton } from '../components/uikit';
+import { Button, Eyebrow, EmptyState, Skeleton, Field, Input } from '../components/uikit';
 import { useConfirm } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountChips } from './goal-shared';
 
@@ -61,6 +61,11 @@ function shortDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+// "Mark complete" is a manual archive action — it only makes sense once a goal
+// has real progress. Below this we hide it (a $0 / just-started goal shouldn't
+// offer "complete"); a goal that's already Reached hides it too (see render).
+const MARK_COMPLETE_THRESHOLD = 50;
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -140,15 +145,29 @@ export function SavingsGoal() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[900px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
-        <Skeleton className="h-4 w-16" />
-        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="mt-3 h-10 w-72" />
-          <Skeleton className="mt-5 h-2.5 w-full rounded-full" />
-          <Skeleton className="mt-4 h-3 w-2/3" />
+      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+        <Skeleton className="h-4 w-24" />
+        <div className="mt-4 flex items-center gap-3.5">
+          <Skeleton className="h-[54px] w-[54px] rounded-[16px]" />
+          <div>
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-8 w-56" />
+          </div>
         </div>
         <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+          <div className="flex flex-col gap-7 lg:flex-row lg:justify-between">
+            <div className="flex-1">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="mt-3 h-11 w-72" />
+              <Skeleton className="mt-5 h-3 w-full rounded-full" />
+            </div>
+            <div className="flex gap-3.5">
+              <Skeleton className="h-[86px] w-[120px] rounded-ui-lg" />
+              <Skeleton className="h-[86px] w-[120px] rounded-ui-lg" />
+            </div>
+          </div>
+        </div>
+        <div className="mt-8 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
           <Skeleton className="h-4 w-40" />
           <Skeleton className="mt-4 h-12 w-full rounded-ui-md" />
           <Skeleton className="mt-2.5 h-12 w-full rounded-ui-md" />
@@ -159,7 +178,7 @@ export function SavingsGoal() {
 
   if (notFound || !goal) {
     return (
-      <div className="mx-auto max-w-[900px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
         <EmptyState
           icon={<Sparkles className="h-6 w-6" />}
           title="Goal not found"
@@ -324,13 +343,30 @@ export function SavingsGoal() {
 
   // -- Render -----------------------------------------------------------------
 
-  const inputClass =
-    'w-full h-11 min-h-touch rounded-ui-md border border-line-strong bg-panel px-3.5 text-[16px] text-content ' +
-    'shadow-ui-sm placeholder:text-content-faint outline-none transition-[border-color,box-shadow] ' +
-    'focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)]';
+  // Satellite stat tiles for the hero — real data only. To-go/surplus always,
+  // target date only when a deadline exists, tracking source always.
+  const trackingLabel = goal.isAutoTracked ? 'Auto' : 'Manual';
+  const trackingCaption = goal.isAutoTracked
+    ? `from ${goal.accountIds.length} account${goal.accountIds.length === 1 ? '' : 's'}`
+    : 'manual entry';
 
   return (
-    <div className="mx-auto max-w-[900px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      <style>{`
+        .sg-shine::after {
+          content: ""; position: absolute; inset: 0; border-radius: 999px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+          transform: translateX(-100%); animation: sgshine 2.8s ease-in-out 1s infinite;
+        }
+        @keyframes sgshine { 0% { transform: translateX(-100%) } 55%, 100% { transform: translateX(220%) } }
+        .sg-rise { opacity: 0; transform: translateY(12px); animation: sgrise 0.5s cubic-bezier(0.22,1,0.36,1) forwards; }
+        @keyframes sgrise { to { opacity: 1; transform: none } }
+        @media (prefers-reduced-motion: reduce) {
+          .sg-shine::after { animation: none }
+          .sg-rise { animation: none; opacity: 1; transform: none }
+        }
+      `}</style>
+
       {/* ── Back ── */}
       <button
         type="button"
@@ -341,17 +377,22 @@ export function SavingsGoal() {
       </button>
 
       {/* ── Header ── */}
-      <header className="mt-3 flex flex-wrap items-start justify-between gap-4">
+      <header className="mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-3.5">
         <div className="flex min-w-0 items-center gap-3.5">
           <span
-            className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[15px] text-white"
+            className="grid h-[54px] w-[54px] shrink-0 place-items-center rounded-[16px] text-white"
             style={{ background: accent, boxShadow: 'var(--ui-shadow-sm), inset 0 1px 0 rgba(255,255,255,0.3)' }}
           >
-            {iconFor(goal.icon, 26)}
+            {iconFor(goal.icon, 27)}
           </span>
           <div className="min-w-0">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">
-              {categoryLabel}
+            <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">
+              <span className="truncate">{categoryLabel}</span>
+              {goal.status === 'completed' && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[10px] text-[rgb(var(--ui-brand-ink))]">
+                  <Check className="h-2.5 w-2.5" strokeWidth={3} /> Completed
+                </span>
+              )}
             </div>
             <h1 className="mt-0.5 font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.05] tracking-[-0.024em] text-content">
               {goal.name}
@@ -359,8 +400,7 @@ export function SavingsGoal() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={openEdit}>Edit</Button>
-          {goal.status === 'active' && (
+          {goal.status === 'active' && !complete && pct >= MARK_COMPLETE_THRESHOLD && (
             <Button variant="primary" size="sm" disabled={actionPending} onClick={markComplete}>
               {actionPending ? '…' : 'Mark complete'}
             </Button>
@@ -370,9 +410,7 @@ export function SavingsGoal() {
               {actionPending ? '…' : 'Reactivate'}
             </Button>
           )}
-          <Button variant="destructive" size="sm" disabled={actionPending} onClick={handleDelete}>
-            {actionPending ? '…' : 'Delete'}
-          </Button>
+          <Button variant="secondary" size="sm" onClick={openEdit}>Edit</Button>
         </div>
       </header>
 
@@ -383,117 +421,127 @@ export function SavingsGoal() {
       )}
 
       {/* ── Progress hero ── */}
-      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+      <section
+        className="sg-rise relative mt-6 overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm p-6 sm:p-7"
+        style={{ borderColor: complete ? 'color-mix(in srgb, rgb(var(--ui-brand)) 34%, var(--ui-hairline))' : 'var(--ui-hairline)' }}
+      >
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            background:
-              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
-              'radial-gradient(90% 80% at 0% 10%, var(--ui-brand-softer), transparent 60%)',
+            background: complete
+              ? 'radial-gradient(120% 95% at 100% 0%, var(--ui-brand-soft), transparent 58%),' +
+                'radial-gradient(90% 80% at 0% 10%, var(--ui-brand-softer), transparent 60%)'
+              : 'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+                'radial-gradient(90% 80% at 0% 10%, var(--ui-brand-softer), transparent 60%)',
           }}
         />
-        <div className="relative">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="min-w-0">
-              <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-                Saved toward goal
-              </span>
-              <div className="mt-2 font-editorial text-[32px] sm:text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
+        <div className="relative flex flex-col gap-7 lg:flex-row lg:items-stretch lg:justify-between">
+          {/* left — headline + bar */}
+          <div className="min-w-0 flex-1">
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              Saved toward goal
+            </span>
+            <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-2">
+              <div className="font-editorial text-[34px] sm:text-[46px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
                 {formatCurrency(current)}{' '}
-                <span className="text-[0.5em] font-bold text-content-muted">of {formatCurrency(target)}</span>
+                <span className="text-[0.48em] font-bold text-content-muted">of {formatCurrency(target)}</span>
               </div>
-            </div>
-            {complete ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3.5 py-1.5 font-editorial text-[15px] font-extrabold text-[rgb(var(--ui-brand-ink))]">
-                <Check className="h-4 w-4" strokeWidth={3} /> Reached
-              </span>
-            ) : (
-              <span className="shrink-0 font-editorial text-[30px] sm:text-[34px] font-extrabold leading-none tracking-[-0.02em] ui-tnum">
-                {Math.round(pct)}%
-              </span>
-            )}
-          </div>
-
-          {/* progress bar — each terminal state intentionally distinct */}
-          <div className="mt-5">
-            {complete ? (
-              <div className="h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
-                <div
-                  className="h-full w-full rounded-full"
-                  style={{ background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))' }}
-                />
-              </div>
-            ) : notStarted ? (
-              <div className="relative h-2.5 overflow-hidden rounded-full bg-canvas-sunken" style={{ color: accent }}>
-                <div
-                  className="absolute inset-0 opacity-[0.16]"
-                  style={{ backgroundImage: 'repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 11px)' }}
-                />
-                <div className="absolute inset-y-0 left-0 w-3.5 rounded-full" style={{ background: 'currentColor' }} />
-              </div>
-            ) : (
-              <div className="h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
-                <div
-                  className="h-full rounded-full transition-[width] duration-500"
-                  style={{ width: `${barPct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 60%, transparent), ${accent})` }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* meta — real state + real target date only */}
-          <div className="mt-3.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] font-semibold text-content-secondary ui-tnum">
-            {complete ? (
-              <span className="font-bold text-content">
-                {surplus >= 1 ? `${formatCurrency(surplus)} over target` : 'Fully funded'}
-              </span>
-            ) : (
-              <span><span className="font-bold text-content">{formatCurrency(remaining)}</span> to go</span>
-            )}
-            {deadlineMonth && (
-              <>
-                <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-                <span className="inline-flex items-center gap-1.5 font-medium text-content-muted">
-                  <Clock className="h-3.5 w-3.5 text-content-faint" /> Target {deadlineMonth}
+              {complete ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3.5 py-1.5 font-editorial text-[15px] font-extrabold text-[rgb(var(--ui-brand-ink))]">
+                  <Check className="h-4 w-4" strokeWidth={3} /> Reached
                 </span>
-              </>
-            )}
-            {!complete && deadlineCountdown && (
-              <>
-                <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-                <span className="font-medium text-content-muted">{deadlineCountdown}</span>
-              </>
-            )}
+              ) : (
+                <span className="font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] text-content-secondary ui-tnum">
+                  {Math.round(pct)}%
+                </span>
+              )}
+            </div>
+
+            {/* progress bar — each terminal state intentionally distinct */}
+            <div className="mt-5">
+              {complete ? (
+                <div className="h-3 overflow-hidden rounded-full bg-canvas-sunken">
+                  <div
+                    className="sg-shine relative h-full w-full rounded-full"
+                    style={{ background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))' }}
+                  />
+                </div>
+              ) : notStarted ? (
+                <div className="relative h-3 overflow-hidden rounded-full bg-canvas-sunken" style={{ color: accent }}>
+                  <div
+                    className="absolute inset-0 opacity-[0.16]"
+                    style={{ backgroundImage: 'repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 11px)' }}
+                  />
+                  <div className="absolute inset-y-0 left-0 w-4 rounded-full" style={{ background: 'currentColor' }} />
+                </div>
+              ) : (
+                <div className="h-3 overflow-hidden rounded-full bg-canvas-sunken">
+                  <div
+                    className="h-full rounded-full transition-[width] duration-500"
+                    style={{ width: `${barPct}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 60%, transparent), ${accent})` }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* status line — real state only */}
+            <div className="mt-3.5 text-[13.5px] font-semibold text-content-secondary ui-tnum">
+              {complete ? (
+                <span className="inline-flex items-center gap-1.5 font-bold text-content">
+                  <Sparkles className="h-4 w-4 text-brand" />
+                  {surplus >= 1 ? `${formatCurrency(surplus)} over target — nicely done` : 'Fully funded — nicely done'}
+                </span>
+              ) : notStarted ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-content-faint" /> Not started yet — make a first deposit to get going
+                </span>
+              ) : (
+                <span><span className="font-bold text-content">{formatCurrency(remaining)}</span> left to reach your target</span>
+              )}
+            </div>
           </div>
 
-          {goal.isAutoTracked && (
-            <div className="mt-4 flex flex-col gap-1.5">
-              <span
-                className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-bold text-[rgb(var(--ui-brand-ink))]"
-                title={
-                  linkedAccounts.length > 0
-                    ? `Tracked from: ${linkedAccounts.map((a) => a.name).join(', ')}`
-                    : undefined
-                }
-              >
-                Auto · {goal.accountIds.length} account{goal.accountIds.length === 1 ? '' : 's'}
-              </span>
-              <p className="text-[12px] text-content-muted">
-                Progress is tracked automatically from the linked accounts below.
-              </p>
-            </div>
-          )}
+          {/* right — satellite stat tiles */}
+          <div className="grid grid-cols-2 gap-3 sm:auto-cols-[minmax(128px,1fr)] sm:grid-flow-col lg:flex lg:shrink-0 lg:items-stretch">
+            <StatTile
+              label={complete ? 'Over target' : 'To go'}
+              value={complete ? (surplus >= 1 ? formatCurrency(surplus) : 'On target') : formatCurrency(remaining)}
+              caption={complete ? 'above your goal' : `of ${formatCurrency(target)}`}
+              accent={complete}
+            />
+            {deadlineMonth ? (
+              <StatTile
+                label="Target date"
+                value={deadlineMonth}
+                caption={deadlineCountdown ?? undefined}
+                icon={<Clock className="h-3.5 w-3.5" />}
+              />
+            ) : (
+              <AddTargetTile onClick={openEdit} />
+            )}
+            <StatTile
+              label="Tracking"
+              value={trackingLabel}
+              caption={trackingCaption}
+              icon={<Wallet className="h-3.5 w-3.5" />}
+            />
+          </div>
         </div>
       </section>
 
       {/* ── Linked accounts ── */}
       <section className="mt-8">
         <div className="flex items-end justify-between gap-4">
-          <div className="flex items-baseline gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+              aria-hidden
+            />
             <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Linked accounts</h2>
             {linkedAccounts.length > 0 && (
-              <span className="text-[12.5px] font-semibold text-content-muted">{linkedAccounts.length} linked</span>
+              <span className="text-[12.5px] font-semibold text-content-muted">· {linkedAccounts.length} linked</span>
             )}
           </div>
           {!editingAccounts && (
@@ -505,7 +553,7 @@ export function SavingsGoal() {
           <div ref={accountsPanelRef} className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
             <Eyebrow>Linked accounts</Eyebrow>
             <p className="mt-1.5 mb-4 text-[12.5px] text-content-muted">
-              Remove all accounts to track this goal manually.
+              Linked accounts auto-track this goal from their live balances. Remove all to track it manually.
             </p>
             {fundableAccounts.length > 0 ? (
               <AccountChips
@@ -533,8 +581,14 @@ export function SavingsGoal() {
             {linkedAccounts.map((row) => (
               <div
                 key={row.id}
-                className="flex items-center gap-3.5 border-t border-line px-4 py-3.5 first:border-t-0 sm:px-5"
+                className="flex items-center gap-3.5 border-t border-line px-4 py-3.5 transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-brand-softer sm:px-5"
               >
+                <span
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-md"
+                  style={{ background: `color-mix(in srgb, ${accent} 12%, transparent)`, color: accent }}
+                >
+                  <Wallet className="h-[18px] w-[18px]" />
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[14.5px] font-bold leading-tight">
                     {row.name}
@@ -553,10 +607,16 @@ export function SavingsGoal() {
             ))}
           </div>
         ) : (
-          <div className="mt-4 rounded-ui-xl border border-dashed border-line-strong bg-canvas-sunken/40 px-5 py-6 text-center">
-            <p className="text-[13.5px] text-content-muted">
-              Not linked to any accounts — this goal's amount is tracked manually.
-            </p>
+          <div className="mt-4 flex items-center gap-3.5 rounded-ui-xl border border-dashed border-line-strong bg-canvas-sunken/40 px-5 py-6">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
+              <Wallet className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[13.5px] font-semibold text-content">Tracked manually</p>
+              <p className="mt-0.5 text-[12.5px] text-content-muted">
+                Not linked to any accounts. Link one to auto-track progress, or edit the amount by hand.
+              </p>
+            </div>
           </div>
         )}
       </section>
@@ -564,55 +624,57 @@ export function SavingsGoal() {
       {/* ── Edit goal ── */}
       {editing && (
         <section ref={editPanelRef} className="mt-8">
-          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Edit goal</h2>
+          <div className="flex items-center gap-2.5">
+            <span
+              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+              aria-hidden
+            />
+            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Edit goal</h2>
+          </div>
           <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
             <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-              <label className="space-y-1.5">
-                <span className="block text-[13px] font-medium text-content-secondary">Goal name</span>
-                <input
+              <Field label="Goal name">
+                <Input
                   ref={editNameRef}
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className={inputClass}
                 />
-              </label>
-              <label className="space-y-1.5">
-                <span className="block text-[13px] font-medium text-content-secondary">Target amount</span>
-                <div className="relative">
-                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] text-content-muted">$</span>
-                  <input
-                    type="number"
-                    value={editTarget}
-                    onChange={(e) => setEditTarget(e.target.value)}
-                    className={`${inputClass} pl-7 ui-tnum`}
-                  />
-                </div>
-              </label>
-              <label className="space-y-1.5">
-                <span className="block text-[13px] font-medium text-content-secondary">Target date</span>
-                <input
+              </Field>
+              <Field label="Target amount">
+                <Input
+                  type="number"
+                  value={editTarget}
+                  onChange={(e) => setEditTarget(e.target.value)}
+                  className="ui-tnum"
+                  leadingIcon={<span className="text-[13px]">$</span>}
+                />
+              </Field>
+              <Field label="Target date">
+                <Input
                   type="date"
                   value={editDeadline}
                   onChange={(e) => setEditDeadline(e.target.value)}
-                  className={inputClass}
                 />
-              </label>
+              </Field>
               {!goal.isAutoTracked && (
-                <label className="space-y-1.5">
-                  <span className="block text-[13px] font-medium text-content-secondary">Current amount</span>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] text-content-muted">$</span>
-                    <input
-                      type="number"
-                      value={editCurrent}
-                      onChange={(e) => setEditCurrent(e.target.value)}
-                      className={`${inputClass} pl-7 ui-tnum`}
-                    />
-                  </div>
-                </label>
+                <Field label="Current amount">
+                  <Input
+                    type="number"
+                    value={editCurrent}
+                    onChange={(e) => setEditCurrent(e.target.value)}
+                    className="ui-tnum"
+                    leadingIcon={<span className="text-[13px]">$</span>}
+                  />
+                </Field>
               )}
             </div>
+            {goal.isAutoTracked && (
+              <p className="mt-3.5 text-[12px] text-content-muted">
+                This goal auto-tracks from its linked accounts, so the current amount can't be edited here.
+              </p>
+            )}
             <div className="mt-5 flex gap-2.5">
               <Button
                 variant="primary"
@@ -633,6 +695,77 @@ export function SavingsGoal() {
           </div>
         </section>
       )}
+
+      {/* ── Danger zone ── */}
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+        <p className="text-[12.5px] text-content-muted">
+          Deleting removes this goal permanently. Your linked accounts are not affected.
+        </p>
+        <button
+          type="button"
+          disabled={actionPending}
+          onClick={handleDelete}
+          className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-md px-3 text-[13px] font-bold text-negative transition-colors hover:bg-negative-soft disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          {actionPending ? 'Working…' : 'Delete goal'}
+        </button>
+      </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// StatTile — satellite figure in the hero (label · value · caption).
+// ---------------------------------------------------------------------------
+
+function StatTile({
+  label, value, caption, icon, accent,
+}: {
+  label: string;
+  value: string;
+  caption?: string;
+  icon?: ReactElement;
+  accent?: boolean;
+}) {
+  return (
+    <div className="min-w-[112px] rounded-ui-lg border border-line bg-panel/70 shadow-ui-sm p-3.5 backdrop-blur-sm lg:flex-1">
+      <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
+        {icon && <span className="text-content-faint">{icon}</span>}
+        {label}
+      </div>
+      <div
+        className="mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum"
+        style={accent ? { color: 'rgb(var(--ui-brand-ink))' } : undefined}
+      >
+        {value}
+      </div>
+      {caption && <div className="mt-1.5 truncate text-[11.5px] font-semibold text-content-muted ui-tnum">{caption}</div>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AddTargetTile — placeholder in the hero's stat row when a goal has no target
+// date, so the row stays symmetric (3 tiles) instead of trailing a gap. Opens
+// the edit form where the date can be set.
+// ---------------------------------------------------------------------------
+
+function AddTargetTile({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="ui-focus min-w-[112px] rounded-ui-lg border border-dashed border-line-strong bg-panel/40 p-3.5 text-left backdrop-blur-sm transition-colors hover:border-[rgb(var(--ui-accent))]/50 hover:bg-[var(--ui-accent-softer)] lg:flex-1"
+    >
+      <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
+        <Clock className="h-3.5 w-3.5 text-content-faint" />
+        Target date
+      </div>
+      <div className="mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] text-[rgb(var(--ui-accent-ink))]">
+        Set a date
+      </div>
+      <div className="mt-1.5 truncate text-[11.5px] font-semibold text-content-muted">add a deadline</div>
+    </button>
   );
 }

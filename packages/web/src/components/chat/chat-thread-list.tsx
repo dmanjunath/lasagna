@@ -87,11 +87,11 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
             <p className="px-2.5 pt-2 pb-2 text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">
               Conversations
             </p>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col">
             {threads.map((thread, index) => (
               <div
                 key={thread.id}
-                className="group relative flex items-start rounded-ui-md hover:bg-canvas-sunken transition-colors"
+                className="group relative flex items-start border-b border-line last:border-b-0 hover:bg-canvas-sunken transition-colors"
               >
                 {thread.unread && (
                   <span className="absolute left-2 top-[18px] w-1.5 h-1.5 rounded-full bg-brand flex-shrink-0" />

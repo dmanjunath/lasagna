@@ -4,24 +4,24 @@ import type { SectionCardBlock } from "../../../lib/types.js";
 
 const variantStyles = {
   default: {
-    border: "border-border/50",
-    bg: "bg-surface/30",
-    labelBg: "bg-text-muted/10",
-    label: "text-text-secondary",
+    border: "border-line",
+    bg: "bg-panel",
+    labelBg: "bg-canvas-sunken",
+    label: "text-content-muted",
     icon: "◆",
   },
   highlight: {
-    border: "border-accent/40",
-    bg: "bg-accent/5",
-    labelBg: "bg-accent/15",
-    label: "text-accent",
+    border: "border-[rgb(var(--ui-accent))]/40",
+    bg: "bg-[var(--ui-accent-soft)]",
+    labelBg: "bg-[var(--ui-accent-soft)]",
+    label: "text-[rgb(var(--ui-accent-ink))]",
     icon: "★",
   },
   warning: {
-    border: "border-warning/40",
-    bg: "bg-warning/5",
-    labelBg: "bg-warning/15",
-    label: "text-warning",
+    border: "border-[rgb(var(--ui-caution))]/40",
+    bg: "bg-[var(--ui-caution-soft)]",
+    labelBg: "bg-[var(--ui-caution-soft)]",
+    label: "text-[rgb(var(--ui-caution))]",
     icon: "⚠",
   },
 } as const;
@@ -32,9 +32,8 @@ export function SectionCardRenderer({ block }: { block: SectionCardBlock }) {
 
   return (
     <div className={cn(
-      "glass-card overflow-hidden",
+      "rounded-ui-lg border shadow-ui-sm overflow-hidden",
       styles.bg,
-      "border",
       styles.border
     )}>
       {/* Label header - more prominent */}
@@ -47,7 +46,7 @@ export function SectionCardRenderer({ block }: { block: SectionCardBlock }) {
           {styles.icon}
         </span>
         <span className={cn(
-          "text-[11px] font-semibold uppercase tracking-[0.14em]",
+          "text-[11px] font-bold uppercase tracking-[0.12em]",
           styles.label
         )}>
           {block.label}
@@ -57,12 +56,12 @@ export function SectionCardRenderer({ block }: { block: SectionCardBlock }) {
       {/* Content - with better overflow handling */}
       <div className="p-5 max-h-[400px] overflow-y-auto scrollbar-thin">
         <div className={cn(
-          "prose prose-sm prose-invert max-w-none",
-          "prose-p:text-text-secondary prose-p:leading-relaxed prose-p:mb-3 last:prose-p:mb-0",
-          "prose-strong:text-text prose-strong:font-semibold",
-          "prose-li:text-text-secondary prose-li:leading-relaxed",
+          "prose prose-sm max-w-none",
+          "prose-p:text-content-secondary prose-p:leading-relaxed prose-p:mb-3 last:prose-p:mb-0",
+          "prose-strong:text-content prose-strong:font-bold",
+          "prose-li:text-content-secondary prose-li:leading-relaxed marker:text-content-faint",
           "prose-ul:space-y-1.5 prose-ol:space-y-1.5",
-          "prose-headings:text-text prose-headings:font-medium prose-headings:mb-2"
+          "prose-headings:text-content prose-headings:font-semibold prose-headings:mb-2"
         )}>
           <ReactMarkdown>{block.content}</ReactMarkdown>
         </div>

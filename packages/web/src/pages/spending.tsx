@@ -171,12 +171,16 @@ function DonutMini({
   onHoverChange,
   hovered: hoveredProp,
   fmtAmount,
+  centerLabel = 'Total',
+  centerValue,
 }: {
   cats: Array<{ name: string; amount: number; color: string; label?: string }>;
   total: number;
   onHoverChange?: (i: number | null) => void;
   hovered?: number | null;
   fmtAmount?: (n: number) => string;
+  centerLabel?: string;
+  centerValue?: string;
 }) {
   const [hoveredLocal, setHoveredLocal] = useState<number | null>(null);
   const hovered = hoveredProp !== undefined ? hoveredProp : hoveredLocal;
@@ -224,8 +228,8 @@ function DonutMini({
           </>
         ) : (
           <>
-            <text x="60" y="57" textAnchor="middle" fontWeight="700" fontSize="4.6" letterSpacing="0.08em" fill="rgb(var(--ui-content-muted))" style={{ textTransform: 'uppercase' }}>Total</text>
-            <text x="60" y="70" textAnchor="middle" fontWeight="800" fontSize="9.5" fill="rgb(var(--ui-content))" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtAmount ? fmtAmount(total) : total.toLocaleString()}</text>
+            <text x="60" y="57" textAnchor="middle" fontWeight="700" fontSize="4.6" letterSpacing="0.08em" fill="rgb(var(--ui-content-muted))" style={{ textTransform: 'uppercase' }}>{centerLabel}</text>
+            <text x="60" y="70" textAnchor="middle" fontWeight="800" fontSize={centerValue ? '13' : '9.5'} fill="rgb(var(--ui-content))" style={{ fontVariantNumeric: 'tabular-nums' }}>{centerValue ?? (fmtAmount ? fmtAmount(total) : total.toLocaleString())}</text>
           </>
         )}
       </svg>
@@ -433,9 +437,9 @@ function TxnRow({
 // of the hero, divided by hairlines, instead of three separate boxy cards.
 // ---------------------------------------------------------------------------
 
-function StatCell({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: 'pos' | 'neg' }) {
+function StatCell({ label, value, sub, tone, className }: { label: string; value: string; sub: string; tone?: 'pos' | 'neg'; className?: string }) {
   return (
-    <div className="px-4 first:pl-0 sm:px-6">
+    <div className={cn('px-0 sm:px-6 sm:first:pl-0', className)}>
       <div className="text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[20px] sm:text-[25px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
@@ -591,7 +595,7 @@ export function Spending() {
   // Derived
   const totalPages = Math.max(1, Math.ceil(txTotal / PAGE_SIZE));
 
-  const savingsRate = totalIncome > 0 ? Math.max(0, ((totalIncome - totalSpending) / totalIncome) * 100) : null;
+  const savingsRate = totalIncome > 0 ? ((totalIncome - totalSpending) / totalIncome) * 100 : null;
 
   const prevMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
@@ -867,8 +871,10 @@ export function Spending() {
             </div>
           )}
 
-          {/* Inline stat rail — the three summary numbers, folded into the hero */}
-          <div className="relative mt-6 grid grid-cols-3 divide-x divide-line border-t border-line pt-5">
+          {/* Inline stat rail — the three summary numbers, folded into the hero.
+               2-col on mobile (savings rate spans its own row so the label never
+               wraps); 3-col with hairline dividers from sm up. */}
+          <div className="relative mt-6 grid grid-cols-2 gap-x-8 gap-y-5 border-t border-line pt-5 sm:grid-cols-3 sm:gap-x-0 sm:gap-y-0 sm:divide-x sm:divide-line">
             <StatCell label="Income" value={formatCurrency(totalIncome)} sub="received" />
             <StatCell
               label="Net flow"
@@ -877,9 +883,11 @@ export function Spending() {
               tone={netCashFlow >= 0 ? 'pos' : 'neg'}
             />
             <StatCell
+              className="col-span-2 sm:col-span-1"
               label="Savings rate"
-              value={savingsRate !== null ? `${savingsRate.toFixed(0)}%` : '—'}
+              value={savingsRate !== null ? `${savingsRate < 0 ? '−' : ''}${Math.abs(savingsRate).toFixed(0)}%` : '—'}
               sub="of income"
+              tone={savingsRate !== null && savingsRate < 0 ? 'neg' : undefined}
             />
           </div>
         </section>
@@ -949,6 +957,8 @@ export function Spending() {
                   hovered={donutHover}
                   onHoverChange={setDonutHover}
                   fmtAmount={formatCurrency}
+                  centerLabel={spendingCategories.length === 1 ? 'Category' : 'Categories'}
+                  centerValue={String(spendingCategories.length)}
                 />
                 <div className="mt-3 text-center text-[12px] font-medium text-content-muted">
                   Tap a slice to isolate it

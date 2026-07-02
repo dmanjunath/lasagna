@@ -110,7 +110,9 @@ function combineMonteCarloResults(results: any[], totalSimulations: number) {
   }
   const histogram = Array.from(histogramMap.entries()).map(([bucket, data]) => ({ bucket, ...data }));
 
-  return { successRate, percentiles, histogram, paths: results[0].paths };
+  // Sample paths are only computed on the first batch (see monte-carlo route above),
+  // so carry them through from results[0] — otherwise the "Paths" chart gets no data.
+  return { successRate, percentiles, histogram, samplePaths: results[0].samplePaths };
 }
 
 simulationsRouter.post("/backtest", async (c) => {

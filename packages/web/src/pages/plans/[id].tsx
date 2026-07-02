@@ -1,7 +1,18 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useLocation } from "wouter";
-import { History, Trash2, Loader2, X } from "lucide-react";
+import { useParams, useLocation, Link } from "wouter";
+import {
+  History,
+  Trash2,
+  Loader2,
+  X,
+  ArrowLeft,
+  Target,
+  TrendingUp,
+  CreditCard,
+  Sparkles,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import type { PlanType } from "../../lib/types.js";
 import { api, API_BASE } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { Button } from "../../components/uikit";
@@ -11,6 +22,13 @@ import { PlanResponse } from "../../components/plan-response/index.js";
 import type { Plan, ChatThread, Message, PlanEdit } from "../../lib/types.js";
 import type { ResponseV2, ToolResult } from "../../lib/types-v2.js";
 import { isResponseV2 } from "../../lib/types-v2.js";
+
+const PLAN_META: Record<PlanType, { label: string; icon: typeof Target; accent: string }> = {
+  retirement: { label: "Retirement", icon: Target, accent: "var(--ui-viz-1)" },
+  net_worth: { label: "Net Worth", icon: TrendingUp, accent: "var(--ui-viz-2)" },
+  debt_payoff: { label: "Debt Payoff", icon: CreditCard, accent: "var(--ui-viz-4)" },
+  custom: { label: "Custom", icon: Sparkles, accent: "var(--ui-viz-5)" },
+};
 
 export function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -213,45 +231,91 @@ export function PlanDetailPage() {
     );
   }
 
+  const meta = PLAN_META[plan.type];
+  const TypeIcon = meta.icon;
+
   return (
     <div className="flex h-full">
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+      <div className="flex-1 overflow-y-auto px-[18px] sm:px-8 lg:px-11 pt-5 sm:pt-9 pb-24 text-content">
         <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="flex items-start justify-between mb-8">
-            <div>
-              {import.meta.env.VITE_DEMO_MODE !== "true" ? (
-                <EditableTitle
-                  value={plan.title}
-                  onSave={async (newTitle) => {
-                    await api.updatePlan(plan.id, { title: newTitle });
-                    setPlan({ ...plan, title: newTitle });
+          {/* ════════ Hero ════════ */}
+          <div className="animate-fade-in">
+            <Link
+              href="/plans"
+              className="inline-flex items-center gap-1.5 text-[13px] font-bold text-content-muted transition-colors hover:text-content"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Plans
+            </Link>
+
+            <div className="mt-4 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em]"
+                  style={{
+                    background: `color-mix(in srgb, ${meta.accent} 13%, transparent)`,
+                    color: meta.accent,
                   }}
-                  className="text-2xl md:text-3xl lg:text-4xl font-editorial font-semibold"
-                />
-              ) : (
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-editorial font-semibold text-content">
-                  {plan.title}
-                </h1>
-              )}
-              <p className="text-content-secondary mt-1 capitalize">
-                {plan.type.replace("_", " ")} Plan
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={handleShowHistory}>
-                <History className="w-4 h-4" />
-              </Button>
-              {import.meta.env.VITE_DEMO_MODE !== "true" && (
-                <Button variant="ghost" size="sm" onClick={handleDelete}>
-                  <Trash2 className="w-4 h-4" />
+                >
+                  <TypeIcon className="h-3 w-3" />
+                  {meta.label}
+                </span>
+
+                <div className="mt-2.5">
+                  {import.meta.env.VITE_DEMO_MODE !== "true" ? (
+                    <EditableTitle
+                      value={plan.title}
+                      onSave={async (newTitle) => {
+                        await api.updatePlan(plan.id, { title: newTitle });
+                        setPlan({ ...plan, title: newTitle });
+                      }}
+                      className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.05] tracking-[-0.028em]"
+                    />
+                  ) : (
+                    <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.05] tracking-[-0.028em] text-content">
+                      {plan.title}
+                    </h1>
+                  )}
+                </div>
+
+                <p className="mt-2 inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-semibold text-content-muted">
+                  <span className="inline-flex items-center rounded-full bg-canvas-sunken px-2 py-0.5 text-[11px] font-bold capitalize text-content-secondary">
+                    {plan.status}
+                  </span>
+                  <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+                  <span className="ui-tnum">
+                    Updated {new Date(plan.updatedAt).toLocaleDateString()}
+                  </span>
+                </p>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleShowHistory}
+                  aria-label="Plan history"
+                >
+                  <History className="h-[18px] w-[18px]" />
                 </Button>
-              )}
+                {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleDelete}
+                    aria-label="Delete plan"
+                    className="hover:bg-negative-soft hover:text-negative"
+                  >
+                    <Trash2 className="h-[18px] w-[18px]" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Plan content with transitions */}
+          <div className="mt-8">
           {responseV2 ? (
             <PlanResponse
               response={responseV2}
@@ -274,6 +338,7 @@ export function PlanDetailPage() {
               onSelectPrompt={handleSelectPrompt}
             />
           )}
+          </div>
         </div>
       </div>
 
@@ -305,55 +370,62 @@ export function PlanDetailPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowHistory(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.96, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.96, opacity: 0, y: 8 }}
               onClick={(e) => e.stopPropagation()}
               className="bg-panel-raised border border-line rounded-ui-xl shadow-ui-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
             >
-              <div className="flex items-center justify-between p-4 border-b border-line">
-                <h2 className="text-lg font-semibold text-content">Plan History</h2>
-                <Button variant="ghost" size="sm" onClick={() => setShowHistory(false)}>
-                  <X className="w-4 h-4" />
+              <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+                    Version history
+                  </span>
+                  <h2 className="font-editorial text-[20px] font-bold tracking-[-0.018em] text-content">
+                    Plan history
+                  </h2>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setShowHistory(false)} aria-label="Close">
+                  <X className="h-[18px] w-[18px]" />
                 </Button>
               </div>
-              <div className="p-4 overflow-y-auto max-h-[calc(80vh-60px)]">
+              <div className="p-4 overflow-y-auto max-h-[calc(80vh-76px)]">
                 {historyLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-brand" />
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-brand" />
                   </div>
                 ) : history.length === 0 ? (
-                  <p className="text-content-secondary text-center py-8">No previous versions found.</p>
+                  <p className="py-10 text-center text-[14px] font-semibold text-content-muted">
+                    No previous versions found.
+                  </p>
                 ) : (
                   <div className="space-y-3">
                     {history.map((edit) => (
                       <div
                         key={edit.id}
-                        className="p-4 bg-panel rounded-ui-lg border border-line hover:border-brand/50 transition-colors"
+                        className="flex items-center justify-between gap-4 rounded-ui-lg border border-line bg-panel p-4 transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-ui-sm"
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-content font-medium">
-                              {edit.changeDescription || "Plan updated"}
-                            </p>
-                            <p className="text-content-secondary text-sm">
-                              {new Date(edit.createdAt).toLocaleString()} • by {edit.editedBy}
-                            </p>
-                          </div>
-                          {import.meta.env.VITE_DEMO_MODE !== "true" && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleRestoreVersion(edit.id)}
-                            >
-                              Restore
-                            </Button>
-                          )}
+                        <div className="min-w-0">
+                          <p className="text-[14.5px] font-bold text-content">
+                            {edit.changeDescription || "Plan updated"}
+                          </p>
+                          <p className="mt-0.5 text-[12.5px] font-semibold text-content-muted ui-tnum">
+                            {new Date(edit.createdAt).toLocaleString()} • by {edit.editedBy}
+                          </p>
                         </div>
+                        {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleRestoreVersion(edit.id)}
+                          >
+                            Restore
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>

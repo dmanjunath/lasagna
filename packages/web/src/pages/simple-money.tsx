@@ -178,7 +178,7 @@ export function SimpleMoney() {
     : monthPct;
 
   return (
-    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
       {/* ── Page header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -373,7 +373,7 @@ export function SimpleMoney() {
       )}
       {realEstateAccounts.length > 0 && (
         <GroupSection
-          title="Property" viz={3} count={realEstateAccounts.length}
+          title="Property" viz={5} count={realEstateAccounts.length}
           caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate` : 'real estate'}
           total={realEstateTotal} items={items} filterType="real_estate"
           syncing={syncing} onSync={handleSync} onRefresh={refreshItems}

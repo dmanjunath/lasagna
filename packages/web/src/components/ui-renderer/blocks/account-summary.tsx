@@ -14,16 +14,16 @@ export function AccountSummaryRenderer({ block }: { block: AccountSummaryBlock }
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="glass-card p-6">
+    <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
       <div className="text-center mb-6">
-        <div className="text-sm text-text-secondary">Total Portfolio</div>
-        <div className="text-3xl font-bold tabular-nums tracking-tight text-text">
+        <div className="text-[11px] font-bold uppercase tracking-[0.09em] text-content-muted">Total Portfolio</div>
+        <div className="font-editorial text-[30px] font-extrabold tabular-nums tracking-[-0.02em] text-content">
           {formatCurrency(block.totalBalance)}
         </div>
       </div>
 
       <div className="mb-4">
-        <div className="text-sm text-text-secondary mb-2">Asset Allocation</div>
+        <div className="text-[11px] font-bold uppercase tracking-[0.09em] text-content-muted mb-2">Asset Allocation</div>
         <div className="flex h-3 rounded-full overflow-hidden">
           {allocationData.map((d, idx) => (
             <div
@@ -46,8 +46,8 @@ export function AccountSummaryRenderer({ block }: { block: AccountSummaryBlock }
       <div className="space-y-2">
         {block.byType.map((account, idx) => (
           <div key={idx} className="flex justify-between text-sm py-1">
-            <span className="text-text-secondary capitalize">{account.type}</span>
-            <span className="text-text tabular-nums">{formatCurrency(account.balance)}</span>
+            <span className="text-content-secondary capitalize">{account.type}</span>
+            <span className="text-content font-semibold tabular-nums">{formatCurrency(account.balance)}</span>
           </div>
         ))}
       </div>

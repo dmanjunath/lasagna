@@ -192,7 +192,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               <button
                 type="button"
                 onClick={switchToText}
-                className="ui-focus rounded-ui-sm text-[13px] text-content-muted transition-colors"
+                className="touch-target ui-focus inline-flex items-center rounded-ui-sm px-2 text-center text-[13px] text-content-muted transition-colors"
               >
                 Don't feel comfortable uploading tax documents?{" "}
                 <span className="font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline">Describe your situation instead →</span>
@@ -236,7 +236,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               <button
                 type="button"
                 onClick={switchToFile}
-                className="ui-focus rounded-ui-sm text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:underline"
+                className="touch-target ui-focus inline-flex items-center rounded-ui-sm px-2 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:underline"
               >
                 ← Upload a document instead
               </button>
@@ -249,7 +249,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
           <button
             type="button"
             onClick={() => setShowSettings((p) => !p)}
-            className="ui-focus flex w-full items-center justify-between bg-canvas-sunken px-4 py-2.5 text-left transition-colors hover:bg-canvas-sunken/70"
+            className="touch-target ui-focus flex w-full items-center justify-between bg-canvas-sunken px-4 py-2.5 text-left transition-colors hover:bg-canvas-sunken/70"
           >
             <div className="flex items-center gap-2">
               <Settings2 className="h-3.5 w-3.5 text-content-muted" />

@@ -53,7 +53,7 @@ export function PageActions({ types, viewAllHref }: PageActionsProps) {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors disabled:opacity-50"
+            className="touch-target-inline inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors disabled:opacity-50"
           >
             <RefreshCw
               className="h-[13px] w-[13px]"

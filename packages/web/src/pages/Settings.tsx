@@ -12,6 +12,7 @@ import {
   Target,
   ChevronRight,
   ChevronDown,
+  Pencil,
   LogOut,
   Sparkles,
   Check,
@@ -212,7 +213,7 @@ export function Settings() {
   const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
   const canEdit = !isDemoMode;
 
-  const personalRows: ArticleRowSpec[] = [
+  const personalRows: DetailRow[] = [
     { label: "Date of birth", value: profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set", muted: !profile?.dateOfBirth },
     { label: "Age", value: age, muted: age === "Not set" },
     { label: "Filing status", value: filingStatus, muted: !profile?.filingStatus },
@@ -221,130 +222,153 @@ export function Settings() {
     { label: "Dependents", value: dependents, muted: dependents === "Not set" },
   ];
 
-  const incomeRows: ArticleRowSpec[] = [
+  const incomeRows: DetailRow[] = [
     { label: "Gross income", value: grossIncome, muted: grossIncome === "Not set", money: true },
     { label: "Employment type", value: formatEmployment(employmentType), muted: employmentType === "Not set" },
     { label: "Employer match", value: employerMatch, muted: employerMatch === "Not set", money: true },
     { label: "Retirement age", value: retirementAge, muted: retirementAge === "Not set", money: true },
   ];
 
-  const captionBits: string[] = [];
-  if (email) captionBits.push(email);
-  if (state !== "Not set") captionBits.push(state);
-  if (age !== "Not set") captionBits.push(`age ${age}`);
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase() || "U";
 
   return (
-    <div className="mx-auto max-w-[820px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
-      {/* ════════ Header ════════ */}
-      <header className="flex flex-wrap items-start justify-between gap-4 animate-fade-in border-b border-line pb-6">
-        <div className="min-w-0">
-          <Eyebrow>Profile</Eyebrow>
-          <h1 className="mt-1.5 font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-            {firstName}
-          </h1>
-          {captionBits.length > 0 && (
-            <p className="mt-2 text-[13.5px] font-semibold text-content-muted">
-              {captionBits.join(' · ')}
-            </p>
-          )}
+    <div className="mx-auto max-w-[840px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      {/* ════════ Identity header ════════ */}
+      <header className="animate-fade-in flex flex-col gap-5 border-b border-line pb-7 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            aria-hidden
+            className="grid h-14 w-14 shrink-0 place-items-center rounded-ui-lg bg-[var(--ui-accent-soft)] font-editorial text-[22px] font-bold tracking-tight text-[rgb(var(--ui-accent-ink))] ring-1 ring-inset ring-[var(--ui-accent-soft)]"
+          >
+            {initials}
+          </span>
+          <div className="min-w-0">
+            <Eyebrow>Your profile</Eyebrow>
+            <h1 className="mt-1 truncate font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.04] tracking-[-0.026em] text-content">
+              {displayName}
+            </h1>
+            {email && (
+              <p className="mt-1 truncate text-[13.5px] font-medium text-content-muted">{email}</p>
+            )}
+          </div>
         </div>
         <Button
-          variant="destructive"
+          variant="ghost"
           size="sm"
           onClick={() => logout()}
           leadingIcon={<LogOut className="h-4 w-4" />}
+          className="self-start sm:self-auto"
         >
           Sign out
         </Button>
       </header>
 
-      <div className="mt-6 space-y-5">
-        {/* ── Personal info ── */}
-        <SettingsCard
-          eyebrow="Personal"
-          icon={<User className="h-5 w-5" />}
-          title="Personal info"
-          summary={`${age === "Not set" ? "Age not set" : `Age ${age}`} · ${dependents === "Not set" ? "0 dependents" : `${dependents} dependent${dependents === "1" ? "" : "s"}`}${state !== "Not set" ? ` · ${state}` : ""}`}
-          rows={personalRows}
-          loading={loading}
-          editable={canEdit}
-          expanded={editSection === "personal"}
-          onEdit={() => openEdit("personal")}
-        >
-          {editSection === "personal" && canEdit && (
-            <PersonalEditPanel
-              formData={formData}
-              setFormData={setFormData}
-              saving={saving}
-              onCancel={() => setEditSection(null)}
-              onSave={handleSave}
-            />
-          )}
-        </SettingsCard>
+      {/* ════════ Financial profile ════════ */}
+      <section className="mt-10">
+        <GroupHeader eyebrow="Financial profile" hint="Powers your tax, retirement, and cash-flow insights" />
+        <div className="mt-4 space-y-4">
+          <DetailCard
+            icon={<User className="h-5 w-5" />}
+            title="Personal info"
+            rows={personalRows}
+            loading={loading}
+            editable={canEdit}
+            expanded={editSection === "personal"}
+            onEdit={() => openEdit("personal")}
+          >
+            {editSection === "personal" && canEdit && (
+              <PersonalEditPanel
+                formData={formData}
+                setFormData={setFormData}
+                saving={saving}
+                onCancel={() => setEditSection(null)}
+                onSave={handleSave}
+              />
+            )}
+          </DetailCard>
 
-        {/* ── Income & employment ── */}
-        <SettingsCard
-          eyebrow="Income"
-          icon={<Briefcase className="h-5 w-5" />}
-          title="Income & employment"
-          summary={`${grossIncome}${employerMatch !== "Not set" ? ` · ${employerMatch} match` : " · no match"}`}
-          rows={incomeRows}
-          loading={loading}
-          editable={canEdit}
-          expanded={editSection === "income"}
-          onEdit={() => openEdit("income")}
-        >
-          {editSection === "income" && canEdit && (
-            <IncomeEditPanel
-              formData={formData}
-              setFormData={setFormData}
-              saving={saving}
-              onCancel={() => setEditSection(null)}
-              onSave={handleSave}
-            />
-          )}
-        </SettingsCard>
+          <DetailCard
+            icon={<Briefcase className="h-5 w-5" />}
+            title="Income & employment"
+            rows={incomeRows}
+            loading={loading}
+            editable={canEdit}
+            expanded={editSection === "income"}
+            onEdit={() => openEdit("income")}
+          >
+            {editSection === "income" && canEdit && (
+              <IncomeEditPanel
+                formData={formData}
+                setFormData={setFormData}
+                saving={saving}
+                onCancel={() => setEditSection(null)}
+                onSave={handleSave}
+              />
+            )}
+          </DetailCard>
+        </div>
+      </section>
 
-        {/* ── Plan & billing ── */}
-        <PlanCard />
+      {/* ════════ Plan & billing ════════ */}
+      <section className="mt-10">
+        <GroupHeader eyebrow="Plan & billing" hint="Your subscription and what's included" />
+        <div className="mt-4">
+          <PlanCard />
+        </div>
+      </section>
 
-        {/* ── Linked accounts ── */}
-        <NavCard
-          eyebrow="Accounts"
-          icon={<Building2 className="h-5 w-5" />}
-          label="Manage accounts"
-          sub="Banks, brokerages, and manual balances"
-          onClick={() => navigate("/accounts")}
-        />
-
-        {/* ── Financial goals ── */}
-        <NavCard
-          eyebrow="Goals"
-          icon={<Target className="h-5 w-5" />}
-          label="Manage goals"
-          sub="Targets, milestones, progress"
-          onClick={() => navigate("/goals")}
-        />
-      </div>
+      {/* ════════ Manage ════════ */}
+      <section className="mt-10">
+        <GroupHeader eyebrow="Manage" hint="Jump to the things you keep up to date" />
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <NavCard
+            icon={<Building2 className="h-5 w-5" />}
+            label="Accounts"
+            sub="Banks, brokerages, manual balances"
+            onClick={() => navigate("/accounts")}
+          />
+          <NavCard
+            icon={<Target className="h-5 w-5" />}
+            label="Goals"
+            sub="Targets, milestones, progress"
+            onClick={() => navigate("/goals")}
+          />
+        </div>
+      </section>
     </div>
   );
 }
 
-// ─── Settings card ───────────────────────────────────────────────────────────
+// ─── Group header — a periwinkle eyebrow over a band of cards ─────────────────
 
-interface ArticleRowSpec {
+function GroupHeader({ eyebrow, hint }: { eyebrow: string; hint?: string }) {
+  return (
+    <div className="px-1">
+      <Eyebrow>{eyebrow}</Eyebrow>
+      {hint && <p className="mt-1 text-[13px] font-medium text-content-muted">{hint}</p>}
+    </div>
+  );
+}
+
+// ─── Detail card — icon + title + Edit, with a definition grid or edit form ──
+
+interface DetailRow {
   label: string;
   value: string;
   muted?: boolean;
   money?: boolean;
 }
 
-interface SettingsCardProps {
-  eyebrow: string;
+interface DetailCardProps {
   icon: React.ReactNode;
   title: string;
-  summary: string;
-  rows: ArticleRowSpec[];
+  rows: DetailRow[];
   loading: boolean;
   editable: boolean;
   expanded: boolean;
@@ -352,42 +376,38 @@ interface SettingsCardProps {
   children?: React.ReactNode;
 }
 
-function SettingsCard({ eyebrow, icon, title, summary, rows, loading, editable, expanded, onEdit, children }: SettingsCardProps) {
+function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, children }: DetailCardProps) {
   return (
     <Surface pad="none" className="overflow-hidden">
-      <button
-        type="button"
-        onClick={editable ? onEdit : undefined}
-        disabled={!editable}
-        aria-expanded={expanded}
-        className={cn(
-          "flex w-full items-center gap-3.5 px-5 py-4 text-left sm:px-6",
-          editable && "min-h-touch transition-colors hover:bg-canvas-sunken",
-          !editable && "cursor-default",
-        )}
-      >
+      <div className="flex items-center gap-3.5 px-5 py-4 sm:px-6">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
           {icon}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">{eyebrow}</span>
-          <span className="mt-0.5 block font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">{title}</span>
-          <span className="mt-0.5 block truncate text-[12.5px] font-medium text-content-muted">{summary}</span>
-        </span>
+        <h3 className="min-w-0 flex-1 font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+          {title}
+        </h3>
         {editable && (
-          <span className="shrink-0 text-content-muted">
-            {expanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            aria-expanded={expanded}
+            trailingIcon={
+              expanded ? <ChevronDown className="h-4 w-4" /> : <Pencil className="h-3.5 w-3.5" />
+            }
+          >
+            {expanded ? "Close" : "Edit"}
+          </Button>
         )}
-      </button>
+      </div>
 
-      <div className="border-t border-line px-5 sm:px-6">
+      <div className="border-t border-line px-5 py-5 sm:px-6">
         {loading ? (
-          <div className="py-1">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
             {rows.map((_, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-line py-3.5 last:border-0">
-                <Skeleton className={cn("h-3 rounded-full", ["w-24", "w-32", "w-28"][i % 3])} />
-                <Skeleton className={cn("h-3 rounded-full", i % 2 ? "w-20" : "w-14")} />
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-2.5 w-20 rounded-full" />
+                <Skeleton className={cn("h-3.5 rounded-full", ["w-28", "w-24", "w-32", "w-20"][i % 4])} />
               </div>
             ))}
           </div>
@@ -399,22 +419,30 @@ function SettingsCard({ eyebrow, icon, title, summary, rows, loading, editable, 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="py-5"
               >
                 {children}
               </motion.div>
             ) : (
-              <motion.div key="rows" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <motion.div
+                key="rows"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2"
+              >
                 {rows.map((r) => (
-                  <div key={r.label} className="flex items-baseline justify-between gap-4 border-b border-line py-3 last:border-0">
-                    <span className="shrink-0 text-[13px] font-medium text-content-muted">{r.label}</span>
-                    <span className={cn(
-                      "min-w-0 break-words text-right text-[14.5px] font-semibold text-content",
-                      r.money && "ui-tnum",
-                      r.muted && "font-normal text-content-faint",
-                    )}>
+                  <div key={r.label} className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-content-muted">
+                      {r.label}
+                    </div>
+                    <div
+                      className={cn(
+                        "mt-1 break-words text-[15.5px] font-semibold text-content",
+                        r.money && "ui-tnum",
+                        r.muted && "font-medium text-content-faint",
+                      )}
+                    >
                       {r.value}
-                    </span>
+                    </div>
                   </div>
                 ))}
               </motion.div>
@@ -429,21 +457,20 @@ function SettingsCard({ eyebrow, icon, title, summary, rows, loading, editable, 
 // ─── NavCard — a settings row that navigates somewhere ───────────────────────
 
 function NavCard({
-  eyebrow, icon, label, sub, onClick,
-}: { eyebrow: string; icon: React.ReactNode; label: string; sub?: string; onClick: () => void }) {
+  icon, label, sub, onClick,
+}: { icon: React.ReactNode; label: string; sub?: string; onClick: () => void }) {
   return (
     <Surface pad="none" interactive className="group">
       <button
         type="button"
         onClick={onClick}
-        className="flex min-h-touch w-full items-center gap-3.5 px-5 py-4 text-left sm:px-6"
+        className="flex min-h-touch w-full items-center gap-3.5 px-5 py-4 text-left sm:px-5"
       >
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
           {icon}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">{eyebrow}</span>
-          <span className="mt-0.5 block font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content transition-colors group-hover:text-[rgb(var(--ui-brand-ink))]">{label}</span>
+          <span className="block font-editorial text-[17px] font-bold leading-[1.15] tracking-[-0.018em] text-content transition-colors group-hover:text-[rgb(var(--ui-brand-ink))]">{label}</span>
           {sub && <span className="mt-0.5 block text-[12.5px] font-medium text-content-muted">{sub}</span>}
         </span>
         <ChevronRight className="h-5 w-5 shrink-0 text-content-muted transition-transform group-hover:translate-x-0.5 group-hover:text-[rgb(var(--ui-brand-ink))]" />
@@ -466,12 +493,13 @@ const FREE_FEATURES = [
   "Basic AI model",
 ];
 
-function FeatureList({ features }: { features: string[] }) {
+function FeatureList({ features, tone = "brand" }: { features: string[]; tone?: "brand" | "accent" }) {
+  const checkClass = tone === "accent" ? "text-[rgb(var(--ui-accent-ink))]" : "text-brand";
   return (
     <ul className="flex flex-col gap-2">
       {features.map((f) => (
-        <li key={f} className="flex items-center gap-2 text-[13px] text-content-secondary">
-          <Check className="h-3.5 w-3.5 shrink-0 text-brand" strokeWidth={2.5} /> {f}
+        <li key={f} className="flex items-center gap-2 text-[13px] font-medium text-content-secondary">
+          <Check className={cn("h-3.5 w-3.5 shrink-0", checkClass)} strokeWidth={2.5} /> {f}
         </li>
       ))}
     </ul>
@@ -532,7 +560,7 @@ function PlanCard() {
     ? cancelScheduled
       ? (periodLabel ?? "Cancels at period end")
       : `${(status?.subscriptionStatus ?? "active").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}${periodLabel ? ` · ${periodLabel}` : ""}`
-    : `${FREE_FEATURES.join(" · ")}`;
+    : "Free plan — upgrade any time";
 
   return (
     <Surface pad="none" className="overflow-hidden">
@@ -541,8 +569,7 @@ function PlanCard() {
           <Sparkles className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <span className="block text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">Plan</span>
-          <span className="mt-0.5 block font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+          <span className="block font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
             {isPro ? "Pro" : "Free plan"}
           </span>
           <span className="mt-0.5 block truncate text-[12.5px] font-medium text-content-muted">{summary}</span>
@@ -583,13 +610,19 @@ function PlanCard() {
         ) : (
           <div className="flex flex-col items-start gap-5">
             <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-ui-md border border-line p-4">
-                <p className="mb-2.5 text-[13px] font-bold text-content">Free</p>
+              <div className="rounded-ui-lg border border-line bg-canvas-sunken p-4">
+                <div className="mb-2.5 flex items-baseline justify-between">
+                  <p className="text-[13px] font-bold text-content">Free</p>
+                  <p className="text-[12px] font-semibold text-content-muted">Current</p>
+                </div>
                 <FeatureList features={FREE_FEATURES} />
               </div>
-              <div className="rounded-ui-md border border-transparent bg-[var(--ui-accent-soft)] p-4">
-                <p className="mb-2.5 text-[13px] font-bold text-[rgb(var(--ui-accent-ink))]">Pro · $11.99/mo</p>
-                <FeatureList features={PRO_FEATURES} />
+              <div className="rounded-ui-lg border border-[var(--ui-accent-soft)] bg-[var(--ui-accent-soft)] p-4 ring-1 ring-inset ring-[var(--ui-accent-soft)]">
+                <div className="mb-2.5 flex items-baseline justify-between">
+                  <p className="text-[13px] font-bold text-[rgb(var(--ui-accent-ink))]">Pro</p>
+                  <p className="text-[12px] font-bold text-[rgb(var(--ui-accent-ink))] ui-tnum">$11.99/mo</p>
+                </div>
+                <FeatureList features={PRO_FEATURES} tone="accent" />
               </div>
             </div>
             <Button onClick={handleUpgrade} disabled={upgrading} loading={upgrading} leadingIcon={<Sparkles className="h-4 w-4" />}>
@@ -667,75 +700,77 @@ function PersonalEditPanel({ formData, setFormData, saving, onCancel, onSave }: 
 
   return (
     <div className="flex flex-col gap-4">
-      <Field label="Date of birth">
-        <Input
-          type="date"
-          value={formData.dateOfBirth}
-          onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
-        />
-      </Field>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="Date of birth">
+          <Input
+            type="date"
+            value={formData.dateOfBirth}
+            onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
+          />
+        </Field>
 
-      <Field label="Filing status">
-        <Select
-          value={formData.filingStatus}
-          onChange={(e) => setFormData((f) => ({ ...f, filingStatus: e.target.value }))}
-        >
-          <option value="">Select…</option>
-          {FILING_STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </Select>
-      </Field>
+        <Field label="State of residence" hint="2-letter code" error={stateError}>
+          <Input
+            type="text"
+            maxLength={2}
+            invalid={!!stateError}
+            value={formData.stateOfResidence}
+            onChange={(e) => setFormData((f) => ({ ...f, stateOfResidence: e.target.value }))}
+            placeholder="CA"
+            className="uppercase"
+          />
+        </Field>
 
-      <Field label="State of residence" hint="2-letter code" error={stateError}>
-        <Input
-          type="text"
-          maxLength={2}
-          invalid={!!stateError}
-          value={formData.stateOfResidence}
-          onChange={(e) => setFormData((f) => ({ ...f, stateOfResidence: e.target.value }))}
-          placeholder="CA"
-          className="uppercase"
-        />
-      </Field>
+        <Field label="Filing status">
+          <Select
+            value={formData.filingStatus}
+            onChange={(e) => setFormData((f) => ({ ...f, filingStatus: e.target.value }))}
+          >
+            <option value="">Select…</option>
+            {FILING_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </Select>
+        </Field>
 
-      <Field label="Risk tolerance">
-        <Select
-          value={formData.riskTolerance}
-          onChange={(e) => setFormData((f) => ({ ...f, riskTolerance: e.target.value }))}
-        >
-          <option value="">Select…</option>
-          {RISK_TOLERANCE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </Select>
-      </Field>
+        <Field label="Risk tolerance">
+          <Select
+            value={formData.riskTolerance}
+            onChange={(e) => setFormData((f) => ({ ...f, riskTolerance: e.target.value }))}
+          >
+            <option value="">Select…</option>
+            {RISK_TOLERANCE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </Select>
+        </Field>
 
-      <Field label="Retirement age" error={retAgeError}>
-        <Input
-          type="number"
-          min={30}
-          max={100}
-          invalid={!!retAgeError}
-          value={formData.retirementAge}
-          onChange={(e) => setFormData((f) => ({ ...f, retirementAge: e.target.value }))}
-          placeholder="65"
-          className="ui-tnum"
-        />
-      </Field>
+        <Field label="Retirement age" error={retAgeError}>
+          <Input
+            type="number"
+            min={30}
+            max={100}
+            invalid={!!retAgeError}
+            value={formData.retirementAge}
+            onChange={(e) => setFormData((f) => ({ ...f, retirementAge: e.target.value }))}
+            placeholder="65"
+            className="ui-tnum"
+          />
+        </Field>
 
-      <Field label="Number of dependents" error={depError}>
-        <Input
-          type="number"
-          min={0}
-          max={10}
-          invalid={!!depError}
-          value={formData.dependentCount}
-          onChange={(e) => setFormData((f) => ({ ...f, dependentCount: e.target.value }))}
-          placeholder="0"
-          className="ui-tnum"
-        />
-      </Field>
+        <Field label="Number of dependents" error={depError}>
+          <Input
+            type="number"
+            min={0}
+            max={10}
+            invalid={!!depError}
+            value={formData.dependentCount}
+            onChange={(e) => setFormData((f) => ({ ...f, dependentCount: e.target.value }))}
+            placeholder="0"
+            className="ui-tnum"
+          />
+        </Field>
+      </div>
 
       <div className="flex flex-col gap-1 rounded-ui-md bg-canvas-sunken px-4 py-2">
         <Switch
@@ -752,7 +787,7 @@ function PersonalEditPanel({ formData, setFormData, saving, onCancel, onSave }: 
 
       <div className="flex gap-2 pt-1">
         <Button onClick={onSave} disabled={saving} loading={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? "Saving…" : "Save changes"}
         </Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
@@ -766,48 +801,50 @@ function IncomeEditPanel({ formData, setFormData, saving, onCancel, onSave }: Ed
 
   return (
     <div className="flex flex-col gap-4">
-      <Field label="Employment type">
-        <Select
-          value={formData.employmentType}
-          onChange={(e) => setFormData((f) => ({ ...f, employmentType: e.target.value }))}
-        >
-          <option value="w2">W2 employee</option>
-          <option value="self_employed">Self-employed</option>
-          <option value="1099">1099 / contractor</option>
-          <option value="business_owner">Business owner</option>
-        </Select>
-      </Field>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="Employment type" className="sm:col-span-2">
+          <Select
+            value={formData.employmentType}
+            onChange={(e) => setFormData((f) => ({ ...f, employmentType: e.target.value }))}
+          >
+            <option value="w2">W2 employee</option>
+            <option value="self_employed">Self-employed</option>
+            <option value="1099">1099 / contractor</option>
+            <option value="business_owner">Business owner</option>
+          </Select>
+        </Field>
 
-      <Field label="Annual gross income">
-        <Input
-          type="number"
-          min={0}
-          step={1000}
-          value={formData.annualIncome}
-          onChange={(e) => setFormData((f) => ({ ...f, annualIncome: e.target.value }))}
-          placeholder="72000"
-          className="ui-tnum"
-          leadingIcon={<span className="text-[13px]">$</span>}
-        />
-      </Field>
+        <Field label="Annual gross income">
+          <Input
+            type="number"
+            min={0}
+            step={1000}
+            value={formData.annualIncome}
+            onChange={(e) => setFormData((f) => ({ ...f, annualIncome: e.target.value }))}
+            placeholder="72000"
+            className="ui-tnum"
+            leadingIcon={<span className="text-[13px]">$</span>}
+          />
+        </Field>
 
-      <Field label="Employer match (%)" error={matchError}>
-        <Input
-          type="number"
-          min={0}
-          max={100}
-          step={0.5}
-          invalid={!!matchError}
-          value={formData.employerMatchPercent}
-          onChange={(e) => setFormData((f) => ({ ...f, employerMatchPercent: e.target.value }))}
-          placeholder="4"
-          className="ui-tnum"
-        />
-      </Field>
+        <Field label="Employer match (%)" error={matchError}>
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            step={0.5}
+            invalid={!!matchError}
+            value={formData.employerMatchPercent}
+            onChange={(e) => setFormData((f) => ({ ...f, employerMatchPercent: e.target.value }))}
+            placeholder="4"
+            className="ui-tnum"
+          />
+        </Field>
+      </div>
 
       <div className="flex gap-2 pt-1">
         <Button onClick={onSave} disabled={saving} loading={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? "Saving…" : "Save changes"}
         </Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>

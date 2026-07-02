@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { cn, formatMoney } from '../lib/utils';
-import { Building2 } from 'lucide-react';
+import { Building2, Check } from 'lucide-react';
 import { PageActions } from '../components/common/page-actions';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import {
@@ -12,6 +12,12 @@ import {
   type WithdrawalStrategy, type BacktestYearData, type BacktestRow,
   computeWithdrawal, eraLabel, runBacktest, buildBands,
 } from '../lib/retirement-engine';
+
+// Abbreviated money for KPI tiles — parity with the page's $X.XM/$X.XB figures.
+const fmtBig = (v: number) =>
+  v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
+  : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M`
+  : formatMoney(v, true);
 import { Button, EmptyState, Skeleton, SegmentedControl } from '../components/uikit';
 
 // ── MC constants ─────────────────────────────────────────────────────────────
@@ -41,6 +47,61 @@ const MC_ACCENT: Record<string, string> = {
   cash: 'var(--ui-viz-7)',  // slate
 };
 
+
+// Deterministic RNG (mulberry32). The Monte Carlo engine defaults to
+// Math.random, so two independent 1,000-run passes report slightly different
+// success rates (e.g. 98% in the KPI strip vs 96% in the simulation focal) for
+// the exact same inputs. Seeding makes a run reproducible so every consumer of
+// the same inputs shows the same number. The MC algorithm itself is unchanged.
+function makeRng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const MC_SEED = 0x9e3779b9;
+
+// Largest-remainder rounding: scale a set of parts to integer percentages that
+// sum to exactly 100, so the allocation controls never display "totals 101%"
+// from rounding each category independently.
+function roundTo100(vals: McAlloc): McAlloc {
+  const keys = Object.keys(vals) as (keyof McAlloc)[];
+  const sum = keys.reduce((s, k) => s + vals[k], 0);
+  if (sum <= 0) return { us: 0, intl: 0, bonds: 0, reit: 0, cash: 0 };
+  const parts = keys.map(k => {
+    const exact = (vals[k] / sum) * 100;
+    const floor = Math.floor(exact);
+    return { k, floor, rem: exact - floor };
+  });
+  let remaining = 100 - parts.reduce((s, p) => s + p.floor, 0);
+  parts.sort((a, b) => b.rem - a.rem);
+  const out = { us: 0, intl: 0, bonds: 0, reit: 0, cash: 0 } as McAlloc;
+  parts.forEach((p, i) => { out[p.k] = p.floor + (i < remaining ? 1 : 0); });
+  return out;
+}
+
+// Largest-remainder rounding over an arbitrary set of parts → integer percents
+// summing to exactly 100. Used so the composition legend shows the same integers
+// as the allocation slider inputs (e.g. Cash 8%, not a naive per-part 9% that
+// makes the legend total 101%).
+function intPercents(parts: number[]): number[] {
+  const sum = parts.reduce((s, v) => s + v, 0);
+  if (sum <= 0) return parts.map(() => 0);
+  const rows = parts.map((v, i) => {
+    const exact = (v / sum) * 100;
+    const floor = Math.floor(exact);
+    return { i, floor, rem: exact - floor };
+  });
+  const remaining = 100 - rows.reduce((s, r) => s + r.floor, 0);
+  const order = [...rows].sort((a, b) => b.rem - a.rem);
+  const out = parts.map(() => 0);
+  rows.forEach(r => { out[r.i] = r.floor; });
+  for (let k = 0; k < remaining && k < order.length; k++) out[order[k].i] += 1;
+  return out;
+}
 
 // ── Local helpers (not part of engine) ────────────────────────────────────────
 function getExpectedReturn(allocation: Record<string, number>): number {
@@ -77,14 +138,26 @@ function Card({ children, className, style }: { children: React.ReactNode; class
   );
 }
 
-// Local titled section — replaces the ds Section (eyebrow + editorial title).
+// Local titled section — matches the app's editorial section anchor used on Home
+// and Actions (accent dot + glow ring, serif title, optional note, trailing
+// hairline rule) so retirement's sections read as designed, not retrofit.
 function Section({ title, eyebrow, children, className }: { title?: React.ReactNode; eyebrow?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={cn('mt-8', className)}>
       {(title || eyebrow) && (
-        <div className="mb-4 flex items-baseline justify-between gap-3">
-          {title && <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h2>}
-          {eyebrow && <span className="text-[12px] font-semibold text-content-muted ui-tnum">{eyebrow}</span>}
+        <div className="mb-4 flex items-center gap-3">
+          {title && (
+            <>
+              <span
+                className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))] shrink-0"
+                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+                aria-hidden
+              />
+              <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h2>
+            </>
+          )}
+          {eyebrow && <span className="hidden sm:block text-[12px] font-semibold text-content-muted ui-tnum">{eyebrow}</span>}
+          <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
         </div>
       )}
       {children}
@@ -96,15 +169,17 @@ function Section({ title, eyebrow, children, className }: { title?: React.ReactN
 // the Bright --ui palette. Same API as the former ds ChartHover.
 function ChartHover({
   width, height, paddingLeft, paddingRight, count,
-  getValue, getLabel, getSubline, getCurvePoint, hidePill = false,
+  getValue, getLabel, getSubline, getCurvePoint, hidePill = false, onHoverChange,
 }: {
   width: number; height: number; paddingLeft: number; paddingRight: number; count: number;
   getValue: (i: number) => React.ReactNode; getLabel: (i: number) => React.ReactNode;
   getSubline?: (i: number) => React.ReactNode;
   getCurvePoint?: (i: number) => { x: number; y: number } | null;
   hidePill?: boolean;
+  onHoverChange?: (i: number | null) => void;
 }) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
+  const setHoverIdx = (i: number | null) => { setHoverIdxRaw(i); onHoverChange?.(i); };
   const rootRef = React.useRef<HTMLDivElement>(null);
   const innerW = Math.max(1, width - paddingLeft - paddingRight);
   const pointerToIdx = (clientX: number): number | null => {
@@ -191,6 +266,7 @@ function ProjectionFan({
   retirementAge: number;
 }) {
   const [wrapRef, W] = useMeasuredWidth(760);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const n = bands.p50.length;
   if (n === 0) return null;
@@ -200,31 +276,40 @@ function ProjectionFan({
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
 
-  // Iter 6: log y-axis so the early years (small absolute $) don't flatten
-  // the whole curve to a horizontal line. Iter 5's linear scale made the
-  // chart hug $0 for ~80% of the x-axis because p95 at age 90 is several
-  // orders of magnitude larger than the starting portfolio. With log
-  // scaling, the relative shape of all bands is preserved across the span.
+  // Iter 2 (redesign): LINEAR y-axis with a clip. The prior log axis compressed
+  // a ~19× p5–p95 spread into a thin ribbon that over-promised certainty. Linear
+  // tells the truth — the median sits far below the lucky right tail — but the
+  // raw p95 final ($100M's) would flatten everything to $0. So we clip the
+  // ceiling near ~2.4× the median final: the p5–p95 cone opens across most of
+  // the frame, the median stays legible mid-chart, and p95 rides the top edge
+  // (labelled "→ $X" so the off-frame upside is honest, not hidden).
   const maxV = Math.max(...bands.p95, 1);
-  const startMin = Math.max(1000, Math.min(...bands.p5.filter(v => v > 0), bands.p50[0] || 1000));
-  const lnMin = Math.log(Math.max(1000, startMin));
-  const lnMax = Math.log(Math.max(maxV, startMin * 10));
-  const lnRange = Math.max(1e-6, lnMax - lnMin);
+  const lastI = n - 1;
+  const medianFinal = bands.p50[lastI] || 1;
+  const p75Final = bands.p75[lastI] || medianFinal;
+  const startV = bands.p50[0] || 1000;
+  const yMax = Math.max(startV * 1.12, Math.min(maxV, Math.max(p75Final * 1.05, medianFinal * 2.4)));
+  const clipped = maxV > yMax * 1.03;
   const xf = (i: number) => PL + (i / (n - 1)) * chartW;
   const yf = (v: number) => {
-    const safe = Math.max(1000, v);
-    const t = (Math.log(safe) - lnMin) / lnRange;
-    return PT + chartH - Math.min(1, Math.max(0, t)) * chartH;
+    const t = Math.max(0, Math.min(1, v / yMax));
+    return PT + chartH - t * chartH;
   };
 
-  // Log gridlines: 4 evenly-spaced ticks in log space.
-  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => {
-    const lnV = lnMin + pct * lnRange;
-    const val = Math.exp(lnV);
-    return { pct, val, y: yf(val) };
-  });
+  // Linear gridlines: 4 evenly-spaced ticks.
+  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => ({ pct, val: yMax * pct, y: PT + chartH - pct * chartH }));
   const retireIdx = Math.max(0, retirementAge - currentAge);
-  const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1000)}k`;
+  const fmt = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
+    : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M`
+    : `$${Math.round(v / 1000)}k`;
+  // Compact axis labels: always $-prefixed, integer millions so long labels
+  // (e.g. $2.9B / $641M) don't clip the leading $ on narrow phones.
+  const fmtAxis = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
+    : v >= 1e6 ? `$${Math.round(v / 1e6)}M`
+    : v >= 1e3 ? `$${Math.round(v / 1e3)}k`
+    : `$${Math.round(v)}`;
 
   // Banded path: upper edge forward, lower edge back, closed.
   const band = (upper: number[], lower: number[]) => {
@@ -241,37 +326,76 @@ function ProjectionFan({
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
+    {/* De-dup: the 40px card headline already owns the median-at-end. The
+        default (non-hover) readout leads with a neutral inspect prompt — no
+        number — so "$113.1M" is stated exactly once when idle. On hover it
+        shows the hovered age's median + p5/p95.
+        Inset the readout to the card's 20px content gutter so it lines up with
+        the padded header above (the svg keeps its own internal y-axis gutter). */}
+    <div style={{ padding: '0 20px' }}>
+      <ChartReadout
+        idx={hoverIdx}
+        value={hoverIdx !== null ? `${fmt(bands.p50[hoverIdx])}` : 'Hover any age'}
+        label={hoverIdx !== null ? `median at age ${currentAge + hoverIdx}` : 'to trace the median and its range'}
+        sub={hoverIdx !== null ? `p5 ${fmt(bands.p5[hoverIdx])} · p95 ${fmt(bands.p95[hoverIdx])}` : undefined}
+      />
+    </div>
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', pointerEvents: 'none' }}
       data-testid="projection-fan"
     >
+      {/* Accumulation phase — a shaded zone before retirement so the low-value
+          left half reads as an intentional "still building" phase, not dead
+          space. Drawn first (behind gridlines + bands). Its right edge is the
+          retirement divider, so the eye parses accumulate → draw-down. */}
+      {retireIdx > 0 && retireIdx < n && (
+        <rect x={xf(0)} y={PT} width={Math.max(0, xf(retireIdx) - xf(0))} height={chartH} className="ret-accum-zone" />
+      )}
+      {/* Only label the zone when it's wide enough to hold the word (far-off
+          retirement); a 4-year sliver stays a clean tint. */}
+      {retireIdx > 0 && (xf(retireIdx) - xf(0)) > 74 && (
+        <text x={(xf(0) + xf(retireIdx)) / 2} y={PT + 12} textAnchor="middle" fontFamily="inherit" fontSize={9} letterSpacing="0.06em" fill="rgb(var(--ui-content-muted))">
+          ACCUMULATING
+        </text>
+      )}
+
       {/* Gridlines + Y-axis labels */}
       {yTicks.map(({ pct, val, y }) => (
         <g key={pct}>
           <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
           <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
-            {fmt(val)}
+            {fmtAxis(val)}{pct === 1 && clipped ? '+' : ''}
           </text>
         </g>
       ))}
 
-      {/* Retirement marker */}
-      {retireIdx > 0 && retireIdx < n && (
-        <>
-          <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={H - PB}
-            stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
-          <text x={xf(retireIdx) + 5} y={PT + 14} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-brand))">
-            retire {retirementAge}
-          </text>
-        </>
+      {/* p95 rides above the clipped ceiling — label the off-frame upside so the
+          clip is honest, not a hidden plateau. */}
+      {clipped && (
+        <text x={W - PR} y={PT + 11} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} fill="rgb(var(--ui-accent-ink))">
+          best 5% → {fmt(maxV)}
+        </text>
       )}
 
       {/* MC bands — outer (p5–p95) under inner (p25–p75), then median.
           Iter 6: switch from CSS `opacity` (which some renderers cache) to the
           SVG `fill-opacity` attribute so the values stick. */}
-      <path d={band(bands.p95, bands.p5)} fill="var(--ui-viz-2)" fillOpacity={0.08} data-band="p5-p95" />
-      <path d={band(bands.p75, bands.p25)} fill="var(--ui-viz-2)" fillOpacity={0.18} data-band="p25-p75" />
+      <path d={band(bands.p95, bands.p5)} className="ret-fan-outer" data-band="p5-p95" />
+      <path d={band(bands.p75, bands.p25)} className="ret-fan-inner" data-band="p25-p75" />
       <path d={linePath(bands.p50)} fill="none" stroke="rgb(var(--ui-content-secondary))" strokeWidth={1.5}
         strokeDasharray="5 4" strokeLinecap="round" data-band="p50" />
+
+      {/* Retirement marker — drawn ON TOP of the bands with its label anchored
+          at the TOP of the plot (not the baseline, where it used to collide with
+          the flat median). A small filled pill keeps it legible over the fan. */}
+      {retireIdx > 0 && retireIdx < n && (
+        <>
+          <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={H - PB}
+            stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
+          <text x={xf(retireIdx) + 5} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontWeight={600} fontSize={11} fill="rgb(var(--ui-brand-ink))">
+            retire {retirementAge}
+          </text>
+        </>
+      )}
 
       {/* X-axis age labels */}
       <text x={xf(0)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
@@ -291,6 +415,8 @@ function ProjectionFan({
       paddingLeft={PL}
       paddingRight={PR}
       count={n}
+      hidePill
+      onHoverChange={setHoverIdx}
       getValue={(i) => `${fmt(bands.p50[i])} @ ${currentAge + i}`}
       getLabel={(i) => `median (p50) at age ${currentAge + i}`}
       getSubline={(i) => `p5 ${fmt(bands.p5[i])} · p95 ${fmt(bands.p95[i])}`}
@@ -300,56 +426,45 @@ function ProjectionFan({
   );
 }
 
-function ReadinessRing({ pct }: { pct: number }) {
-  const r = 52;
-  const circ = 2 * Math.PI * r;
-  const dash = (pct / 100) * circ;
-  const color = pct >= 80 ? 'rgb(var(--ui-brand))' : pct >= 50 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+// Compact value/date readout anchored above a fan chart (mirrors the /money
+// pattern). Reserves a fixed height so hovering never shifts the layout, and
+// keeps the tooltip out of the plot area where it used to cover the bands on
+// narrow phones.
+function ChartReadout({ idx, value, label, sub }: { idx: number | null; value: React.ReactNode; label: React.ReactNode; sub?: React.ReactNode }) {
   return (
-    <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
-      <svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block', transform: 'rotate(-90deg)' }}>
-        <circle cx="60" cy="60" r={r} fill="none" stroke="var(--ui-line)" strokeWidth={8} />
-        <circle cx="60" cy="60" r={r} fill="none" stroke={color} strokeWidth={8}
-          strokeLinecap="round" strokeDasharray={`${dash} ${circ}`}
-          style={{ transition: 'stroke-dasharray 0.8s ease' }} />
-      </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: 'inherit', fontWeight: 600, fontSize: 24, color, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
-          {pct.toFixed(0)}%
-        </span>
-        <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgb(var(--ui-content-muted))', marginTop: 2 }}>
-          ready
-        </span>
-      </div>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', minHeight: 22, marginBottom: 8, fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: idx !== null ? 'rgb(var(--ui-content))' : 'rgb(var(--ui-content-secondary))' }}>{value}</span>
+      <span style={{ fontSize: 12, color: 'rgb(var(--ui-content-muted))' }}>{label}</span>
+      {sub != null && sub !== '' && <span style={{ fontSize: 12, color: 'rgb(var(--ui-content-muted))', opacity: 0.75 }}>· {sub}</span>}
     </div>
   );
 }
 
 function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof buildBands>; retireAge: number; currentAge: number }) {
   const [wrapRef, W] = useMeasuredWidth(760);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const n = bands.p50.length;
   const H = 220;
   const PL = 52; const PR = 16; const PT = 14; const PB = 28;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
 
-  // Log y-axis (matches the Overview projection) so early low-$ years don't
-  // flatten the whole span to a hockey-stick. buildBands output is untouched.
+  // Linear y-axis with a clip (matches the Overview projection). The ceiling is
+  // capped near ~2.4× the median final so the p5–p95 cone opens honestly instead
+  // of the right tail flattening every other band onto $0. buildBands untouched.
   const maxV = Math.max(...bands.p95, 1);
-  const startMin = Math.max(1000, Math.min(...bands.p5.filter(v => v > 0), bands.p50[0] || 1000));
-  const lnMin = Math.log(Math.max(1000, startMin));
-  const lnMax = Math.log(Math.max(maxV, startMin * 10));
-  const lnRange = Math.max(1e-6, lnMax - lnMin);
+  const lastI = n - 1;
+  const medianFinal = bands.p50[lastI] || 1;
+  const p75Final = bands.p75[lastI] || medianFinal;
+  const startV = bands.p50[0] || 1000;
+  const yMax = Math.max(startV * 1.12, Math.min(maxV, Math.max(p75Final * 1.05, medianFinal * 2.4)));
+  const clipped = maxV > yMax * 1.03;
   const xf = (i: number) => PL + (i / Math.max(n - 1, 1)) * chartW;
   const yf = (v: number) => {
-    const safe = Math.max(1000, v);
-    const t = (Math.log(safe) - lnMin) / lnRange;
-    return PT + chartH - Math.min(1, Math.max(0, t)) * chartH;
+    const t = Math.max(0, Math.min(1, v / yMax));
+    return PT + chartH - t * chartH;
   };
-  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => {
-    const val = Math.exp(lnMin + pct * lnRange);
-    return { pct, val, y: yf(val) };
-  });
+  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => ({ pct, val: yMax * pct, y: PT + chartH - pct * chartH }));
 
   const path = (arr: number[], close?: number[]) => {
     let d = `M ${xf(0)},${yf(arr[0])}`;
@@ -363,10 +478,24 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
   const retireOffset = Math.max(0, retireAge - currentAge);
   const retirePos = retireOffset < n ? xf(retireOffset) : xf(n - 1);
 
-  const fmt = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1000)}k`;
+  const fmt = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
+    : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M`
+    : `$${Math.round(v / 1000)}k`;
+  const fmtAxis = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
+    : v >= 1e6 ? `$${Math.round(v / 1e6)}M`
+    : v >= 1e3 ? `$${Math.round(v / 1e3)}k`
+    : `$${Math.round(v)}`;
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
+    <ChartReadout
+      idx={hoverIdx}
+      value={hoverIdx !== null ? `${fmt(bands.p50[hoverIdx])}` : `${fmt(bands.p50[n - 1])}`}
+      label={hoverIdx !== null ? `median at age ${currentAge + hoverIdx}` : `median at age ${currentAge + n - 1}`}
+      sub={hoverIdx !== null ? `p25 ${fmt(bands.p25[hoverIdx])} · p75 ${fmt(bands.p75[hoverIdx])}` : 'projected range · hover to inspect'}
+    />
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', pointerEvents: 'none' }}
       data-testid="fan-chart"
     >
@@ -375,17 +504,22 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
         <g key={pct}>
           <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
           <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
-            {fmt(val)}
+            {fmtAxis(val)}{pct === 1 && clipped ? '+' : ''}
           </text>
         </g>
       ))}
-      <path d={path(bands.p95, bands.p5)} fill="var(--ui-viz-2)" fillOpacity="0.08" data-band="p5-p95" />
-      <path d={path(bands.p75, bands.p25)} fill="var(--ui-viz-2)" fillOpacity="0.18" data-band="p25-p75" />
+      {clipped && (
+        <text x={W - PR} y={PT + 11} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} fill="rgb(var(--ui-accent-ink))">
+          best 5% → {fmt(maxV)}
+        </text>
+      )}
+      <path d={path(bands.p95, bands.p5)} className="ret-fan-outer" data-band="p5-p95" />
+      <path d={path(bands.p75, bands.p25)} className="ret-fan-inner" data-band="p25-p75" />
       <path d={path(bands.p50)} stroke="rgb(var(--ui-content-secondary))" strokeWidth="1.5" strokeDasharray="5 4" strokeLinecap="round" fill="none" data-band="p50" />
       {retireOffset > 0 && retireOffset < n && (
         <>
           <line x1={retirePos} x2={retirePos} y1={PT} y2={H - PB} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
-          <text x={retirePos + 5} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="11" fill="rgb(var(--ui-brand))">
+          <text x={retirePos + 5} y={H - PB - 5} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize="11" fill="rgb(var(--ui-brand))">
             retire {retireAge}
           </text>
         </>
@@ -407,6 +541,8 @@ function FanChart({ bands, retireAge, currentAge }: { bands: ReturnType<typeof b
       paddingLeft={PL}
       paddingRight={PR}
       count={n}
+      hidePill
+      onHoverChange={setHoverIdx}
       getValue={(i) => `${fmt(bands.p50[i])} @ ${currentAge + i}`}
       getLabel={(i) => `median (p50) at age ${currentAge + i}`}
       getSubline={(i) => `p25 ${fmt(bands.p25[i])} · p75 ${fmt(bands.p75[i])}`}
@@ -782,16 +918,18 @@ function mapAllocation(alloc: Record<string, number>): McAlloc | null {
     if (mapped) { result[mapped] = v; matched = true; }
   }
   if (!matched) return null;
-  // Detect decimal format (total ≤ 1.0) and scale to percentages
+  // Detect decimal format (total ≤ 1.0) and scale to percentages, then round
+  // with largest-remainder so the parts sum to exactly 100 (avoids the
+  // "totals 101%" artifact from rounding each category independently).
   const total = Object.values(result).reduce((s, v) => s + v, 0);
   const scale = total <= 1.0 ? 100 : 1;
-  return {
-    us: Math.round(result.us * scale),
-    intl: Math.round(result.intl * scale),
-    bonds: Math.round(result.bonds * scale),
-    reit: Math.round(result.reit * scale),
-    cash: Math.round(result.cash * scale),
-  };
+  return roundTo100({
+    us: result.us * scale,
+    intl: result.intl * scale,
+    bonds: result.bonds * scale,
+    reit: result.reit * scale,
+    cash: result.cash * scale,
+  });
 }
 
 function SimulateView({
@@ -852,7 +990,7 @@ function SimulateView({
   const equityFraction = (mcAlloc.us + mcAlloc.intl + mcAlloc.reit) / Math.max(allocTotal, 1);
 
   const bands = useMemo(
-    () => buildBands(portfolioValue, annualSavings, retirementAge, currentAge, expReturn, annualWithdrawal, equityFraction, inflAdj, strategy),
+    () => buildBands(portfolioValue, annualSavings, retirementAge, currentAge, expReturn, annualWithdrawal, equityFraction, inflAdj, strategy, makeRng(MC_SEED)),
     [portfolioValue, annualSavings, retirementAge, currentAge, expReturn, annualWithdrawal, equityFraction, inflAdj, strategy]
   );
 
@@ -950,7 +1088,7 @@ function SimulateView({
             </div>
             <input type="range" min={2000} max={20000} step={500} value={monthlySpend}
               onChange={e => setMonthlySpend(+e.target.value)}
-              style={{ width: '100%', accentColor: 'rgb(var(--ui-brand))' }} />
+              className="ret-slider" />
             <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 4 }}>
               annual withdrawal ≈ {formatMoney(monthlySpend * 12, true)}
             </div>
@@ -1048,7 +1186,7 @@ function SimulateView({
               <input type="range" min={0} max={100} step={5}
                 value={mcAlloc[k as keyof typeof mcAlloc]}
                 onChange={e => updateAlloc(k, +e.target.value)}
-                style={{ width: '100%', accentColor: MC_ACCENT[k] }} />
+                className="ret-slider" />
               <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 3 }}>
                 {MC_RETURNS[k]}% avg · hist.
               </div>
@@ -1093,9 +1231,11 @@ function SimulateView({
               </span>
             )}
           </span>
-          {allocTotal !== 100 && (
-            <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-negative))' }}>
-              ⚠ allocation totals {allocTotal}%
+          {/* Only flag a *meaningful* imbalance (user slider edits, >1%). A ≤1%
+              rounding drift is normalized away and never surfaces an alarm. */}
+          {Math.abs(allocTotal - 100) > 1 && (
+            <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-caution))' }}>
+              allocation totals {allocTotal}%
             </span>
           )}
         </div>
@@ -1161,8 +1301,8 @@ function SimulateView({
             </div>
             <FanChart bands={displayBands} retireAge={retirementAge} currentAge={currentAge} />
             <div style={{ display: 'flex', gap: 24, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 12, flexWrap: 'wrap' }}>
-              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--ui-viz-2)', opacity: 0.18, marginRight: 6, verticalAlign: 'middle' }}></span>p5–p95</span>
-              <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--ui-viz-2)', opacity: 0.36, marginRight: 6, verticalAlign: 'middle' }}></span>p25–p75</span>
+              <span><span className="ret-sw-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle' }}></span>p5–p95</span>
+              <span><span className="ret-sw-inner" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle' }}></span>p25–p75</span>
               <span><span style={{ display: 'inline-block', width: 12, height: 2, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }}></span>median (p50)</span>
               <span style={{ marginLeft: 'auto' }}>
                 median @ age {lifeExp}: <strong>{formatMoney(displayBands.p50[displayBands.p50.length - 1] || 0, true)}</strong>
@@ -1260,6 +1400,11 @@ export function Retirement() {
   const [currentAge, setCurrentAge] = useState(30);
   const [annualIncome, setAnnualIncome] = useState(0);
   const [portfolioValue, setPortfolioValue] = useState(0);
+  // Liquid (penalty-free, accessible-now) slice of the accessible portfolio —
+  // cash + taxable brokerage/crypto, net of debt. `portfolioValue` is the full
+  // accessible base (liquid + retirement accounts). The gap between them is the
+  // money locked behind the 59½ early-withdrawal penalty.
+  const [liquidValue, setLiquidValue] = useState(0);
   const [monthlyExpenses, setMonthlyExpenses] = useState(5000);
   const [allocation, setAllocation] = useState<Record<string, number>>({});
   const [blendedReturn, setBlendedReturn] = useState<number | null>(null);
@@ -1291,17 +1436,36 @@ export function Retirement() {
       api.getSpendingSummary().catch(() => ({ totalSpending: 0, totalIncome: 0 })),
       api.getPortfolioExposure().catch(() => null),
     ]).then(([balanceData, profileData, portfolioData, spendingData, exposureData]) => {
-      const balances = (balanceData as { balances: Array<{ balance?: string; type?: string }> }).balances;
+      const balances = (balanceData as { balances: Array<{ balance?: string; type?: string; subtype?: string }> }).balances;
       setHasAccounts(balances.length > 0);
 
-      let assets = 0; let liabilities = 0;
+      // Only count what a retiree can *actually* spend. Primary-home equity and
+      // illiquid alternatives (PE / hedge / angel) are excluded — you can't fund
+      // groceries with your house. Tax-advantaged retirement accounts are kept
+      // but tracked separately from liquid savings, because they carry a 10%
+      // early-withdrawal penalty before 59½ (surfaced downstream).
+      // Match retirement accounts by keyword — real subtypes vary (roth, ira,
+      // roth_ira, 401k, 403b, 457, sep_ira, hsa…), so a fixed set misses some.
+      const RET_RE = /401k|403b|457|ira|roth|sep|simple|pension|hsa|annuity/;
+      let liquid = 0; let retirement = 0; let liabilities = 0;
       for (const b of balances) {
         const val = parseFloat(b.balance || '0');
-        if (b.type === 'credit' || b.type === 'loan') liabilities += Math.abs(val);
-        else assets += val;
+        const t = b.type; const st = (b.subtype || '').toLowerCase();
+        if (t === 'credit') { liabilities += Math.abs(val); continue; }
+        // Mortgage is debt against the (excluded) home — drop it with the home
+        // so we don't subtract it from liquid savings. Other loans still count.
+        if (t === 'loan') { if (st !== 'mortgage') liabilities += Math.abs(val); continue; }
+        if (t === 'real_estate' || t === 'alternative') continue; // illiquid — not spendable
+        if (t === 'investment') {
+          if (st === '529') continue; // education-earmarked, not retirement-spendable
+          if (RET_RE.test(st)) { retirement += val; continue; }
+        }
+        liquid += val; // depository + taxable investment (brokerage/crypto/utma/…)
       }
-      const netWorth = assets - liabilities;
-      if (netWorth > 0) setPortfolioValue(netWorth);
+      // Non-mortgage debt is served from accessible money, not locked accounts.
+      const liquidNet = Math.max(0, liquid - liabilities);
+      const accessible = liquidNet + retirement;
+      if (accessible > 0) { setPortfolioValue(accessible); setLiquidValue(liquidNet); }
 
       const profile = (profileData as { financialProfile: Record<string, unknown> | null }).financialProfile;
       if (profile) {
@@ -1365,7 +1529,21 @@ export function Retirement() {
     if (tempValue > 0) yearsMoneyLasts++;
     else break;
   }
-  const monthlyRetirementIncome = Math.round((portfolioAtRetirement * 0.04) / 12);
+  // Safe withdrawal (4%) split by accessibility. `liquidFrac` is today's
+  // accessible-vs-total ratio; growth is uniform so it carries to retirement.
+  const RETIREMENT_ACCESS_AGE = 59.5;
+  const retirementAccountsLocked = retirementAge < RETIREMENT_ACCESS_AGE;
+  const liquidFrac = portfolioValue > 0 ? Math.min(1, liquidValue / portfolioValue) : 1;
+  // Income from accessible savings alone (no penalty), and the full figure
+  // including retirement accounts (haircut 10% when tapped before 59½).
+  const monthlyIncomeLiquid = Math.round((portfolioAtRetirement * liquidFrac * 0.04) / 12);
+  const penaltyFactor = retirementAccountsLocked ? 0.9 : 1;
+  const monthlyRetirementIncome = Math.round(
+    (portfolioAtRetirement * (liquidFrac + (1 - liquidFrac) * penaltyFactor) * 0.04) / 12,
+  );
+  // Only surface the dual figure when retirement accounts are both locked AND a
+  // meaningful slice of the base — otherwise X≈Y and the caveat is just noise.
+  const showAccessSplit = retirementAccountsLocked && liquidFrac < 0.97 && monthlyIncomeLiquid < monthlyRetirementIncome;
   const readiness = fireNumber > 0 ? Math.min(100, (portfolioValue / fireNumber) * 100) : 0;
   const readinessLabel =
     readiness >= 80 ? "You're on track!" :
@@ -1393,9 +1571,27 @@ export function Retirement() {
       planEquityFraction,
       false, // nominal $ — matches the existing "Portfolio projection · nominal $" eyebrow
       'constant_dollar',
+      makeRng(MC_SEED), // seed the plan-band MC so the headline % + median $ are stable across reloads
     ),
     [portfolioValue, annualSavings, retirementAge, currentAge, expectedReturn, annualExpenses, planEquityFraction],
   );
+
+  // Overview projection is shown in TODAY'S dollars (real) so the nominal
+  // $95M/$500M end-values don't mislead the reader. Deflate each band by 3%/yr
+  // from the current age — the same transform the Detailed simulation uses.
+  // mcSuccessRate is unaffected (deflation never turns a surviving path into a
+  // depleted one), so it stays sourced from the untouched planBands.
+  const planBandsReal = useMemo(() => {
+    const deflate = (v: number, t: number) => Math.round(v / Math.pow(1.03, t));
+    return {
+      ...planBands,
+      p5: planBands.p5.map(deflate),
+      p25: planBands.p25.map(deflate),
+      p50: planBands.p50.map(deflate),
+      p75: planBands.p75.map(deflate),
+      p95: planBands.p95.map(deflate),
+    };
+  }, [planBands]);
 
   if (loading) {
     // Iter 7 D: cached shell so first paint isn't blank ~300ms while the
@@ -1437,6 +1633,134 @@ export function Retirement() {
   const readinessTone: 'pos' | 'warn' | 'neg' =
     readiness >= 80 ? 'pos' : readiness >= 50 ? 'warn' : 'neg';
 
+  // Assumptions + advanced simulation extracted to nodes so Detailed can lead
+  // with them (right under the hero) while Overview keeps them at the bottom —
+  // without rendering either block twice.
+  const assumptionsSection = (
+    <Section title="Assumptions">
+      <Card>
+        <div
+          className="ret-slider-row ret-sliders-grid"
+          style={{ gridTemplateColumns: view === 'simple' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}
+        >
+          <div>
+            {/* Label + value chip as a tight inline pair (left-aligned) so the
+                chip doesn't sit visually above the slider's right end-label. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <label className="ret-slider-label">Retirement age</label>
+              <input
+                type="number" min={currentAge} max={100} value={retAgeStr}
+                onChange={e => {
+                  setRetAgeStr(e.target.value);
+                  const v = parseInt(e.target.value, 10);
+                  if (!isNaN(v) && v >= currentAge && v <= 100) setRetirementAge(v);
+                }}
+                onBlur={() => {
+                  const v = parseInt(retAgeStr, 10);
+                  const clamped = isNaN(v) ? currentAge : Math.max(currentAge, Math.min(100, v));
+                  setRetirementAge(clamped);
+                  setRetAgeStr(String(clamped));
+                }}
+                className="ret-slider-input ui-tnum"
+              />
+            </div>
+            <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
+              onChange={e => setRetirementAge(+e.target.value)}
+              className="ret-slider" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+              <span className="text-[11px] font-semibold text-content-muted ui-tnum">{currentAge}</span>
+              <span className="text-[11px] font-semibold text-content-muted ui-tnum">100</span>
+            </div>
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <label className="ret-slider-label">Life expectancy</label>
+              <input
+                type="number" min={retirementAge + 1} max={120} value={lifeExpStr}
+                onChange={e => {
+                  setLifeExpStr(e.target.value);
+                  const v = parseInt(e.target.value, 10);
+                  if (!isNaN(v) && v > retirementAge && v <= 120) setLifeExpectancy(v);
+                }}
+                onBlur={() => {
+                  const v = parseInt(lifeExpStr, 10);
+                  const clamped = isNaN(v) ? retirementAge + 1 : Math.max(retirementAge + 1, Math.min(120, v));
+                  setLifeExpectancy(clamped);
+                  setLifeExpStr(String(clamped));
+                }}
+                className="ret-slider-input ui-tnum"
+              />
+            </div>
+            <input type="range" min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
+              onChange={e => setLifeExpectancy(+e.target.value)}
+              className="ret-slider" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+              <span className="text-[11px] font-semibold text-content-muted ui-tnum">{retirementAge + 1}</span>
+              <span className="text-[11px] font-semibold text-content-muted ui-tnum">120</span>
+            </div>
+          </div>
+          {view === 'simple' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <label className="ret-slider-label">Monthly spending</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={
+                    // While editing, show raw draft. On blur the canonical value reflows
+                    // through monthlySpendStr → setMonthlySpendStr below.
+                    monthlySpendStr.startsWith('$')
+                      ? monthlySpendStr
+                      : `$${Number(monthlySpendStr || 0).toLocaleString('en-US')}`
+                  }
+                  onChange={e => {
+                    const raw = e.target.value.replace(/[^0-9]/g, '');
+                    setMonthlySpendStr(raw);
+                    const v = parseInt(raw, 10);
+                    if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlyRetirementSpend(v);
+                  }}
+                  onBlur={() => {
+                    const v = parseInt(monthlySpendStr, 10);
+                    const clamped = isNaN(v) ? 500 : Math.max(500, Math.min(50000, v));
+                    setMonthlyRetirementSpend(clamped);
+                    setMonthlySpendStr(String(clamped));
+                  }}
+                  className="ret-slider-input ui-tnum"
+                  style={{ width: 96 }}
+                />
+              </div>
+              <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
+                onChange={e => setMonthlyRetirementSpend(+e.target.value)}
+                className="ret-slider" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span className="text-[11px] font-semibold text-content-muted ui-tnum">$2k</span>
+                <span className="text-[11px] font-semibold text-content-muted ui-tnum">$20k</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+    </Section>
+  );
+
+  const simulateSection = (
+    <SimulateView
+      retirementAge={retirementAge}
+      setRetirementAge={setRetirementAge}
+      monthlySpend={monthlyRetirementSpend}
+      setMonthlySpend={setMonthlyRetirementSpend}
+      lifeExp={lifeExpectancy}
+      setLifeExp={setLifeExpectancy}
+      portfolioValue={portfolioValue}
+      currentAge={currentAge}
+      annualSavings={annualSavings}
+      portfolioAtRetirement={portfolioAtRetirement}
+      portfolioAllocation={allocation}
+      actualBlendedReturn={blendedReturn}
+      onRatesChange={handleRatesChange}
+    />
+  );
+
   // Page-scoped responsive helpers — kept inline since they're page-specific.
   return (
     <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
@@ -1460,6 +1784,13 @@ export function Retirement() {
           .ret-hero-big { font-size: 44px !important; }
           .ret-simulate-big { font-size: 56px !important; }
           .ret-header-row { flex-direction: column !important; align-items: flex-start !important; }
+          /* iOS-minimum tap target for the Overview/Detailed toggle. */
+          .ret-view-toggle button {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
         }
         .ret-view-toggle {
           display: inline-flex;
@@ -1560,7 +1891,27 @@ export function Retirement() {
         .ret-slider:focus-visible::-webkit-slider-thumb {
           box-shadow: 0 0 0 4px var(--ui-brand-ring);
         }
-        .ret-stats { margin: 0 0 40px; }
+        /* Only own the bottom gap — leave margin-top to the element's mt-6
+           utility (24px). Setting margin:0 here used to zero that top gap, so
+           the KPI strip collided with the Assumptions card above it. */
+        .ret-stats { margin-bottom: 32px; }
+        /* Fan-chart bands. Light mode needs more ink than dark — the pale
+           periwinkle washed out to near-invisible in light, so the two bands
+           couldn't be told apart. Dark keeps the original (already legible)
+           values. */
+        .ret-fan-outer { fill: var(--ui-viz-2); fill-opacity: 0.18; }
+        .ret-fan-inner { fill: var(--ui-viz-2); fill-opacity: 0.34; }
+        .dark .ret-fan-outer { fill-opacity: 0.12; }
+        .dark .ret-fan-inner { fill-opacity: 0.20; }
+        /* Accumulation-phase backdrop (pre-retirement). A faint green wash so the
+           low-value left half reads as "still building", not empty. */
+        .ret-accum-zone { fill: rgb(var(--ui-brand)); fill-opacity: 0.09; }
+        .dark .ret-accum-zone { fill-opacity: 0.10; }
+        /* Legend swatches track the band opacities per theme. */
+        .ret-sw-outer { background: var(--ui-viz-2); opacity: 0.30; }
+        .ret-sw-inner { background: var(--ui-viz-2); opacity: 0.55; }
+        .dark .ret-sw-outer { opacity: 0.18; }
+        .dark .ret-sw-inner { opacity: 0.36; }
       `}</style>
 
       <motion.div
@@ -1602,6 +1953,10 @@ export function Retirement() {
 
         {/* ── HERO ANSWER — the one confident number: are you on track? ──────── */}
         {(() => {
+          // Detailed mode leads with the advanced tools, so the hero collapses to
+          // a compact single-row answer (number + status + one-line summary) and
+          // drops the coverage bar. Overview keeps the full readiness moment.
+          const compact = view === 'advanced';
           const readinessColor =
             readiness >= 80 ? 'rgb(var(--ui-brand-ink))' : readiness >= 50 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
           const covered = monthlyRetirementIncome >= monthlyRetirementSpend;
@@ -1615,7 +1970,7 @@ export function Retirement() {
           return (
             <section
               data-hero
-              className="relative mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7"
+              className="relative mt-8 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7"
             >
               <div
                 className="pointer-events-none absolute inset-0"
@@ -1625,13 +1980,19 @@ export function Retirement() {
                     'radial-gradient(80% 70% at 100% 8%, var(--ui-info-soft), transparent 62%)',
                 }}
               />
-              <div className="relative grid items-center gap-7 sm:gap-10 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                {/* lead — the answer */}
+              <div
+                className={cn('relative', !compact && 'ret-readiness-grid grid items-center gap-7 sm:gap-9')}
+                style={!compact ? { gridTemplateColumns: 'minmax(0, 1fr) 236px' } : undefined}
+              >
+                {/* lead — the answer (single readiness moment: big % + coverage bar) */}
                 <div className="min-w-0">
                   <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement readiness</div>
                   <div className="mt-2 flex items-end gap-3 flex-wrap">
                     <span
-                      className="font-editorial text-[56px] sm:text-[68px] font-extrabold leading-[0.82] tracking-[-0.03em] ui-tnum"
+                      className={cn(
+                        'font-editorial font-extrabold leading-[0.82] tracking-[-0.03em] ui-tnum',
+                        compact ? 'text-[40px] sm:text-[48px]' : 'text-[56px] sm:text-[68px]',
+                      )}
                       style={{ color: readinessColor }}
                     >
                       {readiness.toFixed(0)}%
@@ -1643,64 +2004,244 @@ export function Retirement() {
                       {readinessLabel}
                     </span>
                   </div>
-                  <p className="mt-4 text-[15px] leading-[1.55] text-content-secondary max-w-[50ch]">
-                    On track to{' '}
-                    <strong className="font-bold text-content ui-tnum">{formatMoney(portfolioAtRetirement, true)}</strong> by age{' '}
-                    <span className="ui-tnum">{retirementAge}</span>. At a 4% safe rate that supports about{' '}
-                    <strong className="font-bold text-content ui-tnum">{formatMoney(monthlyRetirementIncome)}/mo</strong> —{' '}
-                    {yearsMoneyLasts >= lifeHorizon
-                      ? 'enough to last a full lifetime.'
-                      : `lasting roughly ${yearsMoneyLasts} year${yearsMoneyLasts === 1 ? '' : 's'}.`}
-                  </p>
-                  {/* coverage — does the safe income cover the plan? */}
-                  <div className="mt-5 max-w-[440px]">
-                    <div className="mb-2 flex items-baseline justify-between gap-2">
-                      <span className="text-[12px] font-semibold text-content-muted">Safe income vs your {formatMoney(monthlyRetirementSpend)}/mo plan</span>
-                      <span
-                        className="text-[12.5px] font-extrabold ui-tnum"
-                        style={{ color: covered ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-negative))' }}
-                      >
-                        {coveragePct.toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="h-[9px] rounded-full bg-canvas-sunken overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${Math.max(coveragePct, 3)}%`,
-                          background: covered ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))',
-                          transition: 'width 0.6s ease',
-                        }}
-                      />
-                    </div>
-                    <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">
+                  {compact ? (
+                    <p className="mt-3 text-[13.5px] leading-[1.5] text-content-secondary max-w-[54ch]">
+                      Funding retirement at age <span className="ui-tnum">{retirementAge}</span> through{' '}
+                      <span className="ui-tnum">{lifeExpectancy}</span>.{' '}
                       {covered
-                        ? 'Covers your planned spending in full'
-                        : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))}/mo short of plan`}
-                    </div>
+                        ? 'Safe income covers your plan in full.'
+                        : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))}/mo short of plan.`}{' '}
+                      Adjust the levers below to explore.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mt-4 text-[15px] leading-[1.55] text-content-secondary max-w-[50ch]">
+                        On track to fully fund retirement by age{' '}
+                        <span className="ui-tnum">{retirementAge}</span>. At a 4% safe withdrawal rate, that's{' '}
+                        {yearsMoneyLasts >= lifeHorizon
+                          ? 'enough income to last a full lifetime.'
+                          : `enough to last roughly ${yearsMoneyLasts} year${yearsMoneyLasts === 1 ? '' : 's'}.`}
+                      </p>
+                      {/* coverage — does the safe income cover the plan? The big
+                          readiness figure already owns "100%"; this bar is a
+                          labeled status (check / shortfall), never a second
+                          "100%". */}
+                      <div className="mt-5 max-w-[440px]">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-[12px] font-semibold text-content-muted">Safe income vs your {formatMoney(monthlyRetirementSpend)}/mo plan</span>
+                          {covered ? (
+                            <span className="inline-flex items-center gap-1 text-[12.5px] font-bold" style={{ color: 'rgb(var(--ui-brand-ink))' }}>
+                              <Check size={13} strokeWidth={3} aria-hidden /> Covered
+                            </span>
+                          ) : (
+                            <span className="text-[12.5px] font-extrabold ui-tnum" style={{ color: 'rgb(var(--ui-negative))' }}>
+                              {coveragePct.toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-[9px] rounded-full bg-canvas-sunken overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${Math.max(coveragePct, 3)}%`,
+                              background: covered ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))',
+                              transition: 'width 0.6s ease',
+                            }}
+                          />
+                        </div>
+                        <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">
+                          {covered
+                            ? 'Your safe income meets the plan every month'
+                            : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))}/mo short of plan`}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                {/* right — supporting KPIs fill the hero width (was dead space).
+                    Simple view only; Detailed's compact hero leads with tools. */}
+                {!compact && (
+                  <div className="ret-readiness-kpis grid grid-cols-1 gap-4 sm:border-l sm:border-line sm:pl-7">
+                    {[
+                      { label: 'Portfolio at retirement', value: fmtBig(portfolioAtRetirement), sub: `age ${retirementAge}` },
+                      { label: 'Safe monthly income', value: formatMoney(monthlyRetirementIncome, true) + (showAccessSplit ? '*' : ''), sub: showAccessSplit ? `${formatMoney(monthlyIncomeLiquid, true)}/mo from savings alone` : '4% rule · projected' },
+                      { label: 'Years money lasts', value: yearsMoneyLasts >= lifeHorizon ? 'lifetime' : String(yearsMoneyLasts), sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}` },
+                    ].map((k) => (
+                      <div key={k.label}>
+                        <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{k.label}</div>
+                        <div className="mt-1 font-editorial text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">{k.value}</div>
+                        <div className="mt-1 text-[11.5px] font-medium text-content-muted">{k.sub}</div>
+                      </div>
+                    ))}
+                    {showAccessSplit && (
+                      <p className="text-[11px] leading-[1.45] text-content-muted">
+                        * Includes retirement accounts — a 10% penalty applies to withdrawals before 59½.
+                      </p>
+                    )}
                   </div>
-                </div>
-                {/* ring — the visual echo of the answer */}
-                <div className="flex items-center justify-center sm:justify-end">
-                  <ReadinessRing pct={readiness} />
-                </div>
+                )}
               </div>
             </section>
           );
         })()}
 
-        {/* ── SUPPORTING KPIs ──────────────────────────────────────────────── */}
-        <div data-stats className="ret-stats mt-6 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+        {/* Composition + Actions surface directly under the hero (both views) —
+            allocation and next-steps read as the at-a-glance layer, before the
+            deeper levers/projection/tools below. */}
+        {Object.keys(allocation).length > 0 && portfolioValue > 0 && (() => {
+          const total = Object.values(allocation).reduce((s, v) => s + v, 0);
+          if (total <= 0) return null;
+          const labelMap: Record<string, string> = {
+            usStocks: 'US stocks', us: 'US stocks',
+            intlStocks: "Int'l stocks", intl: "Int'l stocks", international: "Int'l stocks",
+            bonds: 'Bonds', bond: 'Bonds',
+            reits: 'REITs', reit: 'REITs',
+            cash: 'Cash',
+          };
+          const raw = Object.entries(allocation)
+            .filter(([, v]) => v > 0)
+            .map(([k, v]) => ({
+              label: labelMap[k] ?? k,
+              value: Math.round((v / total) * portfolioValue),
+              pct: (v / total) * 100,
+            }))
+            .sort((a, b) => b.pct - a.pct);
+          if (raw.length === 0) return null;
+          // Collapse the sub-1.5% long tail into one neutral "Other" segment so
+          // the bar doesn't fan out into a rainbow of unreadable slivers (same
+          // treatment as /portfolio). Only collapses when it removes ≥2 slivers.
+          const MIN_PCT = 1.5;
+          const small = raw.filter(s => s.pct < MIN_PCT);
+          const big = raw.filter(s => s.pct >= MIN_PCT);
+          const kept = small.length >= 2 ? big : raw;
+          const otherPct = small.length >= 2 ? small.reduce((s, x) => s + x.pct, 0) : 0;
+          const otherVal = small.length >= 2 ? small.reduce((s, x) => s + x.value, 0) : 0;
+          const segments = [
+            ...kept.map((s, i) => ({ ...s, color: `var(--ui-viz-${(i % 7) + 1})` })),
+            ...(otherPct > 0 ? [{ label: 'Other', value: otherVal, pct: otherPct, color: 'rgb(var(--ui-content-muted))' }] : []),
+          ];
+          if (segments.length === 0) return null;
+          // Display integers via largest-remainder so the legend sums to 100 and
+          // matches the allocation slider inputs (Cash 8%, not 9%).
+          const dispPct = intPercents(segments.map(s => s.pct));
+          return (
+            <Section
+              title="Portfolio composition"
+              eyebrow={<span className="text-[rgb(var(--ui-brand-ink))] font-bold ui-tnum">{expectedReturn.toFixed(1)}% blended return</span>}
+            >
+            <Card>
+              <div className="flex h-3 overflow-hidden rounded-full bg-canvas-sunken" style={{ gap: 1, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.32)' }}>
+                {segments.map((s, i) => (
+                  <div key={s.label} style={{ width: `${s.pct}%`, background: s.color, minWidth: 2 }} title={`${s.label} · ${dispPct[i]}%`} />
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                {segments.map((s, i) => (
+                  <span key={s.label} className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-content-secondary ui-tnum">
+                    <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} aria-hidden />
+                    {s.label} {dispPct[i]}%
+                  </span>
+                ))}
+              </div>
+            </Card>
+            </Section>
+          );
+        })()}
+
+        <div className="mt-8">
+          <PageActions types="retirement" />
+        </div>
+
+        {/* ── DETAILED LEADS WITH THE ADVANCED TOOLS ─────────────────────────
+            In Detailed mode the point of the page is the simulation + controls,
+            so surface them directly under the hero (assumptions → withdrawal +
+            allocation controls → Monte Carlo / Backtest) instead of burying them
+            beneath the full Overview stack. The KPI strip / composition / legal /
+            actions below then read as supporting context, not the main event. */}
+        {view === 'advanced' && (
+          <div className="mt-8">
+            {assumptionsSection}
+            <div className="mt-8">
+              {simulateSection}
+            </div>
+          </div>
+        )}
+
+        {/* Overview: levers first, then the projection they drive — so the inputs
+            precede the output and the chart updates just below as you adjust. */}
+        {view === 'simple' && assumptionsSection}
+
+        {/* ── PROJECTION — the centerpiece: "will your money last?" ──────────── */}
+        {view === 'simple' && (() => {
+          const lasts = planBands.mcSuccessRate;
+          const runsOut = 100 - lasts;
+          const lastI = planBandsReal.p50.length - 1;
+          const medianEnd = planBandsReal.p50[lastI] || 0;
+          const p5End = planBandsReal.p5[lastI] || 0;
+          // Compact $ (M/B) so the headline + spread read like the chart axis
+          // ("$113.1M"), not a 9-digit string ($113,097,620).
+          const abbr = (v: number) =>
+            v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
+            : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M`
+            : v >= 1e3 ? `$${Math.round(v / 1e3)}k`
+            : `$${Math.round(v)}`;
+          // Magnitude context so the median reads as a consequence, not a demo:
+          // how many multiples of today's portfolio, at what withdrawal rate
+          // (annual spend ÷ current portfolio — the same "% of current
+          // portfolio" definition the Detailed tab uses).
+          const mult = portfolioValue > 0 ? medianEnd / portfolioValue : 0;
+          const multStr = mult >= 10 ? `${Math.round(mult)}×` : `${mult.toFixed(1)}×`;
+          const wr = portfolioValue > 0 ? (annualExpenses / portfolioValue) * 100 : 0;
+          return (
+          <Section title="Projection" eyebrow={`Today's dollars · age ${currentAge} → ${Math.max(retirementAge + 30, 90)}`}>
+            <Card style={{ padding: 0 }}>
+              <div style={{ padding: '20px 20px 12px' }}>
+                {/* Anchor the median outcome in context — the believable proof.
+                    The readiness hero owns the headline %, and the section header
+                    owns the "today's dollars" framing, so the card leads straight
+                    with the dollar median + honest spread — no third label. */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                  <span className="font-editorial ui-tnum" style={{ fontSize: 40, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.03em', color: 'rgb(var(--ui-content))' }}>
+                    {abbr(medianEnd)}
+                  </span>
+                  <span className="text-[15px] font-semibold text-content" style={{ minWidth: 0 }}>
+                    median portfolio at age {lifeExpectancy}
+                  </span>
+                </div>
+                <p className="text-[12.5px] text-content-muted" style={{ marginTop: 8, lineHeight: 1.55 }}>
+                  <span className="ui-tnum" style={{ color: 'rgb(var(--ui-content-secondary))', fontWeight: 600 }}>≈{multStr}</span> your {abbr(portfolioValue)} today at a ~{wr.toFixed(1)}% withdrawal rate, in today's dollars.
+                  {' '}Even the worst 5% of paths end near <span className="ui-tnum" style={{ color: 'rgb(var(--ui-content-secondary))', fontWeight: 600 }}>{abbr(p5End)}</span> —{' '}
+                  {runsOut <= 0 ? 'money lasts in every simulated path.' : `money runs out in ${runsOut}% of 1,000 paths.`}
+                  {' '}Not a guarantee.
+                </p>
+              </div>
+              <ProjectionFan bands={planBandsReal} currentAge={currentAge} retirementAge={retirementAge} />
+              <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'rgb(var(--ui-content-muted))', padding: '4px 20px 20px', flexWrap: 'wrap' }}>
+                <span><span className="ret-sw-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle' }} />p5–p95 range</span>
+                <span><span className="ret-sw-inner" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle' }} />p25–p75 likely</span>
+                <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median (p50)</span>
+              </div>
+            </Card>
+          </Section>
+          );
+        })()}
+
+        {/* ── SUPPORTING KPIs (Detailed only) ────────────────────────────────
+            Overview surfaces these in the hero's right column, so the strip
+            would double-print them. Detailed's compact hero has no KPI column,
+            so the strip carries them here (plus Monte Carlo). */}
+        {view === 'advanced' && (
+        <div data-stats className="ret-stats mt-8 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
           {([
             {
               label: 'Portfolio at retirement',
-              value: formatMoney(portfolioAtRetirement, true),
-              sub: `age ${retirementAge} · ${expectedReturn.toFixed(1)}% return`,
+              value: fmtBig(portfolioAtRetirement),
+              sub: `age ${retirementAge}`,
               tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
             {
               label: 'FIRE number',
-              value: formatMoney(fireNumber, true),
+              value: fmtBig(fireNumber),
               sub: '25× annual spend',
               tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
@@ -1710,9 +2251,7 @@ export function Retirement() {
               sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}`,
               tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
-            view === 'simple'
-              ? { label: 'Safe monthly income', value: formatMoney(monthlyRetirementIncome), sub: '4% rule · projected', tone: undefined as 'pos' | 'warn' | 'neg' | undefined }
-              : { label: 'Monte Carlo', value: `${mcRate}%`, sub: '1,000 runs', tone: (mcRate >= 80 ? 'pos' : 'neg') as 'pos' | 'neg' },
+            { label: 'Monte Carlo', value: `${mcRate}%`, sub: '1,000 runs', tone: (mcRate >= 80 ? 'pos' : 'neg') as 'pos' | 'neg' },
           ]).map((item) => (
             <div key={item.label} className="border-l-2 border-line pl-3.5">
               <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{item.label}</div>
@@ -1730,208 +2269,9 @@ export function Retirement() {
             </div>
           ))}
         </div>
-
-        {/* Composition ribbon — only when we have a real allocation to show */}
-        {Object.keys(allocation).length > 0 && portfolioValue > 0 && (() => {
-          const total = Object.values(allocation).reduce((s, v) => s + v, 0);
-          if (total <= 0) return null;
-          const labelMap: Record<string, string> = {
-            usStocks: 'US stocks', us: 'US stocks',
-            intlStocks: "Int'l stocks", intl: "Int'l stocks", international: "Int'l stocks",
-            bonds: 'Bonds', bond: 'Bonds',
-            reits: 'REITs', reit: 'REITs',
-            cash: 'Cash',
-          };
-          const segments = Object.entries(allocation)
-            .filter(([, v]) => v > 0)
-            .map(([k, v], i) => ({
-              label: labelMap[k] ?? k,
-              value: Math.round((v / total) * portfolioValue),
-              pct: (v / total) * 100,
-              color: `var(--ui-viz-${(i % 7) + 1})`,
-            }));
-          if (segments.length === 0) return null;
-          return (
-            <Card className="mt-6">
-              <div className="flex items-baseline justify-between gap-3">
-                <Eyebrow>Portfolio composition</Eyebrow>
-                <span className="text-[12.5px] font-bold text-[rgb(var(--ui-brand-ink))] ui-tnum">{expectedReturn.toFixed(1)}% blended return</span>
-              </div>
-              <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-canvas-sunken" style={{ gap: 1 }}>
-                {segments.map((s) => (
-                  <div key={s.label} style={{ width: `${s.pct}%`, background: s.color, minWidth: 2 }} title={`${s.label} · ${s.pct.toFixed(0)}%`} />
-                ))}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-                {segments.map((s) => (
-                  <span key={s.label} className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-content-secondary ui-tnum">
-                    <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} aria-hidden />
-                    {s.label} {s.pct.toFixed(0)}%
-                  </span>
-                ))}
-              </div>
-            </Card>
-          );
-        })()}
+        )}
 
         <LegalDisclaimer variant="projections" />
-
-        <PageActions types="retirement" />
-
-        {/* Assumptions sliders */}
-        <Section title="Assumptions">
-          <Card>
-            <div
-              className="ret-slider-row ret-sliders-grid"
-              style={{ gridTemplateColumns: view === 'simple' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}
-            >
-              <div>
-                {/* Label + value chip as a tight inline pair (left-aligned) so the
-                    chip doesn't sit visually above the slider's right end-label. */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <label className="ret-slider-label">Retirement age</label>
-                  <input
-                    type="number" min={currentAge} max={100} value={retAgeStr}
-                    onChange={e => {
-                      setRetAgeStr(e.target.value);
-                      const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v) && v >= currentAge && v <= 100) setRetirementAge(v);
-                    }}
-                    onBlur={() => {
-                      const v = parseInt(retAgeStr, 10);
-                      const clamped = isNaN(v) ? currentAge : Math.max(currentAge, Math.min(100, v));
-                      setRetirementAge(clamped);
-                      setRetAgeStr(String(clamped));
-                    }}
-                    className="ret-slider-input ui-tnum"
-                  />
-                </div>
-                <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
-                  onChange={e => setRetirementAge(+e.target.value)}
-                  className="ret-slider" />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                  <span className="text-[11px] font-semibold text-content-muted ui-tnum">{currentAge}</span>
-                  <span className="text-[11px] font-semibold text-content-muted ui-tnum">100</span>
-                </div>
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <label className="ret-slider-label">Life expectancy</label>
-                  <input
-                    type="number" min={retirementAge + 1} max={120} value={lifeExpStr}
-                    onChange={e => {
-                      setLifeExpStr(e.target.value);
-                      const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v) && v > retirementAge && v <= 120) setLifeExpectancy(v);
-                    }}
-                    onBlur={() => {
-                      const v = parseInt(lifeExpStr, 10);
-                      const clamped = isNaN(v) ? retirementAge + 1 : Math.max(retirementAge + 1, Math.min(120, v));
-                      setLifeExpectancy(clamped);
-                      setLifeExpStr(String(clamped));
-                    }}
-                    className="ret-slider-input ui-tnum"
-                  />
-                </div>
-                <input type="range" min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
-                  onChange={e => setLifeExpectancy(+e.target.value)}
-                  className="ret-slider" />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                  <span className="text-[11px] font-semibold text-content-muted ui-tnum">{retirementAge + 1}</span>
-                  <span className="text-[11px] font-semibold text-content-muted ui-tnum">120</span>
-                </div>
-              </div>
-              {view === 'simple' && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <label className="ret-slider-label">Monthly spending</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={
-                        // While editing, show raw draft. On blur the canonical value reflows
-                        // through monthlySpendStr → setMonthlySpendStr below.
-                        monthlySpendStr.startsWith('$')
-                          ? monthlySpendStr
-                          : `$${Number(monthlySpendStr || 0).toLocaleString('en-US')}`
-                      }
-                      onChange={e => {
-                        const raw = e.target.value.replace(/[^0-9]/g, '');
-                        setMonthlySpendStr(raw);
-                        const v = parseInt(raw, 10);
-                        if (!isNaN(v) && v >= 500 && v <= 50000) setMonthlyRetirementSpend(v);
-                      }}
-                      onBlur={() => {
-                        const v = parseInt(monthlySpendStr, 10);
-                        const clamped = isNaN(v) ? 500 : Math.max(500, Math.min(50000, v));
-                        setMonthlyRetirementSpend(clamped);
-                        setMonthlySpendStr(String(clamped));
-                      }}
-                      className="ret-slider-input ui-tnum"
-                      style={{ width: 96 }}
-                    />
-                  </div>
-                  <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
-                    onChange={e => setMonthlyRetirementSpend(+e.target.value)}
-                    className="ret-slider" />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                    <span className="text-[11px] font-semibold text-content-muted ui-tnum">$2k</span>
-                    <span className="text-[11px] font-semibold text-content-muted ui-tnum">$20k</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        </Section>
-
-        {/* ── SIMPLE VIEW ──────────────────────────────────────────────────────── */}
-        {view === 'simple' && (
-          <>
-            {/* Projection chart — Monte Carlo bands (1,000 randomized paths).
-                Plan tab now shows the same uncertainty as the Advanced tab so
-                users don't read a single deterministic line as a guarantee. */}
-            <Section title="Projection" eyebrow={`Age ${currentAge} → ${Math.max(retirementAge + 20, 90)}`}>
-              <Card style={{ padding: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 20px 12px', gap: 16, flexWrap: 'wrap' }}>
-                  <div>
-                    <Eyebrow>Portfolio projection · 1,000 randomized runs</Eyebrow>
-                    <p className="text-[13px] leading-relaxed text-content-secondary" style={{ marginTop: 6 }}>
-                      At {expectedReturn.toFixed(1)}% avg return · {annualSavings > 0 ? `${formatMoney(annualSavings, true)}/yr contributions` : 'no contributions estimated'}
-                    </p>
-                    <p className="text-[12.5px] text-content-muted" style={{ marginTop: 4, opacity: 0.7 }}>
-                      Bands show the range across 1,000 simulated market outcomes — not a guarantee.
-                    </p>
-                  </div>
-                </div>
-                <ProjectionFan bands={planBands} currentAge={currentAge} retirementAge={retirementAge} />
-                <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'rgb(var(--ui-content-muted))', padding: '4px 20px 20px', flexWrap: 'wrap' }}>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--ui-viz-2)', opacity: 0.18, marginRight: 6, verticalAlign: 'middle' }} />p5–p95 range</span>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 6, background: 'var(--ui-viz-2)', opacity: 0.36, marginRight: 6, verticalAlign: 'middle' }} />p25–p75 likely</span>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median (p50)</span>
-                </div>
-              </Card>
-            </Section>
-          </>
-        )}
-
-        {/* ── ADVANCED VIEW ──────────────────────────────────────────────────── */}
-        {view === 'advanced' && (
-          <SimulateView
-            retirementAge={retirementAge}
-            setRetirementAge={setRetirementAge}
-            monthlySpend={monthlyRetirementSpend}
-            setMonthlySpend={setMonthlyRetirementSpend}
-            lifeExp={lifeExpectancy}
-            setLifeExp={setLifeExpectancy}
-            portfolioValue={portfolioValue}
-            currentAge={currentAge}
-            annualSavings={annualSavings}
-            portfolioAtRetirement={portfolioAtRetirement}
-            portfolioAllocation={allocation}
-            actualBlendedReturn={blendedReturn}
-            onRatesChange={handleRatesChange}
-          />
-        )}
       </motion.div>
     </div>
   );

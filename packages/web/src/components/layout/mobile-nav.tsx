@@ -9,7 +9,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
-import { useChatStore } from '../../lib/chat-store';
 import { BrandMark } from '../common/BrandMark';
 
 interface NavItem {
@@ -61,7 +60,6 @@ interface MobileNavProps {
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const [location, navigate] = useLocation();
   const { tenant, logout } = useAuth();
-  const { openChat } = useChatStore();
 
   const isActive = (path: string) => path === '/' ? location === '/' : location.startsWith(path);
 
@@ -169,7 +167,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
               {/* AI Chat */}
               <div className="mb-2">
                 <button
-                  onClick={() => { openChat(); onClose(); }}
+                  onClick={() => handleNavigate('/chat')}
                   className="flex items-center gap-3 w-full p-2.5 rounded-ui-md
                              cursor-pointer text-left text-[15px]
                              transition-colors active:scale-[0.98] hover:bg-canvas-sunken

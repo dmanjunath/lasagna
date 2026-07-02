@@ -31,7 +31,7 @@ export function PromptTransition({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="glass-card p-8"
+          className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-8"
         >
           <StarterPrompts planType={planType} onSelectPrompt={onSelectPrompt} />
         </motion.div>
@@ -44,12 +44,12 @@ export function PromptTransition({
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="glass-card p-8 flex items-center justify-center"
+          className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-8 flex items-center justify-center"
         >
           {/* Visual feedback during transition */}
           <motion.div
             layoutId="prompt-bubble"
-            className="bg-accent/20 text-accent px-4 py-2 rounded-xl text-sm max-w-md truncate"
+            className="bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))] px-4 py-2 rounded-ui-md text-sm max-w-md truncate"
           >
             {submittedPrompt}
           </motion.div>
@@ -64,10 +64,10 @@ export function PromptTransition({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="glass-card p-12 flex flex-col items-center justify-center gap-4"
+          className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-12 flex flex-col items-center justify-center gap-4"
         >
-          <Loader2 className="w-8 h-8 text-accent animate-spin" />
-          <p className="text-text-secondary">Generating your plan...</p>
+          <Loader2 className="w-8 h-8 text-brand animate-spin" />
+          <p className="text-content-secondary font-semibold">Generating your plan...</p>
         </motion.div>
       )}
 
@@ -89,7 +89,7 @@ export function PromptTransition({
           key="empty"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="glass-card p-8 text-center text-text-secondary"
+          className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-8 text-center text-content-secondary font-semibold"
         >
           No content generated yet.
         </motion.div>

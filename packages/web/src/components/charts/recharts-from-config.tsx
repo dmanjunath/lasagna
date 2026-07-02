@@ -243,9 +243,9 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
   };
 
   return (
-    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl p-5 shadow-lg">
+    <div className="bg-panel border border-line rounded-2xl p-5 shadow-ui-sm">
       {title && (
-        <h4 className="text-sm font-semibold text-text mb-4">{title}</h4>
+        <h4 className="text-sm font-semibold text-content mb-4">{title}</h4>
       )}
       <ResponsiveContainer width="100%" height={height}>
         <ChartContainer data={config.data}>
@@ -291,7 +291,7 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
               iconType="circle"
               iconSize={8}
               formatter={(value) => (
-                <span style={{ color: colors.text.muted, fontSize: 12, marginLeft: 4 }}>{value}</span>
+                <span className="text-content-secondary" style={{ fontSize: 12, marginLeft: 4 }}>{value}</span>
               )}
             />
           )}

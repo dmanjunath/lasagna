@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MessageSquare, X, Menu, Maximize2, Sparkles } from 'lucide-react';
+import { MessageSquare, X, Menu, Maximize2, Sparkles } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
 import { AppHeader } from './app-header';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { useChatStore, getChatExpanded, setChatExpanded } from '../../lib/chat-store';
-import { ChatTabs } from '../chat/chat-tabs';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
 
 interface ShellProps {
@@ -53,6 +51,17 @@ export function Shell({ children }: ShellProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatOpen, isMobile]);
 
+  // Mobile has no chat overlay — the canonical chat is the full /chat page (the
+  // same target as the bottom-tab and hamburger). Any openChat() call routes
+  // there; if it carried a prompt, openChat set pendingMessage, which the /chat
+  // page's hook consumes to start the conversation.
+  useEffect(() => {
+    if (!chatOpen || !isMobile) return;
+    closeChat();
+    if (location !== '/chat') setLocation('/chat');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatOpen, isMobile]);
+
   return (
     <div className="h-dvh w-full max-w-full overflow-hidden bg-canvas app-wash flex flex-col">
       {/* Shared top bar — same component the Simple shell uses, so the
@@ -90,43 +99,7 @@ export function Shell({ children }: ShellProps) {
             </div>
           </main>
 
-          {/* Chat overlay — fades in/out like any other view */}
-          <AnimatePresence>
-            {chatOpen && (
-              <motion.div
-                key="chat-overlay"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
-                className="absolute inset-0 flex flex-col bg-canvas overflow-hidden z-20"
-                data-testid="chat-panel"
-              >
-                {/* Header */}
-                <div className="flex items-center gap-2 px-3 py-3 border-b border-line flex-shrink-0
-                               pt-[calc(env(safe-area-inset-top)+0.75rem)]">
-                  <button
-                    onClick={() => closeChat()}
-                    className="grid place-items-center rounded-ui-md text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors
-                             active:scale-95 min-w-[44px] min-h-[44px]"
-                    aria-label="Close chat"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                  </button>
-                  <div className="w-6 h-6 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center">
-                    <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
-                  </div>
-                  <span className="text-sm font-semibold text-content">Assistant</span>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0
-                                pb-safe-bottom">
-                  <ChatTabs />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Mobile has no chat overlay — openChat routes to /chat (see effect above). */}
         </div>
       ) : (
         /* Desktop: standard flex layout */

@@ -1,41 +1,77 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Plus, FileText, Loader2, Trash2, Info } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  Trash2,
+  Info,
+  Target,
+  TrendingUp,
+  CreditCard,
+  Sparkles,
+  ArrowRight,
+  ChevronRight,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
-import { Button } from "../../components/uikit";
+import { Button, Skeleton } from "../../components/uikit";
 import type { Plan, PlanType } from "../../lib/types.js";
 
-const planTypes = [
-  {
-    type: 'retirement' as PlanType,
-    icon: '🎯',
-    title: 'Retirement',
-    description: 'Plan when you can retire and test scenarios',
-    tooltip: 'Plan your retirement with Monte Carlo simulations, withdrawal strategies, and scenario analysis'
+// ---------------------------------------------------------------------------
+// Plan-type visual language — icon + a distinct accent per type so plans stay
+// glanceable. Accents are viz tokens so light/dark adapt automatically.
+// ---------------------------------------------------------------------------
+
+type PlanMeta = {
+  label: string;
+  icon: typeof Target;
+  accent: string;
+  // Darker, AA-safe text shade for the type pill (bright viz colors fail as text).
+  ink: string;
+  description: string;
+  tooltip: string;
+};
+
+const PLAN_META: Record<PlanType, PlanMeta> = {
+  retirement: {
+    label: "Retirement",
+    icon: Target,
+    accent: "var(--ui-viz-1)",
+    ink: "rgb(var(--ui-positive))",
+    description: "Plan when you can retire and test scenarios",
+    tooltip:
+      "Plan your retirement with Monte Carlo simulations, withdrawal strategies, and scenario analysis",
   },
-  {
-    type: 'net_worth' as PlanType,
-    icon: '📈',
-    title: 'Net Worth',
-    description: 'Track wealth and optimize allocation',
-    tooltip: 'Track your total wealth across all accounts, analyze trends, and optimize asset allocation'
+  net_worth: {
+    label: "Net Worth",
+    icon: TrendingUp,
+    accent: "var(--ui-viz-2)",
+    ink: "rgb(var(--ui-accent-ink))",
+    description: "Track wealth and optimize allocation",
+    tooltip:
+      "Track your total wealth across all accounts, analyze trends, and optimize asset allocation",
   },
-  {
-    type: 'debt_payoff' as PlanType,
-    icon: '💳',
-    title: 'Debt Payoff',
-    description: 'Create a debt payoff strategy',
-    tooltip: 'Create a strategy to pay off debt using avalanche or snowball methods, see payoff timelines'
+  debt_payoff: {
+    label: "Debt Payoff",
+    icon: CreditCard,
+    accent: "var(--ui-viz-4)",
+    ink: "rgb(var(--ui-negative))",
+    description: "Create a debt payoff strategy",
+    tooltip:
+      "Create a strategy to pay off debt using avalanche or snowball methods, see payoff timelines",
   },
-  {
-    type: 'custom' as PlanType,
-    icon: '✨',
-    title: 'Custom',
-    description: 'Any financial goal with AI assistance',
-    tooltip: 'Create a custom plan for any financial goal - saving for a house, college fund, vacation, etc.'
-  }
-];
+  custom: {
+    label: "Custom",
+    icon: Sparkles,
+    accent: "var(--ui-accent)",
+    ink: "rgb(var(--ui-accent-ink))",
+    description: "Any financial goal with AI assistance",
+    tooltip:
+      "Create a custom plan for any financial goal — saving for a house, college fund, vacation, etc.",
+  },
+};
+
+const PLAN_ORDER: PlanType[] = ["retirement", "net_worth", "debt_payoff", "custom"];
 
 export function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -81,125 +117,320 @@ export function PlansPage() {
     }
   };
 
-  const planTypeLabels = {
-    net_worth: "Net Worth",
-    retirement: "Retirement",
-    debt_payoff: "Debt Payoff",
-    custom: "Custom",
-  };
+  const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
+  const areasTracked = new Set(plans.map((p) => p.type)).size;
+
+  const summaryLine = !loading && plans.length > 0 && (
+    <span className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      <span>
+        <b className="font-extrabold text-content ui-tnum">{plans.length}</b>{" "}
+        plan{plans.length === 1 ? "" : "s"}
+      </span>
+      <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
+      <span>
+        <b className="font-extrabold text-content ui-tnum">{areasTracked}</b>{" "}
+        area{areasTracked === 1 ? "" : "s"} tracked
+      </span>
+    </span>
+  );
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-editorial font-semibold text-content">
-            Financial Plans
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+      {/* ════════ Header ════════ */}
+      <header className="flex flex-wrap items-end justify-between gap-4 animate-fade-in">
+        <div className="min-w-0">
+          <span className="mb-3 inline-flex items-center gap-2.5">
+            <span
+              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+              aria-hidden
+            />
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              AI financial plans
+            </span>
+          </span>
+          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+            Plans
           </h1>
-          <p className="text-content-secondary mt-1">
-            AI-powered plans tailored to your goals
-          </p>
-        </div>
-        {import.meta.env.VITE_DEMO_MODE !== "true" && (
-          <Link href="/plans/new">
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Plan
-            </Button>
-          </Link>
-        )}
-      </div>
-
-      {loading ? null : plans.length === 0 ? (
-        <div className="rounded-ui-lg border border-line bg-panel shadow-ui-sm text-center py-12 px-6">
-          <h2 className="text-2xl font-editorial font-semibold text-content mb-2">
-            Create Your First Plan
-          </h2>
-          <p className="text-content-secondary mb-8 max-w-2xl mx-auto">
-            Choose a plan type to get started with AI-powered financial guidance
-          </p>
-
-          {import.meta.env.VITE_DEMO_MODE !== "true" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
-            {planTypes.map((planType, i) => (
-              <motion.button
-                key={planType.type}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                onClick={() => handleCreatePlan(planType.type)}
-                disabled={creatingPlanType !== null}
-                className="relative p-6 rounded-ui-lg border border-line bg-panel hover:border-brand/50 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="text-3xl flex-shrink-0">
-                    {creatingPlanType === planType.type ? (
-                      <Loader2 className="w-8 h-8 text-brand animate-spin" />
-                    ) : (
-                      planType.icon
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-medium text-content">{planType.title}</h3>
-                      <div className="group/tooltip relative">
-                        <Info className="w-4 h-4 text-content-secondary hover:text-content cursor-help" />
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 rounded-ui-md bg-panel-raised border border-line shadow-ui-lg text-sm text-content-secondary opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none z-10">
-                          {planType.tooltip}
-                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-line"></div>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-sm text-content-secondary">
-                      {planType.description}
-                    </p>
-                  </div>
-                </div>
-              </motion.button>
-            ))}
-          </div>
+          {summaryLine ? (
+            <p className="mt-2 text-[14.5px] font-semibold text-content-muted">{summaryLine}</p>
+          ) : (
+            !loading && (
+              <p className="mt-2 max-w-[52ch] text-[14.5px] font-semibold text-content-muted">
+                Build and follow AI-guided plans for retirement, net worth, debt payoff, and more.
+              </p>
+            )
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {plans.map((plan, i) => (
-            <Link key={plan.id} href={`/plans/${plan.id}`}>
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="rounded-ui-lg border border-line bg-panel shadow-ui-sm hover:border-brand/40 hover:shadow-ui-md transition-all p-6 cursor-pointer relative group"
-              >
-                {import.meta.env.VITE_DEMO_MODE !== "true" && (
-                  <button
-                    onClick={(e) => handleDeletePlan(plan.id, plan.title, e)}
-                    disabled={deletingPlanId === plan.id}
-                    className="absolute top-4 right-4 p-1.5 rounded-ui-sm hover:bg-negative-soft text-content-muted hover:text-negative opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Delete plan"
-                  >
-                    {deletingPlanId === plan.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
-                <div className="flex items-start justify-between mb-3">
-                  <span className="text-xs px-2 py-1 rounded-full bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
-                    {planTypeLabels[plan.type]}
-                  </span>
-                  <span className="text-xs text-content-secondary capitalize">
-                    {plan.status}
-                  </span>
-                </div>
-                <h3 className="font-medium text-content mb-2">{plan.title}</h3>
-                <p className="text-sm text-content-secondary">
-                  Updated {new Date(plan.updatedAt).toLocaleDateString()}
-                </p>
-              </motion.div>
-            </Link>
+        {!isDemo && plans.length > 0 && (
+          <Link href="/plans/new">
+            <Button leadingIcon={<Plus className="h-4 w-4" />}>New plan</Button>
+          </Link>
+        )}
+      </header>
+
+      {/* ════════ Loading skeleton ════════ */}
+      {loading && (
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-11 w-11 rounded-ui-md" />
+                <Skeleton className="h-5 w-24 rounded-full" />
+              </div>
+              <Skeleton className="mt-5 h-6 w-3/4" />
+              <Skeleton className="mt-4 h-3 w-1/2" />
+            </div>
           ))}
         </div>
       )}
+
+      {/* ════════ Empty state — plan-type chooser ════════ */}
+      {!loading && plans.length === 0 && (
+        <section className="mt-8">
+          <div className="relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8">
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  "radial-gradient(120% 90% at 100% 0%, var(--ui-accent-softer), transparent 56%)," +
+                  "radial-gradient(90% 80% at 0% 10%, var(--ui-brand-softer), transparent 60%)",
+              }}
+              aria-hidden
+            />
+            <div className="relative">
+              <h2 className="font-editorial text-[22px] sm:text-[26px] font-bold tracking-[-0.02em] text-content">
+                Create your first plan
+              </h2>
+              <p className="mt-2 max-w-[54ch] text-[14.5px] font-semibold text-content-muted">
+                Pick a type below and Lasagna drafts a plan from your real accounts — then
+                refine it in chat.
+              </p>
+
+              {!isDemo && (
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {PLAN_ORDER.map((type, i) => (
+                    <PlanTypeCard
+                      key={type}
+                      type={type}
+                      index={i}
+                      creating={creatingPlanType === type}
+                      disabled={creatingPlanType !== null}
+                      onClick={() => handleCreatePlan(type)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ════════ Plans grid ════════ */}
+      {!loading && plans.length > 0 && (
+        <>
+          <div className="mt-9 flex items-center gap-2.5">
+            <span
+              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+              aria-hidden
+            />
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              Your plans
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+            {plans.map((plan, i) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                index={i}
+                deleting={deletingPlanId === plan.id}
+                showDelete={!isDemo}
+                onDelete={(e) => handleDeletePlan(plan.id, plan.title, e)}
+              />
+            ))}
+            {!isDemo && <AddPlanTile index={plans.length} />}
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Plan card — a saved plan
+// ---------------------------------------------------------------------------
+
+function PlanCard({
+  plan,
+  index,
+  deleting,
+  showDelete,
+  onDelete,
+}: {
+  plan: Plan;
+  index: number;
+  deleting: boolean;
+  showDelete: boolean;
+  onDelete: (e: React.MouseEvent) => void;
+}) {
+  const meta = PLAN_META[plan.type];
+  const Icon = meta.icon;
+
+  return (
+    <Link href={`/plans/${plan.id}`}>
+      <motion.article
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: Math.min(index, 8) * 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong"
+      >
+        {/* left accent rail */}
+        <span className="absolute inset-y-0 left-0 w-1" style={{ background: meta.accent }} aria-hidden />
+
+        {showDelete && (
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="absolute top-2 right-2 sm:top-3.5 sm:right-3.5 grid h-11 w-11 sm:h-8 sm:w-8 place-items-center rounded-ui-sm text-content-faint opacity-100 sm:opacity-0 transition-[opacity,color,background] hover:bg-negative-soft hover:text-negative group-hover:opacity-100 disabled:opacity-50"
+            aria-label="Delete plan"
+          >
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </button>
+        )}
+
+        <div className="flex items-center gap-3">
+          <span
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-ui-md"
+            style={{
+              background: `color-mix(in srgb, ${meta.accent} 15%, transparent)`,
+              color: meta.accent,
+            }}
+          >
+            <Icon className="h-[22px] w-[22px]" />
+          </span>
+          <span
+            className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em]"
+            style={{
+              background: `color-mix(in srgb, ${meta.accent} 12%, transparent)`,
+              color: meta.ink,
+            }}
+          >
+            {meta.label}
+          </span>
+        </div>
+
+        <h3 className="mt-4 font-editorial text-[19px] font-bold leading-[1.25] tracking-[-0.015em] text-content line-clamp-2">
+          {plan.title}
+        </h3>
+
+        <div className="mt-auto flex items-center justify-between gap-3 pt-5">
+          <span className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-content-muted">
+            <span
+              className="inline-flex items-center rounded-full bg-canvas-sunken px-2 py-0.5 text-[11px] font-bold capitalize text-content-secondary"
+            >
+              {plan.status}
+            </span>
+            <span className="ui-tnum">
+              Updated {new Date(plan.updatedAt).toLocaleDateString()}
+            </span>
+          </span>
+          <span className="inline-flex items-center gap-1 text-[13px] font-bold text-content-muted transition-colors group-hover:text-[rgb(var(--ui-brand-ink))]">
+            View
+            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </motion.article>
+    </Link>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add-plan tile
+// ---------------------------------------------------------------------------
+
+function AddPlanTile({ index }: { index: number }) {
+  return (
+    <Link href="/plans/new">
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: Math.min(index, 8) * 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        aria-label="Create a new plan"
+        className="group flex h-full min-h-[176px] w-full flex-col items-center justify-center gap-1.5 rounded-ui-xl border border-[rgb(var(--ui-accent))]/30 bg-[var(--ui-accent-soft)] p-6 text-center transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md"
+      >
+        <span className="mb-1 grid h-[50px] w-[50px] place-items-center rounded-ui-lg bg-[rgb(var(--ui-accent))] text-white shadow-ui-sm transition-transform group-hover:scale-105">
+          <Plus className="h-6 w-6" />
+        </span>
+        <span className="font-editorial text-[16px] font-bold tracking-[-0.01em] text-[rgb(var(--ui-accent-ink))]">
+          Start another plan
+        </span>
+        <span className="max-w-[26ch] text-[13px] font-semibold text-content-muted">
+          Retirement, net worth, debt payoff, or a custom goal.
+        </span>
+      </motion.button>
+    </Link>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Plan-type chooser card (empty state)
+// ---------------------------------------------------------------------------
+
+function PlanTypeCard({
+  type,
+  index,
+  creating,
+  disabled,
+  onClick,
+}: {
+  type: PlanType;
+  index: number;
+  creating: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const meta = PLAN_META[type];
+  const Icon = meta.icon;
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.08, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      onClick={onClick}
+      disabled={disabled}
+      className="group relative flex items-start gap-4 overflow-hidden rounded-ui-lg border border-line bg-panel p-5 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-accent-soft)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+    >
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: meta.accent }} aria-hidden />
+      <span
+        className="grid h-12 w-12 shrink-0 place-items-center rounded-ui-md"
+        style={{
+          background: `color-mix(in srgb, ${meta.accent} 15%, transparent)`,
+          color: meta.accent,
+        }}
+      >
+        {creating ? <Loader2 className="h-6 w-6 animate-spin" /> : <Icon className="h-6 w-6" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span className="font-editorial text-[17px] font-bold tracking-[-0.015em] text-content">
+            {meta.label}
+          </span>
+          <span className="group/tip relative inline-flex">
+            <Info className="h-3.5 w-3.5 cursor-help text-content-faint transition-colors hover:text-content-secondary" />
+            <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-60 -translate-x-1/2 rounded-ui-md border border-line bg-panel-raised p-3 text-[12.5px] font-medium leading-snug text-content-secondary opacity-0 shadow-ui-lg transition-opacity group-hover/tip:opacity-100">
+              {meta.tooltip}
+            </span>
+          </span>
+        </span>
+        <span className="mt-1 block text-[13.5px] font-semibold text-content-muted">
+          {meta.description}
+        </span>
+      </span>
+      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-content-faint transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-[rgb(var(--ui-brand-ink))]" />
+    </motion.button>
   );
 }

@@ -192,13 +192,13 @@ export function ChatFullPage() {
               <p className="px-2.5 pt-2 pb-2 text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">
                 Conversations
               </p>
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col">
               {threadSummaries.map((thread, index) => {
                 const active = index === activeThreadIndex;
                 return (
                 <div
                   key={thread.id}
-                  className={`group relative flex items-start rounded-ui-md transition-colors ${
+                  className={`group relative flex items-start border-b border-line last:border-b-0 transition-colors ${
                     active ? 'bg-brand-soft' : 'hover:bg-canvas-sunken'
                   }`}
                 >

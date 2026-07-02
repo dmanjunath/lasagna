@@ -108,7 +108,40 @@ function fmtPct(p: number): string {
 // Allocation slice — one bucket in whatever grouping is active
 // ---------------------------------------------------------------------------
 
-interface DonutSlice { name: string; value: number; pct: number; color: string }
+interface DonutSlice { name: string; value: number; pct: number; color: string; label?: string; children?: Array<{ name: string; value: number; pct: number }> }
+
+// Synthetic bucket that rolls up sub-threshold slices so the bar doesn't fan
+// out into a rainbow of unmappable slivers. Neutral slate so it never competes
+// with the real, distinct top segments.
+const OTHER_SLICE = '__other__';
+const OTHER_COLOR = 'var(--ui-viz-7)';
+
+// Fold every slice under `minPct` of the total into one neutral "Other" segment
+// (keeping the small items as children for the tooltip/legend). Only collapses
+// when it actually removes clutter (≥2 tiny slices); otherwise passes through.
+function collapseSmallSlices(slices: DonutSlice[], minPct = 1.5): DonutSlice[] {
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  if (total <= 0) return slices;
+  const big: DonutSlice[] = [];
+  const small: DonutSlice[] = [];
+  for (const s of slices) {
+    if ((s.value / total) * 100 >= minPct) big.push(s);
+    else small.push(s);
+  }
+  if (small.length < 2) return slices;
+  const otherValue = small.reduce((s, x) => s + x.value, 0);
+  big.push({
+    name: OTHER_SLICE,
+    label: 'Other',
+    value: otherValue,
+    pct: (otherValue / total) * 100,
+    color: OTHER_COLOR,
+    children: small
+      .map((s) => ({ name: s.name, value: s.value, pct: (s.value / total) * 100 }))
+      .sort((a, b) => b.value - a.value),
+  });
+  return big;
+}
 
 // ---------------------------------------------------------------------------
 // Full-width allocation bar — the single at-a-glance chart. Segments grow to
@@ -142,11 +175,17 @@ function AllocationBar({
         const pct = (s.value / sum) * 100;
         const wide = pct >= 8;
         const active = hovered === null || hovered === s.name;
+        const isOther = s.name === OTHER_SLICE;
+        const display = s.label ?? s.name;
+        const drillable = !!onSliceClick && !isOther;
+        const tip = isOther && s.children?.length
+          ? `Other · ${pct.toFixed(1)}% · ${formatMoney(s.value, true)} — ${s.children.map((c) => c.name).join(', ')}`
+          : `${display} · ${pct.toFixed(1)}% · ${formatMoney(s.value, true)}`;
         return (
           <button
             key={`${s.name}-${i}`}
             type="button"
-            onClick={() => onSliceClick?.(s.name)}
+            onClick={() => { if (drillable) onSliceClick?.(s.name); }}
             onMouseEnter={() => onHover(s.name)}
             onMouseLeave={() => onHover(null)}
             className="relative flex h-full items-center px-3 transition-opacity duration-150"
@@ -159,16 +198,16 @@ function AllocationBar({
               borderRadius:
                 i === 0 ? '11px 4px 4px 11px' : i === segs.length - 1 ? '4px 11px 11px 4px' : '4px',
               opacity: active ? 1 : 0.38,
-              cursor: onSliceClick ? 'pointer' : 'default',
+              cursor: drillable ? 'pointer' : 'default',
             }}
-            title={`${s.name} · ${pct.toFixed(1)}% · ${formatMoney(s.value, true)}`}
+            title={tip}
           >
             {wide && (
               <span
-                className="truncate text-[12.5px] font-extrabold text-white"
+                className="hidden truncate text-[12.5px] font-extrabold text-white sm:block"
                 style={{ textShadow: '0 1px 2px rgba(0,0,0,0.30)' }}
               >
-                {s.name} · {pct.toFixed(0)}%
+                {display} · {pct.toFixed(0)}%
               </span>
             )}
           </button>
@@ -207,32 +246,48 @@ function AllocationBreakdown({
         {shown.map((s, i) => {
           const isActive = activeName === s.name;
           const isHover = hovered === s.name;
+          const isOther = s.name === OTHER_SLICE;
+          const display = s.label ?? s.name;
           return (
-            <button
+            <div
               key={`${s.name}-${i}`}
-              type="button"
-              onClick={() => onSliceClick(s.name)}
+              className={cn('flex flex-col', isOther && 'sm:col-span-2')}
               onMouseEnter={() => onHover(s.name)}
               onMouseLeave={() => onHover(null)}
-              className={cn(
-                'ui-focus flex min-h-touch items-center gap-3 rounded-ui-sm px-2.5 py-2 text-left transition-colors',
-                isActive ? 'bg-brand-soft' : isHover ? 'bg-brand-softer' : 'hover:bg-brand-softer',
-              )}
             >
-              <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: s.color }} aria-hidden />
-              <span
-                className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content"
-                title={s.name}
+              <button
+                type="button"
+                onClick={() => { if (!isOther) onSliceClick(s.name); }}
+                className={cn(
+                  'ui-focus flex min-h-touch items-center gap-3 rounded-ui-sm px-2.5 py-2 text-left transition-colors',
+                  isOther ? 'cursor-default' : isActive ? 'bg-brand-soft' : isHover ? 'bg-brand-softer' : 'hover:bg-brand-softer',
+                )}
               >
-                {s.name}
-              </span>
-              <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
-                <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content">
-                  {formatMoney(s.value, true)}
+                <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: s.color }} aria-hidden />
+                <span
+                  className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content"
+                  title={display}
+                >
+                  {display}
                 </span>
-                <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{fmtPct(s.pct)}</span>
-              </span>
-            </button>
+                <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
+                  <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content">
+                    {formatMoney(s.value, true)}
+                  </span>
+                  <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{fmtPct(s.pct)}</span>
+                </span>
+              </button>
+              {isOther && s.children && s.children.length > 0 && (
+                <div className="px-2.5 pb-1 text-[11.5px] leading-relaxed text-content-muted">
+                  {s.children.map((c, j) => (
+                    <span key={`${c.name}-${j}`}>
+                      {c.name} <span className="ui-tnum">{fmtPct(c.pct)}</span>
+                      {j < s.children!.length - 1 ? ' · ' : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -857,6 +912,9 @@ export default function PortfolioComposition() {
 
   const biggestHolding = holdingsByTicker[0];
   const groupTotal = drillLevel1 ? chartSlices.reduce((s, sl) => s + sl.value, 0) : filteredTotal;
+  // Roll sub-threshold slivers into one neutral "Other" so the bar + legend
+  // don't fan into an unmappable rainbow.
+  const displaySlices = collapseSmallSlices(chartSlices);
 
   return (
     <div
@@ -920,6 +978,7 @@ export default function PortfolioComposition() {
                   value={groupBy}
                   onChange={(g) => handleGroupByChange(g as GroupBy)}
                   size="sm"
+                  tone="brand"
                   options={[
                     { value: 'assetClass', label: 'Class' },
                     { value: 'category', label: 'Category' },
@@ -973,7 +1032,7 @@ export default function PortfolioComposition() {
               >
                 <div className="mt-5">
                   <AllocationBar
-                    slices={chartSlices}
+                    slices={displaySlices}
                     hovered={hoveredSlice}
                     onHover={setHoveredSlice}
                     onSliceClick={handleSliceClick}
@@ -981,7 +1040,7 @@ export default function PortfolioComposition() {
                 </div>
                 <div className="mt-5">
                   <AllocationBreakdown
-                    slices={chartSlices}
+                    slices={displaySlices}
                     activeName={drillLevel1}
                     hovered={hoveredSlice}
                     onHover={setHoveredSlice}
