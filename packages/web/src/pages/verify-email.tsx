@@ -3,6 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { api } from "../lib/api.js";
 import { Button, Input, Field } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
+import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
 type VerifyStash = {
   workosUserId: string;
@@ -110,58 +111,14 @@ export function VerifyEmail() {
 
               {/* Consent checkboxes — pre-checked from the signup stash, unchecked
                   for login-initiated verification. */}
-              <div className="space-y-3 pt-1 text-sm">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={acceptedTos}
-                    onChange={(e) => setAcceptedTos(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
-                  />
-                  <span className="text-content-secondary leading-snug">
-                    I agree to the{" "}
-                    <a
-                      href="https://lasagnafi.com/terms"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-brand hover:text-brand-hover underline underline-offset-2"
-                    >
-                      Terms of Service
-                    </a>
-                  </span>
-                </label>
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={acceptedPrivacy}
-                    onChange={(e) => setAcceptedPrivacy(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
-                  />
-                  <span className="text-content-secondary leading-snug">
-                    I agree to the{" "}
-                    <a
-                      href="https://lasagnafi.com/privacy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-brand hover:text-brand-hover underline underline-offset-2"
-                    >
-                      Privacy Policy
-                    </a>
-                  </span>
-                </label>
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={acceptedNotRia}
-                    onChange={(e) => setAcceptedNotRia(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
-                  />
-                  <span className="text-content-secondary leading-snug">
-                    I understand that LasagnaFi is <strong className="font-semibold text-content">not a registered
-                    investment advisor</strong> and does not provide financial advice
-                  </span>
-                </label>
-              </div>
+              <ConsentCheckboxes
+                values={{ acceptedTos, acceptedPrivacy, acceptedNotRia }}
+                onChange={(key, checked) => {
+                  if (key === "acceptedTos") setAcceptedTos(checked);
+                  else if (key === "acceptedPrivacy") setAcceptedPrivacy(checked);
+                  else setAcceptedNotRia(checked);
+                }}
+              />
 
               {error && (
                 <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
