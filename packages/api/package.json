@@ -20,6 +20,7 @@
     "@hono/node-server": "^1.19.11",
     "@lasagna/core": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.3.3",
+    "@workos-inc/node": "^10.7.0",
     "ai": "^6.0.134",
     "hono": "^4.12.8",
     "node-cron": "^4.2.1",

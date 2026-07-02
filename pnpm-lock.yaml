@@ -68,6 +68,9 @@ importers:
       '@openrouter/ai-sdk-provider':
         specifier: ^2.3.3
         version: 2.3.3(ai@6.0.134(zod@4.3.6))(zod@4.3.6)
+      '@workos-inc/node':
+        specifier: ^10.7.0
+        version: 10.7.0
       ai:
         specifier: ^6.0.134
         version: 6.0.134(zod@4.3.6)
@@ -2138,6 +2141,10 @@ packages:
 
   '@vscode/l10n@0.0.18':
     resolution: {integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==}
+
+  '@workos-inc/node@10.7.0':
+    resolution: {integrity: sha512-rffa9znZuIv4yo+9JRxGOLTTSxh0XhOT6jlsktgqEi9MuB9V0VFHRzLd3bTpkq+J9sgrPZNGpvX4aWNfMqt5cQ==}
+    engines: {node: '>=22.11.0'}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -6921,6 +6928,8 @@ snapshots:
       vscode-uri: 3.1.0
 
   '@vscode/l10n@0.0.18': {}
+
+  '@workos-inc/node@10.7.0': {}
 
   acorn-jsx@5.3.2(acorn@8.16.0):
     dependencies:
