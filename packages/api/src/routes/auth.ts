@@ -231,3 +231,38 @@ authRoutes.patch("/onboarding-stage", requireAuth, async (c) => {
 
   return c.json({ onboardingStage: updated.onboardingStage });
 });
+
+authRoutes.post("/verify-email", async (c) => {
+  if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
+  const { workosUserId, code, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
+  if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)
+    return c.json({ error: "You must accept all agreements" }, 400);
+  let identity;
+  try { identity = await workos.verifyEmailCode({ workosUserId, code }); }
+  catch { return c.json({ error: "Invalid or expired code" }, 400); }
+  const { user, tenant } = await provisionUser({ ...identity, acceptedTerms: true });
+  await issueSession(c, user);
+  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan } : null });
+});
+
+authRoutes.post("/forgot-password", async (c) => {
+  if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
+  const { email } = await c.req.json();
+  try { if (email) await workos.sendPasswordReset({ email }); } catch { /* no enumeration */ }
+  return c.json({ ok: true });
+});
+
+authRoutes.post("/reset-password", async (c) => {
+  if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
+  const { token, newPassword } = await c.req.json();
+  if (!token || !newPassword || newPassword.length < 6) return c.json({ error: "Invalid request" }, 400);
+  try { await workos.resetPassword({ token, newPassword }); }
+  catch { return c.json({ error: "Reset link is invalid or expired" }, 400); }
+  return c.json({ ok: true });
+});
+
+authRoutes.post("/accept-terms", requireAuth, async (c) => {
+  const session = c.get("session");
+  await db.update(users).set({ acceptedTermsAt: new Date() }).where(eq(users.id, session.userId));
+  return c.json({ ok: true });
+});
