@@ -1,8 +1,8 @@
 import { Hono, type Context } from "hono";
-import { setCookie, deleteCookie } from "hono/cookie";
+import { setCookie, deleteCookie, getCookie } from "hono/cookie";
 import { eq, users, tenants, onboardingStageEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { hashPassword, verifyPassword } from "../lib/password.js";
+import { verifyPassword } from "../lib/password.js";
 import {
   createSessionToken,
   COOKIE_NAME,
@@ -11,6 +11,13 @@ import {
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { generateInsights } from "../lib/insights-engine.js";
 import { env } from "../lib/env.js";
+import { authMode } from "../lib/auth/mode.js";
+import * as workos from "../lib/auth/workos.js";
+import { localSignUp, localLogin } from "../lib/auth/local.js";
+import { provisionUser } from "../lib/auth/provision.js";
+import { createOauthState, statesMatch, OAUTH_STATE_COOKIE } from "../lib/auth/state.js";
+
+const DEMO_EMAIL = "demo@lasagnafi.com";
 
 export const authRoutes = new Hono<AuthEnv>();
 
@@ -27,131 +34,73 @@ function cookieFlagsFor(c: Context) {
   };
 }
 
+// The OAuth callback's Referer is the WorkOS/Google IdP, not our app, so cookieFlagsFor(c)
+// would wrongly pick Secure/None on the http://localhost dev callback (browser refuses to
+// store it → session silently lost). Derive flags from APP_URL instead for OAuth responses.
+function appUrlCookieFlags() {
+  const isHttps = env.APP_URL.startsWith("https://");
+  return { secure: isHttps, sameSite: (isHttps ? "None" : "Lax") as "None" | "Lax" };
+}
+async function issueSession(
+  c: Context,
+  u: { id: string; tenantId: string; role: string; isDemo?: boolean },
+  flags: { secure: boolean; sameSite: "None" | "Lax" } = cookieFlagsFor(c),
+) {
+  const token = await createSessionToken({ userId: u.id, tenantId: u.tenantId, role: u.role, isDemo: u.isDemo ?? false });
+  setCookie(c, COOKIE_NAME, token, { httpOnly: true, ...flags, maxAge: MAX_AGE, path: "/" });
+}
+function userPayload(u: any) {
+  return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, isAdmin: u.isAdmin };
+}
+
 // Sign up — creates a new tenant + user (owner)
 authRoutes.post("/signup", async (c) => {
-  const { email, password, name, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json<{
-    email: string;
-    password: string;
-    name?: string;
-    acceptedTos?: boolean;
-    acceptedPrivacy?: boolean;
-    acceptedNotRia?: boolean;
-  }>();
-
-  if (!email || !password) {
-    return c.json({ error: "Email and password are required" }, 400);
-  }
-
-  if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia) {
+  const { email, password, name, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
+  if (!email || !password) return c.json({ error: "Email and password are required" }, 400);
+  if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)
     return c.json({ error: "You must accept the Terms of Service, Privacy Policy, and RIA acknowledgment" }, 400);
+
+  if (authMode() === "workos") {
+    const r = await workos.signUp({ email, password, name });
+    return c.json({ needsVerification: true, workosUserId: r.workosUserId, email: r.email });
   }
 
-  const existing = await db.query.users.findFirst({
-    where: eq(users.email, email),
-  });
-  if (existing) {
-    return c.json({ error: "Email already registered" }, 409);
-  }
-
-  const passwordHash = await hashPassword(password);
-
-  const [tenant] = await db
-    .insert(tenants)
-    .values({ name: name || email.split("@")[0] })
-    .returning();
-
-  const [user] = await db
-    .insert(users)
-    .values({
-      tenantId: tenant.id,
-      email,
-      name: name ?? null,
-      passwordHash,
-      role: "owner",
-      // Self-hosted (single-tenant) deployments: the person signing up owns the
-      // instance, so make them an admin. The multi-tenant cloud does not.
-      isAdmin: !env.MULTI_TENANT,
-      onboardingStage: "profile",
-    })
-    .returning();
-
-  const token = await createSessionToken({
-    userId: user.id,
-    tenantId: tenant.id,
-    role: user.role,
-    isDemo: false,
-  });
-
-  setCookie(c, COOKIE_NAME, token, {
-    httpOnly: true,
-    ...cookieFlagsFor(c),
-    maxAge: MAX_AGE,
-    path: "/",
-  });
-
-  return c.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      onboardingStage: user.onboardingStage,
-      isAdmin: user.isAdmin,
-    },
-    tenant: { id: tenant.id, name: tenant.name, plan: tenant.plan },
-  });
+  const res = await localSignUp({ email, password, name });
+  if (res.conflict) return c.json({ error: "Email already registered" }, 409);
+  await issueSession(c, res.user);
+  return c.json({ user: userPayload(res.user), tenant: res.tenant ? { id: res.tenant.id, name: res.tenant.name, plan: res.tenant.plan } : null });
 });
 
 // Login
 authRoutes.post("/login", async (c) => {
-  const { email, password } = await c.req.json<{
-    email: string;
-    password: string;
-  }>();
+  const { email, password } = await c.req.json();
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, email),
-  });
-  if (!user || !user.passwordHash) {
-    return c.json({ error: "Invalid email or password" }, 401);
+  // Demo bypass — always local, never WorkOS.
+  if (email === DEMO_EMAIL) {
+    const demo = await db.query.users.findFirst({ where: eq(users.email, DEMO_EMAIL) });
+    if (!demo || !demo.passwordHash || !(await verifyPassword(password, demo.passwordHash)))
+      return c.json({ error: "Invalid email or password" }, 401);
+    await issueSession(c, demo);
+    const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, demo.tenantId) });
+    return c.json({ user: userPayload(demo), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan } : null });
   }
 
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    return c.json({ error: "Invalid email or password" }, 401);
+  if (authMode() === "workos") {
+    let r;
+    try { r = await workos.login({ email, password }); }
+    catch { return c.json({ error: "Invalid email or password" }, 401); }
+    if (r.status === "needs_verification")
+      return c.json({ needsVerification: true, workosUserId: r.workosUserId, email: r.email });
+    const { user, tenant } = await provisionUser(r.identity);
+    await issueSession(c, user);
+    return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan } : null });
   }
 
-  const token = await createSessionToken({
-    userId: user.id,
-    tenantId: user.tenantId,
-    role: user.role,
-    isDemo: user.isDemo,
-  });
-
-  setCookie(c, COOKIE_NAME, token, {
-    httpOnly: true,
-    ...cookieFlagsFor(c),
-    maxAge: MAX_AGE,
-    path: "/",
-  });
-
-  const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.id, user.tenantId),
-  });
-
-  return c.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      onboardingStage: user.onboardingStage,
-      isAdmin: user.isAdmin,
-    },
-    tenant: tenant
-      ? { id: tenant.id, name: tenant.name, plan: tenant.plan }
-      : null,
-  });
+  const user = await localLogin({ email, password });
+  if (!user) return c.json({ error: "Invalid email or password" }, 401);
+  await issueSession(c, user);
+  const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, user.tenantId) });
+  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan } : null });
 });
 
 // Logout
