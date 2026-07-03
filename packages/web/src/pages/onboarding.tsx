@@ -148,6 +148,7 @@ export function Onboarding() {
   const [acctRate, setAcctRate] = useState('');
   const [addingAccount, setAddingAccount] = useState(false);
   const [linkedViaPlaid, setLinkedViaPlaid] = useState(false);
+  const [linkingPlaid, setLinkingPlaid] = useState(false);
 
   // ─── Restore from DB on mount ───────────────────────────
   useEffect(() => {
@@ -255,11 +256,43 @@ export function Onboarding() {
     catch (err) { console.error('Failed to remove account:', err); }
   };
 
-  const handleLinkPlaid = () => {
-    // Navigate to accounts page which has the Plaid Link integration
-    // Mark that user chose to link so we can show the completion step
-    setLinkedViaPlaid(true);
-    navigate('/accounts?autoLink=true');
+  // Open Plaid Link inline so the user stays in onboarding. (Navigating to
+  // /accounts doesn't work here — App.tsx blocks non-onboarding routes while
+  // onboardingStage !== null, so the route would just re-render onboarding.)
+  const handleLinkPlaid = async () => {
+    setLinkingPlaid(true);
+    try {
+      const [{ linkToken }] = await Promise.all([
+        api.createLinkToken(),
+        (await import('../lib/load-plaid.js')).loadPlaidSdk(),
+      ]);
+      const Plaid = (window as unknown as {
+        Plaid?: { create: (config: unknown) => { open: () => void } };
+      }).Plaid;
+      if (!Plaid) { setLinkingPlaid(false); return; }
+      const handler = Plaid.create({
+        token: linkToken,
+        onSuccess: async (
+          publicToken: string,
+          metadata: { institution?: { institution_id?: string; name?: string } },
+        ) => {
+          try {
+            await api.exchangeToken({
+              publicToken,
+              institutionId: metadata.institution?.institution_id,
+              institutionName: metadata.institution?.name,
+            });
+            setLinkedViaPlaid(true);
+          } finally {
+            setLinkingPlaid(false);
+          }
+        },
+        onExit: () => setLinkingPlaid(false),
+      });
+      handler.open();
+    } catch {
+      setLinkingPlaid(false);
+    }
   };
 
   const renderStep = () => {
@@ -493,8 +526,9 @@ export function Onboarding() {
               <p className="max-w-sm text-[14px] leading-relaxed text-content-secondary">
                 Securely connect via Plaid. Your balances and holdings update automatically so your projections stay current.
               </p>
-              <Button onClick={handleLinkPlaid} leadingIcon={<Link2 className="h-4 w-4" />} className="mt-1">
-                Link Bank Account
+              <Button onClick={handleLinkPlaid} loading={linkingPlaid} disabled={linkingPlaid}
+                leadingIcon={!linkingPlaid ? <Link2 className="h-4 w-4" /> : undefined} className="mt-1">
+                {linkingPlaid ? 'Opening…' : 'Link Bank Account'}
               </Button>
               <p className="text-[12px] text-content-muted">
                 256-bit encryption. Read-only access. We never store your bank credentials.
@@ -645,8 +679,9 @@ export function Onboarding() {
                 Go to Dashboard
               </Button>
               {!linkedViaPlaid && (
-                <Button variant="ghost" className="w-full" onClick={() => navigate('/accounts')}
-                  leadingIcon={<Link2 className="h-4 w-4" />}>
+                <Button variant="ghost" className="w-full" onClick={handleLinkPlaid}
+                  loading={linkingPlaid} disabled={linkingPlaid}
+                  leadingIcon={!linkingPlaid ? <Link2 className="h-4 w-4" /> : undefined}>
                   Link bank accounts for automatic updates
                 </Button>
               )}
@@ -740,9 +775,6 @@ export function Onboarding() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              {step === 3 && (
-                <Button variant="ghost" onClick={goNext}>Skip for now</Button>
-              )}
               <Button onClick={goNext} disabled={!canProceed || saving} loading={saving}
                 trailingIcon={!saving ? <ChevronRight className="h-4 w-4" /> : undefined}>
                 {step === 3 ? 'Finish' : 'Next'}
