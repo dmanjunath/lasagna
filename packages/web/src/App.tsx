@@ -87,10 +87,13 @@ function AppRoutes() {
   }
 
   // Redirect to onboarding if not complete (unless demo mode).
+  // /quick-import and /accounts are reachable mid-onboarding so the "Link Bank
+  // Account" step can hand off to the real accounts page (which auto-opens Plaid).
   if (
     user.onboardingStage !== null &&
     import.meta.env.VITE_DEMO_MODE !== "true" &&
-    !location.startsWith('/quick-import')
+    !location.startsWith('/quick-import') &&
+    !location.startsWith('/accounts')
   ) {
     return (
       <Suspense fallback={null}>

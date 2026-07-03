@@ -207,9 +207,29 @@ section { position: relative; }
 .layer.lock .ix { background: #C2CAD6; }
 .layer.lock .st { color: var(--faint); }
 
+/* Connect-accounts card */
+.accts { display: flex; flex-direction: column; gap: 4px; padding: 12px; }
+.acct { display: grid; grid-template-columns: 30px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: var(--r-md); background: var(--canvas); opacity: 0; transform: translateY(6px); }
+.in-view .acct { opacity: 1; transform: none; transition: opacity .5s var(--ease), transform .5s var(--ease); }
+.in-view .acct:nth-child(2) { transition-delay: .08s; }
+.in-view .acct:nth-child(3) { transition-delay: .16s; }
+.in-view .acct:nth-child(4) { transition-delay: .24s; }
+.in-view .acct:nth-child(5) { transition-delay: .32s; }
+.ai { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: #fff; }
+.ai.bank { background: #0D6E67; }
+.ai.inv { background: var(--accent); }
+.ai.debt { background: var(--negative); }
+.ac b { font-size: 14px; font-weight: 600; display: block; line-height: 1.2; }
+.ac em { font-style: normal; font-size: 12px; color: var(--muted); }
+.av { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+.av.neg { color: var(--negative); }
+.accts-foot { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-top: 1px solid var(--hairline); }
+.accts-foot span { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.accts-foot b { font-family: var(--display); font-size: 22px; font-weight: 800; color: var(--brand-ink); letter-spacing: -0.02em; }
+
 /* ── Pricing ────────────────────────────────────────────────────────────── */
 .pricing-band { background: var(--panel); border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
-.tiers { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; max-width: 860px; margin: 0 auto; }
+.tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; max-width: 1120px; margin: 0 auto; }
 .tier { position: relative; background: var(--canvas); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 30px 28px; display: flex; flex-direction: column; }
 .tier.featured { background: #fff; border-color: transparent; box-shadow: var(--shadow-lg); outline: 2px solid var(--accent); outline-offset: -2px; }
 .ribbon { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 5px 13px; border-radius: 999px; box-shadow: var(--shadow-sm); }
@@ -229,6 +249,17 @@ section { position: relative; }
 .btn.full { width: 100%; justify-content: center; }
 .pricing-foot { text-align: center; margin: 34px auto 0; max-width: 46ch; font-size: 14px; color: var(--muted); line-height: 1.55; }
 .pricing-foot b { color: var(--content); font-weight: 700; }
+
+/* ── FAQ ────────────────────────────────────────────────────────────────── */
+.faq { max-width: 740px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.faq-item { background: var(--panel); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+.faq-item summary { list-style: none; cursor: pointer; padding: 20px 22px; font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; color: var(--content); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after { content: "+"; font-family: var(--mono); font-size: 22px; line-height: 1; color: var(--muted); font-weight: 400; flex: 0 0 auto; }
+.faq-item[open] summary::after { content: "−"; color: var(--brand-ink); }
+.faq-item summary:hover { color: var(--brand-ink); }
+.faq-item p { margin: 0; padding: 0 22px 20px; font-size: 15px; line-height: 1.62; color: var(--content-2); max-width: 62ch; }
+.faq-item p b { color: var(--content); font-weight: 700; }
 
 /* ── Privacy (dark band) ────────────────────────────────────────────────── */
 .priv { background: var(--content); color: #E7ECF3; border-radius: var(--r-xl); padding: 52px; position: relative; overflow: hidden; }
@@ -297,6 +328,7 @@ footer { border-top: 1px solid var(--hairline); padding: 34px 0; color: var(--mu
   .fan-wipe { transform: none; transition: none; }
   .compbar .seg { width: var(--w); transition: none; }
   .js .move { opacity: 1; transform: none; transition: none; }
+  .acct { opacity: 1; transform: none; transition: none; }
   .wealth { animation: none; }
   .pulse { animation: none; }
   .typing i { animation: none; opacity: .6; }

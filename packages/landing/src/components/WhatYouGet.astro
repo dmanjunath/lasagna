@@ -8,18 +8,80 @@ import WaveMark from "./WaveMark.astro";
     <div class="sec-head rv">
       <span class="eyebrow">How it works</span>
       <h2 class="display">Answers you can act on <span class="hl">today.</span></h2>
-      <p>Most finance apps hand you graphs to interpret. LasagnaFi tells you what to do next — and shows the math behind it. Here's what actually shows up on your screen.</p>
+      <p>Most finance apps hand you graphs and tons of data to interpret. LasagnaFi tries to simplfiy your finances by giving you actionable insights.</p>
     </div>
 
-    <!-- 1 · THE RANKED PLAN (3 moves) -->
+    <!-- 1 · CONNECT ACCOUNTS (Plaid) -->
     <div class="out rv">
       <div class="copy">
-        <h3 class="display">Your three highest-impact moves, ranked.</h3>
-        <p>LasagnaFi reads every account together and sorts the whole to-do list by dollars. You open the app to a short, ordered plan — not a dashboard to decode.</p>
+        <h3 class="display">Connect every account in one place.</h3>
+        <p>Link your banks, cards, brokerages, and retirement accounts through Plaid. LasagnaFi pulls balances, holdings, and transactions in real time. Your net worth, cash, and investments stay current.</p>
         <ul class="pts">
-          <li>Ranked by real impact, in your dollars</li>
-          <li>High-rate debt always sorts to the top</li>
-          <li>Each move opens straight to the tool that does it</li>
+          <li>Bank-grade, read-only Plaid connections</li>
+          <li>Real-time balances, holdings &amp; transactions</li>
+          <li>One live net-worth number across everything</li>
+        </ul>
+      </div>
+      <div class="card accts-card">
+        <div class="c-head">
+          <span class="eyebrow accent">Your accounts · connected</span>
+          <span class="live"><span class="pulse"></span>synced via Plaid</span>
+        </div>
+        <div class="accts">
+          <div class="acct"><span class="ai bank">CH</span><div class="ac"><b>Chase Checking</b><em>Checking · ••4021</em></div><span class="av tnum">$8,450</span></div>
+          <div class="acct"><span class="ai bank">AL</span><div class="ac"><b>Ally Savings</b><em>Savings · ••7716</em></div><span class="av tnum">$42,300</span></div>
+          <div class="acct"><span class="ai inv">VG</span><div class="ac"><b>Vanguard Brokerage</b><em>Taxable · ••2093</em></div><span class="av tnum">$96,120</span></div>
+          <div class="acct"><span class="ai inv">FD</span><div class="ac"><b>Fidelity 401(k)</b><em>Retirement · ••5588</em></div><span class="av tnum">$61,540</span></div>
+          <div class="acct"><span class="ai debt">CC</span><div class="ac"><b>Chase Sapphire</b><em>Credit card · ••9004</em></div><span class="av neg tnum">−$6,240</span></div>
+        </div>
+        <div class="accts-foot">
+          <span>Real-time net worth</span><b class="tnum">$182,430</b>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 · AI CHAT -->
+    <div class="out flip rv">
+      <div class="copy">
+        <h3 class="display">Ask any question you want and get real answers.</h3>
+        <p>Type the question you'd ask a financial planner. LasagnaFi pulls your real figures, runs the comparison, and gives you a straight answer you can check.</p>
+        <ul class="pts">
+          <li>Grounded in your balances, rates, and brackets</li>
+          <li>Shows the calculation, not just the verdict</li>
+          <li>Push back, drill in, run the next scenario</li>
+        </ul>
+      </div>
+      <div class="card chat-card">
+        <div class="c-head">
+          <span class="brand-mini"><WaveMark size={17} /><span class="nm">AI Chat</span></span>
+          <span class="sub tnum">Claude Sonnet</span>
+        </div>
+        <div class="chat">
+          <div class="q"><div class="av">you</div><div class="bub">I've got $6k in checking. Pay down the card or throw it in my Roth?</div></div>
+          <div class="a">
+            <div class="av"><WaveMark size={15} /></div>
+            <div class="bub">
+              Pay down the card first. It's at <span class="cite">23.9% APR</span>; your Roth is projected around <span class="cite">~7%/yr</span>. Clearing the card is a guaranteed 23.9% return. The market isn't.
+              <div class="calc">
+                <div class="row"><span>Keep $6k, pay card interest</span><span class="v neg">−$1,434 / yr</span></div>
+                <div class="row"><span>Invest $6k at ~7%</span><span class="v">+$420 / yr</span></div>
+                <div class="row tot"><span>Net by paying the card first</span><span class="v">+$1,854 / yr</span></div>
+              </div>
+              You've still got until April 15 to fund the Roth. Come back to it once the card's clear.<span class="typing"><i></i><i></i><i></i></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 · THE RANKED PLAN (3 moves) -->
+    <div class="out rv">
+      <div class="copy">
+        <h3 class="display">Your highest-impact moves.</h3>
+        <p>LasagnaFi reads all your connected financial data holistically and gives you a simple to-do list. You get a plan, ready to go.</p>
+        <ul class="pts">
+          <li>Ranked by real impact</li>
+          <li>Ask AI about any questions you have</li>
         </ul>
       </div>
       <div class="card moves-card">
@@ -50,59 +112,22 @@ import WaveMark from "./WaveMark.astro";
             <div class="rank r-then">3</div>
             <div class="mbody">
               <span class="mtag t-grow">Grow · then</span>
-              <h4>Top off your Roth — $4,800 to go</h4>
+              <h4>Top off your Roth, $4,800 to go</h4>
               <p>Tax-free growth, and you can't add to your 2025 Roth after April 15.</p>
             </div>
             <span class="impact"><b>$2,200</b><span>of $7,000</span></span>
           </div>
         </div>
-        <div class="c-foot">
-          <span>3 of 12 levels active</span><span class="tnum">net worth $182,430 ▲</span>
-        </div>
       </div>
     </div>
 
-    <!-- 2 · AI CHAT -->
+    <!-- 4 · RETIREMENT PROJECTION -->
     <div class="out flip rv">
-      <div class="copy">
-        <h3 class="display">Ask a question. Get an answer that shows the math.</h3>
-        <p>Type the question you'd ask a financial planner. LasagnaFi pulls your real figures, runs the comparison, and gives you a straight answer you can check.</p>
-        <ul class="pts">
-          <li>Grounded in your balances, rates, and brackets</li>
-          <li>Shows the calculation, not just the verdict</li>
-          <li>Push back, drill in, run the next scenario</li>
-        </ul>
-      </div>
-      <div class="card chat-card">
-        <div class="c-head">
-          <span class="brand-mini"><WaveMark size={17} /><span class="nm">AI Chat</span></span>
-          <span class="sub tnum">Claude Sonnet</span>
-        </div>
-        <div class="chat">
-          <div class="q"><div class="av">you</div><div class="bub">I've got $6k in checking. Pay down the card or throw it in my Roth?</div></div>
-          <div class="a">
-            <div class="av"><WaveMark size={15} /></div>
-            <div class="bub">
-              Pay down the card first. It's at <span class="cite">23.9% APR</span>; your Roth is projected around <span class="cite">~7%/yr</span>. Clearing the card is a guaranteed 23.9% return — the market isn't.
-              <div class="calc">
-                <div class="row"><span>Keep $6k, pay card interest</span><span class="v neg">−$1,434 / yr</span></div>
-                <div class="row"><span>Invest $6k at ~7%</span><span class="v">+$420 / yr</span></div>
-                <div class="row tot"><span>Net by paying the card first</span><span class="v">+$1,854 / yr</span></div>
-              </div>
-              You've still got until April 15 to fund the Roth — come back to it once the card's clear.<span class="typing"><i></i><i></i><i></i></span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3 · RETIREMENT PROJECTION -->
-    <div class="out rv">
       <div class="copy">
         <h3 class="display">Know if you're on track to retire.</h3>
         <p>10,000 simulated futures, backtested against every market period since 1928. You get one readiness number and the single change that moves it most.</p>
         <ul class="pts">
-          <li>Monte Carlo over real historical sequences, not a flat 7%</li>
+          <li>Monte Carlo over real historical sequences</li>
           <li>A live readiness score from your current savings rate</li>
           <li>See what each change does to your number</li>
         </ul>
@@ -144,11 +169,11 @@ import WaveMark from "./WaveMark.astro";
       </div>
     </div>
 
-    <!-- 4 · THE 12 LEVELS -->
-    <div class="out flip rv">
+    <!-- 5 · THE 12 LEVELS -->
+    <div class="out rv">
       <div class="copy">
         <h3 class="display">See exactly where you stand in the stack.</h3>
-        <p>Twelve levels, oh-shit fund to estate planning. LasagnaFi places you on the stack from your live balances and tells you which level you're on — and why the ones above stay locked until you clear it.</p>
+        <p>Twelve levels, oh-shit fund to estate planning. LasagnaFi reads your live balances and tells you which level you're on. The ones above stay locked until you clear it.</p>
         <ul class="pts">
           <li>Auto-placed from your real balances</li>
           <li>High-rate debt sorts above investing, always</li>
@@ -167,7 +192,7 @@ import WaveMark from "./WaveMark.astro";
         <div class="stack">
           <div class="layer done"><span class="ix">1</span><span class="nm">Stabilize + oh-shit fund<em>$1,000 buffer</em></span><span class="st">done</span></div>
           <div class="layer done"><span class="ix">2</span><span class="nm">Capture the employer match<em>100% of the free money</em></span><span class="st">done</span></div>
-          <div class="layer now"><span class="ix">3</span><span class="nm">Wipe out high-rate debt<em>$6,240 card @ 23.9% — pay this first</em></span><span class="st">you're here</span></div>
+          <div class="layer now"><span class="ix">3</span><span class="nm">Wipe out high-rate debt<em>$6,240 card @ 23.9%, pay this first</em></span><span class="st">you're here</span></div>
           <div class="layer queue"><span class="ix">4</span><span class="nm">Emergency fund<em>3–6 months, liquid</em></span><span class="st">next</span></div>
           <div class="layer queue"><span class="ix">5</span><span class="nm">Insurance + will<em>term life · disability · estate</em></span><span class="st">queued</span></div>
           <div class="layer lock"><span class="ix">6</span><span class="nm">Tax-advantaged investing</span><span class="st">locked</span></div>

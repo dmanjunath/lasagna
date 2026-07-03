@@ -1,5 +1,5 @@
 ---
-import { APP_URL } from "../config";
+import { APP_URL, GITHUB_URL } from "../config";
 ---
 
 <!-- PRICING -->
@@ -7,29 +7,49 @@ import { APP_URL } from "../config";
   <div class="wrap">
     <div class="sec-head center rv">
       <span class="eyebrow">Pricing</span>
-      <h2 class="display">Start free. <span class="hl">Upgrade when it pays for itself.</span></h2>
-      <p>The whole planning engine is free. Pro is for when you want more accounts, instant syncs, and the sharpest models working on your money.</p>
+      <h2 class="display">Free to self-host. <span class="hl">Free to try. Pro when it pays off.</span></h2>
+      <p>LasagnaFi is open source. Run it yourself for free. Or use our hosted app. Free to start, Pro when you want more accounts and flagship models.</p>
     </div>
 
     <div class="tiers">
+      <!-- Open source · self-hosted (separate from the hosted free tier) -->
       <div class="tier rv">
         <div class="tier-head">
+          <span class="tier-name display">Open source</span>
+          <span class="tier-badge">Self-host</span>
+        </div>
+        <div class="price"><span class="amt display">$0</span><span class="per">self-hosted</span></div>
+        <p class="tier-sub">Run the whole thing on your own server.</p>
+        <ul class="feat">
+          <li><b>Unlimited</b> accounts on your server</li>
+          <li>Every feature, no limits</li>
+          <li>Bring your own Plaid and AI keys</li>
+          <li>Your data never leaves your server</li>
+          <li>MIT-licensed. Deploy with Docker.</li>
+        </ul>
+        <a class="btn btn-ghost full" href={GITHUB_URL}>View on GitHub</a>
+      </div>
+
+      <!-- Free · hosted -->
+      <div class="tier rv" style="animation-delay:.06s">
+        <div class="tier-head">
           <span class="tier-name display">Free</span>
-          <span class="tier-badge">Open source</span>
+          <span class="tier-badge">Hosted</span>
         </div>
         <div class="price"><span class="amt display">$0</span><span class="per">forever</span></div>
-        <p class="tier-sub">Everything you need to find your next move.</p>
+        <p class="tier-sub">Our hosted app. No setup, no card.</p>
         <ul class="feat">
           <li>Up to <b>3</b> connected accounts</li>
           <li>Daily automatic refresh</li>
-          <li>Full AI chat — standard model</li>
+          <li>Full AI chat on the standard model</li>
           <li>Every planning tool: plan, levels, retirement, tax</li>
-          <li>Open source &amp; self-hostable</li>
+          <li>Always protecting your data</li>
         </ul>
         <a class="btn btn-ghost full" href={APP_URL}>Get started</a>
       </div>
 
-      <div class="tier featured rv" style="animation-delay:.08s">
+      <!-- Pro · hosted -->
+      <div class="tier featured rv" style="animation-delay:.12s">
         <span class="ribbon">Most popular</span>
         <div class="tier-head">
           <span class="tier-name display">Pro</span>
@@ -39,8 +59,8 @@ import { APP_URL } from "../config";
         <p class="tier-sub">For bigger balance sheets and on-demand answers.</p>
         <ul class="feat accent-feat">
           <li>Up to <b>50</b> connected accounts</li>
-          <li>On-demand <b>“Sync now”</b> — refresh instantly</li>
-          <li>Every AI model — chat on Claude Sonnet or higher</li>
+          <li><b>“Sync now”</b> for instant refresh</li>
+          <li>Access to flagship AI models like Sonnet and Opus</li>
           <li>Priority processing</li>
           <li>Everything in Free</li>
         </ul>
@@ -49,7 +69,7 @@ import { APP_URL } from "../config";
     </div>
 
     <p class="pricing-foot rv">
-      <b>Why upgrade?</b> A single tax or debt move LasagnaFi surfaces usually covers a year of Pro — many times over.
+      <b>Why upgrade?</b> A single tax or debt move LasagnaFi surfaces usually covers a year of Pro, many times over.
     </p>
   </div>
 </section>

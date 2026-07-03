@@ -165,13 +165,18 @@ export function Accounts() {
 
   useEffect(() => loadItems(), []);
 
-  // Auto-open Plaid Link if navigated with ?autoLink=true
+  // Auto-open Plaid Link if navigated with ?autoLink=true.
+  // Guard with a ref (instead of effect cleanup) so React StrictMode's dev
+  // double-invoke doesn't strip the query on the first pass, clear the timer on
+  // cleanup, and then skip on the remount — which left Plaid never opening.
+  const autoLinkFired = useRef(false);
   useEffect(() => {
+    if (autoLinkFired.current) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("autoLink") === "true") {
+      autoLinkFired.current = true;
       window.history.replaceState({}, "", "/accounts");
-      const timer = setTimeout(() => handleLink(), 300);
-      return () => clearTimeout(timer);
+      setTimeout(() => handleLink(), 300);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
