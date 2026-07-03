@@ -5,21 +5,18 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
-  Plus,
-  X,
   Loader2,
   Link2,
-  PencilLine,
   Sparkles,
   LogOut,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
-import { Button, Surface, Field, Input, Label, Select, Badge, Eyebrow } from '../components/uikit';
+import { Button, Surface, Field, Input, Label, Select, Eyebrow } from '../components/uikit';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
 
-const STEP_TO_STAGE = ['profile', 'income', 'lifestyle', 'accounts', 'complete'] as const;
+const STEP_TO_STAGE = ['profile', 'income', 'lifestyle', 'complete'] as const;
 
 // ─── US States ────────────────────────────────────────────
 const US_STATES = [
@@ -28,30 +25,6 @@ const US_STATES = [
   'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
   'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
-];
-
-// ─── Account type definitions for manual entry ───────────
-interface AccountTypeDef {
-  label: string;
-  emoji: string;
-  type: string;
-  subtype?: string;
-  isDebt: boolean;
-}
-
-const ACCOUNT_TYPES: AccountTypeDef[] = [
-  { label: 'Checking / Savings', emoji: '💵', type: 'depository', isDebt: false },
-  { label: '401(k) / 403(b)', emoji: '📈', type: 'investment', subtype: '401k', isDebt: false },
-  { label: 'Roth IRA', emoji: '🌱', type: 'investment', subtype: 'roth_ira', isDebt: false },
-  { label: 'Traditional IRA', emoji: '📊', type: 'investment', subtype: 'ira', isDebt: false },
-  { label: 'Brokerage', emoji: '💼', type: 'investment', subtype: 'brokerage', isDebt: false },
-  { label: 'HSA', emoji: '🏥', type: 'investment', subtype: 'hsa', isDebt: false },
-  { label: 'Primary Residence', emoji: '🏡', type: 'real_estate', subtype: 'primary', isDebt: false },
-  { label: 'Rental Property', emoji: '🏢', type: 'real_estate', subtype: 'rental', isDebt: false },
-  { label: 'Credit Card', emoji: '💳', type: 'credit', isDebt: true },
-  { label: 'Student Loan', emoji: '🎓', type: 'loan', subtype: 'student', isDebt: true },
-  { label: 'Auto Loan', emoji: '🚗', type: 'loan', subtype: 'auto', isDebt: true },
-  { label: 'Mortgage', emoji: '🏠', type: 'loan', subtype: 'mortgage', isDebt: true },
 ];
 
 const RISK_LEVELS = [
@@ -68,14 +41,6 @@ const FILING_STATUSES = [
   { value: 'married_separate', label: 'Married Filing Separately' },
   { value: 'head_of_household', label: 'Head of Household' },
 ];
-
-interface AddedAccount {
-  id: string;
-  name: string;
-  type: string;
-  balance: number;
-  emoji: string;
-}
 
 const slideVariants = {
   enter: (direction: number) => ({ x: direction > 0 ? 300 : -300, opacity: 0 }),
@@ -109,7 +74,9 @@ function CurrencyInput({ value, onChange, placeholder = '0', autoFocus }: {
 }
 
 const STAGE_TO_STEP: Record<string, number> = {
-  profile: 0, income: 1, lifestyle: 2, accounts: 3, complete: 4,
+  // 'accounts' is a legacy stage (the dedicated connect step was removed) —
+  // map it to the final "You're all set" screen (step 3).
+  profile: 0, income: 1, lifestyle: 2, accounts: 3, complete: 3,
 };
 
 export function Onboarding() {
@@ -139,14 +106,6 @@ export function Onboarding() {
   const [hasHDHP, setHasHDHP] = useState(false);
   const [isPSLFEligible, setIsPSLFEligible] = useState(false);
 
-  // Step 3
-  const [showManualEntry, setShowManualEntry] = useState(false);
-  const [addedAccounts, setAddedAccounts] = useState<AddedAccount[]>([]);
-  const [activeType, setActiveType] = useState<AccountTypeDef | null>(null);
-  const [acctName, setAcctName] = useState('');
-  const [acctBalance, setAcctBalance] = useState('');
-  const [acctRate, setAcctRate] = useState('');
-  const [addingAccount, setAddingAccount] = useState(false);
   const [linkedViaPlaid, setLinkedViaPlaid] = useState(false);
 
   // ─── Restore from DB on mount ───────────────────────────
@@ -187,7 +146,7 @@ export function Onboarding() {
     }).finally(() => setInitializing(false));
   }, []);
 
-  const totalSteps = 5;
+  const totalSteps = 4;
   const step1Valid = name.trim().length > 0;
   const step2Valid = annualIncome.trim().length > 0 && riskTolerance.length > 0;
 
@@ -233,31 +192,16 @@ export function Onboarding() {
     setStep((s) => Math.max(s - 1, 0));
   }, []);
 
-  const handleAddAccount = async () => {
-    if (!activeType || !acctName.trim()) return;
-    setAddingAccount(true);
-    try {
-      const balance = acctBalance ? parseFloat(acctBalance) : 0;
-      const metadata: Record<string, unknown> = {};
-      if (activeType.isDebt && acctRate) metadata.interestRate = parseFloat(acctRate);
-      const result = await api.createManualAccount({
-        name: acctName.trim(), type: activeType.type, subtype: activeType.subtype,
-        balance, metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-      });
-      setAddedAccounts((prev) => [...prev, { id: result.account.id, name: acctName.trim(), type: activeType.label, balance, emoji: activeType.emoji }]);
-      setActiveType(null); setAcctName(''); setAcctBalance(''); setAcctRate('');
-    } catch (err) { console.error('Failed to create account:', err); }
-    finally { setAddingAccount(false); }
+  // Mark onboarding complete (server + local state) so the guarded app opens.
+  const finishOnboarding = async () => {
+    await api.updateOnboardingStage(null).catch(() => {});
+    setOnboardingStage(null);
   };
 
-  const handleRemoveAccount = async (id: string) => {
-    try { await api.deleteManualAccount(id); setAddedAccounts((prev) => prev.filter((a) => a.id !== id)); }
-    catch (err) { console.error('Failed to remove account:', err); }
-  };
-
-  // Hand off to the real accounts page, which auto-opens Plaid Link on
-  // ?autoLink=true. App.tsx allows /accounts through the onboarding guard.
-  const handleLinkPlaid = () => {
+  // Primary completion action: finish onboarding, then hand off to the real
+  // accounts page which auto-opens Plaid Link on ?autoLink=true.
+  const handleConnectAccounts = async () => {
+    await finishOnboarding();
     navigate('/accounts?autoLink=true');
   };
 
@@ -473,136 +417,6 @@ export function Onboarding() {
 
       case 3:
         return (
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
-                Connect your accounts
-              </h2>
-              <p className="text-[15px] leading-relaxed text-content-secondary">
-                Link your bank and investment accounts for automatic balance tracking, portfolio analysis, and spending insights.
-              </p>
-            </div>
-
-            {/* Primary CTA: Link via Plaid */}
-            <Surface tone="brand" className="flex flex-col items-center gap-2.5 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-ui-md bg-panel/70 text-brand">
-                <Link2 className="h-6 w-6" />
-              </div>
-              <h3 className="font-editorial text-[20px] font-medium tracking-[-0.01em] text-content">Link your accounts</h3>
-              <p className="max-w-sm text-[14px] leading-relaxed text-content-secondary">
-                Securely connect via Plaid. Your balances and holdings update automatically so your projections stay current.
-              </p>
-              <Button onClick={handleLinkPlaid} leadingIcon={<Link2 className="h-4 w-4" />} className="mt-1">
-                Link Bank Account
-              </Button>
-              <p className="text-[12px] text-content-muted">
-                256-bit encryption. Read-only access. We never store your bank credentials.
-              </p>
-            </Surface>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3">
-              <span className="h-px flex-1 bg-line" />
-              <Eyebrow className="text-content-muted">or enter manually</Eyebrow>
-              <span className="h-px flex-1 bg-line" />
-            </div>
-
-            {/* Manual entry toggle */}
-            {!showManualEntry ? (
-              <Button variant="secondary" onClick={() => setShowManualEntry(true)}
-                leadingIcon={<PencilLine className="h-4 w-4" />} className="w-full">
-                Add accounts manually instead
-              </Button>
-            ) : (
-              <div className="flex flex-col gap-5">
-                {/* Added accounts */}
-                {addedAccounts.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    <Label>Added accounts</Label>
-                    {addedAccounts.map((acct) => (
-                      <motion.div key={acct.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center justify-between rounded-ui-md border border-line bg-panel px-3.5 py-3">
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg leading-none">{acct.emoji}</span>
-                          <div>
-                            <p className="text-sm font-semibold text-content">{acct.name}</p>
-                            <p className="text-[12px] text-content-muted">{acct.type}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold text-content-secondary ui-tnum">{formatMoney(acct.balance, true)}</span>
-                          <button onClick={() => handleRemoveAccount(acct.id)}
-                            className="ui-focus inline-flex h-8 w-8 items-center justify-center rounded-ui-md text-content-muted transition-colors hover:text-negative hover:bg-canvas-sunken"
-                            aria-label="Remove account">
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Inline add form */}
-                {activeType && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                    <Surface tone="sunken" className="flex flex-col gap-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-lg leading-none">{activeType.emoji}</span>
-                        <Badge tone="brand">{activeType.label}</Badge>
-                      </div>
-                      <Field label="Account name">
-                        <Input type="text" value={acctName} onChange={(e) => setAcctName(e.target.value)} autoFocus />
-                      </Field>
-                      <Field label="Balance">
-                        <CurrencyInput value={acctBalance} onChange={setAcctBalance} />
-                      </Field>
-                      {activeType.isDebt && (
-                        <Field label="Interest rate">
-                          <div className="relative">
-                            <Input type="number" min={0} max={40} step={0.1} value={acctRate}
-                              onChange={(e) => setAcctRate(e.target.value)} placeholder="5.5" className="ui-tnum pr-9" />
-                            <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-content-muted text-sm">%</span>
-                          </div>
-                        </Field>
-                      )}
-                      <div className="flex gap-2 pt-0.5">
-                        <Button onClick={handleAddAccount} disabled={!acctName.trim() || addingAccount}
-                          loading={addingAccount}
-                          leadingIcon={!addingAccount ? <Plus className="h-4 w-4" /> : undefined}>
-                          Add
-                        </Button>
-                        <Button variant="ghost" onClick={() => { setActiveType(null); setAcctName(''); setAcctBalance(''); setAcctRate(''); }}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </Surface>
-                  </motion.div>
-                )}
-
-                {/* Account type grid */}
-                {!activeType && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {ACCOUNT_TYPES.map((at) => (
-                      <button key={at.label}
-                        onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(''); setAcctRate(''); }}
-                        className="ui-focus flex items-center gap-2.5 min-h-[56px] rounded-ui-md border border-line-strong bg-panel px-3.5 py-3 text-left text-[13px] font-medium text-content-secondary transition-[background-color,border-color] duration-150 ease-ui hover:bg-canvas-sunken hover:border-line-heavy">
-                        <span className="text-lg leading-none">{at.emoji}</span>
-                        <span className="leading-tight">{at.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <p className="text-center text-[12px] text-content-muted">
-                  Manual balances are a snapshot — consider linking accounts for automatic updates.
-                </p>
-              </div>
-            )}
-          </div>
-        );
-
-      case 4:
-        return (
           <div className="flex flex-col items-center gap-6">
             <motion.div
               initial={{ scale: 0 }}
@@ -629,7 +443,6 @@ export function Onboarding() {
               {employmentType && <SummaryRow label="Employment" value={employmentType.replace(/_/g, ' ')} capitalize />}
               {riskTolerance && <SummaryRow label="Risk" value={riskTolerance.replace(/_/g, ' ')} capitalize />}
               {retirementAge && <SummaryRow label="Retire at" value={retirementAge} mono />}
-              {addedAccounts.length > 0 && <SummaryRow label="Accounts" value={`${addedAccounts.length} added`} />}
               {linkedViaPlaid && (
                 <div className="flex items-baseline justify-between text-sm text-content-muted">
                   <span>Bank</span>
@@ -638,17 +451,18 @@ export function Onboarding() {
               )}
             </Surface>
 
-            <div className="w-full max-w-[360px] flex flex-col gap-2.5 pt-1">
-              <Button className="w-full" trailingIcon={<ChevronRight className="h-4 w-4" />}
-                onClick={async () => { await api.updateOnboardingStage(null).catch(() => {}); setOnboardingStage(null); }}>
-                Go to Dashboard
+            <div className="w-full max-w-[360px] flex flex-col items-center gap-2.5 pt-1">
+              <Button className="w-full" onClick={handleConnectAccounts}
+                leadingIcon={<Link2 className="h-4 w-4" />}>
+                Connect accounts
               </Button>
-              {!linkedViaPlaid && (
-                <Button variant="ghost" className="w-full" onClick={handleLinkPlaid}
-                  leadingIcon={<Link2 className="h-4 w-4" />}>
-                  Link bank accounts for automatic updates
-                </Button>
-              )}
+              <button
+                type="button"
+                onClick={finishOnboarding}
+                className="ui-focus rounded-ui-md px-2 py-1 text-[13px] font-medium text-content-muted transition-colors hover:text-content"
+              >
+                Go to dashboard
+              </button>
             </div>
           </div>
         );
@@ -662,7 +476,6 @@ export function Onboarding() {
     if (step === 0) return step1Valid;
     if (step === 1) return step2Valid;
     if (step === 2) return true;
-    if (step === 3) return true;
     return false;
   })();
 
@@ -706,7 +519,7 @@ export function Onboarding() {
         </div>
       </header>
 
-      {step < 4 && (
+      {step < 3 && (
         <div className="relative px-6">
           <div className="mx-auto h-1.5 w-full max-w-[640px] overflow-hidden rounded-full bg-canvas-sunken">
             <motion.div className="h-full rounded-full bg-brand" initial={false}
@@ -728,7 +541,7 @@ export function Onboarding() {
         </div>
       </main>
 
-      {step < 4 && (
+      {step < 3 && (
         <footer className="relative border-t border-line px-6 py-4">
           <div className="mx-auto flex w-full max-w-[540px] items-center justify-between">
             <div>
@@ -741,7 +554,7 @@ export function Onboarding() {
             <div className="flex items-center gap-3">
               <Button onClick={goNext} disabled={!canProceed || saving} loading={saving}
                 trailingIcon={!saving ? <ChevronRight className="h-4 w-4" /> : undefined}>
-                {step === 3 ? 'Finish' : 'Next'}
+                {step === 2 ? 'Finish' : 'Next'}
               </Button>
             </div>
           </div>
