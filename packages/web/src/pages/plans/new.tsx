@@ -89,7 +89,7 @@ export function NewPlanPage() {
       <header className="animate-fade-in">
         <Link
           href="/plans"
-          className="-ml-2 inline-flex min-h-touch w-fit items-center gap-1.5 rounded-ui-sm px-2 text-[13px] font-bold text-content-muted transition-colors hover:text-content"
+          className="-ml-2 hidden min-h-touch w-fit items-center gap-1.5 rounded-ui-sm px-2 text-[13px] font-bold text-content-muted transition-colors hover:text-content sm:inline-flex"
         >
           <ArrowLeft className="h-4 w-4" />
           Plans

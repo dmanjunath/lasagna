@@ -423,11 +423,11 @@ export function AccountDetail() {
 
   return (
     <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
-      {/* ── Back ── */}
+      {/* ── Back — desktop only; mobile gets the top-bar back button ── */}
       <button
         type="button"
         onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/money'); }}
-        className="ui-focus -ml-2 mb-2 inline-flex min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content sm:mb-3 sm:ml-0 sm:min-h-0 sm:px-0"
+        className="ui-focus -ml-2 mb-2 hidden min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content sm:mb-3 sm:ml-0 sm:inline-flex sm:min-h-0 sm:px-0"
       >
         <ChevronLeft size={16} /> Back
       </button>

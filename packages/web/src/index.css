@@ -808,17 +808,15 @@
     color: var(--lf-paper);
   }
   
-  /* iOS Standalone Mode Styles */
+  /* iOS Standalone Mode Styles.
+     NOTE: no body safe-area padding here — the shell already offsets the fixed
+     header/tab bar by env(safe-area-inset-*); padding the body too double-counts
+     the notch in the installed app (big phantom gap under the header). */
   @media (display-mode: standalone) {
-    body {
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    
     .standalone-only {
       display: block !important;
     }
-    
+
     .browser-only {
       display: none !important;
     }

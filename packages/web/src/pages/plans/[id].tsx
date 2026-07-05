@@ -243,7 +243,7 @@ export function PlanDetailPage() {
           <div className="animate-fade-in">
             <Link
               href="/plans"
-              className="inline-flex items-center gap-1.5 text-[13px] font-bold text-content-muted transition-colors hover:text-content"
+              className="hidden items-center gap-1.5 text-[13px] font-bold text-content-muted transition-colors hover:text-content sm:inline-flex"
             >
               <ArrowLeft className="h-4 w-4" />
               Plans

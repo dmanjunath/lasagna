@@ -367,11 +367,11 @@ export function SavingsGoal() {
         }
       `}</style>
 
-      {/* ── Back ── */}
+      {/* ── Back — desktop only; mobile gets the top-bar back button ── */}
       <button
         type="button"
         onClick={() => setLocation('/goals')}
-        className="ui-focus -ml-2 inline-flex min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13.5px] font-bold text-content-muted transition-colors hover:text-content"
+        className="ui-focus -ml-2 hidden min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13.5px] font-bold text-content-muted transition-colors hover:text-content sm:inline-flex"
       >
         <ChevronLeft className="h-4 w-4" /> Back to goals
       </button>

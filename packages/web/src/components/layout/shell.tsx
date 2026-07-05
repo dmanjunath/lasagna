@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { MessageSquare, X, Menu, Maximize2, Sparkles } from 'lucide-react';
+import { MessageSquare, X, Menu, Maximize2, Sparkles, ChevronLeft } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
@@ -30,6 +30,19 @@ export function Shell({ children }: ShellProps) {
   // collapse away and status-bar tap-to-top works) — except /chat, whose
   // composer layout needs the height-constrained shell.
   const mobileDocScroll = isMobile && location !== '/chat';
+
+  // Top-level destinations keep the hamburger; everything deeper (account
+  // detail, plan detail/new, quick import, admin) swaps it for a back button —
+  // pages don't render their own Back on mobile.
+  const MAIN_PAGES = new Set([
+    '/', '/money', '/insights', '/goals', '/chat', '/retirement', '/portfolio',
+    '/spending', '/debt', '/tax', '/financial-level', '/accounts', '/profile', '/plans',
+  ]);
+  const isSubPage = !MAIN_PAGES.has(location);
+  const handleBack = () => {
+    if (window.history.length > 1) window.history.back();
+    else setLocation('/');
+  };
 
   // The document scroller persists across routes, so reset it per navigation.
   useEffect(() => {
@@ -83,13 +96,23 @@ export function Shell({ children }: ShellProps) {
           <AppHeader
             variant="advanced"
             leadingSlot={
-              <button
-                onClick={() => setMobileMenuOpen(true)}
-                aria-label="Open menu"
-                className="w-11 h-11 grid place-items-center rounded-[10px] text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
-              >
-                <Menu size={18} />
-              </button>
+              isSubPage ? (
+                <button
+                  onClick={handleBack}
+                  aria-label="Back"
+                  className="w-11 h-11 grid place-items-center rounded-[10px] text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setMobileMenuOpen(true)}
+                  aria-label="Open menu"
+                  className="w-11 h-11 grid place-items-center rounded-[10px] text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
+                >
+                  <Menu size={18} />
+                </button>
+              )
             }
           />
           <MobileNav
