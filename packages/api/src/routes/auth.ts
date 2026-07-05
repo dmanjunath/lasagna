@@ -44,7 +44,7 @@ export async function issueSession(
   c: Context,
   u: { id: string; tenantId: string; role: string; isDemo?: boolean; isAdmin?: boolean },
   flags: { secure: boolean; sameSite: "None" | "Lax" } = cookieFlagsFor(c),
-) {
+): Promise<string> {
   const token = await createSessionToken({ userId: u.id, tenantId: u.tenantId, role: u.role, isDemo: u.isDemo ?? false, isAdmin: u.isAdmin ?? false });
   setCookie(c, COOKIE_NAME, token, { httpOnly: true, ...flags, maxAge: MAX_AGE, path: "/" });
   // Every session issuance is a login (password, Google, verify-email).
@@ -52,6 +52,14 @@ export async function issueSession(
     .set({ lastLoginAt: new Date() })
     .where(eq(users.id, u.id))
     .catch((e: unknown) => console.error("lastLoginAt update failed:", e));
+  return token;
+}
+
+// The Capacitor shell can't rely on the httpOnly cookie (capacitor://localhost
+// is cross-origin to the API), so native clients get the token in the login
+// response body and send it back as an Authorization: Bearer header.
+export function nativeTokenField(c: Context, token: string): { token?: string } {
+  return c.req.header("x-lasagna-client") === "native" ? { token } : {};
 }
 function userPayload(u: any) {
   return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, isAdmin: u.isAdmin, hasAcceptedTerms: u.acceptedTermsAt != null };
@@ -75,8 +83,8 @@ authRoutes.post("/signup", async (c) => {
 
   const res = await localSignUp({ email, password, name });
   if (res.conflict) return c.json({ error: "Email already registered" }, 409);
-  await issueSession(c, res.user);
-  return c.json({ user: userPayload(res.user), tenant: res.tenant ? { id: res.tenant.id, name: res.tenant.name, plan: res.tenant.plan } : null });
+  const token = await issueSession(c, res.user);
+  return c.json({ user: userPayload(res.user), tenant: res.tenant ? { id: res.tenant.id, name: res.tenant.name, plan: res.tenant.plan } : null, ...nativeTokenField(c, token) });
 });
 
 // Login
@@ -90,9 +98,9 @@ authRoutes.post("/login", async (c) => {
   if (localUser?.passwordHash && !localUser.workosUserId) {
     if (!(await verifyPassword(password, localUser.passwordHash)))
       return c.json({ error: "Invalid email or password" }, 401);
-    await issueSession(c, localUser);
+    const token = await issueSession(c, localUser);
     const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, localUser.tenantId) });
-    return c.json({ user: userPayload(localUser), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null });
+    return c.json({ user: userPayload(localUser), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null, ...nativeTokenField(c, token) });
   }
 
   if (authMode() === "workos") {
@@ -102,15 +110,15 @@ authRoutes.post("/login", async (c) => {
     if (r.status === "needs_verification")
       return c.json({ needsVerification: true, workosUserId: r.workosUserId, email: r.email });
     const { user, tenant } = await provisionUser(r.identity);
-    await issueSession(c, user);
-    return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null });
+    const token = await issueSession(c, user);
+    return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null, ...nativeTokenField(c, token) });
   }
 
   const user = await localLogin({ email, password });
   if (!user) return c.json({ error: "Invalid email or password" }, 401);
-  await issueSession(c, user);
+  const token = await issueSession(c, user);
   const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, user.tenantId) });
-  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null });
+  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null, ...nativeTokenField(c, token) });
 });
 
 // Logout
@@ -254,8 +262,8 @@ authRoutes.post("/verify-email", async (c) => {
   try { identity = await workos.verifyEmailCode({ workosUserId, code }); }
   catch { return c.json({ error: "Invalid or expired code" }, 400); }
   const { user, tenant } = await provisionUser({ ...identity, acceptedTerms: true });
-  await issueSession(c, user);
-  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null });
+  const token = await issueSession(c, user);
+  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null, ...nativeTokenField(c, token) });
 });
 
 authRoutes.post("/forgot-password", async (c) => {

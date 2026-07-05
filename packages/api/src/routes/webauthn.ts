@@ -10,7 +10,7 @@ import { eq, and, users, tenants, webauthnCredentials } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { env } from "../lib/env.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
-import { issueSession, cookieFlagsFor } from "./auth.js";
+import { issueSession, cookieFlagsFor, nativeTokenField } from "./auth.js";
 import { resolveTenantPlan } from "../lib/billing.js";
 
 /**
@@ -207,7 +207,7 @@ webauthnRoutes.post("/login/verify", async (c) => {
   const user = await db.query.users.findFirst({ where: eq(users.id, cred.userId) });
   if (!user) return c.json({ error: "User not found" }, 404);
 
-  await issueSession(c, user);
+  const sessionToken = await issueSession(c, user);
   const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, user.tenantId) });
   return c.json({
     user: {
@@ -220,6 +220,7 @@ webauthnRoutes.post("/login/verify", async (c) => {
       hasAcceptedTerms: user.acceptedTermsAt != null,
     },
     tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null,
+    ...nativeTokenField(c, sessionToken),
   });
 });
 

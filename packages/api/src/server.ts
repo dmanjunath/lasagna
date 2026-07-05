@@ -51,11 +51,13 @@ app.use(
       if (!origin) return origin;
       if (origin.startsWith("http://localhost:")) return origin;
       if (origin.endsWith(".trycloudflare.com")) return origin;
+      // Capacitor shells (iOS WKWebView / Android WebView) — Bearer auth, not cookies.
+      if (origin === "capacitor://localhost" || origin === "https://localhost") return origin;
       if (allowedOrigins.includes(origin)) return origin;
       return undefined;
     },
     credentials: true,
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "x-lasagna-client"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   })
 );

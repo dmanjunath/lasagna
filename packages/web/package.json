@@ -8,10 +8,16 @@
     "dev": "vite",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cap:sync": "vite build && cap sync",
+    "cap:ios": "vite build && cap sync && cap open ios"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.136",
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.2.8",
@@ -36,6 +42,7 @@
     "yaml": "^2.8.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

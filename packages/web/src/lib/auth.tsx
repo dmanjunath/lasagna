@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api.js";
+import { setNativeToken } from "./native.js";
 
 interface User {
   id: string;
@@ -100,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<NeedsVerification | null> => {
     const data = (await api.login({ email, password })) as any;
     if (data.needsVerification) return data as NeedsVerification;
+    if (data.token) setNativeToken(data.token); // native shell: Bearer auth
     commitAuth({ user: data.user, tenant: data.tenant });
     return null;
   }, [commitAuth]);
@@ -111,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await startAuthentication({ optionsJSON: options as never });
     // Same shape /login returns; cast like login() above (server omits notify prefs).
     const data = (await api.webauthnLoginVerify({ response })) as any;
+    if (data.token) setNativeToken(data.token); // native shell: Bearer auth
     commitAuth({ user: data.user, tenant: data.tenant });
   }, [commitAuth]);
 
@@ -126,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await api.logout();
+    setNativeToken(null);
     commitAuth({ user: null, tenant: null });
   }, [commitAuth]);
 

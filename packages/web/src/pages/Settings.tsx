@@ -20,6 +20,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useConfirm } from "../components/ds";
+import { isNativeApp } from "../lib/native";
 import {
   Button,
   Surface,
@@ -696,6 +697,9 @@ function PlanCard() {
     }
   };
 
+  // App-store rules (Apple 3.1.1): no external purchase flows in the native
+  // shell — hide Stripe checkout/portal there ("reader" pattern).
+  const native = isNativeApp();
   const isPro = status?.plan === "pro";
   const periodDate = status?.currentPeriodEnd
     ? new Date(status.currentPeriodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
@@ -748,9 +752,22 @@ function PlanCard() {
                 reactivate any time from Manage subscription.
               </p>
             )}
-            <Button variant="secondary" onClick={handleManage} disabled={managing} loading={managing}>
-              {managing ? "Redirecting…" : "Manage subscription"}
-            </Button>
+            {native ? (
+              <p className="text-[13px] font-medium text-content-muted">
+                Manage your subscription from the web app.
+              </p>
+            ) : (
+              <Button variant="secondary" onClick={handleManage} disabled={managing} loading={managing}>
+                {managing ? "Redirecting…" : "Manage subscription"}
+              </Button>
+            )}
+          </div>
+        ) : native ? (
+          <div className="flex flex-col items-start gap-3">
+            <FeatureList features={FREE_FEATURES} />
+            <p className="text-[13px] font-medium text-content-muted">
+              Plan changes are available from the web app.
+            </p>
           </div>
         ) : (
           <div className="flex flex-col items-start gap-5">

@@ -1,14 +1,24 @@
 import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, TaxInputResult, ExtractionResult } from "./types.js";
+import { isNativeApp, getNativeToken } from "./native.js";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   let res: Response;
+  // Native shell (capacitor://localhost): cookies don't survive cross-origin,
+  // so identify as native and authenticate with the stored Bearer token.
+  const native = isNativeApp();
+  const nativeToken = getNativeToken();
   try {
     res = await fetch(`${API_BASE}/api${path}`, {
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
       ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(native ? { "x-lasagna-client": "native" } : {}),
+        ...(nativeToken ? { Authorization: `Bearer ${nativeToken}` } : {}),
+        ...((options?.headers as Record<string, string> | undefined) ?? {}),
+      },
     });
   } catch {
     throw new Error("Cannot reach the server. Please check your connection.");

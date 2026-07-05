@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { AlertCircle, Fingerprint } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
 import { API_BASE } from "../lib/api.js";
+import { isNativeApp } from "../lib/native.js";
 import { Button, Input, Field } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
@@ -191,16 +192,20 @@ export function Login() {
                 <span className="text-xs text-content-muted">or</span>
                 <div className="h-px flex-1 bg-line" />
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="lg"
-                className="w-full"
-                disabled={isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)}
-                onClick={() => window.location.assign(`${API_BASE}/api/auth/google/start`)}
-              >
-                {isSignup ? "Sign up with Google" : "Sign in with Google"}
-              </Button>
+              {/* Google OAuth is a full-page redirect — needs a system-browser
+                  flow in the native shell, so it's web-only for now. */}
+              {!isNativeApp() && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  className="w-full"
+                  disabled={isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)}
+                  onClick={() => window.location.assign(`${API_BASE}/api/auth/google/start`)}
+                >
+                  {isSignup ? "Sign up with Google" : "Sign in with Google"}
+                </Button>
+              )}
               {!isSignup && typeof window !== "undefined" && !!window.PublicKeyCredential && (
                 <Button
                   type="button"

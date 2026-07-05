@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { api } from "../lib/api.js";
 import { useAuth } from "../lib/auth";
+import { isNativeApp } from "../lib/native";
 import { useBilling, startUpgrade } from "../lib/billing";
 import { cn, stripAccountMask } from "../lib/utils";
 import { Button, Field, Input, Modal, Skeleton } from "../components/uikit";
@@ -217,6 +218,12 @@ export function Accounts() {
   };
 
   const handleLink = async () => {
+    // Plaid's web SDK doesn't support embedded WebViews (bank OAuth breaks) —
+    // the native shell needs the native Plaid Link SDK before this can work.
+    if (isNativeApp()) {
+      setError("Bank connections aren't available in the app yet — connect from the web and your accounts will sync here.");
+      return;
+    }
     setLinking(true);
     setError("");
     try {
