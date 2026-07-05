@@ -2722,3 +2722,12 @@
     padding-top: 0; padding-bottom: 0;
   }
 }
+
+/* ── Pull-to-refresh — the brand waves bob while the page reloads. ── */
+@keyframes p2r-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(5px) scale(0.92); }
+}
+.animate-p2r-bob {
+  animation: p2r-bob 700ms ease-in-out infinite;
+}

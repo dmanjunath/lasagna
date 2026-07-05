@@ -334,7 +334,7 @@ export function SimpleHome() {
   const moveCount = (currentStep ? 1 : 0) + sideActions.length;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* Greeting */}
       <header className="animate-fade-in">
         <h1 className="font-editorial text-[26px] sm:text-[33px] font-bold leading-[1.05] tracking-[-0.025em] text-content">

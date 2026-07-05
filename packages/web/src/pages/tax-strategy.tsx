@@ -360,7 +360,7 @@ export function TaxStrategy() {
   const topAmount = savingsBreakdown[0]?.amount ?? 0;
 
   return (
-    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`
         @media (max-width: 640px) {
           .tax-input-wrap input[type="text"],

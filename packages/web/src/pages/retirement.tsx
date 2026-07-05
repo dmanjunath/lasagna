@@ -1598,7 +1598,7 @@ export function Retirement() {
     // accounts query + MC compute spin up. Same outline as the loaded page
     // (page-bar + projection fan height) so swap-in doesn't jolt.
     return (
-      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
         <header>
           <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">Retirement</h1>
           <Skeleton className="mt-2 h-3 w-52" />
@@ -1611,7 +1611,7 @@ export function Retirement() {
 
   if (!hasAccounts) {
     return (
-      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
         <header className="mb-8">
           <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">Retirement</h1>
           <p className="mt-1.5 text-[14px] font-medium text-content-muted">Link accounts to project your timeline</p>
@@ -1763,7 +1763,7 @@ export function Retirement() {
 
   // Page-scoped responsive helpers — kept inline since they're page-specific.
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`
         @media (max-width: 800px) {
           .ret-hero-grid { grid-template-columns: repeat(3, 1fr) !important; }

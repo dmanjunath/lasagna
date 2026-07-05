@@ -237,7 +237,7 @@ export function PlanDetailPage() {
   return (
     <div className="flex h-full">
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-8 lg:px-11 pt-3 sm:pt-9 pb-6 sm:pb-24 text-content">
+      <div className="flex-1 overflow-y-auto px-3 sm:px-8 lg:px-11 pt-4 sm:pt-9 pb-6 sm:pb-24 text-content">
         <div className="max-w-4xl mx-auto">
           {/* ════════ Hero ════════ */}
           <div className="animate-fade-in">

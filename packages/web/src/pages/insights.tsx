@@ -457,7 +457,7 @@ export function Insights() {
     );
 
   return (
-    <div className="mx-auto max-w-[1160px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1160px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="flex items-start justify-between gap-6 flex-wrap animate-fade-in">
         <div>

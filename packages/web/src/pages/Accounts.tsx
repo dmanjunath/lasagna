@@ -436,7 +436,7 @@ export function Accounts() {
     : 0;
 
   return (
-    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
       {/* ── Page header — mirrors /money: title, live caption, action cluster ── */}
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">

@@ -203,7 +203,7 @@ export function AccountDetail() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
         <Skeleton className="h-8 w-16 rounded-ui-md" />
         <div className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
           <Skeleton className="h-3 w-24" />
@@ -219,7 +219,7 @@ export function AccountDetail() {
 
   if (notFound || !data) {
     return (
-      <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
         <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
           Account not found
         </h1>
@@ -422,7 +422,7 @@ export function AccountDetail() {
   const balanceLabel = isLiabilityAcct ? 'Balance owed' : 'Account value';
 
   return (
-    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
       {/* ── Back — desktop only; mobile gets the top-bar back button ── */}
       <button
         type="button"

@@ -986,7 +986,7 @@ export function ProbabilityOfSuccess() {
   // Empty state - no accounts
   if (!hasAccounts) {
     return (
-      <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
         <header className="mb-8">
           <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">Probability of success</h1>
           <p className="mt-1.5 text-[14px] font-medium text-content-muted">Link accounts to model your retirement odds</p>
@@ -1010,7 +1010,7 @@ export function ProbabilityOfSuccess() {
   const projectionYears = lifeExpectancy - retirementAge;
 
   return (
-    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">

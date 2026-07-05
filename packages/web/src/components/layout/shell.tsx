@@ -5,6 +5,7 @@ import { Sidebar } from './sidebar';
 import { MobileNav } from './mobile-nav';
 import { MobileTabBar } from './mobile-tab-bar';
 import { AppHeader } from './app-header';
+import { PullToRefresh } from './pull-to-refresh';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { useChatStore, getChatExpanded, setChatExpanded } from '../../lib/chat-store';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
@@ -43,6 +44,44 @@ export function Shell({ children }: ShellProps) {
     if (window.history.length > 1) window.history.back();
     else setLocation('/');
   };
+
+  // On main pages a swipe in from the left edge opens the drawer (instead of
+  // the browser's back gesture — preventDefault suppresses it while the
+  // hamburger is the leading control).
+  useEffect(() => {
+    if (!isMobile || isSubPage) return;
+    let startX: number | null = null;
+    let startY = 0;
+    let engaged = false;
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      startX = t.clientX <= 24 ? t.clientX : null;
+      startY = t.clientY;
+      engaged = false;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (startX === null) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = Math.abs(t.clientY - startY);
+      if (!engaged && dx > 20 && dx > dy * 1.5) {
+        engaged = true;
+        setMobileMenuOpen(true);
+      }
+      if (engaged) e.preventDefault();
+    };
+    const onEnd = () => { startX = null; engaged = false; };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+    };
+  }, [isMobile, isSubPage]);
 
   // The document scroller persists across routes, so reset it per navigation.
   useEffect(() => {
@@ -127,9 +166,11 @@ export function Shell({ children }: ShellProps) {
         mobileDocScroll ? (
           /* Mobile pages: document scroll — fixed header/tab-bar space is
              reserved with padding; no nested scroll container. */
-          <main className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]">
-            {children}
-          </main>
+          <PullToRefresh topOffset="calc(env(safe-area-inset-top) + 48px)">
+            <main className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]">
+              {children}
+            </main>
+          </PullToRefresh>
         ) : (
           /* Mobile /chat: height-constrained shell so the thread + composer
              own the viewport. pt offset = notch + 44px header. */
