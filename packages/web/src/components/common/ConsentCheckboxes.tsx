@@ -12,7 +12,7 @@ export function ConsentCheckboxes({
   onChange: (key: keyof ConsentValues, checked: boolean) => void;
 }) {
   return (
-    <div className="space-y-3 pt-1 text-sm">
+    <div className="space-y-2 pt-1 text-[13px] sm:space-y-3 sm:text-sm">
       <label className="flex items-start gap-2.5 cursor-pointer">
         <input
           type="checkbox"

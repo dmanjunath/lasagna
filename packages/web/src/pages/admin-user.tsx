@@ -99,7 +99,7 @@ export function AdminUser() {
       {detail && (
         <>
           {/* Identity + status */}
-          <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
+          <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
             <div className="min-w-0">
               <h2 className="font-editorial text-[22px] font-bold tracking-[-0.015em] truncate">{primaryEmail}</h2>
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -121,7 +121,7 @@ export function AdminUser() {
           {error && <p className="mt-3 text-[12.5px] text-negative">{error}</p>}
 
           {/* Account & security */}
-          <div className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
+          <div className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
             <div className={sectionTitle}>Account &amp; security{detail.users.length > 1 ? ` (${detail.users.length} users)` : ''}</div>
             <div className="mt-3 flex flex-col gap-3">
               {detail.users.map((u) => (
@@ -137,7 +137,7 @@ export function AdminUser() {
           </div>
 
           {/* Billing */}
-          <div className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
+          <div className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
             <div className={sectionTitle}>Billing</div>
             <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">

@@ -31,7 +31,7 @@ export function AppHeader({ leadingSlot }: AppHeaderProps) {
       className="fixed top-0 inset-x-0 z-30 border-b border-line pt-safe-top backdrop-blur-md"
       style={{ background: 'rgb(var(--ui-canvas) / 0.86)' }}
     >
-      <div className="mx-auto px-4 h-14 flex items-center gap-2">
+      <div className="mx-auto px-4 h-12 flex items-center gap-2">
         <div className="w-11 -ml-2 shrink-0 flex items-center">{leadingSlot}</div>
         {isHome ? (
           <div className="flex-1 flex items-center gap-2.5 min-w-0">

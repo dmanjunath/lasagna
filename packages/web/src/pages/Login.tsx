@@ -80,14 +80,16 @@ export function Login() {
       </div>
 
       <div className="relative w-full max-w-[420px]">
-        <div className="rounded-ui-xl border border-line bg-panel shadow-ui-lg p-7 sm:p-8">
-          {/* Brand + welcome */}
-          <div className="flex flex-col items-center text-center mb-7">
-            <BrandMark size={54} />
-            <h1 className="mt-4 font-editorial text-[26px] font-medium tracking-[-0.015em] text-content">
-              Lasagna<span className="text-brand">Fi</span>
-            </h1>
-            <p className="mt-1.5 text-[14px] text-content-secondary">
+        <div className="rounded-ui-xl border border-line bg-panel shadow-ui-lg p-5 sm:p-8">
+          {/* Brand + welcome — compact row on phones so the card fits one screen */}
+          <div className="flex flex-col items-center text-center mb-3.5 sm:mb-7">
+            <div className="flex items-center gap-2 sm:flex-col sm:gap-0">
+              <BrandMark size={34} />
+              <h1 className="font-editorial text-[22px] sm:mt-4 sm:text-[26px] font-medium tracking-[-0.015em] text-content">
+                Lasagna<span className="text-brand">Fi</span>
+              </h1>
+            </div>
+            <p className="mt-1 text-[13.5px] sm:text-[14px] text-content-secondary">
               {isSignup ? "Create your account — personal finance, layered." : "Welcome back — let's check on your money."}
             </p>
           </div>
@@ -108,7 +110,7 @@ export function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          <form onSubmit={handleSubmit} className="space-y-3">
             {isSignup && (
               <Field label="Name" hint="Optional">
                 <Input
@@ -173,7 +175,7 @@ export function Login() {
 
           {/* Forgot password — login view only */}
           {!isSignup && (
-            <p className="text-center mt-3.5">
+            <p className="text-center mt-2.5">
               <button
                 type="button"
                 onClick={() => navigate("/forgot-password")}
@@ -187,7 +189,7 @@ export function Login() {
           {/* Sign in / up with Google — hide in demo mode */}
           {import.meta.env.VITE_DEMO_MODE !== "true" && (
             <>
-              <div className="flex items-center gap-3 my-5">
+              <div className="flex items-center gap-3 my-3.5 sm:my-5">
                 <div className="h-px flex-1 bg-line" />
                 <span className="text-xs text-content-muted">or</span>
                 <div className="h-px flex-1 bg-line" />
@@ -206,7 +208,9 @@ export function Login() {
                   {isSignup ? "Sign up with Google" : "Sign in with Google"}
                 </Button>
               )}
-              {!isSignup && typeof window !== "undefined" && !!window.PublicKeyCredential && (
+              {/* Passkey sign-in is app-only: the shell pairs it with Face ID.
+                  On mobile web the password + iCloud autofill flow covers it. */}
+              {!isSignup && isNativeApp() && typeof window !== "undefined" && !!window.PublicKeyCredential && (
                 <Button
                   type="button"
                   variant="secondary"
@@ -224,7 +228,7 @@ export function Login() {
 
           {/* Sign-up toggle button — hide in demo mode */}
           {import.meta.env.VITE_DEMO_MODE !== "true" && (
-            <p className="text-center text-content-secondary text-sm mt-6">
+            <p className="text-center text-content-secondary text-sm mt-4 sm:mt-6">
               {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
                 type="button"

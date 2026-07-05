@@ -145,7 +145,7 @@ export function SavingsGoal() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1040px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
         <Skeleton className="h-4 w-24" />
         <div className="mt-4 flex items-center gap-3.5">
           <Skeleton className="h-[54px] w-[54px] rounded-[16px]" />
@@ -178,7 +178,7 @@ export function SavingsGoal() {
 
   if (notFound || !goal) {
     return (
-      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1040px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
         <EmptyState
           icon={<Sparkles className="h-6 w-6" />}
           title="Goal not found"
@@ -351,7 +351,7 @@ export function SavingsGoal() {
     : 'manual entry';
 
   return (
-    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1040px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`
         .sg-shine::after {
           content: ""; position: absolute; inset: 0; border-radius: 999px;
@@ -550,7 +550,7 @@ export function SavingsGoal() {
         </div>
 
         {editingAccounts ? (
-          <div ref={accountsPanelRef} className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
+          <div ref={accountsPanelRef} className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
             <Eyebrow>Linked accounts</Eyebrow>
             <p className="mt-1.5 mb-4 text-[12.5px] text-content-muted">
               Linked accounts auto-track this goal from their live balances. Remove all to track it manually.
@@ -632,7 +632,7 @@ export function SavingsGoal() {
             />
             <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Edit goal</h2>
           </div>
-          <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
+          <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
             <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
               <Field label="Goal name">
                 <Input

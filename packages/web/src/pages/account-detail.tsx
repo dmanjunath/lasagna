@@ -201,7 +201,7 @@ export function AccountDetail() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
         <Skeleton className="h-8 w-16 rounded-ui-md" />
         <div className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
           <Skeleton className="h-3 w-24" />
@@ -217,7 +217,7 @@ export function AccountDetail() {
 
   if (notFound || !data) {
     return (
-      <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
         <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
           Account not found
         </h1>
@@ -420,7 +420,7 @@ export function AccountDetail() {
   const balanceLabel = isLiabilityAcct ? 'Balance owed' : 'Account value';
 
   return (
-    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
       {/* ── Back ── */}
       <button
         type="button"
@@ -498,88 +498,6 @@ export function AccountDetail() {
           {actionError ?? flash}
         </p>
       )}
-
-      {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
-      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
-              'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
-          }}
-        />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
-            <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
-              {fmtUsd(heroValue)}
-            </div>
-            <div className="mt-3 flex min-h-[28px] items-center gap-2.5 flex-wrap">
-              {hoveredPoint ? (
-                <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
-                  {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              ) : hasHistory && heroChange !== 0 ? (
-                <>
-                  <DeltaChip delta={heroChange} />
-                  <span className="text-[13px] font-medium text-content-muted">over this period</span>
-                </>
-              ) : (
-                <span className="text-[13px] font-medium text-content-muted">
-                  {isManual ? 'Manually tracked' : lastSyncedAt ? `Synced ${relativeTime(lastSyncedAt)}` : 'Connected'}
-                </span>
-              )}
-            </div>
-          </div>
-          {hasHistory && chartPoints.length >= 2 && (
-            <SegmentedControl
-              aria-label="Time range"
-              value={range}
-              onChange={(r) => setRange(r as Range)}
-              options={[
-                { value: '1M', label: '1M' },
-                { value: '6M', label: '6M' },
-                { value: '1Y', label: '1Y' },
-                { value: 'All', label: 'All' },
-              ]}
-            />
-          )}
-        </div>
-
-        {hasHistory ? (
-          chartPoints.length >= 2 ? (
-            <div className="relative mt-5 pr-2 sm:pr-0">
-              <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
-            </div>
-          ) : (
-            <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
-              No data in this range.
-            </p>
-          )
-        ) : (
-          <div className="relative mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-8 text-center">
-            <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
-              <TrendingUp size={20} />
-            </div>
-            <div className="text-[15px] font-semibold">No history yet</div>
-            <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-content-muted">
-              A value trend appears once we have a few days of history.
-            </p>
-          </div>
-        )}
-
-        {/* Key facts — read-only, at-a-glance context for this one account. */}
-        <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
-          {facts.map((f) => (
-            <div key={f.label} className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-faint">{f.label}</div>
-              <div className="mt-1 truncate text-[15px] font-bold text-content ui-tnum">{f.value}</div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* ── Settings — collapsible, organized into on-skin sub-sections. ── */}
       <section className="mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
@@ -745,6 +663,89 @@ export function AccountDetail() {
           </div>
         )}
       </section>
+
+      {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-[26px]">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+              'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
+          }}
+        />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
+            <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
+              {fmtUsd(heroValue)}
+            </div>
+            <div className="mt-3 flex min-h-[28px] items-center gap-2.5 flex-wrap">
+              {hoveredPoint ? (
+                <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
+                  {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              ) : hasHistory && heroChange !== 0 ? (
+                <>
+                  <DeltaChip delta={heroChange} />
+                  <span className="text-[13px] font-medium text-content-muted">over this period</span>
+                </>
+              ) : (
+                <span className="text-[13px] font-medium text-content-muted">
+                  {isManual ? 'Manually tracked' : lastSyncedAt ? `Synced ${relativeTime(lastSyncedAt)}` : 'Connected'}
+                </span>
+              )}
+            </div>
+          </div>
+          {hasHistory && chartPoints.length >= 2 && (
+            <SegmentedControl
+              aria-label="Time range"
+              value={range}
+              onChange={(r) => setRange(r as Range)}
+              options={[
+                { value: '1M', label: '1M' },
+                { value: '6M', label: '6M' },
+                { value: '1Y', label: '1Y' },
+                { value: 'All', label: 'All' },
+              ]}
+            />
+          )}
+        </div>
+
+        {hasHistory ? (
+          chartPoints.length >= 2 ? (
+            <div className="relative mt-5 pr-2 sm:pr-0">
+              <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+            </div>
+          ) : (
+            <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
+              No data in this range.
+            </p>
+          )
+        ) : (
+          <div className="relative mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-8 text-center">
+            <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
+              <TrendingUp size={20} />
+            </div>
+            <div className="text-[15px] font-semibold">No history yet</div>
+            <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-content-muted">
+              A value trend appears once we have a few days of history.
+            </p>
+          </div>
+        )}
+
+        {/* Key facts — read-only, at-a-glance context for this one account. */}
+        <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
+          {facts.map((f) => (
+            <div key={f.label} className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-faint">{f.label}</div>
+              <div className="mt-1 truncate text-[15px] font-bold text-content ui-tnum">{f.value}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
     </div>
   );
 }

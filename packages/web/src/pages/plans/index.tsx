@@ -135,7 +135,7 @@ export function PlansPage() {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="flex flex-wrap items-end justify-between gap-4 animate-fade-in">
         <div className="min-w-0">

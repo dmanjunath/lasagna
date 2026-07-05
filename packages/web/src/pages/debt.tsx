@@ -193,7 +193,7 @@ export function Debt() {
   const apr = blendedApr(debts);
 
   return (
-    <div className="mx-auto max-w-[1120px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
       {loading ? null : !hasAccounts ? (
         <NoAccountsView />
       ) : hasDebt ? (
@@ -635,7 +635,7 @@ function HasDebtView({
       </header>
 
       {/* ── HERO — one confident answer: how much, how long, what it costs ── */}
-      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"

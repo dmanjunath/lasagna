@@ -178,7 +178,7 @@ export function SimpleMoney() {
     : monthPct;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ── Page header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -272,7 +272,7 @@ export function SimpleMoney() {
 
       {/* ── Net-worth + chart card ── */}
       {hasMoney && (
-        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-[26px]">
           {/* atmospheric wash — periwinkle top-right + brand top-left */}
           <div
             aria-hidden="true"

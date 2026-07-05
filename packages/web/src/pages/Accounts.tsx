@@ -9,8 +9,7 @@ import {
   Sparkles,
   Building2,
   ChevronDown,
-  MoreHorizontal,
-  SlidersHorizontal,
+  ChevronRight,
   Trash2,
   Lock,
   X,
@@ -304,22 +303,6 @@ export function Accounts() {
     loadItems();
   };
 
-  const handleDeleteAccount = async (id: string, accountName: string) => {
-    const ok = await confirm({
-      title: `Remove ${accountName}?`,
-      body: 'This account and its current balance will be deleted. Historical snapshots are kept.',
-      confirmLabel: 'Remove',
-      destructive: true,
-    });
-    if (!ok) return;
-    try {
-      await api.deleteManualAccount(id);
-      loadItems();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete account");
-    }
-  };
-
   const handleUpgrade = async () => {
     setError("");
     try {
@@ -453,7 +436,7 @@ export function Accounts() {
     : 0;
 
   return (
-    <div className="mx-auto max-w-[1040px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-3 sm:pt-10 pb-6 sm:pb-28 text-content">
       {/* ── Page header — mirrors /money: title, live caption, action cluster ── */}
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
@@ -695,12 +678,9 @@ export function Accounts() {
                 onToggle={() => toggleExpand(item.id)}
                 onSync={() => handleSyncItem(item.id)}
                 onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Unknown Bank")}
-                onDeleteAccount={handleDeleteAccount}
-                onRefresh={() => loadItems(false)}
                 allAccounts={allAccounts}
                 isFree={isFree}
                 overLimit={overLimit}
-                onUpgrade={handleUpgrade}
               />
             ))}
           </div>
@@ -726,12 +706,9 @@ export function Accounts() {
                 onToggle={() => toggleExpand(item.id)}
                 onSync={() => {}}
                 onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
-                onDeleteAccount={handleDeleteAccount}
-                onRefresh={() => loadItems(false)}
                 allAccounts={allAccounts}
                 isFree={isFree}
                 overLimit={overLimit}
-                onUpgrade={handleUpgrade}
               />
             ))}
           </div>
@@ -981,12 +958,9 @@ function InstitutionArticle({
   onToggle,
   onSync,
   onDisconnect,
-  onDeleteAccount,
-  onRefresh,
   allAccounts,
   isFree,
   overLimit,
-  onUpgrade,
 }: {
   refCallback: (el: HTMLElement | null) => void;
   item: PlaidItem;
@@ -999,12 +973,9 @@ function InstitutionArticle({
   onToggle: () => void;
   onSync: () => void;
   onDisconnect: () => void;
-  onDeleteAccount: (id: string, name: string) => void;
-  onRefresh: () => void;
   allAccounts: Account[];
   isFree: boolean;
   overLimit: boolean;
-  onUpgrade: () => void;
 }) {
   const isError = isItemError(item);
   const statusLabel = isManual
@@ -1103,12 +1074,7 @@ function InstitutionArticle({
                 <AccountRow
                   key={account.id}
                   account={account}
-                  isManual={isManual}
-                  isFree={isFree}
                   overLimit={overLimit}
-                  onUpgrade={onUpgrade}
-                  onDelete={() => onDeleteAccount(account.id, account.name)}
-                  onRefresh={onRefresh}
                   linkedAccountName={account.metadata?.linkedAccountId
                     ? allAccounts.find((a) => a.id === account.metadata?.linkedAccountId)?.name ?? null
                     : null}
@@ -1136,21 +1102,19 @@ function InstitutionArticle({
 }
 
 // ---------------------------------------------------------------------------
-// Account row — name/mask · type · balance with status pill · ⋯ menu.
-// Mirrors the /money AcctRow rhythm for cross-page consistency.
+// Account row — name/mask · type · balance with status pill · chevron.
+// The whole row navigates to the account detail page (edit/sync/delete live
+// there); no per-row overflow menu.
 // ---------------------------------------------------------------------------
 
-function AccountRow({ account, isManual, isFree, overLimit, onUpgrade, onDelete, onRefresh, linkedAccountName }: {
-  account: Account; isManual: boolean; isFree: boolean; overLimit: boolean; onUpgrade: () => void;
-  onDelete: () => void;
-  onRefresh: () => void;
+function AccountRow({ account, overLimit, linkedAccountName }: {
+  account: Account; overLimit: boolean;
   linkedAccountName: string | null;
 }) {
   const balance = account.balance !== null ? parseFloat(account.balance) : null;
   const isNegative = balance !== null && balance < 0;
   const isFrozen = account.frozen === true;
   const [, setLocation] = useLocation();
-  const [syncing, setSyncing] = useState(false);
   const openSettings = () => setLocation("/accounts/" + account.id);
 
   return (
@@ -1206,112 +1170,9 @@ function AccountRow({ account, isManual, isFree, overLimit, onUpgrade, onDelete,
           ) : null}
         </div>
 
-        <RowMenu
-          onSettings={openSettings}
-          onSync={isManual || isFree ? undefined : async () => {
-            setSyncing(true);
-            try { await api.syncAccount(account.id); await onRefresh(); }
-            finally { setSyncing(false); }
-          }}
-          onUpgrade={isFrozen ? onUpgrade : undefined}
-          syncing={syncing}
-          onDelete={isManual ? onDelete : undefined}
-        />
+        <ChevronRight size={16} className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" aria-hidden />
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Per-row overflow menu — settings / sync / upgrade / remove. Destructive is red.
-// ---------------------------------------------------------------------------
-
-function RowMenu({
-  onSettings, onSync, onUpgrade, onDelete, syncing,
-}: {
-  onSettings: () => void;
-  onSync?: () => void;
-  onUpgrade?: () => void;
-  onDelete?: () => void;
-  syncing: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-
-  const run = (fn?: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); setOpen(false); fn?.(); };
-
-  return (
-    <div ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        aria-label="Account actions"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-        className="ui-focus grid h-11 w-11 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content sm:h-9 sm:w-9"
-      >
-        <MoreHorizontal size={18} />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="animate-scale-in absolute right-0 top-[calc(100%+6px)] z-30 w-52 origin-top-right rounded-ui-md border border-line-strong bg-panel-raised p-1.5 shadow-ui-lg"
-        >
-          <MenuItem icon={<SlidersHorizontal size={16} />} onClick={run(onSettings)}>Account settings</MenuItem>
-          {onSync && (
-            <MenuItem icon={<RefreshCw size={16} className={syncing ? "animate-spin" : ""} />} onClick={run(onSync)}>
-              {syncing ? "Syncing…" : "Sync now"}
-            </MenuItem>
-          )}
-          {onUpgrade && (
-            <MenuItem icon={<Sparkles size={16} />} onClick={run(onUpgrade)}>Upgrade to sync</MenuItem>
-          )}
-          {onDelete && (
-            <>
-              <div className="my-1 h-px bg-line" />
-              <MenuItem icon={<Trash2 size={16} />} danger onClick={run(onDelete)}>Remove account</MenuItem>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MenuItem({
-  icon, children, onClick, danger,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  onClick: (e: React.MouseEvent) => void;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className={cn(
-        "ui-focus flex w-full items-center gap-2.5 rounded-ui-sm px-2.5 py-2 text-left text-[13.5px] font-medium transition-colors",
-        danger
-          ? "text-negative hover:bg-negative-soft"
-          : "text-content-secondary hover:bg-canvas-sunken hover:text-content",
-      )}
-    >
-      <span className="shrink-0">{icon}</span>
-      {children}
-    </button>
   );
 }
 

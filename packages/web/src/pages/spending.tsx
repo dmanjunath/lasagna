@@ -736,7 +736,7 @@ export function Spending() {
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* ════════ Header ════════ */}
@@ -800,7 +800,7 @@ export function Spending() {
 
       {/* ════════ Loading skeleton ════════ */}
       {loadingSummary && (
-        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-[26px]">
+        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-[26px]">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="mt-3 h-12 w-56" />
           <Skeleton className="mt-3 h-7 w-44 rounded-full" />
@@ -821,7 +821,7 @@ export function Spending() {
            the interactive trend, closed by an inline stat rail (income / net /
            savings) so the page opens with a single, complete answer. ════════ */}
       {!loadingSummary && !noData && (
-        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
+        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
@@ -895,7 +895,7 @@ export function Spending() {
 
       {/* ════════ Estimated (linked but no transactions) ════════ */}
       {!loadingSummary && noData && hasLinkedAccounts && (
-        <section className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-6">
+        <section className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
           <Eyebrow>Estimated</Eyebrow>
           <h3 className="mt-1.5 font-editorial text-[19px] font-bold tracking-[-0.018em]">Transaction sync coming soon</h3>
           <p className="mt-2 text-[14px] leading-relaxed text-content-muted">
@@ -944,7 +944,7 @@ export function Spending() {
               {spendingCategories.length} categories
             </span>
           </div>
-          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
+          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
             <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[268px_1fr] lg:gap-12">
               {/* Donut — clearly labeled */}
               <div className="mx-auto w-full max-w-[280px]">

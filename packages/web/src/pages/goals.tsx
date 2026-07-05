@@ -211,7 +211,7 @@ export function Goals() {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`
         .g-shine::after {
           content: ""; position: absolute; inset: 0; border-radius: 999px;
@@ -251,7 +251,7 @@ export function Goals() {
             exit={{ opacity: 0, height: 0 }}
             style={{ overflow: 'hidden' }}
           >
-            <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5 sm:p-7">
+            <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
               <Eyebrow>New goal</Eyebrow>
               <h3 className="mt-1.5 mb-5 font-editorial text-[20px] font-bold tracking-[-0.018em]">
                 What are you saving for?

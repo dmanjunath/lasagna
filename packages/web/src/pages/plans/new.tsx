@@ -84,7 +84,7 @@ export function NewPlanPage() {
   const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
 
   return (
-    <div className="mx-auto max-w-[880px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[880px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="animate-fade-in">
         <Link

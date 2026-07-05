@@ -104,14 +104,14 @@ export function Shell({ children }: ShellProps) {
         mobileDocScroll ? (
           /* Mobile pages: document scroll — fixed header/tab-bar space is
              reserved with padding; no nested scroll container. */
-          <main className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+56px)] pb-[calc(env(safe-area-inset-bottom)+68px)]">
+          <main className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]">
             {children}
           </main>
         ) : (
           /* Mobile /chat: height-constrained shell so the thread + composer
              own the viewport. pt offset = notch + 44px header. */
           <div className="flex-1 flex overflow-hidden relative">
-            <main className={`w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] ${hideTabBarForThread ? 'pb-safe-bottom' : 'pb-[calc(env(safe-area-inset-bottom)+68px)]'}`}>
+            <main className={`w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+48px)] ${hideTabBarForThread ? 'pb-safe-bottom' : 'pb-[calc(env(safe-area-inset-bottom)+68px)]'}`}>
               <div className="flex-1 overflow-y-auto">
                 {children}
               </div>

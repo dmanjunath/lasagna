@@ -334,7 +334,7 @@ export function SimpleHome() {
   const moveCount = (currentStep ? 1 : 0) + sideActions.length;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-3 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* Greeting */}
       <header className="animate-fade-in">
         <h1 className="font-editorial text-[26px] sm:text-[33px] font-bold leading-[1.05] tracking-[-0.025em] text-content">
@@ -1256,7 +1256,7 @@ function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: st
   const when = bill.daysAway <= 0 ? 'today' : bill.daysAway === 1 ? 'tomorrow' : `in ${bill.daysAway} days`;
   const covered = account ? account.balance >= bill.amount : null;
   return (
-    <Card className="mt-7 p-5 sm:p-6 max-w-[760px]">
+    <Card className="mt-7 px-3.5 py-4 sm:p-6 max-w-[760px]">
       <div className="flex items-center gap-2 text-[15px] font-bold">
         <ChevronRight className="h-4 w-4 text-content-faint" />
         {bill.name} · <span className="ui-tnum">{fmtUsd(bill.amount)}</span>
