@@ -94,6 +94,12 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={{ left: 0.9, right: 0 }}
+            onDragEnd={(_e, info) => {
+              if (info.offset.x < -64 || info.velocity.x < -400) onClose();
+            }}
             className="fixed top-0 left-0 bottom-0 w-[88%] max-w-[360px] z-50 overflow-y-auto
                        bg-canvas border-r border-line shadow-2xl md:hidden scrollbar-thin"
           >

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import {
   ArrowRight,
+  ChevronDown,
   Sparkles,
   Receipt,
   Flame,
@@ -72,18 +74,33 @@ export function ActionItem({
   onDismiss,
   onContextClick,
 }: ActionItemProps) {
-  void defaultOpen; // accordion state removed — cards are always expanded now
+  // Mobile-only accordion: collapsed to tag+title on phones (stacked full cards
+  // made pages 5-8 screens tall); desktop stays always-expanded.
+  const [expanded, setExpanded] = useState(defaultOpen ?? false);
   const { openChat } = useChatStore();
   const cat = catForTag(tag);
   const Icon = cat.icon;
 
   return (
-    <article className="relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[20px_18px] sm:p-[22px_24px] transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md">
+    <article
+      onClick={() => { if (!expanded) setExpanded(true); }}
+      className={`relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[20px_18px] sm:p-[22px_24px] transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md ${expanded ? '' : 'max-sm:cursor-pointer'}`}
+    >
       {/* left accent bar — tone by category */}
       <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
 
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Hide details' : 'Show details'}
+        className="sm:hidden absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-ui-md text-content-faint"
+      >
+        <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+
       <div className="flex items-start sm:items-center gap-5 flex-wrap sm:flex-nowrap">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 max-sm:pr-8">
           <span
             className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-[0.05em] mb-3"
             style={{ background: cat.tagBg, color: cat.tagFg }}
@@ -94,14 +111,14 @@ export function ActionItem({
           <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em] text-content">
             {title}
           </h3>
-          <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-2 max-w-[52ch]">
+          <p className={`mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-2 max-w-[52ch] ${expanded ? '' : 'max-sm:hidden'}`}>
             {description}
           </p>
         </div>
 
         {/* right-aligned impact — tinted by impactColor; reflows below a hairline on mobile */}
         {impact && (
-          <div className="w-full sm:w-auto mt-3.5 sm:mt-0 pt-3.5 sm:pt-0 border-t sm:border-t-0 border-line shrink-0">
+          <div className={`w-full sm:w-auto mt-3.5 sm:mt-0 pt-3.5 sm:pt-0 border-t sm:border-t-0 border-line shrink-0 ${expanded ? '' : 'max-sm:hidden'}`}>
             <span
               className="inline-flex items-center gap-1.5 rounded-ui-md px-2.5 py-1.5 font-editorial text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap"
               style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
@@ -112,7 +129,7 @@ export function ActionItem({
         )}
       </div>
 
-      <div className="flex items-center gap-2 mt-5 flex-wrap">
+      <div className={`flex items-center gap-2 mt-5 flex-wrap ${expanded ? '' : 'max-sm:hidden'}`}>
         {/* primary — Ask Lasagna (soft-pill), preserves the openChat prompt */}
         <button
           type="button"

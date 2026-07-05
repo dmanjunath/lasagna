@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, useDragControls, type PanInfo } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
@@ -27,6 +28,11 @@ export function Modal({
   variant?: 'center' | 'sheet';
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Swipe-to-dismiss for the mobile bottom sheet: drag starts only from the
+  // grab handle / header (not the scrollable body) via dragControls.
+  const dragControls = useDragControls();
+  const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
+  const swipeable = variant === 'sheet' && isPhone;
 
   useEffect(() => {
     if (!open) return;
@@ -89,15 +95,34 @@ export function Modal({
         onClick={onClose}
         aria-hidden
       />
-      <div
+      <motion.div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
+        drag={swipeable ? 'y' : false}
+        dragControls={dragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.9 }}
+        onDragEnd={(_e, info: PanInfo) => {
+          if (info.offset.y > 96 || info.velocity.y > 600) onClose();
+        }}
         className={cn('flex flex-col border-line bg-panel-raised shadow-ui-xl', panel)}
       >
+        {swipeable && (
+          <div
+            className="flex justify-center pt-2.5 pb-1 touch-none cursor-grab"
+            onPointerDown={(e) => dragControls.start(e)}
+          >
+            <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden />
+          </div>
+        )}
         {(title || description) && (
-          <div className="flex items-start justify-between gap-4 border-b border-line p-5 sm:p-6">
+          <div
+            className="flex items-start justify-between gap-4 border-b border-line p-5 sm:p-6"
+            onPointerDown={swipeable ? (e) => dragControls.start(e) : undefined}
+          >
             <div className="min-w-0">
               {title && <h2 className="text-[18px] font-semibold text-content">{title}</h2>}
               {description && (
@@ -115,7 +140,7 @@ export function Modal({
             {footer}
           </div>
         )}
-      </div>
+      </motion.div>
     </div>,
     document.body,
   );

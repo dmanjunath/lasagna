@@ -6,6 +6,13 @@
     
     <meta name="application-name" content="LasagnaFi" />
     <meta name="theme-color" content="#C9543A" />
+
+    <!-- Installable web app (no service worker by design — see public/sw.js history) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LasagnaFi" />
     
     <!-- SEO Meta Tags -->
     <meta name="description" content="Self-hosted personal finance platform" />
@@ -16,9 +23,9 @@
     <meta property="og:description" content="Self-hosted personal finance platform" />
     <meta property="og:type" content="website" />
     
-    <!-- Icons -->
+    <!-- Icons — apple-touch-icon must be PNG; iOS ignores SVG here -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
     <title>LasagnaFi</title>
     
