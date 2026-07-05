@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import type { MiddlewareHandler } from "hono";
 import { requireAuth, AuthEnv } from "./middleware/auth.js";
 import { authRoutes } from "./routes/auth.js";
+import { webauthnRoutes } from "./routes/webauthn.js";
 import { plaidRoutes } from "./routes/plaid.js";
 import { accountRoutes } from "./routes/accounts.js";
 import { holdingsRoutes } from "./routes/holdings.js";
@@ -67,6 +68,8 @@ app.get("/api/health", (c) => {
 app.use("/api/*", async (ctx, next) => {
   const exempt = [
     "/api/auth/login",
+    "/api/auth/webauthn/login/options",
+    "/api/auth/webauthn/login/verify",
     "/api/auth/logout",
     "/api/auth/signup",
     "/api/auth/me",
@@ -109,6 +112,7 @@ app.use("/api/*", async (ctx, next) => {
   );
 });
 
+app.route("/api/auth/webauthn", webauthnRoutes);
 app.route("/api/auth", authRoutes);
 app.route("/api/plaid", plaidRoutes);
 app.route("/api/accounts", accountRoutes);

@@ -66,6 +66,7 @@ interface AuthState {
   tenant: Tenant | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<NeedsVerification | null>;
+  loginWithPasskey: () => Promise<void>;
   signup: (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) => Promise<NeedsVerification | null>;
   logout: () => Promise<void>;
   updateTenant: (updates: Partial<Tenant>) => void;
@@ -101,6 +102,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data.needsVerification) return data as NeedsVerification;
     commitAuth({ user: data.user, tenant: data.tenant });
     return null;
+  }, [commitAuth]);
+
+  const loginWithPasskey = useCallback(async () => {
+    // Lazy import — WebAuthn code only loads when a passkey flow starts.
+    const { startAuthentication } = await import('@simplewebauthn/browser');
+    const options = await api.webauthnLoginOptions();
+    const response = await startAuthentication({ optionsJSON: options as never });
+    // Same shape /login returns; cast like login() above (server omits notify prefs).
+    const data = (await api.webauthnLoginVerify({ response })) as any;
+    commitAuth({ user: data.user, tenant: data.tenant });
   }, [commitAuth]);
 
   const signup = useCallback(
@@ -146,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, updateTenant, setOnboardingStage, updateMe }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, loginWithPasskey, signup, logout, updateTenant, setOnboardingStage, updateMe }}>
       {children}
     </AuthContext.Provider>
   );

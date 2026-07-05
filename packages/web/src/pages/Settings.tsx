@@ -16,7 +16,10 @@ import {
   LogOut,
   Sparkles,
   Check,
+  Fingerprint,
+  Trash2,
 } from "lucide-react";
+import { useConfirm } from "../components/ds";
 import {
   Button,
   Surface,
@@ -338,6 +341,14 @@ export function Settings() {
         </div>
       </section>
 
+      {/* ════════ Security ════════ */}
+      <section className="mt-10">
+        <GroupHeader eyebrow="Security" hint="Sign in with Face ID, Touch ID, or a device passkey" />
+        <div className="mt-4">
+          <PasskeysCard />
+        </div>
+      </section>
+
       {/* ════════ Manage ════════ */}
       <section className="mt-10">
         <GroupHeader eyebrow="Manage" hint="Jump to the things you keep up to date" />
@@ -357,6 +368,132 @@ export function Settings() {
         </div>
       </section>
     </div>
+  );
+}
+
+// ─── Passkeys card — register/list/remove Face ID / Touch ID credentials ─────
+
+function PasskeysCard() {
+  const [creds, setCreds] = useState<
+    { id: string; deviceName: string | null; createdAt: string; lastUsedAt: string | null }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const confirm = useConfirm();
+  const supported = typeof window !== "undefined" && !!window.PublicKeyCredential;
+
+  const load = useCallback(async () => {
+    try {
+      const { credentials } = await api.listPasskeys();
+      setCreds(credentials);
+    } catch {
+      // Non-fatal: the section just shows the add button.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const addPasskey = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const { startRegistration } = await import("@simplewebauthn/browser");
+      const options = await api.webauthnRegisterOptions();
+      const response = await startRegistration({ optionsJSON: options as never });
+      await api.webauthnRegisterVerify({ response });
+      await load();
+    } catch (err) {
+      // NotAllowedError = the user dismissed the system prompt.
+      if (err instanceof Error && err.name !== "NotAllowedError") setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removePasskey = async (id: string) => {
+    const ok = await confirm({
+      title: "Remove this passkey?",
+      body: "You won't be able to sign in with it anymore. You can add it again anytime.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
+    await api.deletePasskey(id);
+    await load();
+  };
+
+  return (
+    <Surface className="p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
+            <Fingerprint className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-bold text-content">Face ID &amp; passkeys</h3>
+            <p className="mt-0.5 text-[13px] font-medium text-content-muted">
+              Skip the password on devices you trust.
+            </p>
+          </div>
+        </div>
+        {supported && (
+          <Button variant="secondary" size="sm" onClick={addPasskey} loading={busy} disabled={busy}>
+            Add passkey
+          </Button>
+        )}
+      </div>
+
+      {!supported && (
+        <p className="mt-4 text-[13px] font-medium text-content-muted">
+          This browser doesn't support passkeys.
+        </p>
+      )}
+
+      {error && (
+        <Alert tone="negative" className="mt-4">
+          {error}
+        </Alert>
+      )}
+
+      {loading ? (
+        <Skeleton className="mt-4 h-10 rounded-ui-md" />
+      ) : creds.length > 0 ? (
+        <ul className="mt-4 divide-y divide-line border-t border-line">
+          {creds.map((cr) => (
+            <li key={cr.id} className="flex items-center justify-between gap-3 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-[14px] font-semibold text-content">
+                  {cr.deviceName || "Passkey"}
+                </p>
+                <p className="mt-0.5 text-[12.5px] font-medium text-content-muted">
+                  Added {new Date(cr.createdAt).toLocaleDateString()}
+                  {cr.lastUsedAt ? ` · Last used ${new Date(cr.lastUsedAt).toLocaleDateString()}` : ""}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Remove passkey"
+                onClick={() => removePasskey(cr.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        supported && (
+          <p className="mt-4 text-[13px] font-medium text-content-muted">
+            No passkeys yet — add one to sign in with Face ID on this device.
+          </p>
+        )
+      )}
+    </Surface>
   );
 }
 

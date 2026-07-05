@@ -141,6 +141,23 @@ export const riskToleranceEnum = pgEnum("risk_tolerance", [
   "aggressive",
 ]);
 
+// WebAuthn/passkey credentials (Face ID / Touch ID sign-in). One row per
+// registered authenticator; id is the base64url credential ID.
+export const webauthnCredentials = pgTable("webauthn_credentials", {
+  id: text("id").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  publicKey: text("public_key").notNull(),
+  counter: integer("counter").notNull().default(0),
+  transports: text("transports"),
+  deviceName: varchar("device_name", { length: 255 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+});
+
 export const financialProfiles = pgTable("financial_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id")

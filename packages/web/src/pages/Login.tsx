@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Fingerprint } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
 import { API_BASE } from "../lib/api.js";
 import { Button, Input, Field } from "../components/uikit";
@@ -8,7 +8,7 @@ import { BrandMark } from "../components/common/BrandMark";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
 export function Login() {
-  const { login, signup } = useAuth();
+  const { login, loginWithPasskey, signup } = useAuth();
   const [, navigate] = useLocation();
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState("");
@@ -23,6 +23,20 @@ export function Login() {
   const autofillDemo = () => {
     setEmail("demo@lasagnafi.com");
     setPassword("lasagna123");
+  };
+
+  const handlePasskey = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      await loginWithPasskey();
+      navigate("/");
+    } catch (err) {
+      // NotAllowedError = the user dismissed the Face ID / passkey prompt.
+      if (err instanceof Error && err.name !== "NotAllowedError") setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -187,6 +201,19 @@ export function Login() {
               >
                 {isSignup ? "Sign up with Google" : "Sign in with Google"}
               </Button>
+              {!isSignup && typeof window !== "undefined" && !!window.PublicKeyCredential && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  className="w-full mt-3"
+                  disabled={loading}
+                  onClick={handlePasskey}
+                >
+                  <Fingerprint className="h-4 w-4" />
+                  Sign in with Face ID / passkey
+                </Button>
+              )}
             </>
           )}
 

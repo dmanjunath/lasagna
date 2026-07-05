@@ -24,7 +24,7 @@ export const authRoutes = new Hono<AuthEnv>();
 // arrives over plain HTTP. In local dev the Vite proxy serves over http://localhost,
 // so we have to fall back to Lax + non-Secure or the session never sticks. In prod
 // (HTTPS origin) we keep None+Secure so it works across subdomains / oauth bounces.
-function cookieFlagsFor(c: Context) {
+export function cookieFlagsFor(c: Context) {
   const origin = c.req.header("origin") || c.req.header("referer") || "";
   const isHttps = origin.startsWith("https://");
   return {
@@ -40,7 +40,7 @@ function appUrlCookieFlags() {
   const isHttps = env.APP_URL.startsWith("https://");
   return { secure: isHttps, sameSite: (isHttps ? "None" : "Lax") as "None" | "Lax" };
 }
-async function issueSession(
+export async function issueSession(
   c: Context,
   u: { id: string; tenantId: string; role: string; isDemo?: boolean; isAdmin?: boolean },
   flags: { secure: boolean; sameSite: "None" | "Lax" } = cookieFlagsFor(c),

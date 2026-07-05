@@ -48,6 +48,24 @@ export const api = {
 
   logout: () => request("/auth/logout", { method: "POST" }),
 
+  // WebAuthn / passkeys (Face ID / Touch ID sign-in)
+  webauthnRegisterOptions: () =>
+    request<Record<string, unknown>>("/auth/webauthn/register/options", { method: "POST" }),
+  webauthnRegisterVerify: (data: { response: unknown; deviceName?: string }) =>
+    request<{ ok: boolean }>("/auth/webauthn/register/verify", { method: "POST", body: JSON.stringify(data) }),
+  webauthnLoginOptions: () =>
+    request<Record<string, unknown>>("/auth/webauthn/login/options", { method: "POST" }),
+  webauthnLoginVerify: (data: { response: unknown }): Promise<{
+    user: { id: string; email: string; name: string | null; role: string; onboardingStage: string | null; isAdmin: boolean; hasAcceptedTerms: boolean };
+    tenant: { id: string; name: string; plan: string } | null;
+  }> => request("/auth/webauthn/login/verify", { method: "POST", body: JSON.stringify(data) }),
+  listPasskeys: () =>
+    request<{ credentials: { id: string; deviceName: string | null; createdAt: string; lastUsedAt: string | null }[] }>(
+      "/auth/webauthn/credentials",
+    ),
+  deletePasskey: (id: string) =>
+    request<{ ok: boolean }>(`/auth/webauthn/credentials/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
   me: () =>
     request<{
       user: {
