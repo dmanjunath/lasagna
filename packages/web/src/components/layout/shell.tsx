@@ -26,6 +26,17 @@ export function Shell({ children }: ShellProps) {
   // The empty/list state keeps the tab bar so navigation stays reachable.
   const hideTabBarForThread = isMobile && location === '/chat' && activeThreadIndex !== null;
 
+  // On mobile the DOCUMENT owns vertical scroll (so iOS Safari's toolbars
+  // collapse away and status-bar tap-to-top works) — except /chat, whose
+  // composer layout needs the height-constrained shell.
+  const mobileDocScroll = isMobile && location !== '/chat';
+
+  // The document scroller persists across routes, so reset it per navigation.
+  useEffect(() => {
+    if (mobileDocScroll) window.scrollTo(0, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
   // Expand the sidebar chat into the full-page /chat route, remembering where to
   // return when the user collapses it back. Persist the preference so chat
   // reopens expanded next time (until they collapse back to the sidebar).
@@ -63,7 +74,7 @@ export function Shell({ children }: ShellProps) {
   }, [chatOpen, isMobile]);
 
   return (
-    <div className="h-dvh w-full max-w-full overflow-hidden bg-canvas app-wash flex flex-col">
+    <div className={`w-full max-w-full bg-canvas app-wash flex flex-col ${mobileDocScroll ? 'min-h-dvh' : 'h-dvh overflow-hidden'}`}>
       {/* Shared top bar — same component the Simple shell uses, so the
           Simple/Advanced toggle and overall chrome are consistent across
           modes. Hidden when the mobile chat overlay is up. */}
@@ -90,17 +101,25 @@ export function Shell({ children }: ShellProps) {
 
       {/* Main layout */}
       {isMobile ? (
-        /* Mobile: main content + chat overlay */
-        <div className="flex-1 flex overflow-hidden relative">
-          {/* Main content — always rendered. pt offset = notch + 44px header. */}
-          <main className={`w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] ${hideTabBarForThread ? 'pb-safe-bottom' : 'pb-[calc(env(safe-area-inset-bottom)+68px)]'}`}>
-            <div className="flex-1 overflow-y-auto">
-              {children}
-            </div>
+        mobileDocScroll ? (
+          /* Mobile pages: document scroll — fixed header/tab-bar space is
+             reserved with padding; no nested scroll container. */
+          <main className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+56px)] pb-[calc(env(safe-area-inset-bottom)+68px)]">
+            {children}
           </main>
+        ) : (
+          /* Mobile /chat: height-constrained shell so the thread + composer
+             own the viewport. pt offset = notch + 44px header. */
+          <div className="flex-1 flex overflow-hidden relative">
+            <main className={`w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+56px)] ${hideTabBarForThread ? 'pb-safe-bottom' : 'pb-[calc(env(safe-area-inset-bottom)+68px)]'}`}>
+              <div className="flex-1 overflow-y-auto">
+                {children}
+              </div>
+            </main>
 
-          {/* Mobile has no chat overlay — openChat routes to /chat (see effect above). */}
-        </div>
+            {/* Mobile has no chat overlay — openChat routes to /chat (see effect above). */}
+          </div>
+        )
       ) : (
         /* Desktop: standard flex layout */
         <div className="flex-1 flex overflow-hidden">
