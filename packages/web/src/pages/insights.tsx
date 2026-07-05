@@ -557,6 +557,9 @@ export function Insights() {
           <SegmentedControl<FilterValue>
             aria-label="Filter actions by area"
             tone="brand"
+            // Lives in a horizontal scroller — keep intrinsic width so many
+            // filter segments scroll instead of squishing to fit the screen.
+            stretch={false}
             value={activeFilter}
             onChange={setActiveFilter}
             options={availableFilters.map((f) => ({ value: f, label: FILTER_LABELS[f] }))}

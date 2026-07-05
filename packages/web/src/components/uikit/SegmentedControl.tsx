@@ -15,6 +15,7 @@ export function SegmentedControl<T extends string>({
   options,
   size = 'md',
   tone = 'neutral',
+  stretch = true,
   className,
   'aria-label': ariaLabel,
 }: {
@@ -24,6 +25,9 @@ export function SegmentedControl<T extends string>({
   size?: 'sm' | 'md';
   /** Active-segment treatment. 'brand' uses a brand tint for clearer selection. */
   tone?: 'neutral' | 'brand';
+  /** Full-width on phones (segments share the row evenly); intrinsic from sm: up.
+   * Pass false when the control sits in a horizontal scroller or inline row. */
+  stretch?: boolean;
   className?: string;
   'aria-label'?: string;
 }) {
@@ -32,7 +36,8 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-ui-md border border-line bg-canvas-sunken p-0.5',
+        'items-center gap-0.5 rounded-ui-md border border-line bg-canvas-sunken p-0.5',
+        stretch ? 'flex w-full sm:inline-flex sm:w-auto' : 'inline-flex w-max',
         className,
       )}
     >
@@ -47,6 +52,7 @@ export function SegmentedControl<T extends string>({
             onClick={() => onChange(opt.value)}
             className={cn(
               'ui-focus touch-target rounded-[calc(var(--ui-r-md)-3px)] font-medium transition-all duration-150 ease-ui',
+              stretch && 'flex-1 sm:flex-none',
               size === 'sm' ? 'px-3 py-1 text-[12px]' : 'px-3.5 py-1.5 text-[13px]',
               active
                 ? tone === 'brand'

@@ -4,14 +4,12 @@ import {
   Wallet, TrendingUp, CreditCard, RefreshCw, Lightbulb, Plus,
   Banknote, ShoppingCart, UtensilsCrossed, Home, Car, Clapperboard,
   ShoppingBag, HeartPulse, Shield, Plane, Tv, Receipt, ArrowLeftRight,
-  DollarSign, Lock, MoreHorizontal, SlidersHorizontal, Trash2, ChevronDown,
-  Sparkles,
+  DollarSign, Lock, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn, stripAccountMask } from '../lib/utils';
-import { startUpgrade } from '../lib/billing';
 import { Button, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
-import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
+import { filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney } from '../components/ds/TrendChart';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 
@@ -70,7 +68,6 @@ export function SimpleMoney() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [range, setRange] = useState<Range>('6M');
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -89,25 +86,6 @@ export function SimpleMoney() {
   // Hover index bubbled up from the chart so the top-left lead can swap its
   // value/delta for the hovered point's value/date.
   const [chartHoverIdx, setChartHoverIdx] = useState<number | null>(null);
-
-  async function refreshItems() {
-    const fresh = await api.getItems();
-    setItems(fresh.items);
-  }
-
-  async function handleSync(itemId: string) {
-    setSyncing(itemId);
-    setSyncError(null);
-    try {
-      await api.syncItem(itemId);
-      const fresh = await api.getItems();
-      setItems(fresh.items);
-    } catch {
-      const name = items.find((i) => i.id === itemId)?.institutionName || 'Institution';
-      setSyncError(`Couldn't sync ${name}. Try again in a moment.`);
-    }
-    setSyncing(null);
-  }
 
   async function handleSyncAll() {
     setSyncingAll(true);
@@ -360,7 +338,7 @@ export function SimpleMoney() {
           title="Cash" viz={1} count={cashAccounts.length}
           caption={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets · ready to deploy` : 'ready to deploy'}
           total={cashTotal} items={items} filterType="depository"
-          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
+
         />
       )}
       {investAccounts.length > 0 && (
@@ -368,7 +346,7 @@ export function SimpleMoney() {
           title="Investments" viz={2} count={investAccounts.length}
           caption={grossAssets > 0 ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · long-term growth` : 'long-term growth'}
           total={investTotal} items={items} filterType="investment"
-          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
+
         />
       )}
       {realEstateAccounts.length > 0 && (
@@ -376,7 +354,7 @@ export function SimpleMoney() {
           title="Property" viz={5} count={realEstateAccounts.length}
           caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate` : 'real estate'}
           total={realEstateTotal} items={items} filterType="real_estate"
-          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
+
         />
       )}
       {altAccounts.length > 0 && (
@@ -384,7 +362,7 @@ export function SimpleMoney() {
           title="Other assets" viz={5} count={altAccounts.length} unit="item"
           caption={grossAssets > 0 ? `${Math.round((altTotal / grossAssets) * 100)}% of assets · alternative holdings` : 'alternative holdings'}
           total={altTotal} items={items} filterType="alternative"
-          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
+
         />
       )}
       {debtAccounts.length > 0 && (
@@ -392,7 +370,7 @@ export function SimpleMoney() {
           title="Debt" viz={4} count={debtAccounts.length}
           caption={grossAssets > 0 ? `${Math.round((debtTotal / grossAssets) * 100)}% debt-to-assets` : 'reduces net worth'}
           total={debtTotal} totalNeg items={items} filterType={['credit', 'loan']}
-          syncing={syncing} onSync={handleSync} onRefresh={refreshItems}
+
         />
       )}
 
@@ -590,7 +568,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
 // ─────────────────────────────────────────────────────────────────────────
 
 function GroupSection({
-  title, viz, count, caption, unit = 'account', total, totalNeg, items, filterType, syncing, onSync, onRefresh,
+  title, viz, count, caption, unit = 'account', total, totalNeg, items, filterType,
 }: {
   title: string;
   viz: number;
@@ -601,11 +579,7 @@ function GroupSection({
   totalNeg?: boolean;
   items: Item[];
   filterType: string | string[];
-  syncing: string | null;
-  onSync: (itemId: string) => void;
-  onRefresh: () => Promise<void> | void;
 }) {
-  const confirm = useConfirm();
   const [, setLocation] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -687,21 +661,7 @@ function GroupSection({
                   negative={totalNeg}
                   frozen={frozen}
                   syncTime={synced}
-                  syncing={syncing === acct.item.id}
                   onSettings={() => setLocation('/accounts/' + acct.id)}
-                  onSync={isManual || frozen ? undefined : () => onSync(acct.item.id)}
-                  onUpgrade={frozen ? () => { startUpgrade().catch(() => {}); } : undefined}
-                  onDelete={isManual ? async () => {
-                    const ok = await confirm({
-                      title: `Delete "${titleCase(acct.name)}"?`,
-                      body: 'The account and its full balance history will be permanently removed. This can’t be undone.',
-                      confirmLabel: 'Delete',
-                      destructive: true,
-                    });
-                    if (!ok) return;
-                    await api.deleteManualAccount(acct.id);
-                    await onRefresh();
-                  } : undefined}
                 />
               );
             })}
@@ -713,12 +673,14 @@ function GroupSection({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Account row — institution icon · name/meta · balance · status · ⋯ menu
+// Account row — institution icon · name/meta · balance · status · chevron.
+// The whole row navigates to the account detail page (edit/sync/delete live
+// there) — same pattern as /accounts.
 // ─────────────────────────────────────────────────────────────────────────
 
 function AcctRow({
-  institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime, syncing,
-  onSettings, onSync, onUpgrade, onDelete,
+  institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime,
+  onSettings,
 }: {
   institution: string;
   name: string;
@@ -729,18 +691,19 @@ function AcctRow({
   negative?: boolean;
   frozen: boolean;
   syncTime: string | null;
-  syncing: boolean;
   onSettings: () => void;
-  onSync?: () => void;
-  onUpgrade?: () => void;
-  onDelete?: () => void;
 }) {
   const showNeg = negative || value < 0;
   const formatted = fmtUsd(Math.abs(value));
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Edit ${name}`}
+      onClick={onSettings}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSettings(); } }}
       className={cn(
-        'group flex items-center gap-3.5 border-t border-line px-4 py-3 transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-brand-softer sm:px-5',
+        'ui-focus group flex cursor-pointer items-center gap-3.5 border-t border-line px-4 py-3 transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-brand-softer sm:px-5',
         frozen && 'opacity-70',
       )}
     >
@@ -781,13 +744,7 @@ function AcctRow({
             <div className="mt-0.5 hidden text-[12px] text-content-muted ui-tnum sm:block">{syncTime}</div>
           ) : null}
         </div>
-        <RowMenu
-          onSettings={onSettings}
-          onSync={onSync}
-          onUpgrade={onUpgrade}
-          onDelete={onDelete}
-          syncing={syncing}
-        />
+        <ChevronRight size={16} className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" aria-hidden />
       </div>
     </div>
   );
@@ -808,99 +765,6 @@ function InstIcon({ institution }: { institution: string }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Per-row overflow menu. Destructive items are ghost-danger (red text), never
-// a solid fill. Surfaces only the actions applicable to the account.
-// ─────────────────────────────────────────────────────────────────────────
-
-function RowMenu({
-  onSettings, onSync, onUpgrade, onDelete, syncing,
-}: {
-  onSettings: () => void;
-  onSync?: () => void;
-  onUpgrade?: () => void;
-  onDelete?: () => void;
-  syncing: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-
-  const run = (fn?: () => void) => () => { setOpen(false); fn?.(); };
-
-  return (
-    <div ref={ref} className="relative shrink-0">
-      <button
-        type="button"
-        aria-label="Account actions"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="ui-focus touch-target grid h-9 w-9 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
-      >
-        <MoreHorizontal size={18} />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="animate-scale-in absolute right-0 top-[calc(100%+6px)] z-30 w-52 origin-top-right rounded-ui-md border border-line-strong bg-panel-raised p-1.5 shadow-ui-lg"
-        >
-          <MenuItem icon={<SlidersHorizontal size={16} />} onClick={run(onSettings)}>Account settings</MenuItem>
-          {onSync && (
-            <MenuItem icon={<RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />} onClick={run(onSync)}>
-              {syncing ? 'Syncing…' : 'Sync now'}
-            </MenuItem>
-          )}
-          {onUpgrade && (
-            <MenuItem icon={<Sparkles size={16} />} onClick={run(onUpgrade)}>Upgrade to sync</MenuItem>
-          )}
-          {onDelete && (
-            <>
-              <div className="my-1 h-px bg-line" />
-              <MenuItem icon={<Trash2 size={16} />} danger onClick={run(onDelete)}>Remove account</MenuItem>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MenuItem({
-  icon, children, onClick, danger,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  onClick: () => void;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className={cn(
-        'ui-focus flex w-full items-center gap-2.5 rounded-ui-sm px-2.5 py-2 text-left text-[13.5px] font-medium transition-colors',
-        danger
-          ? 'text-negative hover:bg-negative-soft'
-          : 'text-content-secondary hover:bg-canvas-sunken hover:text-content',
-      )}
-    >
-      <span className="shrink-0">{icon}</span>
-      {children}
-    </button>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Transaction row — favicon/category glyph · merchant · category·date · amount
