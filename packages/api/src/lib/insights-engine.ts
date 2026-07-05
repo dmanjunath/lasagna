@@ -1,5 +1,7 @@
 import { generateText } from "ai";
-import { getModel } from "../agent/index.js";
+import { getModel, getModelSlug } from "../agent/index.js";
+import { logLlmUsage } from "./activity.js";
+import { isTenantDisabled } from "./billing.js";
 import { db } from "./db.js";
 import { buildAliasMap, scrub, descrub } from "./pii-scrubber.js";
 import {
@@ -726,6 +728,12 @@ Also check these portfolio rules:
 Output at most 10 insights, ordered from most urgent/actionable to least. Skip a lens entirely if its data is weak — there is no minimum count, and padding with generic observations is a failure mode.`;
 
 export async function generateInsights(tenantId: string): Promise<number> {
+  // Admin pause: disabled tenants get no actions generated (route + cron both
+  // funnel through here).
+  if (await isTenantDisabled(tenantId)) {
+    console.log(`[Insights] Tenant ${tenantId} is disabled — skipping`);
+    return 0;
+  }
   console.log(`[Insights] Starting generation for tenant ${tenantId}`);
   const data = await gatherFinancialData(tenantId);
 
@@ -753,6 +761,7 @@ export async function generateInsights(tenantId: string): Promise<number> {
       temperature: 0.3,
       maxOutputTokens: 4000,
     });
+    logLlmUsage({ tenantId, source: "insights", model: getModelSlug("medium"), inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[Insights] LLM API call failed: ${msg.slice(0, 300)}`);

@@ -22,6 +22,7 @@ import { manualAccountRoutes } from "./routes/manual-accounts.js";
 import { recurringRoutes } from "./routes/recurring.js";
 import { quickImportRoutes } from "./routes/quick-import.js";
 import { billingRoutes } from "./routes/billing.js";
+import { adminRoutes } from "./routes/admin.js";
 
 export const app = new Hono<AuthEnv>();
 
@@ -128,3 +129,4 @@ app.route("/api/manual-accounts", manualAccountRoutes);
 app.route("/api/recurring", recurringRoutes);
 app.route("/api/quick-import", quickImportRoutes);
 app.route("/api/billing", billingRoutes);
+app.route("/api/admin", adminRoutes);

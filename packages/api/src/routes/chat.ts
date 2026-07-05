@@ -8,6 +8,7 @@ import { type AuthEnv } from "../middleware/auth.js";
 import { buildAliasMap, scrub, descrub, PII_DEBUG } from "../lib/pii-scrubber.js";
 import { resolveTenantPlan } from "../lib/billing.js";
 import { resolveModelLevel } from "../lib/model-gate.js";
+import { logLlmUsage } from "../lib/activity.js";
 import { FREE_MODEL_LEVEL } from "@lasagna/core";
 
 export const chatRouter = new Hono<AuthEnv>();
@@ -125,6 +126,7 @@ chatRouter.post("/", async (c) => {
 
     const toolCallCount = stepResult.toolCalls?.length || 0;
     console.log(`[Chat] Step ${step + 1}: text=${stepResult.text.length} chars, toolCalls=${toolCallCount}, finishReason=${stepResult.finishReason}`);
+    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: stepResult.usage?.inputTokens, outputTokens: stepResult.usage?.outputTokens });
 
     finalText = stepResult.text;
 
@@ -225,12 +227,14 @@ chatRouter.post("/", async (c) => {
   let generatedThreadTitle: string | null = null;
   if (!isDemo && !thread.title) {
     try {
+      const titleLevel = plan === "free" ? FREE_MODEL_LEVEL : "quality";
       const titleResult = await generateText({
-        model: getModel(plan === "free" ? FREE_MODEL_LEVEL : "quality"),
+        model: getModel(titleLevel),
         system: "Generate a short title (3-6 words) for this financial conversation. No quotes, no punctuation at the end. Just the title.",
         messages: [{ role: "user", content: `Title for: "${body.message.slice(0, 200)}"` }],
         maxOutputTokens: 32,
       });
+      logLlmUsage({ tenantId, source: "chat-title", model: getModelSlug(titleLevel), inputTokens: titleResult.usage?.inputTokens, outputTokens: titleResult.usage?.outputTokens });
       generatedThreadTitle = titleResult.text.trim().slice(0, 100);
       if (generatedThreadTitle && generatedThreadTitle.length > 2) {
         await db

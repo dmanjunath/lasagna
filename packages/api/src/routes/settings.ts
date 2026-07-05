@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq, users, tenants, financialProfiles } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
+import { resolveTenantPlan } from "../lib/billing.js";
 import { type AuthEnv } from "../middleware/auth.js";
 
 export const settingsRoutes = new Hono<AuthEnv>();
@@ -25,7 +26,7 @@ settingsRoutes.get("/profile", async (c) => {
     profile: {
       email: user.email,
       name: tenant?.name || null,
-      plan: tenant?.plan || "free",
+      plan: await resolveTenantPlan(session.tenantId),
       createdAt: user.createdAt,
     },
   });
@@ -53,7 +54,7 @@ settingsRoutes.patch("/profile", async (c) => {
   return c.json({
     profile: {
       name: tenant?.name || null,
-      plan: tenant?.plan || "free",
+      plan: await resolveTenantPlan(session.tenantId),
     },
   });
 });

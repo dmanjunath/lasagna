@@ -5,6 +5,7 @@ interface SessionPayload {
   tenantId: string;
   role: string;
   isDemo: boolean;
+  isAdmin: boolean;
 }
 
 const COOKIE_NAME = "lasagna_session";
@@ -39,6 +40,7 @@ export async function createSessionToken(
 ): Promise<string> {
   const data = JSON.stringify({
     ...payload,
+    iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + MAX_AGE,
   });
   const encoded = new TextEncoder().encode(data);
@@ -51,7 +53,7 @@ export async function createSessionToken(
 
 export async function verifySessionToken(
   token: string,
-): Promise<SessionPayload | null> {
+): Promise<(SessionPayload & { iat: number }) | null> {
   try {
     const [b64Data, b64Sig] = token.split(".");
     if (!b64Data || !b64Sig) return null;
@@ -76,6 +78,10 @@ export async function verifySessionToken(
       tenantId: parsed.tenantId,
       role: parsed.role,
       isDemo: parsed.isDemo ?? false,
+      // Pre-existing tokens lack the claim → non-admin until re-login.
+      isAdmin: parsed.isAdmin ?? false,
+      // Pre-iat tokens count as issued at epoch → any revocation catches them.
+      iat: typeof parsed.iat === "number" ? parsed.iat : 0,
     };
   } catch {
     return null;

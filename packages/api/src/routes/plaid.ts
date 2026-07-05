@@ -6,6 +6,7 @@ import { plaidClient } from "../lib/plaid.js";
 import { env } from "../lib/env.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { syncItem } from "../lib/sync.js";
+import { logPlaidEvent } from "../lib/activity.js";
 import { resolveTenantPlan } from "../lib/billing.js";
 import { recomputeFrozenAccounts } from "../lib/account-limits.js";
 
@@ -84,6 +85,9 @@ plaidRoutes.post("/exchange-token", async (c) => {
       institutionName: institutionName ?? null,
     })
     .returning();
+
+  // Meter the new connection (Plaid bills per linked item).
+  logPlaidEvent({ tenantId: session.tenantId, source: "link" });
 
   // Sync accounts and balances immediately after linking
   syncItem(item.id).catch(console.error);

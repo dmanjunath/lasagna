@@ -200,7 +200,15 @@ export function Sidebar({ className }: SidebarProps) {
               className="absolute bottom-full left-0 right-0 mb-2 bg-panel-raised border border-line-strong rounded-ui-md overflow-hidden shadow-ui-lg z-50"
             >
               {/* Connected Accounts + Profile live in this account menu (not the
-                  main sidebar nav). */}
+                  main sidebar nav). Admin appears for operators only. */}
+              {user?.isAdmin && (
+                <button
+                  onClick={() => { setUserMenuOpen(false); navigate('/admin'); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-content-secondary hover:bg-canvas-sunken transition-colors cursor-pointer"
+                >
+                  Admin
+                </button>
+              )}
               <button
                 onClick={() => { setUserMenuOpen(false); navigate('/accounts'); }}
                 className="w-full text-left px-4 py-2.5 text-sm text-content-secondary hover:bg-canvas-sunken transition-colors cursor-pointer"

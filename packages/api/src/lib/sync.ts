@@ -15,8 +15,9 @@ import { db } from "./db.js";
 import { plaidClient } from "./plaid.js";
 import { env } from "./env.js";
 import { syncTransactions } from "./transaction-sync.js";
-import { resolveTenantPlan } from "./billing.js";
+import { resolveTenantPlan, isTenantDisabled } from "./billing.js";
 import { recomputeFrozenAccounts } from "./account-limits.js";
+import { logPlaidEvent } from "./activity.js";
 
 export async function syncItem(itemId: string): Promise<void> {
   const item = await db.query.plaidItems.findFirst({
@@ -28,6 +29,16 @@ export async function syncItem(itemId: string): Promise<void> {
   if (item.accessToken.startsWith("manual-")) {
     return;
   }
+
+  // Admin pause: disabled tenants sync nothing (cron, manual, and post-link
+  // syncs all funnel through here).
+  if (await isTenantDisabled(item.tenantId)) {
+    console.log(`[Sync] Tenant ${item.tenantId} is disabled — skipping item ${itemId}`);
+    return;
+  }
+
+  // Real Plaid API calls follow — meter the sync for the spend dashboard.
+  logPlaidEvent({ tenantId: item.tenantId, source: "sync" });
 
   const [logEntry] = await db
     .insert(syncLog)

@@ -15,9 +15,8 @@ import { authMode } from "../lib/auth/mode.js";
 import * as workos from "../lib/auth/workos.js";
 import { localSignUp, localLogin } from "../lib/auth/local.js";
 import { provisionUser } from "../lib/auth/provision.js";
+import { resolveTenantPlan } from "../lib/billing.js";
 import { createOauthState, statesMatch, OAUTH_STATE_COOKIE } from "../lib/auth/state.js";
-
-const DEMO_EMAIL = "demo@lasagnafi.com";
 
 export const authRoutes = new Hono<AuthEnv>();
 
@@ -43,11 +42,16 @@ function appUrlCookieFlags() {
 }
 async function issueSession(
   c: Context,
-  u: { id: string; tenantId: string; role: string; isDemo?: boolean },
+  u: { id: string; tenantId: string; role: string; isDemo?: boolean; isAdmin?: boolean },
   flags: { secure: boolean; sameSite: "None" | "Lax" } = cookieFlagsFor(c),
 ) {
-  const token = await createSessionToken({ userId: u.id, tenantId: u.tenantId, role: u.role, isDemo: u.isDemo ?? false });
+  const token = await createSessionToken({ userId: u.id, tenantId: u.tenantId, role: u.role, isDemo: u.isDemo ?? false, isAdmin: u.isAdmin ?? false });
   setCookie(c, COOKIE_NAME, token, { httpOnly: true, ...flags, maxAge: MAX_AGE, path: "/" });
+  // Every session issuance is a login (password, Google, verify-email).
+  db.update(users)
+    .set({ lastLoginAt: new Date() })
+    .where(eq(users.id, u.id))
+    .catch((e: unknown) => console.error("lastLoginAt update failed:", e));
 }
 function userPayload(u: any) {
   return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, isAdmin: u.isAdmin, hasAcceptedTerms: u.acceptedTermsAt != null };
@@ -79,14 +83,16 @@ authRoutes.post("/signup", async (c) => {
 authRoutes.post("/login", async (c) => {
   const { email, password } = await c.req.json();
 
-  // Demo bypass — always local, never WorkOS.
-  if (email === DEMO_EMAIL) {
-    const demo = await db.query.users.findFirst({ where: eq(users.email, DEMO_EMAIL) });
-    if (!demo || !demo.passwordHash || !(await verifyPassword(password, demo.passwordHash)))
+  // Local-account bypass — demo and local-only users (a stored password hash
+  // and NO WorkOS link) authenticate against the local hash even in workos
+  // mode. WorkOS-linked users (workosUserId set) always go through WorkOS.
+  const localUser = await db.query.users.findFirst({ where: eq(users.email, email) });
+  if (localUser?.passwordHash && !localUser.workosUserId) {
+    if (!(await verifyPassword(password, localUser.passwordHash)))
       return c.json({ error: "Invalid email or password" }, 401);
-    await issueSession(c, demo);
-    const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, demo.tenantId) });
-    return c.json({ user: userPayload(demo), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan } : null });
+    await issueSession(c, localUser);
+    const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, localUser.tenantId) });
+    return c.json({ user: userPayload(localUser), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null });
   }
 
   if (authMode() === "workos") {
@@ -97,14 +103,14 @@ authRoutes.post("/login", async (c) => {
       return c.json({ needsVerification: true, workosUserId: r.workosUserId, email: r.email });
     const { user, tenant } = await provisionUser(r.identity);
     await issueSession(c, user);
-    return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan } : null });
+    return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null });
   }
 
   const user = await localLogin({ email, password });
   if (!user) return c.json({ error: "Invalid email or password" }, 401);
   await issueSession(c, user);
   const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, user.tenantId) });
-  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan } : null });
+  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null });
 });
 
 // Logout
@@ -141,7 +147,7 @@ authRoutes.get("/me", requireAuth, async (c) => {
       notifyWeeklyEmail: user.notifyWeeklyEmail,
     },
     tenant: tenant
-      ? { id: tenant.id, name: tenant.name, plan: tenant.plan }
+      ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) }
       : null,
   });
 });
@@ -249,7 +255,7 @@ authRoutes.post("/verify-email", async (c) => {
   catch { return c.json({ error: "Invalid or expired code" }, 400); }
   const { user, tenant } = await provisionUser({ ...identity, acceptedTerms: true });
   await issueSession(c, user);
-  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan } : null });
+  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null });
 });
 
 authRoutes.post("/forgot-password", async (c) => {

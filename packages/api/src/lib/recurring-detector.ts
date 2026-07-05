@@ -1,7 +1,8 @@
 import { generateText } from "ai";
 import { and, eq, gte, accounts, recurringTransactions, transactions } from "@lasagna/core";
 import { db } from "./db.js";
-import { getModel } from "../agent/index.js";
+import { getModel, getModelSlug } from "../agent/index.js";
+import { logLlmUsage } from "./activity.js";
 
 const SYSTEM = `You analyze a user's recent bank transactions and identify RECURRING expenses and income.
 
@@ -122,6 +123,7 @@ ${JSON.stringify(compact)}`,
     temperature: 0.2,
     maxOutputTokens: 4000,
   });
+  logLlmUsage({ tenantId, source: "recurring", model: getModelSlug("medium"), inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens });
 
   let parsed: LLMResult[];
   try {

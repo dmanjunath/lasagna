@@ -3,7 +3,7 @@ import { eq, and, desc, syncLog, plaidItems, accounts, canManualSync, PRO_MANUAL
 import { db } from "../lib/db.js";
 import { syncItem, syncAllForTenant } from "../lib/sync.js";
 import { type AuthEnv } from "../middleware/auth.js";
-import { resolveTenantPlan } from "../lib/billing.js";
+import { resolveTenantPlan, isTenantDisabled } from "../lib/billing.js";
 
 export const syncRoutes = new Hono<AuthEnv>();
 
@@ -16,6 +16,10 @@ export const syncRoutes = new Hono<AuthEnv>();
 async function manualSyncGate(
   tenantId: string,
 ): Promise<{ status: 403 | 429; error: string; code: string } | null> {
+  // Admin pause outranks everything — a clear signal instead of a silent no-op.
+  if (await isTenantDisabled(tenantId)) {
+    return { status: 403, error: "Account syncing is paused by the administrator", code: "account_paused" };
+  }
   const plan = await resolveTenantPlan(tenantId);
   if (!canManualSync(plan)) {
     return { status: 403, error: "Manual sync is a Pro feature", code: "upgrade_required" };

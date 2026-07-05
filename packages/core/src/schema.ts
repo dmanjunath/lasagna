@@ -10,6 +10,7 @@ import {
   jsonb,
   boolean,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
@@ -74,6 +75,12 @@ export const tenants = pgTable("tenants", {
   // True when the subscription is set to cancel at period end — still active
   // (Pro) until currentPeriodEnd, then Stripe fires subscription.deleted.
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  // Complimentary Pro (no payment) until this instant. Null or past = no comp.
+  // Overlays plan resolution only — `plan` stays Stripe-authoritative.
+  compedUntil: timestamp("comped_until", { withTimezone: true }),
+  // Admin pause: while set, account sync and insights generation are skipped.
+  // Login and read access still work. Null = active.
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -101,6 +108,9 @@ export const users = pgTable("users", {
   role: roleEnum("role").notNull().default("owner"),
   isDemo: boolean("is_demo").default(false).notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  // "Sign out everywhere": requireAuth rejects tokens issued before this.
+  sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
   onboardingStage: onboardingStageEnum("onboarding_stage"),
   notifyDaily: boolean("notify_daily").notNull().default(true),
   notifyBills: boolean("notify_bills").notNull().default(true),
@@ -589,3 +599,32 @@ export const taxDocuments = pgTable("tax_documents", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+// ── Activity events (operator metering) ─────────────────────────────────────
+// One row per billable activity: an LLM call (tokens + estimated $) or a Plaid
+// API event (per-event estimated $). Written fire-and-forget by the API;
+// aggregated over time by the admin spend dashboard. tenant_id is SET NULL on
+// tenant deletion so spend history survives account removal.
+
+export const activityEventKindEnum = pgEnum("activity_event_kind", ["llm", "plaid"]);
+
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+    kind: activityEventKindEnum("kind").notNull(),
+    // What produced the event: chat | chat-title | insights | recurring |
+    // tax-vision (llm) · sync | link (plaid).
+    source: varchar("source", { length: 40 }).notNull(),
+    model: text("model"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("activity_events_kind_created_idx").on(t.kind, t.createdAt),
+    index("activity_events_tenant_created_idx").on(t.tenantId, t.createdAt),
+  ],
+);

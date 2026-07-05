@@ -4,6 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { randomUUID } from "crypto";
 import { z } from "zod";
+import { logLlmUsage } from "./activity.js";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const SUPPORTED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"];
@@ -34,6 +35,8 @@ export interface VisionExtractionResult {
 interface VisionOpts {
   apiKey?: string;
   model?: string;
+  /** For usage metering — the extraction is attributed to this tenant. */
+  tenantId?: string | null;
 }
 
 const EXTRACTION_PROMPT = `You are a tax document data extraction assistant. Given the following tax document image(s), return a JSON object (no markdown fencing) with this exact structure:
@@ -142,7 +145,17 @@ export async function extractFromVision(
     throw new Error(`LLM request failed (${res.status}): ${body.slice(0, 200)}`);
   }
 
-  const data = await res.json() as { choices: { message: { content: string } }[] };
+  const data = await res.json() as {
+    choices: { message: { content: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
+  logLlmUsage({
+    tenantId: opts.tenantId ?? null,
+    source: "tax-vision",
+    model,
+    inputTokens: data.usage?.prompt_tokens,
+    outputTokens: data.usage?.completion_tokens,
+  });
   const rawText = data.choices?.[0]?.message?.content ?? "";
 
   console.log("[Vision Extraction] LLM response:", rawText);

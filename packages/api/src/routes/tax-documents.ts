@@ -37,6 +37,7 @@ taxDocumentsRouter.post("/", async (c) => {
         {
           apiKey: apiKey && typeof apiKey === "string" && apiKey.trim() ? apiKey : undefined,
           model: model && typeof model === "string" && model.trim() ? model : undefined,
+          tenantId,
         }
       );
 

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -26,6 +26,8 @@ export function Modal({
   footer?: ReactNode;
   variant?: 'center' | 'sheet';
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -37,6 +39,41 @@ export function Modal({
       document.body.style.overflow = prev;
     };
   }, [open, onClose]);
+
+  // Focus management: move focus into the dialog on open (unless a child's
+  // autoFocus already did), trap Tab inside it, and restore focus on close.
+  useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    const focusables = () =>
+      [...(panelRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ) ?? [])].filter((el) => !el.hasAttribute('disabled'));
+    if (panelRef.current && !panelRef.current.contains(document.activeElement)) {
+      // Prefer the first control after the header's close button.
+      const els = focusables();
+      (els[1] ?? els[0])?.focus();
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const els = focusables();
+      if (!els.length) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      opener?.focus?.();
+    };
+  }, [open]);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -53,6 +90,7 @@ export function Modal({
         aria-hidden
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}

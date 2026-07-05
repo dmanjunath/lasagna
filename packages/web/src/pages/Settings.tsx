@@ -98,6 +98,15 @@ export function Settings() {
   const [editSection, setEditSection] = useState<EditSection>(null);
   const [saving, setSaving] = useState(false);
 
+  // Show a "Welcome to Pro" banner at the top of the page after a successful
+  // upgrade redirect (?upgraded=1). Billing status refresh is handled in PlanCard.
+  const [showProWelcome, setShowProWelcome] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("upgraded") === "1") {
+      setShowProWelcome(true);
+    }
+  }, []);
+
   // Edit form state
   const [formData, setFormData] = useState({
     dateOfBirth: "",
@@ -268,6 +277,12 @@ export function Settings() {
           Sign out
         </Button>
       </header>
+
+      {showProWelcome && (
+        <Alert tone="positive" className="mt-6">
+          Welcome to Pro! Your account is being upgraded.
+        </Alert>
+      )}
 
       {/* ════════ Financial profile ════════ */}
       <section className="mt-10">
@@ -511,13 +526,12 @@ function PlanCard() {
   const [upgrading, setUpgrading] = useState(false);
   const [managing, setManaging] = useState(false);
   const [error, setError] = useState("");
-  const [welcome, setWelcome] = useState(false);
 
   // After Stripe Checkout redirects back with ?upgraded=1, the webhook that
   // flips the plan may land a beat later — so refresh now and again shortly.
+  // (The "Welcome to Pro" banner now renders at the top of the page — see Settings.)
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("upgraded") !== "1") return;
-    setWelcome(true);
     refresh();
     const t = setTimeout(() => refresh(), 2000);
     return () => clearTimeout(t);
@@ -579,12 +593,6 @@ function PlanCard() {
       </div>
 
       <div className="border-t border-line px-5 py-5 sm:px-6">
-        {welcome && (
-          <Alert tone="positive" className="mb-4">
-            Welcome to Pro! Your account is being upgraded.
-          </Alert>
-        )}
-
         {loading ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (

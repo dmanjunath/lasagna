@@ -428,6 +428,78 @@ export const api = {
   openBillingPortal: () =>
     request<{ url: string }>("/billing/portal", { method: "POST" }),
 
+  // Admin (operator only — endpoints 403 for non-admin sessions)
+  adminGetUsers: () =>
+    request<{
+      totals: { users: number; paid: number; comped: number; demo: number; free: number; connectedAccounts: number };
+      users: Array<{
+        userId: string;
+        tenantId: string;
+        email: string;
+        name: string | null;
+        createdAt: string;
+        lastLoginAt: string | null;
+        isDemo: boolean;
+        isAdmin: boolean;
+        effectivePlan: "free" | "pro";
+        planSource: "paid" | "comped" | "demo" | "free";
+        compedUntil: string | null;
+        disabledAt: string | null;
+        accountCount: number;
+        spend30d: string;
+      }>;
+    }>("/admin/users"),
+
+  adminCompTenant: (tenantId: string, days: number) =>
+    request<{ ok: true; tenantId: string; compedUntil: string | null; effectivePlan: "free" | "pro" }>(
+      `/admin/tenants/${tenantId}/comp`,
+      { method: "POST", body: JSON.stringify({ days }) },
+    ),
+
+  adminGetSpend: (days: number) =>
+    request<{
+      days: number;
+      totals: { llmCost: string; plaidCost: string; llmCalls: number; plaidEvents: number; inputTokens: number; outputTokens: number };
+      series: Array<{ day: string; llmCost: string; plaidCost: string; events: number }>;
+      bySource: Array<{ kind: "llm" | "plaid"; source: string; cost: string; events: number; inputTokens: number; outputTokens: number }>;
+      byModel: Array<{ model: string | null; cost: string; calls: number; inputTokens: number; outputTokens: number }>;
+      byTenant: Array<{ tenantId: string | null; tenantName: string | null; email: string | null; llmCost: string; plaidCost: string; events: number }>;
+    }>(`/admin/spend?days=${days}`),
+
+  adminGetTenantDetail: (tenantId: string) =>
+    request<{
+      tenant: { id: string; name: string; plan: string; planSource: "paid" | "comped" | "demo" | "free"; compedUntil: string | null; disabledAt: string | null; createdAt: string };
+      isSelf: boolean;
+      stripe: { customerId: string; subscriptionId: string | null; dashboardUrl: string } | null;
+      authMode: "workos" | "local";
+      users: Array<{ id: string; email: string; name: string | null; isAdmin: boolean; isDemo: boolean; lastLoginAt: string | null; createdAt: string; hasWorkosIdentity: boolean }>;
+      plaidItems: Array<{ id: string; institutionName: string | null; status: string; lastSyncedAt: string | null }>;
+      accounts: Array<{ id: string; name: string; type: string; subtype: string | null; frozen: boolean; balance: string | null }>;
+      recentActivity: Array<{ kind: "llm" | "plaid"; source: string; model: string | null; costUsd: string; createdAt: string }>;
+      spend30d: { llmCost: string; plaidCost: string };
+    }>(`/admin/tenants/${tenantId}/detail`),
+
+  adminDeleteTenant: (tenantId: string) =>
+    request<{ ok: true; deleted: string }>(`/admin/tenants/${tenantId}`, { method: "DELETE" }),
+
+  adminSetTenantDisabled: (tenantId: string, disabled: boolean) =>
+    request<{ ok: true; tenantId: string; disabledAt: string | null }>(
+      `/admin/tenants/${tenantId}/disable`,
+      { method: "POST", body: JSON.stringify({ disabled }) },
+    ),
+
+  adminUpdateUser: (userId: string, patch: { name?: string | null; email?: string; isAdmin?: boolean }) =>
+    request<{ ok: true; user: { id: string; email: string; name: string | null; isAdmin: boolean } }>(
+      `/admin/users/${userId}`,
+      { method: "PATCH", body: JSON.stringify(patch) },
+    ),
+
+  adminSendPasswordReset: (userId: string) =>
+    request<{ ok: true }>(`/admin/users/${userId}/password-reset`, { method: "POST" }),
+
+  adminRevokeSessions: (userId: string) =>
+    request<{ ok: true; sessionsRevokedAt: string }>(`/admin/users/${userId}/revoke-sessions`, { method: "POST" }),
+
   // Insights
   getInsights: () =>
     request<{

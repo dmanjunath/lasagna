@@ -466,7 +466,7 @@ export function Accounts() {
                 ? "Loading your connections…"
                 : captionParts.length > 0
                 ? captionParts.join(" · ")
-                : "Connect a bank to start tracking your money"}
+                : "Connect an account to start tracking your money"}
             </span>
           </p>
         </div>
@@ -499,7 +499,7 @@ export function Accounts() {
               loading={linking}
               leadingIcon={<Plus size={15} />}
             >
-              {linking ? "Connecting…" : "Connect a bank"}
+              {linking ? "Connecting…" : "Connect an account"}
             </Button>
           </div>
         )}
@@ -888,7 +888,7 @@ function FirstConnectEmptyState({
               loading={linking}
               leadingIcon={<Plus size={15} />}
             >
-              {linking ? "Connecting…" : "Connect a bank"}
+              {linking ? "Connecting…" : "Connect an account"}
             </Button>
             <Button
               variant="secondary"
