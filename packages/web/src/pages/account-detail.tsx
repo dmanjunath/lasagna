@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp } from 'lucide-react';
+import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp, Lock } from 'lucide-react';
 import { api } from '../lib/api';
+import { startUpgrade } from '../lib/billing';
+import { isNativeApp } from '../lib/native';
 import { cn, stripAccountMask } from '../lib/utils';
 import { Button, Field, Input, Select, SegmentedControl, Skeleton } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
@@ -448,6 +450,11 @@ export function AccountDetail() {
                   <span className="ui-tnum">••{acct.mask}</span>
                 </>
               )}
+              {acct.frozen && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
+                  <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -473,6 +480,24 @@ export function AccountDetail() {
           )}
         </div>
       </header>
+
+      {acct.frozen && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 rounded-ui-md border border-info/30 bg-info-soft px-4 py-3">
+          <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-info">
+            <Lock size={13} strokeWidth={2.2} aria-hidden="true" />
+            Frozen — over the Free plan's account limit, so it isn't syncing.
+          </span>
+          {!isNativeApp() && (
+            <button
+              type="button"
+              onClick={() => { startUpgrade().catch(() => {}); }}
+              className="ui-focus shrink-0 rounded-ui-sm text-[13px] font-bold text-brand hover:underline"
+            >
+              Upgrade to resume →
+            </button>
+          )}
+        </div>
+      )}
 
       {needsAttention && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 rounded-ui-md border border-caution/30 bg-caution-soft px-4 py-3">
@@ -544,9 +569,14 @@ export function AccountDetail() {
                 </div>
               </SettingsGroup>
             ) : (
-              <div className="flex items-center justify-between gap-3 rounded-ui-md border border-line bg-canvas-sunken px-3.5 py-3">
-                <span className="min-w-0 truncate text-[14px] font-semibold text-content">{displayName}</span>
-                <span className="shrink-0 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.06em] text-content-muted">Synced · read-only</span>
+              <div className="rounded-ui-md border border-line bg-canvas-sunken px-3.5 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate text-[14px] font-semibold text-content">{displayName}</span>
+                  <span className="shrink-0 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.06em] text-content-muted">From your bank</span>
+                </div>
+                <p className="mt-1 text-[12px] leading-relaxed text-content-muted">
+                  Name and balance sync automatically and can't be edited here — the settings below can.
+                </p>
               </div>
             )}
 
