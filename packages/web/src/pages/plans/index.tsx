@@ -135,7 +135,7 @@ export function PlansPage() {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="flex flex-wrap items-end justify-between gap-4 animate-fade-in">
         <div className="min-w-0">
@@ -394,6 +394,8 @@ function PlanTypeCard({
 }) {
   const meta = PLAN_META[type];
   const Icon = meta.icon;
+  // Tap-toggled so the tooltip works on touch; a tap on ⓘ must not create a plan.
+  const [tipOpen, setTipOpen] = useState(false);
 
   return (
     <motion.button
@@ -402,9 +404,11 @@ function PlanTypeCard({
       transition={{ delay: index * 0.08, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       onClick={onClick}
       disabled={disabled}
-      className="group relative flex items-start gap-4 overflow-hidden rounded-ui-lg border border-line bg-panel p-5 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-accent-soft)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+      className="group relative flex items-start gap-4 rounded-ui-lg border border-line bg-panel p-5 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-accent-soft)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
     >
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: meta.accent }} aria-hidden />
+      {/* No overflow-hidden on the card — the ⓘ tooltip must escape it — so the
+          accent strip rounds its own left edge to hug the card corners. */}
+      <span className="absolute inset-y-0 left-0 w-1 rounded-l-ui-lg" style={{ background: meta.accent }} aria-hidden />
       <span
         className="grid h-12 w-12 shrink-0 place-items-center rounded-ui-md"
         style={{
@@ -419,9 +423,29 @@ function PlanTypeCard({
           <span className="font-editorial text-[17px] font-bold tracking-[-0.015em] text-content">
             {meta.label}
           </span>
-          <span className="group/tip relative inline-flex">
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={`About ${meta.label} plans`}
+            aria-expanded={tipOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              setTipOpen((v) => !v);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                setTipOpen((v) => !v);
+              }
+            }}
+            onBlur={() => setTipOpen(false)}
+            className="group/tip relative inline-flex min-h-[32px] min-w-[32px] items-center justify-center"
+          >
             <Info className="h-3.5 w-3.5 cursor-help text-content-faint transition-colors hover:text-content-secondary" />
-            <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-60 -translate-x-1/2 rounded-ui-md border border-line bg-panel-raised p-3 text-[12.5px] font-medium leading-snug text-content-secondary opacity-0 shadow-ui-lg transition-opacity group-hover/tip:opacity-100">
+            <span
+              className={`pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-60 -translate-x-1/2 rounded-ui-md border border-line bg-panel-raised p-3 text-[12.5px] font-medium leading-snug text-content-secondary shadow-ui-lg transition-opacity ${tipOpen ? 'opacity-100' : 'opacity-0 group-hover/tip:opacity-100'}`}
+            >
               {meta.tooltip}
             </span>
           </span>

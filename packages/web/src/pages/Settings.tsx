@@ -247,7 +247,7 @@ export function Settings() {
     .toUpperCase() || "U";
 
   return (
-    <div className="mx-auto max-w-[840px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[840px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Identity header ════════ */}
       <header className="animate-fade-in flex flex-col gap-5 border-b border-line pb-7 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-4">

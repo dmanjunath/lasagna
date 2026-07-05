@@ -178,7 +178,7 @@ export function SimpleMoney() {
     : monthPct;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ── Page header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>

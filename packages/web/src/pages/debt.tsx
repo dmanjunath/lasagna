@@ -193,7 +193,7 @@ export function Debt() {
   const apr = blendedApr(debts);
 
   return (
-    <div className="mx-auto max-w-[1120px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1120px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
       {loading ? null : !hasAccounts ? (
         <NoAccountsView />
       ) : hasDebt ? (

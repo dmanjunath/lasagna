@@ -785,7 +785,7 @@ export default function PortfolioComposition() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-6 sm:pb-28 text-content">
         <Skeleton className="h-9 w-40" />
         <Skeleton className="mt-3 h-4 w-64" />
         {/* Allocation hero */}
@@ -833,7 +833,7 @@ export default function PortfolioComposition() {
     }));
 
     return (
-      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-6 sm:pb-28 text-content">
         <PageHead
           subtitle={`${formatMoney(accountTotal, true)} · ${accountAllocation.length} account${accountAllocation.length === 1 ? '' : 's'} · no holdings yet`}
         />
@@ -888,7 +888,7 @@ export default function PortfolioComposition() {
 
   if (assetClasses.length === 0) {
     return (
-      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-6 sm:pb-28 text-content">
         <PageHead subtitle="No accounts linked" />
         <div className="mt-8">
           <EmptyState
@@ -918,7 +918,7 @@ export default function PortfolioComposition() {
 
   return (
     <div
-      className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-24 sm:pb-28 text-content"
+      className="mx-auto max-w-[1180px] px-[18px] sm:px-12 pt-5 sm:pt-10 pb-6 sm:pb-28 text-content"
       onMouseLeave={() => setHoveredSlice(null)}
     >
       <PageHead subtitle="What you're invested in, and how it's allocated." />

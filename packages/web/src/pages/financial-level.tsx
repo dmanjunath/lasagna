@@ -569,7 +569,7 @@ export function FinancialLevel() {
 
   // ── Loading ──
   if (loading) return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
       <Skeleton className="h-4 w-28" />
       <Skeleton className="mt-3 h-9 w-64" />
       <div className="mt-7 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
@@ -599,7 +599,7 @@ export function FinancialLevel() {
 
   // ── Error ──
   if (error) return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
       <EmptyState
         icon={<AlertCircle className="h-7 w-7" />}
         title="Couldn't load your levels"
@@ -615,7 +615,7 @@ export function FinancialLevel() {
   // ── No-data empty state ──
   const hasNoData = summary.monthlyIncome === 0 && summary.totalCash === 0 && summary.totalInvested === 0;
   if (hasNoData) return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
       <header className="animate-fade-in">
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">Financial Level</h1>
       </header>
@@ -668,7 +668,7 @@ export function FinancialLevel() {
   const investedLabel = summary.totalInvested > 0 ? 'total portfolio' : summary.totalCash > 0 ? 'cash holdings' : 'link accounts';
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="animate-fade-in">
         <span className="inline-flex items-center gap-2.5 mb-3">

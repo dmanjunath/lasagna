@@ -481,14 +481,14 @@ export function Onboarding() {
 
   if (initializing) {
     return (
-      <div className="ui-root min-h-screen bg-canvas flex items-center justify-center">
+      <div className="ui-root min-h-dvh bg-canvas flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
       </div>
     );
   }
 
   return (
-    <div className="ui-root min-h-screen bg-canvas flex flex-col text-content">
+    <div className="ui-root min-h-dvh bg-canvas flex flex-col text-content">
       {/* Ambient warm glow — faint, single brand accent for atmosphere. */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <div

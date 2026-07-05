@@ -62,7 +62,7 @@ export function VerifyEmail() {
   };
 
   return (
-    <div className="ui-root min-h-screen bg-canvas flex items-center justify-center p-4">
+    <div className="ui-root min-h-dvh bg-canvas flex items-center justify-center p-4">
       {/* Ambient warm glow — faint, single brand accent for atmosphere. */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <div

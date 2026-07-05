@@ -5,7 +5,7 @@ import {
   X, Wallet, LogOut,
   LayoutDashboard, Zap, Layers,
   TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, Target,
-  Building2, User, MessageSquare,
+  Building2,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
@@ -22,6 +22,8 @@ interface NavSection {
   items: NavItem[];
 }
 
+// Kept intentionally lean so the whole menu fits one phone screen without
+// scrolling: Profile lives in the profile card above, Chat in the tab bar.
 const NAV_SECTIONS: NavSection[] = [
   {
     section: 'Overview',
@@ -30,6 +32,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Money',      icon: Wallet,          path: '/money' },
       { label: 'Actions',    icon: Zap,             path: '/insights' },
       { label: 'Financial Level', icon: Layers, path: '/financial-level' },
+      { label: 'Accounts',   icon: Building2,       path: '/accounts' },
     ],
   },
   {
@@ -41,13 +44,6 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Debt',       icon: AlertCircle, path: '/debt' },
       { label: 'Tax',        icon: Receipt,     path: '/tax' },
       { label: 'Goals',      icon: Target,      path: '/goals' },
-    ],
-  },
-  {
-    section: 'Setup',
-    items: [
-      { label: 'Accounts', icon: Building2,    path: '/accounts' },
-      { label: 'Profile',  icon: User,         path: '/profile' },
     ],
   },
 ];
@@ -102,14 +98,14 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                        bg-canvas border-r border-line shadow-2xl md:hidden scrollbar-thin"
           >
             <nav
-              className="px-3 space-y-1"
+              className="px-3 space-y-0.5"
               style={{
-                paddingTop: 'max(14px, env(safe-area-inset-top))',
-                paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+                paddingTop: 'max(10px, env(safe-area-inset-top))',
+                paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
               }}
             >
               {/* Header — brand + close */}
-              <div className="flex items-center justify-between px-2 pt-1 pb-3">
+              <div className="flex items-center justify-between px-2 pt-1">
                 <div className="flex items-center gap-2.5">
                   <BrandMark size={30} />
                   <span className="font-editorial text-[18px] font-semibold tracking-[-0.01em] text-content">LasagnaFi</span>
@@ -126,9 +122,9 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
               {/* Profile card */}
               <button
                 onClick={() => handleNavigate('/profile')}
-                className="flex items-center gap-3 p-4 w-full bg-panel rounded-ui-lg border border-line hover:border-brand/40 hover:shadow-ui-sm transition text-left"
+                className="flex items-center gap-3 p-2 w-full bg-panel rounded-ui-lg border border-line hover:border-brand/40 hover:shadow-ui-sm transition text-left"
               >
-                <div className="w-12 h-12 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
+                <div className="w-10 h-10 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
                   {initial}
                 </div>
                 <div className="flex-1 text-left">
@@ -139,8 +135,8 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
               </button>
 
               {NAV_SECTIONS.map(({ section, items }) => (
-                <div key={section} className="mb-2">
-                  <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-content-faint px-3 pt-4 pb-2">
+                <div key={section}>
+                  <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-content-faint px-3 pt-2 pb-0.5">
                     {section}
                   </div>
                   {items.map(({ label, icon: Icon, path }) => {
@@ -149,12 +145,12 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                       <button
                         key={path}
                         onClick={() => handleNavigate(path)}
-                        className={`flex items-center gap-3 w-full p-2.5 rounded-ui-md mb-0.5
+                        className={`flex items-center gap-3 w-full px-2.5 py-1 rounded-ui-md
                                    cursor-pointer text-left text-[15px] transition-colors active:scale-[0.98]
-                                   min-h-[44px] ${active ? 'bg-brand-soft' : 'hover:bg-canvas-sunken'}`}
+                                   min-h-[40px] ${active ? 'bg-brand-soft' : 'hover:bg-canvas-sunken'}`}
                       >
-                        <div className={`w-9 h-9 rounded-ui-md grid place-items-center shrink-0 ${active ? 'bg-brand text-[rgb(var(--ui-brand-fg))]' : 'bg-canvas-sunken text-content-muted'}`}>
-                          <Icon size={16} />
+                        <div className={`w-8 h-8 rounded-ui-md grid place-items-center shrink-0 ${active ? 'bg-brand text-[rgb(var(--ui-brand-fg))]' : 'bg-canvas-sunken text-content-muted'}`}>
+                          <Icon size={15} />
                         </div>
                         <span className={active ? 'font-bold text-[rgb(var(--ui-brand-ink))]' : 'font-semibold text-content'}>{label}</span>
                         <div className="text-content-faint text-sm ml-auto">›</div>
@@ -164,29 +160,12 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 </div>
               ))}
 
-              {/* AI Chat */}
-              <div className="mb-2">
-                <button
-                  onClick={() => handleNavigate('/chat')}
-                  className="flex items-center gap-3 w-full p-2.5 rounded-ui-md
-                             cursor-pointer text-left text-[15px]
-                             transition-colors active:scale-[0.98] hover:bg-canvas-sunken
-                             min-h-[44px]"
-                >
-                  <div className="w-9 h-9 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
-                    <MessageSquare size={16} />
-                  </div>
-                  <span className="font-semibold text-content">AI Chat</span>
-                  <div className="text-content-faint text-sm ml-auto">›</div>
-                </button>
-              </div>
-
               {/* Sign out */}
               <button
                 onClick={() => { onClose(); logout(); }}
-                className="flex items-center gap-3 w-full p-2.5 mt-3 rounded-ui-md hover:bg-canvas-sunken text-left min-h-[44px]"
+                className="flex items-center gap-3 w-full px-2.5 py-1 mt-1 rounded-ui-md hover:bg-canvas-sunken text-left min-h-[40px]"
               >
-                <div className="w-9 h-9 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
+                <div className="w-8 h-8 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
                   <LogOut size={16} />
                 </div>
                 <span className="text-[15px] font-semibold text-content-secondary">Sign out</span>

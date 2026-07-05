@@ -80,7 +80,7 @@ export function Modal({
   const panel =
     variant === 'sheet'
       ? 'fixed inset-y-0 right-0 w-full max-w-md rounded-none border-l sm:rounded-l-ui-xl [animation:ui-slide-right_220ms_cubic-bezier(0.22,1,0.36,1)] max-sm:inset-x-0 max-sm:inset-y-auto max-sm:bottom-0 max-sm:max-w-none max-sm:rounded-t-ui-xl max-sm:border-l-0 max-sm:border-t max-sm:[animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]'
-      : 'fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-ui-lg border [animation:ui-scale-in_180ms_cubic-bezier(0.22,1,0.36,1)]';
+      : 'fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-ui-lg border [animation:ui-scale-in_180ms_cubic-bezier(0.22,1,0.36,1)] max-h-[calc(100dvh-2rem)]';
 
   return createPortal(
     <div className="ui-root fixed inset-0 z-[90]">
