@@ -17,6 +17,8 @@ interface ShellProps {
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopChatOpen, setDesktopChatOpen] = useState(false);
+  // Bumped by pull-to-refresh to remount (and so refetch) the current page.
+  const [refreshKey, setRefreshKey] = useState(0);
   const isMobile = useIsMobile();
   const [location, setLocation] = useLocation();
   const { chatOpen, closeChat, unreadCount, setChatReturnPath, activeThreadIndex } = useChatStore();
@@ -166,8 +168,16 @@ export function Shell({ children }: ShellProps) {
         mobileDocScroll ? (
           /* Mobile pages: document scroll — fixed header/tab-bar space is
              reserved with padding; no nested scroll container. */
-          <PullToRefresh topOffset="calc(env(safe-area-inset-top) + 48px)">
-            <main className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]">
+          <PullToRefresh
+            topOffset="calc(env(safe-area-inset-top) + 48px)"
+            onRefresh={() => setRefreshKey((k) => k + 1)}
+          >
+            {/* key remounts just the routed page — every page refetches its
+                data on mount, while the shell (header/tab bar) stays put. */}
+            <main
+              key={refreshKey}
+              className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]"
+            >
               {children}
             </main>
           </PullToRefresh>

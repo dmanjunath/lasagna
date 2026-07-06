@@ -8,12 +8,21 @@ const MAX_PULL = 110;
  * Pull-to-refresh for the mobile document-scroll shell. iOS has no native
  * web pull-to-refresh (and overscroll-behavior disables Android's), so this
  * owns the gesture: pulling down from the very top reveals the brand waves,
- * which bob while the page reloads.
+ * which bob while `onRefresh` runs — a soft refresh (the shell stays put;
+ * only the page content remounts and refetches).
  *
  * Content is translated inside a wrapper div — the fixed header/tab bar are
  * siblings, so they stay put.
  */
-export function PullToRefresh({ topOffset, children }: { topOffset: string; children: ReactNode }) {
+export function PullToRefresh({
+  topOffset,
+  onRefresh,
+  children,
+}: {
+  topOffset: string;
+  onRefresh: () => void;
+  children: ReactNode;
+}) {
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
@@ -48,8 +57,13 @@ export function PullToRefresh({ topOffset, children }: { topOffset: string; chil
       setPull((p) => {
         if (p >= THRESHOLD) {
           setRefreshing(true);
-          // Let the waves bob for a beat so the refresh feels acknowledged.
-          setTimeout(() => window.location.reload(), 450);
+          onRefresh();
+          // The remounted page shows its own skeletons; bob for a beat so the
+          // refresh feels acknowledged, then tuck the waves away.
+          setTimeout(() => {
+            setRefreshing(false);
+            setPull(0);
+          }, 900);
           return THRESHOLD;
         }
         return 0;
@@ -65,7 +79,8 @@ export function PullToRefresh({ topOffset, children }: { topOffset: string; chil
       document.removeEventListener('touchend', onEnd);
       document.removeEventListener('touchcancel', onEnd);
     };
-  }, [refreshing]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshing, onRefresh]);
 
   const progress = Math.min(1, pull / THRESHOLD);
 
