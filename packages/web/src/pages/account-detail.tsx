@@ -9,6 +9,7 @@ import { Button, Field, Input, Select, SegmentedControl, Skeleton } from '../com
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
+import { TransactionList } from '../components/transactions/TransactionList';
 
 // ---------------------------------------------------------------------------
 // Account detail page. Shows the account's balance-over-time history as the
@@ -774,6 +775,11 @@ export function AccountDetail() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ── Transactions — this account's activity, searchable + paginated. ── */}
+      <section className="mt-6">
+        <TransactionList accountId={id} title="Transactions" />
       </section>
 
     </div>

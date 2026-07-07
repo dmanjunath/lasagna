@@ -493,6 +493,8 @@ export const transactionCategoryEnum = pgEnum("transaction_category", [
 
 export const transactionSourceEnum = pgEnum("transaction_source", ["seed", "plaid"]);
 
+export const categorySourceEnum = pgEnum("category_source", ["auto", "rule", "transfer", "manual"]);
+
 export const transactions = pgTable("transactions", {
   id: uuid("id").primaryKey().defaultRandom(),
   accountId: uuid("account_id")
@@ -509,6 +511,28 @@ export const transactions = pgTable("transactions", {
   category: transactionCategoryEnum("category").notNull().default("other"),
   pending: integer("pending").notNull().default(0), // 0 = false, 1 = true
   source: transactionSourceEnum("source").notNull().default("seed"),
+  categorySource: categorySourceEnum("category_source").notNull().default("auto"),
+  linkedTransactionId: uuid("linked_transaction_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Category Rules ────────────────────────────────────────────────────────
+// User-defined re-categorization rules. First match (by priority asc) wins.
+// All non-null criteria are AND-ed; amounts compare against abs(amount).
+
+export const categoryRules = pgTable("category_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  priority: integer("priority").notNull(),
+  merchantContains: varchar("merchant_contains", { length: 255 }),
+  amountEquals: numeric("amount_equals", { precision: 19, scale: 2 }),
+  amountMin: numeric("amount_min", { precision: 19, scale: 2 }),
+  amountMax: numeric("amount_max", { precision: 19, scale: 2 }),
+  accountId: uuid("account_id").references(() => accounts.id, { onDelete: "cascade" }),
+  matchCategory: transactionCategoryEnum("match_category"),
+  setCategory: transactionCategoryEnum("set_category").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

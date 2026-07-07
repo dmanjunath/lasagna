@@ -1,7 +1,9 @@
-import { eq, and, sql, transactions, accounts, plaidItems, decrypt } from "@lasagna/core";
+import { eq, and, sql, transactions, accounts, plaidItems, decrypt, categoryRules } from "@lasagna/core";
 import { db } from "./db.js";
 import { plaidClient } from "./plaid.js";
 import { env } from "./env.js";
+import { firstMatchingRule, type RuleCriteria } from "./category-rules.js";
+import { matchTransfersForTenant } from "./transfer-match.js";
 
 // Map Plaid personal_finance_category.primary to our enum
 const CATEGORY_MAP: Record<string, string> = {
@@ -34,11 +36,28 @@ function mapCategory(plaidCategory: { primary?: string; detailed?: string } | nu
   return CATEGORY_MAP[plaidCategory.primary] || "other";
 }
 
+// Plaid mapping first, then the tenant's rules (first match wins).
+function categorize(
+  rules: RuleCriteria[],
+  txn: { name: string; merchantName: string | null; amount: string; accountId: string },
+  plaidCategory: { primary?: string; detailed?: string } | null | undefined,
+): { category: string; categorySource: "auto" | "rule" } {
+  const mapped = mapCategory(plaidCategory);
+  const rule = firstMatchingRule(rules, { ...txn, category: mapped });
+  return rule
+    ? { category: rule.setCategory, categorySource: "rule" }
+    : { category: mapped, categorySource: "auto" };
+}
+
 export async function syncTransactions(itemId: string): Promise<{ added: number; modified: number; removed: number }> {
   const item = await db.query.plaidItems.findFirst({
     where: eq(plaidItems.id, itemId),
   });
   if (!item) throw new Error(`Plaid item ${itemId} not found`);
+
+  const tenantRules = await db.select().from(categoryRules)
+    .where(eq(categoryRules.tenantId, item.tenantId))
+    .orderBy(categoryRules.priority);
 
   const accessToken = await decrypt(item.accessToken, env.ENCRYPTION_KEY);
 
@@ -90,6 +109,12 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
         : null;
 
       if (!existing) {
+        const { category, categorySource } = categorize(tenantRules, {
+          name: txn.name || txn.merchant_name || "Unknown",
+          merchantName: txn.merchant_name ?? null,
+          amount: txn.amount.toString(),
+          accountId,
+        }, txn.personal_finance_category);
         await db.insert(transactions).values({
           accountId,
           tenantId: item.tenantId,
@@ -98,30 +123,47 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           name: txn.name || txn.merchant_name || "Unknown",
           merchantName: txn.merchant_name ?? null,
           amount: txn.amount.toString(),
-          category: mapCategory(txn.personal_finance_category) as any,
+          category: category as any,
+          categorySource: categorySource as any,
           pending: txn.pending ? 1 : 0,
           source: "plaid" as any,
         });
         totalAdded++;
-      } else {
-        // Re-categorize existing transactions so logic changes (e.g. CC payment → transfer)
-        // are applied retroactively when a full resync is triggered
+      } else if (existing.categorySource === "auto" || existing.categorySource === "rule") {
+        const { category, categorySource } = categorize(tenantRules, {
+          name: existing.name,
+          merchantName: existing.merchantName,
+          amount: existing.amount,
+          accountId: existing.accountId,
+        }, txn.personal_finance_category);
         await db.update(transactions)
-          .set({ category: mapCategory(txn.personal_finance_category) as any })
+          .set({ category: category as any, categorySource: categorySource as any })
           .where(eq(transactions.plaidTransactionId, txn.transaction_id));
       }
     }
 
     // Process modified transactions
     for (const txn of modified) {
-      await db.update(transactions)
-        .set({
-          name: txn.name || txn.merchant_name || "Unknown",
-          merchantName: txn.merchant_name ?? null,
-          amount: txn.amount.toString(),
-          category: mapCategory(txn.personal_finance_category) as any,
-          pending: txn.pending ? 1 : 0,
-        })
+      const existing = await db.query.transactions.findFirst({
+        where: eq(transactions.plaidTransactionId, txn.transaction_id),
+      });
+      if (!existing) continue;
+      const name = txn.name || txn.merchant_name || "Unknown";
+      const fields: Record<string, unknown> = {
+        name,
+        merchantName: txn.merchant_name ?? null,
+        amount: txn.amount.toString(),
+        pending: txn.pending ? 1 : 0,
+      };
+      if (existing.categorySource === "auto" || existing.categorySource === "rule") {
+        const { category, categorySource } = categorize(tenantRules, {
+          name, merchantName: txn.merchant_name ?? null,
+          amount: txn.amount.toString(), accountId: existing.accountId,
+        }, txn.personal_finance_category);
+        fields.category = category;
+        fields.categorySource = categorySource;
+      }
+      await db.update(transactions).set(fields as any)
         .where(eq(transactions.plaidTransactionId, txn.transaction_id));
       totalModified++;
     }
@@ -129,6 +171,14 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
     // Process removed transactions
     for (const txn of removed) {
       if (txn.transaction_id) {
+        const existing = await db.query.transactions.findFirst({
+          where: eq(transactions.plaidTransactionId, txn.transaction_id),
+        });
+        if (existing?.linkedTransactionId) {
+          await db.update(transactions)
+            .set({ linkedTransactionId: null })
+            .where(eq(transactions.id, existing.linkedTransactionId));
+        }
         await db.delete(transactions)
           .where(eq(transactions.plaidTransactionId, txn.transaction_id));
         totalRemoved++;
@@ -138,6 +188,9 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
     cursor = next_cursor;
     hasMore = has_more;
   }
+
+  const paired = await matchTransfersForTenant(item.tenantId);
+  if (paired > 0) console.log(`[TransferMatch] Item ${itemId}: linked ${paired} pair(s)`);
 
   // Save cursor
   await db.update(plaidItems)

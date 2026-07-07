@@ -1,40 +1,23 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  Search,
-  X,
   RefreshCw,
+  SlidersHorizontal,
   TrendingDown,
-  DollarSign,
-  ShoppingCart,
-  UtensilsCrossed,
-  Home,
-  Car,
-  Clapperboard,
-  ShoppingBag,
-  Lightbulb,
-  HeartPulse,
-  Shield,
-  Plane,
-  Tv,
-  Receipt,
-  ArrowLeftRight,
   TrendingUp,
-  CreditCard,
-  Scissors,
-  GraduationCap,
-  Gift,
-  Landmark,
-  Banknote,
+  Receipt,
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
 import { PageActions } from '../components/common/page-actions';
-import { Button, Badge, EmptyState, Eyebrow, Skeleton } from '../components/uikit';
-import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, type TrendPoint } from '../components/ds/TrendChart';
+import { Button, EmptyState, Eyebrow, SegmentedControl, Skeleton } from '../components/uikit';
+import { CashflowBars, periodLabel, type CashflowPeriod } from '../components/charts/CashflowBars';
+import { getCategoryDisplay } from '../lib/categories';
+import { TransactionList } from '../components/transactions/TransactionList';
+import { RulesPanel } from '../components/rules/RulesPanel';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,23 +32,8 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function formatCurrencyExact(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
 function monthLabel(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
-
-function monthShort(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 function startOfMonth(d: Date): string {
@@ -76,41 +44,6 @@ function endOfMonth(d: Date): string {
   const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
   return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}T23:59:59`;
 }
-
-function shortDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-// ---------------------------------------------------------------------------
-// Category config — label + Bright lucide glyph. Slice/legend color is assigned
-// at render time from the --ui-viz-* palette so the donut never reads as one
-// blob and light/dark swap automatically.
-// ---------------------------------------------------------------------------
-
-const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
-  income:             { label: 'Income',              icon: <DollarSign size={15} /> },
-  housing:            { label: 'Housing',             icon: <Home size={15} /> },
-  transportation:     { label: 'Transportation',      icon: <Car size={15} /> },
-  food_dining:        { label: 'Dining Out',          icon: <UtensilsCrossed size={15} /> },
-  groceries:          { label: 'Groceries',           icon: <ShoppingCart size={15} /> },
-  utilities:          { label: 'Utilities',           icon: <Lightbulb size={15} /> },
-  healthcare:         { label: 'Healthcare',          icon: <HeartPulse size={15} /> },
-  insurance:          { label: 'Insurance',           icon: <Shield size={15} /> },
-  entertainment:      { label: 'Entertainment',       icon: <Clapperboard size={15} /> },
-  shopping:           { label: 'Shopping',            icon: <ShoppingBag size={15} /> },
-  personal_care:      { label: 'Personal Care',       icon: <Scissors size={15} /> },
-  education:          { label: 'Education',           icon: <GraduationCap size={15} /> },
-  travel:             { label: 'Travel',              icon: <Plane size={15} /> },
-  subscriptions:      { label: 'Subscriptions',       icon: <Tv size={15} /> },
-  savings_investment: { label: 'Savings & Investment', icon: <TrendingUp size={15} /> },
-  debt_payment:       { label: 'Debt Payment',        icon: <CreditCard size={15} /> },
-  gifts_donations:    { label: 'Gifts & Donations',   icon: <Gift size={15} /> },
-  taxes:              { label: 'Taxes',               icon: <Landmark size={15} /> },
-  transfer:           { label: 'Transfers',           icon: <ArrowLeftRight size={15} /> },
-  other:              { label: 'Other',               icon: <Receipt size={15} /> },
-};
 
 // Warm-harmonious viz rotation for spending categories. Coral (viz-4) and slate
 // (viz-7) sit at the tail so a single category never reads as an alert, and the
@@ -126,9 +59,6 @@ const DATA_PALETTE = [
 ];
 const TAIL_COLOR = 'var(--ui-viz-7)';
 
-function getCategoryDisplay(key: string) {
-  return CATEGORY_CONFIG[key] ?? { label: key, icon: <Receipt size={15} /> };
-}
 function colorForIndex(i: number): string {
   return DATA_PALETTE[i % DATA_PALETTE.length];
 }
@@ -142,23 +72,6 @@ interface SpendingCategory {
   total: number;
   count: number;
   percentage: number;
-}
-
-interface Transaction {
-  id: string;
-  date: string;
-  name: string;
-  merchantName: string | null;
-  amount: string;
-  category: string;
-  accountId: string;
-}
-
-interface MonthlyTrendEntry {
-  month: string;
-  income: number;
-  expenses: number;
-  net: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -252,187 +165,6 @@ function DonutMini({
 }
 
 // ---------------------------------------------------------------------------
-// SpendTrendChart — monthly-expenses area+line on --ui-* tokens. Mirrors the
-// Money page's interactive chart (smooth spline, nice ticks, hover crosshair)
-// and bubbles the hovered index up so the hero value can swap. The month in
-// view (currentMonth) is marked with a ring.
-// ---------------------------------------------------------------------------
-
-const CHART_H = 210;
-const CHART_M = { top: 14, right: 12, bottom: 32, left: 52 };
-
-function SpendTrendChart({
-  points, activeIdx, onHoverChange,
-}: {
-  points: TrendPoint[];
-  activeIdx: number | null;
-  onHoverChange?: (i: number | null) => void;
-}) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [chartW, setChartW] = useState(680);
-  const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
-  const setHoverIdx = (i: number | null) => { setHoverIdxRaw(i); onHoverChange?.(i); };
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const update = () => setChartW(el.clientWidth || 680);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const innerW = chartW - CHART_M.left - CHART_M.right;
-  const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
-
-  const { yMin, yMax, yTicks } = useMemo(() => {
-    const values = points.map((p) => p.value);
-    const rawMin = Math.min(0, ...values);
-    const rawMax = Math.max(...values, 1);
-    const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
-    return { yMin: rawMin, yMax: rawMax + pad, yTicks: niceTicks(rawMin, rawMax + pad, 4) };
-  }, [points]);
-
-  const xAt = (i: number) => CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
-  const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
-
-  const xy = useMemo<Array<[number, number]>>(
-    () => points.map((p, i) => [xAt(i), yAt(p.value)]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, chartW, yMin, yMax],
-  );
-  const linePath = useMemo(() => smoothLinePath(xy), [xy]);
-  const baseY = (CHART_M.top + innerH).toFixed(2);
-  const areaPath = linePath
-    ? `${linePath} L ${xAt(points.length - 1).toFixed(2)} ${baseY} L ${xAt(0).toFixed(2)} ${baseY} Z`
-    : '';
-
-  const hover = hoverIdx !== null ? points[hoverIdx] : null;
-  const markIdx = hoverIdx !== null ? hoverIdx : (activeIdx !== null ? activeIdx : points.length - 1);
-  const markPt = points[markIdx];
-  const xLabels = useMemo(() => pickXLabels(points, '1Y'), [points]);
-
-  const pointerToIdx = (clientX: number): number | null => {
-    const root = wrapRef.current;
-    if (!root || points.length <= 0) return null;
-    const rect = root.getBoundingClientRect();
-    if (rect.width <= 0) return null;
-    const scale = chartW / rect.width;
-    const localX = (clientX - rect.left) * scale;
-    const ratio = (localX - CHART_M.left) / Math.max(1, innerW);
-    return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
-  };
-
-  return (
-    <div ref={wrapRef} className="relative select-none">
-      <svg
-        viewBox={`0 0 ${chartW} ${CHART_H}`}
-        role="img"
-        aria-label="Monthly spending trend chart"
-        className="block w-full touch-none"
-        style={{ pointerEvents: 'none' }}
-      >
-        <defs>
-          <linearGradient id="spend-area-ui" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--ui-viz-4)" stopOpacity="0.22" />
-            <stop offset="55%" stopColor="var(--ui-viz-4)" stopOpacity="0.06" />
-            <stop offset="100%" stopColor="var(--ui-viz-4)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        {yTicks.map((t) => (
-          <g key={t}>
-            <line
-              x1={CHART_M.left} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
-              stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
-            />
-            <text
-              x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
-              fill="rgb(var(--ui-content-faint))"
-              style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
-            >
-              {formatShortMoney(t)}
-            </text>
-          </g>
-        ))}
-
-        <path d={areaPath} fill="url(#spend-area-ui)" />
-        <path
-          d={linePath} fill="none" stroke="var(--ui-viz-4)"
-          strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
-        />
-
-        {markPt && (
-          <g>
-            {hover && hoverIdx !== null && (
-              <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} stroke="rgb(var(--ui-content-muted))" strokeOpacity={0.5} strokeWidth={1} strokeDasharray="2 4" />
-            )}
-            <circle cx={xAt(markIdx)} cy={yAt(markPt.value)} r={13} fill="var(--ui-viz-4)" fillOpacity={0.14} />
-            <circle cx={xAt(markIdx)} cy={yAt(markPt.value)} r={5.5} fill="var(--ui-viz-4)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
-          </g>
-        )}
-
-        {xLabels.map(({ idx, label }, i) => {
-          // Right-align only the final tick so it doesn't clip the SVG edge
-          // (CHART_M.right is just 12px); the rest stay centered on their point.
-          const anchor = i === xLabels.length - 1 ? 'end' : 'middle';
-          return <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 8} textAnchor={anchor} fill="rgb(var(--ui-content-muted))" style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>;
-        })}
-      </svg>
-
-      <div
-        className="absolute inset-0"
-        style={{ touchAction: 'none', cursor: 'crosshair' }}
-        onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
-        onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
-        onPointerLeave={() => setHoverIdx(null)}
-        onPointerCancel={() => setHoverIdx(null)}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Transaction row — category medallion · merchant · category·date · amount.
-// Income (amount < 0) renders positive teal with a leading '+'. The category
-// label stays a click target so it can open the inline recategorize editor.
-// ---------------------------------------------------------------------------
-
-function TxnRow({
-  merchant, icon, isIncome, categoryNode, date, amount,
-}: {
-  merchant: string;
-  icon: React.ReactNode;
-  isIncome: boolean;
-  categoryNode: React.ReactNode;
-  date: string;
-  amount: number;
-}) {
-  return (
-    <div className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
-      <span className={cn(
-        'grid h-9 w-9 shrink-0 place-items-center rounded-ui-md',
-        isIncome ? 'bg-positive-soft text-positive' : 'bg-canvas-sunken text-content-secondary',
-      )}>
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
-        <div className="mt-0.5 flex items-center text-[12.5px] text-content-muted">
-          {categoryNode}
-          <span className="mx-1 text-content-faint">·</span>
-          <span className="ui-tnum">{shortDate(date)}</span>
-        </div>
-      </div>
-      <span className={cn('shrink-0 font-editorial text-[14.5px] font-extrabold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive')}>
-        {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
-      </span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Stat rail cell (Income / Net flow / Savings rate) — sits inline at the base
 // of the hero, divided by hairlines, instead of three separate boxy cards.
 // ---------------------------------------------------------------------------
@@ -452,38 +184,29 @@ function StatCell({ label, value, sub, tone, className }: { label: string; value
 }
 
 // ---------------------------------------------------------------------------
-// Page constant
-// ---------------------------------------------------------------------------
-
-const PAGE_SIZE = 20;
-
-// ---------------------------------------------------------------------------
 // Spending Page
 // ---------------------------------------------------------------------------
 
 export function Spending() {
   const { setPageContext } = usePageContext();
 
-  // Month navigation
+  // Period navigation
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth() - 1, 1);
   });
+  const [granularity, setGranularity] = useState<'month' | 'year'>('month');
+  const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
 
   // Data state
   const [categories, setCategories] = useState<SpendingCategory[]>([]);
   const [totalSpending, setTotalSpending] = useState(0);
   const [totalIncome, setTotalIncome] = useState(0);
   const [netCashFlow, setNetCashFlow] = useState(0);
-  const [trendData, setTrendData] = useState<MonthlyTrendEntry[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [txTotal, setTxTotal] = useState(0);
-  const [txPage, setTxPage] = useState(1);
+  const [periods, setPeriods] = useState<CashflowPeriod[]>([]);
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Linked account detection
   const [hasLinkedAccounts, setHasLinkedAccounts] = useState(false);
@@ -498,25 +221,18 @@ export function Spending() {
   // Sync
   const [syncing, setSyncing] = useState(false);
 
+  // Rules panel (optionally seeded from a transaction's "Create rule" prompt)
+  const [rulesPanel, setRulesPanel] = useState<{ open: boolean; seed: { merchantText: string; category: string } | null }>({ open: false, seed: null });
+
   // Loading
   const [loadingSummary, setLoadingSummary] = useState(true);
-  const [loadingTx, setLoadingTx] = useState(true);
 
   // Refresh counter
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Inline category editing
-  const [editingTxId, setEditingTxId] = useState<string | null>(null);
-
   const loadData = useCallback(() => {
     setRefreshKey((k) => k + 1);
   }, []);
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   // Detect linked accounts and credit card balances
   useEffect(() => {
@@ -531,80 +247,82 @@ export function Spending() {
       .catch(() => {});
   }, []);
 
+  // Selected period — 'YYYY-MM' in month mode, 'YYYY' in year mode — plus the
+  // date range everything below the chart (summary, donut, transactions) uses.
+  const selectedPeriod = granularity === 'month'
+    ? `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`
+    : String(currentYear);
+  const periodStart = granularity === 'month' ? startOfMonth(currentMonth) : `${currentYear}-01-01`;
+  const periodEnd = granularity === 'month' ? endOfMonth(currentMonth) : `${currentYear}-12-31T23:59:59`;
+  const periodDisplayLabel = granularity === 'month' ? monthLabel(currentMonth) : String(currentYear);
+
   // Fetch spending summary
   useEffect(() => {
+    let active = true;
     setLoadingSummary(true);
-    const sd = startOfMonth(currentMonth);
-    const ed = endOfMonth(currentMonth);
-    api.getSpendingSummary({ startDate: sd, endDate: ed })
+    api.getSpendingSummary({ startDate: periodStart, endDate: periodEnd })
       .then((data) => {
+        if (!active) return;
         setCategories(data.categories);
         setTotalSpending(data.totalSpending);
         setTotalIncome(data.totalIncome);
         setNetCashFlow(data.netCashFlow);
       })
       .catch(() => {
+        if (!active) return;
         setCategories([]);
         setTotalSpending(0);
         setTotalIncome(0);
         setNetCashFlow(0);
       })
-      .finally(() => setLoadingSummary(false));
-  }, [currentMonth, refreshKey]);
+      .finally(() => { if (active) setLoadingSummary(false); });
+    return () => { active = false; };
+  }, [periodStart, periodEnd, refreshKey]);
 
-  // Fetch monthly trend (only once) — powers the trend chart + last-month delta.
+  // Fetch cashflow periods — powers the bar chart + prior-period delta.
   useEffect(() => {
-    api.getMonthlyTrend()
-      .then((data) => setTrendData(data.months))
-      .catch(() => setTrendData([]));
-  }, []);
-
-  // Fetch transactions
-  useEffect(() => {
-    setLoadingTx(true);
-    const sd = startOfMonth(currentMonth);
-    const ed = endOfMonth(currentMonth);
-    api.getTransactions({
-      page: txPage,
-      limit: PAGE_SIZE,
-      category: selectedCategory || undefined,
-      startDate: sd,
-      endDate: ed,
-      search: debouncedSearch || undefined,
-    })
-      .then((data) => {
-        setTransactions(data.transactions);
-        setTxTotal(data.total);
-      })
-      .catch(() => {
-        setTransactions([]);
-        setTxTotal(0);
-      })
-      .finally(() => setLoadingTx(false));
-  }, [currentMonth, txPage, selectedCategory, debouncedSearch, refreshKey]);
+    let active = true;
+    api.getTrend(granularity === 'month' ? { granularity: 'month', limit: 13 } : { granularity: 'year' })
+      .then((data) => { if (!active) return; setPeriods(data.periods); })
+      .catch(() => { if (!active) return; setPeriods([]); });
+    return () => { active = false; };
+  }, [granularity, refreshKey]);
 
   // Page context for chat
   useEffect(() => {
     setPageContext({
       pageId: 'spending',
       pageTitle: 'Spending',
-      description: 'Monthly spending breakdown, category analysis, and transaction history.',
+      description: 'Spending breakdown by month or year, category analysis, and transaction history.',
     });
   }, [setPageContext]);
 
   // Derived
-  const totalPages = Math.max(1, Math.ceil(txTotal / PAGE_SIZE));
-
   const savingsRate = totalIncome > 0 ? ((totalIncome - totalSpending) / totalIncome) * 100 : null;
 
   const prevMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-    setTxPage(1);
   }, []);
   const nextMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
-    setTxPage(1);
   }, []);
+
+  // Clicking a bar selects that period.
+  const handleSelectPeriod = useCallback((p: string) => {
+    if (granularity === 'month') {
+      setCurrentMonth(new Date(+p.slice(0, 4), +p.slice(5, 7) - 1, 1));
+    } else {
+      setCurrentYear(+p);
+    }
+  }, [granularity]);
+
+  // Switching granularity keeps the selection sensible: to year → year of the
+  // month in view; back to month → currentMonth is untouched.
+  const handleGranularityChange = useCallback((g: 'month' | 'year') => {
+    setGranularity(g);
+    setChartHover(null);
+    if (g === 'year') setCurrentYear(currentMonth.getFullYear());
+  }, [currentMonth]);
 
   const spendingCategories = useMemo(
     () => categories.filter((c) => c.category !== 'income' && c.category !== 'transfer'),
@@ -677,61 +395,27 @@ export function Spending() {
     return top ? getCategoryDisplay(top.category).label : null;
   }, [spendingCategories]);
 
-  // Previous-month spending (for Δ%) — from monthly trend if present.
-  const lastMonthDelta = useMemo(() => {
-    if (trendData.length < 2 || totalSpending === 0) return null;
-    const key = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
-    const idx = trendData.findIndex((t) => t.month === key);
+  // Prior-period spending (for Δ%) — from the cashflow periods if present.
+  const priorPeriodDelta = useMemo(() => {
+    if (periods.length < 2 || totalSpending === 0) return null;
+    const idx = periods.findIndex((p) => p.period === selectedPeriod);
     if (idx < 1) return null;
-    const prior = trendData[idx - 1];
+    const prior = periods[idx - 1];
     if (!prior || prior.expenses === 0) return null;
     const pct = ((totalSpending - prior.expenses) / prior.expenses) * 100;
     return Math.round(pct);
-  }, [trendData, totalSpending, currentMonth]);
+  }, [periods, totalSpending, selectedPeriod]);
 
-  // Trend chart points — monthly expenses over time.
-  const trendPoints = useMemo<TrendPoint[]>(
-    () => trendData.map((t) => ({ date: `${t.month}-01`, value: t.expenses })),
-    [trendData],
-  );
-  const hasTrendChart = trendPoints.length >= 2;
-  const activeTrendIdx = useMemo(() => {
-    const key = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
-    const idx = trendData.findIndex((t) => t.month === key);
-    return idx >= 0 ? idx : null;
-  }, [trendData, currentMonth]);
+  const hasChart = periods.length > 0;
 
-  const hoveredTrend = chartHover !== null ? trendPoints[chartHover] : null;
-  const heroValue = hoveredTrend ? hoveredTrend.value : totalSpending;
-  const heroCaption = hoveredTrend ? monthShort(hoveredTrend.date) : monthLabel(currentMonth);
+  const hoveredPeriod = chartHover !== null ? periods[chartHover] : null;
+  const heroValue = hoveredPeriod ? hoveredPeriod.expenses : totalSpending;
+  const heroCaption = hoveredPeriod
+    ? periodLabel(hoveredPeriod.period, granularity)
+    : periodDisplayLabel;
 
   const noData = !loadingSummary && totalSpending === 0 && totalIncome === 0;
-  const spentMore = lastMonthDelta !== null && lastMonthDelta > 0;
-
-  // Inline category editor — a compact native select shown in place of the
-  // category label when the label is clicked.
-  function categoryEditorFor(tx: Transaction) {
-    return (
-      <select
-        autoFocus
-        value={tx.category}
-        onBlur={() => setEditingTxId(null)}
-        onChange={async (e) => {
-          const newCat = e.target.value;
-          setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, category: newCat } : t));
-          setEditingTxId(null);
-          await api.updateTransactionCategory(tx.id, newCat).catch(console.error);
-          setRefreshKey(k => k + 1);
-        }}
-        className="h-7 rounded-ui-sm border border-line-strong bg-panel px-1.5 text-[12px] font-medium text-content"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-          <option key={key} value={key}>{cfg.label}</option>
-        ))}
-      </select>
-    );
-  }
+  const spentMore = priorPeriodDelta !== null && priorPeriodDelta > 0;
 
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -750,35 +434,56 @@ export function Spending() {
               {topCategoryLabel ? (
                 <>Where your money went — most on <b className="font-bold text-content">{topCategoryLabel}</b>.</>
               ) : (
-                <>Where your money went in {monthLabel(currentMonth)}.</>
+                <>Where your money went in {periodDisplayLabel}.</>
               )}
             </p>
           )}
         </div>
 
-        {/* Month stepper + sync */}
-        <div className="flex items-center gap-2.5">
-          <div className="inline-flex items-center gap-0.5 rounded-ui-md border border-line bg-panel p-0.5 shadow-ui-sm">
-            <button
-              type="button"
-              onClick={prevMonth}
-              aria-label="Previous month"
-              className="ui-focus touch-target grid h-10 w-10 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="ui-tnum min-w-[92px] px-1 text-center font-editorial text-[13.5px] font-bold tracking-[-0.01em] text-content">
-              {currentMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-            </span>
-            <button
-              type="button"
-              onClick={nextMonth}
-              aria-label="Next month"
-              className="ui-focus touch-target grid h-10 w-10 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
+        {/* Granularity toggle + month stepper + sync */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <SegmentedControl
+            aria-label="Granularity"
+            value={granularity}
+            onChange={handleGranularityChange}
+            stretch={false}
+            options={[
+              { value: 'month', label: 'Month' },
+              { value: 'year', label: 'Year' },
+            ]}
+          />
+          {granularity === 'month' && (
+            <div className="inline-flex items-center gap-0.5 rounded-ui-md border border-line bg-panel p-0.5 shadow-ui-sm">
+              <button
+                type="button"
+                onClick={prevMonth}
+                aria-label="Previous month"
+                className="ui-focus touch-target grid h-10 w-10 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="ui-tnum min-w-[92px] px-1 text-center font-editorial text-[13.5px] font-bold tracking-[-0.01em] text-content">
+                {currentMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              </span>
+              <button
+                type="button"
+                onClick={nextMonth}
+                aria-label="Next month"
+                className="ui-focus touch-target grid h-10 w-10 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setRulesPanel({ open: true, seed: null })}
+            leadingIcon={<SlidersHorizontal size={15} />}
+            aria-label="Rules"
+          >
+            <span className="hidden sm:inline">Rules</span>
+          </Button>
           {!isDemo && (
             <Button
               variant="secondary"
@@ -839,9 +544,11 @@ export function Spending() {
               {formatCurrency(heroValue)}
             </div>
             <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-              {hoveredTrend ? (
-                <span className="text-[13.5px] font-medium text-content-muted">Total expenses this month</span>
-              ) : lastMonthDelta !== null ? (
+              {hoveredPeriod ? (
+                <span className="text-[13.5px] font-medium text-content-muted">
+                  Total expenses this {granularity === 'month' ? 'month' : 'year'}
+                </span>
+              ) : priorPeriodDelta !== null ? (
                 <>
                   <span
                     className="ui-tnum inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[13px] font-bold"
@@ -853,21 +560,27 @@ export function Spending() {
                     {spentMore
                       ? <TrendingUp size={13} aria-hidden />
                       : <TrendingDown size={13} aria-hidden />}
-                    {spentMore ? '+' : '−'}{Math.abs(lastMonthDelta)}%
+                    {spentMore ? '+' : '−'}{Math.abs(priorPeriodDelta)}%
                   </span>
                   <span className="text-[13px] font-medium text-content-muted">
-                    {spentMore ? 'more than' : 'less than'} last month
+                    {spentMore ? 'more than' : 'less than'} last {granularity === 'month' ? 'month' : 'year'}
                   </span>
                 </>
               ) : (
-                <span className="text-[13px] font-medium text-content-muted">across {monthLabel(currentMonth)}</span>
+                <span className="text-[13px] font-medium text-content-muted">across {periodDisplayLabel}</span>
               )}
             </div>
           </div>
 
-          {hasTrendChart && (
+          {hasChart && (
             <div className="relative mt-5 pr-2 sm:pr-0">
-              <SpendTrendChart points={trendPoints} activeIdx={activeTrendIdx} onHoverChange={setChartHover} />
+              <CashflowBars
+                periods={periods}
+                granularity={granularity}
+                selectedPeriod={selectedPeriod}
+                onSelect={handleSelectPeriod}
+                onHoverChange={setChartHover}
+              />
             </div>
           )}
 
@@ -949,7 +662,7 @@ export function Spending() {
               {/* Donut — clearly labeled */}
               <div className="mx-auto w-full max-w-[280px]">
                 <div className="mb-3 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
-                  {monthLabel(currentMonth)}
+                  {periodDisplayLabel}
                 </div>
                 <DonutMini
                   cats={donutCats}
@@ -1027,158 +740,24 @@ export function Spending() {
 
       {/* ════════ Recent transactions ════════ */}
       <section className="mt-10">
-        <div className="flex flex-col gap-3 px-1 pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-baseline gap-2.5">
-            <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Recent transactions</h2>
-            {txTotal > 0 && (
-              <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">{txTotal} total</span>
-            )}
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative">
-              <select
-                value={selectedCategory || ''}
-                onChange={(e) => { setSelectedCategory(e.target.value || null); setTxPage(1); }}
-                className="ui-focus touch-target h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm sm:w-auto"
-              >
-                <option value="">All categories</option>
-                {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-                  <option key={key} value={key}>{cfg.label}</option>
-                ))}
-              </select>
-              <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-content-muted" />
-            </div>
-            <div className="relative">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
-              <input
-                type="text"
-                placeholder="Search merchants…"
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setTxPage(1); }}
-                className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-8 text-[13px] text-content shadow-ui-sm sm:w-[220px]"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="Clear search"
-                  className="absolute right-2.5 top-1/2 grid -translate-y-1/2 place-items-center text-content-muted hover:text-content"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {(selectedCategory || debouncedSearch) && (
-          <div className="mb-3 flex flex-wrap gap-2 px-1">
-            {selectedCategory && (
-              <Badge tone="brand" className="pr-1.5">
-                {getCategoryDisplay(selectedCategory).label}
-                <button type="button" onClick={() => setSelectedCategory(null)} aria-label="Clear category filter" className="grid place-items-center">
-                  <X size={12} />
-                </button>
-              </Badge>
-            )}
-            {debouncedSearch && (
-              <Badge tone="neutral" className="pr-1.5">
-                &ldquo;{debouncedSearch}&rdquo;
-                <button type="button" onClick={() => setSearchQuery('')} aria-label="Clear search filter" className="grid place-items-center">
-                  <X size={12} />
-                </button>
-              </Badge>
-            )}
-          </div>
-        )}
-
-        <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-          {loadingTx ? (
-            <div>
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                <div key={i} className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 sm:px-5">
-                  <Skeleton className="h-9 w-9 rounded-ui-md" />
-                  <div className="flex-1">
-                    <Skeleton className="h-3.5 w-32" />
-                    <Skeleton className="mt-2 h-3 w-44" />
-                  </div>
-                  <Skeleton className="h-4 w-20" />
-                </div>
-              ))}
-            </div>
-          ) : transactions.length === 0 ? (
-            <div className="p-3">
-              <EmptyState
-                icon={<Search size={22} />}
-                title="No transactions found"
-                description="Try adjusting your filters or the month in view."
-              />
-            </div>
-          ) : (
-            <div>
-              {transactions.map((tx) => {
-                const amount = parseFloat(tx.amount);
-                const isIncome = amount < 0;
-                const display = getCategoryDisplay(tx.category);
-                const categoryNode = editingTxId === tx.id ? (
-                  categoryEditorFor(tx)
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setEditingTxId(tx.id); }}
-                    title="Click to recategorize"
-                    className="touch-target-inline rounded-ui-xs text-content-muted transition-colors hover:text-content hover:underline"
-                  >
-                    {display.label}
-                  </button>
-                );
-                return (
-                  <TxnRow
-                    key={tx.id}
-                    merchant={tx.merchantName || tx.name}
-                    icon={isIncome ? <DollarSign size={15} /> : (display.icon ?? <Banknote size={15} />)}
-                    isIncome={isIncome}
-                    categoryNode={categoryNode}
-                    date={tx.date}
-                    amount={amount}
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          {txTotal > PAGE_SIZE && (
-            <div className="flex items-center justify-between border-t border-line px-4 py-3.5 sm:px-5">
-              <span className="ui-tnum text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
-                {(txPage - 1) * PAGE_SIZE + 1}&ndash;{Math.min(txPage * PAGE_SIZE, txTotal)} of {txTotal}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setTxPage((p) => Math.max(1, p - 1))}
-                  disabled={txPage <= 1}
-                  aria-label="Previous page"
-                  className="ui-focus grid h-11 w-11 place-items-center rounded-ui-md border border-line text-content transition-colors hover:bg-canvas-sunken disabled:opacity-35 disabled:hover:bg-transparent"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="ui-tnum min-w-[56px] text-center text-[12px] font-semibold text-content-muted">
-                  {txPage} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setTxPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={txPage >= totalPages}
-                  aria-label="Next page"
-                  className="ui-focus grid h-11 w-11 place-items-center rounded-ui-md border border-line text-content transition-colors hover:bg-canvas-sunken disabled:opacity-35 disabled:hover:bg-transparent"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <TransactionList
+          startDate={periodStart}
+          endDate={periodEnd}
+          category={selectedCategory}
+          onCategoryChange={(c) => setSelectedCategory(c)}
+          onClearCategory={() => setSelectedCategory(null)}
+          refreshKey={refreshKey}
+          onDataChanged={loadData}
+          onCreateRule={(seed) => setRulesPanel({ open: true, seed })}
+        />
       </section>
+
+      <RulesPanel
+        open={rulesPanel.open}
+        seed={rulesPanel.seed}
+        onClose={() => setRulesPanel({ open: false, seed: null })}
+        onChanged={loadData}
+      />
     </div>
   );
 }

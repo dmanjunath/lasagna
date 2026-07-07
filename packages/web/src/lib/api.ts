@@ -675,10 +675,21 @@ export const api = {
     }>(`/transactions/spending-summary${qs ? `?${qs}` : ''}`);
   },
 
-  getMonthlyTrend: () =>
-    request<{
-      months: Array<{ month: string; income: number; expenses: number; net: number }>;
-    }>('/transactions/monthly-trend'),
+  getTrend: (params: { granularity: 'month' | 'year'; limit?: number }) => {
+    const sp = new URLSearchParams({ granularity: params.granularity });
+    if (params.limit !== undefined) sp.set('limit', String(params.limit));
+    return request<{ periods: Array<{ period: string; income: number; expenses: number; net: number }> }>(
+      `/transactions/monthly-trend?${sp.toString()}`,
+    );
+  },
+
+  // Category rules
+  getRules: () => request<{ rules: CategoryRule[] }>('/rules'),
+  createRule: (body: CategoryRuleInput) => request<{ rule: CategoryRule }>('/rules', { method: 'POST', body: JSON.stringify(body) }),
+  updateRule: (id: string, body: CategoryRuleInput) => request<{ rule: CategoryRule }>(`/rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteRule: (id: string) => request<{ success: boolean }>(`/rules/${id}`, { method: 'DELETE' }),
+  previewRule: (id: string) => request<{ count: number }>(`/rules/${id}/preview`, { method: 'POST' }),
+  applyRule: (id: string) => request<{ updated: number }>(`/rules/${id}/apply`, { method: 'POST' }),
 
   // Goals
   getGoals: () =>
@@ -881,4 +892,29 @@ export interface QuickImportCurrentProfile {
   dependentCount: number | null;
   hasHDHP: boolean | null;
   isPSLFEligible: boolean | null;
+}
+
+// ─── Category rule types ───────────────────────────────────────────────────
+
+export interface CategoryRuleInput {
+  merchantContains?: string | null;
+  amountEquals?: string | null;
+  amountMin?: string | null;
+  amountMax?: string | null;
+  accountId?: string | null;
+  matchCategory?: string | null;
+  setCategory: string;
+}
+
+export interface CategoryRule {
+  id: string;
+  priority: number;
+  merchantContains: string | null;
+  amountEquals: string | null;
+  amountMin: string | null;
+  amountMax: string | null;
+  accountId: string | null;
+  matchCategory: string | null;
+  setCategory: string;
+  createdAt: string;
 }

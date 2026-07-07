@@ -3,6 +3,7 @@ import { eq, and, sql, desc, notInArray, transactions } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { excludedTxnAccountIds } from "../lib/account-balances.js";
+import { buildPeriods } from "../lib/trend.js";
 
 export const transactionRoutes = new Hono<AuthEnv>();
 
@@ -97,9 +98,24 @@ transactionRoutes.patch("/:id", async (c) => {
     return c.json({ error: "Invalid category" }, 400);
   }
 
-  await db.update(transactions)
-    .set({ category })
-    .where(and(eq(transactions.id, id), eq(transactions.tenantId, session.tenantId)));
+  const existing = await db.query.transactions.findFirst({
+    where: and(eq(transactions.id, id), eq(transactions.tenantId, session.tenantId)),
+  });
+  if (!existing) return c.json({ error: "Transaction not found" }, 404);
+
+  await db.transaction(async (tx) => {
+    await tx.update(transactions)
+      .set({ category, categorySource: "manual" as any, linkedTransactionId: null })
+      .where(eq(transactions.id, id));
+
+    // Unlink the partner of a transfer pair; it keeps category=transfer and
+    // re-enters the matcher pool (no prior-category column to revert from).
+    if (existing.linkedTransactionId) {
+      await tx.update(transactions)
+        .set({ linkedTransactionId: null })
+        .where(and(eq(transactions.id, existing.linkedTransactionId), eq(transactions.tenantId, session.tenantId)));
+    }
+  });
 
   return c.json({ success: true });
 });
@@ -178,7 +194,34 @@ transactionRoutes.get("/spending-summary", async (c) => {
 // GET /monthly-trend - Monthly income vs expenses for last 6 months
 transactionRoutes.get("/monthly-trend", async (c) => {
   const session = c.get("session");
+  const granularity = c.req.query("granularity") as "month" | "year" | undefined;
   const now = new Date();
+
+  if (granularity === "month" || granularity === "year") {
+    const parsed = parseInt(c.req.query("limit") ?? "", 10);
+    const limit = Number.isFinite(parsed)
+      ? Math.min(60, Math.max(1, parsed))
+      : (granularity === "month" ? 13 : null);
+    const bucket = granularity === "month" ? "YYYY-MM" : "YYYY";
+
+    const conditions = [eq(transactions.tenantId, session.tenantId)];
+    if (granularity === "month" && limit != null) {
+      const from = new Date(now.getFullYear(), now.getMonth() - (limit - 1), 1);
+      conditions.push(sql`${transactions.date} >= ${from.toISOString()}::timestamptz`);
+    }
+    const excludedIds = await excludedTxnAccountIds(session.tenantId);
+    if (excludedIds.length > 0) conditions.push(notInArray(transactions.accountId, excludedIds));
+
+    const rows = await db.select({
+      period: sql<string>`to_char(${transactions.date}, ${bucket})`,
+      amount: transactions.amount,
+      category: transactions.category,
+    }).from(transactions).where(and(...conditions));
+
+    return c.json({ periods: buildPeriods(rows, { granularity, limit, now }) });
+  }
+
+  // ---- legacy code below, unchanged ----
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
   const trendExcludedIds = await excludedTxnAccountIds(session.tenantId);
