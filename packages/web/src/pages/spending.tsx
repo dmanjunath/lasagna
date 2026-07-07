@@ -9,13 +9,13 @@ import {
   Receipt,
 } from 'lucide-react';
 import { Link } from 'wouter';
+import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
 import { PageActions } from '../components/common/page-actions';
 import { Button, EmptyState, Eyebrow, SegmentedControl, Skeleton } from '../components/uikit';
 import { CashflowBars, periodLabel, type CashflowPeriod } from '../components/charts/CashflowBars';
-import { getCategoryDisplay } from '../lib/categories';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { RulesPanel } from '../components/rules/RulesPanel';
 
@@ -68,7 +68,12 @@ function colorForIndex(i: number): string {
 // ---------------------------------------------------------------------------
 
 interface SpendingCategory {
-  category: string;
+  id: string;
+  name: string;
+  systemKey: string | null;
+  groupId: string;
+  groupName: string;
+  groupType: 'income' | 'expense' | 'transfer';
   total: number;
   count: number;
   percentage: number;
@@ -165,13 +170,13 @@ function DonutMini({
 }
 
 // ---------------------------------------------------------------------------
-// Stat rail cell (Income / Net flow / Savings rate) — sits inline at the base
-// of the hero, divided by hairlines, instead of three separate boxy cards.
+// Stat cell (Income / Net flow / Savings rate) — sits inline at the top of the
+// hero beside the Spent block, instead of three separate boxy cards.
 // ---------------------------------------------------------------------------
 
-function StatCell({ label, value, sub, tone, className }: { label: string; value: string; sub: string; tone?: 'pos' | 'neg'; className?: string }) {
+function StatCell({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: 'pos' | 'neg' }) {
   return (
-    <div className={cn('px-0 sm:px-6 sm:first:pl-0', className)}>
+    <div>
       <div className="text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[20px] sm:text-[25px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
@@ -205,8 +210,12 @@ export function Spending() {
   const [netCashFlow, setNetCashFlow] = useState(0);
   const [periods, setPeriods] = useState<CashflowPeriod[]>([]);
 
-  // Filters
+  // Filters — selectedCategory holds a category ID (uuid); TransactionList
+  // forwards it to the API, which dual-accepts ids.
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Where-it-went rollup: per-category slices or rolled up by group.
+  const [rollup, setRollup] = useState<'category' | 'group'>('category');
 
   // Linked account detection
   const [hasLinkedAccounts, setHasLinkedAccounts] = useState(false);
@@ -226,6 +235,10 @@ export function Spending() {
 
   // Loading
   const [loadingSummary, setLoadingSummary] = useState(true);
+  // First-load gate: the big skeleton renders only before the FIRST summary
+  // resolves. Later period switches keep stale content mounted (dimmed) so the
+  // page doesn't flash to skeletons on every bar click.
+  const [hasLoadedSummary, setHasLoadedSummary] = useState(false);
 
   // Refresh counter
   const [refreshKey, setRefreshKey] = useState(0);
@@ -275,7 +288,7 @@ export function Spending() {
         setTotalIncome(0);
         setNetCashFlow(0);
       })
-      .finally(() => { if (active) setLoadingSummary(false); });
+      .finally(() => { if (active) { setLoadingSummary(false); setHasLoadedSummary(true); } });
     return () => { active = false; };
   }, [periodStart, periodEnd, refreshKey]);
 
@@ -325,21 +338,42 @@ export function Spending() {
   }, [currentMonth]);
 
   const spendingCategories = useMemo(
-    () => categories.filter((c) => c.category !== 'income' && c.category !== 'transfer'),
+    () => categories.filter((c) => c.groupType !== 'income' && c.groupType !== 'transfer'),
     [categories],
   );
+
+  // Normalized rows for the donut/ledger. Category mode: one row per category
+  // (key = category id, label = tenant name). Group mode: reduced by groupId.
+  const rollupRows = useMemo(() => {
+    if (rollup === 'category') {
+      return spendingCategories.map((c) => ({
+        key: c.id,
+        label: c.name,
+        total: c.total,
+      }));
+    }
+    const byGroup = new Map<string, { key: string; label: string; total: number }>();
+    for (const c of spendingCategories) {
+      const key = c.groupId;
+      const existing = byGroup.get(key);
+      if (existing) existing.total += c.total;
+      else byGroup.set(key, { key, label: c.groupName || 'Other', total: c.total });
+    }
+    return [...byGroup.values()];
+  }, [spendingCategories, rollup]);
 
   // DonutMini data — viz palette, color assigned by SORTED position so the
   // largest slice always gets the same hue across renders. Sub-5% categories
   // roll into a single "Smaller categories" bin (preserving 100% of the total)
   // so the donut stays scannable instead of drawing unreadable slivers.
   const donutCats = useMemo(() => {
-    const sorted = [...spendingCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+    const sorted = [...rollupRows].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
     const total = sorted.reduce((s, c) => s + Math.abs(c.total), 0);
     if (total <= 0) {
       return sorted.map((c, i) => ({
-        name: c.category,
-        label: getCategoryDisplay(c.category).label,
+        // 'name' carries the rollup KEY (category id / group id) — used as the filter value on click.
+        name: c.key,
+        label: c.label,
         amount: Math.abs(c.total),
         color: colorForIndex(i),
         children: [] as Array<{ name: string; label: string; amount: number }>,
@@ -353,8 +387,9 @@ export function Spending() {
       else small.push(c);
     }
     const bigSlices = big.map((c, i) => ({
-      name: c.category,
-      label: getCategoryDisplay(c.category).label,
+      // 'name' carries the rollup KEY (category id / group id) — used as the filter value on click.
+      name: c.key,
+      label: c.label,
       amount: Math.abs(c.total),
       color: colorForIndex(i),
       children: [] as Array<{ name: string; label: string; amount: number }>,
@@ -363,37 +398,45 @@ export function Spending() {
       const otherTotal = small.reduce((s, c) => s + Math.abs(c.total), 0);
       bigSlices.push({
         name: '__tailbin__',
-        label: 'Smaller categories',
+        label: rollup === 'group' ? 'Smaller groups' : 'Smaller categories',
         amount: otherTotal,
         color: TAIL_COLOR,
         children: small.map((c) => ({
-          name: c.category,
-          label: getCategoryDisplay(c.category).label,
+          name: c.key,
+          label: c.label,
           amount: Math.abs(c.total),
         })),
       });
     } else if (small.length === 1) {
       bigSlices.push({
-        name: small[0].category,
-        label: getCategoryDisplay(small[0].category).label,
+        // 'name' carries the rollup KEY (category id / group id) — used as the filter value on click.
+        name: small[0].key,
+        label: small[0].label,
         amount: Math.abs(small[0].total),
         color: colorForIndex(bigSlices.length),
         children: [],
       });
     }
     return bigSlices;
-  }, [spendingCategories]);
+  }, [rollupRows, rollup]);
   const donutTotal = useMemo(
     () => donutCats.reduce((s, c) => s + c.amount, 0),
     [donutCats],
   );
 
-  // Top category (for lede)
+  // Top category (for lede) — category semantics regardless of the rollup toggle.
   const topCategoryLabel = useMemo(() => {
     if (spendingCategories.length === 0) return null;
     const top = [...spendingCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total))[0];
-    return top ? getCategoryDisplay(top.category).label : null;
+    return top ? top.name : null;
   }, [spendingCategories]);
+
+  // Switching rollup clears the ledger's category filter (ids don't carry over).
+  const handleRollupChange = useCallback((r: 'category' | 'group') => {
+    setRollup(r);
+    setSelectedCategory(null);
+    setDonutHover(null);
+  }, []);
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
   const priorPeriodDelta = useMemo(() => {
@@ -429,7 +472,7 @@ export function Spending() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Spending
           </h1>
-          {!loadingSummary && (
+          {hasLoadedSummary && (
             <p className="mt-1.5 text-[14px] font-medium text-content-muted">
               {topCategoryLabel ? (
                 <>Where your money went — most on <b className="font-bold text-content">{topCategoryLabel}</b>.</>
@@ -504,28 +547,32 @@ export function Spending() {
       </header>
 
       {/* ════════ Loading skeleton ════════ */}
-      {loadingSummary && (
+      {loadingSummary && !hasLoadedSummary && (
         <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-[26px]">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="mt-3 h-12 w-56" />
-          <Skeleton className="mt-3 h-7 w-44 rounded-full" />
-          <Skeleton className="mt-6 h-[190px] w-full rounded-ui-md" />
-          <div className="mt-6 grid grid-cols-3 gap-6 border-t border-line pt-5">
-            {[0, 1, 2].map((i) => (
-              <div key={i}>
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="mt-3 h-6 w-20" />
-                <Skeleton className="mt-3 h-3 w-14" />
-              </div>
-            ))}
+          <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
+            <div>
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="mt-3 h-12 w-56" />
+              <Skeleton className="mt-3 h-7 w-44 rounded-full" />
+            </div>
+            <div className="flex flex-wrap gap-x-8">
+              {[0, 1, 2].map((i) => (
+                <div key={i}>
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="mt-3 h-6 w-20" />
+                  <Skeleton className="mt-3 h-3 w-14" />
+                </div>
+              ))}
+            </div>
           </div>
+          <Skeleton className="mt-6 h-[190px] w-full rounded-ui-md" />
         </div>
       )}
 
-      {/* ════════ HERO — the one confident statement: spent + how it compares +
-           the interactive trend, closed by an inline stat rail (income / net /
-           savings) so the page opens with a single, complete answer. ════════ */}
-      {!loadingSummary && !noData && (
+      {/* ════════ HERO — the one confident statement: spent + how it compares,
+           with the three KPIs (income / net / savings) inline at the top and
+           the interactive trend below — a single, complete answer. ════════ */}
+      {hasLoadedSummary && !noData && (
         <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
           <div
             aria-hidden
@@ -536,39 +583,71 @@ export function Spending() {
                 'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
             }}
           />
-          <div className="relative flex flex-col gap-1">
-            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              Spent · {heroCaption}
-            </div>
-            <div className="mt-2 font-editorial text-[40px] sm:text-[54px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
-              {formatCurrency(heroValue)}
-            </div>
-            <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-              {hoveredPeriod ? (
-                <span className="text-[13.5px] font-medium text-content-muted">
-                  Total expenses this {granularity === 'month' ? 'month' : 'year'}
-                </span>
-              ) : priorPeriodDelta !== null ? (
-                <>
-                  <span
-                    className="ui-tnum inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[13px] font-bold"
-                    style={{
-                      background: spentMore ? 'var(--ui-negative-soft)' : 'var(--ui-positive-soft)',
-                      color: spentMore ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-positive))',
-                    }}
-                  >
-                    {spentMore
-                      ? <TrendingUp size={13} aria-hidden />
-                      : <TrendingDown size={13} aria-hidden />}
-                    {spentMore ? '+' : '−'}{Math.abs(priorPeriodDelta)}%
+          <div className={cn(
+            'relative flex flex-wrap items-start justify-between gap-x-8 gap-y-5 transition-opacity duration-200',
+            loadingSummary && 'opacity-50',
+          )}>
+            <div className="flex flex-col gap-1">
+              <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+                Spent · {heroCaption}
+              </div>
+              {/* Keyed by period so switching months slides the new figure in;
+                   hover swaps stay instant (same key, no re-animation). */}
+              <motion.div
+                key={`${granularity}:${selectedPeriod}`}
+                initial={hasLoadedSummary ? { opacity: 0, y: 6 } : false}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="mt-2 font-editorial text-[40px] sm:text-[54px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum"
+              >
+                {formatCurrency(heroValue)}
+              </motion.div>
+              <div className="mt-3.5 flex min-h-7 flex-wrap items-center gap-2.5">
+                {hoveredPeriod ? (
+                  <span className="text-[13.5px] font-medium text-content-muted">
+                    Total expenses this {granularity === 'month' ? 'month' : 'year'}
                   </span>
-                  <span className="text-[13px] font-medium text-content-muted">
-                    {spentMore ? 'more than' : 'less than'} last {granularity === 'month' ? 'month' : 'year'}
-                  </span>
-                </>
-              ) : (
-                <span className="text-[13px] font-medium text-content-muted">across {periodDisplayLabel}</span>
-              )}
+                ) : priorPeriodDelta !== null ? (
+                  <>
+                    <span
+                      className="ui-tnum inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[13px] font-bold"
+                      style={{
+                        background: spentMore ? 'var(--ui-negative-soft)' : 'var(--ui-positive-soft)',
+                        color: spentMore ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-positive))',
+                      }}
+                    >
+                      {spentMore
+                        ? <TrendingUp size={13} aria-hidden />
+                        : <TrendingDown size={13} aria-hidden />}
+                      {spentMore ? '+' : '−'}{Math.abs(priorPeriodDelta)}%
+                    </span>
+                    <span className="text-[13px] font-medium text-content-muted">
+                      {spentMore ? 'more than' : 'less than'} last {granularity === 'month' ? 'month' : 'year'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[13px] font-medium text-content-muted">across {periodDisplayLabel}</span>
+                )}
+              </div>
+            </div>
+
+            {/* KPI cluster — the three summary numbers beside the Spent figure;
+                 right-aligned on the same row on desktop, wrapping below the
+                 Spent block on narrow screens. */}
+            <div className="flex flex-wrap gap-x-8 gap-y-5 text-left">
+              <StatCell label="Income" value={formatCurrency(totalIncome)} sub="received" />
+              <StatCell
+                label="Net flow"
+                value={`${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
+                sub={netCashFlow >= 0 ? 'surplus' : 'deficit'}
+                tone={netCashFlow >= 0 ? 'pos' : 'neg'}
+              />
+              <StatCell
+                label="Savings rate"
+                value={savingsRate !== null ? `${savingsRate < 0 ? '−' : ''}${Math.abs(savingsRate).toFixed(0)}%` : '—'}
+                sub="of income"
+                tone={savingsRate !== null && savingsRate < 0 ? 'neg' : undefined}
+              />
             </div>
           </div>
 
@@ -583,26 +662,6 @@ export function Spending() {
               />
             </div>
           )}
-
-          {/* Inline stat rail — the three summary numbers, folded into the hero.
-               2-col on mobile (savings rate spans its own row so the label never
-               wraps); 3-col with hairline dividers from sm up. */}
-          <div className="relative mt-6 grid grid-cols-2 gap-x-8 gap-y-5 border-t border-line pt-5 sm:grid-cols-3 sm:gap-x-0 sm:gap-y-0 sm:divide-x sm:divide-line">
-            <StatCell label="Income" value={formatCurrency(totalIncome)} sub="received" />
-            <StatCell
-              label="Net flow"
-              value={`${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
-              sub={netCashFlow >= 0 ? 'surplus' : 'deficit'}
-              tone={netCashFlow >= 0 ? 'pos' : 'neg'}
-            />
-            <StatCell
-              className="col-span-2 sm:col-span-1"
-              label="Savings rate"
-              value={savingsRate !== null ? `${savingsRate < 0 ? '−' : ''}${Math.abs(savingsRate).toFixed(0)}%` : '—'}
-              sub="of income"
-              tone={savingsRate !== null && savingsRate < 0 ? 'neg' : undefined}
-            />
-          </div>
         </section>
       )}
 
@@ -649,15 +708,29 @@ export function Spending() {
       {/* ════════ WHERE IT WENT — donut (labeled, long-tail binned) paired with
            a portfolio-grade two-column category ledger that fills the width.
            Rows filter the transactions below; hover links donut ⇄ ledger. ═══ */}
-      {!loadingSummary && spendingCategories.length > 0 && (
+      {hasLoadedSummary && spendingCategories.length > 0 && (
         <section className="mt-10">
-          <div className="flex items-end justify-between gap-4 pb-4">
-            <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Where it went</h2>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted ui-tnum">
-              {spendingCategories.length} categories
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-4">
+            <div className="flex items-baseline gap-3">
+              <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Where it went</h2>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted ui-tnum">
+                {rollupRows.length} {rollup === 'group' ? (rollupRows.length === 1 ? 'group' : 'groups') : (rollupRows.length === 1 ? 'category' : 'categories')}
+              </span>
+            </div>
+            <SegmentedControl
+              aria-label="Break down by"
+              value={rollup}
+              onChange={handleRollupChange}
+              options={[
+                { value: 'category', label: 'Category' },
+                { value: 'group', label: 'Group' },
+              ]}
+            />
           </div>
-          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
+          <div className={cn(
+            'rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7 transition-opacity duration-200',
+            loadingSummary && 'opacity-50',
+          )}>
             <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[268px_1fr] lg:gap-12">
               {/* Donut — clearly labeled */}
               <div className="mx-auto w-full max-w-[280px]">
@@ -670,8 +743,10 @@ export function Spending() {
                   hovered={donutHover}
                   onHoverChange={setDonutHover}
                   fmtAmount={formatCurrency}
-                  centerLabel={spendingCategories.length === 1 ? 'Category' : 'Categories'}
-                  centerValue={String(spendingCategories.length)}
+                  centerLabel={rollup === 'group'
+                    ? (rollupRows.length === 1 ? 'Group' : 'Groups')
+                    : (rollupRows.length === 1 ? 'Category' : 'Categories')}
+                  centerValue={String(rollupRows.length)}
                 />
                 <div className="mt-3 text-center text-[12px] font-medium text-content-muted">
                   Tap a slice to isolate it
@@ -683,7 +758,10 @@ export function Spending() {
                 {donutCats.map((cat, idx) => {
                   const pct = donutTotal > 0 ? (cat.amount / donutTotal) * 100 : 0;
                   const isOther = cat.name === '__tailbin__';
-                  const isSelected = !isOther && selectedCategory === cat.name;
+                  // Group rows aren't click-to-filter in v1 — the group→child
+                  // expansion lives on /transactions.
+                  const selectable = !isOther && rollup === 'category';
+                  const isSelected = selectable && selectedCategory === cat.name;
                   const dimmed = donutHover !== null && donutHover !== idx;
                   return (
                     <div
@@ -698,11 +776,11 @@ export function Spending() {
                     >
                       <button
                         type="button"
-                        onClick={isOther ? undefined : () => setSelectedCategory(isSelected ? null : cat.name)}
+                        onClick={selectable ? () => setSelectedCategory(isSelected ? null : cat.name) : undefined}
                         className={cn(
                           'ui-focus flex min-h-touch min-w-0 items-center gap-3 rounded-ui-sm px-2.5 py-2 text-left transition-colors',
-                          isOther ? 'cursor-default' : 'cursor-pointer',
-                          isSelected ? 'bg-brand-soft' : !isOther && 'hover:bg-brand-softer',
+                          selectable ? 'cursor-pointer' : 'cursor-default',
+                          isSelected ? 'bg-brand-soft' : selectable && 'hover:bg-brand-softer',
                         )}
                       >
                         <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: cat.color }} aria-hidden />
@@ -749,6 +827,7 @@ export function Spending() {
           refreshKey={refreshKey}
           onDataChanged={loadData}
           onCreateRule={(seed) => setRulesPanel({ open: true, seed })}
+          viewAllHref="/transactions"
         />
       </section>
 

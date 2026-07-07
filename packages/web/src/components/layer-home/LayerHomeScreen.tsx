@@ -305,7 +305,7 @@ interface LayerHomeScreenProps {
   totalAssets?: number;
   totalLiabilities?: number;
   healthScore?: { score: number; grade: string; color: string } | null;
-  spendingCategories?: Array<{ category: string; total: number; count: number; percentage: number }>;
+  spendingCategories?: Array<{ name: string; systemKey: string | null; total: number; count: number; percentage: number }>;
   totalSpending?: number;
   totalIncome?: number;
   lastActionsGeneratedAt?: Date | null;
@@ -455,9 +455,9 @@ export function LayerHomeScreen({
   // Monthly spend helpers
   const spendCatsForDonut = useMemo(() =>
     (spendingCategories || []).map(c => ({
-      name: c.category,
+      name: c.name,
       total: c.total,
-      color: CAT_COLORS[c.category] || '#7A5C3F',
+      color: CAT_COLORS[c.systemKey ?? ''] || '#7A5C3F',
     })),
     [spendingCategories]
   );

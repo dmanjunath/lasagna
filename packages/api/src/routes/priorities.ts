@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, desc, and, sql, notInArray, accounts, balanceSnapshots, financialProfiles, transactions, goals, goalAccounts } from "@lasagna/core";
+import { eq, desc, and, sql, notInArray, accounts, balanceSnapshots, financialProfiles, transactions, categories, categoryGroups, goals, goalAccounts } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { excludedTxnAccountIds } from "../lib/account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "../lib/goal-progress.js";
@@ -126,10 +126,12 @@ priorityRoutes.get("/", async (c) => {
   const [txnResult] = await db
     .select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
     .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
     .where(and(
       eq(transactions.tenantId, session.tenantId),
       sql`${transactions.amount} > 0`,
-      sql`${transactions.category} != 'transfer'`,
+      sql`coalesce(${categoryGroups.type}::text, 'expense') != 'transfer'`,
       sql`${transactions.date} >= ${thirtyDaysAgo.toISOString().split('T')[0]}`,
       ...(excludedTxnIds.length > 0 ? [notInArray(transactions.accountId, excludedTxnIds)] : []),
     ));

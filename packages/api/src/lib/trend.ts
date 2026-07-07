@@ -5,7 +5,9 @@
 export interface TrendRow {
   period: string;
   amount: string;
-  category: string;
+  // Taxonomy group type (income/expense/transfer). Null classifies as
+  // expense (defensive coalesce; should not occur post-backfill).
+  groupType?: string | null;
 }
 
 export interface TrendPeriod {
@@ -41,7 +43,7 @@ export function buildPeriods(
   );
   for (const row of rows) {
     const entry = map.get(row.period);
-    if (!entry || row.category === "transfer") continue;
+    if (!entry || row.groupType === "transfer") continue;
     const amount = parseFloat(row.amount || "0");
     if (amount < 0) entry.income += Math.abs(amount);
     else entry.expenses += amount;

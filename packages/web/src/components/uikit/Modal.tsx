@@ -89,7 +89,10 @@ export function Modal({
       : 'fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-ui-lg border [animation:ui-scale-in_180ms_cubic-bezier(0.22,1,0.36,1)] max-h-[calc(100dvh-2rem)]';
 
   return createPortal(
-    <div className="ui-root fixed inset-0 z-[90]">
+    // ui-root lives on the PANEL, not this wrapper: .ui-root paints an opaque
+    // canvas background, which on a fixed inset-0 wrapper covers the entire
+    // page and makes it "disappear" behind the backdrop.
+    <div className="fixed inset-0 z-[90]">
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px] [animation:ui-fade-in_160ms_ease-out]"
         onClick={onClose}
@@ -108,7 +111,10 @@ export function Modal({
         onDragEnd={(_e, info: PanInfo) => {
           if (info.offset.y > 96 || info.velocity.y > 600) onClose();
         }}
-        className={cn('flex flex-col border-line bg-panel-raised shadow-ui-xl', panel)}
+        className={cn('ui-root flex flex-col border-line bg-panel-raised shadow-ui-xl', panel)}
+        // .ui-root's canvas background out-specifies bg-panel-raised in the
+        // compiled CSS order; the inline style keeps the panel raised-white.
+        style={{ backgroundColor: 'rgb(var(--ui-panel-raised))' }}
       >
         {swipeable && (
           <div

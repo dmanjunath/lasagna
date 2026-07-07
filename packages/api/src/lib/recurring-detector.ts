@@ -3,8 +3,9 @@ import { and, eq, gte, accounts, recurringTransactions, transactions } from "@la
 import { db } from "./db.js";
 import { getModel, getModelSlug } from "../agent/index.js";
 import { logLlmUsage } from "./activity.js";
+import { loadTaxonomy } from "./taxonomy.js";
 
-const SYSTEM = `You analyze a user's recent bank transactions and identify RECURRING expenses and income.
+const buildSystemPrompt = (categoryNames: string[]) => `You analyze a user's recent bank transactions and identify RECURRING expenses and income.
 
 You will be given:
 1. A list of the user's connected ACCOUNTS (including any debt accounts — loans, credit cards). Use these as ground truth for what kind of debt payments to expect.
@@ -36,7 +37,7 @@ Return ONLY a JSON array. No prose, no markdown. Each element:
   "merchantName": "merchant as shown in transactions",
   "amount": <number, typical amount, positive>,
   "frequency": "weekly" | "biweekly" | "monthly" | "quarterly" | "annually",
-  "category": "subscriptions" | "housing" | "utilities" | "insurance" | "transportation" | "healthcare" | "food_dining" | "debt_payment" | "income" | "other",
+  "category": one of: ${categoryNames.map((n) => JSON.stringify(n)).join(" | ")},
   "nextDueDate": "<ISO date, yyyy-mm-dd>",
   "confidence": <0.0-1.0>,
   "reasoning": "<1 sentence why this is recurring, and which account it pays off if applicable>"
@@ -56,18 +57,17 @@ interface LLMResult {
 }
 
 const VALID_FREQ = new Set(["weekly", "biweekly", "monthly", "quarterly", "annually"]);
-const VALID_CAT = new Set([
-  "income", "housing", "transportation", "food_dining", "groceries",
-  "utilities", "healthcare", "insurance", "entertainment", "shopping",
-  "personal_care", "education", "travel", "subscriptions",
-  "savings_investment", "debt_payment", "gifts_donations", "taxes",
-  "transfer", "other",
-]);
 
 export async function detectRecurringForTenant(tenantId: string): Promise<{
   detected: number;
   written: number;
 }> {
+  // Tenant taxonomy up front: enabled category NAMES feed the LLM prompt
+  // (decision 13); the id→name map labels the compact transaction list.
+  const taxonomy = await loadTaxonomy(tenantId);
+  const enabledCategories = taxonomy.filter((c) => !c.disabledAt);
+  const catNameById = new Map(taxonomy.map((c) => [c.id, c.name]));
+
   // Connected accounts — used as ground truth for debt payment detection.
   const accts = await db
     .select({
@@ -88,7 +88,7 @@ export async function detectRecurringForTenant(tenantId: string): Promise<{
       name: transactions.name,
       merchantName: transactions.merchantName,
       amount: transactions.amount,
-      category: transactions.category,
+      categoryId: transactions.categoryId,
     })
     .from(transactions)
     .where(and(eq(transactions.tenantId, tenantId), gte(transactions.date, sixMonthsAgo)));
@@ -97,12 +97,12 @@ export async function detectRecurringForTenant(tenantId: string): Promise<{
     return { detected: 0, written: 0 };
   }
 
-  // Compact representation to keep the prompt small
+  // Compact representation to keep the prompt small (c: tenant category name)
   const compact = recent.map((t) => ({
     d: t.date.toISOString().slice(0, 10),
     m: t.merchantName || t.name,
     a: Number(t.amount),
-    c: t.category,
+    c: (t.categoryId ? catNameById.get(t.categoryId) : undefined) ?? "Other",
   }));
 
   const accountCtx = accts.map((a) => ({
@@ -114,7 +114,7 @@ export async function detectRecurringForTenant(tenantId: string): Promise<{
   const model = getModel("medium");
   const result = await generateText({
     model,
-    system: SYSTEM,
+    system: buildSystemPrompt(enabledCategories.map((c) => c.name)),
     prompt: `Accounts on file (use these to recognize debt payments):
 ${JSON.stringify(accountCtx, null, 2)}
 
@@ -203,11 +203,15 @@ ${JSON.stringify(compact)}`,
     return bestId;
   }
 
+  // Case-insensitive tenant category NAME → row; unknown names land on Other.
+  const catByLowerName = new Map(enabledCategories.map((c) => [c.name.toLowerCase(), c]));
+  const otherRow = taxonomy.find((c) => c.systemKey === "other") ?? null;
+
   let written = 0;
   for (const r of parsed) {
     if (!r.name || !r.merchantName || !r.frequency || !VALID_FREQ.has(r.frequency)) continue;
     if (typeof r.amount !== "number" || Number.isNaN(r.amount)) continue;
-    const cat = VALID_CAT.has(r.category) ? r.category : "other";
+    const catRow = catByLowerName.get(String(r.category ?? "").toLowerCase().trim()) ?? otherRow;
     const nextDue = r.nextDueDate ? new Date(r.nextDueDate) : null;
     if (nextDue && Number.isNaN(nextDue.getTime())) continue;
 
@@ -220,7 +224,7 @@ ${JSON.stringify(compact)}`,
       merchantName: r.merchantName.slice(0, 255),
       amount: String(r.amount),
       frequency: r.frequency,
-      category: cat as never,
+      categoryId: catRow!.id,
       nextDueDate: nextDue,
       lastSeenDate: new Date(),
       confidence: Math.max(0, Math.min(1, Number(r.confidence) || 0)).toFixed(2),

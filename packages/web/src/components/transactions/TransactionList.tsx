@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Search, X, DollarSign, Banknote } from 'lucide-react';
+import { Link } from 'wouter';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
 import { Badge, EmptyState, Skeleton } from '../uikit';
-import { CATEGORY_CONFIG, getCategoryDisplay } from '../../lib/categories';
+import { categoryOptionLabel, useCategoryDisplay, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
+import { TransactionDetail } from './TransactionDetail';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,8 +38,99 @@ interface Transaction {
   name: string;
   merchantName: string | null;
   amount: string;
-  category: string;
+  categoryId: string;
   accountId: string;
+  accountName: string | null;
+  pending: number;
+  notes: string | null;
+  excludedAt: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// CategoryEditorSelect — exported so the /transactions page can reuse the
+// select UI. The optimistic-update/revert logic stays in the caller.
+// ---------------------------------------------------------------------------
+
+export function CategoryEditorSelect({
+  value,
+  onChange,
+  onBlur,
+  currentLabel,
+}: {
+  /** Category id (uuid) of the row's current category, '' when unknown. */
+  value: string;
+  onChange: (categoryId: string) => void;
+  onBlur: () => void;
+  /** Display label for a current value the picker can't offer (disabled/legacy). */
+  currentLabel?: string;
+}) {
+  const pickerGroups = usePickerGroups();
+  const { byId } = useTaxonomy();
+  const current = value ? byId.get(value) : undefined;
+  const selectable = !!current && !current.disabled;
+  return (
+    <select
+      autoFocus
+      value={value}
+      onBlur={onBlur}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-7 rounded-ui-sm border border-line-strong bg-panel px-1.5 text-[12px] font-medium text-content"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {!selectable && (
+        <option value={value} disabled>{currentLabel ?? current?.name ?? 'Uncategorized'}</option>
+      )}
+      {pickerGroups.map(({ group, categories }) => (
+        <optgroup key={group.id} label={group.name}>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CreateRuleBar — exported so the /transactions page can reuse the prompt UI.
+// ---------------------------------------------------------------------------
+
+export function CreateRuleBar({
+  merchantText,
+  category,
+  onCreate,
+  onDismiss,
+}: {
+  merchantText: string;
+  /** Category id (uuid) the rule would set. */
+  category: string;
+  onCreate: () => void;
+  onDismiss: () => void;
+}) {
+  const displayOf = useCategoryDisplay();
+  return (
+    <div className="flex items-center gap-3 bg-[rgb(var(--ui-brand-softer))] px-4 py-2.5 text-[12.5px] sm:px-5">
+      <span className="flex-1 text-content-muted">
+        Always categorize &ldquo;{merchantText}&rdquo; as{' '}
+        <b className="font-semibold text-content">{displayOf({ categoryId: category }).label}</b>?
+      </span>
+      <button
+        type="button"
+        onClick={onCreate}
+        className="shrink-0 font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+      >
+        Create rule
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        className="grid shrink-0 place-items-center text-content-muted hover:text-content"
+      >
+        <X size={13} />
+      </button>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -46,8 +139,8 @@ interface Transaction {
 // label stays a click target so it can open the inline recategorize editor.
 // ---------------------------------------------------------------------------
 
-function TxnRow({
-  merchant, icon, isIncome, categoryNode, date, amount,
+export function TxnRow({
+  merchant, icon, isIncome, categoryNode, date, amount, accountName, excluded,
 }: {
   merchant: string;
   icon: React.ReactNode;
@@ -55,6 +148,8 @@ function TxnRow({
   categoryNode: React.ReactNode;
   date: string;
   amount: number;
+  accountName?: string;
+  excluded?: boolean;
 }) {
   return (
     <div className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
@@ -66,13 +161,20 @@ function TxnRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
-        <div className="mt-0.5 flex items-center text-[12.5px] text-content-muted">
+        <div className={cn('mt-0.5 flex items-center text-[12.5px] text-content-muted', excluded && 'opacity-50')}>
           {categoryNode}
+          {excluded && <Badge tone="neutral" className="ml-1.5 shrink-0">Excluded</Badge>}
           <span className="mx-1 text-content-faint">·</span>
-          <span className="ui-tnum">{shortDate(date)}</span>
+          <span className="ui-tnum whitespace-nowrap">{shortDate(date)}</span>
+          {accountName && (
+            <>
+              <span className="mx-1 text-content-faint">·</span>
+              <span className="truncate">{accountName}</span>
+            </>
+          )}
         </div>
       </div>
-      <span className={cn('shrink-0 font-editorial text-[14.5px] font-extrabold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive')}>
+      <span className={cn('shrink-0 font-editorial text-[14.5px] font-extrabold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive', excluded && 'opacity-50')}>
         {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
       </span>
     </div>
@@ -96,6 +198,7 @@ export function TransactionList({
   title = 'Recent transactions',
   showCategoryFilter = true,
   onCategoryChange,
+  viewAllHref,
 }: {
   accountId?: string;
   startDate?: string;
@@ -108,9 +211,13 @@ export function TransactionList({
   title?: string;
   showCategoryFilter?: boolean;
   onCategoryChange?: (cat: string | null) => void;
+  viewAllHref?: string;
 }) {
   // When `category` prop is provided (even as null) the component is controlled.
   const isControlled = category !== undefined;
+
+  const pickerGroups = usePickerGroups();
+  const displayOf = useCategoryDisplay();
 
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
@@ -121,6 +228,7 @@ export function TransactionList({
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [createRulePrompt, setCreateRulePrompt] = useState<{ txId: string; merchantText: string; category: string } | null>(null);
+  const [detailTx, setDetailTx] = useState<Transaction | null>(null);
 
   const effectiveCategory = isControlled ? category : internalCategory;
 
@@ -172,34 +280,27 @@ export function TransactionList({
 
   function categoryEditorFor(tx: Transaction) {
     return (
-      <select
-        autoFocus
-        value={tx.category}
+      <CategoryEditorSelect
+        value={tx.categoryId ?? ''}
+        currentLabel={displayOf(tx).label}
         onBlur={() => setEditingTxId(null)}
-        onChange={async (e) => {
-          const newCat = e.target.value;
-          const prevCat = tx.category;
+        onChange={async (newCatId) => {
+          const prevCatId = tx.categoryId;
           const merchantText = tx.merchantName || tx.name;
-          setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, category: newCat } : t));
+          setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: newCatId } : t));
           setEditingTxId(null);
           try {
-            await api.updateTransactionCategory(tx.id, newCat);
+            await api.updateTransactionCategory(tx.id, newCatId);
             if (onCreateRule) {
-              setCreateRulePrompt({ txId: tx.id, merchantText, category: newCat });
+              setCreateRulePrompt({ txId: tx.id, merchantText, category: newCatId });
             }
             onDataChanged?.();
           } catch (err) {
             console.error(err);
-            setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, category: prevCat } : t));
+            setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: prevCatId } : t));
           }
         }}
-        className="h-7 rounded-ui-sm border border-line-strong bg-panel px-1.5 text-[12px] font-medium text-content"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-          <option key={key} value={key}>{cfg.label}</option>
-        ))}
-      </select>
+      />
     );
   }
 
@@ -210,6 +311,9 @@ export function TransactionList({
           <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">{title}</h2>
           {total > 0 && (
             <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">{total} total</span>
+          )}
+          {viewAllHref && (
+            <Link href={viewAllHref} className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">View all →</Link>
           )}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -229,8 +333,12 @@ export function TransactionList({
                 className="ui-focus touch-target h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm sm:w-auto"
               >
                 <option value="">All categories</option>
-                {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-                  <option key={key} value={key}>{cfg.label}</option>
+                {pickerGroups.map(({ group, categories }) => (
+                  <optgroup key={group.id} label={group.name}>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
               <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-content-muted" />
@@ -263,7 +371,7 @@ export function TransactionList({
         <div className="mb-3 flex flex-wrap gap-2 px-1">
           {effectiveCategory && (
             <Badge tone="brand" className="pr-1.5">
-              {getCategoryDisplay(effectiveCategory).label}
+              {displayOf({ categoryId: effectiveCategory }).label}
               <button
                 type="button"
                 onClick={() => {
@@ -292,7 +400,9 @@ export function TransactionList({
       )}
 
       <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-        {loading ? (
+        {/* Skeleton only before the FIRST rows arrive; later refetches keep the
+             stale rows mounted (dimmed) so period/filter changes don't flash. */}
+        {loading && transactions.length === 0 ? (
           <div>
             {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
               <div key={i} className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 sm:px-5">
@@ -305,7 +415,7 @@ export function TransactionList({
               </div>
             ))}
           </div>
-        ) : transactions.length === 0 ? (
+        ) : !loading && transactions.length === 0 ? (
           <div className="p-3">
             <EmptyState
               icon={<Search size={22} />}
@@ -314,11 +424,11 @@ export function TransactionList({
             />
           </div>
         ) : (
-          <div>
+          <div className={cn('transition-opacity duration-200', loading && 'opacity-50')}>
             {transactions.map((tx) => {
               const amount = parseFloat(tx.amount);
               const isIncome = amount < 0;
-              const display = getCategoryDisplay(tx.category);
+              const display = displayOf(tx);
               const categoryNode = editingTxId === tx.id ? (
                 categoryEditorFor(tx)
               ) : (
@@ -333,39 +443,42 @@ export function TransactionList({
               );
               return (
                 <React.Fragment key={tx.id}>
-                  <TxnRow
-                    merchant={tx.merchantName || tx.name}
-                    icon={isIncome ? <DollarSign size={15} /> : (display.icon ?? <Banknote size={15} />)}
-                    isIncome={isIncome}
-                    categoryNode={categoryNode}
-                    date={tx.date}
-                    amount={amount}
-                  />
+                  {/* Clickable wrapper (row only — the CreateRuleBar sibling stays
+                       outside). TxnRow is always the wrapper's first child so its
+                       own border-t is suppressed; the wrapper carries it instead. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setDetailTx(tx)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setDetailTx(tx);
+                      }
+                    }}
+                    className="ui-focus cursor-pointer border-t border-line transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-canvas-sunken/60"
+                  >
+                    <TxnRow
+                      merchant={tx.merchantName || tx.name}
+                      icon={isIncome ? <DollarSign size={15} /> : (display.icon ?? <Banknote size={15} />)}
+                      isIncome={isIncome}
+                      categoryNode={categoryNode}
+                      date={tx.date}
+                      amount={amount}
+                      excluded={tx.excludedAt != null}
+                    />
+                  </div>
                   {createRulePrompt?.txId === tx.id && (
-                    <div className="flex items-center gap-3 bg-[rgb(var(--ui-brand-softer))] px-4 py-2.5 text-[12.5px] sm:px-5">
-                      <span className="flex-1 text-content-muted">
-                        Always categorize &ldquo;{createRulePrompt.merchantText}&rdquo; as{' '}
-                        <b className="font-semibold text-content">{getCategoryDisplay(createRulePrompt.category).label}</b>?
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onCreateRule?.({ merchantText: createRulePrompt.merchantText, category: createRulePrompt.category });
-                          setCreateRulePrompt(null);
-                        }}
-                        className="shrink-0 font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-                      >
-                        Create rule
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCreateRulePrompt(null)}
-                        aria-label="Dismiss"
-                        className="grid shrink-0 place-items-center text-content-muted hover:text-content"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
+                    <CreateRuleBar
+                      merchantText={createRulePrompt.merchantText}
+                      category={createRulePrompt.category}
+                      onCreate={() => {
+                        onCreateRule?.({ merchantText: createRulePrompt.merchantText, category: createRulePrompt.category });
+                        setCreateRulePrompt(null);
+                      }}
+                      onDismiss={() => setCreateRulePrompt(null)}
+                    />
                   )}
                 </React.Fragment>
               );
@@ -404,6 +517,24 @@ export function TransactionList({
           </div>
         )}
       </div>
+
+      <TransactionDetail
+        open={detailTx !== null}
+        tx={detailTx}
+        onClose={() => setDetailTx(null)}
+        onSaved={(patch) => {
+          if (!detailTx) return;
+          const id = detailTx.id;
+          setTransactions((prev) => prev.map((t) => t.id === id ? {
+            ...t,
+            ...(patch.merchantName !== undefined ? { merchantName: patch.merchantName } : {}),
+            ...(patch.categoryId !== undefined ? { categoryId: patch.categoryId } : {}),
+            ...(patch.notes !== undefined ? { notes: patch.notes.trim() === '' ? null : patch.notes } : {}),
+            ...(patch.excluded !== undefined ? { excludedAt: patch.excluded ? new Date().toISOString() : null } : {}),
+          } : t));
+          if (patch.categoryId !== undefined || patch.merchantName !== undefined || patch.excluded !== undefined) onDataChanged?.();
+        }}
+      />
     </div>
   );
 }

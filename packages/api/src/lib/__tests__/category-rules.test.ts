@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { ruleMatches, firstMatchingRule, validateRule, type RuleCriteria, type TxnForRules } from "../category-rules.js";
+import { ruleMatches, firstMatchingRule, validateRule, resolveCategoryRef, type RuleCriteria, type TxnForRules } from "../category-rules.js";
 
 const txn = (over: Partial<TxnForRules> = {}): TxnForRules => ({
   name: "AMZN Mktp US*123",
   merchantName: "Amazon",
   amount: "42.50",
-  category: "other",
+  categoryId: "cat-other",
   accountId: "acct-1",
   ...over,
 });
@@ -16,10 +16,19 @@ const rule = (over: Partial<RuleCriteria> = {}): RuleCriteria => ({
   amountMin: null,
   amountMax: null,
   accountId: null,
-  matchCategory: null,
-  setCategory: "shopping",
+  matchCategoryId: null,
+  setCategoryId: "cat-shop",
   ...over,
 });
+
+const U_SHOP = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const U_GROC = "b1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const U_GONE = "c1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const TAX = [
+  { id: U_SHOP, systemKey: "shopping" },
+  { id: U_GROC, systemKey: "groceries" },
+  { id: "cat-custom", systemKey: null },
+];
 
 describe("ruleMatches", () => {
   it("matches merchant substring case-insensitively against name", () => {
@@ -45,9 +54,12 @@ describe("ruleMatches", () => {
     expect(ruleMatches(rule({ accountId: "acct-1" }), txn())).toBe(true);
     expect(ruleMatches(rule({ accountId: "acct-2" }), txn())).toBe(false);
   });
-  it("matches existing category", () => {
-    expect(ruleMatches(rule({ matchCategory: "other" }), txn())).toBe(true);
-    expect(ruleMatches(rule({ matchCategory: "groceries" }), txn())).toBe(false);
+  it("matches existing category by id", () => {
+    expect(ruleMatches(rule({ matchCategoryId: "cat-other" }), txn())).toBe(true);
+    expect(ruleMatches(rule({ matchCategoryId: "cat-groc" }), txn())).toBe(false);
+  });
+  it("counts matchCategoryId alone as a criterion", () => {
+    expect(ruleMatches(rule({ matchCategoryId: "cat-other" }), txn())).toBe(true);
   });
   it("ANDs all provided criteria", () => {
     const r = rule({ merchantContains: "amazon", amountMin: "40", accountId: "acct-1" });
@@ -62,8 +74,8 @@ describe("ruleMatches", () => {
 describe("firstMatchingRule", () => {
   it("returns the first matching rule in array order", () => {
     const r1 = rule({ merchantContains: "walmart" });
-    const r2 = rule({ merchantContains: "amzn", setCategory: "shopping" });
-    const r3 = rule({ merchantContains: "amazon", setCategory: "entertainment" });
+    const r2 = rule({ merchantContains: "amzn", setCategoryId: "cat-shop" });
+    const r3 = rule({ merchantContains: "amazon", setCategoryId: "cat-ent" });
     expect(firstMatchingRule([r1, r2, r3], txn())).toBe(r2);
   });
   it("returns null when nothing matches", () => {
@@ -72,27 +84,59 @@ describe("firstMatchingRule", () => {
 });
 
 describe("validateRule", () => {
-  const valid = { merchantContains: "amzn", setCategory: "shopping" };
-  it("accepts a minimal valid rule", () => {
-    expect(validateRule(valid)).toBeNull();
+  const valid = { merchantContains: "amzn", setCategory: U_SHOP };
+  it("accepts a minimal valid rule (id form)", () => {
+    expect(validateRule(valid, TAX)).toBeNull();
+  });
+  it("rejects a systemKey setCategory (ids only)", () => {
+    expect(validateRule({ merchantContains: "amzn", setCategory: "shopping" }, TAX)).toMatch(/category/i);
+  });
+  it("rejects a UUID setCategory unknown to the tenant", () => {
+    expect(validateRule({ merchantContains: "amzn", setCategory: U_GONE }, TAX)).toMatch(/category/i);
+  });
+  it("accepts a UUID matchCategory and rejects an unknown one", () => {
+    expect(validateRule({ ...valid, matchCategory: U_GROC }, TAX)).toBeNull();
+    expect(validateRule({ ...valid, matchCategory: U_GONE }, TAX)).toMatch(/category/i);
   });
   it("requires at least one criterion", () => {
-    expect(validateRule({ setCategory: "shopping" })).toMatch(/criterion/i);
+    expect(validateRule({ setCategory: U_SHOP }, TAX)).toMatch(/criterion/i);
   });
   it("requires a valid setCategory", () => {
-    expect(validateRule({ merchantContains: "x", setCategory: "nope" })).toMatch(/category/i);
+    expect(validateRule({ merchantContains: "x", setCategory: "nope" }, TAX)).toMatch(/category/i);
   });
   it("rejects amountEquals combined with a range", () => {
-    expect(validateRule({ ...valid, amountEquals: "5", amountMin: "1" })).toMatch(/equals/i);
+    expect(validateRule({ ...valid, amountEquals: "5", amountMin: "1" }, TAX)).toMatch(/equals/i);
   });
   it("rejects min > max", () => {
-    expect(validateRule({ ...valid, amountMin: "10", amountMax: "5" })).toMatch(/min/i);
+    expect(validateRule({ ...valid, amountMin: "10", amountMax: "5" }, TAX)).toMatch(/min/i);
   });
   it("rejects invalid matchCategory", () => {
-    expect(validateRule({ ...valid, matchCategory: "nope" })).toMatch(/category/i);
+    expect(validateRule({ ...valid, matchCategory: "nope" }, TAX)).toMatch(/category/i);
   });
   it("rejects non-numeric and non-finite amounts", () => {
-    expect(validateRule({ ...valid, amountMin: "5abc" })).toMatch(/number/i);
-    expect(validateRule({ ...valid, amountEquals: "Infinity" })).toMatch(/number/i);
+    expect(validateRule({ ...valid, amountMin: "5abc" }, TAX)).toMatch(/number/i);
+    expect(validateRule({ ...valid, amountEquals: "Infinity" }, TAX)).toMatch(/number/i);
+  });
+  it("rejects setCategory targeting a disabled category", () => {
+    const taxWithDisabled = [
+      { id: U_SHOP, systemKey: "shopping", disabledAt: new Date() }, // disabled
+      { id: U_GROC, systemKey: "groceries", disabledAt: null },
+      { id: "cat-custom", systemKey: null, disabledAt: null },
+    ];
+    expect(validateRule({ merchantContains: "amzn", setCategory: U_SHOP }, taxWithDisabled)).toMatch(/disabled/i);
+    expect(validateRule({ merchantContains: "amzn", setCategory: U_GROC }, taxWithDisabled)).toBeNull();
+  });
+});
+
+describe("resolveCategoryRef", () => {
+  it("resolves a UUID to the tenant category id", () => {
+    expect(resolveCategoryRef(U_SHOP, TAX)).toBe(U_SHOP);
+  });
+  it("returns null for systemKeys (ids only)", () => {
+    expect(resolveCategoryRef("groceries", TAX)).toBeNull();
+  });
+  it("returns null for unknown uuid or key", () => {
+    expect(resolveCategoryRef(U_GONE, TAX)).toBeNull();
+    expect(resolveCategoryRef("nope", TAX)).toBeNull();
   });
 });

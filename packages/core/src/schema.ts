@@ -466,55 +466,89 @@ export const insights = pgTable("insights", {
     .$onUpdate(() => new Date()),
 });
 
-// ── Transactions ─────────────────────────────────────────────────────────
+// ── Category taxonomy (groups → categories) ────────────────────────────────
+// Tenant-owned. System rows carry a systemKey (fixed, unique per tenant);
+// custom rows have systemKey NULL. The old transaction_category enum column
+// stays dual-written as a safety net until the phase-4 cleanup drop.
 
-export const transactionCategoryEnum = pgEnum("transaction_category", [
+export const categoryGroupTypeEnum = pgEnum("category_group_type", [
   "income",
-  "housing",
-  "transportation",
-  "food_dining",
-  "groceries",
-  "utilities",
-  "healthcare",
-  "insurance",
-  "entertainment",
-  "shopping",
-  "personal_care",
-  "education",
-  "travel",
-  "subscriptions",
-  "savings_investment",
-  "debt_payment",
-  "gifts_donations",
-  "taxes",
+  "expense",
   "transfer",
-  "other",
 ]);
+
+export const categoryGroups = pgTable(
+  "category_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    type: categoryGroupTypeEnum("type").notNull(),
+    systemKey: varchar("system_key", { length: 40 }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.tenantId, t.systemKey)],
+);
+
+export const categories = pgTable(
+  "categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => categoryGroups.id, { onDelete: "restrict" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    systemKey: varchar("system_key", { length: 40 }),
+    emoji: varchar("emoji", { length: 8 }),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.tenantId, t.systemKey)],
+);
+
+// ── Transactions ─────────────────────────────────────────────────────────
 
 export const transactionSourceEnum = pgEnum("transaction_source", ["seed", "plaid"]);
 
 export const categorySourceEnum = pgEnum("category_source", ["auto", "rule", "transfer", "manual"]);
 
-export const transactions = pgTable("transactions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  accountId: uuid("account_id")
-    .notNull()
-    .references(() => accounts.id, { onDelete: "cascade" }),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  plaidTransactionId: varchar("plaid_transaction_id", { length: 255 }),
-  date: timestamp("date", { withTimezone: true }).notNull(),
-  name: varchar("name", { length: 500 }).notNull(),
-  merchantName: varchar("merchant_name", { length: 255 }),
-  amount: numeric("amount", { precision: 19, scale: 2 }).notNull(), // positive = expense, negative = income
-  category: transactionCategoryEnum("category").notNull().default("other"),
-  pending: integer("pending").notNull().default(0), // 0 = false, 1 = true
-  source: transactionSourceEnum("source").notNull().default("seed"),
-  categorySource: categorySourceEnum("category_source").notNull().default("auto"),
-  linkedTransactionId: uuid("linked_transaction_id"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    plaidTransactionId: varchar("plaid_transaction_id", { length: 255 }),
+    date: timestamp("date", { withTimezone: true }).notNull(),
+    name: varchar("name", { length: 500 }).notNull(),
+    merchantName: varchar("merchant_name", { length: 255 }),
+    amount: numeric("amount", { precision: 19, scale: 2 }).notNull(), // positive = expense, negative = income
+    categoryId: uuid("category_id").notNull().references(() => categories.id),
+    pending: integer("pending").notNull().default(0), // 0 = false, 1 = true
+    source: transactionSourceEnum("source").notNull().default("seed"),
+    categorySource: categorySourceEnum("category_source").notNull().default("auto"),
+    linkedTransactionId: uuid("linked_transaction_id"),
+    notes: text("notes"),
+    merchantEditedAt: timestamp("merchant_edited_at", { withTimezone: true }),
+    excludedAt: timestamp("excluded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("transactions_tenant_category_idx").on(t.tenantId, t.categoryId),
+    index("transactions_tenant_date_idx").on(t.tenantId, t.date),
+  ],
+);
 
 // ── Category Rules ────────────────────────────────────────────────────────
 // User-defined re-categorization rules. First match (by priority asc) wins.
@@ -531,8 +565,8 @@ export const categoryRules = pgTable("category_rules", {
   amountMin: numeric("amount_min", { precision: 19, scale: 2 }),
   amountMax: numeric("amount_max", { precision: 19, scale: 2 }),
   accountId: uuid("account_id").references(() => accounts.id, { onDelete: "cascade" }),
-  matchCategory: transactionCategoryEnum("match_category"),
-  setCategory: transactionCategoryEnum("set_category").notNull(),
+  matchCategoryId: uuid("match_category_id").references(() => categories.id),
+  setCategoryId: uuid("set_category_id").notNull().references(() => categories.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -559,7 +593,7 @@ export const recurringTransactions = pgTable("recurring_transactions", {
   merchantName: varchar("merchant_name", { length: 255 }),
   amount: numeric("amount", { precision: 19, scale: 2 }).notNull(),
   frequency: recurringFrequencyEnum("frequency").notNull(),
-  category: transactionCategoryEnum("category").notNull().default("other"),
+  categoryId: uuid("category_id").notNull().references(() => categories.id),
   nextDueDate: timestamp("next_due_date", { withTimezone: true }),
   lastSeenDate: timestamp("last_seen_date", { withTimezone: true }),
   confidence: numeric("confidence", { precision: 3, scale: 2 }), // 0.00-1.00 LLM confidence

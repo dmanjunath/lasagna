@@ -2,9 +2,7 @@
 // First match (by caller-provided order) wins; all non-null criteria AND.
 // Amounts compare against abs(amount) so a rule catches both charge and refund.
 
-import { transactionCategoryEnum } from "@lasagna/core";
-
-export const VALID_CATEGORIES = transactionCategoryEnum.enumValues;
+import { UUID_RE } from "./taxonomy.js";
 
 export interface RuleCriteria {
   merchantContains: string | null;
@@ -12,23 +10,32 @@ export interface RuleCriteria {
   amountMin: string | null;
   amountMax: string | null;
   accountId: string | null;
-  matchCategory: string | null;
-  setCategory: string;
+  matchCategoryId: string | null;
+  setCategoryId: string | null;
 }
 
 export interface TxnForRules {
   name: string;
   merchantName: string | null;
   amount: string;
-  category: string;
+  categoryId: string | null;
   accountId: string;
+}
+
+// Tenant category id if it exists; null when unresolvable (ids only).
+export function resolveCategoryRef(
+  value: string,
+  tax: Array<{ id: string; systemKey: string | null }>,
+): string | null {
+  if (!UUID_RE.test(value)) return null;
+  return tax.find((c) => c.id === value)?.id ?? null;
 }
 
 export function ruleMatches(rule: RuleCriteria, txn: TxnForRules): boolean {
   const hasCriteria =
     rule.merchantContains !== null || rule.amountEquals !== null ||
     rule.amountMin !== null || rule.amountMax !== null ||
-    rule.accountId !== null || rule.matchCategory !== null;
+    rule.accountId !== null || rule.matchCategoryId !== null;
   if (!hasCriteria) return false;
 
   if (rule.merchantContains !== null) {
@@ -42,7 +49,7 @@ export function ruleMatches(rule: RuleCriteria, txn: TxnForRules): boolean {
   if (rule.amountMin !== null && abs < parseFloat(rule.amountMin)) return false;
   if (rule.amountMax !== null && abs > parseFloat(rule.amountMax)) return false;
   if (rule.accountId !== null && txn.accountId !== rule.accountId) return false;
-  if (rule.matchCategory !== null && txn.category !== rule.matchCategory) return false;
+  if (rule.matchCategoryId !== null && txn.categoryId !== rule.matchCategoryId) return false;
   return true;
 }
 
@@ -52,7 +59,11 @@ export function firstMatchingRule<T extends RuleCriteria>(rules: T[], txn: TxnFo
 }
 
 // Returns an error message, or null if the body is a valid rule.
-export function validateRule(body: Record<string, unknown>): string | null {
+// Category refs are tenant category ids, validated against the taxonomy.
+export function validateRule(
+  body: Record<string, unknown>,
+  tax: Array<{ id: string; systemKey: string | null; disabledAt?: Date | null }>,
+): string | null {
   const s = (k: string) => (body[k] === undefined || body[k] === null || body[k] === "" ? null : String(body[k]));
   const merchantContains = s("merchantContains");
   const amountEquals = s("amountEquals");
@@ -62,10 +73,10 @@ export function validateRule(body: Record<string, unknown>): string | null {
   const matchCategory = s("matchCategory");
   const setCategory = s("setCategory");
 
-  if (!setCategory || !(VALID_CATEGORIES as readonly string[]).includes(setCategory)) {
-    return "setCategory must be a valid category";
-  }
-  if (matchCategory && !(VALID_CATEGORIES as readonly string[]).includes(matchCategory)) {
+  const setCatId = setCategory ? resolveCategoryRef(setCategory, tax) : null;
+  if (!setCatId) return "setCategory must be a valid category";
+  if (tax.find((c) => c.id === setCatId)?.disabledAt) return "setCategory targets a disabled category";
+  if (matchCategory && resolveCategoryRef(matchCategory, tax) === null) {
     return "matchCategory must be a valid category";
   }
   if (!merchantContains && !amountEquals && !amountMin && !amountMax && !accountId && !matchCategory) {

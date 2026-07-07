@@ -20,12 +20,24 @@ import {
   Landmark,
   ArrowLeftRight,
   Receipt,
+  Fuel,
+  SquareParking,
+  Wrench,
+  Hammer,
+  Wifi,
+  Coffee,
+  Shirt,
+  MonitorSmartphone,
+  Dumbbell,
+  AppWindow,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
-// Category config — label + Bright lucide glyph. Slice/legend color is assigned
-// at render time from the --ui-viz-* palette so the donut never reads as one
-// blob and light/dark swap automatically.
+// System glyphs by systemKey — Bright lucide glyph per system category. Names
+// come from the fetched taxonomy (lib/taxonomy.tsx); the labels here are only
+// the raw-key fallback for rows the taxonomy doesn't know. Slice/legend color
+// is assigned at render time from the --ui-viz-* palette so the donut never
+// reads as one blob and light/dark swap automatically.
 // ---------------------------------------------------------------------------
 
 export const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -49,6 +61,19 @@ export const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactN
   taxes:              { label: 'Taxes',               icon: <Landmark size={15} /> },
   transfer:           { label: 'Transfers',           icon: <ArrowLeftRight size={15} /> },
   other:              { label: 'Other',               icon: <Receipt size={15} /> },
+  // Phase-2 system categories (fine-grained Plaid targets)
+  car_payment:        { label: 'Car Payment',         icon: <CreditCard size={15} /> },
+  gas:                { label: 'Gas',                 icon: <Fuel size={15} /> },
+  parking_tolls:      { label: 'Parking & Tolls',     icon: <SquareParking size={15} /> },
+  auto_maintenance:   { label: 'Auto Maintenance',    icon: <Wrench size={15} /> },
+  home_improvement:   { label: 'Home Improvement',    icon: <Hammer size={15} /> },
+  internet_phone:     { label: 'Internet & Phone',    icon: <Wifi size={15} /> },
+  coffee_shops:       { label: 'Coffee Shops',        icon: <Coffee size={15} /> },
+  clothing:           { label: 'Clothing',            icon: <Shirt size={15} /> },
+  electronics:        { label: 'Electronics',         icon: <MonitorSmartphone size={15} /> },
+  fitness:            { label: 'Fitness',             icon: <Dumbbell size={15} /> },
+  bank_fees:          { label: 'Bank Fees',           icon: <Landmark size={15} /> },
+  software_saas:      { label: 'Software & SaaS',     icon: <AppWindow size={15} /> },
 };
 
 export function getCategoryDisplay(key: string) {

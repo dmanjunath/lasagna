@@ -98,7 +98,7 @@ export function Dashboard() {
   const [totalLiabilities, setTotalLiabilities] = useState(0);
   const [emergencyFund, setEmergencyFund] = useState(0);
   const [runwayMonths, setRunwayMonths] = useState<number | null>(null);
-  const [spendingCategories, setSpendingCategories] = useState<Array<{ category: string; total: number; count: number; percentage: number }>>([]);
+  const [spendingCategories, setSpendingCategories] = useState<Array<{ name: string; systemKey: string | null; total: number; count: number; percentage: number }>>([]);
   const [totalSpending, setTotalSpending] = useState(0);
   const [totalIncome, setTotalIncome] = useState(0);
   const [healthScore, setHealthScore] = useState<{ score: number; grade: string; color: string } | null>(null);
@@ -122,7 +122,7 @@ export function Dashboard() {
       api.getInsights().catch(() => ({ insights: [], lastActionsGeneratedAt: null as string | null })),
       api.getPriorities().catch(() => ({ steps: [], currentStepId: '', summary: {} })),
       api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
-      api.getSpendingSummary().catch(() => ({ categories: [] as Array<{ category: string; total: number; count: number; percentage: number }>, totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
+      api.getSpendingSummary().catch(() => ({ categories: [] as Array<{ name: string; systemKey: string | null; groupType: 'income' | 'expense' | 'transfer'; total: number; count: number; percentage: number }>, totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
     ]).then(([balanceData, itemData, debtData, profileData, goalsData, insightsData, prioritiesData, historyData, spendingData]) => {
       const balances = balanceData.balances;
       let assets = 0, liabilities = 0, depository = 0, creditTotal = 0;
@@ -159,7 +159,7 @@ export function Dashboard() {
       const hasProfile = profileExists && profile.annualIncome !== null;
 
       // Spending
-      const spendCats = spendingData.categories.filter((c: { category: string }) => c.category !== 'income' && c.category !== 'transfer');
+      const spendCats = spendingData.categories.filter((c: { groupType: string }) => c.groupType !== 'income' && c.groupType !== 'transfer');
       setSpendingCategories(spendCats);
       setTotalSpending(spendingData.totalSpending);
       setTotalIncome(spendingData.totalIncome);

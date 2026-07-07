@@ -20,6 +20,7 @@ import {
   netWorthContribution,
 } from "../../lib/account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "../../lib/goal-progress.js";
+import { loadTaxonomy, UUID_RE } from "../../lib/taxonomy.js";
 
 /** Parse the account.metadata JSON blob (property details, loan terms, etc.). */
 function parseMeta(m: string | null): unknown {
@@ -218,8 +219,35 @@ export function createFinancialTools(tenantId: string) {
         endDate: z.string().optional().describe("ISO date, inclusive upper bound."),
       }),
       execute: async ({ limit, category, startDate, endDate }) => {
+        // Load tenant taxonomy to resolve the category param and map display names.
+        const tax = await loadTaxonomy(tenantId);
+        const taxById = new Map(tax.map((c) => [c.id, c.name]));
+
         const conds = [eq(transactions.tenantId, tenantId)];
-        if (category) conds.push(eq(transactions.category, category as never));
+
+        if (category) {
+          // UUID → direct categoryId lookup; else case-insensitive name match, then systemKey.
+          if (UUID_RE.test(category)) {
+            if (!taxById.has(category)) {
+              return {
+                error: `Category id "${category}" not found. Known categories: ${tax.map((c) => c.name).join(", ")}.`,
+              };
+            }
+            conds.push(eq(transactions.categoryId, category));
+          } else {
+            const lc = category.toLowerCase();
+            const hit =
+              tax.find((c) => c.name.toLowerCase() === lc) ??
+              tax.find((c) => c.systemKey?.toLowerCase() === lc);
+            if (!hit) {
+              return {
+                error: `Category "${category}" not found. Known categories: ${tax.map((c) => c.name).join(", ")}.`,
+              };
+            }
+            conds.push(eq(transactions.categoryId, hit.id));
+          }
+        }
+
         if (startDate) conds.push(sql`${transactions.date} >= ${startDate}`);
         if (endDate) conds.push(sql`${transactions.date} <= ${endDate}`);
         const rows = await db
@@ -228,7 +256,7 @@ export function createFinancialTools(tenantId: string) {
             name: transactions.name,
             merchant: transactions.merchantName,
             amount: transactions.amount,
-            category: transactions.category,
+            categoryId: transactions.categoryId,
             accountId: transactions.accountId,
             pending: transactions.pending,
           })
@@ -242,7 +270,8 @@ export function createFinancialTools(tenantId: string) {
             name: r.name,
             merchant: r.merchant,
             amount: parseFloat(r.amount),
-            category: r.category,
+            // Display name via the taxonomy id.
+            category: (r.categoryId ? taxById.get(r.categoryId) : undefined) ?? "Other",
             accountId: r.accountId,
             pending: r.pending === 1,
           })),
@@ -255,16 +284,20 @@ export function createFinancialTools(tenantId: string) {
         "Get recurring transactions — bills and subscriptions the user pays on a schedule (name, merchant, amount, frequency, next due date, category). Use for cash-flow, upcoming-bills, and subscription-audit questions.",
       inputSchema: z.object({}),
       execute: async () => {
-        const rows = await db
-          .select()
-          .from(recurringTransactions)
-          .where(
-            and(
-              eq(recurringTransactions.tenantId, tenantId),
-              eq(recurringTransactions.isActive, true),
-            ),
-          )
-          .orderBy(recurringTransactions.nextDueDate);
+        const [rows, tax] = await Promise.all([
+          db
+            .select()
+            .from(recurringTransactions)
+            .where(
+              and(
+                eq(recurringTransactions.tenantId, tenantId),
+                eq(recurringTransactions.isActive, true),
+              ),
+            )
+            .orderBy(recurringTransactions.nextDueDate),
+          loadTaxonomy(tenantId),
+        ]);
+        const taxById = new Map(tax.map((c) => [c.id, c.name]));
         return {
           recurring: rows.map((r) => ({
             name: r.name,
@@ -272,7 +305,8 @@ export function createFinancialTools(tenantId: string) {
             amount: parseFloat(r.amount),
             frequency: r.frequency,
             nextDueDate: r.nextDueDate,
-            category: r.category,
+            // Display name via the taxonomy id.
+            category: (r.categoryId ? taxById.get(r.categoryId) : undefined) ?? "Other",
             accountId: r.accountId,
           })),
         };

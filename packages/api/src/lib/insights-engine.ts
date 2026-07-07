@@ -12,6 +12,8 @@ import {
   insights,
   financialProfiles,
   transactions,
+  categories,
+  categoryGroups,
   goals,
   goalAccounts,
   taxDocuments,
@@ -261,36 +263,43 @@ async function gatherFinancialData(
   const excludedTxnIds = await excludedTxnAccountIds(tenantId);
 
   // Spending: current and prior month
+  // Classification via taxonomy group type; labels are tenant display names
+  // (spec: insights read names via join).
+  const categoryNameExpr = sql<string>`coalesce(${categories.name}, 'Other')`;
   const [currentSpendRows, priorSpendRows] = await Promise.all([
     db
       .select({
-        category: transactions.category,
+        category: categoryNameExpr,
         total: sql<string>`coalesce(sum(${transactions.amount}), 0)`,
       })
       .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
       .where(
         and(
           eq(transactions.tenantId, tenantId),
           sql`${transactions.amount} > 0`,
-          sql`${transactions.category} NOT IN ('income', 'transfer')`,
+          sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
           sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
           ...(excludedTxnIds.length > 0
             ? [notInArray(transactions.accountId, excludedTxnIds)]
             : [])
         )
       )
-      .groupBy(transactions.category),
+      .groupBy(categoryNameExpr),
     db
       .select({
-        category: transactions.category,
+        category: categoryNameExpr,
         total: sql<string>`coalesce(sum(${transactions.amount}), 0)`,
       })
       .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
       .where(
         and(
           eq(transactions.tenantId, tenantId),
           sql`${transactions.amount} > 0`,
-          sql`${transactions.category} NOT IN ('income', 'transfer')`,
+          sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
           sql`${transactions.date} >= ${priorMonthStart.toISOString()}`,
           sql`${transactions.date} <= ${priorMonthEnd.toISOString()}`,
           ...(excludedTxnIds.length > 0
@@ -298,7 +307,7 @@ async function gatherFinancialData(
             : [])
         )
       )
-      .groupBy(transactions.category),
+      .groupBy(categoryNameExpr),
   ]);
 
   // Top merchants current month
@@ -308,11 +317,13 @@ async function gatherFinancialData(
       total: sql<string>`coalesce(sum(${transactions.amount}), 0)`,
     })
     .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
     .where(
       and(
         eq(transactions.tenantId, tenantId),
         sql`${transactions.amount} > 0`,
-        sql`${transactions.category} NOT IN ('income', 'transfer')`,
+        sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
         sql`${transactions.merchantName} IS NOT NULL`,
         sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
         ...(excludedTxnIds.length > 0
@@ -332,11 +343,13 @@ async function gatherFinancialData(
       total: sql<string>`sum(${transactions.amount})`,
     })
     .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .where(
       and(
         eq(transactions.tenantId, tenantId),
         sql`${transactions.amount} > 0`,
-        sql`${transactions.category} IN ('subscriptions', 'entertainment')`,
+        // systemKey, not group type — this targets two specific categories
+        sql`${categories.systemKey} IN ('subscriptions', 'entertainment')`,
         sql`${transactions.merchantName} IS NOT NULL`,
         sql`${transactions.date} >= ${threeMonthsAgo.toISOString()}`,
         ...(excludedTxnIds.length > 0
@@ -379,10 +392,12 @@ async function gatherFinancialData(
         total: sql<string>`coalesce(sum(abs(${transactions.amount})), 0)`,
       })
       .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
       .where(
         and(
           eq(transactions.tenantId, tenantId),
-          sql`${transactions.category} = 'income'`,
+          sql`coalesce(${categoryGroups.type}::text, 'expense') = 'income'`,
           sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
           ...(excludedTxnIds.length > 0
             ? [notInArray(transactions.accountId, excludedTxnIds)]
@@ -394,10 +409,12 @@ async function gatherFinancialData(
         total: sql<string>`coalesce(sum(abs(${transactions.amount})), 0)`,
       })
       .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
       .where(
         and(
           eq(transactions.tenantId, tenantId),
-          sql`${transactions.category} = 'income'`,
+          sql`coalesce(${categoryGroups.type}::text, 'expense') = 'income'`,
           sql`${transactions.date} >= ${priorMonthStart.toISOString()}`,
           sql`${transactions.date} <= ${priorMonthEnd.toISOString()}`,
           ...(excludedTxnIds.length > 0

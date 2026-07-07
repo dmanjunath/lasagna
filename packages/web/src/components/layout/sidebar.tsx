@@ -22,6 +22,7 @@ interface NavItem {
 const PRIMARY_NAV: NavItem[] = [
   { id: 'dashboard',        label: 'Dashboard',       icon: LayoutDashboard, path: '/' },
   { id: 'money',            label: 'Money',           icon: Wallet,          path: '/money' },
+  { id: 'spending',         label: 'Spending',        icon: CreditCard,      path: '/spending' },
   { id: 'actions',          label: 'Actions',         icon: Zap,             path: '/insights' },
   { id: 'financial-level',  label: 'Financial Level', icon: Layers,          path: '/financial-level' },
   { id: 'goals',            label: 'Goals',           icon: Target,          path: '/goals' },
@@ -30,7 +31,6 @@ const PRIMARY_NAV: NavItem[] = [
 const ADVANCED_NAV: NavItem[] = [
   { id: 'retirement', label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
   { id: 'portfolio',  label: 'Portfolio',  icon: PieChart,    path: '/portfolio' },
-  { id: 'spending',   label: 'Spending',   icon: CreditCard,  path: '/spending' },
   { id: 'debt',       label: 'Debt',       icon: AlertCircle, path: '/debt' },
   { id: 'tax',        label: 'Tax',        icon: Receipt,     path: '/tax' },
 ];

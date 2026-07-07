@@ -1,4 +1,4 @@
-import { eq, users, tenants } from "@lasagna/core";
+import { eq, users, tenants, seedTaxonomyForTenant } from "@lasagna/core";
 import { db } from "../db.js";
 import { env } from "../env.js";
 
@@ -26,6 +26,7 @@ export async function provisionUser(input: ProvisionInput) {
   }
 
   const [tenant] = await db.insert(tenants).values({ name: input.name || input.email.split("@")[0] }).returning();
+  await seedTaxonomyForTenant(db, tenant.id);
   const [created] = await db.insert(users).values({
     tenantId: tenant.id,
     email: input.email,

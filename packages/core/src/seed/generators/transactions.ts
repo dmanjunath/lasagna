@@ -1,7 +1,7 @@
+import { eq } from "drizzle-orm";
 import type { Database } from "../../db.js";
-import { transactions, type transactionCategoryEnum } from "../../schema.js";
+import { categories, transactions } from "../../schema.js";
 
-type TransactionCategory = (typeof transactionCategoryEnum.enumValues)[number];
 type TransactionInsert = typeof transactions.$inferInsert;
 
 interface TransactionTemplate {
@@ -91,8 +91,9 @@ function createTransaction(
   date: Date,
   accountId: string,
   tenantId: string,
-  category: TransactionCategory,
+  category: string, // category systemKey — resolved to the tenant's id below
   incomeMultiplier: number,
+  catIdByKey: Map<string, string>,
 ): TransactionInsert {
   const [lo, hi] = template.amountRange;
   const baseAmount = randomInRange(Math.min(lo, hi), Math.max(lo, hi));
@@ -106,7 +107,7 @@ function createTransaction(
     name: template.name,
     merchantName: template.merchant,
     amount: String(amount),
-    category,
+    categoryId: catIdByKey.get(category)!,
     pending: 0,
     source: 'seed' as const,
   };
@@ -122,6 +123,12 @@ export async function generateTransactions(
   const now = new Date();
   const allTransactions: TransactionInsert[] = [];
 
+  const catRows = await db
+    .select({ id: categories.id, systemKey: categories.systemKey })
+    .from(categories)
+    .where(eq(categories.tenantId, tenantId));
+  const catIdByKey = new Map(catRows.filter((c) => c.systemKey).map((c) => [c.systemKey!, c.id]));
+
   // Income multiplier: base templates are designed for ~$175k annual income
   const incomeMultiplier = monthlyIncome / (175000 / 12);
 
@@ -135,14 +142,14 @@ export async function generateTransactions(
     // 2 income deposits on 1st and 15th (checking)
     const incomeTemplate = TRANSACTION_TEMPLATES.income[0];
     txns.push(
-      createTransaction(incomeTemplate, new Date(year, month, 1, 9, 0), checkingAccountId, tenantId, "income", incomeMultiplier),
-      createTransaction(incomeTemplate, new Date(year, month, 15, 9, 0), checkingAccountId, tenantId, "income", incomeMultiplier),
+      createTransaction(incomeTemplate, new Date(year, month, 1, 9, 0), checkingAccountId, tenantId, "income", incomeMultiplier, catIdByKey),
+      createTransaction(incomeTemplate, new Date(year, month, 15, 9, 0), checkingAccountId, tenantId, "income", incomeMultiplier, catIdByKey),
     );
 
     // 1 housing payment (checking) on 1st-5th
     const housingTemplate = pickRandom(TRANSACTION_TEMPLATES.housing);
     txns.push(
-      createTransaction(housingTemplate, randomDay(month, year, 1, 5), checkingAccountId, tenantId, "housing", incomeMultiplier),
+      createTransaction(housingTemplate, randomDay(month, year, 1, 5), checkingAccountId, tenantId, "housing", incomeMultiplier, catIdByKey),
     );
 
     // 3-5 dining out (credit card)
@@ -150,7 +157,7 @@ export async function generateTransactions(
     for (let i = 0; i < diningCount; i++) {
       const template = pickRandom(TRANSACTION_TEMPLATES.food_dining);
       txns.push(
-        createTransaction(template, randomDay(month, year), creditAccountId, tenantId, "food_dining", incomeMultiplier),
+        createTransaction(template, randomDay(month, year), creditAccountId, tenantId, "food_dining", incomeMultiplier, catIdByKey),
       );
     }
 
@@ -159,14 +166,14 @@ export async function generateTransactions(
     for (let i = 0; i < groceryCount; i++) {
       const template = pickRandom(TRANSACTION_TEMPLATES.groceries);
       txns.push(
-        createTransaction(template, randomDay(month, year), creditAccountId, tenantId, "groceries", incomeMultiplier),
+        createTransaction(template, randomDay(month, year), creditAccountId, tenantId, "groceries", incomeMultiplier, catIdByKey),
       );
     }
 
     // Monthly utilities (checking) - spread through month
     for (const template of TRANSACTION_TEMPLATES.utilities) {
       txns.push(
-        createTransaction(template, randomDay(month, year, 5, 25), checkingAccountId, tenantId, "utilities", incomeMultiplier),
+        createTransaction(template, randomDay(month, year, 5, 25), checkingAccountId, tenantId, "utilities", incomeMultiplier, catIdByKey),
       );
     }
 
@@ -175,7 +182,7 @@ export async function generateTransactions(
     const shuffledSubs = [...TRANSACTION_TEMPLATES.subscriptions].sort(() => Math.random() - 0.5);
     for (let i = 0; i < Math.min(subCount, shuffledSubs.length); i++) {
       txns.push(
-        createTransaction(shuffledSubs[i], randomDay(month, year, 1, 10), creditAccountId, tenantId, "subscriptions", incomeMultiplier),
+        createTransaction(shuffledSubs[i], randomDay(month, year, 1, 10), creditAccountId, tenantId, "subscriptions", incomeMultiplier, catIdByKey),
       );
     }
 
@@ -184,7 +191,7 @@ export async function generateTransactions(
     for (let i = 0; i < shopCount; i++) {
       const template = pickRandom(TRANSACTION_TEMPLATES.shopping);
       txns.push(
-        createTransaction(template, randomDay(month, year), creditAccountId, tenantId, "shopping", incomeMultiplier),
+        createTransaction(template, randomDay(month, year), creditAccountId, tenantId, "shopping", incomeMultiplier, catIdByKey),
       );
     }
 
@@ -193,7 +200,7 @@ export async function generateTransactions(
     for (let i = 0; i < transCount; i++) {
       const template = pickRandom(TRANSACTION_TEMPLATES.transportation);
       txns.push(
-        createTransaction(template, randomDay(month, year), creditAccountId, tenantId, "transportation", incomeMultiplier),
+        createTransaction(template, randomDay(month, year), creditAccountId, tenantId, "transportation", incomeMultiplier, catIdByKey),
       );
     }
 
@@ -201,27 +208,27 @@ export async function generateTransactions(
     if (monthsAgo % 2 === 0) {
       const template = pickRandom(TRANSACTION_TEMPLATES.healthcare);
       txns.push(
-        createTransaction(template, randomDay(month, year, 10, 25), creditAccountId, tenantId, "healthcare", incomeMultiplier),
+        createTransaction(template, randomDay(month, year, 10, 25), creditAccountId, tenantId, "healthcare", incomeMultiplier, catIdByKey),
       );
     }
 
     // 1 entertainment (credit card)
     const entertainTemplate = pickRandom(TRANSACTION_TEMPLATES.entertainment);
     txns.push(
-      createTransaction(entertainTemplate, randomDay(month, year), creditAccountId, tenantId, "entertainment", incomeMultiplier),
+      createTransaction(entertainTemplate, randomDay(month, year), creditAccountId, tenantId, "entertainment", incomeMultiplier, catIdByKey),
     );
 
     // 1 savings transfer (checking)
     const savingsTemplate = pickRandom(TRANSACTION_TEMPLATES.savings_investment);
     txns.push(
-      createTransaction(savingsTemplate, randomDay(month, year, 2, 10), checkingAccountId, tenantId, "savings_investment", incomeMultiplier),
+      createTransaction(savingsTemplate, randomDay(month, year, 2, 10), checkingAccountId, tenantId, "savings_investment", incomeMultiplier, catIdByKey),
     );
 
     // 1-2 transfers occasionally
     if (Math.random() > 0.4) {
       const transferTemplate = pickRandom(TRANSACTION_TEMPLATES.transfer);
       txns.push(
-        createTransaction(transferTemplate, randomDay(month, year), checkingAccountId, tenantId, "transfer", incomeMultiplier),
+        createTransaction(transferTemplate, randomDay(month, year), checkingAccountId, tenantId, "transfer", incomeMultiplier, catIdByKey),
       );
     }
 

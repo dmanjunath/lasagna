@@ -4,6 +4,7 @@
 
 import { eq, and, sql, transactions } from "@lasagna/core";
 import { db } from "./db.js";
+import { loadTaxonomy } from "./taxonomy.js";
 
 const WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -73,13 +74,19 @@ export async function matchTransfersForTenant(tenantId: string): Promise<number>
     ));
 
   const pairs = findTransferPairs(rows);
+  if (pairs.length === 0) return 0;
+  // Direct Transfer lookup, not resolveCategoryId — Transfer is locked and must
+  // never fall back to Other (an Other-id matcher would double-count payments).
+  const taxonomy = await loadTaxonomy(tenantId);
+  const transferCategoryId = taxonomy.find((c) => c.systemKey === "transfer")?.id;
+  if (!transferCategoryId) return 0;
   for (const [idA, idB] of pairs) {
     await db.transaction(async (tx) => {
       await tx.update(transactions)
-        .set({ category: "transfer" as any, categorySource: "transfer" as any, linkedTransactionId: idB })
+        .set({ categoryId: transferCategoryId, categorySource: "transfer" as any, linkedTransactionId: idB })
         .where(and(eq(transactions.id, idA), sql`${transactions.linkedTransactionId} IS NULL`));
       await tx.update(transactions)
-        .set({ category: "transfer" as any, categorySource: "transfer" as any, linkedTransactionId: idA })
+        .set({ categoryId: transferCategoryId, categorySource: "transfer" as any, linkedTransactionId: idA })
         .where(and(eq(transactions.id, idB), sql`${transactions.linkedTransactionId} IS NULL`));
     });
   }

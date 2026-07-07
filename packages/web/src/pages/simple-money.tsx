@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
-  Wallet, TrendingUp, CreditCard, RefreshCw, Lightbulb, Plus,
-  Banknote, ShoppingCart, UtensilsCrossed, Home, Car, Clapperboard,
-  ShoppingBag, HeartPulse, Shield, Plane, Tv, Receipt, ArrowLeftRight,
-  DollarSign, Lock, ChevronDown, ChevronRight,
+  Wallet, TrendingUp, RefreshCw, Plus,
+  Lock, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask } from '../lib/utils';
 import { Button, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
 import { filterByRange, type Range, type TrendPoint } from '../components/ds';
@@ -35,7 +34,7 @@ interface Item {
 }
 interface Transaction {
   id: string; date: string; name: string; merchantName: string | null;
-  amount: string; category: string;
+  amount: string; categoryId: string;
 }
 
 const fmtUsd = (n: number, frac = 0) =>
@@ -51,18 +50,8 @@ const effectiveBalance = (a: { balance: string | null; invertBalance?: boolean }
 const formatDateLong = (d: Date) =>
   d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-const categoryIcon: Record<string, React.ReactNode> = {
-  income: <DollarSign size={14} />, groceries: <ShoppingCart size={14} />,
-  food_dining: <UtensilsCrossed size={14} />, housing: <Home size={14} />,
-  transportation: <Car size={14} />, entertainment: <Clapperboard size={14} />,
-  shopping: <ShoppingBag size={14} />, utilities: <Lightbulb size={14} />,
-  healthcare: <HeartPulse size={14} />, insurance: <Shield size={14} />,
-  travel: <Plane size={14} />, subscriptions: <Tv size={14} />,
-  debt_payment: <CreditCard size={14} />, savings_investment: <TrendingUp size={14} />,
-  taxes: <Receipt size={14} />, transfer: <ArrowLeftRight size={14} />,
-};
-
 export function SimpleMoney() {
+  const displayOf = useCategoryDisplay();
   const [items, setItems] = useState<Item[]>([]);
   const [history, setHistory] = useState<TrendPoint[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -382,16 +371,19 @@ export function SimpleMoney() {
             <Link href="/spending" className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">
               All spending →
             </Link>
+            <Link href="/transactions" className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">
+              All transactions →
+            </Link>
           </div>
           <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
             {transactions.map((t) => (
               <TxnRow
                 key={t.id}
                 merchant={t.merchantName || t.name}
-                category={humanCategory(t.category)}
+                category={displayOf({ categoryId: t.categoryId }).label}
                 date={t.date}
                 amount={parseFloat(t.amount)}
-                fallbackIcon={categoryIcon[t.category] || <Banknote size={14} />}
+                fallbackIcon={displayOf({ categoryId: t.categoryId }).icon}
               />
             ))}
           </div>
@@ -844,6 +836,3 @@ function titleCase(raw: string): string {
   ).join(' ');
 }
 
-function humanCategory(c: string) {
-  return c.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
-}

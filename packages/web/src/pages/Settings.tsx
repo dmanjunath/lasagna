@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../components/ds";
 import { isNativeApp } from "../lib/native";
+import { CategoryManager } from "../components/settings/CategoryManager";
 import {
   Button,
   Surface,
@@ -347,6 +348,14 @@ export function Settings() {
         <GroupHeader eyebrow="Security" hint="Sign in with Face ID, Touch ID, or a device passkey" />
         <div className="mt-4">
           <PasskeysCard />
+        </div>
+      </section>
+
+      {/* ════════ Categories ════════ */}
+      <section className="mt-10">
+        <GroupHeader eyebrow="Categories" hint="Rename, disable, and organize how transactions are categorized" />
+        <div className="mt-4">
+          <CategoryManager />
         </div>
       </section>
 

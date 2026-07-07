@@ -30,6 +30,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
       { label: 'Money',      icon: Wallet,          path: '/money' },
+      { label: 'Spending',   icon: CreditCard,      path: '/spending' },
       { label: 'Actions',    icon: Zap,             path: '/insights' },
       { label: 'Financial Level', icon: Layers, path: '/financial-level' },
       { label: 'Accounts',   icon: Building2,       path: '/accounts' },
@@ -40,7 +41,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
       { label: 'Portfolio',  icon: PieChart,    path: '/portfolio' },
-      { label: 'Spending',   icon: CreditCard,  path: '/spending' },
       { label: 'Debt',       icon: AlertCircle, path: '/debt' },
       { label: 'Tax',        icon: Receipt,     path: '/tax' },
       { label: 'Goals',      icon: Target,      path: '/goals' },

@@ -25,6 +25,7 @@ import { quickImportRoutes } from "./routes/quick-import.js";
 import { billingRoutes } from "./routes/billing.js";
 import { adminRoutes } from "./routes/admin.js";
 import { rulesRoutes } from "./routes/rules.js";
+import { categoryRoutes } from "./routes/categories.js";
 
 export const app = new Hono<AuthEnv>();
 
@@ -138,3 +139,4 @@ app.route("/api/quick-import", quickImportRoutes);
 app.route("/api/billing", billingRoutes);
 app.route("/api/admin", adminRoutes);
 app.route("/api/rules", rulesRoutes);
+app.route("/api/categories", categoryRoutes);

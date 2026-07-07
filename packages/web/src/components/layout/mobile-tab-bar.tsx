@@ -1,5 +1,5 @@
 import { useLocation } from 'wouter';
-import { LayoutDashboard, Wallet, Zap, Target, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Wallet, CreditCard, Target, MessageSquare } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface TabItem {
@@ -11,7 +11,7 @@ interface TabItem {
 const tabs: TabItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { name: 'Money',     icon: Wallet,          path: '/money' },
-  { name: 'Actions',   icon: Zap,             path: '/insights' },
+  { name: 'Spending',  icon: CreditCard,      path: '/spending' },
   { name: 'Goals',     icon: Target,          path: '/goals' },
   { name: 'Chat',      icon: MessageSquare,   path: '/chat' },
 ];

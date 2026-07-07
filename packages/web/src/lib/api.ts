@@ -569,7 +569,7 @@ export const api = {
         merchantName: string | null;
         amount: string;
         frequency: "weekly" | "biweekly" | "monthly" | "quarterly" | "annually";
-        category: string;
+        category: string | null; // taxonomy systemKey (null for custom categories)
         nextDueDate: string | null;
         lastSeenDate: string | null;
         confidence: string | null;
@@ -648,18 +648,21 @@ export const api = {
     }
     const qs = searchParams.toString();
     return request<{
-      transactions: Array<{ id: string; accountId: string; accountName: string | null; date: string; name: string; merchantName: string | null; amount: string; category: string; pending: number; createdAt: string }>;
+      transactions: Array<{ id: string; accountId: string; accountName: string | null; date: string; name: string; merchantName: string | null; amount: string; categoryId: string; pending: number; notes: string | null; excludedAt: string | null; createdAt: string }>;
       total: number;
       page: number;
       pageSize: number;
     }>(`/transactions${qs ? `?${qs}` : ''}`);
   },
 
-  updateTransactionCategory: (id: string, category: string) =>
+  updateTransaction: (id: string, body: { category?: string; merchantName?: string; notes?: string; excluded?: boolean }) =>
     request<{ success: boolean }>(`/transactions/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ category }),
+      body: JSON.stringify(body),
     }),
+
+  updateTransactionCategory: (id: string, category: string) =>
+    api.updateTransaction(id, { category }),
 
   getSpendingSummary: (params?: { startDate?: string; endDate?: string }) => {
     const searchParams = new URLSearchParams();
@@ -667,7 +670,17 @@ export const api = {
     if (params?.endDate) searchParams.set('endDate', params.endDate);
     const qs = searchParams.toString();
     return request<{
-      categories: Array<{ category: string; total: number; count: number; percentage: number }>;
+      categories: Array<{
+        id: string;
+        name: string;
+        systemKey: string | null;
+        groupId: string;
+        groupName: string;
+        groupType: 'income' | 'expense' | 'transfer';
+        total: number;
+        count: number;
+        percentage: number;
+      }>;
       totalSpending: number;
       totalIncome: number;
       netCashFlow: number;
@@ -690,6 +703,27 @@ export const api = {
   deleteRule: (id: string) => request<{ success: boolean }>(`/rules/${id}`, { method: 'DELETE' }),
   previewRule: (id: string) => request<{ count: number }>(`/rules/${id}/preview`, { method: 'POST' }),
   applyRule: (id: string) => request<{ updated: number }>(`/rules/${id}/apply`, { method: 'POST' }),
+
+  queryTransactions: (body: TxnQueryBody) =>
+    request<TxnQueryListResponse | TxnQueryGroupsResponse>('/transactions/query', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  // Category taxonomy (tenant-owned groups → categories)
+  getCategoryTaxonomy: () => request<{ groups: TaxonomyGroup[] }>('/categories'),
+  createCategory: (body: { name: string; groupId: string; emoji?: string | null }) =>
+    request<{ category: { id: string } }>('/categories', { method: 'POST', body: JSON.stringify(body) }),
+  updateCategory: (id: string, body: { name?: string; emoji?: string | null; groupId?: string; disabled?: boolean }) =>
+    request<{ category: { id: string } }>(`/categories/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteCategory: (id: string, reassignTo: string) =>
+    request<{ success: boolean; moved: number }>(`/categories/${id}`, { method: 'DELETE', body: JSON.stringify({ reassignTo }) }),
+  createCategoryGroup: (body: { name: string; type: 'income' | 'expense' | 'transfer' }) =>
+    request<{ group: { id: string } }>('/categories/groups', { method: 'POST', body: JSON.stringify(body) }),
+  updateCategoryGroup: (id: string, body: { name?: string; type?: 'income' | 'expense' | 'transfer' }) =>
+    request<{ group: { id: string } }>(`/categories/groups/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteCategoryGroup: (id: string) =>
+    request<{ success: boolean }>(`/categories/groups/${id}`, { method: 'DELETE' }),
 
   // Goals
   getGoals: () =>
@@ -894,6 +928,29 @@ export interface QuickImportCurrentProfile {
   isPSLFEligible: boolean | null;
 }
 
+// ─── Transactions query types ─────────────────────────────────────────────
+
+export interface TxnQueryBody {
+  filters?: {
+    search?: string; categories?: string[]; accountIds?: string[];
+    startDate?: string; endDate?: string;
+    amountMin?: number; amountMax?: number; merchant?: string;
+  };
+  groupBy?: 'date' | 'category' | 'group' | 'merchant';
+  sort?: { field: 'date' | 'amount'; dir: 'asc' | 'desc' };
+  cursor?: string;
+  limit?: number;
+}
+export interface TxnQueryRow {
+  id: string; accountId: string; accountName: string | null; date: string;
+  name: string; merchantName: string | null; amount: string; categoryId: string;
+  pending: number; notes: string | null;
+  excludedAt: string | null;
+}
+export interface TxnQuerySummary { count: number; totalSpent: number; totalIncome: number }
+export interface TxnQueryListResponse { mode: 'list'; transactions: TxnQueryRow[]; nextCursor: string | null; summary: TxnQuerySummary }
+export interface TxnQueryGroupsResponse { mode: 'groups'; groups: Array<{ key: string; label: string; count: number; total: number }>; summary: TxnQuerySummary }
+
 // ─── Category rule types ───────────────────────────────────────────────────
 
 export interface CategoryRuleInput {
@@ -914,7 +971,28 @@ export interface CategoryRule {
   amountMin: string | null;
   amountMax: string | null;
   accountId: string | null;
-  matchCategory: string | null;
-  setCategory: string;
+  matchCategoryId: string | null;
+  setCategoryId: string;
   createdAt: string;
+}
+
+// ─── Category taxonomy types ───────────────────────────────────────────────
+
+export interface TaxonomyCategory {
+  id: string;
+  name: string;
+  systemKey: string | null;
+  emoji: string | null;
+  disabled: boolean;
+  locked: boolean;
+  sortOrder: number;
+}
+
+export interface TaxonomyGroup {
+  id: string;
+  name: string;
+  type: 'income' | 'expense' | 'transfer';
+  systemKey: string | null;
+  sortOrder: number;
+  categories: TaxonomyCategory[];
 }

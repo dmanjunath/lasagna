@@ -3,7 +3,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, type CategoryRule, type CategoryRuleInput } from '../../lib/api';
 import { Button, Field, Input, Modal, Select, Skeleton } from '../uikit';
 import { useConfirm } from '../ds';
-import { CATEGORY_CONFIG, getCategoryDisplay } from '../../lib/categories';
+import { categoryOptionLabel, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
 
 // ---------------------------------------------------------------------------
 // RulesPanel — manage category rules from /spending. A single modal that swaps
@@ -18,6 +18,8 @@ type View =
   | { mode: 'form'; rule: CategoryRule | null }
   | { mode: 'confirm'; ruleId: string; count: number };
 
+// matchCategory/setCategory hold category IDS (uuids) — the API field names
+// are historical.
 interface FormState {
   merchantContains: string;
   amountMode: 'any' | 'equals' | 'between';
@@ -48,8 +50,8 @@ function formFromRule(rule: CategoryRule): FormState {
     amountMin: rule.amountMin ?? '',
     amountMax: rule.amountMax ?? '',
     accountId: rule.accountId ?? '',
-    matchCategory: rule.matchCategory ?? '',
-    setCategory: rule.setCategory,
+    matchCategory: rule.matchCategoryId ?? '',
+    setCategory: rule.setCategoryId,
   };
 }
 
@@ -88,14 +90,20 @@ function fmtAmount(v: string): string {
 }
 
 // "If merchant contains 'amzn' and amount is between $10 and $50 on Chase Checking"
-function ruleSentence(rule: CategoryRule, accounts: AccountOption[]): string {
+function ruleSentence(
+  rule: CategoryRule,
+  accounts: AccountOption[],
+  labelFor: (id: string | null) => string,
+): string {
   const parts: string[] = [];
   if (rule.merchantContains) parts.push(`merchant contains “${rule.merchantContains}”`);
   if (rule.amountEquals) parts.push(`amount is exactly ${fmtAmount(rule.amountEquals)}`);
   else if (rule.amountMin && rule.amountMax) parts.push(`amount is between ${fmtAmount(rule.amountMin)} and ${fmtAmount(rule.amountMax)}`);
   else if (rule.amountMin) parts.push(`amount is at least ${fmtAmount(rule.amountMin)}`);
   else if (rule.amountMax) parts.push(`amount is at most ${fmtAmount(rule.amountMax)}`);
-  if (rule.matchCategory) parts.push(`currently categorized as ${getCategoryDisplay(rule.matchCategory).label}`);
+  if (rule.matchCategoryId) {
+    parts.push(`currently categorized as ${labelFor(rule.matchCategoryId)}`);
+  }
   if (rule.accountId) {
     const name = accounts.find((a) => a.accountId === rule.accountId)?.name ?? 'a specific account';
     if (parts.length === 0) return `If the account is ${name}`;
@@ -116,6 +124,11 @@ export function RulesPanel({
   onChanged: () => void;
 }) {
   const confirm = useConfirm();
+  const pickerGroups = usePickerGroups();
+  const { byId } = useTaxonomy();
+  // Label a category reference by its taxonomy id.
+  const labelFor = (id: string | null): string =>
+    (id ? byId.get(id)?.name : undefined) ?? 'Unknown';
   const [view, setView] = useState<View>({ mode: 'list' });
   const [rules, setRules] = useState<CategoryRule[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
@@ -264,9 +277,9 @@ export function RulesPanel({
           {rules.map((rule) => (
             <li key={rule.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
               <p className="min-w-0 flex-1 text-[13.5px] leading-relaxed text-content">
-                {ruleSentence(rule, accounts)}{' '}
+                {ruleSentence(rule, accounts, labelFor)}{' '}
                 <span className="text-content-muted">&rarr;</span>{' '}
-                <b className="font-semibold">{getCategoryDisplay(rule.setCategory).label}</b>
+                <b className="font-semibold">{labelFor(rule.setCategoryId)}</b>
               </p>
               <Button
                 variant="ghost"
@@ -360,16 +373,24 @@ export function RulesPanel({
       <Field label="Current category">
         <Select value={form.matchCategory} onChange={(e) => set({ matchCategory: e.target.value })}>
           <option value="">Any</option>
-          {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-            <option key={key} value={key}>{cfg.label}</option>
+          {pickerGroups.map(({ group, categories }) => (
+            <optgroup key={group.id} label={group.name}>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
+              ))}
+            </optgroup>
           ))}
         </Select>
       </Field>
       <Field label="Set category" required>
         <Select value={form.setCategory} onChange={(e) => set({ setCategory: e.target.value })}>
           <option value="" disabled>Choose a category…</option>
-          {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-            <option key={key} value={key}>{cfg.label}</option>
+          {pickerGroups.map(({ group, categories }) => (
+            <optgroup key={group.id} label={group.name}>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
+              ))}
+            </optgroup>
           ))}
         </Select>
       </Field>

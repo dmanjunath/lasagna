@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "../../lib/db.js";
-import { transactions, eq, and, sql, notInArray } from "@lasagna/core";
+import { transactions, categories, categoryGroups, eq, and, sql, notInArray } from "@lasagna/core";
 import { excludedTxnAccountIds } from "../../lib/account-balances.js";
 
 export function createSpendingTools(tenantId: string) {
@@ -35,19 +35,23 @@ export function createSpendingTools(tenantId: string) {
 
         const excludedIds = await excludedTxnAccountIds(tenantId);
 
-        // Spending by category
+        // Spending by category — classification via taxonomy group type;
+        // labels are the tenant's display names.
+        const categoryNameExpr = sql<string>`coalesce(${categories.name}, 'Other')`;
         const categoryRows = await db
           .select({
-            category: transactions.category,
+            category: categoryNameExpr,
             total: sql<string>`coalesce(sum(${transactions.amount}), 0)`,
             count: sql<string>`count(*)`,
           })
           .from(transactions)
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+          .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
           .where(
             and(
               eq(transactions.tenantId, tenantId),
               sql`${transactions.amount} > 0`,
-              sql`${transactions.category} NOT IN ('income', 'transfer')`,
+              sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
               sql`${transactions.date} >= ${monthStart.toISOString()}`,
               sql`${transactions.date} <= ${monthEnd.toISOString()}`,
               ...(excludedIds.length > 0
@@ -55,7 +59,7 @@ export function createSpendingTools(tenantId: string) {
                 : [])
             )
           )
-          .groupBy(transactions.category)
+          .groupBy(categoryNameExpr)
           .orderBy(sql`sum(${transactions.amount}) DESC`);
 
         // Top merchants
@@ -66,11 +70,13 @@ export function createSpendingTools(tenantId: string) {
             count: sql<string>`count(*)`,
           })
           .from(transactions)
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+          .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
           .where(
             and(
               eq(transactions.tenantId, tenantId),
               sql`${transactions.amount} > 0`,
-              sql`${transactions.category} NOT IN ('income', 'transfer')`,
+              sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
               sql`${transactions.merchantName} IS NOT NULL`,
               sql`${transactions.date} >= ${monthStart.toISOString()}`,
               sql`${transactions.date} <= ${monthEnd.toISOString()}`,

@@ -1,5 +1,6 @@
 import type { Database } from "../../db.js";
 import { tenants, users, plaidItems, financialProfiles } from "../../schema.js";
+import { seedTaxonomyForTenant } from "../../taxonomy.js";
 import { hashPassword } from "../utils.js";
 import type { ProfileConfig } from "../types.js";
 
@@ -30,6 +31,8 @@ export async function createBaseEntities(
     .insert(tenants)
     .values({ name: tenantName })
     .returning();
+
+  await seedTaxonomyForTenant(db, tenant.id);
 
   // Create user
   const passwordHash = await hashPassword(userPassword);

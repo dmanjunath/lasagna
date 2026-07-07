@@ -1,17 +1,23 @@
 import { Hono } from "hono";
-import { and, asc, eq, sql, recurringTransactions } from "@lasagna/core";
+import { and, asc, eq, sql, recurringTransactions, categories } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { detectRecurringForTenant } from "../lib/recurring-detector.js";
 import { type AuthEnv } from "../middleware/auth.js";
 
 export const recurringRoutes = new Hono<AuthEnv>();
 
-// List active recurring patterns (sorted by next due date, soonest first)
+// List active recurring patterns (sorted by next due date, soonest first).
+// `category` in the response is the taxonomy systemKey (null for custom
+// categories) — clients key stable checks off it.
 recurringRoutes.get("/", async (c) => {
   const session = c.get("session");
   const rows = await db
-    .select()
+    .select({
+      rec: recurringTransactions,
+      categorySystemKey: categories.systemKey,
+    })
     .from(recurringTransactions)
+    .leftJoin(categories, eq(recurringTransactions.categoryId, categories.id))
     .where(
       and(
         eq(recurringTransactions.tenantId, session.tenantId),
@@ -21,7 +27,7 @@ recurringRoutes.get("/", async (c) => {
     )
     .orderBy(asc(recurringTransactions.nextDueDate));
 
-  return c.json({ recurring: rows });
+  return c.json({ recurring: rows.map(({ rec, categorySystemKey }) => ({ ...rec, category: categorySystemKey })) });
 });
 
 // Trigger detection — LLM analyzes recent transactions and upserts rows
