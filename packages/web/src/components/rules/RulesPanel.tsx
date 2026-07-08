@@ -266,7 +266,8 @@ export function RulesPanel({
       ) : rules.length === 0 ? (
         <div className="py-2 text-center">
           <p className="text-[13.5px] text-content-muted">
-            No rules yet — rules re-categorize matching transactions automatically.
+            No rules yet. Create one to always file a merchant the way you want — e.g.
+            anything containing &ldquo;AMZN&rdquo; as Shopping.
           </p>
           <Button variant="secondary" size="sm" className="mt-4" leadingIcon={<Plus size={14} />} onClick={() => openForm(null)}>
             New rule
@@ -429,7 +430,7 @@ export function RulesPanel({
       title="Category rules"
       description={view.mode === 'form'
         ? (view.rule ? 'Edit this rule.' : 'Transactions matching every condition get the new category.')
-        : 'Rules run in order and re-categorize matching transactions automatically.'}
+        : 'Rules re-categorize matching transactions automatically — new ones as they arrive.'}
       footer={footer}
     >
       {view.mode === 'form' ? formBody : view.mode === 'confirm' ? (

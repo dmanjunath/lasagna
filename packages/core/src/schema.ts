@@ -535,6 +535,8 @@ export const transactions = pgTable(
     merchantName: varchar("merchant_name", { length: 255 }),
     amount: numeric("amount", { precision: 19, scale: 2 }).notNull(), // positive = expense, negative = income
     categoryId: uuid("category_id").notNull().references(() => categories.id),
+    plaidCategoryPrimary: varchar("plaid_category_primary", { length: 64 }),
+    plaidCategoryDetailed: varchar("plaid_category_detailed", { length: 96 }),
     pending: integer("pending").notNull().default(0), // 0 = false, 1 = true
     source: transactionSourceEnum("source").notNull().default("seed"),
     categorySource: categorySourceEnum("category_source").notNull().default("auto"),

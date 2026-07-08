@@ -18,10 +18,12 @@ import {
   Check,
   Fingerprint,
   Trash2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useConfirm } from "../components/ds";
 import { isNativeApp } from "../lib/native";
 import { CategoryManager } from "../components/settings/CategoryManager";
+import { RulesPanel } from "../components/rules/RulesPanel";
 import {
   Button,
   Surface,
@@ -102,6 +104,8 @@ export function Settings() {
   const [loading, setLoading] = useState(true);
   const [editSection, setEditSection] = useState<EditSection>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Show a "Welcome to Pro" banner at the top of the page after a successful
   // upgrade redirect (?upgraded=1). Billing status refresh is handled in PlanCard.
@@ -147,6 +151,7 @@ export function Settings() {
   }, [fetchProfile]);
 
   const openEdit = (section: EditSection) => {
+    setSaveError(null);
     if (editSection === section) {
       setEditSection(null);
       return;
@@ -169,6 +174,7 @@ export function Settings() {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const updates: Record<string, unknown> = {};
 
@@ -201,6 +207,7 @@ export function Settings() {
       setEditSection(null);
     } catch (err) {
       console.error("Failed to save profile:", err);
+      setSaveError("Couldn't save your changes. Try again.");
     } finally {
       setSaving(false);
     }
@@ -307,6 +314,7 @@ export function Settings() {
                 formData={formData}
                 setFormData={setFormData}
                 saving={saving}
+                saveError={saveError}
                 onCancel={() => setEditSection(null)}
                 onSave={handleSave}
               />
@@ -327,6 +335,7 @@ export function Settings() {
                 formData={formData}
                 setFormData={setFormData}
                 saving={saving}
+                saveError={saveError}
                 onCancel={() => setEditSection(null)}
                 onSave={handleSave}
               />
@@ -354,8 +363,14 @@ export function Settings() {
       {/* ════════ Categories ════════ */}
       <section className="mt-10">
         <GroupHeader eyebrow="Categories" hint="Rename, disable, and organize how transactions are categorized" />
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
           <CategoryManager />
+          <NavCard
+            icon={<SlidersHorizontal className="h-5 w-5" />}
+            label="Category rules"
+            sub="Auto-categorize transactions by merchant"
+            onClick={() => setRulesOpen(true)}
+          />
         </div>
       </section>
 
@@ -377,6 +392,13 @@ export function Settings() {
           />
         </div>
       </section>
+
+      <RulesPanel
+        open={rulesOpen}
+        seed={null}
+        onClose={() => setRulesOpen(false)}
+        onChanged={() => {}}
+      />
     </div>
   );
 }
@@ -593,7 +615,7 @@ function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, ch
               >
                 {rows.map((r) => (
                   <div key={r.label} className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-content-muted">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-muted">
                       {r.label}
                     </div>
                     <div
@@ -724,7 +746,7 @@ function PlanCard() {
     ? cancelScheduled
       ? (periodLabel ?? "Cancels at period end")
       : `${(status?.subscriptionStatus ?? "active").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}${periodLabel ? ` · ${periodLabel}` : ""}`
-    : "Free plan — upgrade any time";
+    : "Upgrade any time";
 
   return (
     <Surface pad="none" className="overflow-hidden">
@@ -823,14 +845,14 @@ function Switch({
     >
       <span
         className={cn(
-          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-150 ease-ui",
-          checked ? "bg-brand" : "bg-canvas-sunken border border-line-strong",
+          "relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors duration-150 ease-ui",
+          checked ? "bg-brand" : "bg-line-strong",
         )}
       >
         <span
           className={cn(
-            "inline-block h-[18px] w-[18px] rounded-full bg-white shadow-ui-sm transition-transform duration-150 ease-ui",
-            checked ? "translate-x-[23px]" : "translate-x-[3px]",
+            "inline-block h-[18px] w-[18px] rounded-full bg-panel shadow-ui-sm transition-transform duration-150 ease-ui",
+            checked ? "translate-x-[18px]" : "translate-x-[2px]",
           )}
         />
       </span>
@@ -857,11 +879,12 @@ interface EditPanelProps {
   };
   setFormData: React.Dispatch<React.SetStateAction<EditPanelProps['formData']>>;
   saving: boolean;
+  saveError?: string | null;
   onCancel: () => void;
   onSave: () => void;
 }
 
-function PersonalEditPanel({ formData, setFormData, saving, onCancel, onSave }: EditPanelProps) {
+function PersonalEditPanel({ formData, setFormData, saving, saveError, onCancel, onSave }: EditPanelProps) {
   // Inline validation (visual only — never blocks save, matching prior behavior).
   const stateError = formData.stateOfResidence.length === 1 ? "Use a 2-letter code" : undefined;
   const retAgeNum = Number(formData.retirementAge);
@@ -956,6 +979,10 @@ function PersonalEditPanel({ formData, setFormData, saving, onCancel, onSave }: 
         />
       </div>
 
+      {saveError && (
+        <p role="alert" className="text-[12.5px] font-medium text-negative">{saveError}</p>
+      )}
+
       <div className="flex gap-2 pt-1">
         <Button onClick={onSave} disabled={saving} loading={saving}>
           {saving ? "Saving…" : "Save changes"}
@@ -966,7 +993,7 @@ function PersonalEditPanel({ formData, setFormData, saving, onCancel, onSave }: 
   );
 }
 
-function IncomeEditPanel({ formData, setFormData, saving, onCancel, onSave }: EditPanelProps) {
+function IncomeEditPanel({ formData, setFormData, saving, saveError, onCancel, onSave }: EditPanelProps) {
   const matchNum = Number(formData.employerMatchPercent);
   const matchError = formData.employerMatchPercent && (matchNum < 0 || matchNum > 100) ? "Between 0 and 100" : undefined;
 
@@ -1012,6 +1039,10 @@ function IncomeEditPanel({ formData, setFormData, saving, onCancel, onSave }: Ed
           />
         </Field>
       </div>
+
+      {saveError && (
+        <p role="alert" className="text-[12.5px] font-medium text-negative">{saveError}</p>
+      )}
 
       <div className="flex gap-2 pt-1">
         <Button onClick={onSave} disabled={saving} loading={saving}>

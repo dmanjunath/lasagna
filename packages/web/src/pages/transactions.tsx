@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'wouter';
-import { Banknote, ChevronDown, DollarSign, Layers, Receipt, Search, Store } from 'lucide-react';
-import { api, type TxnQueryRow, type TxnQuerySummary } from '../lib/api';
+import { Link, useLocation } from 'wouter';
+import { Banknote, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Layers, Receipt, Search, Store } from 'lucide-react';
+import { api, type TxnQueryRow } from '../lib/api';
+import { useAccountsIndex } from '../lib/use-accounts-index';
 import { cn } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
 import { Alert, Button, EmptyState, SegmentedControl, Skeleton } from '../components/uikit';
@@ -51,6 +52,13 @@ function dayLabel(iso: string, now: Date = new Date()): string {
 type Mode = 'date' | 'category' | 'group' | 'merchant';
 type SortKey = 'newest' | 'oldest' | 'largest' | 'smallest';
 
+const SORT_LABELS: Record<SortKey, string> = {
+  newest: 'Date · newest',
+  oldest: 'Date · oldest',
+  largest: 'Amount · largest',
+  smallest: 'Amount · smallest',
+};
+
 const SORTS: Record<SortKey, { field: 'date' | 'amount'; dir: 'asc' | 'desc' }> = {
   newest: { field: 'date', dir: 'desc' },
   oldest: { field: 'date', dir: 'asc' },
@@ -71,6 +79,7 @@ interface GroupCache { rows: TxnQueryRow[]; nextCursor: string | null; loading: 
 
 export function Transactions() {
   const { setPageContext } = usePageContext();
+  const [, setLocation] = useLocation();
   const { groups: taxonomyGroups, loading: taxonomyLoading, byId, bySystemKey } = useTaxonomy();
   const displayOf = useCategoryDisplay();
 
@@ -87,7 +96,6 @@ export function Transactions() {
   const [expanded, setExpanded] = useState<Map<string, GroupCache>>(new Map());
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
 
-  const [summary, setSummary] = useState<TxnQuerySummary | null>(null);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +106,8 @@ export function Transactions() {
   const [rulesPanel, setRulesPanel] = useState<{ open: boolean; seed: { merchantText: string; category: string } | null }>({ open: false, seed: null });
   const [detailTx, setDetailTx] = useState<TxnQueryRow | null>(null);
 
-  const [accounts, setAccounts] = useState<Array<{ id: string; name: string }>>([]);
+  // Accounts with institution identity — for the account filter options/chips.
+  const { list: accounts } = useAccountsIndex();
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Latest-wins: every filters/sort/mode change bumps the seq; responses tagged
@@ -115,13 +124,6 @@ export function Transactions() {
       description: 'All transactions across accounts with search, filters, and grouping.',
     });
   }, [setPageContext]);
-
-  // Accounts — for the account filter and the id→name fallback.
-  useEffect(() => {
-    api.getBalances()
-      .then((data) => setAccounts(data.balances.map((b) => ({ id: b.accountId, name: b.name }))))
-      .catch(() => {});
-  }, []);
 
   // One fetch pipeline: page 1 of the current mode. Resets accumulation.
   useEffect(() => {
@@ -140,7 +142,6 @@ export function Transactions() {
           if (seq !== requestSeqRef.current || res.mode !== 'list') return;
           setRows(res.transactions);
           setNextCursor(res.nextCursor);
-          setSummary(res.summary);
         })
         .catch((err: Error) => {
           if (seq !== requestSeqRef.current) return;
@@ -154,7 +155,6 @@ export function Transactions() {
         .then((res) => {
           if (seq !== requestSeqRef.current || res.mode !== 'groups') return;
           setGroups(res.groups);
-          setSummary(res.summary);
         })
         .catch((err: Error) => {
           if (seq !== requestSeqRef.current) return;
@@ -227,19 +227,9 @@ export function Transactions() {
     });
   }
 
-  // Refetch just the summary line (category edits shift spent/received splits).
-  function refetchSummary() {
-    const seq = requestSeqRef.current;
-    api.queryTransactions({ filters: filtersToQuery(filters), limit: 1 })
-      .then((res) => {
-        if (seq === requestSeqRef.current) setSummary(res.summary);
-      })
-      .catch(() => {});
-  }
-
   // Page-local optimistic category edit (same shape as TransactionList's
-  // categoryEditorFor): capture prev → optimistic → PATCH → prompt + summary
-  // refetch on success, revert on failure. `newCatId` is a category id (uuid).
+  // categoryEditorFor): capture prev → optimistic → PATCH → prompt on
+  // success, revert on failure. `newCatId` is a category id (uuid).
   async function handleCategoryEdit(tx: TxnQueryRow, newCatId: string) {
     if (newCatId === tx.categoryId) {
       setEditingTxId(null);
@@ -252,10 +242,10 @@ export function Transactions() {
     try {
       await api.updateTransactionCategory(tx.id, newCatId);
       setCreateRulePrompt({ txId: tx.id, merchantText, category: newCatId });
-      refetchSummary();
     } catch (err) {
       console.error(err);
       patchTx(tx.id, { categoryId: prevCatId });
+      setError("Couldn't update the category — the change was undone. Try again.");
     }
   }
 
@@ -432,37 +422,49 @@ export function Transactions() {
   let lastDayKey: string | null = null;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+      {/* ── Back — desktop only; mobile gets the shell's top-bar back ── */}
+      <button
+        type="button"
+        onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/spending'); }}
+        className="ui-focus -ml-2 mb-2 hidden min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content sm:mb-3 sm:ml-0 sm:inline-flex sm:min-h-0 sm:px-0"
+      >
+        <ChevronLeft size={16} /> Back
+      </button>
+
       {/* ════════ Header ════════ */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Transactions
           </h1>
-          {summary ? (
-            <p className="ui-tnum mt-1.5 text-[14px] font-medium text-content-muted">
-              {summary.count} transaction{summary.count === 1 ? '' : 's'} · {formatCurrencyExact(summary.totalSpent)} spent · {formatCurrencyExact(summary.totalIncome)} received
-            </p>
-          ) : (
-            <Skeleton className="mt-2.5 h-4 w-72" />
-          )}
         </div>
+      </header>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <SegmentedControl
-            aria-label="Group by"
-            value={mode}
-            onChange={(m: Mode) => setMode(m)}
-            stretch={false}
-            options={[
-              { value: 'date', label: 'Date' },
-              { value: 'category', label: 'Category' },
-              { value: 'group', label: 'Group' },
-              { value: 'merchant', label: 'Merchant' },
-            ]}
-          />
-          {mode === 'date' && (
-            <div className="relative">
+      {/* ════════ Toolbar — search + Filters popover (View + filters inside);
+           active-filter chips render beneath. ════════ */}
+      <div className="mt-5">
+        <TransactionFilters
+          filters={filters}
+          onChange={setFilters}
+          accounts={accounts}
+          viewSection={
+            <SegmentedControl
+              aria-label="View"
+              value={mode}
+              onChange={(m: Mode) => setMode(m)}
+              options={[
+                { value: 'date', label: 'Date' },
+                { value: 'category', label: 'Category' },
+                { value: 'group', label: 'Group' },
+                { value: 'merchant', label: 'Merchant' },
+              ]}
+            />
+          }
+          trailing={mode === 'date' ? (
+            // Desktop sort — inline with search + Filters. Mobile sorts via the
+            // tappable list header instead.
+            <div className="relative hidden shrink-0 sm:block">
               <select
                 value={sortKey}
                 onChange={(e) => setSortKey(e.target.value as SortKey)}
@@ -474,27 +476,49 @@ export function Transactions() {
                 <option value="largest">Largest</option>
                 <option value="smallest">Smallest</option>
               </select>
-              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted" />
+              <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-content-muted" />
             </div>
-          )}
-        </div>
-      </header>
-
-      {/* ════════ Filters ════════ */}
-      <div className="mt-5">
-        <TransactionFilters filters={filters} onChange={setFilters} accounts={accounts} />
+          ) : undefined}
+        />
       </div>
 
       {/* ════════ Error strip (stale rows stay visible below) ════════ */}
       {error && (
-        <Alert tone="negative" className="mt-4" title="Something went wrong">
+        <Alert tone="negative" className="mt-4">
           {error}
         </Alert>
       )}
 
       {/* ════════ List card ════════ */}
       <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-        {loadingInitial ? (
+        {/* Mobile sort header — a tappable row on the list itself; the invisible
+             native select on top opens the OS picker (field + order in one). */}
+        {mode === 'date' && rows.length > 0 && (
+          <div className="relative flex items-center justify-between border-b border-line px-4 py-2.5 sm:hidden">
+            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
+              Sorted by
+            </span>
+            <span className="flex items-center gap-1 text-[13px] font-semibold text-content">
+              {SORT_LABELS[sortKey]}
+              <ChevronRight size={14} className="rotate-90 text-content-muted" />
+            </span>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              aria-label="Sort transactions"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            >
+              <option value="newest">Date · newest first</option>
+              <option value="oldest">Date · oldest first</option>
+              <option value="largest">Amount · largest first</option>
+              <option value="smallest">Amount · smallest first</option>
+            </select>
+          </div>
+        )}
+        {/* Skeleton only before the FIRST rows for the current mode arrive;
+             later refetches (sort/filter/view changes) keep the stale content
+             mounted, dimmed, so the list doesn't flash to skeletons. */}
+        {loadingInitial && (mode === 'date' ? rows.length === 0 : groups.length === 0) ? (
           skeletonRows
         ) : isEmpty ? (
           <div className="p-3">
@@ -518,7 +542,7 @@ export function Transactions() {
             )}
           </div>
         ) : mode === 'date' ? (
-          <div>
+          <div className={cn('transition-opacity duration-200', loadingInitial && 'opacity-50')}>
             {rows.map((tx) => {
               const d = new Date(tx.date);
               const dayKey = Number.isNaN(d.getTime()) ? tx.date : d.toDateString();
@@ -547,7 +571,7 @@ export function Transactions() {
             )}
           </div>
         ) : (
-          <div>
+          <div className={cn('transition-opacity duration-200', loadingInitial && 'opacity-50')}>
             {groups.map((g) => {
               const isOpen = openKeys.has(g.key);
               const entry = expanded.get(g.key);
@@ -567,7 +591,7 @@ export function Transactions() {
                     type="button"
                     onClick={() => toggleGroup(g.key)}
                     aria-expanded={isOpen}
-                    className="ui-focus flex w-full items-center gap-3.5 border-t border-line px-4 py-3 text-left transition-colors first:border-t-0 hover:bg-canvas-sunken/50 sm:px-5"
+                    className="ui-focus flex w-full items-center gap-3.5 border-t border-line px-4 py-3 text-left transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-canvas-sunken/50 sm:px-5"
                   >
                     <span className={cn(
                       'grid h-9 w-9 shrink-0 place-items-center rounded-ui-md',
@@ -591,7 +615,7 @@ export function Transactions() {
                     />
                   </button>
                   {isOpen && (
-                    <div className="bg-canvas-sunken/40 pl-4 sm:pl-6">
+                    <div className="bg-canvas-sunken/40 pl-4 last:rounded-b-ui-xl last:overflow-hidden sm:pl-6">
                       {entry && entry.rows.length > 0 && entry.rows.map((tx) => renderTxRow(tx))}
                       {entry?.loading && (
                         <div className="flex items-center gap-3.5 border-t border-line px-4 py-3 sm:px-5">
@@ -643,7 +667,6 @@ export function Transactions() {
             ...(patch.notes !== undefined ? { notes: patch.notes.trim() === '' ? null : patch.notes } : {}),
             ...(patch.excluded !== undefined ? { excludedAt: patch.excluded ? new Date().toISOString() : null } : {}),
           });
-          if (patch.categoryId !== undefined || patch.excluded !== undefined) refetchSummary();
           if (patch.merchantName !== undefined && mode === 'merchant') setRefreshKey((k) => k + 1);
         }}
       />

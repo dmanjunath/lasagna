@@ -30,11 +30,12 @@ describe("mapCategory", () => {
     expect(mapCategory(pc("GENERAL_SERVICES", "GENERAL_SERVICES_EDUCATION"))).toBe("education");
     expect(mapCategory(pc("GENERAL_SERVICES", "GENERAL_SERVICES_AUTOMOTIVE"))).toBe("transportation");
     expect(mapCategory(pc("GENERAL_SERVICES", "GENERAL_SERVICES_CHILDCARE"))).toBe("personal_care");
+    expect(mapCategory(pc("GENERAL_SERVICES", "GENERAL_SERVICES_OTHER_GENERAL_SERVICES"))).toBe("software_saas");
     expect(mapCategory(pc("GENERAL_SERVICES", "GENERAL_SERVICES_CONSULTING_AND_LEGAL"))).toBe("other");
   });
   it("keeps credit-card payments as transfers", () => {
     expect(mapCategory(pc("LOAN_PAYMENTS", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT"))).toBe("transfer");
-    expect(mapCategory(pc("LOAN_PAYMENTS", "LOAN_PAYMENTS_MORTGAGE_PAYMENT"))).toBe("debt_payment");
+    expect(mapCategory(pc("LOAN_PAYMENTS", "LOAN_PAYMENTS_MORTGAGE_PAYMENT"))).toBe("housing");
   });
   it("keeps investment transfers as transfers (never spending)", () => {
     expect(mapCategory(pc("TRANSFER_OUT", "TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS"))).toBe("transfer");

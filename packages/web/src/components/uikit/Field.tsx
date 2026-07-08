@@ -1,8 +1,12 @@
 import {
+  Children,
+  cloneElement,
   forwardRef,
+  isValidElement,
   useId,
   type InputHTMLAttributes,
   type LabelHTMLAttributes,
+  type ReactElement,
   type ReactNode,
   type TextareaHTMLAttributes,
 } from 'react';
@@ -108,23 +112,36 @@ export function Field({
   className?: string;
 }) {
   const autoId = useId();
-  const id = htmlFor ?? autoId;
+  // Wire the label to the (single) child control. A child's own id wins; the
+  // hint/error paragraph is announced via aria-describedby.
+  let control = children;
+  let controlId = htmlFor ?? autoId;
+  const descId = error || hint ? `${controlId}-desc` : undefined;
+  if (Children.count(children) === 1 && isValidElement(children)) {
+    const child = children as ReactElement<{ id?: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean }>;
+    controlId = child.props.id ?? controlId;
+    control = cloneElement(child, {
+      id: controlId,
+      'aria-describedby': child.props['aria-describedby'] ?? descId,
+      'aria-invalid': child.props['aria-invalid'] ?? (error ? true : undefined),
+    });
+  }
   return (
     <div className={cn('space-y-1.5', className)}>
       {label && (
-        <Label htmlFor={id}>
+        <Label htmlFor={controlId}>
           {label}
           {required && <span className="ml-0.5 text-brand">*</span>}
         </Label>
       )}
-      {children}
+      {control}
       {error ? (
-        <p className="flex items-center gap-1.5 text-[12px] font-medium text-negative">
+        <p id={descId} className="flex items-center gap-1.5 text-[12px] font-medium text-negative">
           <AlertCircle className="h-3.5 w-3.5" aria-hidden />
           {error}
         </p>
       ) : hint ? (
-        <p className="text-[12px] text-content-muted">{hint}</p>
+        <p id={descId} className="text-[12px] text-content-muted">{hint}</p>
       ) : null}
     </div>
   );

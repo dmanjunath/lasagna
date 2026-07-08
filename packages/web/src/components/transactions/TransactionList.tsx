@@ -26,8 +26,6 @@ function shortDate(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const PAGE_SIZE = 20;
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -74,6 +72,7 @@ export function CategoryEditorSelect({
       value={value}
       onBlur={onBlur}
       onChange={(e) => onChange(e.target.value)}
+      aria-label="Category"
       className="h-7 rounded-ui-sm border border-line-strong bg-panel px-1.5 text-[12px] font-medium text-content"
       onClick={(e) => e.stopPropagation()}
     >
@@ -117,7 +116,7 @@ export function CreateRuleBar({
       <button
         type="button"
         onClick={onCreate}
-        className="shrink-0 font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+        className="touch-target-inline shrink-0 font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
       >
         Create rule
       </button>
@@ -125,7 +124,7 @@ export function CreateRuleBar({
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="grid shrink-0 place-items-center text-content-muted hover:text-content"
+        className="touch-target-inline grid shrink-0 place-items-center text-content-muted hover:text-content"
       >
         <X size={13} />
       </button>
@@ -199,6 +198,9 @@ export function TransactionList({
   showCategoryFilter = true,
   onCategoryChange,
   viewAllHref,
+  pageSize = 20,
+  showPagination = true,
+  showSearch = true,
 }: {
   accountId?: string;
   startDate?: string;
@@ -212,6 +214,10 @@ export function TransactionList({
   showCategoryFilter?: boolean;
   onCategoryChange?: (cat: string | null) => void;
   viewAllHref?: string;
+  pageSize?: number;
+  /** false = single fixed page; viewAllHref renders as a card footer link instead. */
+  showPagination?: boolean;
+  showSearch?: boolean;
 }) {
   // When `category` prop is provided (even as null) the component is controlled.
   const isControlled = category !== undefined;
@@ -229,6 +235,7 @@ export function TransactionList({
   const [total, setTotal] = useState(0);
   const [createRulePrompt, setCreateRulePrompt] = useState<{ txId: string; merchantText: string; category: string } | null>(null);
   const [detailTx, setDetailTx] = useState<Transaction | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const effectiveCategory = isControlled ? category : internalCategory;
 
@@ -255,7 +262,7 @@ export function TransactionList({
     setLoading(true);
     api.getTransactions({
       page,
-      limit: PAGE_SIZE,
+      limit: pageSize,
       category: effectiveCategory || undefined,
       startDate,
       endDate,
@@ -274,9 +281,9 @@ export function TransactionList({
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [page, effectiveCategory, startDate, endDate, accountId, debouncedSearch, refreshKey]);
+  }, [page, pageSize, effectiveCategory, startDate, endDate, accountId, debouncedSearch, refreshKey]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   function categoryEditorFor(tx: Transaction) {
     return (
@@ -287,6 +294,7 @@ export function TransactionList({
         onChange={async (newCatId) => {
           const prevCatId = tx.categoryId;
           const merchantText = tx.merchantName || tx.name;
+          setEditError(null);
           setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: newCatId } : t));
           setEditingTxId(null);
           try {
@@ -298,6 +306,7 @@ export function TransactionList({
           } catch (err) {
             console.error(err);
             setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: prevCatId } : t));
+            setEditError("Couldn't update the category — the change was undone. Try again.");
           }
         }}
       />
@@ -309,10 +318,12 @@ export function TransactionList({
       <div className="flex flex-col gap-3 px-1 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-baseline gap-2.5">
           <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">{title}</h2>
-          {total > 0 && (
+          {/* In teaser mode the footer link already prints the count — showing
+               it here too states the same number twice in one card. */}
+          {total > 0 && (showPagination || !viewAllHref) && (
             <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">{total} total</span>
           )}
-          {viewAllHref && (
+          {viewAllHref && showPagination && (
             <Link href={viewAllHref} className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">View all →</Link>
           )}
         </div>
@@ -330,6 +341,7 @@ export function TransactionList({
                   }
                   setPage(1);
                 }}
+                aria-label="Filter by category"
                 className="ui-focus touch-target h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm sm:w-auto"
               >
                 <option value="">All categories</option>
@@ -344,26 +356,29 @@ export function TransactionList({
               <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-content-muted" />
             </div>
           )}
-          <div className="relative">
-            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
-            <input
-              type="text"
-              placeholder="Search merchants…"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); }}
-              className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-8 text-[13px] text-content shadow-ui-sm sm:w-[220px]"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
-                className="absolute right-2.5 top-1/2 grid -translate-y-1/2 place-items-center text-content-muted hover:text-content"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+          {showSearch && (
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
+              <input
+                type="text"
+                placeholder="Search merchants…"
+                aria-label="Search merchants"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); }}
+                className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-8 text-[13px] text-content shadow-ui-sm sm:w-[220px]"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1/2 grid -translate-y-1/2 place-items-center text-content-muted hover:text-content"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -397,6 +412,10 @@ export function TransactionList({
             </Badge>
           )}
         </div>
+      )}
+
+      {editError && (
+        <p role="alert" className="mb-3 px-1 text-[12.5px] font-medium text-negative">{editError}</p>
       )}
 
       <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
@@ -467,6 +486,8 @@ export function TransactionList({
                       date={tx.date}
                       amount={amount}
                       excluded={tx.excludedAt != null}
+                      // Redundant when the list is already scoped to one account.
+                      accountName={accountId ? undefined : (tx.accountName ?? undefined)}
                     />
                   </div>
                   {createRulePrompt?.txId === tx.id && (
@@ -486,10 +507,10 @@ export function TransactionList({
           </div>
         )}
 
-        {total > PAGE_SIZE && (
+        {showPagination && total > pageSize && (
           <div className="flex items-center justify-between border-t border-line px-4 py-3.5 sm:px-5">
             <span className="ui-tnum text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
-              {(page - 1) * PAGE_SIZE + 1}&ndash;{Math.min(page * PAGE_SIZE, total)} of {total}
+              {(page - 1) * pageSize + 1}&ndash;{Math.min(page * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-1.5">
               <button
@@ -515,6 +536,15 @@ export function TransactionList({
               </button>
             </div>
           </div>
+        )}
+
+        {!showPagination && viewAllHref && total > 0 && (
+          <Link
+            href={viewAllHref}
+            className="ui-focus flex items-center justify-center rounded-b-ui-xl border-t border-line px-4 py-3 text-[13px] font-bold text-content-muted transition-colors hover:text-brand sm:px-5"
+          >
+            View all {total} transactions →
+          </Link>
         )}
       </div>
 

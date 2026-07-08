@@ -19,8 +19,13 @@ const DETAILED_MAP: Record<string, string> = {
   GENERAL_SERVICES_EDUCATION: "education",
   GENERAL_SERVICES_AUTOMOTIVE: "transportation",
   GENERAL_SERVICES_CHILDCARE: "personal_care",
+  // Plaid dumps virtually all SaaS/cloud subscriptions (OpenAI, AWS, VPNs,
+  // Google One…) into this bucket; in practice it's software, not plumbers.
+  // A non-SaaS service landing here is a one-off rule/edit away from correct.
+  GENERAL_SERVICES_OTHER_GENERAL_SERVICES: "software_saas",
   TRANSPORTATION_GAS: "gas",
   TRANSPORTATION_PARKING: "parking_tolls",
+  LOAN_PAYMENTS_MORTGAGE_PAYMENT: "housing",
   LOAN_PAYMENTS_CAR_PAYMENT: "car_payment",
   RENT_AND_UTILITIES_INTERNET_AND_CABLE: "internet_phone",
   RENT_AND_UTILITIES_TELEPHONE: "internet_phone",
@@ -151,6 +156,8 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           amount: txn.amount.toString(),
           categoryId,
           categorySource: categorySource as any,
+          plaidCategoryPrimary: txn.personal_finance_category?.primary ?? null,
+          plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
           pending: txn.pending ? 1 : 0,
           source: "plaid" as any,
         });
@@ -163,7 +170,12 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           accountId: existing.accountId,
         }, txn.personal_finance_category);
         await db.update(transactions)
-          .set({ categoryId, categorySource: categorySource as any })
+          .set({
+            categoryId,
+            categorySource: categorySource as any,
+            plaidCategoryPrimary: txn.personal_finance_category?.primary ?? null,
+            plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
+          })
           .where(eq(transactions.plaidTransactionId, txn.transaction_id));
       }
     }
@@ -178,6 +190,8 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
       const fields: Record<string, unknown> = {
         amount: txn.amount.toString(),
         pending: txn.pending ? 1 : 0,
+        plaidCategoryPrimary: txn.personal_finance_category?.primary ?? null,
+        plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
       };
       if (!existing.merchantEditedAt) {
         fields.name = name;

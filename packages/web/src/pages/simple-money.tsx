@@ -80,7 +80,10 @@ export function SimpleMoney() {
     setSyncingAll(true);
     setSyncError(null);
     try {
-      await Promise.all(items.map((item) => api.syncItem(item.id).catch(() => {})));
+      const results = await Promise.all(
+        items.map((item) => api.syncItem(item.id).then(() => true, () => false)),
+      );
+      if (results.includes(false)) setSyncError('Some accounts failed to sync. Try again.');
       const fresh = await api.getItems();
       setItems(fresh.items);
     } catch {
@@ -202,7 +205,7 @@ export function SimpleMoney() {
       {/* ── Loading skeleton — reserves the chart card + two group footprints ── */}
       {loading && (
         <>
-          <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <Skeleton className="h-3 w-20" />
@@ -214,7 +217,7 @@ export function SimpleMoney() {
             <Skeleton className="mt-6 h-[200px] w-full rounded-ui-md" />
           </div>
           {[0, 1].map((g) => (
-            <div key={g} className="mt-[18px] rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+            <div key={g} className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
               <div className="flex items-center gap-3 px-5 py-4">
                 <Skeleton className="h-[11px] w-[11px] rounded-[3.5px]" />
                 <Skeleton className="h-4 w-28" />
@@ -239,7 +242,7 @@ export function SimpleMoney() {
 
       {/* ── Net-worth + chart card ── */}
       {hasMoney && (
-        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-[26px]">
+        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
           {/* atmospheric wash — periwinkle top-right + brand top-left */}
           <div
             aria-hidden="true"
@@ -366,13 +369,10 @@ export function SimpleMoney() {
       {/* ── Recent activity ── */}
       {transactions.length > 0 && (
         <section className="mt-8">
-          <div className="flex items-baseline justify-between gap-3 px-1 pb-3">
+          <div className="flex items-baseline justify-between gap-3 whitespace-nowrap px-1 pb-3">
             <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Recent activity</h2>
             <Link href="/spending" className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">
-              All spending →
-            </Link>
-            <Link href="/transactions" className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">
-              All transactions →
+              View spending →
             </Link>
           </div>
           <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
@@ -485,7 +485,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
         viewBox={`0 0 ${chartW} ${CHART_H}`}
         role="img"
         aria-label="Net worth trend chart"
-        className="block w-full touch-none"
+        className="block w-full"
         style={{ pointerEvents: 'none' }}
       >
         <defs>
@@ -544,7 +544,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
       {/* Pointer overlay — snaps hover to the nearest x-domain point. */}
       <div
         className="absolute inset-0"
-        style={{ touchAction: 'none', cursor: 'crosshair' }}
+        style={{ touchAction: 'pan-y', cursor: 'crosshair' }}
         onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
         onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
         onPointerLeave={() => setHoverIdx(null)}
@@ -586,7 +586,7 @@ function GroupSection({
   );
 
   return (
-    <div className="mt-[18px]">
+    <div className="mt-5">
       {errorItems.map((item) => (
         <div key={item.id} className="mb-2.5 flex items-center justify-between gap-3 rounded-ui-md border border-caution/30 bg-caution-soft px-4 py-3">
           <div>
@@ -691,7 +691,7 @@ function AcctRow({
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Edit ${name}`}
+      aria-label={`View ${name}`}
       onClick={onSettings}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSettings(); } }}
       className={cn(

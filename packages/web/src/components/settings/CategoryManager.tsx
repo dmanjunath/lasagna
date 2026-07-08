@@ -37,7 +37,7 @@ function MiniToggle({ checked, onChange, label, disabled }: {
       title={label}
       onClick={onChange}
       disabled={disabled}
-      className="ui-focus grid shrink-0 place-items-center rounded-full disabled:opacity-50"
+      className="ui-focus touch-target grid shrink-0 place-items-center rounded-full disabled:opacity-50"
     >
       <span
         aria-hidden="true"
@@ -344,9 +344,10 @@ export function CategoryManager() {
                           {renamingCat ? (
                             <div className="min-w-0 flex-1">{renameInput(renaming)}</div>
                           ) : (
-                            <span className={cn('min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content', cat.disabled && 'text-content-muted opacity-60')}>
-                              {cat.name}
-                              {cat.disabled && <Badge tone="neutral" size="sm" className="ml-2 align-middle opacity-100">Off</Badge>}
+                            <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content">
+                              {/* Dim only the name — opacity on the parent would dim the badge too. */}
+                              <span className={cn(cat.disabled && 'text-content-muted opacity-60')}>{cat.name}</span>
+                              {cat.disabled && <Badge tone="neutral" size="sm" className="ml-2 align-middle">Off</Badge>}
                             </span>
                           )}
                           <Button

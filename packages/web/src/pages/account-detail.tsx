@@ -8,7 +8,7 @@ import { cn, stripAccountMask } from '../lib/utils';
 import { Button, Field, Input, Select, SegmentedControl, Skeleton } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
-import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
+import { InstIcon } from '../components/common/InstIcon';
 import { TransactionList } from '../components/transactions/TransactionList';
 
 // ---------------------------------------------------------------------------
@@ -341,24 +341,26 @@ export function AccountDetail() {
         const init = initialLoanRef.current;
         const changed = Object.keys(cur).some((k) => cur[k] !== (init[k] ?? ''));
         if (changed) {
+          // APR/min-payment are required numbers on a loan — clearing the
+          // field saves 0 rather than silently keeping the old value.
+          const numOr0 = (s: string) => (s.trim() === '' ? 0 : parseFloat(s));
           const body: Record<string, unknown> = { type: loanType };
           if (loanType === 'mortgage') {
             if (maturityDate) body.maturityDate = maturityDate;
-            if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
+            body.interestRatePercentage = numOr0(interestRate);
             if (originationDate) body.originationDate = originationDate;
           } else if (loanType === 'student_loan') {
             if (expectedPayoffDate) body.expectedPayoffDate = expectedPayoffDate;
-            if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
-            if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
+            body.interestRatePercentage = numOr0(interestRate);
+            body.minimumPaymentAmount = numOr0(minPayment);
             if (repaymentPlanType) body.repaymentPlanType = repaymentPlanType;
           } else if (loanType === 'credit_card') {
-            if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
-            if (purchaseApr)
-              body.aprs = [{ aprType: 'purchase_apr', aprPercentage: parseFloat(purchaseApr) }];
+            body.minimumPaymentAmount = numOr0(minPayment);
+            body.aprs = [{ aprType: 'purchase_apr', aprPercentage: numOr0(purchaseApr) }];
           } else {
             if (maturityDate) body.maturityDate = maturityDate;
-            if (interestRate) body.interestRatePercentage = parseFloat(interestRate);
-            if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
+            body.interestRatePercentage = numOr0(interestRate);
+            body.minimumPaymentAmount = numOr0(minPayment);
             if (originationDate) body.originationDate = originationDate;
           }
           if (Object.keys(body).length > 1) await api.patchLoanDetails(id, body);
@@ -524,6 +526,88 @@ export function AccountDetail() {
           {actionError ?? flash}
         </p>
       )}
+
+      {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+              'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
+          }}
+        />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
+            <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
+              {fmtUsd(heroValue)}
+            </div>
+            <div className="mt-3 flex min-h-7 items-center gap-2.5 flex-wrap">
+              {hoveredPoint ? (
+                <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
+                  {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              ) : hasHistory && heroChange !== 0 ? (
+                <>
+                  <DeltaChip delta={heroChange} />
+                  <span className="text-[13px] font-medium text-content-muted">over this period</span>
+                </>
+              ) : (
+                <span className="text-[13px] font-medium text-content-muted">
+                  {isManual ? 'Manually tracked' : lastSyncedAt ? `Synced ${relativeTime(lastSyncedAt)}` : 'Connected'}
+                </span>
+              )}
+            </div>
+          </div>
+          {hasHistory && chartPoints.length >= 2 && (
+            <SegmentedControl
+              aria-label="Time range"
+              value={range}
+              onChange={(r) => setRange(r as Range)}
+              options={[
+                { value: '1M', label: '1M' },
+                { value: '6M', label: '6M' },
+                { value: '1Y', label: '1Y' },
+                { value: 'All', label: 'All' },
+              ]}
+            />
+          )}
+        </div>
+
+        {hasHistory ? (
+          chartPoints.length >= 2 ? (
+            <div className="relative mt-5 pr-2 sm:pr-0">
+              <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+            </div>
+          ) : (
+            <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
+              No data in this range.
+            </p>
+          )
+        ) : (
+          <div className="relative mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-8 text-center">
+            <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
+              <TrendingUp size={20} />
+            </div>
+            <div className="text-[15px] font-semibold">No history yet</div>
+            <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-content-muted">
+              A value trend appears once we have a few days of history.
+            </p>
+          </div>
+        )}
+
+        {/* Key facts — read-only, at-a-glance context for this one account. */}
+        <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
+          {facts.map((f) => (
+            <div key={f.label} className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-faint">{f.label}</div>
+              <div className="mt-1 truncate text-[15px] font-bold text-content ui-tnum">{f.value}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── Settings — collapsible, organized into on-skin sub-sections. ── */}
       <section className="mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
@@ -695,88 +779,6 @@ export function AccountDetail() {
         )}
       </section>
 
-      {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
-      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-[26px]">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
-              'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
-          }}
-        />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
-            <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
-              {fmtUsd(heroValue)}
-            </div>
-            <div className="mt-3 flex min-h-[28px] items-center gap-2.5 flex-wrap">
-              {hoveredPoint ? (
-                <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
-                  {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              ) : hasHistory && heroChange !== 0 ? (
-                <>
-                  <DeltaChip delta={heroChange} />
-                  <span className="text-[13px] font-medium text-content-muted">over this period</span>
-                </>
-              ) : (
-                <span className="text-[13px] font-medium text-content-muted">
-                  {isManual ? 'Manually tracked' : lastSyncedAt ? `Synced ${relativeTime(lastSyncedAt)}` : 'Connected'}
-                </span>
-              )}
-            </div>
-          </div>
-          {hasHistory && chartPoints.length >= 2 && (
-            <SegmentedControl
-              aria-label="Time range"
-              value={range}
-              onChange={(r) => setRange(r as Range)}
-              options={[
-                { value: '1M', label: '1M' },
-                { value: '6M', label: '6M' },
-                { value: '1Y', label: '1Y' },
-                { value: 'All', label: 'All' },
-              ]}
-            />
-          )}
-        </div>
-
-        {hasHistory ? (
-          chartPoints.length >= 2 ? (
-            <div className="relative mt-5 pr-2 sm:pr-0">
-              <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
-            </div>
-          ) : (
-            <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
-              No data in this range.
-            </p>
-          )
-        ) : (
-          <div className="relative mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-8 text-center">
-            <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
-              <TrendingUp size={20} />
-            </div>
-            <div className="text-[15px] font-semibold">No history yet</div>
-            <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-content-muted">
-              A value trend appears once we have a few days of history.
-            </p>
-          </div>
-        )}
-
-        {/* Key facts — read-only, at-a-glance context for this one account. */}
-        <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
-          {facts.map((f) => (
-            <div key={f.label} className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-faint">{f.label}</div>
-              <div className="mt-1 truncate text-[15px] font-bold text-content ui-tnum">{f.value}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* ── Transactions — this account's activity, searchable + paginated. ── */}
       <section className="mt-6">
         <TransactionList accountId={id} title="Transactions" />
@@ -795,25 +797,6 @@ function SettingsGroup({ title, className, children }: { title: string; classNam
     <div className={className}>
       <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{title}</p>
       {children}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Institution avatar — favicon on a soft tile, initial fallback. Mirrors Money.
-// ---------------------------------------------------------------------------
-
-function InstIcon({ institution, isManual }: { institution: string; isManual: boolean }) {
-  const url = isManual ? null : faviconUrl(institutionDomainFor(institution), 64);
-  const mono = (institution || '?').trim().charAt(0).toUpperCase();
-  const [err, setErr] = useState(false);
-  return (
-    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-ui-md border border-line bg-canvas-sunken text-[16px] font-bold text-content-secondary shadow-ui-sm">
-      {url && !err ? (
-        <img src={url} alt="" className="h-7 w-7 rounded-[6px]" onError={() => setErr(true)} />
-      ) : (
-        mono
-      )}
     </div>
   );
 }
@@ -940,7 +923,7 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
         viewBox={`0 0 ${chartW} ${CHART_H}`}
         role="img"
         aria-label="Account value trend chart"
-        className="block w-full touch-none"
+        className="block w-full"
         style={{ pointerEvents: 'none' }}
       >
         <defs>
@@ -999,7 +982,7 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
       {/* Pointer overlay — snaps hover to the nearest x-domain point. */}
       <div
         className="absolute inset-0"
-        style={{ touchAction: 'none', cursor: 'crosshair' }}
+        style={{ touchAction: 'pan-y', cursor: 'crosshair' }}
         onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
         onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
         onPointerLeave={() => setHoverIdx(null)}

@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  SlidersHorizontal,
   TrendingDown,
   TrendingUp,
   Receipt,
@@ -12,6 +11,7 @@ import { Link } from 'wouter';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
+import { useAuth } from '../lib/auth';
 import { usePageContext } from '../lib/page-context';
 import { PageActions } from '../components/common/page-actions';
 import { Button, EmptyState, Eyebrow, SegmentedControl, Skeleton } from '../components/uikit';
@@ -91,6 +91,7 @@ function DonutMini({
   fmtAmount,
   centerLabel = 'Total',
   centerValue,
+  onSelect,
 }: {
   cats: Array<{ name: string; amount: number; color: string; label?: string }>;
   total: number;
@@ -99,6 +100,8 @@ function DonutMini({
   fmtAmount?: (n: number) => string;
   centerLabel?: string;
   centerValue?: string;
+  /** Click a slice → filter by its key (parity with the ledger rows). */
+  onSelect?: (name: string) => void;
 }) {
   const [hoveredLocal, setHoveredLocal] = useState<number | null>(null);
   const hovered = hoveredProp !== undefined ? hoveredProp : hoveredLocal;
@@ -126,7 +129,7 @@ function DonutMini({
       <svg
         viewBox="0 0 120 120"
         preserveAspectRatio="xMidYMid meet"
-        className="block w-full cursor-pointer"
+        className={cn('block w-full', onSelect && 'cursor-pointer')}
         data-testid="spending-donut"
       >
         {paths.map((p) => (
@@ -136,6 +139,7 @@ function DonutMini({
             onMouseEnter={() => setHovered(p.idx)}
             onMouseLeave={() => setHovered(null)}
             onTouchStart={() => setHovered(hovered === p.idx ? null : p.idx)}
+            onClick={onSelect ? () => onSelect(p.name) : undefined}
             data-slice-idx={p.idx}
           />
         ))}
@@ -177,7 +181,7 @@ function DonutMini({
 function StatCell({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: 'pos' | 'neg' }) {
   return (
     <div>
-      <div className="text-[10.5px] font-bold uppercase tracking-[0.11em] text-content-muted">{label}</div>
+      <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[20px] sm:text-[25px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
         tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
@@ -194,6 +198,7 @@ function StatCell({ label, value, sub, tone }: { label: string; value: string; s
 
 export function Spending() {
   const { setPageContext } = usePageContext();
+  const { user } = useAuth();
 
   // Period navigation
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -292,6 +297,11 @@ export function Spending() {
     return () => { active = false; };
   }, [periodStart, periodEnd, refreshKey]);
 
+  // Clear the skip-animation flag after the render that consumed it.
+  useEffect(() => {
+    skipHeroAnimRef.current = false;
+  }, [selectedPeriod]);
+
   // Fetch cashflow periods — powers the bar chart + prior-period delta.
   useEffect(() => {
     let active = true;
@@ -310,24 +320,48 @@ export function Spending() {
     });
   }, [setPageContext]);
 
-  // Derived
-  const savingsRate = totalIncome > 0 ? ((totalIncome - totalSpending) / totalIncome) * 100 : null;
+  // Derived. While the summary refetches after a period switch, the chart data
+  // already holds the NEW period's totals — drive the hero from it so the old
+  // period's numbers never flash under the new caption. The fetched summary
+  // takes over the moment it lands (values agree; both exclude transfers and
+  // excluded transactions).
+  const selPeriodData = periods.find((p) => p.period === selectedPeriod) ?? null;
+  const instant = loadingSummary && selPeriodData !== null;
+  const displaySpending = instant ? selPeriodData.expenses : totalSpending;
+  const displayIncome = instant ? selPeriodData.income : totalIncome;
+  const displayNet = instant ? selPeriodData.net : netCashFlow;
+  const savingsRate = displayIncome > 0 ? ((displayIncome - displaySpending) / displayIncome) * 100 : null;
 
   const prevMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
   }, []);
+  // The current calendar month is the ceiling — no stepping into the future.
+  const atCurrentMonth = useMemo(() => {
+    const now = new Date();
+    return currentMonth.getFullYear() === now.getFullYear() && currentMonth.getMonth() === now.getMonth();
+  }, [currentMonth]);
   const nextMonth = useCallback(() => {
-    setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+    setCurrentMonth((d) => {
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      return next > new Date() ? d : next;
+    });
   }, []);
 
   // Clicking a bar selects that period.
+  // When the clicked bar is the one already hovered, its value is ALREADY on
+  // screen — re-animating the same number on selection is just distraction.
+  // Stepper/auto-page selections (value genuinely changes) still animate.
+  const skipHeroAnimRef = useRef(false);
   const handleSelectPeriod = useCallback((p: string) => {
+    if (chartHover !== null && periods[chartHover]?.period === p) {
+      skipHeroAnimRef.current = true;
+    }
     if (granularity === 'month') {
       setCurrentMonth(new Date(+p.slice(0, 4), +p.slice(5, 7) - 1, 1));
     } else {
       setCurrentYear(+p);
     }
-  }, [granularity]);
+  }, [granularity, chartHover, periods]);
 
   // Switching granularity keeps the selection sensible: to year → year of the
   // month in view; back to month → currentMonth is untouched.
@@ -440,19 +474,19 @@ export function Spending() {
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
   const priorPeriodDelta = useMemo(() => {
-    if (periods.length < 2 || totalSpending === 0) return null;
+    if (periods.length < 2 || displaySpending === 0) return null;
     const idx = periods.findIndex((p) => p.period === selectedPeriod);
     if (idx < 1) return null;
     const prior = periods[idx - 1];
     if (!prior || prior.expenses === 0) return null;
-    const pct = ((totalSpending - prior.expenses) / prior.expenses) * 100;
+    const pct = ((displaySpending - prior.expenses) / prior.expenses) * 100;
     return Math.round(pct);
-  }, [periods, totalSpending, selectedPeriod]);
+  }, [periods, displaySpending, selectedPeriod]);
 
   const hasChart = periods.length > 0;
 
   const hoveredPeriod = chartHover !== null ? periods[chartHover] : null;
-  const heroValue = hoveredPeriod ? hoveredPeriod.expenses : totalSpending;
+  const heroValue = hoveredPeriod ? hoveredPeriod.expenses : displaySpending;
   const heroCaption = hoveredPeriod
     ? periodLabel(hoveredPeriod.period, granularity)
     : periodDisplayLabel;
@@ -463,17 +497,16 @@ export function Spending() {
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
-      {/* ════════ Header ════════ */}
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+      {/* ════════ Header — title/lede row, then a single non-wrapping controls
+           row (desktop-only Sync keeps it to one line at 390px). */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Spending
           </h1>
           {hasLoadedSummary && (
-            <p className="mt-1.5 text-[14px] font-medium text-content-muted">
+            <p className="mt-1.5 hidden text-[14px] font-medium text-content-muted sm:block">
               {topCategoryLabel ? (
                 <>Where your money went — most on <b className="font-bold text-content">{topCategoryLabel}</b>.</>
               ) : (
@@ -483,8 +516,8 @@ export function Spending() {
           )}
         </div>
 
-        {/* Granularity toggle + month stepper + sync */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Granularity toggle + month stepper (+ sync when admin) */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
           <SegmentedControl
             aria-label="Granularity"
             value={granularity}
@@ -501,33 +534,25 @@ export function Spending() {
                 type="button"
                 onClick={prevMonth}
                 aria-label="Previous month"
-                className="ui-focus touch-target grid h-10 w-10 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content"
+                className="ui-focus touch-target grid h-10 w-9 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content sm:w-10"
               >
                 <ChevronLeft size={18} />
               </button>
-              <span className="ui-tnum min-w-[92px] px-1 text-center font-editorial text-[13.5px] font-bold tracking-[-0.01em] text-content">
+              <span className="ui-tnum min-w-[76px] px-1 text-center font-editorial text-[13.5px] font-bold tracking-[-0.01em] text-content sm:min-w-[92px]">
                 {currentMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
               </span>
               <button
                 type="button"
                 onClick={nextMonth}
+                disabled={atCurrentMonth}
                 aria-label="Next month"
-                className="ui-focus touch-target grid h-10 w-10 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content"
+                className="ui-focus touch-target grid h-10 w-9 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-35 disabled:hover:bg-transparent sm:w-10"
               >
                 <ChevronRight size={18} />
               </button>
             </div>
           )}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setRulesPanel({ open: true, seed: null })}
-            leadingIcon={<SlidersHorizontal size={15} />}
-            aria-label="Rules"
-          >
-            <span className="hidden sm:inline">Rules</span>
-          </Button>
-          {!isDemo && (
+          {!isDemo && user?.isAdmin && (
             <Button
               variant="secondary"
               size="sm"
@@ -539,6 +564,9 @@ export function Spending() {
               }}
               leadingIcon={<RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />}
               aria-label={syncing ? 'Syncing' : 'Sync'}
+              // Desktop-only: another control overflows the one-row header at
+              // 390px for admins. Admins sync from desktop.
+              className="hidden sm:inline-flex"
             >
               <span className="hidden sm:inline">{syncing ? 'Syncing…' : 'Sync'}</span>
             </Button>
@@ -548,7 +576,7 @@ export function Spending() {
 
       {/* ════════ Loading skeleton ════════ */}
       {loadingSummary && !hasLoadedSummary && (
-        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-[26px]">
+        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
             <div>
               <Skeleton className="h-3 w-24" />
@@ -583,10 +611,9 @@ export function Spending() {
                 'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
             }}
           />
-          <div className={cn(
-            'relative flex flex-wrap items-start justify-between gap-x-8 gap-y-5 transition-opacity duration-200',
-            loadingSummary && 'opacity-50',
-          )}>
+          {/* No loading dim here — the hero derives from already-loaded chart
+               data during a refetch, so its numbers are correct immediately. */}
+          <div className="relative flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
             <div className="flex flex-col gap-1">
               <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
                 Spent · {heroCaption}
@@ -595,7 +622,7 @@ export function Spending() {
                    hover swaps stay instant (same key, no re-animation). */}
               <motion.div
                 key={`${granularity}:${selectedPeriod}`}
-                initial={hasLoadedSummary ? { opacity: 0, y: 6 } : false}
+                initial={hasLoadedSummary && !skipHeroAnimRef.current ? { opacity: 0, y: 6 } : false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="mt-2 font-editorial text-[40px] sm:text-[54px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum"
@@ -635,12 +662,12 @@ export function Spending() {
                  right-aligned on the same row on desktop, wrapping below the
                  Spent block on narrow screens. */}
             <div className="flex flex-wrap gap-x-8 gap-y-5 text-left">
-              <StatCell label="Income" value={formatCurrency(totalIncome)} sub="received" />
+              <StatCell label="Income" value={formatCurrency(displayIncome)} sub="received" />
               <StatCell
                 label="Net flow"
-                value={`${netCashFlow >= 0 ? '+' : ''}${formatCurrency(netCashFlow)}`}
-                sub={netCashFlow >= 0 ? 'surplus' : 'deficit'}
-                tone={netCashFlow >= 0 ? 'pos' : 'neg'}
+                value={`${displayNet >= 0 ? '+' : ''}${formatCurrency(displayNet)}`}
+                sub={displayNet >= 0 ? 'surplus' : 'deficit'}
+                tone={displayNet >= 0 ? 'pos' : 'neg'}
               />
               <StatCell
                 label="Savings rate"
@@ -659,6 +686,7 @@ export function Spending() {
                 selectedPeriod={selectedPeriod}
                 onSelect={handleSelectPeriod}
                 onHoverChange={setChartHover}
+                visibleCount={granularity === 'month' ? 6 : undefined}
               />
             </div>
           )}
@@ -711,12 +739,9 @@ export function Spending() {
       {hasLoadedSummary && spendingCategories.length > 0 && (
         <section className="mt-10">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-4">
-            <div className="flex items-baseline gap-3">
-              <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Where it went</h2>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted ui-tnum">
-                {rollupRows.length} {rollup === 'group' ? (rollupRows.length === 1 ? 'group' : 'groups') : (rollupRows.length === 1 ? 'category' : 'categories')}
-              </span>
-            </div>
+            {/* Count lives in the donut's center readout — repeating it here
+                 printed the same number twice within one section. */}
+            <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Where it went</h2>
             <SegmentedControl
               aria-label="Break down by"
               value={rollup}
@@ -747,9 +772,15 @@ export function Spending() {
                     ? (rollupRows.length === 1 ? 'Group' : 'Groups')
                     : (rollupRows.length === 1 ? 'Category' : 'Categories')}
                   centerValue={String(rollupRows.length)}
+                  onSelect={rollup === 'category'
+                    ? (name) => {
+                        if (name === '__tailbin__') return;
+                        setSelectedCategory((cur) => (cur === name ? null : name));
+                      }
+                    : undefined}
                 />
                 <div className="mt-3 text-center text-[12px] font-medium text-content-muted">
-                  Tap a slice to isolate it
+                  {rollup === 'category' ? 'Tap a slice to filter the transactions below' : 'Tap a slice to isolate it'}
                 </div>
               </div>
 
@@ -828,6 +859,10 @@ export function Spending() {
           onDataChanged={loadData}
           onCreateRule={(seed) => setRulesPanel({ open: true, seed })}
           viewAllHref="/transactions"
+          pageSize={5}
+          showPagination={false}
+          showSearch={false}
+          showCategoryFilter={false}
         />
       </section>
 

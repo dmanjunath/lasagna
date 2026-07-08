@@ -219,7 +219,7 @@ export function Sidebar({ className }: SidebarProps) {
                 onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
                 className="w-full text-left px-4 py-2.5 text-sm text-content-secondary hover:bg-canvas-sunken transition-colors cursor-pointer"
               >
-                Profile
+                Profile &amp; Settings
               </button>
               <div className="h-px mx-3 my-1 bg-line" />
               <button

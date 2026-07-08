@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { useAccountsIndex } from '../../lib/use-accounts-index';
 import { cn } from '../../lib/utils';
 import { Badge, Button, Field, Input, Modal, Select, Textarea } from '../uikit';
+import { InstIcon } from '../common/InstIcon';
 import { categoryOptionLabel, useCategoryDisplay, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
 
 // ---------------------------------------------------------------------------
@@ -19,6 +21,7 @@ export interface DetailTx {
   date: string;
   notes?: string | null;
   excludedAt?: string | null;
+  accountId?: string | null;
   accountName?: string | null;
   pending?: number;
 }
@@ -55,6 +58,9 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
   const pickerGroups = usePickerGroups();
   const { byId } = useTaxonomy();
   const displayOf = useCategoryDisplay();
+  // Account identity (institution + name + mask) for the read-only meta row.
+  const { byId: accountsById } = useAccountsIndex();
+  const acct = tx?.accountId ? accountsById.get(tx.accountId) : undefined;
 
   useEffect(() => {
     if (!open || !tx) return;
@@ -124,13 +130,21 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-1 text-[13px] text-content-muted">
               <span className="ui-tnum">{longDate(tx.date)}</span>
-              {tx.accountName && (
+              {!acct && tx.accountName && (
                 <>
                   <span className="text-content-faint">·</span>
                   <span>{tx.accountName}</span>
                 </>
               )}
             </div>
+            {acct && (
+              <div className="mt-2 flex items-center gap-2">
+                <InstIcon institution={acct.institution} isManual={acct.isManual} size="sm" />
+                <span className="min-w-0 truncate text-[13px] text-content-muted">
+                  {acct.institution} — {acct.name}{acct.mask ? ` ···${acct.mask}` : ''}
+                </span>
+              </div>
+            )}
             <div className="mt-1.5 text-[12px] text-content-muted">
               Original description: <span className="text-content-secondary">{tx.name}</span>
             </div>
