@@ -23,7 +23,6 @@ import { cn } from "../lib/utils.js";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
 import { useChatStore } from "../lib/chat-store.js";
-import { LegalDisclaimer } from "../components/common/legal-disclaimer.js";
 import { Button, Badge, EmptyState, Skeleton } from "../components/uikit";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -649,10 +648,6 @@ export function TaxStrategy() {
                 onDismiss={() => dismiss(ins.id)}
               />
             ))}
-          </div>
-
-          <div className="mt-6">
-            <LegalDisclaimer variant="insights" />
           </div>
         </section>
       ) : null}

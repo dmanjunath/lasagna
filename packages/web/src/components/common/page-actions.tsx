@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useInsights } from '../../hooks/useInsights';
 import { ActionItem } from './action-item';
-import { LegalDisclaimer } from './legal-disclaimer';
 
 interface PageActionsProps {
   /** Filter to specific insight type(s). Omit for all types (Home/Focus). */
@@ -78,10 +77,6 @@ export function PageActions({ types, viewAllHref }: PageActionsProps) {
             onDismiss={() => dismiss(insight.id)}
           />
         ))}
-      </div>
-
-      <div className="mt-5">
-        <LegalDisclaimer variant="insights" />
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

@@ -19,7 +19,6 @@ import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
 import { formatRelativeTime } from '../lib/utils';
-import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import { Button, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 
 // ---------------------------------------------------------------------------
@@ -707,11 +706,6 @@ export function Insights() {
           </p>
         </section>
       )}
-
-      {/* legal disclaimer footnote */}
-      <div className="mt-8 pt-5 border-t border-hairline">
-        <LegalDisclaimer variant="insights" />
-      </div>
 
       {/* ════════ Undo affordance ════════ */}
       <AnimatePresence>

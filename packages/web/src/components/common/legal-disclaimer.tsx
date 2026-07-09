@@ -1,10 +1,9 @@
 import { useAuth } from '../../lib/auth.js';
 
-type Variant = 'chat' | 'insights' | 'projections';
+type Variant = 'chat' | 'projections';
 
 const COPY: Record<Variant, string> = {
   chat: 'AI responses are for informational purposes only and do not constitute financial advice. LasagnaFi is not a registered investment advisor.',
-  insights: 'These suggestions are informational only — not financial, tax, or investment advice. Verify with a qualified professional before acting.',
   projections: 'Projections are based on historical data and assumptions that may not reflect future results. This is not financial advice.',
 };
 
