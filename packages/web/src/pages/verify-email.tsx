@@ -1,13 +1,16 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { AlertCircle } from "lucide-react";
 import { api } from "../lib/api.js";
+import { setNativeToken } from "../lib/native.js";
 import { Button, Input, Field } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
 type VerifyStash = {
-  workosUserId: string;
+  purpose: "login" | "signup";
   email: string;
+  setPassword?: boolean;
   acceptedTos?: boolean;
   acceptedPrivacy?: boolean;
   acceptedNotRia?: boolean;
@@ -18,7 +21,7 @@ function readStash(): VerifyStash | null {
     const raw = sessionStorage.getItem("lf_verify");
     if (!raw) return null;
     const parsed = JSON.parse(raw) as VerifyStash;
-    if (!parsed.workosUserId || !parsed.email) return null;
+    if (!parsed.email || (parsed.purpose !== "login" && parsed.purpose !== "signup")) return null;
     return parsed;
   } catch {
     return null;
@@ -26,18 +29,22 @@ function readStash(): VerifyStash | null {
 }
 
 export function VerifyEmail() {
+  const [, navigate] = useLocation();
   const [stash] = useState<VerifyStash | null>(readStash);
+  const isSignup = stash?.purpose === "signup";
   const [code, setCode] = useState("");
   const [acceptedTos, setAcceptedTos] = useState(stash?.acceptedTos ?? false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(stash?.acceptedPrivacy ?? false);
   const [acceptedNotRia, setAcceptedNotRia] = useState(stash?.acceptedNotRia ?? false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resent, setResent] = useState(false);
 
-  // Consent is normally collected on the signup page and carried in the stash — don't ask
-  // again here. Only surface the checkboxes for login-initiated verification, where the user
-  // reached this screen without a signup consent step (stash has no accepted flags).
-  const consentGiven = Boolean(stash?.acceptedTos && stash?.acceptedPrivacy && stash?.acceptedNotRia);
+  // Consent is captured on the signup page and carried in the stash. Only surface the
+  // checkboxes for a signup that somehow arrived without them. Login never asks for consent.
+  const consentCaptured = Boolean(stash?.acceptedTos && stash?.acceptedPrivacy && stash?.acceptedNotRia);
+  const needConsentUi = isSignup && !consentCaptured;
+  const consentOk = !isSignup || (acceptedTos && acceptedPrivacy && acceptedNotRia);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,19 +52,37 @@ export function VerifyEmail() {
     setError("");
     setLoading(true);
     try {
-      await api.verifyEmail({
-        workosUserId: stash.workosUserId,
-        code,
-        acceptedTos,
-        acceptedPrivacy,
-        acceptedNotRia,
-      });
+      const res =
+        stash.purpose === "login"
+          ? await api.loginCode(stash.email, code)
+          : await api.verifyEmail({
+              email: stash.email,
+              code,
+              setPassword: Boolean(stash.setPassword),
+              acceptedTos,
+              acceptedPrivacy,
+              acceptedNotRia,
+            });
+      // Native shell (Capacitor): the httpOnly cookie doesn't survive, so persist the
+      // Bearer token before reloading or /me runs unauthenticated and bounces to login.
+      if (res?.token) setNativeToken(res.token);
       // Full reload so AuthProvider re-runs /me and picks up the new session cookie.
       sessionStorage.removeItem("lf_verify");
       window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setLoading(false);
+    }
+  };
+
+  const resend = async () => {
+    if (!stash) return;
+    setError("");
+    try {
+      await api.loginSendCode(stash.email);
+      setResent(true);
+    } catch {
+      /* no enumeration — stay quiet */
     }
   };
 
@@ -85,7 +110,7 @@ export function VerifyEmail() {
               </p>
             ) : (
               <p className="mt-1.5 text-[14px] text-content-secondary">
-                Your verification session expired.
+                Your sign-in session expired.
               </p>
             )}
           </div>
@@ -114,9 +139,8 @@ export function VerifyEmail() {
                 />
               </Field>
 
-              {/* Only shown for login-initiated verification (no consent captured at signup).
-                  In the normal signup flow consent was already accepted and is carried silently. */}
-              {!consentGiven && (
+              {/* Signup only — and only if consent wasn't already captured on the signup page. */}
+              {needConsentUi && (
                 <ConsentCheckboxes
                   values={{ acceptedTos, acceptedPrivacy, acceptedNotRia }}
                   onChange={(key, checked) => {
@@ -138,13 +162,28 @@ export function VerifyEmail() {
                 type="submit"
                 size="lg"
                 loading={loading}
-                disabled={loading || !acceptedTos || !acceptedPrivacy || !acceptedNotRia || !code}
+                disabled={loading || !code || !consentOk}
                 className="w-full"
               >
-                {loading ? "Verifying…" : "Verify email"}
+                {loading ? "Verifying…" : isSignup ? "Create account" : "Sign in"}
               </Button>
 
-              {/* A "Resend code" affordance can be added here later if needed. */}
+              <div className="flex items-center justify-between pt-0.5">
+                <button
+                  type="button"
+                  onClick={resend}
+                  className="text-sm text-brand hover:text-brand-hover underline underline-offset-2"
+                >
+                  {resent ? "Code re-sent ✓" : "Didn't get a code? Resend"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/")}
+                  className="text-sm text-content-secondary hover:text-content underline underline-offset-2"
+                >
+                  {isSignup ? "Back to sign in" : "Need an account?"}
+                </button>
+              </div>
             </form>
           )}
         </div>

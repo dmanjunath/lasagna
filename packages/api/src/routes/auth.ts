@@ -62,25 +62,28 @@ export function nativeTokenField(c: Context, token: string): { token?: string } 
   return c.req.header("x-lasagna-client") === "native" ? { token } : {};
 }
 function userPayload(u: any) {
-  return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, isAdmin: u.isAdmin, hasAcceptedTerms: u.acceptedTermsAt != null };
+  return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, isAdmin: u.isAdmin, hasAcceptedTerms: u.acceptedTermsAt != null, hasPassword: u.hasPassword, lastLoginAt: u.lastLoginAt };
 }
 
 // Sign up — creates a new tenant + user (owner)
 authRoutes.post("/signup", async (c) => {
   const { email, password, name, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
-  if (!email || !password) return c.json({ error: "Email and password are required" }, 400);
+  if (!email) return c.json({ error: "Email is required" }, 400);
   if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)
     return c.json({ error: "You must accept the Terms of Service, Privacy Policy, and RIA acknowledgment" }, 400);
 
   if (authMode() === "workos") {
     try {
-      const r = await workos.signUp({ email, password, name });
-      return c.json({ needsVerification: true, workosUserId: r.workosUserId, email: r.email });
+      // Password is optional — passwordless accounts sign in with emailed codes.
+      const r = await workos.signUp({ email, password: password || undefined, name });
+      return c.json({ needsVerification: true, email: r.email });
     } catch (err) {
       return c.json({ error: workos.friendlyError(err, "Could not create your account. Please check your details and try again.") }, 400);
     }
   }
 
+  // Local mode still requires a password.
+  if (!password) return c.json({ error: "Password is required" }, 400);
   const res = await localSignUp({ email, password, name });
   if (res.conflict) return c.json({ error: "Email already registered" }, 409);
   const token = await issueSession(c, res.user);
@@ -108,7 +111,7 @@ authRoutes.post("/login", async (c) => {
     try { r = await workos.login({ email, password }); }
     catch { return c.json({ error: "Invalid email or password" }, 401); }
     if (r.status === "needs_verification")
-      return c.json({ needsVerification: true, workosUserId: r.workosUserId, email: r.email });
+      return c.json({ needsVerification: true, email: r.email });
     const { user, tenant } = await provisionUser(r.identity);
     const token = await issueSession(c, user);
     return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null, ...nativeTokenField(c, token) });
@@ -118,6 +121,45 @@ authRoutes.post("/login", async (c) => {
   if (!user) return c.json({ error: "Invalid email or password" }, 401);
   const token = await issueSession(c, user);
   const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, user.tenantId) });
+  return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null, ...nativeTokenField(c, token) });
+});
+
+// ── Two-step (email-first) login ──────────────────────────────────────────
+// Step 1: decide whether this account uses a password or an emailed code.
+authRoutes.post("/login/start", async (c) => {
+  const { email } = await c.req.json<{ email?: string }>();
+  if (!email) return c.json({ error: "Email is required" }, 400);
+  // Local mode → always password.
+  if (authMode() !== "workos") return c.json({ step: "password" as const });
+  const user = await db.query.users.findFirst({ where: eq(users.email, email) });
+  // Mirror the /login local-account bypass: demo + local-only accounts (local hash,
+  // no WorkOS link) authenticate by password. Also any account that has a password.
+  if ((user?.passwordHash && !user.workosUserId) || user?.hasPassword)
+    return c.json({ step: "password" as const });
+  // Passwordless account → send a code. Unknown email → send nothing (no enumeration).
+  if (user) { try { await workos.sendMagicAuth({ email }); } catch { /* swallow */ } }
+  return c.json({ step: "code" as const });
+});
+
+// On-demand Magic Auth send: "Email a code instead" + "Resend". Checks WorkOS (not the
+// local table) so it also works during signup (WorkOS user exists, local row does not yet).
+authRoutes.post("/login/send-code", async (c) => {
+  if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
+  const { email } = await c.req.json<{ email?: string }>();
+  try { if (email && (await workos.hasWorkosUser(email))) await workos.sendMagicAuth({ email }); } catch { /* no enumeration */ }
+  return c.json({ ok: true });
+});
+
+// Step 2 (code path) for LOGIN — no consent write (returning users).
+authRoutes.post("/login/code", async (c) => {
+  if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
+  const { email, code } = await c.req.json<{ email?: string; code?: string }>();
+  if (!email || !code) return c.json({ error: "Email and code are required" }, 400);
+  let identity;
+  try { identity = await workos.authenticateWithMagicAuth({ email, code }); }
+  catch { return c.json({ error: "Invalid or expired code" }, 400); }
+  const { user, tenant } = await provisionUser(identity);
+  const token = await issueSession(c, user);
   return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null, ...nativeTokenField(c, token) });
 });
 
@@ -150,6 +192,8 @@ authRoutes.get("/me", requireAuth, async (c) => {
       onboardingStage: user.onboardingStage,
       isAdmin: user.isAdmin,
       hasAcceptedTerms: user.acceptedTermsAt != null,
+      hasPassword: user.hasPassword,
+      lastLoginAt: user.lastLoginAt,
       notifyDaily: user.notifyDaily,
       notifyBills: user.notifyBills,
       notifyWeeklyEmail: user.notifyWeeklyEmail,
@@ -188,6 +232,8 @@ authRoutes.patch("/me", requireAuth, async (c) => {
         onboardingStage: existing.onboardingStage,
         isAdmin: existing.isAdmin,
         hasAcceptedTerms: existing.acceptedTermsAt != null,
+        hasPassword: existing.hasPassword,
+        lastLoginAt: existing.lastLoginAt,
         notifyDaily: existing.notifyDaily,
         notifyBills: existing.notifyBills,
         notifyWeeklyEmail: existing.notifyWeeklyEmail,
@@ -210,6 +256,8 @@ authRoutes.patch("/me", requireAuth, async (c) => {
       onboardingStage: updated.onboardingStage,
       isAdmin: updated.isAdmin,
       hasAcceptedTerms: updated.acceptedTermsAt != null,
+      hasPassword: updated.hasPassword,
+      lastLoginAt: updated.lastLoginAt,
       notifyDaily: updated.notifyDaily,
       notifyBills: updated.notifyBills,
       notifyWeeklyEmail: updated.notifyWeeklyEmail,
@@ -253,17 +301,32 @@ authRoutes.patch("/onboarding-stage", requireAuth, async (c) => {
   return c.json({ onboardingStage: updated.onboardingStage });
 });
 
+// Signup email verification — Magic Auth (email-keyed), writes consent + hasPassword.
 authRoutes.post("/verify-email", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
-  const { workosUserId, code, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
+  const { email, code, setPassword, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
   if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)
     return c.json({ error: "You must accept all agreements" }, 400);
   let identity;
-  try { identity = await workos.verifyEmailCode({ workosUserId, code }); }
+  try { identity = await workos.authenticateWithMagicAuth({ email, code }); }
   catch { return c.json({ error: "Invalid or expired code" }, 400); }
-  const { user, tenant } = await provisionUser({ ...identity, acceptedTerms: true });
+  const { user, tenant } = await provisionUser({ ...identity, acceptedTerms: true, hasPassword: Boolean(setPassword) });
   const token = await issueSession(c, user);
   return c.json({ user: userPayload(user), tenant: tenant ? { id: tenant.id, name: tenant.name, plan: await resolveTenantPlan(tenant.id) } : null, ...nativeTokenField(c, token) });
+});
+
+// Set or change the account password (Settings). WorkOS-only; flips users.hasPassword.
+authRoutes.post("/set-password", requireAuth, async (c) => {
+  if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
+  const session = c.get("session");
+  const { password } = await c.req.json<{ password?: string }>();
+  if (!password || password.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
+  const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+  if (!user?.workosUserId) return c.json({ error: "No linked account" }, 400);
+  try { await workos.setPassword({ workosUserId: user.workosUserId, password }); }
+  catch (err) { return c.json({ error: workos.friendlyError(err, "Could not set password.") }, 400); }
+  await db.update(users).set({ hasPassword: true }).where(eq(users.id, session.userId));
+  return c.json({ ok: true });
 });
 
 authRoutes.post("/forgot-password", async (c) => {

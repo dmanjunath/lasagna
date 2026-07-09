@@ -36,16 +36,27 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Auth
-  signup: (data: { email: string; password: string; name?: string; acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) =>
+  signup: (data: { email: string; password?: string; name?: string; acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }): Promise<{ needsVerification: true; email: string }> =>
     request("/auth/signup", { method: "POST", body: JSON.stringify(data) }),
 
   login: (data: { email: string; password: string }): Promise<
     | { user: { id: string; email: string; name: string | null; role: string; onboardingStage: string | null; isAdmin: boolean; hasAcceptedTerms: boolean }; tenant: { id: string; name: string; plan: string } | null }
-    | { needsVerification: true; workosUserId: string; email: string }
+    | { needsVerification: true; email: string }
   > =>
     request("/auth/login", { method: "POST", body: JSON.stringify(data) }),
 
-  verifyEmail: (data: { workosUserId: string; code: string; acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }) =>
+  // Two-step (email-first) login
+  loginStart: (email: string) =>
+    request<{ step: "password" | "code" }>("/auth/login/start", { method: "POST", body: JSON.stringify({ email }) }),
+  loginSendCode: (email: string) =>
+    request("/auth/login/send-code", { method: "POST", body: JSON.stringify({ email }) }),
+  loginCode: (email: string, code: string): Promise<{ user: { id: string; email: string; name: string | null; role: string; onboardingStage: string | null; isAdmin: boolean; hasAcceptedTerms: boolean }; tenant: { id: string; name: string; plan: string } | null; token?: string }> =>
+    request("/auth/login/code", { method: "POST", body: JSON.stringify({ email, code }) }),
+
+  setPassword: (password: string) =>
+    request("/auth/set-password", { method: "POST", body: JSON.stringify({ password }) }),
+
+  verifyEmail: (data: { email: string; code: string; setPassword: boolean; acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }): Promise<{ token?: string }> =>
     request("/auth/verify-email", { method: "POST", body: JSON.stringify(data) }),
 
   forgotPassword: (email: string) =>
@@ -86,6 +97,8 @@ export const api = {
         onboardingStage: string | null;
         isAdmin: boolean;
         hasAcceptedTerms: boolean;
+        hasPassword: boolean;
+        lastLoginAt: string | null;
         notifyDaily: boolean;
         notifyBills: boolean;
         notifyWeeklyEmail: boolean;
@@ -103,6 +116,8 @@ export const api = {
         onboardingStage: string | null;
         isAdmin: boolean;
         hasAcceptedTerms: boolean;
+        hasPassword: boolean;
+        lastLoginAt: string | null;
         notifyDaily: boolean;
         notifyBills: boolean;
         notifyWeeklyEmail: boolean;

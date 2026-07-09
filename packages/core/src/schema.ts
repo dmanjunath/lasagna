@@ -109,6 +109,10 @@ export const users = pgTable("users", {
   isDemo: boolean("is_demo").default(false).notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  // True once a password credential exists (WorkOS or local). Drives the two-step
+  // login Step-1 branch (password vs emailed code). Migration backfills existing
+  // rows to true so current password users keep the password screen.
+  hasPassword: boolean("has_password").notNull().default(false),
   // "Sign out everywhere": requireAuth rejects tokens issued before this.
   sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
   onboardingStage: onboardingStageEnum("onboarding_stage"),

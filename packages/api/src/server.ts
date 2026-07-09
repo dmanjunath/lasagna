@@ -72,6 +72,9 @@ app.get("/api/health", (c) => {
 app.use("/api/*", async (ctx, next) => {
   const exempt = [
     "/api/auth/login",
+    "/api/auth/login/start",
+    "/api/auth/login/send-code",
+    "/api/auth/login/code",
     "/api/auth/webauthn/login/options",
     "/api/auth/webauthn/login/verify",
     "/api/auth/logout",

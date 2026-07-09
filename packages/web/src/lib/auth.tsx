@@ -17,6 +17,8 @@ interface User {
   onboardingStage: string | null;
   isAdmin: boolean;
   hasAcceptedTerms: boolean;
+  hasPassword: boolean;
+  lastLoginAt: string | null;
   notifyDaily: boolean;
   notifyBills: boolean;
   notifyWeeklyEmail: boolean;
@@ -28,7 +30,7 @@ interface Tenant {
   plan: string;
 }
 
-export type NeedsVerification = { needsVerification: true; workosUserId: string; email: string };
+export type NeedsVerification = { needsVerification: true; email: string };
 
 // Mirror of the last-known user/tenant so we can render the app shell
 // optimistically on boot instead of a blank screen while /me is in flight.

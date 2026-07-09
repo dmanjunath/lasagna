@@ -8,7 +8,7 @@ export async function localSignUp(input: { email: string; password: string; name
   if (existing) return { conflict: true as const };
   const passwordHash = await hashPassword(input.password);
   const { user, tenant } = await provisionUser({
-    email: input.email, name: input.name ?? null, passwordHash, acceptedTerms: true,
+    email: input.email, name: input.name ?? null, passwordHash, acceptedTerms: true, hasPassword: true,
   });
   return { conflict: false as const, user, tenant };
 }

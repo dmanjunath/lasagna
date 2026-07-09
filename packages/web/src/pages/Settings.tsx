@@ -17,6 +17,7 @@ import {
   Sparkles,
   Check,
   Fingerprint,
+  KeyRound,
   Trash2,
   SlidersHorizontal,
 } from "lucide-react";
@@ -354,8 +355,9 @@ export function Settings() {
 
       {/* ════════ Security ════════ */}
       <section className="mt-10">
-        <GroupHeader eyebrow="Security" hint="Sign in with Face ID, Touch ID, or a device passkey" />
-        <div className="mt-4">
+        <GroupHeader eyebrow="Security" hint="Your password, sign-in history, and device passkeys" />
+        <div className="mt-4 space-y-4">
+          <PasswordSecurityCard />
           <PasskeysCard />
         </div>
       </section>
@@ -400,6 +402,112 @@ export function Settings() {
         onChanged={() => {}}
       />
     </div>
+  );
+}
+
+// ─── Password + last-signed-in card ──────────────────────────────────────────
+
+function PasswordSecurityCard() {
+  const { user } = useAuth();
+  const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  if (isDemo || !user) return null;
+
+  const hasPassword = user.hasPassword;
+  const lastLogin = user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—";
+
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await api.setPassword(password);
+      setPassword("");
+      setOpen(false);
+      setDone(true);
+      // hasPassword flips server-side; the label refreshes on the next /me.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not set password.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Surface className="p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
+            <KeyRound className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-bold text-content">Password</h3>
+            <p className="mt-0.5 text-[13px] font-medium text-content-muted">
+              {hasPassword
+                ? "A password is set for your account."
+                : "No password — you sign in with an emailed code."}
+            </p>
+            <p className="mt-0.5 text-[12.5px] font-medium text-content-muted">
+              Last signed in: {lastLogin}
+            </p>
+          </div>
+        </div>
+        {!open && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setOpen(true);
+              setDone(false);
+            }}
+          >
+            {hasPassword ? "Change" : "Set password"}
+          </Button>
+        )}
+      </div>
+
+      {done && !open && (
+        <Alert tone="positive" className="mt-4">
+          Password updated.
+        </Alert>
+      )}
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          <Field label={hasPassword ? "New password" : "Password"} hint="At least 8 characters">
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="••••••••"
+            />
+          </Field>
+          {error && <Alert tone="negative">{error}</Alert>}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={save} loading={busy} disabled={busy || password.length < 8}>
+              Save
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setOpen(false);
+                setPassword("");
+                setError("");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </Surface>
   );
 }
 

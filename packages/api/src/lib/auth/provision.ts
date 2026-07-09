@@ -8,6 +8,7 @@ export interface ProvisionInput {
   workosUserId?: string;
   passwordHash?: string;
   acceptedTerms?: boolean;
+  hasPassword?: boolean;
 }
 
 export async function provisionUser(input: ProvisionInput) {
@@ -37,6 +38,7 @@ export async function provisionUser(input: ProvisionInput) {
     isAdmin: !env.MULTI_TENANT,
     onboardingStage: "profile",
     acceptedTermsAt: input.acceptedTerms ? new Date() : null,
+    hasPassword: input.hasPassword ?? false,
   }).returning();
   return { user: created, tenant, isNew: true };
 }

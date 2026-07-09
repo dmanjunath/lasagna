@@ -2,18 +2,24 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { AlertCircle, Fingerprint } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
-import { API_BASE } from "../lib/api.js";
+import { api, API_BASE } from "../lib/api.js";
 import { isNativeApp } from "../lib/native.js";
 import { Button, Input, Field } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
+import { GoogleButton } from "../components/common/GoogleButton";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
 export function Login() {
+  const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
   const { login, loginWithPasskey, signup } = useAuth();
   const [, navigate] = useLocation();
   const [isSignup, setIsSignup] = useState(false);
+  // Two-step login: "email" collects the address, "password" appears only when the
+  // account has one. Passwordless accounts go straight to the emailed-code screen.
+  const [step, setStep] = useState<"email" | "password">("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // signup: reveal optional password
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,9 +27,26 @@ export function Login() {
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [acceptedNotRia, setAcceptedNotRia] = useState(false);
 
+  const consentOk = acceptedTos && acceptedPrivacy && acceptedNotRia;
+
   const autofillDemo = () => {
     setEmail("demo@lasagnafi.com");
     setPassword("lasagna123");
+  };
+
+  const showError = (err: unknown) => {
+    if (err instanceof TypeError && err.message.includes("fetch")) {
+      setError("Cannot reach the server. Please check your connection.");
+    } else if (err instanceof Error) {
+      setError(err.message);
+    } else {
+      setError("Something went wrong. Please try again.");
+    }
+  };
+
+  const goToCodeScreen = (purpose: "login" | "signup", extra: Record<string, unknown> = {}) => {
+    sessionStorage.setItem("lf_verify", JSON.stringify({ purpose, email, ...extra }));
+    navigate("/verify-email");
   };
 
   const handlePasskey = async () => {
@@ -40,34 +63,103 @@ export function Login() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Step 1 of two-step login: decide password vs emailed code.
+  const handleEmailContinue = async () => {
+    setLoading(true);
+    try {
+      const { step: next } = await api.loginStart(email);
+      if (next === "password") setStep("password");
+      else goToCodeScreen("login");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Password sign-in (login password step, or demo combined form).
+  const handlePasswordLogin = async () => {
+    setLoading(true);
+    try {
+      const res = await login(email, password);
+      // WorkOS reports the email isn't verified yet → finish on the code screen.
+      if (res) goToCodeScreen("login");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // "Email a code instead" from the password step.
+  const handleEmailACode = async () => {
     setError("");
-    if (isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)) {
+    setLoading(true);
+    try {
+      await api.loginSendCode(email);
+      goToCodeScreen("login");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignup = async () => {
+    if (!consentOk) {
       setError("Please accept all agreements before creating an account.");
       return;
     }
     setLoading(true);
     try {
-      if (isSignup) {
-        const res = await signup(email, password, name || undefined, { acceptedTos, acceptedPrivacy, acceptedNotRia });
-        if (res) { sessionStorage.setItem("lf_verify", JSON.stringify({ workosUserId: res.workosUserId, email: res.email, acceptedTos, acceptedPrivacy, acceptedNotRia })); navigate("/verify-email"); return; }
-      } else {
-        const res = await login(email, password);
-        if (res) { sessionStorage.setItem("lf_verify", JSON.stringify({ workosUserId: res.workosUserId, email: res.email })); navigate("/verify-email"); return; }
-      }
+      const res = await signup(email, password, name || undefined, { acceptedTos, acceptedPrivacy, acceptedNotRia });
+      // WorkOS mode → verify by code (carry consent + whether a password was set).
+      if (res) goToCodeScreen("signup", { setPassword: Boolean(password), acceptedTos, acceptedPrivacy, acceptedNotRia });
+      // Local mode signs in directly (res === null); the app redirects.
     } catch (err) {
-      if (err instanceof TypeError && err.message.includes("fetch")) {
-        setError("Cannot reach the server. Please check your connection.");
-      } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
+      showError(err);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (isSignup) return handleSignup();
+    if (isDemo || step === "password") return handlePasswordLogin();
+    return handleEmailContinue();
+  };
+
+  const resetToLoginEmail = () => {
+    setStep("email");
+    setPassword("");
+    setError("");
+  };
+
+  const toggleSignup = () => {
+    setIsSignup((v) => !v);
+    setError("");
+    setPassword("");
+    setShowPassword(false);
+    setStep("email");
+    setAcceptedTos(false);
+    setAcceptedPrivacy(false);
+    setAcceptedNotRia(false);
+  };
+
+  // Password field is visible in: demo, login password step, and signup (when revealed).
+  const passwordVisible = isDemo || (!isSignup && step === "password") || (isSignup && showPassword);
+  // Google + passkey belong on the "entry" screen: signup, or login before a password is asked for.
+  const showSocial = !isDemo && (isSignup || step === "email");
+
+  const submitLabel = loading
+    ? "Processing…"
+    : isSignup
+    ? "Create Account"
+    : isDemo || step === "password"
+    ? "Sign In"
+    : "Continue";
 
   return (
     <div className="ui-root min-h-dvh bg-canvas flex items-center justify-center p-4">
@@ -94,7 +186,7 @@ export function Login() {
             </p>
           </div>
 
-          {import.meta.env.VITE_DEMO_MODE === "true" && (
+          {isDemo && (
             <div className="mb-5 rounded-ui-md border border-brand-soft bg-brand-softer p-3.5 text-sm">
               <p className="font-semibold text-brand mb-1">Demo account</p>
               <p className="text-content-secondary ui-tnum">
@@ -122,6 +214,7 @@ export function Login() {
                 />
               </Field>
             )}
+
             <Field label="Email">
               <Input
                 type="email"
@@ -130,19 +223,47 @@ export function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
+                // On the login password step the email is locked in; edit via the link below.
+                readOnly={!isSignup && !isDemo && step === "password"}
               />
             </Field>
-            <Field label="Password" hint={isSignup ? "At least 10 characters" : undefined}>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={isSignup ? 10 : 6}
-                autoComplete={isSignup ? "new-password" : "current-password"}
-              />
-            </Field>
+
+            {/* "Use a different email" — login password step only */}
+            {!isSignup && !isDemo && step === "password" && (
+              <button
+                type="button"
+                onClick={resetToLoginEmail}
+                className="-mt-1.5 text-xs text-content-secondary hover:text-content underline underline-offset-2"
+              >
+                Use a different email
+              </button>
+            )}
+
+            {/* Signup: optional password is hidden behind a toggle */}
+            {isSignup && !showPassword && (
+              <button
+                type="button"
+                onClick={() => setShowPassword(true)}
+                className="text-sm text-brand hover:text-brand-hover underline underline-offset-2"
+              >
+                Set a password (optional)
+              </button>
+            )}
+
+            {passwordVisible && (
+              <Field label="Password" hint={isSignup ? "Optional · at least 10 characters" : undefined}>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required={!isSignup}
+                  minLength={isSignup ? 10 : 6}
+                  autoComplete={isSignup ? "new-password" : "current-password"}
+                  autoFocus={!isSignup && !isDemo}
+                />
+              </Field>
+            )}
 
             {isSignup && (
               <ConsentCheckboxes
@@ -166,16 +287,16 @@ export function Login() {
               type="submit"
               size="lg"
               loading={loading}
-              disabled={loading || (isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia))}
+              disabled={loading || (isSignup && !consentOk)}
               className="w-full"
             >
-              {loading ? "Processing…" : isSignup ? "Create Account" : "Sign In"}
+              {submitLabel}
             </Button>
           </form>
 
-          {/* Forgot password — login view only */}
-          {!isSignup && (
-            <p className="text-center mt-2.5">
+          {/* Login helpers — password step (and demo) */}
+          {!isSignup && (isDemo || step === "password") && (
+            <div className="flex items-center justify-between mt-2.5">
               <button
                 type="button"
                 onClick={() => navigate("/forgot-password")}
@@ -183,11 +304,21 @@ export function Login() {
               >
                 Forgot password?
               </button>
-            </p>
+              {!isDemo && (
+                <button
+                  type="button"
+                  onClick={handleEmailACode}
+                  disabled={loading}
+                  className="text-sm text-brand hover:text-brand-hover underline underline-offset-2"
+                >
+                  Email a code instead ↩
+                </button>
+              )}
+            </div>
           )}
 
-          {/* Sign in / up with Google — hide in demo mode */}
-          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+          {/* Social sign-in — hidden in demo mode and on the login password step */}
+          {showSocial && (
             <>
               <div className="flex items-center gap-3 my-3.5 sm:my-5">
                 <div className="h-px flex-1 bg-line" />
@@ -197,16 +328,11 @@ export function Login() {
               {/* Google OAuth is a full-page redirect — needs a system-browser
                   flow in the native shell, so it's web-only for now. */}
               {!isNativeApp() && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  className="w-full"
-                  disabled={isSignup && (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)}
+                <GoogleButton
+                  label={isSignup ? "Sign up with Google" : "Continue with Google"}
+                  disabled={isSignup && !consentOk}
                   onClick={() => window.location.assign(`${API_BASE}/api/auth/google/start`)}
-                >
-                  {isSignup ? "Sign up with Google" : "Sign in with Google"}
-                </Button>
+                />
               )}
               {/* Passkey sign-in is app-only: the shell pairs it with Face ID.
                   On mobile web the password + iCloud autofill flow covers it. */}
@@ -227,18 +353,12 @@ export function Login() {
           )}
 
           {/* Sign-up toggle button — hide in demo mode */}
-          {import.meta.env.VITE_DEMO_MODE !== "true" && (
+          {!isDemo && (
             <p className="text-center text-content-secondary text-sm mt-4 sm:mt-6">
               {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
                 type="button"
-                onClick={() => {
-                  setIsSignup(!isSignup);
-                  setError("");
-                  setAcceptedTos(false);
-                  setAcceptedPrivacy(false);
-                  setAcceptedNotRia(false);
-                }}
+                onClick={toggleSignup}
                 className="text-brand hover:text-brand-hover transition-colors font-medium"
               >
                 {isSignup ? "Sign in" : "Sign up"}
@@ -247,7 +367,7 @@ export function Login() {
           )}
 
           {/* If in demo mode, redirect to app.lasagnafi.com instead */}
-          {import.meta.env.VITE_DEMO_MODE === "true" && (
+          {isDemo && (
             <p className="text-center text-sm text-content-secondary mt-6">
               <a href="https://app.lasagnafi.com/login" className="text-brand hover:text-brand-hover underline underline-offset-2">
                 Create an account at app.lasagnafi.com →

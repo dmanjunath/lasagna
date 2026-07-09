@@ -4,8 +4,8 @@ import { getWorkos } from "./mode.js";
 export interface Identity { workosUserId: string; email: string; name: string | null; }
 export type LoginResult =
   | { status: "ok"; identity: Identity }
-  | { status: "needs_verification"; workosUserId: string; email: string };
-export type SignUpResult = { status: "needs_verification"; workosUserId: string; email: string };
+  | { status: "needs_verification"; email: string };
+export type SignUpResult = { status: "needs_verification"; email: string };
 
 function toIdentity(u: { id: string; email: string; firstName?: string | null; lastName?: string | null }): Identity {
   const name = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
@@ -30,19 +30,19 @@ function splitName(name?: string): { firstName?: string; lastName?: string } {
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") || undefined };
 }
 
-export async function signUp(input: { email: string; password: string; name?: string }): Promise<SignUpResult> {
+export async function signUp(input: { email: string; password?: string; name?: string }): Promise<SignUpResult> {
   const wm = getWorkos().userManagement;
   try {
-    const user = await wm.createUser({ email: input.email, password: input.password, ...splitName(input.name) });
-    await wm.sendVerificationEmail({ userId: user.id });
-    return { status: "needs_verification", workosUserId: user.id, email: user.email };
+    const user = await wm.createUser({ email: input.email, ...(input.password ? { password: input.password } : {}), ...splitName(input.name) });
+    await wm.createMagicAuth({ email: user.email });
+    return { status: "needs_verification", email: user.email };
   } catch (err) {
-    // Already exists in WorkOS but likely never verified → resend instead of hard-failing.
+    // Already exists in WorkOS but likely never verified → resend a Magic Auth code instead of hard-failing.
     const found = await wm.listUsers({ email: input.email });
     const existing = found.data?.[0];
     if (existing) {
-      await wm.sendVerificationEmail({ userId: existing.id });
-      return { status: "needs_verification", workosUserId: existing.id, email: existing.email };
+      await wm.createMagicAuth({ email: existing.email });
+      return { status: "needs_verification", email: existing.email };
     }
     throw err;
   }
@@ -56,17 +56,32 @@ export async function login(input: { email: string; password: string }): Promise
     return { status: "ok", identity: toIdentity(user) };
   } catch (err) {
     if (!isVerificationRequired(err)) throw err;
-    const found = await wm.listUsers({ email: input.email });
-    const existing = found.data?.[0];
-    if (!existing) throw err;
-    await wm.sendVerificationEmail({ userId: existing.id });
-    return { status: "needs_verification", workosUserId: existing.id, email: existing.email };
+    // Unverified → send a Magic Auth code (email-keyed); the client finishes on the code screen.
+    await wm.createMagicAuth({ email: input.email });
+    return { status: "needs_verification", email: input.email };
   }
 }
 
-export async function verifyEmailCode(input: { workosUserId: string; code: string }): Promise<Identity> {
-  const { user } = await getWorkos().userManagement.verifyEmail({ userId: input.workosUserId, code: input.code });
+export async function sendMagicAuth(input: { email: string }): Promise<void> {
+  await getWorkos().userManagement.createMagicAuth({ email: input.email });
+}
+
+export async function authenticateWithMagicAuth(input: { email: string; code: string }): Promise<Identity> {
+  const { user } = await getWorkos().userManagement.authenticateWithMagicAuth({
+    clientId: env.WORKOS_CLIENT_ID,
+    email: input.email,
+    code: input.code,
+  });
   return toIdentity(user);
+}
+
+export async function hasWorkosUser(email: string): Promise<boolean> {
+  const found = await getWorkos().userManagement.listUsers({ email });
+  return Boolean(found.data?.[0]);
+}
+
+export async function setPassword(input: { workosUserId: string; password: string }): Promise<void> {
+  await getWorkos().userManagement.updateUser({ userId: input.workosUserId, password: input.password });
 }
 
 export function googleAuthUrl(input: { state: string; redirectUri: string }): string {
