@@ -306,7 +306,10 @@ export function Spending() {
   useEffect(() => {
     let active = true;
     api.getTrend(granularity === 'month' ? { granularity: 'month', limit: 13 } : { granularity: 'year' })
-      .then((data) => { if (!active) return; setPeriods(data.periods); })
+      // Guard the shape: a 200 with an unexpected body (e.g. an API/frontend version
+      // skew that omits `periods`) must not set `undefined` — every consumer does
+      // periods.find/.length and would hard-crash the page. Default to [].
+      .then((data) => { if (!active) return; setPeriods(data?.periods ?? []); })
       .catch(() => { if (!active) return; setPeriods([]); });
     return () => { active = false; };
   }, [granularity, refreshKey]);
