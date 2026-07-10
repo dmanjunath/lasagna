@@ -4,7 +4,7 @@
 // historical rows still need names.
 
 import { Hono } from "hono";
-import { eq, and, sql, asc, categories, categoryGroups, transactions, categoryRules, recurringTransactions } from "@lasagna/core";
+import { eq, and, sql, asc, categories, categoryGroups, transactions, categoryRules, recurringTransactions, seedTaxonomyForTenant } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import {
@@ -19,7 +19,7 @@ export const categoryRoutes = new Hono<AuthEnv>();
 // GET / — grouped taxonomy (groups by sortOrder then name; categories by name)
 categoryRoutes.get("/", async (c) => {
   const session = c.get("session");
-  const [groupRows, catRows] = await Promise.all([
+  const fetchTaxonomy = () => Promise.all([
     db.select().from(categoryGroups)
       .where(eq(categoryGroups.tenantId, session.tenantId))
       .orderBy(asc(categoryGroups.sortOrder), asc(categoryGroups.name)),
@@ -27,6 +27,13 @@ categoryRoutes.get("/", async (c) => {
       .where(eq(categories.tenantId, session.tenantId))
       .orderBy(asc(categories.name)),
   ]);
+  let [groupRows, catRows] = await fetchTaxonomy();
+  // Self-heal: a tenant with no taxonomy (created before seeding shipped, or before
+  // the tables existed on prod) gets the defaults seeded on first read, then re-fetched.
+  if (groupRows.length === 0) {
+    await seedTaxonomyForTenant(db, session.tenantId);
+    [groupRows, catRows] = await fetchTaxonomy();
+  }
   const byGroup = new Map<string, typeof catRows>();
   for (const cat of catRows) {
     if (!byGroup.has(cat.groupId)) byGroup.set(cat.groupId, []);
