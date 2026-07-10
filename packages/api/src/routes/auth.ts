@@ -137,7 +137,12 @@ authRoutes.post("/login/start", async (c) => {
   if ((user?.passwordHash && !user.workosUserId) || user?.hasPassword)
     return c.json({ step: "password" as const });
   // Passwordless account → send a code. Unknown email → send nothing (no enumeration).
-  if (user) { try { await workos.sendMagicAuth({ email }); } catch { /* swallow */ } }
+  // Log (don't expose) send failures — otherwise a misconfig like "Magic Auth is
+  // disabled" is invisible: the client still lands on the code screen with no email.
+  if (user) {
+    try { await workos.sendMagicAuth({ email }); }
+    catch (err) { console.error("[login/start] sendMagicAuth failed:", workos.friendlyError(err, String(err))); }
+  }
   return c.json({ step: "code" as const });
 });
 
@@ -146,7 +151,8 @@ authRoutes.post("/login/start", async (c) => {
 authRoutes.post("/login/send-code", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
   const { email } = await c.req.json<{ email?: string }>();
-  try { if (email && (await workos.hasWorkosUser(email))) await workos.sendMagicAuth({ email }); } catch { /* no enumeration */ }
+  try { if (email && (await workos.hasWorkosUser(email))) await workos.sendMagicAuth({ email }); }
+  catch (err) { console.error("[login/send-code] failed:", workos.friendlyError(err, String(err))); }
   return c.json({ ok: true });
 });
 
