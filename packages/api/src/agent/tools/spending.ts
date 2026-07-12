@@ -89,16 +89,21 @@ export function createSpendingTools(tenantId: string) {
           .orderBy(sql`sum(${transactions.amount}) DESC`)
           .limit(10);
 
-        // Income for the month
+        // Income for the month — INCOME-category transactions only. Filtering by
+        // `amount < 0` alone counted every inflow (transfers between the user's own
+        // accounts, refunds, credits) as income, inflating it. Matches the spending
+        // query above and the insights engine (type = 'income').
         const [incomeRow] = await db
           .select({
             total: sql<string>`coalesce(sum(abs(${transactions.amount})), 0)`,
           })
           .from(transactions)
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+          .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
           .where(
             and(
               eq(transactions.tenantId, tenantId),
-              sql`${transactions.amount} < 0`,
+              sql`coalesce(${categoryGroups.type}::text, 'expense') = 'income'`,
               sql`${transactions.date} >= ${monthStart.toISOString()}`,
               sql`${transactions.date} <= ${monthEnd.toISOString()}`,
               ...(excludedIds.length > 0

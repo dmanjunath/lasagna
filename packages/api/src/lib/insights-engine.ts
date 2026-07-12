@@ -70,10 +70,16 @@ interface FinancialSnapshot {
     savingsRatePrior: number | null;
   };
   spending: {
-    currentMonth: Array<{ category: string; total: number }>;
+    analysisMonthLabel: string;
+    analysisMonth: Array<{ category: string; total: number }>;
     priorMonth: Array<{ category: string; total: number }>;
     topMerchants: Array<{ merchant: string; total: number }>;
     recurringCharges: Array<{ merchant: string; monthlyAvg: number }>;
+    inProgressMonth: {
+      label: string;
+      totalSpendSoFar: number;
+      recentMonthlyAvgSpend: number;
+    };
   };
   goals: Array<{
     name: string;
@@ -114,9 +120,17 @@ async function gatherFinancialData(
   tenantId: string
 ): Promise<FinancialSnapshot> {
   const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const priorMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  // Spending/cash-flow analysis runs on the last COMPLETE month, not the partial
+  // in-progress one: mid-month, income is partial (e.g. 1 of 2 paychecks in) while
+  // most expenses have landed, which fabricates "negative cash flow" and spike
+  // signals. The in-progress month is only surfaced if its month-to-date total is a
+  // significant anomaly vs the recent complete months (see the SPENDING lens).
+  const inProgressMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const analysisMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const analysisMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const priorMonthEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59);
+  const baselineStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
 
@@ -280,7 +294,8 @@ async function gatherFinancialData(
           eq(transactions.tenantId, tenantId),
           sql`${transactions.amount} > 0`,
           sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
-          sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
+          sql`${transactions.date} >= ${analysisMonthStart.toISOString()}`,
+          sql`${transactions.date} <= ${analysisMonthEnd.toISOString()}`,
           ...(excludedTxnIds.length > 0
             ? [notInArray(transactions.accountId, excludedTxnIds)]
             : [])
@@ -310,7 +325,47 @@ async function gatherFinancialData(
       .groupBy(categoryNameExpr),
   ]);
 
-  // Top merchants current month
+  const analysisMonthLabel = analysisMonthStart.toLocaleString("en-US", { month: "long", year: "numeric" });
+  const inProgressMonthLabel = inProgressMonthStart.toLocaleString("en-US", { month: "long", year: "numeric" });
+
+  // In-progress (partial) month total spend + baseline (avg of last 3 complete months).
+  // Fed to the LLM only so it can decide whether the in-progress month is a SIGNIFICANT
+  // anomaly worth surfacing — normal spending analysis uses the complete analysis month.
+  const [inProgressSpendRow, baselineSpendRow] = await Promise.all([
+    db
+      .select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+      .where(
+        and(
+          eq(transactions.tenantId, tenantId),
+          sql`${transactions.amount} > 0`,
+          sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
+          sql`${transactions.date} >= ${inProgressMonthStart.toISOString()}`,
+          ...(excludedTxnIds.length > 0 ? [notInArray(transactions.accountId, excludedTxnIds)] : [])
+        )
+      ),
+    db
+      .select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+      .where(
+        and(
+          eq(transactions.tenantId, tenantId),
+          sql`${transactions.amount} > 0`,
+          sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
+          sql`${transactions.date} >= ${baselineStart.toISOString()}`,
+          sql`${transactions.date} <= ${analysisMonthEnd.toISOString()}`,
+          ...(excludedTxnIds.length > 0 ? [notInArray(transactions.accountId, excludedTxnIds)] : [])
+        )
+      ),
+  ]);
+  const inProgressSpend = Math.round(parseFloat(inProgressSpendRow[0]?.total ?? "0") * 100) / 100;
+  const baselineMonthlyAvgSpend = Math.round((parseFloat(baselineSpendRow[0]?.total ?? "0") / 3) * 100) / 100;
+
+  // Top merchants (analysis month)
   const topMerchantRows = await db
     .select({
       merchant: transactions.merchantName,
@@ -325,7 +380,8 @@ async function gatherFinancialData(
         sql`${transactions.amount} > 0`,
         sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
         sql`${transactions.merchantName} IS NOT NULL`,
-        sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
+        sql`${transactions.date} >= ${analysisMonthStart.toISOString()}`,
+        sql`${transactions.date} <= ${analysisMonthEnd.toISOString()}`,
         ...(excludedTxnIds.length > 0
           ? [notInArray(transactions.accountId, excludedTxnIds)]
           : [])
@@ -398,7 +454,8 @@ async function gatherFinancialData(
         and(
           eq(transactions.tenantId, tenantId),
           sql`coalesce(${categoryGroups.type}::text, 'expense') = 'income'`,
-          sql`${transactions.date} >= ${currentMonthStart.toISOString()}`,
+          sql`${transactions.date} >= ${analysisMonthStart.toISOString()}`,
+          sql`${transactions.date} <= ${analysisMonthEnd.toISOString()}`,
           ...(excludedTxnIds.length > 0
             ? [notInArray(transactions.accountId, excludedTxnIds)]
             : [])
@@ -584,7 +641,10 @@ async function gatherFinancialData(
       savingsRatePrior,
     },
     spending: {
-      currentMonth: currentSpendRows.map((r) => ({
+      // Spending analysis uses the last COMPLETE month vs the one before it — never the
+      // partial in-progress month (which fabricates false spikes / negative cash flow).
+      analysisMonthLabel,
+      analysisMonth: currentSpendRows.map((r) => ({
         category: r.category,
         total: Math.round(parseFloat(r.total) * 100) / 100,
       })),
@@ -597,6 +657,12 @@ async function gatherFinancialData(
         total: Math.round(parseFloat(r.total) * 100) / 100,
       })),
       recurringCharges,
+      // Partial month — provided ONLY so a SIGNIFICANT anomaly can be surfaced (see SPENDING lens).
+      inProgressMonth: {
+        label: inProgressMonthLabel,
+        totalSpendSoFar: inProgressSpend,
+        recentMonthlyAvgSpend: baselineMonthlyAvgSpend,
+      },
     },
     goals: goalsData,
     debtTrajectory,
@@ -644,12 +710,15 @@ Analyze through these 4 lenses and generate insights from each lens WHERE THE DA
 ---
 
 ## Lens 1: SPENDING
-SKIP THIS ENTIRE LENS if spending.currentMonth is empty or has fewer than 3 categories.
+Spending is analyzed on the LAST COMPLETE month (spending.analysisMonth, named spending.analysisMonthLabel) vs the month before it (spending.priorMonth) — both full months. NEVER generate spending or cash-flow actions from the in-progress (partial) month: mid-month, income is partial (e.g. only one of two paychecks has landed) while most expenses have, which fabricates false spikes and false "negative cash flow".
+SKIP THIS ENTIRE LENS if spending.analysisMonth is empty or has fewer than 3 categories.
 If data exists:
-- Compare each spending category vs prior month. Flag categories up >20% AND >$50 in absolute terms.
+- Compare each spending category (analysisMonth vs priorMonth). Flag categories up >20% AND >$50 in absolute terms.
 - Calculate dining (food_dining) to groceries ratio. National benchmark is 1.1x. Flag if >2x.
 - Sum all recurring charges and report total + count.
-- Flag if total expenses increased month-over-month by >10%.
+- Flag if total expenses increased month-over-month by >10% (analysis vs prior).
+
+IN-PROGRESS MONTH EXCEPTION: spending.inProgressMonth has the partial current month's totalSpendSoFar and the recentMonthlyAvgSpend (avg of the last 3 complete months). Do NOT generate any action from it UNLESS totalSpendSoFar is already a SIGNIFICANT anomaly vs recentMonthlyAvgSpend — i.e. a still-incomplete month already running well above a normal FULL month. If so, surface exactly ONE action flagging the in-progress spike (total spend only — never a single category, never cash flow). Otherwise say nothing about the in-progress month.
 
 ## Lens 2: PROGRESS
 - For each active goal:
@@ -660,7 +729,7 @@ If data exists:
 - Every goal insight MUST include a specific, concrete action (e.g., "increase monthly 401(k) contribution by $500" or "move $50k from savings to index funds"). Never say "review your goal" or "adjust accordingly" — those are not actions.
 - Calculate savings rate (summary.savingsRateCurrent). ONLY report savings rate if summary.monthlyExpensesCurrent > 0 (there is actual spending data). If monthlyExpensesCurrent is 0, skip all savings rate insights — this means no transaction data is available.
 - For each debt with a minimumPayment: show months to payoff and total interest cost remaining. Calculate what $100/mo extra saves.
-- If monthly surplus is negative, this is CRITICAL — include it.
+- If the monthly surplus is negative for the last COMPLETE month (income below expenses on full-month data — NOT the partial in-progress month), this is CRITICAL — include it.
 
 ## Lens 3: OPTIMIZATION (tax + contributions)
 Apply each rule ONLY if the condition is precisely met — do NOT generate the insight if the condition is false:
@@ -697,7 +766,7 @@ IMPORTANT for this lens:
 - Do NOT generate generic "you should contribute to X" advice here — that belongs in Lens 3. This lens is for insights that can ONLY be generated because the user uploaded specific documents.
 
 ## Lens 4: BEHAVIORAL
-SKIP THIS ENTIRE LENS if spending.currentMonth is empty or summary.monthlyExpensesCurrent is 0.
+SKIP THIS ENTIRE LENS if spending.analysisMonth is empty or summary.monthlyExpensesCurrent is 0.
 If data exists:
 - Dining/groceries ratio with exact numbers.
 - Subscription creep: total recurring charges vs last month.

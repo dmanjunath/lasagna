@@ -121,8 +121,8 @@ transactionRoutes.post("/query", async (c) => {
   // it mirrors what the list shows).
   const [agg] = await db.select({
     count: sql<number>`count(*)::int`,
-    spent: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} > 0 and coalesce(${categoryGroups.type}::text, 'expense') != 'transfer' and ${transactions.excludedAt} is null), 0)`,
-    income: sql<string>`coalesce(-sum(${transactions.amount}) filter (where ${transactions.amount} < 0 and coalesce(${categoryGroups.type}::text, 'expense') != 'transfer' and ${transactions.excludedAt} is null), 0)`,
+    spent: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} > 0 and coalesce(${categoryGroups.type}::text, 'expense') not in ('income', 'transfer') and ${transactions.excludedAt} is null), 0)`,
+    income: sql<string>`coalesce(sum(abs(${transactions.amount})) filter (where coalesce(${categoryGroups.type}::text, 'expense') = 'income' and ${transactions.excludedAt} is null), 0)`,
   }).from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
@@ -315,16 +315,18 @@ transactionRoutes.get("/spending-summary", async (c) => {
     .groupBy(categories.id, categories.name, categories.systemKey, categories.groupId, categoryGroups.name, categoryGroups.type)
     .orderBy(sql`sum(${transactions.amount}) DESC`);
 
-  // Separate income (negative amounts) from spending (positive amounts)
+  // Income = income-category totals only; spending = positive totals in
+  // non-income, non-transfer categories. A refund-heavy expense category (net
+  // negative) counts as neither. Matches get_spending_summary + insights engine.
   let totalSpending = 0;
   let totalIncome = 0;
 
   const categoryRows = rows.map((row) => {
     const total = parseFloat(row.total || "0");
-    const isTransfer = row.groupType === "transfer";
-    if (total < 0 && !isTransfer) {
+    const gt = row.groupType ?? "expense";
+    if (gt === "income") {
       totalIncome += Math.abs(total);
-    } else if (total > 0 && !isTransfer) {
+    } else if (gt !== "transfer" && total > 0) {
       totalSpending += total;
     }
     return {

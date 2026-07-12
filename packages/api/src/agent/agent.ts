@@ -22,8 +22,8 @@ export const MODEL_LEVELS = [
 export type ModelLevel = (typeof MODEL_LEVELS)[number];
 
 const modelMappings: Record<ModelLevel, string> = {
-  "free": "google/gemini-3.1-flash-lite-preview",
-  "fast": "google/gemini-3.1-flash-lite-preview",
+  "free": "google/gemini-3.5-flash",
+  "fast": "google/gemini-3.1-flash-lite",
   "fast-claude": "anthropic/claude-haiku-4.5",
   "medium-google": "google/gemini-3.5-flash",
   "medium": "anthropic/claude-sonnet-4.5",

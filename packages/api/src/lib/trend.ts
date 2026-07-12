@@ -1,6 +1,7 @@
 // Pure aggregation for the trend endpoint: rows arrive pre-bucketed by
 // to_char(date, 'YYYY-MM' | 'YYYY'); this zero-fills the requested window
-// and sums income (amount < 0) vs expenses (> 0), skipping transfers.
+// and sums income (income-category inflows) vs expenses (positive amounts in
+// non-income, non-transfer categories), skipping transfers.
 
 export interface TrendRow {
   period: string;
@@ -45,8 +46,11 @@ export function buildPeriods(
     const entry = map.get(row.period);
     if (!entry || row.groupType === "transfer") continue;
     const amount = parseFloat(row.amount || "0");
-    if (amount < 0) entry.income += Math.abs(amount);
-    else entry.expenses += amount;
+    // Income = income-category inflows only. A negative amount in an expense
+    // category (refund/credit) is NOT income. Positive amounts in non-income,
+    // non-transfer categories are spending. Matches get_spending_summary.
+    if (row.groupType === "income") entry.income += Math.abs(amount);
+    else if (amount > 0) entry.expenses += amount;
   }
   return keys.map((period) => {
     const e = map.get(period)!;
