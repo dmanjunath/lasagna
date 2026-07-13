@@ -173,6 +173,9 @@ export const api = {
   deleteItem: (id: string) =>
     request(`/plaid/items/${id}`, { method: "DELETE" }),
 
+  syncPlaidItem: (id: string) =>
+    request<{ ok: boolean }>(`/plaid/items/${id}/sync`, { method: "POST" }),
+
   // Accounts
   getAccounts: () =>
     request<{

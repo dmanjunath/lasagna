@@ -242,6 +242,27 @@ export function Accounts() {
         token: linkToken,
         onSuccess: async (publicToken: string, metadata: PlaidMetadata) => {
           try {
+            // Guard against relinking an already-connected institution: the
+            // exchange would mint a second Plaid item whose account_ids are
+            // all new, duplicating every account at the institution. Offer
+            // update mode on the existing item instead (fetch fresh items —
+            // the `items` state may be stale inside this closure).
+            const instId = metadata.institution?.institution_id;
+            if (instId) {
+              const { items: current } = await api.getItems();
+              const existing = current.find((i) => i.institutionId === instId);
+              if (existing) {
+                setLinking(false);
+                const addInstead = await confirm({
+                  title: `${existing.institutionName ?? "This institution"} is already connected`,
+                  body: "Connecting it again would duplicate all of its accounts. To track a newly opened account, add it to your existing connection instead.",
+                  confirmLabel: "Add to existing connection",
+                  cancelLabel: "Cancel",
+                });
+                if (addInstead) handleAddAccounts(existing);
+                return;
+              }
+            }
             await api.exchangeToken({
               publicToken,
               institutionId: metadata.institution?.institution_id,
@@ -278,6 +299,75 @@ export function Accounts() {
             }, 2000);
           } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to link account");
+            setLinking(false);
+          }
+        },
+        onExit: () => setLinking(false),
+      });
+
+      handler.open();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start linking");
+      setLinking(false);
+    }
+  };
+
+  // Add newly opened accounts at an already-linked institution via Plaid Link
+  // update mode (account selection enabled). The item keeps its access token
+  // and account_ids, so sync picks up only the genuinely new accounts —
+  // relinking from scratch would create a second item duplicating every account.
+  const handleAddAccounts = async (item: PlaidItem) => {
+    if (isNativeApp()) {
+      setError("Bank connections aren't available in the app yet — connect from the web and your accounts will sync here.");
+      return;
+    }
+    setLinking(true);
+    setError("");
+    try {
+      const [{ linkToken }] = await Promise.all([
+        api.createUpdateLinkToken(item.id),
+        (await import("../lib/load-plaid.js")).loadPlaidSdk(),
+      ]);
+
+      const Plaid = (window as unknown as { Plaid: PlaidLinkFactory }).Plaid;
+      if (!Plaid) {
+        setError("Failed to load Plaid. Please refresh and try again.");
+        setLinking(false);
+        return;
+      }
+
+      const prevCount = item.accounts.length;
+      const handler = Plaid.create({
+        token: linkToken,
+        onSuccess: async () => {
+          try {
+            await api.syncPlaidItem(item.id);
+            setSyncing(true);
+            let attempts = 0;
+            const poll = setInterval(async () => {
+              attempts++;
+              try {
+                const data = await api.getItems();
+                const updated = data.items.find((i) => i.id === item.id);
+                if ((updated && updated.accounts.length > prevCount) || attempts >= 10) {
+                  clearInterval(poll);
+                  setItems(data.items);
+                  setSyncing(false);
+                  setLinking(false);
+                  setNewlyLinkedId(item.id);
+                  setTimeout(() => {
+                    itemRefs.current[item.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }, 100);
+                  setTimeout(() => setNewlyLinkedId(null), 3000);
+                }
+              } catch {
+                clearInterval(poll);
+                setSyncing(false);
+                setLinking(false);
+              }
+            }, 2000);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to add accounts");
             setLinking(false);
           }
         },
@@ -677,6 +767,7 @@ export function Accounts() {
                 expanded={!collapsedIds.has(item.id)}
                 onToggle={() => toggleExpand(item.id)}
                 onSync={() => handleSyncItem(item.id)}
+                onAddAccounts={() => handleAddAccounts(item)}
                 onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Unknown Bank")}
                 allAccounts={allAccounts}
                 isFree={isFree}
@@ -705,6 +796,7 @@ export function Accounts() {
                 expanded={!collapsedIds.has(item.id)}
                 onToggle={() => toggleExpand(item.id)}
                 onSync={() => {}}
+                onAddAccounts={() => {}}
                 onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
                 allAccounts={allAccounts}
                 isFree={isFree}
@@ -957,6 +1049,7 @@ function InstitutionArticle({
   expanded,
   onToggle,
   onSync,
+  onAddAccounts,
   onDisconnect,
   allAccounts,
   isFree,
@@ -972,6 +1065,7 @@ function InstitutionArticle({
   expanded: boolean;
   onToggle: () => void;
   onSync: () => void;
+  onAddAccounts: () => void;
   onDisconnect: () => void;
   allAccounts: Account[];
   isFree: boolean;
@@ -1084,7 +1178,15 @@ function InstitutionArticle({
           )}
 
           {!isDemoMode && !isManual && (
-            <div className="border-t border-line px-4 py-2.5 sm:px-5">
+            <div className="flex flex-wrap items-center gap-1 border-t border-line px-4 py-2.5 sm:px-5">
+              <button
+                type="button"
+                onClick={onAddAccounts}
+                className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13px] font-semibold text-brand transition-colors hover:bg-brand-softer"
+              >
+                <Plus size={14} />
+                Add accounts
+              </button>
               <button
                 type="button"
                 onClick={onDisconnect}

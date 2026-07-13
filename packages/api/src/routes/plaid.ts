@@ -30,7 +30,10 @@ plaidRoutes.post("/link-token", async (c) => {
 
 // Update-mode link token: lets the user re-authenticate an existing Plaid
 // item without losing its access_token / transaction history. Used when the
-// item enters `item_login_required` or `error` state.
+// item enters `item_login_required` or `error` state, and to add newly opened
+// accounts at an already-linked institution (account_selection_enabled shows
+// the account picker so the same item gains the new account — linking the
+// institution again would create a second item that duplicates every account).
 plaidRoutes.post("/link-token/update", async (c) => {
   const session = c.get("session");
   const { itemId } = await c.req.json<{ itemId: string }>();
@@ -49,6 +52,7 @@ plaidRoutes.post("/link-token/update", async (c) => {
     country_codes: [CountryCode.Us],
     language: "en",
     access_token: accessToken,
+    update: { account_selection_enabled: true },
   });
 
   return c.json({ linkToken: response.data.link_token });
@@ -157,6 +161,24 @@ plaidRoutes.get("/items", async (c) => {
   );
 
   return c.json({ items: itemsWithAccounts });
+});
+
+// Post-link sync: pull an item's accounts right after the user completes an
+// update-mode Link session (add accounts / re-auth). Mirrors the automatic
+// sync in /exchange-token; deliberately NOT behind the manual-sync Pro gate
+// because this is part of the linking flow, not a manual refresh.
+plaidRoutes.post("/items/:id/sync", async (c) => {
+  const session = c.get("session");
+  const itemId = c.req.param("id");
+
+  const item = await db.query.plaidItems.findFirst({
+    where: and(eq(plaidItems.id, itemId), eq(plaidItems.tenantId, session.tenantId)),
+    columns: { id: true },
+  });
+  if (!item) return c.json({ error: "Item not found" }, 404);
+
+  syncItem(itemId).catch(console.error);
+  return c.json({ ok: true });
 });
 
 // Delete a Plaid item
