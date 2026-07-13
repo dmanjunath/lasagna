@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { ArrowRight, Check, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/auth';
@@ -6,6 +6,7 @@ import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import { Button, Skeleton } from '../components/uikit';
+import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../components/ds/TrendChart';
 import { formatCurrency, goalColor, iconFor } from './goal-shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,6 +51,23 @@ interface LevelStep {
   detail: string;
   current: number | null;
   target: number | null;
+}
+
+interface MonthFlow {
+  spending: number;
+  income: number;
+  net: number;
+  /** Spend through the same day of the previous month, for the trend line. */
+  prevSpending: number | null;
+  topCats: { id: string; name: string; total: number; pct: number }[];
+}
+
+interface RecentTxn {
+  id: string;
+  name: string;
+  date: string;
+  amount: number;
+  pending: boolean;
 }
 
 interface NetBreakdown {
@@ -102,6 +120,7 @@ const formatDateShort = (d: Date) =>
   d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 function greetingForHour(h: number) {
+  if (h < 5) return 'Good evening'; // overnight reads as late night, not morning
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
@@ -161,6 +180,9 @@ export function SimpleHome() {
   const [currentStep, setCurrentStep] = useState<LevelStep | null>(null);
   const [levelLoading, setLevelLoading] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [monthFlow, setMonthFlow] = useState<MonthFlow | null>(null);
+  const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
+  const [sideLoading, setSideLoading] = useState(true);
 
   const firstName =
     user?.name?.split(' ')[0] ||
@@ -270,6 +292,59 @@ export function SimpleHome() {
     }).finally(() => setLoading(false));
   }, [loadPriorities]);
 
+  // Side rail: month-to-date spending/cash-flow plus the latest transactions.
+  useEffect(() => {
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const ymd = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`;
+    // Same point last month — clamp the day for short months.
+    const prevMonthLastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+    const prevStart = `${prevMonthLastDay.getFullYear()}-${pad2(prevMonthLastDay.getMonth() + 1)}-01`;
+    const prevSameDay = new Date(
+      prevMonthLastDay.getFullYear(),
+      prevMonthLastDay.getMonth(),
+      Math.min(now.getDate(), prevMonthLastDay.getDate()),
+    );
+
+    Promise.all([
+      api.getSpendingSummary({ startDate: monthStart, endDate: `${ymd(now)}T23:59:59` }).catch(() => null),
+      api.getSpendingSummary({ startDate: prevStart, endDate: `${ymd(prevSameDay)}T23:59:59` }).catch(() => null),
+      api.getTransactions({ limit: 4 }).catch(() => ({ transactions: [] as any[] })),
+    ])
+      .then(([cur, prev, txns]) => {
+        if (cur) {
+          const topCats = cur.categories
+            .filter((c) => c.groupType === 'expense' && c.total > 0)
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 3)
+            .map((c) => ({
+              id: c.id,
+              name: c.name,
+              total: c.total,
+              pct: cur.totalSpending > 0 ? (c.total / cur.totalSpending) * 100 : 0,
+            }));
+          setMonthFlow({
+            spending: cur.totalSpending,
+            income: cur.totalIncome,
+            net: cur.netCashFlow,
+            prevSpending: prev ? prev.totalSpending : null,
+            topCats,
+          });
+        }
+        setRecentTxns(
+          (txns.transactions || []).map((t: any) => ({
+            id: t.id,
+            name: t.merchantName || t.name,
+            date: t.date,
+            amount: parseFloat(t.amount),
+            pending: !!t.pending,
+          })),
+        );
+      })
+      .finally(() => setSideLoading(false));
+  }, []);
+
   function submitAsk(e?: React.FormEvent) {
     e?.preventDefault();
     const text = askDraft.trim();
@@ -334,7 +409,7 @@ export function SimpleHome() {
   const moveCount = (currentStep ? 1 : 0) + sideActions.length;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="cq-inline mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* Greeting */}
       <header className="animate-fade-in">
         <h1 className="font-editorial text-[26px] sm:text-[33px] font-bold leading-[1.05] tracking-[-0.025em] text-content">
@@ -347,7 +422,7 @@ export function SimpleHome() {
 
       {/* First-paint skeleton — reserves the hero + grid footprint. */}
       {loading && !breakdown && (
-        <div className="mt-7 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-7 items-start">
+        <div className="mt-7 home-hero-grid gap-7 items-start">
           <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
             <Skeleton className="h-4 w-52" />
             <Skeleton className="mt-5 h-8 w-full rounded-[11px]" />
@@ -362,78 +437,76 @@ export function SimpleHome() {
         </div>
       )}
 
-      {/* ════════ ROW 1 — FULL-WIDTH NET-WORTH HERO ════════ */}
-      {breakdown && hasComposition && (
-        <div className="mt-7">
-          <NetWorthBreakdown
-            breakdown={breakdown}
-            monthDelta={monthDelta}
-            onOpenMoney={() => setLocation('/money')}
-          />
-        </div>
-      )}
-
-      {/* ════════ ROW 2 — 2/3 (ACTIONS) + 1/3 (CHART/CHAT/GOALS) GRID ════════ */}
+      {/* ════════ MAIN GRID — 2/3 (HERO + ACTIONS) + 1/3 (CHART/CHAT/GOALS) ════════
+          Container-query grid: two columns only when the left column can hold
+          the one-line net-worth equation — otherwise the aside wraps under. */}
       {breakdown && (
-        <div className="mt-7 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-7 items-start">
+        <div className="mt-7 home-hero-grid gap-7 items-start">
 
-          {/* ░░░░ LEFT COLUMN (2/3) — the action queue ░░░░ */}
+          {/* ░░░░ LEFT COLUMN (2/3) — net-worth hero + the action queue ░░░░ */}
           <div className="min-w-0 flex flex-col">
-            {/* Today — three moves */}
-            <div className="flex items-center gap-3.5 flex-wrap">
-              <span className="inline-flex items-center gap-2.5">
-                <span
-                  className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-                  style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+            {hasComposition && (
+              <div className="mb-7">
+                <NetWorthBreakdown
+                  breakdown={breakdown}
+                  monthDelta={monthDelta}
+                  onOpenMoney={() => setLocation('/money')}
                 />
-                <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Today</span>
-              </span>
+              </div>
+            )}
+
+            {/* The moves queue, contained in a card like the hero above */}
+            <Card className="p-6 sm:p-7">
               <div>
-                <h2 className="font-editorial text-[24px] sm:text-[28px] font-bold leading-[1.05] tracking-[-0.025em]">
+                <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold leading-[1.1] tracking-[-0.02em]">
                   {moveCount > 1 ? `${moveCount} moves to make today` : 'Your next move'}
                 </h2>
-                <p className="mt-1 text-[14px] font-medium text-content-muted">
+                <p className="mt-1 text-[13.5px] font-medium text-content-muted">
                   Lined up biggest-impact first — quick wins for your wealth.
                 </p>
               </div>
-            </div>
 
-            <MovesQueue
-              step={currentStep}
-              actions={sideActions}
-              levelLoading={levelLoading}
-              generating={generatingInsights}
-              onOpenInsight={(id) => setLocation(`/insights?id=${id}`)}
-              onGenerateActions={async () => {
-                setGeneratingInsights(true);
-                try { await refreshInsights(); } finally { setGeneratingInsights(false); }
-              }}
-              onStepComplete={async () => {
-                if (!currentStep) return;
-                try { await api.completePriorityStep(currentStep.id, true); } catch {}
-                await loadPriorities();
-              }}
-              onStepSkip={async () => {
-                if (!currentStep) return;
-                try { await api.skipPriorityStep(currentStep.id, true); } catch {}
-                await loadPriorities();
-              }}
-              onStepUnskip={async () => {
-                if (!currentStep) return;
-                try { await api.skipPriorityStep(currentStep.id, false); } catch {}
-                await loadPriorities();
-              }}
-              onStepHelp={() => {
-                if (!currentStep) return;
-                const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
-                openChat(prompt);
-              }}
-              onActionDone={async (id) => {
-                try { await api.actOnInsight(id); } catch {}
-                await reloadInsights();
-              }}
-              onSetupProfile={() => setLocation('/profile')}
-            />
+              <MovesQueue
+                step={currentStep}
+                actions={sideActions}
+                levelLoading={levelLoading}
+                generating={generatingInsights}
+                onOpenInsight={(id) => setLocation(`/insights?id=${id}`)}
+                onGenerateActions={async () => {
+                  setGeneratingInsights(true);
+                  try { await refreshInsights(); } finally { setGeneratingInsights(false); }
+                }}
+                onStepComplete={async () => {
+                  if (!currentStep) return;
+                  try { await api.completePriorityStep(currentStep.id, true); } catch {}
+                  await loadPriorities();
+                }}
+                onStepSkip={async () => {
+                  if (!currentStep) return;
+                  try { await api.skipPriorityStep(currentStep.id, true); } catch {}
+                  await loadPriorities();
+                }}
+                onStepUnskip={async () => {
+                  if (!currentStep) return;
+                  try { await api.skipPriorityStep(currentStep.id, false); } catch {}
+                  await loadPriorities();
+                }}
+                onStepHelp={() => {
+                  if (!currentStep) return;
+                  const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
+                  openChat(prompt);
+                }}
+                onActionDone={async (id) => {
+                  try { await api.actOnInsight(id); } catch {}
+                  await reloadInsights();
+                }}
+                onActionSkip={async (id) => {
+                  try { await api.dismissInsight(id); } catch {}
+                  await reloadInsights();
+                }}
+                onSetupProfile={() => setLocation('/profile')}
+              />
+            </Card>
           </div>
 
           {/* ░░░░ RIGHT COLUMN (1/3) ░░░░ */}
@@ -447,6 +520,19 @@ export function SimpleHome() {
               onPick={(q) => openChat(q)}
             />
             <GoalsRail goals={goals} loading={loading} />
+            {sideLoading ? (
+              <>
+                <Skeleton className="h-[180px] w-full rounded-ui-xl" />
+                <Skeleton className="h-[150px] w-full rounded-ui-xl" />
+                <Skeleton className="h-[210px] w-full rounded-ui-xl" />
+              </>
+            ) : (
+              <>
+                {monthFlow && <SpendingPulse flow={monthFlow} />}
+                {monthFlow && <CashFlowPulse flow={monthFlow} />}
+                <RecentActivity txns={recentTxns} />
+              </>
+            )}
           </aside>
         </div>
       )}
@@ -551,8 +637,41 @@ function NetWorthBreakdown({
     breakdown.loans > 0 && { key: 'loans', label: 'Loans', value: breakdown.loans, count: breakdown.loansCount, color: 'var(--ui-viz-4)' },
   ].filter(Boolean) as CompSegment[];
 
+  // One-line guarantee for the equation: measure its natural width at full
+  // size and set --nws (a 0..1 type-scale) so it always fits the card. The
+  // inline delta chip is dropped first — it buys ~115px before any shrink.
+  const eqRef = useRef<HTMLDivElement>(null);
+  const [eqFit, setEqFit] = useState({ scale: 1, hideChip: false });
+  useLayoutEffect(() => {
+    const row = eqRef.current;
+    if (!row) return;
+    const measure = () => {
+      // Force full size + chip visible for a clean natural-width reading.
+      row.style.setProperty('--nws', '1');
+      row.classList.remove('nw-eq--tight');
+      const avail = row.clientWidth;
+      const natural = row.scrollWidth;
+      let next = { scale: 1, hideChip: false };
+      if (avail > 0 && natural > avail) {
+        const chip = row.querySelector('.nw-chip > *');
+        const chipW = chip ? chip.getBoundingClientRect().width + 10 : 0;
+        const noChip = Math.max(1, natural - chipW);
+        next = { scale: Math.min(1, (avail / noChip) * 0.99), hideChip: chipW > 0 };
+      }
+      // Apply imperatively (state equality may skip the re-render)…
+      row.style.setProperty('--nws', String(next.scale));
+      row.classList.toggle('nw-eq--tight', next.hideChip);
+      // …and mirror into state so React re-renders keep the same values.
+      setEqFit((prev) => (prev.scale === next.scale && prev.hideChip === next.hideChip ? prev : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(row);
+    return () => ro.disconnect();
+  }, [assetTotal, breakdown.debts, breakdown.netWorth, monthDelta]);
+
   return (
-    <Card className="relative overflow-hidden p-6 sm:p-7 animate-fade-in" >
+    <Card className="cq-inline relative overflow-hidden p-6 sm:p-7 animate-fade-in" >
       {/* atmospheric wash */}
       <div
         className="pointer-events-none absolute inset-0"
@@ -581,7 +700,7 @@ function NetWorthBreakdown({
         {/* Mobile: statement rows fill the width (label left, value right); the
             rule marks net worth as the own − owe total. Desktop keeps the
             single-line equation below. */}
-        <div className="sm:hidden">
+        <div className="nw-statement">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</span>
             <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{fmtUsd(assetTotal)}</span>
@@ -601,47 +720,62 @@ function NetWorthBreakdown({
           )}
         </div>
 
-        {/* Assets − Debt = Net worth — one horizontal line on desktop */}
-        <div className="hidden sm:flex sm:items-end gap-x-6 lg:gap-x-9 sm:flex-wrap">
-          {/* ASSETS */}
-          <div className="min-w-0">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets · what you own</div>
-            <div className="mt-1 font-editorial text-[27px] sm:text-[30px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">
+        {/* Assets − Debt = Net worth — always ONE line on desktop. Labels stay
+            short ("Assets"/"Debt" — the composition headers below carry the
+            own/owe phrasing); type size comes from the --nws scale set by the
+            measuring effect above, so up to 9-digit values fit without
+            wrapping. Font sizes/gaps live in index.css (.nw-* rules). */}
+        <div
+          ref={eqRef}
+          className={`nw-equation items-end${eqFit.hideChip ? ' nw-eq--tight' : ''}`}
+          style={{ '--nws': String(eqFit.scale) } as React.CSSProperties}
+        >
+          {/* ASSETS — no min-w-0 anywhere in the row: items must hold their
+              natural width so the measuring effect reads a true scrollWidth. */}
+          <div>
+            <div className="nw-label font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</div>
+            <div className="nw-num mt-1 font-editorial font-extrabold tracking-[-0.02em] leading-none ui-tnum">
               {fmtUsd(assetTotal)}
             </div>
           </div>
 
-          <div aria-hidden className="hidden sm:block pb-[4px] font-editorial font-semibold text-[24px] sm:text-[26px] leading-none text-content-faint">−</div>
-
           {/* DEBT — coral, minus already implied by the operator */}
-          <div className="min-w-0">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em]" style={{ color: 'rgb(var(--ui-negative))' }}>Debt · what you owe</div>
-            <div
-              className="mt-1 font-editorial text-[27px] sm:text-[30px] font-extrabold tracking-[-0.02em] leading-none ui-tnum"
-              style={{ color: 'rgb(var(--ui-negative))' }}
-            >
-              {fmtUsd(breakdown.debts)}
+          <div className="nw-opgroup flex items-end">
+            <div aria-hidden className="nw-op pb-[4px] font-editorial font-semibold leading-none text-content-faint">−</div>
+            <div>
+              <div className="nw-label font-extrabold uppercase tracking-[0.1em]" style={{ color: 'rgb(var(--ui-negative))' }}>Debt</div>
+              <div
+                className="nw-num mt-1 font-editorial font-extrabold tracking-[-0.02em] leading-none ui-tnum"
+                style={{ color: 'rgb(var(--ui-negative))' }}
+              >
+                {fmtUsd(breakdown.debts)}
+              </div>
             </div>
           </div>
 
-          <div aria-hidden className="hidden sm:block pb-[4px] font-editorial font-semibold text-[24px] sm:text-[26px] leading-none text-content-faint">=</div>
-
           {/* NET WORTH — the confident payoff; same label+number structure as
               Assets/Debt so all three numbers share a baseline under items-end. */}
-          <div className="min-w-0">
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</div>
-            <div className="mt-1 flex items-end gap-x-2.5 gap-y-2 flex-wrap">
-              <span className="font-editorial text-[30px] sm:text-[34px] font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">
-                {fmtUsd(breakdown.netWorth)}
-              </span>
-              {monthDelta !== null && <DeltaChip delta={monthDelta} suffix="30d" />}
+          <div className="nw-opgroup flex items-end">
+            <div aria-hidden className="nw-op pb-[4px] font-editorial font-semibold leading-none text-content-faint">=</div>
+            <div>
+              <div className="nw-label font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</div>
+              <div className="mt-1 flex items-end gap-x-2.5">
+                <span className="nw-num nw-num--total font-editorial font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">
+                  {fmtUsd(breakdown.netWorth)}
+                </span>
+                {monthDelta !== null && (
+                  <span className="nw-chip">
+                    <DeltaChip delta={monthDelta} suffix="30d" />
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Composition — what you own vs what you owe, itemized side by side
-            on desktop (stacked on mobile). Each: a proportional bar + legend. */}
-        <div className="mt-7 pt-6 border-t border-line grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-7">
+        {/* Composition — what you own vs what you owe, itemized and stacked
+            so the card stays narrow. Each: a proportional bar + legend. */}
+        <div className="mt-7 pt-6 border-t border-line grid grid-cols-1 gap-y-7">
           <CompositionColumn
             title="What you own"
             accountCount={assetAccounts}
@@ -741,7 +875,7 @@ function MoveCard({
 function MovesQueue({
   step, actions, levelLoading, generating,
   onOpenInsight, onGenerateActions,
-  onStepComplete, onStepSkip, onStepUnskip, onStepHelp, onActionDone, onSetupProfile,
+  onStepComplete, onStepSkip, onStepUnskip, onStepHelp, onActionDone, onActionSkip, onSetupProfile,
 }: {
   step: LevelStep | null;
   actions: InsightLike[];
@@ -754,6 +888,7 @@ function MovesQueue({
   onStepUnskip: () => void | Promise<void>;
   onStepHelp: () => void;
   onActionDone: (id: string) => void | Promise<void>;
+  onActionSkip: (id: string) => void | Promise<void>;
   onSetupProfile: () => void;
 }) {
   const [stepBusy, setStepBusy] = useState(false);
@@ -775,19 +910,17 @@ function MovesQueue({
     );
   }
 
-  // Nothing at all → onboarding affordance.
+  // Nothing at all → onboarding affordance (the parent card provides the shell).
   if (!step && actions.length === 0) {
     return (
       <div className="mt-6">
-        <Card className="p-6 sm:p-7">
-          <h3 className="font-editorial text-[20px] font-bold tracking-[-0.018em]">Set up your financial profile</h3>
-          <p className="mt-2 mb-4 text-[14px] leading-relaxed text-content-secondary">
-            Tell us the basics and we'll show you exactly what to do next.
-          </p>
-          <Button size="sm" onClick={onSetupProfile} trailingIcon={<ArrowRight className="h-4 w-4" />}>
-            Get started
-          </Button>
-        </Card>
+        <h3 className="font-editorial text-[20px] font-bold tracking-[-0.018em]">Set up your financial profile</h3>
+        <p className="mt-2 mb-4 text-[14px] leading-relaxed text-content-secondary">
+          Tell us the basics and we'll show you exactly what to do next.
+        </p>
+        <Button size="sm" onClick={onSetupProfile} trailingIcon={<ArrowRight className="h-4 w-4" />}>
+          Get started
+        </Button>
       </div>
     );
   }
@@ -894,6 +1027,17 @@ function MovesQueue({
                   >
                     {busy ? '…' : 'I did it'}
                   </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={async () => {
+                      setActionBusy(a.id);
+                      try { await onActionSkip(a.id); } finally { setActionBusy(null); }
+                    }}
+                    className="h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors disabled:opacity-60"
+                  >
+                    Skip
+                  </button>
                 </>
               }
             />
@@ -922,7 +1066,10 @@ function MovesQueue({
   );
 }
 
-// ─── 30-day net-worth chart (real axes) ─────────────────────────────────────────
+// ─── 30-day net-worth chart — pixel-true, styled like the Money page chart ──────
+
+const NW_CHART_H = 200;
+const NW_CHART_M = { top: 14, right: 12, bottom: 30, left: 66 };
 
 function NetWorthChart({
   history, monthDelta, netWorth,
@@ -931,65 +1078,77 @@ function NetWorthChart({
   monthDelta: number | null;
   netWorth: number;
 }) {
-  const VB_W = 340, VB_H = 210;
-  const chart = useMemo(() => {
-    if (history.length < 2) return null;
+  const points = useMemo(() => {
+    if (history.length < 2) return [];
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
     let pts = history.filter((p) => new Date(p.date).getTime() >= cutoff);
     if (pts.length < 2) pts = history.slice(-31);
-
-    const values = pts.map((p) => p.value);
-    let min = Math.min(...values);
-    let max = Math.max(...values);
-    if (min === max) { min -= 1; max += 1; }
-    const pad = (max - min) * 0.12;
-    min -= pad; max += pad;
-
-    // plot area inside the 340×210 viewBox
-    const X0 = 40, X1 = 330, Y0 = 16, Y1 = 180;
-    const sx = (i: number) => X0 + (i / (pts.length - 1)) * (X1 - X0);
-    const sy = (v: number) => Y1 - ((v - min) / (max - min)) * (Y1 - Y0);
-
-    const coords = pts.map((p, i) => ({ x: sx(i), y: sy(p.value), value: p.value, date: p.date }));
-    const line = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
-    const area = `${line} L${X1},${Y1} L${X0},${Y1} Z`;
-
-    // Y gridlines (4 ticks)
-    const yTicks = [0, 1, 2, 3].map((k) => {
-      const v = max - (k / 3) * (max - min);
-      return { y: Y0 + (k / 3) * (Y1 - Y0), label: formatMoneyShort(v) };
-    });
-
-    return {
-      line, area, coords,
-      lastX: sx(pts.length - 1), lastY: sy(pts[pts.length - 1].value),
-      yTicks,
-      firstDate: formatDateShort(new Date(pts[0].date)),
-      lastDate: formatDateShort(new Date(pts[pts.length - 1].date)),
-      X0, X1, Y0, Y1,
-    };
+    return pts;
   }, [history]);
+  const hasChart = points.length >= 2;
+
+  // Pixel-true width — the viewBox matches the rendered width so strokes and
+  // text stay at native size whether the card is in the rail or full-width.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [chartW, setChartW] = useState(320);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => setChartW(el.clientWidth || 320);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasChart]);
+
+  const innerW = chartW - NW_CHART_M.left - NW_CHART_M.right;
+  const innerH = NW_CHART_H - NW_CHART_M.top - NW_CHART_M.bottom;
+
+  const { yMin, yMax, yTicks } = useMemo(() => {
+    if (!hasChart) return { yMin: 0, yMax: 1, yTicks: [] as number[] };
+    const values = points.map((p) => p.value);
+    const rawMin = Math.min(...values);
+    const rawMax = Math.max(...values);
+    const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
+    return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
+  }, [points, hasChart]);
+
+  const xAt = (i: number) => NW_CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
+  const yAt = (v: number) => NW_CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
+
+  const xy = useMemo<Array<[number, number]>>(
+    () => points.map((p, i) => [xAt(i), yAt(p.value)]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [points, chartW, yMin, yMax],
+  );
+  const linePath = useMemo(() => smoothLinePath(xy), [xy]);
+  const baseY = (NW_CHART_M.top + innerH).toFixed(2);
+  const areaPath = linePath
+    ? `${linePath} L ${xAt(points.length - 1).toFixed(2)} ${baseY} L ${xAt(0).toFixed(2)} ${baseY} Z`
+    : '';
+  const xLabels = useMemo(() => (hasChart ? pickXLabels(points, '1M') : []), [points, hasChart]);
 
   const down = (monthDelta ?? 0) < 0;
-  const stroke = down ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-positive))';
+  const chipColor = down ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-positive))';
   const pctChange = monthDelta != null && netWorth !== 0
     ? (monthDelta / (netWorth - monthDelta)) * 100
     : null;
 
   // Hover crosshair — snaps to the nearest data point (mouse/touch only;
   // chart stays fully readable without hover and for keyboard users).
-  const svgRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const pointerToIdx = (clientX: number): number | null => {
-    const root = svgRef.current;
-    if (!root || !chart || chart.coords.length === 0) return null;
+    const root = wrapRef.current;
+    if (!root || points.length === 0) return null;
     const rect = root.getBoundingClientRect();
     if (rect.width <= 0) return null;
-    const vbX = ((clientX - rect.left) / rect.width) * VB_W;
-    const ratio = (vbX - chart.X0) / Math.max(1, chart.X1 - chart.X0);
-    return Math.min(chart.coords.length - 1, Math.max(0, Math.round(ratio * (chart.coords.length - 1))));
+    const localX = (clientX - rect.left) * (chartW / rect.width);
+    const ratio = (localX - NW_CHART_M.left) / Math.max(1, innerW);
+    return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
   };
-  const hovered = chart && hoverIdx !== null ? chart.coords[hoverIdx] : null;
+  const hovered = hoverIdx !== null && points[hoverIdx]
+    ? { ...points[hoverIdx], x: xAt(hoverIdx), y: yAt(points[hoverIdx].value) }
+    : null;
 
   return (
     <Card className="p-5">
@@ -1007,7 +1166,7 @@ function NetWorthChart({
             className="inline-flex items-center gap-1 h-[26px] px-2.5 rounded-full text-[12px] font-bold ui-tnum"
             style={{
               background: down ? 'var(--ui-negative-soft)' : 'var(--ui-positive-soft)',
-              color: stroke,
+              color: chipColor,
             }}
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1018,49 +1177,81 @@ function NetWorthChart({
         )}
       </div>
 
-      {chart ? (
-        <div ref={svgRef} className="relative mt-4 select-none">
-          <svg className="w-full h-auto overflow-visible block" viewBox="0 0 340 210" role="img" aria-label="Net worth over the last 30 days" style={{ pointerEvents: 'none' }}>
+      {hasChart ? (
+        <div ref={wrapRef} className="relative mt-3 select-none">
+          <svg
+            viewBox={`0 0 ${chartW} ${NW_CHART_H}`}
+            role="img"
+            aria-label="Net worth over the last 30 days"
+            className="block w-full"
+            style={{ pointerEvents: 'none' }}
+          >
             <defs>
-              <linearGradient id="nwArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor={stroke} stopOpacity="0.20" />
-                <stop offset="1" stopColor={stroke} stopOpacity="0" />
+              <linearGradient id="nwHomeArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity="0.24" />
+                <stop offset="55%" stopColor="var(--ui-viz-2)" stopOpacity="0.07" />
+                <stop offset="100%" stopColor="var(--ui-viz-2)" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="nwHomeLine" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity="0.85" />
+                <stop offset="100%" stopColor="var(--ui-viz-2)" />
               </linearGradient>
             </defs>
-            {/* Y axis + gridlines + labels */}
-            <line x1={chart.X0} y1={chart.Y0} x2={chart.X0} y2={chart.Y1} stroke="var(--ui-line)" strokeWidth="1.2" />
-            {chart.yTicks.map((t, i) => (
-              <g key={i}>
-                <line x1={chart.X0} y1={t.y} x2={chart.X1} y2={t.y} stroke="var(--ui-hairline)" strokeWidth="1" />
-                <text x={chart.X0 - 5} y={t.y + 3} textAnchor="end" className="ui-tnum" fontSize="12" fontWeight="600" fill="rgb(var(--ui-content-muted))">{t.label}</text>
+
+            {yTicks.map((t) => (
+              <g key={t}>
+                <line
+                  x1={NW_CHART_M.left} y1={yAt(t)} x2={chartW - NW_CHART_M.right} y2={yAt(t)}
+                  stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
+                />
+                <text
+                  x={NW_CHART_M.left - 10} y={yAt(t)} dy="0.32em" textAnchor="end"
+                  fill="rgb(var(--ui-content-faint))"
+                  style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {formatShortMoney(t, tickDecimals(yTicks))}
+                </text>
               </g>
             ))}
-            <line x1={chart.X0} y1={chart.Y1} x2={chart.X1} y2={chart.Y1} stroke="var(--ui-line)" strokeWidth="1.2" />
-            {/* trend */}
-            <path d={chart.area} fill="url(#nwArea)" />
-            <path d={chart.line} fill="none" stroke={stroke} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-            {/* hover crosshair + marker, else the trailing point */}
-            {hovered ? (
-              <g>
-                <line x1={hovered.x} y1={chart.Y0} x2={hovered.x} y2={chart.Y1} stroke="rgb(var(--ui-content-muted))" strokeOpacity="0.5" strokeWidth="1" strokeDasharray="2 4" />
-                <circle cx={hovered.x} cy={hovered.y} r="7" fill={stroke} fillOpacity="0.18" />
-                <circle cx={hovered.x} cy={hovered.y} r="4" fill={stroke} stroke="rgb(var(--ui-panel))" strokeWidth="2" />
-              </g>
-            ) : (
-              <circle cx={chart.lastX} cy={chart.lastY} r="3.6" fill={stroke} />
+
+            <path d={areaPath} fill="url(#nwHomeArea)" />
+            <path
+              d={linePath} fill="none" stroke="url(#nwHomeLine)"
+              strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+            />
+
+            {!hovered && (
+              <>
+                <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={11} fill="var(--ui-viz-2)" fillOpacity={0.12} />
+                <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={5.5} fill="var(--ui-viz-2)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
+              </>
             )}
-            {/* X labels */}
-            <text x={chart.X0} y="197" textAnchor="start" className="ui-tnum" fontSize="12" fontWeight="600" fill="rgb(var(--ui-content-muted))">{chart.firstDate}</text>
-            <text x={chart.X1} y="197" textAnchor="end" className="ui-tnum" fontSize="12" fontWeight="600" fill="rgb(var(--ui-content-muted))">{chart.lastDate}</text>
+            {hovered && (
+              <g>
+                <line x1={hovered.x} y1={NW_CHART_M.top} x2={hovered.x} y2={NW_CHART_M.top + innerH} stroke="rgb(var(--ui-content-muted))" strokeOpacity={0.5} strokeWidth={1} strokeDasharray="2 4" />
+                <circle cx={hovered.x} cy={hovered.y} r={14} fill="var(--ui-viz-2)" fillOpacity={0.16} />
+                <circle cx={hovered.x} cy={hovered.y} r={5.5} fill="var(--ui-viz-2)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
+              </g>
+            )}
+
+            {xLabels.map(({ idx, label }) => (
+              <text
+                key={`${idx}-${label}`} x={xAt(idx)} y={NW_CHART_H - 8} textAnchor="middle"
+                fill="rgb(var(--ui-content-muted))"
+                style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {label}
+              </text>
+            ))}
           </svg>
 
-          {/* Tooltip — positioned by viewBox percentage so it tracks the point across any width */}
+          {/* Tooltip — pixel coordinates track the hovered point directly */}
           {hovered && (
             <div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-ui-md border border-line bg-panel-raised px-2.5 py-1.5 shadow-ui-md whitespace-nowrap"
+              className="pointer-events-none absolute z-10 rounded-ui-md border border-line bg-panel-raised px-2.5 py-1.5 shadow-ui-md whitespace-nowrap"
               style={{
-                left: `${(hovered.x / VB_W) * 100}%`,
-                top: `${(hovered.y / VB_H) * 100}%`,
+                left: hovered.x,
+                top: hovered.y,
                 transform: 'translate(-50%, calc(-100% - 10px))',
               }}
             >
@@ -1074,7 +1265,7 @@ function NetWorthChart({
           {/* Pointer overlay — snaps hover to the nearest x-domain point */}
           <div
             className="absolute inset-0"
-            style={{ touchAction: 'none', cursor: 'crosshair' }}
+            style={{ touchAction: 'pan-y', cursor: 'crosshair' }}
             onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
             onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
             onPointerLeave={() => setHoverIdx(null)}
@@ -1246,6 +1437,143 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
           );
         })}
       </ul>
+    </Card>
+  );
+}
+
+// ─── Spending pulse — month-to-date total + top categories ──────────────────────
+
+const SPEND_VIZ = ['var(--ui-viz-1)', 'var(--ui-viz-2)', 'var(--ui-viz-3)'];
+
+function SpendingPulse({ flow }: { flow: MonthFlow }) {
+  const pctVsPrev =
+    flow.prevSpending != null && flow.prevSpending > 0
+      ? ((flow.spending - flow.prevSpending) / flow.prevSpending) * 100
+      : null;
+  const up = (pctVsPrev ?? 0) > 0;
+
+  return (
+    <Card className="p-[22px]">
+      <div className="flex items-baseline justify-between">
+        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Spending · this month</div>
+        <Link href="/spending" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
+      </div>
+      <div className="mt-3 flex items-end gap-x-2.5 gap-y-1 flex-wrap">
+        <span className="font-editorial text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{fmtUsd(flow.spending)}</span>
+        {pctVsPrev != null && (
+          <span
+            className="text-[12px] font-bold ui-tnum"
+            style={{ color: up ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-positive))' }}
+          >
+            {up ? '↑' : '↓'} {Math.abs(pctVsPrev).toFixed(0)}% vs this point last month
+          </span>
+        )}
+      </div>
+      {flow.topCats.length > 0 ? (
+        <div className="mt-4 flex flex-col gap-3">
+          {flow.topCats.map((c, i) => (
+            <div key={c.id}>
+              <div className="flex items-baseline justify-between gap-2 text-[12.5px]">
+                <span className="font-bold truncate">{c.name}</span>
+                <span className="font-semibold text-content-muted ui-tnum shrink-0">{fmtUsd(c.total)}</span>
+              </div>
+              <div className="mt-1.5">
+                <Track pct={c.pct} color={SPEND_VIZ[i % SPEND_VIZ.length]} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-[13px] text-content-muted">No spending yet this month.</p>
+      )}
+    </Card>
+  );
+}
+
+// ─── Cash flow pulse — money in vs out this month ────────────────────────────────
+
+function CashFlowPulse({ flow }: { flow: MonthFlow }) {
+  const positive = flow.net >= 0;
+  const hasFlow = flow.income > 0 || flow.spending > 0;
+
+  return (
+    <Card className="p-[22px]">
+      <div className="flex items-baseline justify-between">
+        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Cash flow · this month</div>
+        <Link href="/spending" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">Details</Link>
+      </div>
+      {hasFlow ? (
+        <>
+          <div
+            className="mt-3.5 flex gap-[2px] h-[10px] rounded-full overflow-hidden"
+            role="img"
+            aria-label={`In ${fmtUsd(flow.income)}, out ${fmtUsd(flow.spending)}`}
+          >
+            <div className="h-full" style={{ flexGrow: flow.income, minWidth: flow.income > 0 ? 4 : 0, background: 'rgb(var(--ui-positive))' }} />
+            <div className="h-full" style={{ flexGrow: flow.spending, minWidth: flow.spending > 0 ? 4 : 0, background: 'var(--ui-viz-4)' }} />
+          </div>
+          <div className="mt-3 flex flex-col gap-1.5 text-[13px] ui-tnum">
+            <div className="flex items-baseline justify-between">
+              <span className="font-bold text-content-secondary">In</span>
+              <span className="font-extrabold" style={{ color: 'rgb(var(--ui-positive))' }}>+{fmtUsd(flow.income)}</span>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="font-bold text-content-secondary">Out</span>
+              <span className="font-extrabold" style={{ color: 'rgb(var(--ui-negative))' }}>−{fmtUsd(flow.spending)}</span>
+            </div>
+            <div className="mt-1 pt-2 border-t border-line flex items-baseline justify-between">
+              <span className="font-bold">Net</span>
+              <span
+                className="font-editorial text-[15px] font-extrabold"
+                style={{ color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))' }}
+              >
+                {positive ? '+' : '−'}{fmtUsd(Math.abs(flow.net))}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="mt-3 text-[13px] text-content-muted">No activity yet this month.</p>
+      )}
+    </Card>
+  );
+}
+
+// ─── Recent activity — the latest transactions ───────────────────────────────────
+
+function RecentActivity({ txns }: { txns: RecentTxn[] }) {
+  return (
+    <Card className="p-[22px]">
+      <div className="flex items-baseline justify-between">
+        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Recent activity</div>
+        <Link href="/transactions" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
+      </div>
+      {txns.length === 0 ? (
+        <p className="mt-3 text-[13px] text-content-muted">No transactions yet.</p>
+      ) : (
+        <ul>
+          {txns.map((t) => {
+            const income = t.amount < 0;
+            return (
+              <li key={t.id} className="mt-3.5 first:mt-3 flex items-baseline justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[13.5px] font-bold truncate">{t.name}</div>
+                  <div className="mt-0.5 text-[11.5px] font-semibold text-content-muted">
+                    {formatDateShort(new Date(`${t.date.slice(0, 10)}T00:00:00`))}
+                    {t.pending ? ' · Pending' : ''}
+                  </div>
+                </div>
+                <span
+                  className="text-[13.5px] font-extrabold ui-tnum shrink-0"
+                  style={income ? { color: 'rgb(var(--ui-positive))' } : undefined}
+                >
+                  {income ? `+${fmtUsd(Math.abs(t.amount), 2)}` : fmtUsd(t.amount, 2)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Card>
   );
 }

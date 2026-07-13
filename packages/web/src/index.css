@@ -2731,3 +2731,43 @@
 .animate-p2r-bob {
   animation: p2r-bob 700ms ease-in-out infinite;
 }
+
+/* ── Home net-worth hero — container-query layout ──
+   The app sidebar makes viewport breakpoints lie about how much room the
+   home page actually has, so the page and the hero card measure their own
+   width instead. .cq-inline marks the measuring containers. */
+.cq-inline { container-type: inline-size; }
+
+/* Top grid: the aside (chart / ask / goals) sits beside the hero only when
+   the left 2/3 column can still hold the one-line "Assets − Debt = Net
+   worth" equation; below that the aside wraps underneath instead. */
+.home-hero-grid { display: grid; grid-template-columns: 1fr; }
+@container (min-width: 1024px) {
+  .home-hero-grid { grid-template-columns: 2fr 1fr; }
+}
+
+/* Hero card: the one-line equation everywhere except true phone widths
+   (<400px of card content), where the stacked statement rows take over.
+   Statement is the default so browsers without container queries still get
+   a working layout. */
+.nw-equation { display: none; }
+.nw-chip { display: contents; }
+@container (min-width: 400px) {
+  .nw-statement { display: none; }
+  .nw-equation { display: flex; }
+}
+/* The equation NEVER wraps: a measuring effect sets --nws (0..1) so the type
+   scales down until "Assets − Debt = Net worth" fits on one line — up to
+   9-digit values on desktop, open chat panel included. When space is tight
+   the inline delta chip is dropped first (.nw-eq--tight — the 30-day delta
+   still shows in the chart card) before the type shrinks. */
+.nw-equation {
+  flex-wrap: nowrap;
+  column-gap: max(calc(14px * var(--nws, 1)), 10px);
+}
+.nw-equation .nw-opgroup { column-gap: max(calc(14px * var(--nws, 1)), 10px); }
+.nw-equation .nw-label { font-size: calc(11px * max(var(--nws, 1), 0.86)); }
+.nw-equation .nw-num { font-size: calc(30px * var(--nws, 1)); }
+.nw-equation .nw-num--total { font-size: calc(34px * var(--nws, 1)); }
+.nw-equation .nw-op { font-size: calc(26px * var(--nws, 1)); }
+.nw-eq--tight .nw-chip { display: none; }

@@ -171,7 +171,7 @@ export function createFinancialTools(tenantId: string) {
 
     get_goals: tool({
       description:
-        "Get the user's savings goals with progress: name, category, target amount, current amount, deadline, status, and which accounts fund each goal. Auto-tracked goals derive their progress from linked account balances.",
+        "Get the user's savings goals with progress: name, category, target amount, current amount, planned monthly contribution, deadline, status, and which accounts fund each goal. Auto-tracked goals derive their progress from linked account balances.",
       inputSchema: z.object({}),
       execute: async () => {
         const [rows, links, accts] = await Promise.all([
@@ -199,6 +199,7 @@ export function createFinancialTools(tenantId: string) {
               target,
               current: amount,
               percentComplete: target > 0 ? Math.round((amount / target) * 100) : 0,
+              plannedMonthlyContribution: g.monthlyContribution ? parseFloat(g.monthlyContribution) : null,
               deadline: g.deadline,
               status: g.status,
               autoTracked: isAutoTracked,

@@ -194,6 +194,8 @@ export const api = {
         name: string;
         type: string;
         mask: string | null;
+        institutionId: string | null;
+        institutionName: string | null;
         balance: string | null;
         available: string | null;
         currency: string;
@@ -752,6 +754,7 @@ export const api = {
         description: string | null;
         targetAmount: string;
         currentAmount: string;
+        monthlyContribution: string | null;
         deadline: string | null;
         category: string;
         status: string;
@@ -763,11 +766,14 @@ export const api = {
       }>;
     }>('/goals'),
 
-  createGoal: (data: { name: string; targetAmount: number; deadline?: string; category?: string; icon?: string; description?: string; accountIds?: string[] }) =>
+  createGoal: (data: { name: string; targetAmount: number; monthlyContribution?: number; deadline?: string; category?: string; icon?: string; description?: string; accountIds?: string[] }) =>
     request<{ goal: { id: string } }>('/goals', { method: 'POST', body: JSON.stringify(data) }),
 
-  updateGoal: (id: string, data: { currentAmount?: number; name?: string; description?: string; targetAmount?: number; deadline?: string; status?: string; accountIds?: string[] }) =>
+  updateGoal: (id: string, data: { currentAmount?: number; name?: string; description?: string; targetAmount?: number; monthlyContribution?: number | null; deadline?: string; status?: string; accountIds?: string[] }) =>
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  getGoalHistory: (id: string) =>
+    request<{ history: Array<{ date: string; value: number }> }>(`/goals/${id}/history`),
 
   deleteGoal: (id: string) =>
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'DELETE' }),

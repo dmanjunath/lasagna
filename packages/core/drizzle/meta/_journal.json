@@ -64,6 +64,20 @@
       "when": 1783643564089,
       "tag": "0008_categories_catchup",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783916977441,
+      "tag": "0009_icy_stepford_cuckoos",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783918740568,
+      "tag": "0010_black_patriot",
+      "breakpoints": true
     }
   ]
 }

@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef, type ReactElement } from 'rea
 import { useRoute, useLocation } from 'wouter';
 import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { Button, Eyebrow, EmptyState, Skeleton, Field, Input } from '../components/uikit';
-import { useConfirm } from '../components/ds';
-import { formatCurrency, goalColor, iconFor, toggleId, AccountChips } from './goal-shared';
+import { Button, Eyebrow, EmptyState, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
+import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
+import { formatCurrency, goalColor, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,6 +15,7 @@ interface Goal {
   name: string;
   targetAmount: string;
   currentAmount: string;
+  monthlyContribution: string | null;
   deadline: string | null;
   category: string;
   status: string;
@@ -30,6 +31,8 @@ interface Balance {
   name: string;
   type: string;
   mask: string | null;
+  institutionId: string | null;
+  institutionName: string | null;
   balance: string | null;
   available: string | null;
   currency: string;
@@ -41,6 +44,8 @@ interface LinkedAccount {
   name: string;
   type: string;
   mask: string | null;
+  institutionId: string | null;
+  institutionName: string | null;
   balance: string | null;
   asOf: string | null;
 }
@@ -62,6 +67,18 @@ function shortDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// A far-off deadline in raw days ("1268 days left") is hard to reconcile with
+// years — express it in the largest natural unit instead.
+function humanizeDaysLeft(days: number): string {
+  if (days <= 0) return 'Past deadline';
+  if (days < 60) return `${days} day${days === 1 ? '' : 's'} left`;
+  const months = Math.round(days / 30.44);
+  if (months < 12) return `${months} months left`;
+  const years = Math.floor(months / 12);
+  const rem = months % 12;
+  return rem === 0 ? `${years} year${years === 1 ? '' : 's'} left` : `${years} yr ${rem} mo left`;
+}
+
 // "Mark complete" is a manual archive action — it only makes sense once a goal
 // has real progress. Below this we hide it (a $0 / just-started goal shouldn't
 // offer "complete"); a goal that's already Reached hides it too (see render).
@@ -79,8 +96,11 @@ export function SavingsGoal() {
 
   const [goal, setGoal] = useState<Goal | null>(null);
   const [balances, setBalances] = useState<Balance[]>([]);
+  const [history, setHistory] = useState<TrendPoint[]>([]);
+  const [histRange, setHistRange] = useState<Range>('All');
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   // Linked-accounts editor
   const [editingAccounts, setEditingAccounts] = useState(false);
@@ -93,6 +113,7 @@ export function SavingsGoal() {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editTarget, setEditTarget] = useState('');
+  const [editMonthly, setEditMonthly] = useState('');
   const [editDeadline, setEditDeadline] = useState('');
   const [editCurrent, setEditCurrent] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -106,9 +127,11 @@ export function SavingsGoal() {
 
   const load = useCallback(async () => {
     try {
-      const [{ goals }, { balances: bals }] = await Promise.all([
+      const [{ goals }, { balances: bals }, { history: hist }] = await Promise.all([
         api.getGoals(),
         api.getBalances(),
+        // History failing shouldn't take down the page — chart just hides.
+        api.getGoalHistory(goalId).catch(() => ({ history: [] as TrendPoint[] })),
       ]);
       const found = goals.find((g) => g.id === goalId);
       if (!found) {
@@ -117,8 +140,12 @@ export function SavingsGoal() {
       }
       setGoal(found);
       setBalances(bals);
+      setHistory(hist);
+      setLoadError(false);
     } catch {
-      setNotFound(true);
+      // A fetch failure is NOT "goal not found" — telling the user their money
+      // goal was deleted over a network blip destroys trust. Offer a retry.
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -142,6 +169,20 @@ export function SavingsGoal() {
     accountsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     accountsPanelRef.current?.querySelector<HTMLElement>('button, input')?.focus();
   }, [editingAccounts]);
+
+  // ?edit=1 deep-link (goal cards' "Plan monthly contribution") — open the
+  // edit form once the goal has loaded, then strip the param.
+  const editParamHandled = useRef(false);
+  useEffect(() => {
+    if (!goal || editParamHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('edit')) {
+      editParamHandled.current = true;
+      window.history.replaceState({}, '', window.location.pathname);
+      openEdit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goal]);
 
   if (loading) {
     return (
@@ -176,6 +217,23 @@ export function SavingsGoal() {
     );
   }
 
+  if (loadError && !goal) {
+    return (
+      <div className="mx-auto max-w-[1040px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+        <EmptyState
+          icon={<Sparkles className="h-6 w-6" />}
+          title="Couldn't load this goal"
+          description="Something went wrong fetching it — your goal is still here. Check your connection and try again."
+          action={
+            <Button onClick={() => { setLoading(true); setLoadError(false); load(); }}>
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
   if (notFound || !goal) {
     return (
       <div className="mx-auto max-w-[1040px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -200,28 +258,73 @@ export function SavingsGoal() {
   const accent = complete ? 'rgb(var(--ui-brand))' : goalColor(goal.category, goal.name);
   const categoryLabel = goal.category ? goal.category.replace(/_/g, ' ') : 'savings';
 
-  // Deadline labels
+  const isArchived = goal.status === 'completed';
+
+  // Deadline labels — an archived goal doesn't get nagged about its deadline.
   let deadlineMonth: string | null = null;
   let deadlineCountdown: string | null = null;
+  let deadlineDaysLeft: number | null = null;
   if (goal.deadline) {
     deadlineMonth = new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-    const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    deadlineCountdown = daysLeft > 0 ? `${daysLeft} days left` : 'Past deadline';
+    if (!isArchived) {
+      deadlineDaysLeft = Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      deadlineCountdown = humanizeDaysLeft(deadlineDaysLeft);
+    }
+  }
+
+  // Pace — turn the plan (or the deadline) into a monthly number the user can
+  // act on. With a plan set: project when the goal lands at that rate. Without
+  // one but with a deadline: what monthly amount would hit it.
+  const monthlyPlan = goal.monthlyContribution ? parseFloat(goal.monthlyContribution) : 0;
+  let paceLine: string | null = null;
+  if (goal.status === 'active' && !complete && !notStarted && remaining > 0) {
+    if (monthlyPlan > 0) {
+      const monthsNeeded = Math.ceil(remaining / monthlyPlan);
+      const eta = new Date();
+      eta.setMonth(eta.getMonth() + monthsNeeded);
+      const etaMonth = eta.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      if (goal.deadline && deadlineDaysLeft !== null && deadlineDaysLeft > 0) {
+        paceLine = eta.getTime() <= new Date(goal.deadline).getTime()
+          ? `${formatCurrency(monthlyPlan)}/mo planned — on track for ${deadlineMonth}`
+          : `${formatCurrency(monthlyPlan)}/mo planned — on pace for ${etaMonth}, behind your ${deadlineMonth} target`;
+      } else {
+        paceLine = `${formatCurrency(monthlyPlan)}/mo planned — on pace for ${etaMonth}`;
+      }
+    } else if (deadlineDaysLeft !== null && deadlineDaysLeft > 0) {
+      const monthsLeft = Math.max(1, Math.round(deadlineDaysLeft / 30.44));
+      paceLine = `about ${formatCurrency(Math.ceil(remaining / monthsLeft))}/mo would hit ${deadlineMonth}`;
+    }
   }
 
   // Linked accounts for this goal
   const linkedAccounts: LinkedAccount[] = balances
     .filter((b) => goal.accountIds.includes(b.accountId))
-    .map((b) => ({ id: b.accountId, name: b.name, type: b.type, mask: b.mask, balance: b.balance, asOf: b.asOf }));
+    .map((b) => ({
+      id: b.accountId, name: b.name, type: b.type, mask: b.mask, balance: b.balance, asOf: b.asOf,
+      institutionId: b.institutionId, institutionName: b.institutionName,
+    }));
 
-  // Fundable accounts feed the chip editor
+  // Fundable accounts feed the picker
   const fundableAccounts = balances
     .filter((b) => b.type === 'depository' || b.type === 'investment')
-    .map((b) => ({ id: b.accountId, name: b.name, mask: b.mask, type: b.type, balance: b.balance }));
+    .map((b) => ({
+      id: b.accountId, name: b.name, mask: b.mask, type: b.type, balance: b.balance,
+      institutionId: b.institutionId, institutionName: b.institutionName,
+    }));
 
   // -- Status actions ---------------------------------------------------------
 
   const markComplete = async () => {
+    // Confirm before archiving — this is the top primary button (first thumb
+    // target on mobile) and it removes the goal from the active grid.
+    const ok = await confirm({
+      title: `Mark "${goal.name}" complete?`,
+      body: complete
+        ? 'It moves to your completed list as a finished goal. You can reactivate it anytime.'
+        : `It's at ${Math.round(pct)}% and will be archived at its current amount. You can reactivate it anytime.`,
+      confirmLabel: 'Mark complete',
+    });
+    if (!ok) return;
     setActionPending(true);
     setActionError(null);
     try {
@@ -314,6 +417,7 @@ export function SavingsGoal() {
   const openEdit = () => {
     setEditName(goal.name);
     setEditTarget(goal.targetAmount);
+    setEditMonthly(goal.monthlyContribution ?? '');
     setEditDeadline(goal.deadline ? goal.deadline.slice(0, 10) : '');
     setEditCurrent(goal.currentAmount);
     setEditError(null);
@@ -328,6 +432,7 @@ export function SavingsGoal() {
       const payload: Parameters<typeof api.updateGoal>[1] = {
         name: editName,
         targetAmount: parseFloat(editTarget),
+        monthlyContribution: editMonthly === '' ? null : parseFloat(editMonthly),
         deadline: editDeadline || undefined,
       };
       if (!goal.isAutoTracked) payload.currentAmount = parseFloat(editCurrent);
@@ -400,7 +505,9 @@ export function SavingsGoal() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {goal.status === 'active' && !complete && pct >= MARK_COMPLETE_THRESHOLD && (
+          {/* Reached goals NEED this — it's the only path into the archive.
+              Partially-funded goals keep it from the halfway mark. */}
+          {goal.status === 'active' && (complete || pct >= MARK_COMPLETE_THRESHOLD) && (
             <Button variant="primary" size="sm" disabled={actionPending} onClick={markComplete}>
               {actionPending ? '…' : 'Mark complete'}
             </Button>
@@ -487,27 +594,42 @@ export function SavingsGoal() {
 
             {/* status line — real state only */}
             <div className="mt-3.5 text-[13.5px] font-semibold text-content-secondary ui-tnum">
-              {complete ? (
+              {isArchived && !complete ? (
+                <span>
+                  Marked complete{goal.completedAt ? ` on ${new Date(goal.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''} —{' '}
+                  <span className="font-bold text-content">{formatCurrency(current)}</span> saved
+                </span>
+              ) : complete ? (
                 <span className="inline-flex items-center gap-1.5 font-bold text-content">
                   <Sparkles className="h-4 w-4 text-brand" />
                   {surplus >= 1 ? `${formatCurrency(surplus)} over target — nicely done` : 'Fully funded — nicely done'}
                 </span>
               ) : notStarted ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Sparkles className="h-4 w-4 text-content-faint" /> Not started yet — make a first deposit to get going
+                  <Sparkles className="h-4 w-4 text-content-faint" /> Not started yet — link an account or edit the amount to get going
                 </span>
+              ) : paceLine ? (
+                <span>{paceLine}</span>
               ) : (
                 <span><span className="font-bold text-content">{formatCurrency(remaining)}</span> left to reach your target</span>
               )}
             </div>
           </div>
 
-          {/* right — satellite stat tiles */}
-          <div className="grid grid-cols-2 gap-3 sm:auto-cols-[minmax(128px,1fr)] sm:grid-flow-col lg:flex lg:shrink-0 lg:items-stretch">
+          {/* right — satellite stat tiles; content-sized, centered against the
+              headline block instead of stretched to its full height */}
+          <div className="grid grid-cols-2 gap-3 sm:auto-cols-[minmax(128px,1fr)] sm:grid-flow-col lg:flex lg:shrink-0 lg:items-center">
             <StatTile
-              label={complete ? 'Over target' : 'To go'}
-              value={complete ? (surplus >= 1 ? formatCurrency(surplus) : 'On target') : formatCurrency(remaining)}
-              caption={complete ? 'above your goal' : `of ${formatCurrency(target)}`}
+              label={complete ? 'Over target' : isArchived ? 'Saved' : 'To go'}
+              value={
+                complete
+                  ? (surplus >= 1 ? formatCurrency(surplus) : 'On target')
+                  : isArchived
+                    ? formatCurrency(current)
+                    : formatCurrency(remaining)
+              }
+              caption={complete ? 'above your goal' : isArchived ? `of ${formatCurrency(target)} target` : `of ${formatCurrency(target)}`}
+              icon={<Flag className="h-3.5 w-3.5" />}
               accent={complete}
             />
             {deadlineMonth ? (
@@ -529,6 +651,46 @@ export function SavingsGoal() {
           </div>
         </div>
       </section>
+
+      {/* ── Progress over time ── */}
+      {history.length >= 2 && (
+        <section className="mt-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span
+                className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+                aria-hidden
+              />
+              <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Progress</h2>
+            </div>
+            <SegmentedControl
+              size="sm"
+              stretch={false}
+              aria-label="History range"
+              value={histRange}
+              onChange={setHistRange}
+              options={[
+                { value: '1M', label: '1M' },
+                { value: '6M', label: '6M' },
+                { value: '1Y', label: '1Y' },
+                { value: 'All', label: 'All' },
+              ]}
+            />
+          </div>
+          <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-2 py-4 sm:px-4">
+            <TrendChart
+              points={(() => {
+                const filtered = filterByRange(history, histRange);
+                // A too-narrow range (goal younger than the window) falls back
+                // to the full series rather than an empty chart.
+                return filtered.length >= 2 ? filtered : history;
+              })()}
+              range={histRange}
+            />
+          </div>
+        </section>
+      )}
 
       {/* ── Linked accounts ── */}
       <section className="mt-8">
@@ -556,7 +718,7 @@ export function SavingsGoal() {
               Linked accounts auto-track this goal from their live balances. Remove all to track it manually.
             </p>
             {fundableAccounts.length > 0 ? (
-              <AccountChips
+              <AccountPicker
                 accounts={fundableAccounts}
                 selected={draftAccountIds}
                 onToggle={(id) => setDraftAccountIds((prev) => toggleId(prev, id))}
@@ -583,12 +745,11 @@ export function SavingsGoal() {
                 key={row.id}
                 className="flex items-center gap-3.5 border-t border-line px-4 py-3.5 transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-brand-softer sm:px-5"
               >
-                <span
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-md"
-                  style={{ background: `color-mix(in srgb, ${accent} 12%, transparent)`, color: accent }}
-                >
-                  <Wallet className="h-[18px] w-[18px]" />
-                </span>
+                <InstitutionIcon
+                  institutionId={row.institutionId}
+                  institutionName={row.institutionName}
+                  size={36}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[14.5px] font-bold leading-tight">
                     {row.name}
@@ -647,6 +808,16 @@ export function SavingsGoal() {
                   type="number"
                   value={editTarget}
                   onChange={(e) => setEditTarget(e.target.value)}
+                  className="ui-tnum"
+                  leadingIcon={<span className="text-[13px]">$</span>}
+                />
+              </Field>
+              <Field label="Planned monthly contribution (optional)">
+                <Input
+                  type="number"
+                  value={editMonthly}
+                  onChange={(e) => setEditMonthly(e.target.value)}
+                  placeholder="500"
                   className="ui-tnum"
                   leadingIcon={<span className="text-[13px]">$</span>}
                 />
@@ -730,7 +901,7 @@ function StatTile({
 }) {
   return (
     <div className="min-w-[112px] rounded-ui-lg border border-line bg-panel/70 shadow-ui-sm p-3.5 backdrop-blur-sm lg:flex-1">
-      <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
+      <div className="flex items-center gap-1.5 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
         {icon && <span className="text-content-faint">{icon}</span>}
         {label}
       </div>
@@ -758,7 +929,7 @@ function AddTargetTile({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="ui-focus min-w-[112px] rounded-ui-lg border border-dashed border-line-strong bg-panel/40 p-3.5 text-left backdrop-blur-sm transition-colors hover:border-[rgb(var(--ui-accent))]/50 hover:bg-[var(--ui-accent-softer)] lg:flex-1"
     >
-      <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
+      <div className="flex items-center gap-1.5 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
         <Clock className="h-3.5 w-3.5 text-content-faint" />
         Target date
       </div>

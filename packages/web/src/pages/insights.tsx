@@ -292,8 +292,6 @@ function ActionCard({
           <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
         </button>
 
-        <span className="hidden sm:block flex-1 min-w-[8px]" aria-hidden />
-
         <button
           type="button"
           onClick={onSkip}

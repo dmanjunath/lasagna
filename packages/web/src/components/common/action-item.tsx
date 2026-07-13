@@ -155,8 +155,6 @@ export function ActionItem({
           </button>
         )}
 
-        <span className="hidden sm:block flex-1 min-w-[8px]" aria-hidden />
-
         {onDismiss && (
           <button
             type="button"

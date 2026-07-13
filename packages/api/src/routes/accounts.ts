@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, desc, and, sql, accounts, balanceSnapshots, parseLoanMetadata, accountTypeEnum } from "@lasagna/core";
+import { eq, desc, and, sql, accounts, balanceSnapshots, plaidItems, parseLoanMetadata, accountTypeEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
@@ -26,6 +26,14 @@ accountRoutes.get("/balances", async (c) => {
     where: eq(accounts.tenantId, session.tenantId),
   });
 
+  // Institution per account (for brand icons client-side). One query for the
+  // tenant's items, mapped by id — avoids an N+1 join.
+  const items = await db.query.plaidItems.findMany({
+    where: eq(plaidItems.tenantId, session.tenantId),
+    columns: { id: true, institutionId: true, institutionName: true },
+  });
+  const itemById = new Map(items.map((i) => [i.id, i]));
+
   const balances = await Promise.all(
     accts.map(async (acct) => {
       const latest = await db.query.balanceSnapshots.findFirst({
@@ -33,12 +41,15 @@ accountRoutes.get("/balances", async (c) => {
         orderBy: [desc(balanceSnapshots.snapshotAt)],
       });
       const rawBalance = latest?.balance ? parseFloat(latest.balance) : null;
+      const item = acct.plaidItemId ? itemById.get(acct.plaidItemId) : undefined;
       return {
         accountId: acct.id,
         name: acct.name,
         type: acct.type,
         subtype: acct.subtype,
         mask: acct.mask,
+        institutionId: item?.institutionId ?? null,
+        institutionName: item?.institutionName ?? null,
         balance: latest?.balance ?? null,
         effectiveBalance:
           rawBalance == null ? null : acct.invertBalance ? -rawBalance : rawBalance,

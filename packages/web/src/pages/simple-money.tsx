@@ -9,7 +9,7 @@ import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask } from '../lib/utils';
 import { Button, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
 import { filterByRange, type Range, type TrendPoint } from '../components/ds';
-import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney } from '../components/ds/TrendChart';
+import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../components/ds/TrendChart';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 
 interface Item {
@@ -422,7 +422,7 @@ function DeltaChip({ delta }: { delta: number }) {
 // ─────────────────────────────────────────────────────────────────────────
 
 const CHART_H = 250;
-const CHART_M = { top: 16, right: 12, bottom: 34, left: 56 };
+const CHART_M = { top: 16, right: 12, bottom: 34, left: 68 };
 
 function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -511,7 +511,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
               fill="rgb(var(--ui-content-faint))"
               style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
             >
-              {formatShortMoney(t)}
+              {formatShortMoney(t, tickDecimals(yTicks))}
             </text>
           </g>
         ))}

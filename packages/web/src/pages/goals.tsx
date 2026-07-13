@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Check, Target, ArrowRight, ChevronRight, Clock, Sparkles, RotateCw } from 'lucide-react';
+import { Plus, Check, Target, ArrowRight, ChevronRight, Clock, Sparkles, RotateCw, Repeat } from 'lucide-react';
 import { api } from '../lib/api';
+import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
 import { Button, EmptyState, Eyebrow, Field, Input, Skeleton } from '../components/uikit';
-import { formatCurrency, iconFor, toggleId, AccountChips, IconKey } from './goal-shared';
+import { formatCurrency, iconFor, toggleId, AccountPicker, IconKey } from './goal-shared';
 
 // ---------------------------------------------------------------------------
 // Presets
@@ -35,6 +36,7 @@ interface Goal {
   name: string;
   targetAmount: string;
   currentAmount: string;
+  monthlyContribution: string | null;
   deadline: string | null;
   category: string;
   status: string;
@@ -50,6 +52,8 @@ interface Account {
   mask: string | null;
   type: string;
   balance: string | null;
+  institutionId: string | null;
+  institutionName: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,12 +104,28 @@ export function Goals() {
   // Create form state
   const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState('');
+  const [newMonthly, setNewMonthly] = useState('');
   const [newIcon, setNewIcon] = useState<string>('target');
   const [newDeadline, setNewDeadline] = useState('');
   const [newCategory, setNewCategory] = useState('savings');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [newAccountIds, setNewAccountIds] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const createPanelRef = useRef<HTMLDivElement>(null);
+  const createNameRef = useRef<HTMLInputElement>(null);
+  const { openChat } = useChatStore();
+
+  // The "Suggested" tiles at the page bottom open this panel at the top of the
+  // page — without this the click looks dead. Scroll it into view and focus
+  // the name field (mirrors the detail page's edit panel behavior).
+  useEffect(() => {
+    if (!showCreate) return;
+    const t = setTimeout(() => {
+      createPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      createNameRef.current?.focus({ preventScroll: true });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [showCreate]);
 
   useEffect(() => {
     api.getGoals()
@@ -119,7 +139,10 @@ export function Goals() {
           // (credit/loan) would track debt, and illiquid assets (real_estate,
           // alternative) would slam progress to 100% instantly — drop both.
           .filter(b => b.type === 'depository' || b.type === 'investment')
-          .map(b => ({ id: b.accountId, name: b.name, mask: b.mask, type: b.type, balance: b.balance }))
+          .map(b => ({
+            id: b.accountId, name: b.name, mask: b.mask, type: b.type, balance: b.balance,
+            institutionId: b.institutionId, institutionName: b.institutionName,
+          }))
       ))
       .catch(console.error);
   }, []);
@@ -132,6 +155,7 @@ export function Goals() {
       await api.createGoal({
         name: newName,
         targetAmount: parseFloat(newTarget),
+        monthlyContribution: newMonthly ? parseFloat(newMonthly) : undefined,
         deadline: newDeadline || undefined,
         category: newCategory,
         icon: newIcon,
@@ -142,6 +166,7 @@ export function Goals() {
       setShowCreate(false);
       setNewName('');
       setNewTarget('');
+      setNewMonthly('');
       setNewIcon('target');
       setNewDeadline('');
       setNewCategory('savings');
@@ -155,10 +180,29 @@ export function Goals() {
   };
 
   const selectPreset = (preset: typeof GOAL_PRESETS[0]) => {
-    setNewName(preset.name);
-    setNewTarget(String(preset.suggestedTarget));
     setNewIcon(preset.icon);
     setNewCategory(preset.category);
+    // Presets are a starting point, not a reset — never clobber what the user
+    // already typed.
+    if (!newName.trim()) setNewName(preset.name);
+    if (!newTarget) setNewTarget(String(preset.suggestedTarget));
+  };
+
+  // "Reallocate surplus" on a funded goal: the money conversation belongs in
+  // chat — ask how to redirect the monthly amount that was feeding this goal,
+  // explicitly grounded in spending, the other goals, and the wider picture so
+  // the assistant pulls that data instead of answering generically.
+  const reallocate = (goal: Goal) => {
+    const monthly = goal.monthlyContribution ? parseFloat(goal.monthlyContribution) : 0;
+    const freed = monthly > 0
+      ? `I've been putting ${formatCurrency(monthly)}/month toward it, so that amount is now freed up.`
+      : `The money I was putting toward it each month is now freed up.`;
+    openChat(
+      `My "${goal.name}" goal is fully funded. ${freed} ` +
+      `Look at my monthly spending, my other goals and their progress and planned contributions, ` +
+      `and the rest of my financial picture (debts, recurring bills, net worth), ` +
+      `then recommend how to best reallocate that monthly amount — and why.`,
+    );
   };
 
   const activeGoals = goals.filter(g => g.status === 'active');
@@ -251,7 +295,18 @@ export function Goals() {
             exit={{ opacity: 0, height: 0 }}
             style={{ overflow: 'hidden' }}
           >
-            <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
+            <div
+              ref={createPanelRef}
+              className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { setShowCreate(false); return; }
+                const t = e.target as HTMLInputElement;
+                if (e.key === 'Enter' && t.tagName === 'INPUT' && t.type !== 'search') {
+                  e.preventDefault();
+                  if (newName && parseFloat(newTarget) > 0 && !creating) handleCreate();
+                }
+              }}
+            >
               <Eyebrow>New goal</Eyebrow>
               <h3 className="mt-1.5 mb-5 font-editorial text-[20px] font-bold tracking-[-0.018em]">
                 What are you saving for?
@@ -267,6 +322,7 @@ export function Goals() {
                       {iconFor(newIcon, 20)}
                     </div>
                     <Input
+                      ref={createNameRef}
                       type="text"
                       value={newName}
                       onChange={e => setNewName(e.target.value)}
@@ -280,6 +336,16 @@ export function Goals() {
                     value={newTarget}
                     onChange={e => setNewTarget(e.target.value)}
                     placeholder="25000"
+                    className="ui-tnum"
+                    leadingIcon={<span className="text-[13px]">$</span>}
+                  />
+                </Field>
+                <Field label="Planned monthly contribution (optional)">
+                  <Input
+                    type="number"
+                    value={newMonthly}
+                    onChange={e => setNewMonthly(e.target.value)}
+                    placeholder="500"
                     className="ui-tnum"
                     leadingIcon={<span className="text-[13px]">$</span>}
                   />
@@ -322,7 +388,7 @@ export function Goals() {
                   <p className="mt-1 mb-2 text-[12px] text-content-muted">
                     Linked accounts auto-track this goal's progress.
                   </p>
-                  <AccountChips
+                  <AccountPicker
                     accounts={accounts}
                     selected={newAccountIds}
                     onToggle={(id) => setNewAccountIds(prev => toggleId(prev, id))}
@@ -330,13 +396,18 @@ export function Goals() {
                 </div>
               )}
 
+              {newTarget !== '' && !(parseFloat(newTarget) > 0) && (
+                <p className="mb-3 text-[12px] font-semibold text-negative">Target amount must be greater than zero.</p>
+              )}
               <div className="flex gap-2.5">
-                <Button disabled={!newName || !newTarget || creating} loading={creating} onClick={handleCreate}>
+                <Button disabled={!newName || !(parseFloat(newTarget) > 0) || creating} loading={creating} onClick={handleCreate}>
                   {creating ? 'Creating…' : 'Create goal'}
                 </Button>
                 <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
               </div>
-              {formError && <p className="mt-2.5 text-[12px] font-semibold text-negative">{formError}</p>}
+              {formError && (
+                <p className="mt-2.5 text-[12px] font-semibold text-negative" role="status" aria-live="polite">{formError}</p>
+              )}
             </div>
           </motion.section>
         )}
@@ -407,7 +478,15 @@ export function Goals() {
             </div>
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
               {activeGoals.map((goal, i) => (
-                <GoalCard key={goal.id} goal={goal} accounts={accounts} onOpen={open} index={i} />
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  accounts={accounts}
+                  onOpen={open}
+                  onReallocate={reallocate}
+                  onSetPlan={(id) => setLocation(`/plans/savings/${id}?edit=1`)}
+                  index={i}
+                />
               ))}
               {!isDemo && <AddGoalTile onClick={() => setShowCreate(true)} index={activeGoals.length} />}
             </div>
@@ -435,7 +514,7 @@ export function Goals() {
                   type="button"
                   onClick={() => { selectPreset(preset); setShowCreate(true); }}
                   aria-label={`Add ${preset.name} goal · suggested target ${formatCurrency(preset.suggestedTarget)}`}
-                  className="group flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-3.5 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong min-h-touch"
+                  className="group flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-3.5 text-left transition-[box-shadow,border-color] hover:shadow-ui-md hover:border-line-strong min-h-touch"
                 >
                   <span
                     className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm"
@@ -463,36 +542,45 @@ export function Goals() {
           <div className="flex items-end justify-between gap-4">
             <h2 className="text-[18px] font-semibold text-content">Completed</h2>
             <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              {completedGoals.length > 0 ? `${completedGoals.length} reached` : 'archive'}
+              {completedGoals.length > 0 ? `${completedGoals.length} archived` : 'archive'}
             </span>
           </div>
           {completedGoals.length > 0 ? (
             <ul className="mt-3">
-              {completedGoals.map((goal) => (
-                <li
-                  key={goal.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Open ${goal.name}`}
-                  onClick={() => open(goal.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(goal.id); } }}
-                  className="group flex items-center gap-3 border-t border-line py-3.5 cursor-pointer min-h-touch focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                >
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
-                    {iconFor(goal.icon, 16)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold text-content-muted line-through">{goal.name}</span>
-                    <span className="text-[11.5px] font-semibold text-content-muted">
-                      reached{goal.category && <> · {goal.category.replace(/_/g, ' ')}</>}
+              {completedGoals.map((goal) => {
+                // Honest archive: show what was actually saved, and only claim
+                // "reached" when the goal really hit its target.
+                const saved = parseFloat(goal.currentAmount);
+                const tgt = parseFloat(goal.targetAmount);
+                const reached = tgt > 0 && saved >= tgt;
+                const closedPct = tgt > 0 ? Math.round((saved / tgt) * 100) : 0;
+                return (
+                  <li
+                    key={goal.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ${goal.name}`}
+                    onClick={() => open(goal.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(goal.id); } }}
+                    className="group flex items-center gap-3 border-t border-line py-3.5 cursor-pointer min-h-touch focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
+                      {iconFor(goal.icon, 16)}
                     </span>
-                  </span>
-                  <span className="text-[13px] font-bold text-content-muted ui-tnum">
-                    {formatCurrency(parseFloat(goal.targetAmount))}
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" />
-                </li>
-              ))}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-semibold text-content-muted">{goal.name}</span>
+                      <span className="text-[11.5px] font-semibold text-content-muted">
+                        {reached ? 'reached' : `completed at ${closedPct}%`}
+                        {goal.category && <> · {goal.category.replace(/_/g, ' ')}</>}
+                      </span>
+                    </span>
+                    <span className="text-[13px] font-bold text-content-muted ui-tnum">
+                      {formatCurrency(saved)}
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" />
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <div className="mt-3 flex items-center gap-3 border-t border-line py-3.5 opacity-70">
@@ -572,9 +660,10 @@ function SummaryHero({
 // ---------------------------------------------------------------------------
 
 function GoalCard({
-  goal, accounts, onOpen, index,
+  goal, accounts, onOpen, onReallocate, onSetPlan, index,
 }: {
-  goal: Goal; accounts: Account[]; onOpen: (id: string) => void; index: number;
+  goal: Goal; accounts: Account[]; onOpen: (id: string) => void;
+  onReallocate: (goal: Goal) => void; onSetPlan: (id: string) => void; index: number;
 }) {
   const target = parseFloat(goal.targetAmount);
   const current = parseFloat(goal.currentAmount);
@@ -595,7 +684,7 @@ function GoalCard({
 
   return (
     <article
-      className="g-rise group relative flex flex-col overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm p-6 sm:p-[22px_24px] transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md"
+      className="g-rise group relative flex flex-col overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm p-6 sm:p-[22px_24px] transition-[box-shadow,border-color] hover:shadow-ui-md"
       style={{
         animationDelay: `${0.04 * index}s`,
         borderColor: complete ? 'color-mix(in srgb, rgb(var(--ui-brand)) 34%, var(--ui-hairline))' : 'var(--ui-hairline)',
@@ -630,7 +719,15 @@ function GoalCard({
                 <Check className="h-3 w-3" strokeWidth={3} />
               </span>
             )}
-            <span className="min-w-0 truncate">{goal.name}</span>
+            {/* The title is the card's open affordance (whole-card click caused
+                cursor flicker on macOS) — underline on hover signals it. */}
+            <button
+              type="button"
+              onClick={() => onOpen(goal.id)}
+              className="ui-focus min-w-0 truncate rounded-ui-sm text-left underline-offset-4 transition-colors hover:text-[rgb(var(--ui-brand-ink))] hover:underline"
+            >
+              {goal.name}
+            </button>
           </div>
         </div>
         <span
@@ -717,18 +814,36 @@ function GoalCard({
             )}
           </>
         )}
+        {goal.monthlyContribution && parseFloat(goal.monthlyContribution) > 0 && (
+          <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-content-muted ui-tnum">
+            <Repeat className="h-3.5 w-3.5 text-content-faint" />
+            {formatCurrency(parseFloat(goal.monthlyContribution))}/mo planned
+          </span>
+        )}
       </div>
 
-      {/* footer actions */}
+      {/* footer actions — every button does what it says: reallocate opens the
+          chat with the redirect question; set-plan deep-links to the edit form */}
       <div className="relative mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-4">
-        <button
-          type="button"
-          onClick={() => onOpen(goal.id)}
-          className="inline-flex min-h-touch flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft px-3.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-ui-sm sm:flex-none"
-        >
-          {complete ? <RotateCw className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {complete ? 'Reallocate surplus' : notStarted ? 'Make first deposit' : 'Add contribution'}
-        </button>
+        {complete ? (
+          <button
+            type="button"
+            onClick={() => onReallocate(goal)}
+            className="inline-flex min-h-touch flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft px-3.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[box-shadow] hover:shadow-ui-sm sm:flex-none"
+          >
+            <RotateCw className="h-4 w-4" />
+            Reallocate surplus
+          </button>
+        ) : !(goal.monthlyContribution && parseFloat(goal.monthlyContribution) > 0) ? (
+          <button
+            type="button"
+            onClick={() => onSetPlan(goal.id)}
+            className="inline-flex min-h-touch flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft px-3.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[box-shadow] hover:shadow-ui-sm sm:flex-none"
+          >
+            <Plus className="h-4 w-4" />
+            Plan monthly contribution
+          </button>
+        ) : null}
         <span className="hidden flex-1 sm:block" />
         <button
           type="button"
@@ -753,7 +868,7 @@ function AddGoalTile({ onClick, index }: { onClick: () => void; index: number })
       type="button"
       onClick={onClick}
       aria-label="Set up another goal"
-      className="g-rise group flex min-h-[150px] flex-col items-center justify-center gap-1 self-start rounded-ui-xl border-[1.5px] border-dashed border-line-strong bg-canvas-sunken p-6 text-center transition-[transform,background,border-color,box-shadow] hover:-translate-y-0.5 hover:border-brand hover:bg-brand-soft hover:shadow-ui-sm"
+      className="g-rise group flex min-h-[150px] flex-col items-center justify-center gap-1 self-start rounded-ui-xl border-[1.5px] border-dashed border-line-strong bg-canvas-sunken p-6 text-center transition-[background,border-color,box-shadow] hover:border-brand hover:bg-brand-soft hover:shadow-ui-sm"
       style={{ animationDelay: `${0.04 * index}s` }}
     >
       <span className="mb-1.5 grid h-[50px] w-[50px] place-items-center rounded-ui-lg bg-brand-soft text-brand transition-colors group-hover:bg-brand group-hover:text-brand-fg">

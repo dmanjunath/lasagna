@@ -627,6 +627,8 @@ export const goals = pgTable("goals", {
   description: text("description"),
   targetAmount: numeric("target_amount", { precision: 19, scale: 2 }).notNull(),
   currentAmount: numeric("current_amount", { precision: 19, scale: 2 }).notNull().default("0"),
+  // Optional plan: how much the user intends to put toward this goal monthly.
+  monthlyContribution: numeric("monthly_contribution", { precision: 19, scale: 2 }),
   deadline: timestamp("deadline", { withTimezone: true }),
   category: varchar("category", { length: 50 }).notNull().default("savings"),
   status: goalStatusEnum("goal_status").notNull().default("active"),
@@ -658,6 +660,21 @@ export const goalAccounts = pgTable(
     uniqGoalAccount: unique().on(t.goalId, t.accountId),
   }),
 );
+
+// Progress history for manually-tracked goals — one row per manual amount
+// change. Auto-tracked goals don't need rows here: their history is derived
+// from the linked accounts' balance_snapshots.
+export const goalSnapshots = pgTable("goal_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  goalId: uuid("goal_id")
+    .notNull()
+    .references(() => goals.id, { onDelete: "cascade" }),
+  value: numeric("value", { precision: 19, scale: 2 }).notNull(),
+  snapshotAt: timestamp("snapshot_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ── Tax Documents ─────────────────────────────────────────────────────────
 export const taxDocuments = pgTable("tax_documents", {

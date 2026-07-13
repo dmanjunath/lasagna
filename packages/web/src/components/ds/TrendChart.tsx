@@ -226,12 +226,25 @@ export function niceTicks(min: number, max: number, count: number): number[] {
   return out;
 }
 
-export function formatShortMoney(n: number): string {
+// Decimals needed so adjacent tick labels stay distinct in compact ($X.XXM)
+// notation: at least `minDecimals`, more when the tick step is small relative
+// to the unit (e.g. a $380 range on an $8.03M base needs 4, not 2).
+export function tickDecimals(ticks: number[], minDecimals = 2): number {
+  if (ticks.length < 2) return minDecimals;
+  const step = Math.abs(ticks[1] - ticks[0]);
+  const max = Math.max(...ticks.map(Math.abs));
+  const unit = max >= 1e6 ? 1e6 : max >= 1e3 ? 1e3 : 1;
+  if (step <= 0) return minDecimals;
+  const needed = Math.ceil(-Math.log10(step / unit) - 1e-9);
+  return Math.max(minDecimals, Math.min(5, needed));
+}
+
+export function formatShortMoney(n: number, decimals?: number): string {
   const abs = Math.abs(n);
   const sign = n < 0 ? '-' : '';
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}M`;
-  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(abs >= 1e4 ? 0 : 1)}K`;
-  return `${sign}$${Math.round(abs)}`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(decimals ?? (abs >= 1e7 ? 0 : 1))}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(decimals ?? (abs >= 1e4 ? 0 : 1))}K`;
+  return `${sign}$${decimals != null ? abs.toFixed(decimals) : Math.round(abs)}`;
 }
 
 export function pickXLabels(points: TrendPoint[], range: Range): Array<{ idx: number; label: string }> {
