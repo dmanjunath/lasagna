@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq, and, desc, accounts, balanceSnapshots, plaidItems } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import { validatePropertyLink } from "../lib/account-links.js";
 
 export const manualAccountRoutes = new Hono<AuthEnv>();
 
@@ -43,10 +44,28 @@ manualAccountRoutes.post("/", async (c) => {
 
   const plaidItemId = await getOrCreateManualItem(session.tenantId);
 
-  // Merge linkedAccountId into metadata if provided
-  const metaObj = metadata ? { ...metadata } : {};
-  if (linkedAccountId) metaObj.linkedAccountId = linkedAccountId;
-  const metaStr = Object.keys(metaObj).length > 0 ? JSON.stringify(metaObj) : null;
+  // Resolve the optional link (property↔debt) before insert so we can
+  // validate direction and write the FK on the correct side.
+  const isDebt = type === "credit" || type === "loan";
+  let linked: { id: string; type: string } | null = null;
+  if (linkedAccountId) {
+    const row = await db.query.accounts.findFirst({
+      where: and(eq(accounts.id, linkedAccountId), eq(accounts.tenantId, session.tenantId)),
+      columns: { id: true, type: true },
+    });
+    let err: string | null;
+    if (isDebt) {
+      err = validatePropertyLink({ type }, row);
+    } else if (type === "real_estate" && row) {
+      err = validatePropertyLink(row, { type });
+    } else {
+      err = "linkedAccountId must pair a debt with a property";
+    }
+    if (err) return c.json({ error: err }, 400);
+    linked = row!;
+  }
+
+  const metaStr = metadata && Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null;
 
   const [account] = await db.insert(accounts).values({
     tenantId: session.tenantId,
@@ -57,18 +76,13 @@ manualAccountRoutes.post("/", async (c) => {
     subtype: subtype || null,
     mask: null,
     metadata: metaStr,
+    // creating a debt linked to a property → FK on the new row
+    propertyAccountId: isDebt && linked ? linked.id : null,
   }).returning();
 
-  // Cross-link: update the other account's metadata to point back
-  if (linkedAccountId) {
-    const linked = await db.query.accounts.findFirst({
-      where: and(eq(accounts.id, linkedAccountId), eq(accounts.tenantId, session.tenantId)),
-    });
-    if (linked) {
-      const linkedMeta = linked.metadata ? JSON.parse(linked.metadata) : {};
-      linkedMeta.linkedAccountId = account.id;
-      await db.update(accounts).set({ metadata: JSON.stringify(linkedMeta) }).where(eq(accounts.id, linkedAccountId));
-    }
+  // creating a property linked to an existing debt → FK on that debt
+  if (type === "real_estate" && linked) {
+    await db.update(accounts).set({ propertyAccountId: account.id }).where(eq(accounts.id, linked.id));
   }
 
   // Create initial balance snapshot
@@ -130,27 +144,6 @@ manualAccountRoutes.delete("/:id", async (c) => {
     where: and(eq(accounts.id, accountId), eq(accounts.tenantId, session.tenantId)),
   });
   if (!existing) return c.json({ error: "Account not found" }, 404);
-
-  // Clear cross-link on the paired account
-  if (existing.metadata) {
-    try {
-      const meta = JSON.parse(existing.metadata);
-      if (meta.linkedAccountId) {
-        const linked = await db.query.accounts.findFirst({
-          where: and(eq(accounts.id, meta.linkedAccountId), eq(accounts.tenantId, session.tenantId)),
-        });
-        if (linked?.metadata) {
-          const linkedMeta = JSON.parse(linked.metadata);
-          delete linkedMeta.linkedAccountId;
-          await db.update(accounts).set({
-            metadata: Object.keys(linkedMeta).length > 0 ? JSON.stringify(linkedMeta) : null,
-          }).where(eq(accounts.id, meta.linkedAccountId));
-        }
-      }
-    } catch {
-      // malformed metadata — proceed with delete
-    }
-  }
 
   await db.delete(accounts).where(eq(accounts.id, accountId));
   return c.json({ ok: true });

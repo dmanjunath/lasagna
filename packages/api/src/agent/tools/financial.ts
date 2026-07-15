@@ -36,7 +36,7 @@ export function createFinancialTools(tenantId: string) {
   return {
     get_accounts: tool({
       description:
-        "Get ALL of the user's financial accounts with current balances and details. Covers every type: cash (checking/savings), investment & retirement (brokerage/401k/IRA/HSA), real estate / property, other/alternative assets, and liabilities (credit cards, loans, mortgages). Includes each account's `metadata` (e.g. property details for real estate, loan terms for debts). This is the complete account list — real estate and property ARE included here.",
+        "Get ALL of the user's financial accounts with current balances and details. Covers every type: cash (checking/savings), investment & retirement (brokerage/401k/IRA/HSA), real estate / property, other/alternative assets, and liabilities (credit cards, loans, mortgages). Includes each account's `metadata` (e.g. property details for real estate, loan terms for debts). This is the complete account list — real estate and property ARE included here. Debts linked to a property carry propertyAccountId/propertyName, and real-estate accounts list their linkedDebtIds (e.g. the mortgage on a home) — use these to associate mortgages with properties.",
       inputSchema: z.object({}),
       execute: async () => {
         const [accts, rateRows] = await Promise.all([
@@ -47,6 +47,16 @@ export function createFinancialTools(tenantId: string) {
             .where(eq(accounts.tenantId, tenantId)),
         ]);
         const rates = new Map(rateRows.map((r) => [r.id, r]));
+
+        const nameById = new Map(accts.map((a) => [a.id, a.name]));
+        const debtIdsByProperty = new Map<string, string[]>();
+        for (const a of accts) {
+          if (a.propertyAccountId) {
+            const list = debtIdsByProperty.get(a.propertyAccountId) ?? [];
+            list.push(a.id);
+            debtIdsByProperty.set(a.propertyAccountId, list);
+          }
+        }
 
         return {
           accounts: accts.map((a) => {
@@ -68,6 +78,10 @@ export function createFinancialTools(tenantId: string) {
               apy: rate?.apy ? parseFloat(rate.apy) : null,
               // Property details (real estate), loan terms (debts), etc.
               metadata: parseMeta(a.metadata),
+              // Mortgage↔property association (debt side / property side)
+              propertyAccountId: a.propertyAccountId,
+              propertyName: a.propertyAccountId ? (nameById.get(a.propertyAccountId) ?? null) : null,
+              linkedDebtIds: a.type === "real_estate" ? (debtIdsByProperty.get(a.id) ?? []) : undefined,
             };
           }),
         };
@@ -139,7 +153,7 @@ export function createFinancialTools(tenantId: string) {
 
     get_debts: tool({
       description:
-        "Get the user's debts and liabilities (credit cards, loans, mortgages) with balances, APR, and loan details (term, payment, payoff date) from metadata. Use for debt-payoff, interest, refinance, and minimum-payment questions.",
+        "Get the user's debts and liabilities (credit cards, loans, mortgages) with balances, APR, and loan details (term, payment, payoff date) from metadata. Use for debt-payoff, interest, refinance, and minimum-payment questions. Debts linked to a real-estate account include property {id, name, currentValue} — use it for home-equity and LTV questions.",
       inputSchema: z.object({}),
       execute: async () => {
         const [accts, aprRows] = await Promise.all([
@@ -150,6 +164,7 @@ export function createFinancialTools(tenantId: string) {
             .where(eq(accounts.tenantId, tenantId)),
         ]);
         const aprMap = new Map(aprRows.map((r) => [r.id, r.apr]));
+        const byId = new Map(accts.map((a) => [a.id, a]));
         const liabilities = accts.filter(
           (a) => a.type === "credit" || a.type === "loan",
         );
@@ -161,6 +176,13 @@ export function createFinancialTools(tenantId: string) {
           balance: Math.abs(a.effectiveBalance),
           apr: aprMap.get(a.id) ? parseFloat(aprMap.get(a.id)!) : null,
           details: parseMeta(a.metadata),
+          property: a.propertyAccountId
+            ? {
+                id: a.propertyAccountId,
+                name: byId.get(a.propertyAccountId)?.name ?? null,
+                currentValue: byId.get(a.propertyAccountId)?.effectiveBalance ?? null,
+              }
+            : null,
         }));
         return {
           debts: apr,

@@ -11,6 +11,7 @@ import {
   boolean,
   unique,
   index,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
@@ -239,6 +240,12 @@ export const accounts = pgTable("accounts", {
   invertBalance: boolean("invert_balance").notNull().default(false), // flip the sign of the balance at point of use
   // Over the tenant's plan account limit → read-only: not synced, shown locked.
   frozen: boolean("frozen").notNull().default(false),
+  // Debt accounts only: the real_estate account this debt is secured by
+  // (e.g. mortgage → home). N debts may point at one property. Enforced
+  // debt→property at the API layer; DB clears the link if the property goes.
+  propertyAccountId: uuid("property_account_id").references((): AnyPgColumn => accounts.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -246,7 +253,7 @@ export const accounts = pgTable("accounts", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [index("accounts_property_account_idx").on(t.propertyAccountId)]);
 
 // ── Balance Snapshots ──────────────────────────────────────────────────────
 

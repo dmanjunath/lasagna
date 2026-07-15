@@ -3,6 +3,7 @@ import { z } from "zod";
 import { eq, desc, and, sql, accounts, balanceSnapshots, plaidItems, parseLoanMetadata, accountTypeEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import { validatePropertyLink } from "../lib/account-links.js";
 import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
 
 export const accountRoutes = new Hono<AuthEnv>();
@@ -59,6 +60,7 @@ accountRoutes.get("/balances", async (c) => {
         excludeFromNetWorth: acct.excludeFromNetWorth,
         excludeTransactions: acct.excludeTransactions,
         invertBalance: acct.invertBalance,
+        propertyAccountId: acct.propertyAccountId ?? null,
       };
     }),
   );
@@ -149,6 +151,12 @@ accountRoutes.get("/debts", async (c) => {
       eq(accounts.excludeFromNetWorth, false),
     ),
   });
+
+  const propertyRows = await db.query.accounts.findMany({
+    where: and(eq(accounts.tenantId, session.tenantId), eq(accounts.type, "real_estate")),
+    columns: { id: true, name: true },
+  });
+  const propertyById = new Map(propertyRows.map((p) => [p.id, p]));
 
   const debts = await Promise.all(
     accts.map(async (acct) => {
@@ -250,6 +258,9 @@ accountRoutes.get("/debts", async (c) => {
         mask: acct.mask ?? null,
         type: acct.type,
         subtype: acct.subtype,
+        property: acct.propertyAccountId
+          ? (propertyById.get(acct.propertyAccountId) ?? null)
+          : null,
         balance,
         interestRate,
         termMonths,
@@ -408,6 +419,68 @@ accountRoutes.patch("/:id/loan-details", async (c) => {
   return c.json({ metadata });
 });
 
+// Manual property details (real_estate accounts). Merge-only — never
+// replaces the whole metadata blob, so unknown keys survive. null clears.
+accountRoutes.patch("/:id/property-details", async (c) => {
+  const session = c.get("session");
+  const accountId = c.req.param("id");
+
+  const acct = await db.query.accounts.findFirst({
+    where: eq(accounts.id, accountId),
+  });
+  if (!acct || acct.tenantId !== session.tenantId) {
+    return c.json({ error: "Account not found" }, 404);
+  }
+  if (acct.type !== "real_estate") {
+    return c.json({ error: "Property details only apply to real_estate accounts" }, 400);
+  }
+
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const bodySchema = z
+    .object({
+      address: z.string().max(300).nullable(),
+      yearBuilt: z.number().int().min(1600).max(2100).nullable(),
+      squareFeet: z.number().min(0).nullable(),
+      monthlyRent: z.number().min(0).nullable(),
+      annualInsurance: z.number().min(0).nullable(),
+      annualMaintenance: z.number().min(0).nullable(),
+    })
+    .partial();
+
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
+  }
+  if (Object.keys(parsed.data).length === 0) {
+    return c.json({ error: "No fields to update" }, 400);
+  }
+
+  let existing: Record<string, unknown> = {};
+  if (acct.metadata) {
+    try {
+      const p = JSON.parse(acct.metadata);
+      if (p && typeof p === "object" && !Array.isArray(p)) existing = p;
+    } catch {
+      // malformed — start fresh
+    }
+  }
+  const metadata: Record<string, unknown> = { ...existing };
+  for (const [k, v] of Object.entries(parsed.data)) {
+    if (v === null) delete metadata[k];
+    else metadata[k] = v;
+  }
+
+  const metaStr = Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null;
+  await db.update(accounts).set({ metadata: metaStr }).where(eq(accounts.id, accountId));
+  return c.json({ metadata });
+});
+
 // Update account settings — classification and per-account overrides.
 // Works for both Plaid and manual accounts; type/subtype reclassification
 // sticks across syncs (sync only sets type/subtype on first insert).
@@ -436,6 +509,7 @@ accountRoutes.patch("/:id", async (c) => {
       excludeFromNetWorth: z.boolean(),
       excludeTransactions: z.boolean(),
       invertBalance: z.boolean(),
+      propertyAccountId: z.string().uuid().nullable(),
     })
     .partial();
 
@@ -447,7 +521,23 @@ accountRoutes.patch("/:id", async (c) => {
     return c.json({ error: "No fields to update" }, 400);
   }
 
-  await db.update(accounts).set(parsed.data).where(eq(accounts.id, accountId));
+  if ("propertyAccountId" in parsed.data) {
+    const targetId = parsed.data.propertyAccountId;
+    const target =
+      targetId == null
+        ? null
+        : await db.query.accounts.findFirst({
+            where: and(eq(accounts.id, targetId), eq(accounts.tenantId, session.tenantId)),
+          });
+    const linkError = validatePropertyLink(acct, target);
+    if (linkError) return c.json({ error: linkError }, 400);
+  }
 
-  return c.json({ ok: true });
+  const [updated] = await db
+    .update(accounts)
+    .set(parsed.data)
+    .where(eq(accounts.id, accountId))
+    .returning();
+
+  return c.json({ ok: true, account: updated });
 });

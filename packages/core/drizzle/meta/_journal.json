@@ -78,6 +78,13 @@
       "when": 1783918740568,
       "tag": "0010_black_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784066965503,
+      "tag": "0011_curly_satana",
+      "breakpoints": true
     }
   ]
 }

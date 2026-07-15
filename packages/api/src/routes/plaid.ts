@@ -149,6 +149,7 @@ plaidRoutes.get("/items", async (c) => {
             excludeTransactions: acct.excludeTransactions,
             invertBalance: acct.invertBalance,
             frozen: acct.frozen,
+            propertyAccountId: acct.propertyAccountId ?? null,
           };
         })
       );

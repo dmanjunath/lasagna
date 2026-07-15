@@ -22,6 +22,7 @@ interface DebtAccount {
   balance: number;
   type: string;
   subtype: string | null;
+  property: { id: string; name: string } | null;
   apr: number;
   minPayment: number;
   suggestedPayment: number;
@@ -121,7 +122,7 @@ export function Debt() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
+      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; property: { id: string; name: string } | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
       api.getBalances().catch(() => ({ balances: [] })),
     ]).then(([debtResult, balanceData]) => {
       setHasAccounts(balanceData.balances.length > 0);
@@ -142,6 +143,7 @@ export function Debt() {
           balance: d.balance,
           type: d.type,
           subtype: d.subtype ?? null,
+          property: d.property ?? null,
           apr: Math.round(apr * 100) / 100,
           minPayment: minPay,
           suggestedPayment: suggestedPay,
@@ -521,8 +523,9 @@ function AccountCard({
           <div className="truncate font-semibold text-content">
             {d.name}{d.mask ? ` ··${d.mask}` : ''}
           </div>
-          <div className="mt-1 flex flex-wrap gap-1.5">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge tone="neutral" size="sm">{debtTypeLabel(d)}</Badge>
+            {d.property && <span className="text-[12px] font-medium text-content-muted">on {d.property.name}</span>}
             {d.liabilitySource === 'plaid' && <Badge tone="brand" size="sm">Synced</Badge>}
           </div>
         </div>

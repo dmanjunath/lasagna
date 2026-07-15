@@ -166,6 +166,7 @@ export const api = {
           apr?: string | null;
           metadata?: Record<string, unknown> | null;
           frozen?: boolean;
+          propertyAccountId?: string | null;
         }>;
       }>;
     }>("/plaid/items"),
@@ -219,6 +220,7 @@ export const api = {
         name: string;
         type: string;
         subtype: string | null;
+        property: { id: string; name: string } | null;
         balance: number;
         interestRate: number | null;
         termMonths: number | null;
@@ -236,6 +238,15 @@ export const api = {
   patchLoanDetails: (accountId: string, body: Record<string, unknown>) =>
     request<{ metadata: Record<string, unknown> }>(
       `/accounts/${accountId}/loan-details`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      },
+    ),
+
+  patchPropertyDetails: (accountId: string, body: Record<string, unknown>) =>
+    request<{ metadata: Record<string, unknown> }>(
+      `/accounts/${accountId}/property-details`,
       {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -459,6 +470,16 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Account deletion (two-step: emailed code → confirm)
+  requestDeletionCode: () =>
+    request<{ ok: true }>("/account/deletion-code", { method: "POST" }),
+
+  deleteAccount: (code: string) =>
+    request<{ ok: true; plaidRemoved: number; plaidFailed: number }>("/account", {
+      method: "DELETE",
+      body: JSON.stringify({ code }),
+    }),
+
   // Billing
   getBillingStatus: () =>
     request<{
@@ -470,8 +491,8 @@ export const api = {
       models: { allowed: string[]; all: string[] };
     }>("/billing/status"),
 
-  startCheckout: () =>
-    request<{ url: string }>("/billing/checkout", { method: "POST" }),
+  startCheckout: (opts?: { native?: boolean }) =>
+    request<{ url: string }>("/billing/checkout", { method: "POST", body: JSON.stringify(opts ?? {}) }),
 
   openBillingPortal: () =>
     request<{ url: string }>("/billing/portal", { method: "POST" }),
@@ -848,8 +869,9 @@ export const api = {
       excludeFromNetWorth?: boolean;
       excludeTransactions?: boolean;
       invertBalance?: boolean;
+      propertyAccountId?: string | null;
     },
-  ) => request<{ ok: boolean }>(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  ) => request<{ ok: boolean; account?: unknown }>(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Quick Import
   quickImportParse: (text: string) =>

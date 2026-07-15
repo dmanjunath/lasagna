@@ -74,7 +74,8 @@ interface Account {
   mask: string | null;
   balance: string | null;
   currency: string;
-  metadata?: { linkedAccountId?: string; [key: string]: unknown } | null;
+  metadata?: { [key: string]: unknown } | null;
+  propertyAccountId?: string | null;
   excludeFromNetWorth?: boolean;
   excludeTransactions?: boolean;
   invertBalance?: boolean;
@@ -151,6 +152,9 @@ export function Accounts() {
   const [acctName, setAcctName] = useState("");
   const [acctBalance, setAcctBalance] = useState("");
   const [acctRate, setAcctRate] = useState("");
+  const [rentMonthly, setRentMonthly] = useState("");
+  const [insAnnual, setInsAnnual] = useState("");
+  const [maintAnnual, setMaintAnnual] = useState("");
   const [addingAccount, setAddingAccount] = useState(false);
   const [linkedBanner, setLinkedBanner] = useState<{ message: string; actionLabel: string; onAction: () => void } | null>(null);
   const [pendingLinkedId, setPendingLinkedId] = useState<string | null>(null);
@@ -433,6 +437,9 @@ export function Accounts() {
     setAcctName("");
     setAcctBalance("");
     setAcctRate("");
+    setRentMonthly("");
+    setInsAnnual("");
+    setMaintAnnual("");
   };
 
   const handleAddManualAccount = async () => {
@@ -440,15 +447,19 @@ export function Accounts() {
     setAddingAccount(true);
     try {
       const balance = acctBalance ? parseFloat(acctBalance) : 0;
-      const metadata = activeType.isDebt && acctRate
-        ? { interestRate: parseFloat(acctRate) }
-        : undefined;
+      const metadata: Record<string, unknown> = {};
+      if (activeType.isDebt && acctRate) metadata.interestRate = parseFloat(acctRate);
+      if (activeType.subtype === "rental") {
+        if (rentMonthly) metadata.monthlyRent = parseFloat(rentMonthly);
+        if (insAnnual) metadata.annualInsurance = parseFloat(insAnnual);
+        if (maintAnnual) metadata.annualMaintenance = parseFloat(maintAnnual);
+      }
       const result = await api.createManualAccount({
         name: acctName.trim(),
         type: activeType.type,
         subtype: activeType.subtype,
         balance,
-        metadata,
+        metadata: Object.keys(metadata).length ? metadata : undefined,
         linkedAccountId: pendingLinkedId || undefined,
       });
 
@@ -878,6 +889,46 @@ export function Accounts() {
               />
             </Field>
 
+            {activeType.type === "real_estate" && activeType.subtype === "rental" && (
+              <>
+                <Field label="Monthly rent">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={rentMonthly}
+                    onChange={(e) => setRentMonthly(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="0"
+                    className="ui-tnum"
+                    leadingIcon={<span className="text-[13px]">$</span>}
+                  />
+                </Field>
+
+                <Field label="Annual insurance">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={insAnnual}
+                    onChange={(e) => setInsAnnual(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="0"
+                    className="ui-tnum"
+                    leadingIcon={<span className="text-[13px]">$</span>}
+                  />
+                </Field>
+
+                <Field label="Annual maintenance">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={maintAnnual}
+                    onChange={(e) => setMaintAnnual(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="0"
+                    className="ui-tnum"
+                    leadingIcon={<span className="text-[13px]">$</span>}
+                  />
+                </Field>
+              </>
+            )}
+
             {activeType.isDebt && (
               <Field label="Interest rate">
                 <Input
@@ -899,7 +950,7 @@ export function Accounts() {
               <button
                 key={at.label}
                 type="button"
-                onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(""); setAcctRate(""); }}
+                onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(""); setAcctRate(""); setRentMonthly(""); setInsAnnual(""); setMaintAnnual(""); }}
                 className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md border border-line bg-panel px-3.5 py-3 text-left text-[13.5px] font-semibold text-content-secondary transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
               >
                 <span className="text-[16px] leading-none">{at.emoji}</span>
@@ -1169,9 +1220,9 @@ function InstitutionArticle({
                   key={account.id}
                   account={account}
                   overLimit={overLimit}
-                  linkedAccountName={account.metadata?.linkedAccountId
-                    ? allAccounts.find((a) => a.id === account.metadata?.linkedAccountId)?.name ?? null
-                    : null}
+                  linkedAccountName={account.propertyAccountId
+                    ? allAccounts.find((a) => a.id === account.propertyAccountId)?.name ?? null
+                    : allAccounts.find((a) => a.propertyAccountId === account.id)?.name ?? null}
                 />
               ))}
             </div>
