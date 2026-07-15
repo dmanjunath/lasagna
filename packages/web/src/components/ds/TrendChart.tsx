@@ -197,7 +197,6 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
             new Date(points[i].date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           }
           getCurvePoint={(i) => ({ x: xAt(i), y: yAt(points[i].value) })}
-          hidePill
         />
       )}
       </div>

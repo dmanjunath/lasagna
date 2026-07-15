@@ -1596,12 +1596,24 @@ export function Retirement() {
   if (loading) {
     // Iter 7 D: cached shell so first paint isn't blank ~300ms while the
     // accounts query + MC compute spin up. Same outline as the loaded page
-    // (page-bar + projection fan height) so swap-in doesn't jolt.
+    // (page-bar + projection fan height) so swap-in doesn't jolt. The header
+    // must match the loaded page exactly — a different heading here reads as
+    // a flash when the data resolves quickly.
     return (
       <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
         <header>
-          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">Retirement</h1>
-          <Skeleton className="mt-2 h-3 w-52" />
+          <div className="flex items-center gap-2.5">
+            <span
+              className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+              aria-hidden
+            />
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement</span>
+          </div>
+          <h1 className="mt-2 font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
+            Will your money last?
+          </h1>
+          <Skeleton className="mt-2.5 h-3 w-52" />
         </header>
         <Skeleton className="mt-8 h-3 w-32" />
         <Skeleton className="mt-4 h-[320px] w-full rounded-ui-xl" />
@@ -1914,42 +1926,46 @@ export function Retirement() {
         .dark .ret-sw-inner { opacity: 0.36; }
       `}</style>
 
+      {/* Header sits outside the fade wrapper: the loading shell already
+          painted this exact heading, so animating it from opacity 0 would
+          blank and re-reveal it — the flash we're avoiding. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
+              aria-hidden
+            />
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement</span>
+          </div>
+          <h1 className="mt-2 font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
+            Will your money last?
+          </h1>
+          <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">
+            {yearsUntilRetirement} year{yearsUntilRetirement === 1 ? '' : 's'} to retirement · planning through age {lifeExpectancy}
+          </p>
+        </div>
+        <div className="ret-view-toggle" role="tablist" aria-label="View mode">
+          {(['simple', 'advanced'] as const).map(v => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={view === v}
+              className={view === v ? 'is-active' : ''}
+              onClick={() => setView(v)}
+            >
+              {v === 'simple' ? 'Overview' : 'Detailed'}
+            </button>
+          ))}
+        </div>
+      </header>
+
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
       >
-        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5">
-              <span
-                className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-                aria-hidden
-              />
-              <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement</span>
-            </div>
-            <h1 className="mt-2 font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
-              Will your money last?
-            </h1>
-            <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">
-              {yearsUntilRetirement} year{yearsUntilRetirement === 1 ? '' : 's'} to retirement · planning through age {lifeExpectancy}
-            </p>
-          </div>
-          <div className="ret-view-toggle" role="tablist" aria-label="View mode">
-            {(['simple', 'advanced'] as const).map(v => (
-              <button
-                key={v}
-                role="tab"
-                aria-selected={view === v}
-                className={view === v ? 'is-active' : ''}
-                onClick={() => setView(v)}
-              >
-                {v === 'simple' ? 'Overview' : 'Detailed'}
-              </button>
-            ))}
-          </div>
-        </header>
 
         {/* ── HERO ANSWER — the one confident number: are you on track? ──────── */}
         {(() => {

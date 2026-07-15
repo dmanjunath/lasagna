@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Zap, Layers, TrendingUp, PieChart, Wallet,
-  CreditCard, AlertCircle, Receipt, Target,
+  CreditCard, AlertCircle, Receipt, Target, ArrowLeftRight,
   MessageSquare, ChevronUp, ChevronDown, Moon, Sun, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -19,24 +19,49 @@ interface NavItem {
   path: string;
 }
 
-const PRIMARY_NAV: NavItem[] = [
-  { id: 'dashboard',        label: 'Dashboard',       icon: LayoutDashboard, path: '/' },
-  { id: 'money',            label: 'Money',           icon: Wallet,          path: '/money' },
-  { id: 'spending',         label: 'Spending',        icon: CreditCard,      path: '/spending' },
-  { id: 'actions',          label: 'Actions',         icon: Zap,             path: '/insights' },
-  { id: 'financial-level',  label: 'Financial Level', icon: Layers,          path: '/financial-level' },
-  { id: 'goals',            label: 'Goals',           icon: Target,          path: '/goals' },
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Overview',
+    items: [
+      { id: 'home',  label: 'Home',    icon: LayoutDashboard, path: '/' },
+      { id: 'goals', label: 'Goals',   icon: Target,          path: '/goals' },
+      // Chat's path only marks it active on the full-screen /chat route —
+      // clicking opens the chat panel instead of navigating.
+      { id: 'chat',  label: 'AI Chat', icon: MessageSquare,   path: '/chat' },
+    ],
+  },
+  {
+    label: 'My Money',
+    items: [
+      { id: 'money',      label: 'Money Snapshot',      icon: Wallet,      path: '/money' },
+      { id: 'retirement', label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
+      { id: 'portfolio',  label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
+      { id: 'tax',        label: 'Tax',                 icon: Receipt,     path: '/tax' },
+      { id: 'debt',       label: 'Debt',                icon: AlertCircle, path: '/debt' },
+    ],
+  },
+  {
+    label: 'Income & Expenses',
+    items: [
+      { id: 'spending',     label: 'Spending',     icon: CreditCard,     path: '/spending' },
+      { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, path: '/transactions' },
+    ],
+  },
+  {
+    label: 'Financial Insights',
+    items: [
+      { id: 'actions',         label: 'Actions',         icon: Zap,    path: '/insights' },
+      { id: 'financial-level', label: 'Financial Level', icon: Layers, path: '/financial-level' },
+    ],
+  },
 ];
 
-const ADVANCED_NAV: NavItem[] = [
-  { id: 'retirement', label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
-  { id: 'portfolio',  label: 'Portfolio',  icon: PieChart,    path: '/portfolio' },
-  { id: 'debt',       label: 'Debt',       icon: AlertCircle, path: '/debt' },
-  { id: 'tax',        label: 'Tax',        icon: Receipt,     path: '/tax' },
-];
-
-const ADVANCED_OPEN_KEY = 'lasagna-sidebar-advanced-open';
-const ADVANCED_TOUCHED_KEY = 'lasagna-sidebar-advanced-touched';
+const SECTIONS_OPEN_KEY = 'lasagna-sidebar-sections-open';
 
 interface SidebarProps {
   onNewPlan?: () => void;
@@ -50,24 +75,6 @@ export function Sidebar({ className }: SidebarProps) {
   const { mode, toggle: toggleMode } = useUiMode();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-
-  // Default-open on first visit so users can see the section exists. After
-  // they explicitly toggle it once we remember their preference.
-  const [advancedOpen, setAdvancedOpen] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    const touched = window.localStorage.getItem(ADVANCED_TOUCHED_KEY) === '1';
-    if (!touched) return true;
-    return window.localStorage.getItem(ADVANCED_OPEN_KEY) === '1';
-  });
-
-  const toggleAdvanced = () => {
-    setAdvancedOpen((v) => {
-      const next = !v;
-      window.localStorage.setItem(ADVANCED_OPEN_KEY, next ? '1' : '0');
-      window.localStorage.setItem(ADVANCED_TOUCHED_KEY, '1');
-      return next;
-    });
-  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -86,14 +93,31 @@ export function Sidebar({ className }: SidebarProps) {
     return location.startsWith(path);
   };
 
-  // Auto-open "More" when the user navigates to a route inside it (e.g. from
-  // chat or a deep link). Don't auto-open if the user explicitly closed it
-  // during this session — respect their intent.
+  // Sections default open; user toggles persist as a label->bool map.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      return JSON.parse(window.localStorage.getItem(SECTIONS_OPEN_KEY) ?? '{}');
+    } catch {
+      return {};
+    }
+  });
+  const isSectionOpen = (label: string) => openSections[label] !== false;
+  const toggleSection = (label: string) => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [label]: !isSectionOpen(label) };
+      window.localStorage.setItem(SECTIONS_OPEN_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Auto-open the section containing the active route (e.g. deep link or chat
+  // navigation) so the highlighted item is never hidden. Doesn't persist, so
+  // the user's saved preference survives.
   useEffect(() => {
-    if (ADVANCED_NAV.some((item) => isActive(item.path)) && !advancedOpen) {
-      const touched = window.localStorage.getItem(ADVANCED_TOUCHED_KEY) === '1';
-      const userClosed = touched && window.localStorage.getItem(ADVANCED_OPEN_KEY) === '0';
-      if (!userClosed) setAdvancedOpen(true);
+    const section = NAV_SECTIONS.find((s) => s.items.some((item) => isActive(item.path)));
+    if (section && !isSectionOpen(section.label)) {
+      setOpenSections((prev) => ({ ...prev, [section.label]: true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
@@ -105,7 +129,7 @@ export function Sidebar({ className }: SidebarProps) {
 
   return (
     <aside
-      className={cn('w-full h-full flex flex-col px-4 pt-[22px] pb-[18px] text-content', className)}
+      className={cn('w-full h-full flex flex-col px-4 pt-4 pb-3 text-content', className)}
       style={{
         backgroundImage:
           'linear-gradient(180deg, rgb(var(--ui-canvas-sunken) / 0.45), transparent 220px)',
@@ -120,76 +144,62 @@ export function Sidebar({ className }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 mt-6 flex flex-col gap-0.5 overflow-y-auto scrollbar-thin">
-        {/* Primary nav */}
-        {PRIMARY_NAV.map((entry) => (
-          <NavButton
-            key={entry.id}
-            active={isActive(entry.path)}
-            icon={entry.icon}
-            label={entry.label}
-            onClick={() => navigate(entry.path)}
-          />
-        ))}
-
-        {/* AI Chat button */}
-        <NavButton
-          active={false}
-          icon={MessageSquare}
-          label="AI Chat"
-          onClick={() => openChat()}
-        />
-
-        {/* More — collapsible group of secondary finance areas (admin only) */}
-        {user?.isAdmin && (
-          <>
-            <button
-              type="button"
-              onClick={toggleAdvanced}
-              aria-expanded={advancedOpen}
-              className="w-full flex items-center justify-between gap-2 px-3 pt-4 pb-1.5 mt-1 rounded-ui-md cursor-pointer hover:bg-brand-softer transition-colors group"
-            >
-              <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-content-muted group-hover:text-content transition-colors">
-                More
-              </span>
-              <ChevronDown
-                size={13}
-                className={cn(
-                  'text-content-faint group-hover:text-content-muted transition-transform duration-200',
-                  !advancedOpen && '-rotate-90',
+      <nav className="flex-1 mt-4 flex flex-col gap-0.5 overflow-y-auto scrollbar-thin">
+        {NAV_SECTIONS.map(({ label, items }, sectionIndex) => {
+          const open = isSectionOpen(label);
+          return (
+            <div key={label}>
+              {sectionIndex > 0 && <div className="h-px bg-line mx-3 mt-2" />}
+              <button
+                type="button"
+                onClick={() => toggleSection(label)}
+                aria-expanded={open}
+                className="w-full flex items-center justify-between gap-2 px-3 pt-1.5 pb-1 cursor-pointer"
+              >
+                <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-content-muted">
+                  {label}
+                </span>
+                <ChevronDown
+                  size={13}
+                  className={cn(
+                    'text-content-faint transition-transform duration-200',
+                    !open && '-rotate-90',
+                  )}
+                />
+              </button>
+              <AnimatePresence initial={false}>
+                {open && (
+                  <motion.div
+                    key="items"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <div className="ml-4 pl-2 border-l border-line flex flex-col gap-0.5 pb-0.5">
+                      {items.map((entry) => (
+                        <NavButton
+                          key={entry.id}
+                          active={isActive(entry.path)}
+                          icon={entry.icon}
+                          label={entry.label}
+                          inset
+                          onClick={() => (entry.id === 'chat' ? openChat() : navigate(entry.path))}
+                        />
+                      ))}
+                    </div>
+                  </motion.div>
                 )}
-              />
-            </button>
-            <AnimatePresence initial={false}>
-              {advancedOpen && (
-                <motion.div
-                  key="advanced"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ overflow: 'hidden' }}
-                  className="flex flex-col gap-0.5"
-                >
-                  {ADVANCED_NAV.map((entry) => (
-                    <NavButton
-                      key={entry.id}
-                      active={isActive(entry.path)}
-                      icon={entry.icon}
-                      label={entry.label}
-                      onClick={() => navigate(entry.path)}
-                    />
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </>
-        )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
 
       </nav>
 
       {/* Account chip + light/dark toggle */}
-      <div className="mt-3 pt-3.5 border-t border-line relative" ref={userMenuRef}>
+      <div className="mt-2.5 pt-3 border-t border-line relative" ref={userMenuRef}>
         <AnimatePresence>
           {userMenuOpen && (
             <motion.div
@@ -270,31 +280,37 @@ export function Sidebar({ className }: SidebarProps) {
   );
 }
 
-function NavButton({ active, icon: Icon, label, onClick }: {
+function NavButton({ active, icon: Icon, label, onClick, inset }: {
   active: boolean;
   icon: LucideIcon;
   label: string;
   onClick: () => void;
+  inset?: boolean;
 }) {
   return (
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.985 }}
       className={cn(
-        'relative flex items-center gap-3 w-full text-left px-3 py-[9px] rounded-ui-md border-0 cursor-pointer text-[14.5px] transition-colors',
+        'relative flex items-center gap-3 w-full text-left px-3 py-[6px] rounded-ui-md border-0 cursor-pointer text-[14px] transition-colors',
         active
-          ? 'bg-brand-soft text-brand font-semibold'
-          : 'text-content-secondary font-medium hover:bg-brand-softer hover:text-content',
+          ? 'text-brand font-semibold'
+          : 'text-content-secondary font-medium hover:text-content',
       )}
     >
       {active && (
         <span
           aria-hidden="true"
-          className="absolute -left-4 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-[3px] bg-brand"
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 w-[3px] h-5 bg-brand',
+            // Inset items sit inside the section rail: overlay the segment of
+            // the rail beside the active item instead of the aside edge bar.
+            inset ? '-left-[10px] rounded-full' : '-left-4 rounded-r-[3px]',
+          )}
         />
       )}
       <Icon
-        size={19}
+        size={18}
         strokeWidth={1.75}
         className={cn('shrink-0', active ? 'text-brand' : 'text-content-muted')}
       />

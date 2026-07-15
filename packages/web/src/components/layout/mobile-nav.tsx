@@ -5,7 +5,7 @@ import {
   X, Wallet, LogOut,
   LayoutDashboard, Zap, Layers,
   TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, Target,
-  Building2,
+  MessageSquare, ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
@@ -22,28 +22,40 @@ interface NavSection {
   items: NavItem[];
 }
 
-// Kept intentionally lean so the whole menu fits one phone screen without
-// scrolling: Profile lives in the profile card above, Chat in the tab bar.
+// Mirrors the desktop sidebar sections (sidebar.tsx). Kept lean so the whole
+// menu fits one phone screen without scrolling: Profile lives in the profile
+// card above; Accounts is reachable via Profile & Settings.
 const NAV_SECTIONS: NavSection[] = [
   {
     section: 'Overview',
     items: [
-      { label: 'Dashboard',  icon: LayoutDashboard, path: '/' },
-      { label: 'Money',      icon: Wallet,          path: '/money' },
-      { label: 'Spending',   icon: CreditCard,      path: '/spending' },
-      { label: 'Actions',    icon: Zap,             path: '/insights' },
-      { label: 'Financial Level', icon: Layers, path: '/financial-level' },
-      { label: 'Accounts',   icon: Building2,       path: '/accounts' },
+      { label: 'Home',    icon: LayoutDashboard, path: '/' },
+      { label: 'Goals',   icon: Target,          path: '/goals' },
+      { label: 'AI Chat', icon: MessageSquare,   path: '/chat' },
     ],
   },
   {
-    section: 'Wealth',
+    section: 'My Money',
     items: [
-      { label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
-      { label: 'Portfolio',  icon: PieChart,    path: '/portfolio' },
-      { label: 'Debt',       icon: AlertCircle, path: '/debt' },
-      { label: 'Tax',        icon: Receipt,     path: '/tax' },
-      { label: 'Goals',      icon: Target,      path: '/goals' },
+      { label: 'Money Snapshot',      icon: Wallet,      path: '/money' },
+      { label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
+      { label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
+      { label: 'Tax',                 icon: Receipt,     path: '/tax' },
+      { label: 'Debt',                icon: AlertCircle, path: '/debt' },
+    ],
+  },
+  {
+    section: 'Income & Expenses',
+    items: [
+      { label: 'Spending',     icon: CreditCard,     path: '/spending' },
+      { label: 'Transactions', icon: ArrowLeftRight, path: '/transactions' },
+    ],
+  },
+  {
+    section: 'Financial Insights',
+    items: [
+      { label: 'Actions',         icon: Zap,    path: '/insights' },
+      { label: 'Financial Level', icon: Layers, path: '/financial-level' },
     ],
   },
 ];
@@ -130,7 +142,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 onClick={() => handleNavigate('/profile')}
                 className="flex items-center gap-3 p-2 w-full bg-panel rounded-ui-lg border border-line hover:border-brand/40 hover:shadow-ui-sm transition text-left"
               >
-                <div className="w-10 h-10 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
+                <div className="w-9 h-9 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
                   {initial}
                 </div>
                 <div className="flex-1 text-left">
@@ -140,39 +152,48 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 <div className="text-content-faint text-sm">›</div>
               </button>
 
-              {NAV_SECTIONS.map(({ section, items }) => (
+              {NAV_SECTIONS.map(({ section, items }, sectionIndex) => (
                 <div key={section}>
-                  <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-content-faint px-3 pt-2 pb-0.5">
+                  {sectionIndex > 0 && <div className="h-px bg-line mx-3 mt-2.5" />}
+                  <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-content-faint px-3 pt-3 pb-1">
                     {section}
                   </div>
-                  {items.map(({ label, icon: Icon, path }) => {
-                    const active = isActive(path);
-                    return (
-                      <button
-                        key={path}
-                        onClick={() => handleNavigate(path)}
-                        className={`flex items-center gap-3 w-full px-2.5 py-1 rounded-ui-md
-                                   cursor-pointer text-left text-[15px] transition-colors active:scale-[0.98]
-                                   min-h-[40px] ${active ? 'bg-brand-soft' : 'hover:bg-canvas-sunken'}`}
-                      >
-                        <div className={`w-8 h-8 rounded-ui-md grid place-items-center shrink-0 ${active ? 'bg-brand text-[rgb(var(--ui-brand-fg))]' : 'bg-canvas-sunken text-content-muted'}`}>
-                          <Icon size={15} />
-                        </div>
-                        <span className={active ? 'font-bold text-[rgb(var(--ui-brand-ink))]' : 'font-semibold text-content'}>{label}</span>
-                        <div className="text-content-faint text-sm ml-auto">›</div>
-                      </button>
-                    );
-                  })}
+                  <div className="ml-4 pl-2 border-l border-line">
+                    {items.map(({ label, icon: Icon, path }) => {
+                      const active = isActive(path);
+                      return (
+                        <button
+                          key={path}
+                          onClick={() => handleNavigate(path)}
+                          className="relative flex items-center gap-3 w-full px-2.5 py-1 rounded-ui-md
+                                     cursor-pointer text-left text-[15px] transition-colors active:scale-[0.98]
+                                     min-h-[40px]"
+                        >
+                          {active && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute -left-[10px] top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-brand"
+                            />
+                          )}
+                          <div className={`w-7 h-7 rounded-ui-md grid place-items-center shrink-0 ${active ? 'bg-brand text-[rgb(var(--ui-brand-fg))]' : 'bg-canvas-sunken text-content-muted'}`}>
+                            <Icon size={14} />
+                          </div>
+                          <span className={active ? 'font-bold text-[rgb(var(--ui-brand-ink))]' : 'font-semibold text-content'}>{label}</span>
+                          <div className="text-content-faint text-sm ml-auto">›</div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               ))}
 
               {/* Sign out */}
               <button
                 onClick={() => { onClose(); logout(); }}
-                className="flex items-center gap-3 w-full px-2.5 py-1 mt-1 rounded-ui-md hover:bg-canvas-sunken text-left min-h-[40px]"
+                className="flex items-center gap-3 w-full px-2.5 py-1 mt-2 rounded-ui-md hover:bg-canvas-sunken text-left min-h-[40px]"
               >
-                <div className="w-8 h-8 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
-                  <LogOut size={16} />
+                <div className="w-7 h-7 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
+                  <LogOut size={14} />
                 </div>
                 <span className="text-[15px] font-semibold text-content-secondary">Sign out</span>
               </button>

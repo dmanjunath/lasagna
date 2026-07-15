@@ -457,13 +457,16 @@ export function SimpleHome() {
 
             {/* The moves queue, contained in a card like the hero above */}
             <Card className="p-6 sm:p-7">
-              <div>
-                <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold leading-[1.1] tracking-[-0.02em]">
-                  {moveCount > 1 ? `${moveCount} moves to make today` : 'Your next move'}
-                </h2>
-                <p className="mt-1 text-[13.5px] font-medium text-content-muted">
-                  Lined up biggest-impact first — quick wins for your wealth.
-                </p>
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold leading-[1.1] tracking-[-0.02em]">
+                    {moveCount > 1 ? `${moveCount} moves to make today` : 'Your next move'}
+                  </h2>
+                  <p className="mt-1 text-[13.5px] font-medium text-content-muted">
+                    Lined up biggest-impact first — quick wins for your wealth.
+                  </p>
+                </div>
+                <Link href="/insights" className="shrink-0 text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
               </div>
 
               <MovesQueue
