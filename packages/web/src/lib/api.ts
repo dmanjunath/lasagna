@@ -864,6 +864,7 @@ export const api = {
   updateAccount: (
     id: string,
     data: {
+      name?: string;
       type?: string;
       subtype?: string | null;
       excludeFromNetWorth?: boolean;

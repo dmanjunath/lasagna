@@ -375,14 +375,9 @@ export function AccountDetail() {
     setSaving(true);
     try {
       if (isManual) {
-        const manualUpdate: { name?: string; balance?: number } = {};
-        if (name.trim() && name.trim() !== acct.name) manualUpdate.name = name.trim();
         const newBalance = parseFloat(editValue);
         if (!Number.isNaN(newBalance) && newBalance !== parseFloat(acct.balance ?? '0')) {
-          manualUpdate.balance = newBalance;
-        }
-        if (Object.keys(manualUpdate).length > 0) {
-          await api.updateManualAccount(id, manualUpdate);
+          await api.updateManualAccount(id, { balance: newBalance });
         }
       }
       await api.updateAccount(id, {
@@ -391,6 +386,8 @@ export function AccountDetail() {
         excludeFromNetWorth,
         excludeTransactions,
         invertBalance,
+        // Renames stick across syncs (sync only sets name on first insert).
+        ...(name.trim() && name.trim() !== acct.name ? { name: name.trim() } : {}),
         // Only send the link when it changed — the endpoint rejects the field
         // on non-debt accounts, and it's a debt-side-only setting.
         ...(isLiabilityAcct && linkedPropertyId !== initialLinkRef.current
@@ -747,13 +744,14 @@ export function AccountDetail() {
 
         {settingsOpen && (
           <div className="p-4 sm:p-6">
-            {/* Details — name/value for manual accounts, or a read-only chip. */}
-            {isManual ? (
-              <SettingsGroup title="Details">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Name">
-                    <Input type="text" value={name} onChange={(e) => setName(e.target.value)} />
-                  </Field>
+            {/* Details — name is editable for every account; value only for
+                manual ones (synced balances come from the provider). */}
+            <SettingsGroup title="Details">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Name">
+                  <Input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+                </Field>
+                {isManual && (
                   <Field label="Value">
                     <Input
                       type="number"
@@ -763,19 +761,15 @@ export function AccountDetail() {
                       className="ui-tnum"
                     />
                   </Field>
-                </div>
-              </SettingsGroup>
-            ) : (
-              <div className="rounded-ui-md border border-line bg-canvas-sunken px-3.5 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 truncate text-[14px] font-semibold text-content">{displayName}</span>
-                  <span className="shrink-0 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.06em] text-content-muted">From your bank</span>
-                </div>
-                <p className="mt-1 text-[12px] leading-relaxed text-content-muted">
-                  Name and balance sync automatically and can't be edited here — the settings below can.
-                </p>
+                )}
               </div>
-            )}
+              {!isManual && (
+                <p className="mt-2 text-[12px] leading-relaxed text-content-muted">
+                  The balance syncs from your bank and can't be edited. Renaming only changes
+                  how the account appears here.
+                </p>
+              )}
+            </SettingsGroup>
 
             {/* Classification — the reclassify select + cross-bucket warning. */}
             <SettingsGroup title="Classification" className="mt-6">
@@ -968,6 +962,20 @@ export function AccountDetail() {
               <Button variant="primary" disabled={saving} loading={saving} onClick={save}>
                 {saving ? 'Saving…' : 'Save changes'}
               </Button>
+              {/* The top status line sits off-viewport when the panel is scrolled
+                  down, so mirror it next to Save. aria-hidden — the top line
+                  already announces via role="status". */}
+              {(actionError || flash) && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'text-[12.5px] font-semibold',
+                    actionError ? 'text-negative' : 'text-[rgb(var(--ui-brand-ink))]',
+                  )}
+                >
+                  {actionError ?? flash}
+                </span>
+              )}
               {/* Sync / delete also surfaced here for mobile (header actions are desktop-only). */}
               {!isManual && (
                 <Button

@@ -504,6 +504,8 @@ accountRoutes.patch("/:id", async (c) => {
 
   const bodySchema = z
     .object({
+      // Rename sticks across syncs — sync only sets name on first insert.
+      name: z.string().trim().min(1).max(255),
       type: z.enum(accountTypeEnum.enumValues),
       subtype: z.string().max(100).nullable(),
       excludeFromNetWorth: z.boolean(),
