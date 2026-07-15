@@ -16,6 +16,9 @@
    ============================================================================ */
 
 :root {
+  /* Native chrome (scrollbars, form controls) follows the active theme. */
+  color-scheme: light;
+
   /* ── Surfaces / elevation (light) — Bright cool near-white ─────────────── */
   --ui-canvas:          247 249 252;   /* cool near-white page background      */
   --ui-canvas-sunken:   238 242 247;   /* wells, inset tracks                  */
@@ -94,6 +97,8 @@
 
 /* ── Dark mode — Bright deep slate (cool, not warm) ─────────────────────── */
 .dark {
+  color-scheme: dark;
+
   --ui-canvas:          13 17 23;
   --ui-canvas-sunken:   9 12 17;
   --ui-panel:           22 27 35;

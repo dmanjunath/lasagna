@@ -19,4 +19,26 @@ describe("accountIdsToFreeze", () => {
   it("freezes none for a high (pro) limit", () => {
     expect(accountIdsToFreeze(ordered, 50)).toEqual([]);
   });
+
+  it("never freezes manual accounts and doesn't count them toward the limit", () => {
+    const mixed = [
+      { id: "m1", manual: true },
+      { id: "a" },
+      { id: "b" },
+      { id: "m2", manual: true },
+      { id: "c" },
+      { id: "d" },
+    ];
+    expect(accountIdsToFreeze(mixed, 3)).toEqual(["d"]);
+  });
+
+  it("freezes nothing when only manual accounts exceed the limit", () => {
+    const manual = [
+      { id: "m1", manual: true },
+      { id: "m2", manual: true },
+      { id: "m3", manual: true },
+      { id: "m4", manual: true },
+    ];
+    expect(accountIdsToFreeze(manual, 3)).toEqual([]);
+  });
 });

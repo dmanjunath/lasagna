@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ArrowRight, Check, ChevronRight, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
@@ -829,6 +829,14 @@ function MoveCard({
   footer: React.ReactNode;
 }) {
   const a = ACCENT[accent];
+  // "Why" text is clamped to 3 lines; offer an expand toggle when it overflows.
+  const whyRef = useRef<HTMLParagraphElement>(null);
+  const [whyExpanded, setWhyExpanded] = useState(false);
+  const [whyClamped, setWhyClamped] = useState(false);
+  useLayoutEffect(() => {
+    const el = whyRef.current;
+    if (!whyExpanded && el) setWhyClamped(el.scrollHeight > el.clientHeight + 1);
+  }, [why, whyExpanded]);
   return (
     <article className="relative pl-[50px]">
       {/* timeline node */}
@@ -849,7 +857,26 @@ function MoveCard({
               {tagIcon}{tag}
             </span>
             <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em]">{title}</h3>
-            {why && <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-3 max-w-[50ch]">{why}</p>}
+            {why && (
+              <>
+                <p
+                  ref={whyRef}
+                  className={`mt-2 text-[14px] leading-[1.5] text-content-secondary max-w-[50ch] ${whyExpanded ? '' : 'line-clamp-3'}`}
+                >
+                  {why}
+                </p>
+                {(whyClamped || whyExpanded) && (
+                  <button
+                    type="button"
+                    onClick={() => setWhyExpanded(!whyExpanded)}
+                    className="mt-1.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-content-muted hover:text-content transition-colors"
+                  >
+                    <span>{whyExpanded ? 'Show less' : 'Show more'}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${whyExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                )}
+              </>
+            )}
           </div>
           {impactVal && (
             <div className="w-full sm:w-auto flex items-baseline gap-1.5 sm:block border-t border-line pt-2.5 sm:border-t-0 sm:pt-0 text-left sm:text-right shrink-0 sm:pl-2.5 sm:min-w-[88px]">

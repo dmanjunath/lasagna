@@ -1,12 +1,19 @@
 import { db } from "./db.js";
-import { eq, and, asc, inArray, accounts, maxAccounts, type Plan } from "@lasagna/core";
+import { eq, and, asc, inArray, accounts, plaidItems, maxAccounts, type Plan } from "@lasagna/core";
 
 /**
  * Given a tenant's accounts ordered OLDEST-FIRST and the plan's max, return the
- * ids that must be frozen — i.e. everything beyond the oldest `max`. Pure.
+ * ids that must be frozen — i.e. everything beyond the oldest `max`. Manual
+ * accounts never freeze and don't count toward the limit. Pure.
  */
-export function accountIdsToFreeze(ordered: { id: string }[], max: number): string[] {
-  return ordered.slice(max).map((a) => a.id);
+export function accountIdsToFreeze(
+  ordered: { id: string; manual?: boolean }[],
+  max: number
+): string[] {
+  return ordered
+    .filter((a) => !a.manual)
+    .slice(max)
+    .map((a) => a.id);
 }
 
 /**
@@ -21,14 +28,17 @@ export async function recomputeFrozenAccounts(tenantId: string, plan: Plan): Pro
   // freeze state. Tiebreak on id so equal createdAt (batch inserts share
   // defaultNow()) still produces a deterministic — hence idempotent — ordering.
   await db.transaction(async (tx) => {
-    const ordered = await tx.query.accounts.findMany({
-      where: eq(accounts.tenantId, tenantId),
-      orderBy: [asc(accounts.createdAt), asc(accounts.id)],
-      columns: { id: true },
-    });
+    const rows = await tx
+      .select({ id: accounts.id, institutionId: plaidItems.institutionId })
+      .from(accounts)
+      .innerJoin(plaidItems, eq(accounts.plaidItemId, plaidItems.id))
+      .where(eq(accounts.tenantId, tenantId))
+      .orderBy(asc(accounts.createdAt), asc(accounts.id));
+    const ordered = rows.map((r) => ({ id: r.id, manual: r.institutionId === "manual" }));
 
     const freezeIds = accountIdsToFreeze(ordered, max);
-    const activeIds = ordered.slice(0, max).map((a) => a.id);
+    const freezeSet = new Set(freezeIds);
+    const activeIds = ordered.filter((a) => !freezeSet.has(a.id)).map((a) => a.id);
 
     // Condition each write on the current flag so unchanged rows aren't
     // rewritten — keeps this a true no-op (and avoids updatedAt churn) when
