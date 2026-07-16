@@ -187,12 +187,14 @@ plaidRoutes.delete("/items/:id", async (c) => {
   const session = c.get("session");
   const itemId = c.req.param("id");
 
+  // Scope the delete to the caller's tenant — matching on id alone would let a
+  // user delete another tenant's item (its accounts/transactions cascade off it).
   const [deleted] = await db
     .delete(plaidItems)
-    .where(eq(plaidItems.id, itemId))
+    .where(and(eq(plaidItems.id, itemId), eq(plaidItems.tenantId, session.tenantId)))
     .returning();
 
-  if (!deleted || deleted.tenantId !== session.tenantId) {
+  if (!deleted) {
     return c.json({ error: "Item not found" }, 404);
   }
 

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { resolveCorsOrigin } from "./lib/cors.js";
 import type { MiddlewareHandler } from "hono";
 import { requireAuth, AuthEnv } from "./middleware/auth.js";
 import { authRoutes } from "./routes/auth.js";
@@ -46,19 +47,15 @@ const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:5173")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+// localhost:* and *.trycloudflare.com are reflected only outside production —
+// see resolveCorsOrigin. In prod they'd be an attacker-registerable credentialed
+// origin.
+const corsIsDev = process.env.NODE_ENV !== "production";
 
 app.use(
   "*",
   cors({
-    origin: (origin) => {
-      if (!origin) return origin;
-      if (origin.startsWith("http://localhost:")) return origin;
-      if (origin.endsWith(".trycloudflare.com")) return origin;
-      // Capacitor shells (iOS WKWebView / Android WebView) — Bearer auth, not cookies.
-      if (origin === "capacitor://localhost" || origin === "https://localhost") return origin;
-      if (allowedOrigins.includes(origin)) return origin;
-      return undefined;
-    },
+    origin: (origin) => resolveCorsOrigin(origin, allowedOrigins, corsIsDev),
     credentials: true,
     allowHeaders: ["Content-Type", "Authorization", "x-lasagna-client"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
