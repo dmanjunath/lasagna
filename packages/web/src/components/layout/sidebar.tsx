@@ -36,6 +36,13 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    label: 'Financial Insights',
+    items: [
+      { id: 'actions',         label: 'Actions',         icon: Zap,    path: '/insights' },
+      { id: 'financial-level', label: 'Financial Level', icon: Layers, path: '/financial-level' },
+    ],
+  },
+  {
     label: 'My Money',
     items: [
       { id: 'money',      label: 'Money Snapshot',      icon: Wallet,      path: '/money' },
@@ -50,13 +57,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: 'spending',     label: 'Spending',     icon: CreditCard,     path: '/spending' },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, path: '/transactions' },
-    ],
-  },
-  {
-    label: 'Financial Insights',
-    items: [
-      { id: 'actions',         label: 'Actions',         icon: Zap,    path: '/insights' },
-      { id: 'financial-level', label: 'Financial Level', icon: Layers, path: '/financial-level' },
     ],
   },
 ];
@@ -149,12 +149,12 @@ export function Sidebar({ className }: SidebarProps) {
           const open = isSectionOpen(label);
           return (
             <div key={label}>
-              {sectionIndex > 0 && <div className="h-px bg-line mx-3 mt-2" />}
+              {sectionIndex > 0 && <div className="h-px bg-line mx-3 mt-1.5" />}
               <button
                 type="button"
                 onClick={() => toggleSection(label)}
                 aria-expanded={open}
-                className="w-full flex items-center justify-between gap-2 px-3 pt-1.5 pb-1 cursor-pointer"
+                className="w-full flex items-center justify-between gap-2 px-3 pt-3 pb-1 cursor-pointer"
               >
                 <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-content-muted">
                   {label}

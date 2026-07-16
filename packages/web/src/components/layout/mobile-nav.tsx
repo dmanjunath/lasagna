@@ -35,6 +35,13 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    section: 'Financial Insights',
+    items: [
+      { label: 'Actions',         icon: Zap,    path: '/insights' },
+      { label: 'Financial Level', icon: Layers, path: '/financial-level' },
+    ],
+  },
+  {
     section: 'My Money',
     items: [
       { label: 'Money Snapshot',      icon: Wallet,      path: '/money' },
@@ -49,13 +56,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Spending',     icon: CreditCard,     path: '/spending' },
       { label: 'Transactions', icon: ArrowLeftRight, path: '/transactions' },
-    ],
-  },
-  {
-    section: 'Financial Insights',
-    items: [
-      { label: 'Actions',         icon: Zap,    path: '/insights' },
-      { label: 'Financial Level', icon: Layers, path: '/financial-level' },
     ],
   },
 ];
