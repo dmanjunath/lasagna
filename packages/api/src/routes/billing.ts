@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, countFn as count, tenants, users, accounts, maxAccounts, allowedModelLevels } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { getStripe, setPlanByStripeCustomer } from "../lib/stripe.js";
-import { resolveTenantPlan } from "../lib/billing.js";
+import { resolveTenantPlan, checkoutReturnUrls } from "../lib/billing.js";
 import { MODEL_LEVELS } from "../agent/index.js";
 import { env } from "../lib/env.js";
 import { type AuthEnv } from "../middleware/auth.js";
@@ -39,6 +39,7 @@ billingRoutes.post("/checkout", async (c) => {
   if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_PRO_MONTHLY) {
     return c.json({ error: "Billing is not configured" }, 503);
   }
+  const { native } = await c.req.json<{ native?: boolean }>().catch(() => ({ native: false }));
 
   const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, session.tenantId) });
   if (!tenant) return c.json({ error: "Tenant not found" }, 404);
@@ -61,12 +62,13 @@ billingRoutes.post("/checkout", async (c) => {
       await db.update(tenants).set({ stripeCustomerId: customerId }).where(eq(tenants.id, session.tenantId));
     }
 
+    const { successUrl, cancelUrl } = checkoutReturnUrls(env.APP_URL, native === true);
     const checkout = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       line_items: [{ price: env.STRIPE_PRICE_PRO_MONTHLY, quantity: 1 }],
-      success_url: `${env.APP_URL}/profile?upgraded=1`,
-      cancel_url: `${env.APP_URL}/profile`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
     });
     return c.json({ url: checkout.url });
   } catch (e) {

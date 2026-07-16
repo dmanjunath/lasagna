@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useLocation } from 'wouter';
 import { MessageSquare, X, Menu, Maximize2, Sparkles, ChevronLeft } from 'lucide-react';
 import { Sidebar } from './sidebar';
@@ -7,8 +7,12 @@ import { MobileTabBar } from './mobile-tab-bar';
 import { AppHeader } from './app-header';
 import { PullToRefresh } from './pull-to-refresh';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
+import { isNativeApp } from '../../lib/native';
 import { useChatStore, getChatExpanded, setChatExpanded } from '../../lib/chat-store';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
+
+// Native-only, lazy so the Capacitor plugins stay out of the web bundle.
+const FaceIdSetupPrompt = lazy(() => import('../native/FaceIdSetupPrompt'));
 
 interface ShellProps {
   children: React.ReactNode;
@@ -47,9 +51,10 @@ export function Shell({ children }: ShellProps) {
     else setLocation('/');
   };
 
-  // On main pages a swipe in from the left edge opens the drawer (instead of
-  // the browser's back gesture — preventDefault suppresses it while the
-  // hamburger is the leading control).
+  // On main pages a swipe in from the left edge opens the drawer — the hamburger
+  // is the leading control there, so there's nothing to go "back" to. Runs in
+  // the native shell too now (WKWebView's own back-gesture is disabled in
+  // MainViewController, so this owns the left edge and can't send you to login).
   useEffect(() => {
     if (!isMobile || isSubPage) return;
     let startX: number | null = null;
@@ -83,6 +88,46 @@ export function Shell({ children }: ShellProps) {
       document.removeEventListener('touchend', onEnd);
       document.removeEventListener('touchcancel', onEnd);
     };
+  }, [isMobile, isSubPage]);
+
+  // Sub-pages (account detail, plan detail, etc.) in the native shell: a
+  // left-edge swipe navigates back, since those show a back chevron, not the
+  // hamburger. The WKWebView back-gesture is off, so JS owns it; on web the OS
+  // provides this natively.
+  useEffect(() => {
+    if (!isMobile || !isSubPage || !isNativeApp()) return;
+    let startX: number | null = null;
+    let startY = 0;
+    let fired = false;
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      startX = t.clientX <= 24 ? t.clientX : null;
+      startY = t.clientY;
+      fired = false;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (startX === null || fired) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = Math.abs(t.clientY - startY);
+      if (dx > 12 && dx > dy) e.preventDefault();
+      if (dx > 64 && dx > dy * 1.5) {
+        fired = true;
+        handleBack();
+      }
+    };
+    const onEnd = () => { startX = null; fired = false; };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile, isSubPage]);
 
   // The document scroller persists across routes, so reset it per navigation.
@@ -265,6 +310,11 @@ export function Shell({ children }: ShellProps) {
           a chat thread owns the bottom of the screen on /chat. */}
       {isMobile && !chatOpen && !hideTabBarForThread && <MobileTabBar />}
 
+      {isNativeApp() && (
+        <Suspense fallback={null}>
+          <FaceIdSetupPrompt />
+        </Suspense>
+      )}
     </div>
   );
 }

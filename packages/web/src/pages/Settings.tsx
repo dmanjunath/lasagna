@@ -9,7 +9,6 @@ import {
   User,
   Briefcase,
   Building2,
-  Target,
   ChevronRight,
   ChevronDown,
   Pencil,
@@ -20,9 +19,13 @@ import {
   KeyRound,
   Trash2,
   SlidersHorizontal,
+  ScanFace,
 } from "lucide-react";
 import { useConfirm } from "../components/ds";
-import { isNativeApp } from "../lib/native";
+import { isNativeApp, setNativeToken } from "../lib/native";
+import { hapticWarning } from "../lib/haptics";
+import { isLockEnabled, setLockEnabled } from "../lib/biometric-lock";
+import { setPasskeyRegistered } from "../lib/passkey-hint";
 import { CategoryManager } from "../components/settings/CategoryManager";
 import { RulesPanel } from "../components/rules/RulesPanel";
 import {
@@ -238,6 +241,7 @@ export function Settings() {
   const personalRows: DetailRow[] = [
     { label: "Date of birth", value: profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set", muted: !profile?.dateOfBirth },
     { label: "Age", value: age, muted: age === "Not set" },
+    { label: "Retirement age", value: retirementAge, muted: retirementAge === "Not set", money: true },
     { label: "Filing status", value: filingStatus, muted: !profile?.filingStatus },
     { label: "State of residence", value: state, muted: state === "Not set" },
     { label: "Risk tolerance", value: riskTolerance, muted: !profile?.riskTolerance },
@@ -248,7 +252,6 @@ export function Settings() {
     { label: "Gross income", value: grossIncome, muted: grossIncome === "Not set", money: true },
     { label: "Employment type", value: formatEmployment(employmentType), muted: employmentType === "Not set" },
     { label: "Employer match", value: employerMatch, muted: employerMatch === "Not set", money: true },
-    { label: "Retirement age", value: retirementAge, muted: retirementAge === "Not set", money: true },
   ];
 
   const initials = displayName
@@ -296,6 +299,19 @@ export function Settings() {
           Welcome to Pro! Your account is being upgraded.
         </Alert>
       )}
+
+      {/* ════════ Accounts ════════ */}
+      <section className="mt-10">
+        <GroupHeader eyebrow="Accounts" hint="Add, reconnect, or remove the accounts you track" />
+        <div className="mt-4">
+          <NavCard
+            icon={<Building2 className="h-5 w-5" />}
+            label="Accounts"
+            sub="Banks, brokerages, manual balances"
+            onClick={() => navigate("/accounts")}
+          />
+        </div>
+      </section>
 
       {/* ════════ Financial profile ════════ */}
       <section className="mt-10">
@@ -359,6 +375,7 @@ export function Settings() {
         <div className="mt-4 space-y-4">
           <PasswordSecurityCard />
           <PasskeysCard />
+          {isNativeApp() && <FaceIdLockCard />}
         </div>
       </section>
 
@@ -376,23 +393,9 @@ export function Settings() {
         </div>
       </section>
 
-      {/* ════════ Manage ════════ */}
+      {/* ════════ Delete account ════════ */}
       <section className="mt-10">
-        <GroupHeader eyebrow="Manage" hint="Jump to the things you keep up to date" />
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <NavCard
-            icon={<Building2 className="h-5 w-5" />}
-            label="Accounts"
-            sub="Banks, brokerages, manual balances"
-            onClick={() => navigate("/accounts")}
-          />
-          <NavCard
-            icon={<Target className="h-5 w-5" />}
-            label="Goals"
-            sub="Targets, milestones, progress"
-            onClick={() => navigate("/goals")}
-          />
-        </div>
+        <DeleteAccountCard />
       </section>
 
       <RulesPanel
@@ -527,6 +530,10 @@ function PasskeysCard() {
     try {
       const { credentials } = await api.listPasskeys();
       setCreds(credentials);
+      // Keep the native login screen's "Sign in with Face ID" gate in sync with
+      // whether the account actually has any passkeys (iCloud-synced across the
+      // user's devices), so a fresh install never offers a button that can't work.
+      setPasskeyRegistered(credentials.length > 0);
     } catch {
       // Non-fatal: the section just shows the add button.
     } finally {
@@ -632,6 +639,96 @@ function PasskeysCard() {
             No passkeys yet — add one to sign in with Face ID on this device.
           </p>
         )
+      )}
+    </Surface>
+  );
+}
+
+// ─── Face ID lock — native-shell app lock toggle ──────────────────────────────
+
+function FaceIdLockCard() {
+  const [enabled, setEnabled] = useState(() => isLockEnabled());
+  const [available, setAvailable] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  // Dynamic import so the Capacitor plugin never lands in the web page chunk.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { BiometricAuth } = await import("@aparajita/capacitor-biometric-auth");
+        const result = await BiometricAuth.checkBiometry();
+        if (cancelled) return;
+        setAvailable(result.isAvailable);
+        if (!result.isAvailable) {
+          setReason(result.reason || "Biometrics unavailable on this device");
+        }
+      } catch {
+        if (!cancelled) setReason("Biometrics unavailable on this device");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggle = async () => {
+    setError("");
+    if (enabled) {
+      setLockEnabled(false);
+      setEnabled(false);
+      return;
+    }
+    // Confirm Face ID works BEFORE enabling — a broken sensor would lock the
+    // user out of the app on next launch.
+    setBusy(true);
+    try {
+      const { BiometricAuth } = await import("@aparajita/capacitor-biometric-auth");
+      await BiometricAuth.authenticate({ reason: "Confirm Face ID" });
+      setLockEnabled(true);
+      setEnabled(true);
+    } catch (err) {
+      // BiometryError — userCancel = the user dismissed the prompt.
+      if ((err as { code?: string }).code !== "userCancel") {
+        setError(err instanceof Error && err.message ? err.message : "Face ID confirmation failed.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Surface className="p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
+            <ScanFace className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-bold text-content">Face ID lock</h3>
+            <p className="mt-0.5 text-[13px] font-medium text-content-muted">
+              Require Face ID when you open the app.
+            </p>
+          </div>
+        </div>
+        <Switch
+          checked={enabled}
+          onChange={() => void toggle()}
+          label=""
+          disabled={busy || (!available && !enabled)}
+          aria-label="Face ID lock"
+          title="Face ID lock"
+        />
+      </div>
+
+      {reason && (
+        <p className="mt-4 text-[13px] font-medium text-content-muted">{reason}</p>
+      )}
+
+      {error && (
+        <p role="alert" className="mt-4 text-[12.5px] font-medium text-negative">{error}</p>
       )}
     </Surface>
   );
@@ -771,6 +868,134 @@ function NavCard({
   );
 }
 
+// ─── Delete account — emailed-code + typed-DELETE confirmation ───────────────
+
+function DeleteAccountCard() {
+  const { user } = useAuth();
+  const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
+  const [open, setOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [code, setCode] = useState("");
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+
+  const start = async () => {
+    setSending(true);
+    setError("");
+    try {
+      await api.requestDeletionCode();
+      setCode("");
+      setConfirmText("");
+      hapticWarning(); // warn as the destructive panel opens (ConfirmDialog precedent)
+      setOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send a verification code.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    setError("");
+    try {
+      await api.deleteAccount(code.trim());
+      // The API already cleared the session cookie — drop the native token
+      // and hard-reload to the signed-out landing page.
+      setNativeToken(null);
+      window.location.href = "/";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete your account.");
+      setDeleting(false);
+    }
+  };
+
+  const canConfirm = code.trim().length > 0 && confirmText === "DELETE";
+
+  // The API rejects demo/admin sessions anyway — don't show them a dead end.
+  if (isDemo || !user || user.isAdmin) return null;
+
+  return (
+    <Surface className="p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-negative-soft text-negative">
+            <Trash2 className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-bold text-content">Delete account</h3>
+            <p className="mt-0.5 text-[13px] font-medium text-content-muted">
+              Permanently delete your account and data.
+            </p>
+          </div>
+        </div>
+        {!open && (
+          <Button variant="destructive" size="sm" onClick={start} loading={sending} disabled={sending}>
+            Delete…
+          </Button>
+        )}
+      </div>
+
+      {error && !open && (
+        <Alert tone="negative" className="mt-4">
+          {error}
+        </Alert>
+      )}
+
+      {open && (
+        <div className="mt-4 space-y-3">
+          <p className="text-[13px] font-medium text-content-muted">
+            We emailed you a verification code.
+          </p>
+          <Field label="Verification code">
+            <Input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="123456"
+            />
+          </Field>
+          <Field label={'Type "DELETE" to confirm'}>
+            <Input
+              autoComplete="off"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+            />
+          </Field>
+          {error && <Alert tone="negative">{error}</Alert>}
+          <div className="flex gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={confirmDelete}
+              loading={deleting}
+              disabled={deleting || !canConfirm}
+            >
+              Permanently delete
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setOpen(false);
+                setCode("");
+                setConfirmText("");
+                setError("");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </Surface>
+  );
+}
+
 // ─── Plan & billing ──────────────────────────────────────────────────────────
 
 const PRO_FEATURES = [
@@ -836,9 +1061,9 @@ function PlanCard() {
     }
   };
 
-  // App-store rules (Apple 3.1.1): no external purchase flows in the native
-  // shell — hide Stripe checkout/portal there ("reader" pattern).
-  const native = isNativeApp();
+  // US storefront apps may link out to external web checkout (post-May-2025
+  // Apple guideline update); the native shell opens Stripe Checkout in a
+  // browser sheet.
   const isPro = status?.plan === "pro";
   const periodDate = status?.currentPeriodEnd
     ? new Date(status.currentPeriodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
@@ -891,22 +1116,9 @@ function PlanCard() {
                 reactivate any time from Manage subscription.
               </p>
             )}
-            {native ? (
-              <p className="text-[13px] font-medium text-content-muted">
-                Manage your subscription from the web app.
-              </p>
-            ) : (
-              <Button variant="secondary" onClick={handleManage} disabled={managing} loading={managing}>
-                {managing ? "Redirecting…" : "Manage subscription"}
-              </Button>
-            )}
-          </div>
-        ) : native ? (
-          <div className="flex flex-col items-start gap-3">
-            <FeatureList features={FREE_FEATURES} />
-            <p className="text-[13px] font-medium text-content-muted">
-              Plan changes are available from the web app.
-            </p>
+            <Button variant="secondary" onClick={handleManage} disabled={managing} loading={managing}>
+              {managing ? "Redirecting…" : "Manage subscription"}
+            </Button>
           </div>
         ) : (
           <div className="flex flex-col items-start gap-5">
@@ -941,15 +1153,18 @@ function PlanCard() {
 // ─── Switch — brand toggle ───────────────────────────────────────────────────
 
 function Switch({
-  checked, onChange, label,
-}: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  checked, onChange, label, disabled, title, "aria-label": ariaLabel,
+}: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean; title?: string; "aria-label"?: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       onClick={() => onChange(!checked)}
-      className="ui-focus flex min-h-touch w-full items-center gap-3 rounded-ui-md text-left"
+      disabled={disabled}
+      title={title}
+      className="ui-focus flex min-h-touch w-full items-center gap-3 rounded-ui-md text-left disabled:opacity-50 disabled:cursor-not-allowed"
     >
       <span
         className={cn(

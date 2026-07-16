@@ -66,6 +66,10 @@ export async function sendMagicAuth(input: { email: string }): Promise<void> {
   await getWorkos().userManagement.createMagicAuth({ email: input.email });
 }
 
+export async function deleteWorkosUser(workosUserId: string): Promise<void> {
+  await getWorkos().userManagement.deleteUser(workosUserId);
+}
+
 export async function authenticateWithMagicAuth(input: { email: string; code: string }): Promise<Identity> {
   const { user } = await getWorkos().userManagement.authenticateWithMagicAuth({
     clientId: env.WORKOS_CLIENT_ID,

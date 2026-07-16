@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyPlanSource } from "../billing.js";
+import { classifyPlanSource, checkoutReturnUrls } from "../billing.js";
 
 const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
 const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -29,5 +29,21 @@ describe("classifyPlanSource (comp precedence: paid > comped > demo > free)", ()
 
   it("expired comp on a demo tenant → demo", () => {
     expect(classifyPlanSource({ plan: "free", compedUntil: past, hasDemoUser: true })).toBe("demo");
+  });
+});
+
+describe("checkoutReturnUrls", () => {
+  it("web: profile URLs (unchanged behavior)", () => {
+    expect(checkoutReturnUrls("https://app.example.com", false)).toEqual({
+      successUrl: "https://app.example.com/profile?upgraded=1",
+      cancelUrl: "https://app.example.com/profile",
+    });
+  });
+
+  it("native: universal-link billing page", () => {
+    expect(checkoutReturnUrls("https://app.example.com", true)).toEqual({
+      successUrl: "https://app.example.com/billing/success",
+      cancelUrl: "https://app.example.com/billing/success?canceled=1",
+    });
   });
 });

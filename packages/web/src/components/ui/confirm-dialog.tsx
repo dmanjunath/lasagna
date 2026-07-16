@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { hapticWarning } from '../../lib/haptics';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -42,6 +43,7 @@ export function ConfirmDialog({
   useEffect(() => {
     if (open) {
       setTyped('');
+      if (destructive) hapticWarning();
       previouslyFocused.current = document.activeElement as HTMLElement;
       // Focus the cancel button by default for destructive flows (safer).
       requestAnimationFrame(() => {

@@ -53,3 +53,21 @@ export function classifyPlanSource(row: {
   if (row.hasDemoUser) return "demo";
   return "free";
 }
+
+/**
+ * Checkout return URLs. Native (Capacitor) checkouts land on /billing/success —
+ * a universal link that reopens the app; web checkouts keep the original
+ * /profile round-trip.
+ */
+export function checkoutReturnUrls(appUrl: string, native: boolean): { successUrl: string; cancelUrl: string } {
+  if (native) {
+    return {
+      successUrl: `${appUrl}/billing/success`,
+      cancelUrl: `${appUrl}/billing/success?canceled=1`,
+    };
+  }
+  return {
+    successUrl: `${appUrl}/profile?upgraded=1`,
+    cancelUrl: `${appUrl}/profile`,
+  };
+}

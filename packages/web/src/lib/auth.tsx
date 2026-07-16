@@ -8,6 +8,7 @@ import {
 } from "react";
 import { api } from "./api.js";
 import { setNativeToken } from "./native.js";
+import { setPasskeyRegistered } from "./passkey-hint.js";
 
 interface User {
   id: string;
@@ -92,13 +93,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveAuthHint(next.user, next.tenant);
   }, []);
 
+  const fetchMe = useCallback(
+    ({ keepOnError = false }: { keepOnError?: boolean } = {}) =>
+      api
+        .me()
+        .then((data) => commitAuth({ user: data.user, tenant: data.tenant }))
+        .catch(() => {
+          // keepOnError: a transient failure (e.g. radio waking up on app
+          // resume) must not visually log the user out — keep current state.
+          // If the session genuinely expired, the next data fetch 401s and
+          // routes to login normally.
+          if (!keepOnError) commitAuth({ user: null, tenant: null });
+        }),
+    [commitAuth],
+  );
+
   useEffect(() => {
-    api
-      .me()
-      .then((data) => commitAuth({ user: data.user, tenant: data.tenant }))
-      .catch(() => commitAuth({ user: null, tenant: null }))
-      .finally(() => setLoading(false));
-  }, [commitAuth]);
+    fetchMe().finally(() => setLoading(false));
+  }, [fetchMe]);
+
+  // Native shell: refetch /me when the app returns to the foreground so changes
+  // made outside the WebView (e.g. Stripe checkout in a browser sheet) show up.
+  useEffect(() => {
+    const onResume = () => { void fetchMe({ keepOnError: true }); };
+    window.addEventListener("native:resume", onResume);
+    return () => window.removeEventListener("native:resume", onResume);
+  }, [fetchMe]);
 
   const login = useCallback(async (email: string, password: string): Promise<NeedsVerification | null> => {
     const data = (await api.login({ email, password })) as any;
@@ -116,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Same shape /login returns; cast like login() above (server omits notify prefs).
     const data = (await api.webauthnLoginVerify({ response })) as any;
     if (data.token) setNativeToken(data.token); // native shell: Bearer auth
+    setPasskeyRegistered(true); // this device can do passkey login — offer it next time
     commitAuth({ user: data.user, tenant: data.tenant });
   }, [commitAuth]);
 

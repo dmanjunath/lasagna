@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { AlertCircle, Fingerprint } from "lucide-react";
+import { AlertCircle, ScanFace } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
 import { api, API_BASE } from "../lib/api.js";
 import { isNativeApp } from "../lib/native.js";
+import { hasRegisteredPasskey } from "../lib/passkey-hint.js";
 import { Button, Input, Field } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 import { GoogleButton } from "../components/common/GoogleButton";
@@ -335,8 +336,10 @@ export function Login() {
                 />
               )}
               {/* Passkey sign-in is app-only: the shell pairs it with Face ID.
+                  Shown only once a passkey has been registered on this device
+                  (hasRegisteredPasskey) — a fresh install has none to use yet.
                   On mobile web the password + iCloud autofill flow covers it. */}
-              {!isSignup && isNativeApp() && typeof window !== "undefined" && !!window.PublicKeyCredential && (
+              {!isSignup && isNativeApp() && typeof window !== "undefined" && !!window.PublicKeyCredential && hasRegisteredPasskey() && (
                 <Button
                   type="button"
                   variant="secondary"
@@ -345,8 +348,8 @@ export function Login() {
                   disabled={loading}
                   onClick={handlePasskey}
                 >
-                  <Fingerprint className="h-4 w-4" />
-                  Sign in with Face ID / passkey
+                  <ScanFace className="h-4 w-4" />
+                  Sign in with Face ID
                 </Button>
               )}
             </>

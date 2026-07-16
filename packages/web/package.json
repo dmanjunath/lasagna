@@ -10,14 +10,22 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "cap:sync": "vite build && cap sync",
-    "cap:ios": "vite build && cap sync && cap open ios"
+    "cap:ios": "vite build && cap sync && cap open ios",
+    "ios:archive": "bash scripts/ios-archive.sh"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.136",
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/core": "^8.4.1",
+    "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.4.1",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/privacy-screen": "^2.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.2.8",

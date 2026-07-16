@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { BrandMark } from '../common/BrandMark';
+import { hapticLight, hapticMedium } from '../../lib/haptics';
+import { setPullState } from '../../lib/pull-store';
 
 const THRESHOLD = 64; // px of (dampened) pull that arms a refresh
 const MAX_PULL = 110;
@@ -7,9 +8,10 @@ const MAX_PULL = 110;
 /**
  * Pull-to-refresh for the mobile document-scroll shell. iOS has no native
  * web pull-to-refresh (and overscroll-behavior disables Android's), so this
- * owns the gesture: pulling down from the very top reveals the brand waves,
- * which bob while `onRefresh` runs — a soft refresh (the shell stays put;
- * only the page content remounts and refetches).
+ * owns the gesture: pulling down from the very top drags the page — and, via
+ * pull-store, yanks the top-nav brand mark down with it (AppHeader animates the
+ * real logo). A soft refresh: the shell stays put; only the page content
+ * remounts and refetches.
  *
  * Content is translated inside a wrapper div — the fixed header/tab bar are
  * siblings, so they stay put.
@@ -25,9 +27,19 @@ export function PullToRefresh({
 }) {
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [returning, setReturning] = useState(false); // springing the mark back up into the nav
   const startY = useRef<number | null>(null);
   const startX = useRef(0);
   const engaged = useRef(false);
+  const buzzed = useRef(false); // haptic fired for this pull's threshold crossing
+
+  // Mirror gesture state to the shared store so AppHeader's nav logo can be
+  // yanked down / sprung back. Reset to idle on unmount.
+  useEffect(() => {
+    const phase = refreshing ? 'refreshing' : returning ? 'returning' : pull > 0 ? 'pulling' : 'idle';
+    setPullState({ pull, phase });
+  }, [pull, refreshing, returning]);
+  useEffect(() => () => setPullState({ pull: 0, phase: 'idle' }), []);
 
   useEffect(() => {
     const onStart = (e: TouchEvent) => {
@@ -47,22 +59,32 @@ export function PullToRefresh({
         else return;
       }
       e.preventDefault(); // we own the gesture — stop rubber-band/scroll
-      setPull(Math.max(0, Math.min(MAX_PULL, dy * 0.45)));
+      const next = Math.max(0, Math.min(MAX_PULL, dy * 0.45));
+      if (next >= THRESHOLD && !buzzed.current) {
+        buzzed.current = true;
+        hapticLight();
+      }
+      setPull(next);
     };
     const onEnd = () => {
+      buzzed.current = false;
       if (startY.current === null) return;
       startY.current = null;
       if (!engaged.current) return;
       engaged.current = false;
       setPull((p) => {
         if (p >= THRESHOLD) {
+          hapticMedium();
           setRefreshing(true);
           onRefresh();
           // The remounted page shows its own skeletons; bob for a beat so the
-          // refresh feels acknowledged, then tuck the waves away.
+          // refresh feels acknowledged, then spring the mark back up into the
+          // nav (the "put it back" motion) before clearing.
           setTimeout(() => {
             setRefreshing(false);
+            setReturning(true);
             setPull(0);
+            setTimeout(() => setReturning(false), 420);
           }, 900);
           return THRESHOLD;
         }
@@ -82,33 +104,16 @@ export function PullToRefresh({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshing, onRefresh]);
 
-  const progress = Math.min(1, pull / THRESHOLD);
-
+  // The nav logo (AppHeader) is the pull indicator now — see pull-store. Here we
+  // just drag the page content down to open the gap the logo drops into.
   return (
-    <>
-      {/* Wave indicator — fades/scales in with the pull, bobs while refreshing. */}
-      <div
-        aria-hidden={pull === 0}
-        role="status"
-        aria-label={refreshing ? 'Refreshing' : undefined}
-        className="pointer-events-none fixed left-1/2 z-20 -translate-x-1/2"
-        style={{ top: `calc(${topOffset} + 6px)`, opacity: refreshing ? 1 : progress }}
-      >
-        <div
-          className={refreshing ? 'animate-p2r-bob' : undefined}
-          style={{ transform: refreshing ? undefined : `scale(${0.6 + progress * 0.4}) rotate(${progress * 20 - 20}deg)` }}
-        >
-          <BrandMark size={30} />
-        </div>
-      </div>
-      <div
-        style={{
-          transform: pull > 0 ? `translateY(${pull}px)` : undefined,
-          transition: startY.current === null && !refreshing ? 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
-        }}
-      >
-        {children}
-      </div>
-    </>
+    <div
+      style={{
+        transform: pull > 0 ? `translateY(${pull}px)` : undefined,
+        transition: startY.current === null && !refreshing ? 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
+      }}
+    >
+      {children}
+    </div>
   );
 }

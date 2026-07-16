@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "./api";
+import { isNativeApp } from "./native";
 
 export type BillingStatus = Awaited<ReturnType<typeof api.getBillingStatus>>;
 
@@ -14,17 +15,34 @@ export function useBilling() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // Native shell: checkout happens in an external browser sheet, so refetch
+  // the plan when the app comes back to the foreground.
+  useEffect(() => {
+    window.addEventListener("native:resume", refresh);
+    return () => window.removeEventListener("native:resume", refresh);
+  }, [refresh]);
+
   return { status, loading, refresh };
 }
 
-/** Redirect to Stripe Checkout. Throws if the API call fails (caller can toast). */
-export async function startUpgrade(): Promise<void> {
-  const { url } = await api.startCheckout();
-  if (url) window.location.href = url;
+/** Open a Stripe-hosted URL: browser sheet in the native shell, redirect on web. */
+async function openStripeUrl(url: string): Promise<void> {
+  if (isNativeApp()) {
+    const { Browser } = await import("@capacitor/browser"); // dynamic — keep plugin out of web chunks
+    await Browser.open({ url });
+  } else {
+    window.location.href = url;
+  }
 }
 
-/** Redirect to the Stripe Billing Portal. */
+/** Open Stripe Checkout. Throws if the API call fails (caller can toast). */
+export async function startUpgrade(): Promise<void> {
+  const { url } = await api.startCheckout(isNativeApp() ? { native: true } : undefined);
+  if (url) await openStripeUrl(url);
+}
+
+/** Open the Stripe Billing Portal. */
 export async function openPortal(): Promise<void> {
   const { url } = await api.openBillingPortal();
-  if (url) window.location.href = url;
+  if (url) await openStripeUrl(url);
 }

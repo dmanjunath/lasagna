@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Route, Switch, Redirect, useLocation } from 'wouter';
 import { AuthProvider, useAuth } from './lib/auth';
+import { isNativeApp } from './lib/native';
 import { ChatStoreProvider } from './lib/chat-store';
 import { PageContextProvider } from './lib/page-context';
 import { TaxonomyProvider } from './lib/taxonomy';
@@ -46,7 +47,14 @@ const Styleguide = lazy(() => import('./pages/_styleguide').then(m => ({ default
 const VerifyEmail = lazy(() => import('./pages/verify-email').then(m => ({ default: m.VerifyEmail })));
 const ForgotPassword = lazy(() => import('./pages/forgot-password').then(m => ({ default: m.ForgotPassword })));
 const ResetPassword = lazy(() => import('./pages/reset-password').then(m => ({ default: m.ResetPassword })));
+// Stripe checkout return page for the native app — public, works signed out
+// (a browser that didn't universal-link back into the app lands here).
+const BillingSuccess = lazy(() => import('./pages/billing-success'));
 const WelcomeConsent = lazy(() => import('./pages/welcome-consent').then(m => ({ default: m.WelcomeConsent })));
+
+// Biometric app-lock — native shell only; lazy so the Capacitor plugin stays
+// out of the web bundle.
+const BiometricLock = lazy(() => import('./components/native/BiometricLock'));
 
 // Unified pages
 const SimpleHome = lazy(() => import('./pages/simple-home').then(m => ({ default: m.SimpleHome })));
@@ -55,7 +63,16 @@ const ChatFullPage = lazy(() => import('./components/chat/chat-full-page').then(
 
 function AppRoutes() {
   const { user } = useAuth();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+
+  // Capacitor shell bootstrap — dynamic import so none of it ships in the web
+  // bundle; initNativeShell's own `initialized` flag makes StrictMode
+  // double-mount safe.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    import('./lib/native-shell').then((m) => m.initNativeShell(navigate)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Public design-system styleguide — no auth shell, no session required.
   if (location.startsWith('/_styleguide')) {
@@ -67,13 +84,14 @@ function AppRoutes() {
   }
 
   // Public auth pages — render logged out (email verification + password reset flows).
-  if (location.startsWith('/verify-email') || location.startsWith('/forgot-password') || location.startsWith('/reset-password')) {
+  if (location.startsWith('/verify-email') || location.startsWith('/forgot-password') || location.startsWith('/reset-password') || location.startsWith('/billing/success')) {
     return (
       <Suspense fallback={null}>
         <Switch>
           <Route path="/verify-email" component={VerifyEmail} />
           <Route path="/forgot-password" component={ForgotPassword} />
           <Route path="/reset-password" component={ResetPassword} />
+          <Route path="/billing/success" component={BillingSuccess} />
         </Switch>
       </Suspense>
     );
@@ -191,6 +209,12 @@ export function App() {
       <AuthProvider>
         <ConfirmProvider>
           <AppRoutes />
+          {/* Sibling of the routes so the lock covers every auth state, login included. */}
+          {isNativeApp() && (
+            <Suspense fallback={null}>
+              <BiometricLock />
+            </Suspense>
+          )}
         </ConfirmProvider>
       </AuthProvider>
     </ThemeProvider>

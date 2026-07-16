@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { Button, Eyebrow, EmptyState, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
+import { hapticSuccess } from '../lib/haptics';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -329,6 +330,7 @@ export function SavingsGoal() {
     setActionError(null);
     try {
       await api.updateGoal(goal.id, { status: 'completed' });
+      hapticSuccess();
       await load();
     } catch {
       setActionError('Could not update this goal. Please try again.');

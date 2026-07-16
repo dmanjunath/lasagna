@@ -1,6 +1,7 @@
 .DS_Store
 node_modules
 dist
+packages/web/ios/build/
 .env
 *.tsbuildinfo
 gcp-service-account.json

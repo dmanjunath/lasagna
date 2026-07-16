@@ -164,18 +164,39 @@ importers:
       '@ai-sdk/react':
         specifier: ^3.0.136
         version: 3.0.136(react@19.2.4)(zod@4.3.6)
+      '@aparajita/capacitor-biometric-auth':
+        specifier: ^10.0.0
+        version: 10.0.0
       '@capacitor/android':
         specifier: ^8.4.1
         version: 8.4.1(@capacitor/core@8.4.1)
       '@capacitor/app':
         specifier: ^8.1.0
         version: 8.1.0(@capacitor/core@8.4.1)
+      '@capacitor/browser':
+        specifier: ^8.0.3
+        version: 8.0.3(@capacitor/core@8.4.1)
       '@capacitor/core':
         specifier: ^8.4.1
         version: 8.4.1
+      '@capacitor/haptics':
+        specifier: ^8.0.2
+        version: 8.0.2(@capacitor/core@8.4.1)
       '@capacitor/ios':
         specifier: ^8.4.1
         version: 8.4.1(@capacitor/core@8.4.1)
+      '@capacitor/keyboard':
+        specifier: ^8.0.5
+        version: 8.0.5(@capacitor/core@8.4.1)
+      '@capacitor/privacy-screen':
+        specifier: ^2.0.1
+        version: 2.0.1(@capacitor/core@8.4.1)
+      '@capacitor/splash-screen':
+        specifier: ^8.0.1
+        version: 8.0.1(@capacitor/core@8.4.1)
+      '@capacitor/status-bar':
+        specifier: ^8.0.2
+        version: 8.0.2(@capacitor/core@8.4.1)
       '@radix-ui/react-progress':
         specifier: ^1.1.8
         version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -298,6 +319,10 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
+
+  '@aparajita/capacitor-biometric-auth@10.0.0':
+    resolution: {integrity: sha512-azjWaRucB8x1/gSzSTp/NxelaOZyg+m765gSzjwUkSQgg30RrZPmPq6pyLeeXVSZNDY3Rxf5Hj8obgZaXirCFQ==}
+    engines: {node: '>=20.0.0'}
 
   '@astrojs/check@0.9.8':
     resolution: {integrity: sha512-LDng8446QLS5ToKjRHd3bgUdirvemVVExV7nRyJfW2wV36xuv7vDxwy5NWN9zqeSEDgg0Tv84sP+T3yEq+Zlkw==}
@@ -440,6 +465,11 @@ packages:
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
+  '@capacitor/browser@8.0.3':
+    resolution: {integrity: sha512-WJWPHEPbweiFoHYmVlCbZf5yrqJ2Rchx2Xvbmd+3Lf+Zkpq3nXBThThY2CF69lYEg1NINGF9BcHThIOEU1gZlQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
   '@capacitor/cli@8.4.1':
     resolution: {integrity: sha512-t7F2s7fFHCq113xgrggrmK6ctV0/8E5YfLNVLfPHp4GCTDO+tly9fZvWPf2/sOI8lMm18dLT43qbXLRTz/OZgw==}
     engines: {node: '>=22.0.0'}
@@ -448,10 +478,35 @@ packages:
   '@capacitor/core@8.4.1':
     resolution: {integrity: sha512-xqhOGLbTAYeOWK+IDUNSjQJAPapQjRHrIcgk9PYp52or9zFTaaMko31uNi16N6W+CRJ8VrRram6fOYILkBG2Hg==}
 
+  '@capacitor/haptics@8.0.2':
+    resolution: {integrity: sha512-c2hZzRR5Fk1tbTvhG1jhh2XBAf3EhnIerMIb2sl7Mt41Gxx1fhBJFDa0/BI1IbY4loVepyyuqNC9820/GZuoWQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
   '@capacitor/ios@8.4.1':
     resolution: {integrity: sha512-EgcAk7NYheHMTyP3CUrA65qKs4D2UEAKgw44HI6Uk3dTw6KjLQkdLOQWvbeRncHaZ2gklfOojUoc5DlSw2lhYg==}
     peerDependencies:
       '@capacitor/core': ^8.4.0
+
+  '@capacitor/keyboard@8.0.5':
+    resolution: {integrity: sha512-oFXygC4eKYA5l2MdpTR06L2M/4x6e2SLD5yS1T9+UBDKTkzyvhWKEhbYLUaTIBPpLKqlfGudJw1X73S1H9eUzQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capacitor/privacy-screen@2.0.1':
+    resolution: {integrity: sha512-NDKXhf2tGMZu6JcVTDtwfUw0Y7BMBfcoinhxVqRhzHaBCO7HgXF7MRX2HLk0T+l4/2uzmRb3AvUKHiF4BW8drA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capacitor/splash-screen@8.0.1':
+    resolution: {integrity: sha512-c/ew/Z3eA7z8l06WoRAtzVF16VwYYrExmHmfGq1Cg675pVzaC/yuucB8/1xG1vhEfnW4fZ1KhSf/kzR1RiVYgg==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capacitor/status-bar@8.0.2':
+    resolution: {integrity: sha512-WXs8YB8B9eEaPZz+bcdY6t2nForF1FLoj/JU0Dl9RRgQnddnS98FEEyDooQhaY7wivr000j4+SC1FyeJkrFO7A==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
@@ -5736,6 +5791,13 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
+  '@aparajita/capacitor-biometric-auth@10.0.0':
+    dependencies:
+      '@capacitor/android': 8.4.1(@capacitor/core@8.4.1)
+      '@capacitor/app': 8.1.0(@capacitor/core@8.4.1)
+      '@capacitor/core': 8.4.1
+      '@capacitor/ios': 8.4.1(@capacitor/core@8.4.1)
+
   '@astrojs/check@0.9.8(prettier@3.8.3)(typescript@5.9.3)':
     dependencies:
       '@astrojs/language-server': 2.16.6(prettier@3.8.3)(typescript@5.9.3)
@@ -5959,6 +6021,10 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.4.1
 
+  '@capacitor/browser@8.0.3(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
   '@capacitor/cli@8.4.1':
     dependencies:
       '@ionic/cli-framework-output': 2.2.8
@@ -5985,7 +6051,27 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@capacitor/haptics@8.0.2(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
   '@capacitor/ios@8.4.1(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
+  '@capacitor/keyboard@8.0.5(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
+  '@capacitor/privacy-screen@2.0.1(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
+  '@capacitor/splash-screen@8.0.1(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
+  '@capacitor/status-bar@8.0.2(@capacitor/core@8.4.1)':
     dependencies:
       '@capacitor/core': 8.4.1
 
