@@ -134,7 +134,7 @@ Ask anything about your finances in plain English. 12 specialized financial tool
 | Auth | Custom JWT (bcrypt + sessions) |
 | AI | OpenRouter (model-agnostic) |
 | Banking | Plaid API |
-| Deployment | Docker, GCP Cloud Run, Cloudflare Pages |
+| Deployment | Docker |
 
 ---
 
@@ -209,31 +209,6 @@ pnpm typecheck       # type-check everything
 pnpm lint            # lint
 pnpm --filter @lasagna/core test   # unit tests
 ```
-
----
-
-## Deployments
-
-This repo powers three separate deployments:
-
-| URL | Package | Description |
-|-----|---------|-------------|
-| `lasagnafi.com` | `packages/landing` | Marketing landing page (Astro) |
-| `app.lasagnafi.com` | `packages/web` | Hosted app |
-| `demo.lasagnafi.com` | `packages/web` | Read-only demo (set `VITE_DEMO_MODE=true`) |
-
-**Cloudflare Pages configuration:**
-Each deployment is a separate Cloudflare Pages project pointing to the same GitHub repo, with different build settings:
-
-| Deployment | Build command | Output dir | Env vars |
-|---|---|---|---|
-| `lasagnafi.com` | `pnpm --filter @lasagna/landing build` | `packages/landing/dist` | `PUBLIC_VIDEO_URL` (optional) |
-| `app.lasagnafi.com` | `pnpm --filter @lasagna/web build` | `packages/web/dist` | standard |
-| `demo.lasagnafi.com` | `pnpm --filter @lasagna/web build` | `packages/web/dist` | `VITE_DEMO_MODE=true` |
-
-**Demo user:** Run `pnpm db:seed-demo` to create `demo@lasagnafi.com` / `lasagna123`.
-
-**Production API CORS:** Set `CORS_ORIGIN=https://app.lasagnafi.com,https://demo.lasagnafi.com`.
 
 ---
 
