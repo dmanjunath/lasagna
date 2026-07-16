@@ -112,12 +112,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchMe().finally(() => setLoading(false));
   }, [fetchMe]);
 
-  // Native shell: refetch /me when the app returns to the foreground so changes
-  // made outside the WebView (e.g. Stripe checkout in a browser sheet) show up.
+  // Native shell: refetch /me when the app returns to the foreground, or when
+  // the in-app browser sheet closes (Stripe checkout/portal) — so a plan change
+  // made outside the WebView shows up (tenant.plan gates model access etc.).
   useEffect(() => {
-    const onResume = () => { void fetchMe({ keepOnError: true }); };
-    window.addEventListener("native:resume", onResume);
-    return () => window.removeEventListener("native:resume", onResume);
+    const onRefresh = () => { void fetchMe({ keepOnError: true }); };
+    window.addEventListener("native:resume", onRefresh);
+    window.addEventListener("native:browser-closed", onRefresh);
+    return () => {
+      window.removeEventListener("native:resume", onRefresh);
+      window.removeEventListener("native:browser-closed", onRefresh);
+    };
   }, [fetchMe]);
 
   const login = useCallback(async (email: string, password: string): Promise<NeedsVerification | null> => {

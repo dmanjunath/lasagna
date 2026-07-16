@@ -494,8 +494,8 @@ export const api = {
   startCheckout: (opts?: { native?: boolean }) =>
     request<{ url: string }>("/billing/checkout", { method: "POST", body: JSON.stringify(opts ?? {}) }),
 
-  openBillingPortal: () =>
-    request<{ url: string }>("/billing/portal", { method: "POST" }),
+  openBillingPortal: (opts?: { native?: boolean }) =>
+    request<{ url: string }>("/billing/portal", { method: "POST", body: JSON.stringify(opts ?? {}) }),
 
   // Admin (operator only — endpoints 403 for non-admin sessions)
   adminGetUsers: () =>

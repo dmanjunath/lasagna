@@ -80,6 +80,7 @@ billingRoutes.post("/checkout", async (c) => {
 billingRoutes.post("/portal", async (c) => {
   const session = c.get("session");
   if (!env.STRIPE_SECRET_KEY) return c.json({ error: "Billing is not configured" }, 503);
+  const { native } = await c.req.json<{ native?: boolean }>().catch(() => ({ native: false }));
 
   const tenant = await db.query.tenants.findFirst({
     where: eq(tenants.id, session.tenantId),
@@ -90,7 +91,10 @@ billingRoutes.post("/portal", async (c) => {
   try {
     const portal = await getStripe().billingPortal.sessions.create({
       customer: tenant.stripeCustomerId,
-      return_url: `${env.APP_URL}/profile`,
+      // Native returns to the public /billing/success page (a universal link
+      // with no cookie session), not /profile which would render logged-out
+      // inside the sheet. The sheet-close event refreshes the plan regardless.
+      return_url: native === true ? `${env.APP_URL}/billing/success` : `${env.APP_URL}/profile`,
     });
     return c.json({ url: portal.url });
   } catch (e) {

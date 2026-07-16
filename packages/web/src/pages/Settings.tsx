@@ -1046,6 +1046,9 @@ function PlanCard() {
       await startUpgrade();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start upgrade");
+    } finally {
+      // On native, startUpgrade resolves once the browser sheet is presented (the
+      // page stays mounted), so always reset — otherwise the button stays stuck.
       setUpgrading(false);
     }
   };
@@ -1057,6 +1060,7 @@ function PlanCard() {
       await openPortal();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to open billing portal");
+    } finally {
       setManaging(false);
     }
   };

@@ -47,6 +47,13 @@ export async function initNativeShell(navigate: (to: string) => void): Promise<v
     window.dispatchEvent(new Event(isActive ? 'native:resume' : 'native:background'));
   });
 
+  // The in-app browser sheet (Stripe Checkout / portal) does NOT resign the app's
+  // active state, so appStateChange never fires when it closes. browserFinished
+  // is the signal that the user dismissed the sheet — refresh the plan then.
+  Browser.addListener('browserFinished', () => {
+    window.dispatchEvent(new Event('native:browser-closed'));
+  }).catch(() => {});
+
   syncStatusBar();
   new MutationObserver(syncStatusBar).observe(document.documentElement, {
     attributes: true,
