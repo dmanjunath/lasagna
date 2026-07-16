@@ -407,6 +407,17 @@ export function LayerHomeScreen({
     if (card) el.scrollTo({ left: card.offsetLeft, behavior: 'smooth' });
   }, []);
 
+  // Computed before the early return below so hook order stays stable across
+  // renders (rules-of-hooks) — depends only on spendingCategories.
+  const spendCatsForDonut = useMemo(() =>
+    (spendingCategories || []).map(c => ({
+      name: c.name,
+      total: c.total,
+      color: CAT_COLORS[c.systemKey ?? ''] || '#7A5C3F',
+    })),
+    [spendingCategories]
+  );
+
   if (!primaryLayer) {
     return (
       <div style={{ padding: 'clamp(16px, 4vw, 40px)', maxWidth: 1200, margin: '0 auto' }}>
@@ -451,16 +462,6 @@ export function LayerHomeScreen({
   const nwChangePct = (netWorthChange !== null && netWorthChange !== undefined && netWorth != null && netWorth !== 0)
     ? ` · ${nwChangeSign}${((netWorthChange / Math.abs(netWorth - netWorthChange)) * 100).toFixed(1)}% MoM`
     : '';
-
-  // Monthly spend helpers
-  const spendCatsForDonut = useMemo(() =>
-    (spendingCategories || []).map(c => ({
-      name: c.name,
-      total: c.total,
-      color: CAT_COLORS[c.systemKey ?? ''] || '#7A5C3F',
-    })),
-    [spendingCategories]
-  );
 
   return (
     <div style={{ padding: 'clamp(16px, 4vw, 40px)', paddingBottom: 'clamp(80px, 10vw, 48px)', maxWidth: 1200, margin: '0 auto' }}>

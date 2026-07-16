@@ -337,7 +337,7 @@ export function useGlobalChat() {
     };
 
     setTimeout(doSend, 200);
-  }, [pendingMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendingMessage]);
 
   // Load existing threads from API on mount
   useEffect(() => {
