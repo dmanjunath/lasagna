@@ -655,6 +655,13 @@ export const api = {
       }>;
     }>("/portfolio/composition"),
 
+  getPortfolioSymbolAccounts: (symbol: string) =>
+    request<{
+      symbol: string;
+      totalValue: number;
+      accounts: Array<{ account: string; shares: number; value: number; percentage: number }>;
+    }>(`/portfolio/holdings/${encodeURIComponent(symbol)}/accounts`),
+
   getPortfolioAllocation: () =>
     request<{
       allocation: {

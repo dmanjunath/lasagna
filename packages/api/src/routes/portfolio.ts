@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, desc, inArray, and, sql, holdings, securities, accounts, balanceSnapshots } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
-import { aggregatePortfolio, extractAllocation, type HoldingInput } from "../services/portfolio-aggregator.js";
+import { aggregatePortfolio, extractAllocation, symbolAccountBreakdown, type HoldingInput } from "../services/portfolio-aggregator.js";
 
 export const portfolioRoutes = new Hono<AuthEnv>();
 
@@ -14,6 +14,17 @@ portfolioRoutes.get("/composition", async (c) => {
   const composition = aggregatePortfolio(holdingsInput);
 
   return c.json(composition);
+});
+
+// Per-symbol account breakdown — which account(s) hold a given symbol, and how
+// much in each. Reuses the same tenant-scoped holdings the composition chart is
+// built from, so per-account numbers reconcile to that symbol's chart total.
+portfolioRoutes.get("/holdings/:symbol/accounts", async (c) => {
+  const session = c.get("session");
+  const symbol = decodeURIComponent(c.req.param("symbol"));
+
+  const holdingsInput = await getHoldingsInput(session.tenantId);
+  return c.json(symbolAccountBreakdown(holdingsInput, symbol));
 });
 
 // Get holdings with security and account details (used by portfolio routes + chat tools)

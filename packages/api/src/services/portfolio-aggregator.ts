@@ -105,6 +105,48 @@ export function aggregatePortfolio(holdings: HoldingInput[]): PortfolioCompositi
   return { totalValue, assetClasses };
 }
 
+export interface SymbolAccount {
+  account: string;
+  shares: number;
+  value: number;
+  percentage: number;
+}
+
+export interface SymbolAccountBreakdown {
+  symbol: string;
+  totalValue: number;
+  accounts: SymbolAccount[];
+}
+
+/**
+ * Group every holding of `symbol` by account — which account(s) hold it, and
+ * how much (shares + value) in each. A symbol appears at most once per account
+ * from real holdings, but synthetic cash / assumed-split rows can repeat a
+ * ticker within one account, so values are summed per account. Per-account
+ * values reconcile exactly to `totalValue` (the symbol's chart total).
+ */
+export function symbolAccountBreakdown(holdings: HoldingInput[], symbol: string): SymbolAccountBreakdown {
+  const matches = holdings.filter((h) => h.ticker === symbol);
+  const total = matches.reduce((s, h) => s + h.value, 0);
+
+  const byAccount = new Map<string, SymbolAccount>();
+  for (const h of matches) {
+    const existing = byAccount.get(h.account);
+    if (existing) {
+      existing.shares += h.shares;
+      existing.value += h.value;
+    } else {
+      byAccount.set(h.account, { account: h.account, shares: h.shares, value: h.value, percentage: 0 });
+    }
+  }
+
+  const accounts = Array.from(byAccount.values())
+    .map((a) => ({ ...a, percentage: total > 0 ? (a.value / total) * 100 : 0 }))
+    .sort((a, b) => b.value - a.value);
+
+  return { symbol, totalValue: total, accounts };
+}
+
 /**
  * Extract allocation percentages for simulation
  */

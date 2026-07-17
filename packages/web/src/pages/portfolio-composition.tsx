@@ -320,6 +320,118 @@ function TickerIcon({ ticker }: { ticker: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Holdings ledger row — click to expand a per-account breakdown of this symbol
+// (which accounts hold it, with shares + value + % of the symbol's total). The
+// breakdown is fetched lazily from /portfolio/holdings/:symbol/accounts and its
+// per-account values reconcile to the symbol total shown in the row.
+// ---------------------------------------------------------------------------
+
+function HoldingLedgerRow({ h }: { h: HoldingRow }) {
+  const [open, setOpen] = useState(false);
+  const [accounts, setAccounts] = useState<
+    Array<{ account: string; shares: number; value: number; percentage: number }> | null
+  >(null);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && accounts === null && !loadingAccounts) {
+      setLoadingAccounts(true);
+      api
+        .getPortfolioSymbolAccounts(h.ticker)
+        .then((res) => setAccounts(res.accounts))
+        .catch(() => setAccounts([]))
+        .finally(() => setLoadingAccounts(false));
+    }
+  };
+
+  const isOther = /^other$/i.test(h.assetClass.trim());
+  const classLabel = isOther && h.category ? h.category : h.assetClass;
+  const account = cleanAccountLabel(h.accountLabel);
+  const meta = `${classLabel}${account ? ` · ${account}` : ''}`;
+
+  return (
+    <div className="overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm transition-[box-shadow] hover:shadow-ui-md">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="ui-focus flex w-full items-center gap-3.5 px-4 py-3 text-left sm:px-5"
+      >
+        <TickerIcon ticker={h.ticker} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[14.5px] font-bold leading-tight ui-tnum" title={h.ticker}>{h.ticker}</div>
+          <div className="mt-0.5 truncate text-[12.5px] text-content-muted" title={meta}>{meta}</div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
+            {formatMoney(h.totalValue, true)}
+          </div>
+          <div className="mt-0.5 text-[12px] font-medium text-content-muted ui-tnum">
+            {h.percentage.toFixed(1)}%
+            {h.historicalReturn !== null && (
+              <>
+                {'  ·  '}
+                <span className={cn('font-semibold', h.historicalReturn >= 0 ? 'text-positive' : 'text-negative')}>
+                  {h.historicalReturn >= 0 ? '+' : '−'}{Math.abs(h.historicalReturn).toFixed(1)}%
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        <ChevronDown
+          size={16}
+          className={cn('shrink-0 text-content-muted transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
+      </button>
+
+      {open && (
+        <div className="border-t border-line bg-canvas-sunken/40 px-4 py-2.5 sm:px-5">
+          <div className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+            Held in {h.holdings.length} account{h.holdings.length === 1 ? '' : 's'}
+          </div>
+          {loadingAccounts && accounts === null ? (
+            <div className="space-y-1.5 py-1">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : accounts && accounts.length > 0 ? (
+            <div className="divide-y divide-line/70">
+              {accounts.map((a) => (
+                <div key={a.account} className="flex items-center gap-3 py-1.5">
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-content" title={a.account}>
+                    {cleanAccountLabel(a.account)}
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
+                    <span className="text-[12px] text-content-muted">{formatShares(a.shares)} sh</span>
+                    <span className="ml-3 text-[13px] font-bold text-content">{formatMoney(a.value, true)}</span>
+                    <span className="ml-2 text-[12px] font-semibold text-content-muted">{fmtPct(a.percentage)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-1 text-[12.5px] text-content-muted">No account breakdown available.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Compact share-count formatter for the per-account breakdown. Synthetic cash /
+// assumed-split rows carry dollar amounts as "shares", so keep it terse.
+function formatShares(n: number): string {
+  if (!Number.isFinite(n)) return '0';
+  const abs = Math.abs(n);
+  if (abs >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (abs === 0 || Number.isInteger(n)) return String(n);
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+// ---------------------------------------------------------------------------
 // Account filter dropdown
 // ---------------------------------------------------------------------------
 
@@ -1071,41 +1183,10 @@ export default function PortfolioComposition() {
             No holdings match the current filter.
           </div>
         ) : (
-          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {holdingsByTicker.map((h) => {
-              const isOther = /^other$/i.test(h.assetClass.trim());
-              const classLabel = isOther && h.category ? h.category : h.assetClass;
-              const account = cleanAccountLabel(h.accountLabel);
-              const meta = `${classLabel}${account ? ` · ${account}` : ''}`;
-              return (
-                <div
-                  key={h.ticker}
-                  className="flex items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3 shadow-ui-sm transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md sm:px-5"
-                >
-                  <TickerIcon ticker={h.ticker} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14.5px] font-bold leading-tight ui-tnum" title={h.ticker}>{h.ticker}</div>
-                    <div className="mt-0.5 truncate text-[12.5px] text-content-muted" title={meta}>{meta}</div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
-                      {formatMoney(h.totalValue, true)}
-                    </div>
-                    <div className="mt-0.5 text-[12px] font-medium text-content-muted ui-tnum">
-                      {h.percentage.toFixed(1)}%
-                      {h.historicalReturn !== null && (
-                        <>
-                          {'  ·  '}
-                          <span className={cn('font-semibold', h.historicalReturn >= 0 ? 'text-positive' : 'text-negative')}>
-                            {h.historicalReturn >= 0 ? '+' : '−'}{Math.abs(h.historicalReturn).toFixed(1)}%
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="mt-3 grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+            {holdingsByTicker.map((h) => (
+              <HoldingLedgerRow key={h.ticker} h={h} />
+            ))}
           </div>
         )}
       </section>

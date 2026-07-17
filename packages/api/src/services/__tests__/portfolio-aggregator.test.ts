@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregatePortfolio } from '../portfolio-aggregator';
+import { aggregatePortfolio, symbolAccountBreakdown } from '../portfolio-aggregator';
 
 describe('portfolio-aggregator', () => {
   describe('aggregatePortfolio', () => {
@@ -79,6 +79,60 @@ describe('portfolio-aggregator', () => {
       expect(sumAcrossClasses).toBe(75000);
       expect(result.assetClasses.find(a => a.name === 'US Stocks')!.value).toBe(70000);
       expect(result.assetClasses.find(a => a.name === 'Other')!.value).toBe(5000);
+    });
+  });
+
+  describe('symbolAccountBreakdown', () => {
+    const holdings = [
+      { ticker: 'VTI', value: 60000, shares: 200, name: 'VTI', account: 'Vanguard IRA', costBasis: null },
+      { ticker: 'VTI', value: 40000, shares: 130, name: 'VTI', account: 'Fidelity 401k', costBasis: null },
+      { ticker: 'BND', value: 20000, shares: 250, name: 'BND', account: 'Vanguard IRA', costBasis: null },
+    ];
+
+    it('lists every account holding the symbol, sorted by value desc', () => {
+      const result = symbolAccountBreakdown(holdings, 'VTI');
+
+      expect(result.symbol).toBe('VTI');
+      expect(result.accounts.map(a => a.account)).toEqual(['Vanguard IRA', 'Fidelity 401k']);
+      expect(result.accounts[0].shares).toBe(200);
+      expect(result.accounts[1].value).toBe(40000);
+    });
+
+    it('per-account values reconcile exactly to the symbol total across accounts', () => {
+      const result = symbolAccountBreakdown(holdings, 'VTI');
+
+      expect(result.totalValue).toBe(100000);
+      const sum = result.accounts.reduce((s, a) => s + a.value, 0);
+      expect(sum).toBe(result.totalValue);
+      const pctSum = result.accounts.reduce((s, a) => s + a.percentage, 0);
+      expect(pctSum).toBeCloseTo(100, 6);
+      expect(result.accounts[0].percentage).toBe(60);
+    });
+
+    it('handles the single-account case cleanly', () => {
+      const result = symbolAccountBreakdown(holdings, 'BND');
+      expect(result.accounts.length).toBe(1);
+      expect(result.accounts[0].account).toBe('Vanguard IRA');
+      expect(result.accounts[0].percentage).toBe(100);
+      expect(result.totalValue).toBe(20000);
+    });
+
+    it('sums repeated rows of the same symbol within one account', () => {
+      const withSynthetic = [
+        { ticker: 'VTI', value: 60000, shares: 200, name: 'VTI', account: 'Brokerage', costBasis: null },
+        { ticker: 'VTI', value: 15000, shares: 15000, name: 'Brokerage (assumed 60% US Stocks)', account: 'Brokerage', costBasis: null },
+      ];
+      const result = symbolAccountBreakdown(withSynthetic, 'VTI');
+      expect(result.accounts.length).toBe(1);
+      expect(result.accounts[0].value).toBe(75000);
+      expect(result.accounts[0].shares).toBe(15200);
+      expect(result.totalValue).toBe(75000);
+    });
+
+    it('returns an empty breakdown for a symbol with no holdings', () => {
+      const result = symbolAccountBreakdown(holdings, 'NVDA');
+      expect(result.totalValue).toBe(0);
+      expect(result.accounts).toEqual([]);
     });
   });
 });
