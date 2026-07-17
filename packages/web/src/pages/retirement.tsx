@@ -18,7 +18,7 @@ const fmtBig = (v: number) =>
   v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
   : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M`
   : formatMoney(v, true);
-import { Button, EmptyState, Skeleton, SegmentedControl } from '../components/uikit';
+import { Button, EmptyState, Skeleton, SegmentedControl, Slider } from '../components/uikit';
 
 // ── MC constants ─────────────────────────────────────────────────────────────
 const HISTORICAL_RETURNS: Record<string, number> = {
@@ -1083,12 +1083,13 @@ function SimulateView({
                   setMonthlySpend(clamped);
                   setMonthlySpendStr(String(clamped));
                 }}
-                style={{ width: 100, textAlign: 'right', border: '1px solid var(--ui-line)', borderRadius: 6, padding: '2px 6px', fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-brand-ink))', fontWeight: 600, background: 'transparent' }}
+                style={{ width: 104, textAlign: 'right', border: '1px solid var(--ui-line)', borderRadius: 'var(--ui-r-sm)', padding: '4px 9px', fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-brand-ink))', fontWeight: 600, background: 'rgb(var(--ui-canvas-sunken))' }}
               />
             </div>
-            <input type="range" min={2000} max={20000} step={500} value={monthlySpend}
-              onChange={e => setMonthlySpend(+e.target.value)}
-              className="ret-slider" />
+            <Slider min={2000} max={20000} step={100} value={monthlySpend}
+              onValueChange={setMonthlySpend}
+              formatBubble={v => `$${v.toLocaleString('en-US')}`}
+              aria-label="Monthly spending" />
             <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 4 }}>
               annual withdrawal ≈ {formatMoney(monthlySpend * 12, true)}
             </div>
@@ -1180,13 +1181,15 @@ function SimulateView({
                     updateAlloc(k, clamped);
                     setAllocStrs(prev => ({ ...prev, [k]: String(clamped) }));
                   }}
-                  style={{ width: 44, textAlign: 'right', border: '1px solid var(--ui-line)', borderRadius: 6, padding: '2px 4px', fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 600, color: 'rgb(var(--ui-content))', background: 'transparent' }}
+                  style={{ width: 52, textAlign: 'right', border: '1px solid var(--ui-line)', borderRadius: 'var(--ui-r-sm)', padding: '4px 8px', fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 600, color: 'rgb(var(--ui-content))', background: 'rgb(var(--ui-canvas-sunken))' }}
                 />
               </div>
-              <input type="range" min={0} max={100} step={5}
+              <Slider min={0} max={100} step={5}
                 value={mcAlloc[k as keyof typeof mcAlloc]}
-                onChange={e => updateAlloc(k, +e.target.value)}
-                className="ret-slider" />
+                onValueChange={v => updateAlloc(k, v)}
+                tone={allocTotal > 100 ? 'caution' : 'brand'}
+                formatBubble={v => `${v}%`}
+                aria-label={MC_LABELS[k]} />
               <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 3 }}>
                 {MC_RETURNS[k]}% avg · hist.
               </div>
@@ -1676,9 +1679,10 @@ export function Retirement() {
                 className="ret-slider-input ui-tnum"
               />
             </div>
-            <input type="range" min={currentAge} max={100} step={1} value={retirementAge}
-              onChange={e => setRetirementAge(+e.target.value)}
-              className="ret-slider" />
+            <Slider min={currentAge} max={100} step={1} value={retirementAge}
+              onValueChange={setRetirementAge}
+              formatBubble={v => `${v}`}
+              aria-label="Retirement age" />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
               <span className="text-[11px] font-semibold text-content-muted ui-tnum">{currentAge}</span>
               <span className="text-[11px] font-semibold text-content-muted ui-tnum">100</span>
@@ -1703,9 +1707,10 @@ export function Retirement() {
                 className="ret-slider-input ui-tnum"
               />
             </div>
-            <input type="range" min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
-              onChange={e => setLifeExpectancy(+e.target.value)}
-              className="ret-slider" />
+            <Slider min={retirementAge + 1} max={120} step={1} value={lifeExpectancy}
+              onValueChange={setLifeExpectancy}
+              formatBubble={v => `${v}`}
+              aria-label="Life expectancy" />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
               <span className="text-[11px] font-semibold text-content-muted ui-tnum">{retirementAge + 1}</span>
               <span className="text-[11px] font-semibold text-content-muted ui-tnum">120</span>
@@ -1741,9 +1746,10 @@ export function Retirement() {
                   style={{ width: 96 }}
                 />
               </div>
-              <input type="range" min={2000} max={20000} step={500} value={monthlyRetirementSpend}
-                onChange={e => setMonthlyRetirementSpend(+e.target.value)}
-                className="ret-slider" />
+              <Slider min={2000} max={20000} step={100} value={monthlyRetirementSpend}
+                onValueChange={setMonthlyRetirementSpend}
+                formatBubble={v => `$${v.toLocaleString('en-US')}`}
+                aria-label="Monthly spending" />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                 <span className="text-[11px] font-semibold text-content-muted ui-tnum">$2k</span>
                 <span className="text-[11px] font-semibold text-content-muted ui-tnum">$20k</span>
@@ -1841,67 +1847,23 @@ export function Retirement() {
           font-weight: 500;
         }
         .ret-slider-input {
-          width: 64px;
+          width: 68px;
           text-align: right;
           border: 1px solid var(--ui-line);
-          border-radius: 6px;
-          padding: 2px 6px;
+          border-radius: var(--ui-r-sm);
+          padding: 4px 9px;
           font-variant-numeric: tabular-nums;
           font-size: 13px;
           /* Typed value reads as content (the user's choice), not a CTA. */
           color: rgb(var(--ui-content));
           font-weight: 600;
-          background: transparent;
+          background: rgb(var(--ui-canvas-sunken));
+          transition: border-color var(--ui-dur-fast) var(--ui-ease-soft), box-shadow var(--ui-dur-fast) var(--ui-ease-soft);
         }
-        /* Iter 4: decouple slider track fill from brand sauce so the slider
-           stops reading as a data fill. Thumb stays sauce (carries the "you
-           are here" signal); the track is a neutral ink/12% rail. We can't
-           split thumb-vs-track with the native accentColor property, so we
-           hand-roll the appearance. */
-        .ret-slider {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 100%;
-          height: 4px;
-          border-radius: 999px;
-          background: var(--ui-line);
+        .ret-slider-input:focus-visible {
           outline: none;
-          margin: 8px 0;
-          cursor: pointer;
-        }
-        .ret-slider::-webkit-slider-runnable-track {
-          height: 4px;
-          background: transparent;
-          border-radius: 999px;
-        }
-        .ret-slider::-moz-range-track {
-          height: 4px;
-          background: var(--ui-line);
-          border-radius: 999px;
-        }
-        .ret-slider::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: rgb(var(--ui-brand));
-          border: 2px solid rgb(var(--ui-panel));
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-          margin-top: -6px;
-          cursor: pointer;
-        }
-        .ret-slider::-moz-range-thumb {
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: rgb(var(--ui-brand));
-          border: 2px solid rgb(var(--ui-panel));
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-          cursor: pointer;
-        }
-        .ret-slider:focus-visible::-webkit-slider-thumb {
-          box-shadow: 0 0 0 4px var(--ui-brand-ring);
+          border-color: rgb(var(--ui-brand));
+          box-shadow: 0 0 0 3px var(--ui-brand-ring);
         }
         /* Only own the bottom gap — leave margin-top to the element's mt-6
            utility (24px). Setting margin:0 here used to zero that top gap, so

@@ -206,6 +206,143 @@
   box-shadow: 0 0 0 2px rgb(var(--ui-canvas)), 0 0 0 4px var(--ui-brand-ring);
 }
 
+/* ── Slider (themed native range input) ──────────────────────────────────────
+   Filled/unfilled track is driven by --slider-p (a unitless 0–100 the JS sets
+   from value/min/max). The fill uses the brand accent; the thumb carries the
+   "you are here" signal. Hover/active grow the thumb + add a soft halo;
+   focus-visible gets the DS ring. --slider-accent lets the caution variant recolour
+   fill + thumb in one place. A bubble floats above the thumb on drag/focus.
+   Fill edge + bubble are both inset by half the thumb so they track the thumb
+   centre (native ranges keep the thumb inside the track at the extremes). */
+.ui-slider {
+  --slider-p: 0;
+  --slider-thumb: 18px;
+  --slider-accent: var(--ui-brand);
+  --slider-halo: var(--ui-brand-ring);
+  /* Thumb-centre position across the usable track (half-thumb inset each end). */
+  --slider-pos: calc(var(--slider-thumb) / 2 + (100% - var(--slider-thumb)) * var(--slider-p) / 100);
+  position: relative;
+  padding: 6px 0;
+}
+.ui-slider--caution {
+  --slider-accent: var(--ui-caution);
+  --slider-halo: var(--ui-caution-soft);
+}
+.ui-slider__input {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  /* Filled portion left of the thumb, neutral rail to the right. */
+  background: linear-gradient(
+    to right,
+    rgb(var(--slider-accent)) 0%,
+    rgb(var(--slider-accent)) var(--slider-pos),
+    rgb(var(--ui-canvas-sunken)) var(--slider-pos),
+    rgb(var(--ui-canvas-sunken)) 100%
+  );
+  border: 1px solid var(--ui-line);
+  outline: none;
+  cursor: pointer;
+  touch-action: none;
+  transition: background var(--ui-dur-fast) linear;
+}
+.ui-slider__input::-webkit-slider-runnable-track {
+  height: 6px;
+  background: transparent;
+  border-radius: 999px;
+}
+.ui-slider__input::-moz-range-track {
+  height: 6px;
+  background: transparent;
+  border-radius: 999px;
+}
+.ui-slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(var(--slider-accent));
+  border: 2px solid rgb(var(--ui-panel));
+  box-shadow: var(--ui-shadow-sm);
+  /* Centre the 18px thumb on the 6px track (+2px border top/bottom on track). */
+  margin-top: -7px;
+  cursor: grab;
+  transition: transform var(--ui-dur-fast) var(--ui-ease-soft),
+    box-shadow var(--ui-dur-fast) var(--ui-ease-soft);
+}
+.ui-slider__input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(var(--slider-accent));
+  border: 2px solid rgb(var(--ui-panel));
+  box-shadow: var(--ui-shadow-sm);
+  cursor: grab;
+  transition: transform var(--ui-dur-fast) var(--ui-ease-soft),
+    box-shadow var(--ui-dur-fast) var(--ui-ease-soft);
+}
+.ui-slider__input:hover::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow: var(--ui-shadow-sm), 0 0 0 6px var(--slider-halo);
+}
+.ui-slider__input:hover::-moz-range-thumb {
+  transform: scale(1.12);
+  box-shadow: var(--ui-shadow-sm), 0 0 0 6px var(--slider-halo);
+}
+.ui-slider__input:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+  cursor: grabbing;
+  box-shadow: var(--ui-shadow-sm), 0 0 0 8px var(--slider-halo);
+}
+.ui-slider__input:active::-moz-range-thumb {
+  transform: scale(1.18);
+  cursor: grabbing;
+  box-shadow: var(--ui-shadow-sm), 0 0 0 8px var(--slider-halo);
+}
+.ui-slider__input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px rgb(var(--ui-panel)), 0 0 0 4px var(--slider-halo);
+}
+.ui-slider__input:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 2px rgb(var(--ui-panel)), 0 0 0 4px var(--slider-halo);
+}
+/* Live value bubble on the thumb (drag / keyboard focus). Positioned by the
+   same fill %; translate keeps it centred over the thumb and inside the rail. */
+.ui-slider__bubble {
+  position: absolute;
+  left: var(--slider-pos);
+  bottom: calc(100% - 2px);
+  transform: translate(-50%, 4px);
+  padding: 3px 8px;
+  border-radius: var(--ui-r-sm);
+  background: rgb(var(--slider-accent));
+  color: rgb(var(--ui-brand-fg));
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: var(--ui-shadow-md);
+  transition: opacity var(--ui-dur-fast) var(--ui-ease-soft),
+    transform var(--ui-dur-fast) var(--ui-ease-soft);
+}
+.ui-slider__bubble.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+/* Caution bubble text: the caution token is a *dark* deep-amber in light mode
+   (light text reads) but a *bright* amber in dark mode (dark text reads). */
+.ui-slider--caution .ui-slider__bubble {
+  color: #fff;
+}
+.dark .ui-slider--caution .ui-slider__bubble {
+  color: rgb(var(--ui-canvas));
+}
+
 /* Skeleton shimmer. */
 @keyframes ui-shimmer {
   100% { transform: translateX(100%); }

@@ -14,6 +14,8 @@ export type { DeltaDirection } from './Stat';
 export { PageHeader, Section, Eyebrow } from './Section';
 export { SegmentedControl } from './SegmentedControl';
 export type { SegmentOption } from './SegmentedControl';
+export { Slider } from './Slider';
+export type { SliderProps } from './Slider';
 export { Table, THead, TBody, TR, TH, TD, CellStack } from './Table';
 export { EmptyState } from './EmptyState';
 export { Skeleton, SkeletonText } from './Skeleton';
