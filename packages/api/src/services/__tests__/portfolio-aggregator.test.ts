@@ -38,7 +38,7 @@ describe('portfolio-aggregator', () => {
       expect(bonds.percentage).toBe(40);
     });
 
-    it('places unmapped tickers in Other category', () => {
+    it('places unmapped tickers with no security type in Other category', () => {
       const holdings = [
         { ticker: 'UNKNOWN123', value: 10000, shares: 100, name: 'Unknown Stock', account: 'Test', costBasis: null },
       ];
@@ -48,6 +48,37 @@ describe('portfolio-aggregator', () => {
       const other = result.assetClasses.find(a => a.name === 'Other');
       expect(other).toBeDefined();
       expect(other!.value).toBe(10000);
+    });
+
+    it('classifies an unmapped individual equity as US Stocks, not Other', () => {
+      const holdings = [
+        { ticker: 'PLTR', value: 15000, shares: 300, name: 'Palantir', account: 'Brokerage', costBasis: 9000, securityType: 'equity' },
+      ];
+
+      const result = aggregatePortfolio(holdings);
+
+      expect(result.totalValue).toBe(15000);
+      expect(result.assetClasses.find(a => a.name === 'Other')).toBeUndefined();
+      const usStocks = result.assetClasses.find(a => a.name === 'US Stocks');
+      expect(usStocks).toBeDefined();
+      expect(usStocks!.value).toBe(15000);
+      expect(usStocks!.categories[0].name).toBe('Individual Stocks');
+    });
+
+    it('preserves total value when mixing mapped and fallback holdings', () => {
+      const holdings = [
+        { ticker: 'VTI', value: 50000, shares: 200, name: 'VTI', account: 'IRA', costBasis: null },
+        { ticker: 'PLTR', value: 20000, shares: 400, name: 'Palantir', account: 'Brokerage', costBasis: null, securityType: 'equity' },
+        { ticker: 'SPY240119C00500000', value: 5000, shares: 1, name: 'SPY Call', account: 'Brokerage', costBasis: null, securityType: 'derivative' },
+      ];
+
+      const result = aggregatePortfolio(holdings);
+
+      expect(result.totalValue).toBe(75000);
+      const sumAcrossClasses = result.assetClasses.reduce((s, a) => s + a.value, 0);
+      expect(sumAcrossClasses).toBe(75000);
+      expect(result.assetClasses.find(a => a.name === 'US Stocks')!.value).toBe(70000);
+      expect(result.assetClasses.find(a => a.name === 'Other')!.value).toBe(5000);
     });
   });
 });

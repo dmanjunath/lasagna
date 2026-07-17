@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   getTickerCategory,
+  getTickerCategoryWithFallback,
   ASSET_CLASS_COLORS,
   type AssetClass,
   type Category
@@ -75,6 +76,61 @@ describe('ticker-categories', () => {
     it('handles lowercase tickers', () => {
       const result = getTickerCategory('vti');
       assert.equal(result.assetClass, 'US Stocks');
+    });
+  });
+
+  describe('getTickerCategoryWithFallback', () => {
+    it('still prefers the hardcoded map when the ticker is known', () => {
+      const result = getTickerCategoryWithFallback('VTI', 'etf');
+      assert.equal(result.assetClass, 'US Stocks');
+      assert.equal(result.category, 'Total Market');
+    });
+
+    it('classifies an unmapped US-listed equity as US Stocks', () => {
+      const result = getTickerCategoryWithFallback('PLTR', 'equity');
+      assert.deepEqual(result, {
+        assetClass: 'US Stocks',
+        category: 'Individual Stocks',
+        color: '#4ade80',
+      });
+    });
+
+    it('routes a foreign-listed equity to International Stocks', () => {
+      const result = getTickerCategoryWithFallback('RY.TO', 'equity');
+      assert.equal(result.assetClass, 'International Stocks');
+      assert.equal(result.category, 'Individual Stocks');
+    });
+
+    it('classifies an unmapped ETF as US Stocks', () => {
+      const result = getTickerCategoryWithFallback('ARKK', 'etf');
+      assert.equal(result.assetClass, 'US Stocks');
+      assert.equal(result.category, 'ETFs');
+    });
+
+    it('classifies an unmapped mutual fund as US Stocks', () => {
+      const result = getTickerCategoryWithFallback('PRGFX', 'mutual fund');
+      assert.equal(result.assetClass, 'US Stocks');
+      assert.equal(result.category, 'Mutual Funds');
+    });
+
+    it('classifies fixed income as Bonds', () => {
+      const result = getTickerCategoryWithFallback('SOMEBOND', 'fixed income');
+      assert.equal(result.assetClass, 'Bonds');
+      assert.equal(result.category, 'Bond Funds');
+    });
+
+    it('keeps derivatives/options in Other', () => {
+      const result = getTickerCategoryWithFallback('SPY240119C00500000', 'derivative');
+      assert.equal(result.assetClass, 'Other');
+    });
+
+    it('keeps an unrecognized security with no type in Other', () => {
+      const result = getTickerCategoryWithFallback('UNKNOWN123');
+      assert.deepEqual(result, {
+        assetClass: 'Other',
+        category: 'Unknown',
+        color: '#a8a29e',
+      });
     });
   });
 

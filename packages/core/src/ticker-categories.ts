@@ -226,6 +226,50 @@ export function getTickerCategory(ticker: string): TickerCategory {
   };
 }
 
+// Foreign exchange suffixes on a ticker (e.g. RY.TO, HSBA.L, 0700.HK) signal a
+// non-US listing, so route the holding to International Stocks instead of US.
+// A plain US-listed ticker has no dotted exchange suffix (share-class suffixes
+// like BRK.B are already resolved by the hardcoded map above).
+const FOREIGN_EXCHANGE_SUFFIXES = new Set([
+  'TO', 'V', 'CN', 'NE', // Canada
+  'L', // London
+  'HK', // Hong Kong
+  'T', 'JP', // Japan / Tokyo
+  'AX', // Australia
+  'SS', 'SZ', // Shanghai / Shenzhen
+  'DE', 'F', 'BE', // Germany
+  'PA', // Paris
+  'AS', // Amsterdam
+  'MI', // Milan
+  'MC', // Madrid
+  'SW', // Switzerland
+  'ST', // Stockholm
+  'HE', // Helsinki
+  'CO', // Copenhagen
+  'OL', // Oslo
+  'BR', // Brussels
+  'LS', // Lisbon
+  'VI', // Vienna
+  'IR', // Ireland
+  'NS', 'BO', // India
+  'KS', 'KQ', // Korea
+  'TW', 'TWO', // Taiwan
+  'SI', // Singapore
+  'SA', // Brazil
+  'MX', // Mexico
+  'JO', // Johannesburg
+]);
+
+function looksInternational(upperTicker: string): boolean {
+  const dot = upperTicker.lastIndexOf('.');
+  if (dot === -1) return false;
+  return FOREIGN_EXCHANGE_SUFFIXES.has(upperTicker.slice(dot + 1));
+}
+
+// Classify a holding not present in TICKER_MAP using the Plaid security type.
+// Recognizable equities/funds land in a real asset class instead of "Other";
+// only genuinely unclassifiable instruments (options, unknown/private) stay
+// in "Other".
 export function getTickerCategoryWithFallback(
   ticker: string,
   securityType?: string
@@ -242,11 +286,40 @@ export function getTickerCategoryWithFallback(
     };
   }
 
-  // Use security type as fallback category
-  const category = securityType || 'Unknown';
+  const make = (assetClass: AssetClass, category: Category): TickerCategory => ({
+    assetClass,
+    category,
+    color: ASSET_CLASS_COLORS[assetClass],
+  });
+
+  // Normalize Plaid security types (equity, etf, mutual fund, fixed income,
+  // cash, derivative, cryptocurrency, other, …) — spaces/dashes vary by feed.
+  const type = (securityType || '').toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+
+  switch (type) {
+    case 'equity':
+      return looksInternational(upperTicker)
+        ? make('International Stocks', 'Individual Stocks')
+        : make('US Stocks', 'Individual Stocks');
+    case 'etf':
+      return looksInternational(upperTicker)
+        ? make('International Stocks', 'ETFs')
+        : make('US Stocks', 'ETFs');
+    case 'mutual fund':
+    case 'mutualfund':
+      return make('US Stocks', 'Mutual Funds');
+    case 'fixed income':
+    case 'fixedincome':
+      return make('Bonds', 'Bond Funds');
+    case 'cash':
+      return make('Cash', 'Cash');
+  }
+
+  // Options, derivatives, crypto, private/unknown securities, or a missing type
+  // remain genuinely unclassifiable.
   return {
     assetClass: 'Other',
-    category,
+    category: securityType || 'Unknown',
     color: ASSET_CLASS_COLORS['Other'],
   };
 }

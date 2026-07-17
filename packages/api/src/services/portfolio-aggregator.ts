@@ -1,4 +1,4 @@
-import { getTickerCategory, ASSET_CLASS_COLORS, type AssetClass } from "@lasagna/core";
+import { getTickerCategoryWithFallback, ASSET_CLASS_COLORS, type AssetClass } from "@lasagna/core";
 
 export interface HoldingInput {
   ticker: string;
@@ -50,7 +50,7 @@ export function aggregatePortfolio(holdings: HoldingInput[]): PortfolioCompositi
   const assetClassMap = new Map<string, Map<string, Holding[]>>();
 
   for (const holding of holdings) {
-    const tickerCat = getTickerCategory(holding.ticker);
+    const tickerCat = getTickerCategoryWithFallback(holding.ticker, holding.securityType);
 
     if (!assetClassMap.has(tickerCat.assetClass)) {
       assetClassMap.set(tickerCat.assetClass, new Map());
