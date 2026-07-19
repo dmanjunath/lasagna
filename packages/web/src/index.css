@@ -1838,6 +1838,23 @@
   from { transform: translateY(8px) scale(0.98); opacity: 0; }
   to   { transform: translateY(0) scale(1); opacity: 1; }
 }
+/* On phones, dock the confirm to the bottom edge as a slide-up tray so it
+   reads as a thumb-reachable sheet rather than a cramped centered box. */
+@media (max-width: 639px) {
+  .ds-confirm__backdrop { place-items: end center; padding: 0; }
+  .ds-confirm {
+    max-width: none;
+    border-radius: 16px 16px 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    animation: ds-confirm-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes ds-confirm-up {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+}
 .ds-confirm__title {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 600;

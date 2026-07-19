@@ -6,9 +6,12 @@ import { cn } from '../../lib/utils';
 import { Button } from './Button';
 
 /**
- * Modal / Sheet — a focused overlay surface. `variant="center"` is a classic
- * dialog; `variant="sheet"` slides in from the right on desktop and up from the
- * bottom on mobile. Escape and overlay-click close it; body scroll is locked.
+ * Modal / Sheet — a focused overlay surface. On phones (≤639px) BOTH variants
+ * render as a full-height slide-up tray docked to the bottom edge, so the panel
+ * uses the whole width, gives inputs room above the keyboard, and can be
+ * swiped down to dismiss — modals are a poor use of a small screen. On desktop,
+ * `variant="center"` is a classic centered dialog and `variant="sheet"` slides
+ * in from the right. Escape and overlay-click close it; body scroll is locked.
  */
 export function Modal({
   open,
@@ -32,7 +35,8 @@ export function Modal({
   // grab handle / header (not the scrollable body) via dragControls.
   const dragControls = useDragControls();
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
-  const swipeable = variant === 'sheet' && isPhone;
+  // On a phone every variant is a bottom tray, so all are swipe-to-dismiss.
+  const swipeable = isPhone;
 
   useEffect(() => {
     if (!open) return;
@@ -83,10 +87,15 @@ export function Modal({
 
   if (!open || typeof document === 'undefined') return null;
 
+  // Shared phone treatment: a bottom-docked tray spanning the full width, up to
+  // ~92% of the viewport tall (its content scrolls internally), rounded only at
+  // the top, sliding up from the bottom edge.
+  const phoneTray =
+    'max-sm:inset-x-0 max-sm:inset-y-auto max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-ui-xl max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t max-sm:max-h-[92dvh] max-sm:[animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]';
   const panel =
     variant === 'sheet'
-      ? 'fixed inset-y-0 right-0 w-full max-w-md rounded-none border-l sm:rounded-l-ui-xl [animation:ui-slide-right_220ms_cubic-bezier(0.22,1,0.36,1)] max-sm:inset-x-0 max-sm:inset-y-auto max-sm:bottom-0 max-sm:max-w-none max-sm:rounded-t-ui-xl max-sm:border-l-0 max-sm:border-t max-sm:[animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]'
-      : 'fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-ui-lg border [animation:ui-scale-in_180ms_cubic-bezier(0.22,1,0.36,1)] max-h-[calc(100dvh-2rem)]';
+      ? `fixed inset-y-0 right-0 w-full max-w-md rounded-none border-l sm:rounded-l-ui-xl [animation:ui-slide-right_220ms_cubic-bezier(0.22,1,0.36,1)] ${phoneTray}`
+      : `fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-ui-lg border [animation:ui-scale-in_180ms_cubic-bezier(0.22,1,0.36,1)] max-h-[calc(100dvh-2rem)] ${phoneTray}`;
 
   return createPortal(
     // ui-root lives on the PANEL, not this wrapper: .ui-root paints an opaque
