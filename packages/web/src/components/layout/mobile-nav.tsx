@@ -42,9 +42,9 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    section: 'My Money',
+    section: 'Money',
     items: [
-      { label: 'Money Snapshot',      icon: Wallet,      path: '/money' },
+      { label: 'My Money',            icon: Wallet,      path: '/money' },
       { label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
       { label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
       { label: 'Tax',                 icon: Receipt,     path: '/tax' },

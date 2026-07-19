@@ -43,9 +43,9 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: 'My Money',
+    label: 'Money',
     items: [
-      { id: 'money',      label: 'Money Snapshot',      icon: Wallet,      path: '/money' },
+      { id: 'money',      label: 'My Money',            icon: Wallet,      path: '/money' },
       { id: 'retirement', label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
       { id: 'portfolio',  label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
       { id: 'tax',        label: 'Tax',                 icon: Receipt,     path: '/tax' },
