@@ -166,7 +166,10 @@ export function AccountDetail() {
   }, []);
   useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
 
-  const load = useCallback(async () => {
+  // `keepForm` refreshes the read-only `data` (chart, linked accounts, key
+  // facts) without re-seeding the editable Settings fields — used by the
+  // link/unlink actions so they don't wipe the user's in-progress edits.
+  const load = useCallback(async ({ keepForm = false }: { keepForm?: boolean } = {}) => {
     try {
       const [{ items }, history] = await Promise.all([
         api.getItems(),
@@ -203,6 +206,10 @@ export function AccountDetail() {
         allAccounts: items.flatMap((i) => i.accounts as DetailAccount[]),
         accountInstitution,
       });
+      // Skip re-seeding the editable Settings fields when only refreshing data
+      // (e.g. after linking a mortgage) so in-progress edits survive.
+      if (keepForm) return;
+
       setName(found.acct.name);
       setTypeKey(keyFor(found.acct.type, found.acct.subtype));
       setExcludeNW(Boolean(found.acct.excludeFromNetWorth));
@@ -556,7 +563,7 @@ export function AccountDetail() {
     setSaving(true);
     try {
       await api.updateAccount(debtId, { propertyAccountId: id });
-      await load();
+      await load({ keepForm: true });
       showFlash('Linked ✓');
     } catch {
       setActionError("Couldn't link that account. Try again.");
@@ -569,7 +576,7 @@ export function AccountDetail() {
     setSaving(true);
     try {
       await api.updateAccount(debtId, { propertyAccountId: null });
-      await load();
+      await load({ keepForm: true });
       showFlash('Unlinked ✓');
     } catch {
       setActionError("Couldn't unlink that account. Try again.");
