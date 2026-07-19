@@ -24,6 +24,10 @@ import { cn, stripAccountMask } from "../lib/utils";
 import { Button, Field, Input, Modal, Skeleton } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
+import { AccountLinkPicker, type AccountPickerOption } from "../components/common/AccountLinkPicker";
+import { AddressAutocomplete } from "../components/common/AddressAutocomplete";
+import { ValueSourceBadge } from "../components/common/ValueSourceBadge";
+import { ValueSourceControl, type ValueSourceChoice } from "../components/common/ValueSourceControl";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -80,6 +84,7 @@ interface Account {
   excludeTransactions?: boolean;
   invertBalance?: boolean;
   frozen?: boolean;
+  valueSource?: "synced" | "estimated" | "manual";
 }
 
 interface PlaidItem {
@@ -105,22 +110,69 @@ interface AccountTypeDef {
   type: string;
   subtype?: string;
   isDebt: boolean;
+  // Plaid can connect this type automatically. Manual-only types (property,
+  // cash, other) skip the connect/manual choice and go straight to the form.
+  plaidEligible: boolean;
 }
 
-const ACCOUNT_TYPES: AccountTypeDef[] = [
-  { label: "Checking / Savings", emoji: "💵", type: "depository", isDebt: false },
-  { label: "401(k) / 403(b)", emoji: "📈", type: "investment", subtype: "401k", isDebt: false },
-  { label: "Roth IRA", emoji: "🌱", type: "investment", subtype: "roth_ira", isDebt: false },
-  { label: "Traditional IRA", emoji: "📊", type: "investment", subtype: "ira", isDebt: false },
-  { label: "Brokerage", emoji: "💼", type: "investment", subtype: "brokerage", isDebt: false },
-  { label: "HSA", emoji: "🏥", type: "investment", subtype: "hsa", isDebt: false },
-  { label: "Primary Residence", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false },
-  { label: "Rental Property", emoji: "🏢", type: "real_estate", subtype: "rental", isDebt: false },
-  { label: "Credit Card", emoji: "💳", type: "credit", isDebt: true },
-  { label: "Student Loan", emoji: "🎓", type: "loan", subtype: "student", isDebt: true },
-  { label: "Auto Loan", emoji: "🚗", type: "loan", subtype: "auto", isDebt: true },
-  { label: "Mortgage", emoji: "🏠", type: "loan", subtype: "mortgage", isDebt: true },
+interface AccountTypeGroup {
+  title: string;
+  types: AccountTypeDef[];
+}
+
+// Grouped so the type picker gives the eye an entry point instead of a flat
+// equal-weight grid. Cash & bank leads (the most common), property/cash/other
+// are manual-only.
+const ACCOUNT_TYPE_GROUPS: AccountTypeGroup[] = [
+  {
+    title: "Cash & bank",
+    types: [
+      { label: "Checking / Savings", emoji: "💵", type: "depository", isDebt: false, plaidEligible: true },
+      { label: "Cash", emoji: "🪙", type: "depository", subtype: "cash", isDebt: false, plaidEligible: false },
+    ],
+  },
+  {
+    title: "Credit",
+    types: [
+      { label: "Credit Card", emoji: "💳", type: "credit", isDebt: true, plaidEligible: true },
+    ],
+  },
+  {
+    title: "Investments",
+    types: [
+      { label: "Brokerage", emoji: "💼", type: "investment", subtype: "brokerage", isDebt: false, plaidEligible: true },
+      { label: "401(k) / 403(b)", emoji: "📈", type: "investment", subtype: "401k", isDebt: false, plaidEligible: true },
+      { label: "Roth IRA", emoji: "🌱", type: "investment", subtype: "roth_ira", isDebt: false, plaidEligible: true },
+      { label: "Traditional IRA", emoji: "📊", type: "investment", subtype: "ira", isDebt: false, plaidEligible: true },
+      { label: "HSA", emoji: "🏥", type: "investment", subtype: "hsa", isDebt: false, plaidEligible: true },
+    ],
+  },
+  {
+    title: "Loans",
+    types: [
+      { label: "Mortgage", emoji: "🏠", type: "loan", subtype: "mortgage", isDebt: true, plaidEligible: true },
+      { label: "Student Loan", emoji: "🎓", type: "loan", subtype: "student", isDebt: true, plaidEligible: true },
+      { label: "Auto Loan", emoji: "🚗", type: "loan", subtype: "auto", isDebt: true, plaidEligible: true },
+    ],
+  },
+  {
+    title: "Property",
+    types: [
+      { label: "Primary Residence", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false, plaidEligible: false },
+      { label: "Rental Property", emoji: "🏢", type: "real_estate", subtype: "rental", isDebt: false, plaidEligible: false },
+    ],
+  },
+  {
+    title: "Other",
+    types: [
+      { label: "Other Asset", emoji: "📦", type: "alternative", isDebt: false, plaidEligible: false },
+      { label: "Other Debt", emoji: "🧾", type: "loan", subtype: "other", isDebt: true, plaidEligible: false },
+    ],
+  },
 ];
+
+// Flat list — still needed for the mortgage/property linked-banner lookups.
+const ACCOUNT_TYPES: AccountTypeDef[] = ACCOUNT_TYPE_GROUPS.flatMap((g) => g.types);
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -146,8 +198,13 @@ export function Accounts() {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const itemRefs = useRef<Record<string, HTMLElement | null>>({});
 
-  // Manual account modal state
+  // Add-account modal state. The modal is a small wizard:
+  //   no type + no choice  → grouped type picker (step 1)
+  //   Plaid-eligible type  → connect/manual choice (step 2a)
+  //   manual-only / "manual" chosen → the manual form (step 2b)
   const [showManualModal, setShowManualModal] = useState(false);
+  // A Plaid-eligible type awaiting the connect-vs-manual choice.
+  const [methodChoiceType, setMethodChoiceType] = useState<AccountTypeDef | null>(null);
   const [activeType, setActiveType] = useState<AccountTypeDef | null>(null);
   const [acctName, setAcctName] = useState("");
   const [acctBalance, setAcctBalance] = useState("");
@@ -155,9 +212,36 @@ export function Accounts() {
   const [rentMonthly, setRentMonthly] = useState("");
   const [insAnnual, setInsAnnual] = useState("");
   const [maintAnnual, setMaintAnnual] = useState("");
+  // Property address + resolved geocode (real_estate accounts). Editing the
+  // text by hand clears the geocode so a stale placeId is never persisted.
+  const [acctAddress, setAcctAddress] = useState("");
+  const [acctPlaceId, setAcctPlaceId] = useState("");
+  const [acctLat, setAcctLat] = useState<number | null>(null);
+  const [acctLng, setAcctLng] = useState<number | null>(null);
+  // Set when the address picker rejects a commercial place; cleared on next edit.
+  const [acctAddressRejected, setAcctAddressRejected] = useState(false);
+  // Value source for a real_estate account: "market" runs the auto-estimate on
+  // submit (no value input); "own" pins the user's own value as a persisted
+  // override the estimate never overwrites. Mirrors the detail/edit page.
+  const [acctValueSource, setAcctValueSource] = useState<ValueSourceChoice>("market");
   const [addingAccount, setAddingAccount] = useState(false);
+  // Async value-estimate spinner state, shown after creating a property with an
+  // address but no manual value (we poll GET /accounts/:id/value-estimate).
+  const [estimating, setEstimating] = useState<
+    | { status: "pending" }
+    | { status: "ready"; value: number }
+    // "failed" = no estimate for this address; "timeout" = still pending at the
+    // client poll cap (the server keeps the job, so a refresh may show it).
+    | { status: "failed" }
+    | { status: "timeout" }
+    | null
+  >(null);
   const [linkedBanner, setLinkedBanner] = useState<{ message: string; actionLabel: string; onAction: () => void } | null>(null);
   const [pendingLinkedId, setPendingLinkedId] = useState<string | null>(null);
+  // "+ Add a new …" in the create-modal link picker sets this: after the current
+  // account is created, open the counterpart's add form pre-linked to it (instead
+  // of only linking an existing account). Cleared once consumed.
+  const [addCounterpartAfter, setAddCounterpartAfter] = useState(false);
 
   const loadItems = (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -182,6 +266,30 @@ export function Accounts() {
       window.history.replaceState({}, "", "/accounts");
       setTimeout(() => handleLink(), 300);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Deep-link into the add-account form pre-typed + pre-linked. The account
+  // detail page's "+ Add a mortgage/property" action navigates here with
+  // ?add=<type>[:<subtype>]&link=<counterpartId> so the new account is created
+  // already tied to its counterpart via the existing pendingLinkedId flow.
+  const addLinkFired = useRef(false);
+  useEffect(() => {
+    if (addLinkFired.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const add = params.get("add");
+    if (!add) return;
+    addLinkFired.current = true;
+    const link = params.get("link");
+    window.history.replaceState({}, "", "/accounts");
+    const [type, subtype] = add.split(":");
+    const target =
+      ACCOUNT_TYPES.find((at) => at.type === type && (subtype ? at.subtype === subtype : true)) ??
+      ACCOUNT_TYPES.find((at) => at.type === type);
+    if (!target) return;
+    if (link) setPendingLinkedId(link);
+    enterManualForm(target);
+    setShowManualModal(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -434,19 +542,94 @@ export function Accounts() {
 
   const resetManualForm = () => {
     setActiveType(null);
+    setMethodChoiceType(null);
     setAcctName("");
     setAcctBalance("");
     setAcctRate("");
     setRentMonthly("");
     setInsAnnual("");
     setMaintAnnual("");
+    setAcctAddress("");
+    setAcctPlaceId("");
+    setAcctLat(null);
+    setAcctLng(null);
+    setAcctAddressRejected(false);
+    setAcctValueSource("market");
+    setEstimating(null);
+    setPendingLinkedId(null);
+    setAddCounterpartAfter(false);
+  };
+
+  // Open the manual form for a given type (prefills name, clears the rest).
+  const enterManualForm = (at: AccountTypeDef) => {
+    setMethodChoiceType(null);
+    setActiveType(at);
+    setAcctName(at.label);
+    setAcctBalance("");
+    setAcctRate("");
+    setRentMonthly("");
+    setInsAnnual("");
+    setMaintAnnual("");
+    setAcctAddress("");
+    setAcctPlaceId("");
+    setAcctLat(null);
+    setAcctLng(null);
+    setAcctAddressRejected(false);
+    setAcctValueSource("market");
+    setEstimating(null);
+  };
+
+  // Step 1 → step 2. Plaid-eligible types offer connect-or-manual; manual-only
+  // types drop straight into the form.
+  const selectType = (at: AccountTypeDef) => {
+    if (at.plaidEligible) {
+      setMethodChoiceType(at);
+    } else {
+      enterManualForm(at);
+    }
+  };
+
+  // Poll the async value estimate for a freshly-created property (~10s cadence,
+  // ~5min cap). Ends on ready/failed; on ready, refreshes the account list so
+  // the estimated value shows.
+  const pollValueEstimate = async (accountId: string) => {
+    const deadline = Date.now() + 5 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 10_000));
+      let res;
+      try {
+        res = await api.getValueEstimate(accountId);
+      } catch {
+        continue; // transient — keep polling until the cap
+      }
+      if (res.status === "ready") {
+        setEstimating({ status: "ready", value: res.value ?? 0 });
+        loadItems(false);
+        return;
+      }
+      if (res.status === "failed" || res.status === "none") {
+        setEstimating({ status: "failed" });
+        return;
+      }
+    }
+    // Hit the cap while the server job is still pending — it keeps running, so
+    // a refresh may surface the value. Don't claim we'll keep trying here.
+    setEstimating({ status: "timeout" });
   };
 
   const handleAddManualAccount = async () => {
     if (!activeType || !acctName.trim()) return;
+    const isProperty = activeType.type === "real_estate";
+    // Property value source: "own" pins the typed value as a persisted override;
+    // "market" runs the auto-estimate off the address and ignores any value.
+    const ownValueChosen = isProperty && acctValueSource === "own";
+    // For a property, the address kicks off an estimate; a manual value is only
+    // used under "My own value". For everything else the balance defaults to 0.
+    const hasManualValue = isProperty
+      ? ownValueChosen && acctBalance.trim() !== ""
+      : acctBalance.trim() !== "";
     setAddingAccount(true);
     try {
-      const balance = acctBalance ? parseFloat(acctBalance) : 0;
       const metadata: Record<string, unknown> = {};
       if (activeType.isDebt && acctRate) metadata.interestRate = parseFloat(acctRate);
       if (activeType.subtype === "rental") {
@@ -454,17 +637,74 @@ export function Accounts() {
         if (insAnnual) metadata.annualInsurance = parseFloat(insAnnual);
         if (maintAnnual) metadata.annualMaintenance = parseFloat(maintAnnual);
       }
+      if (isProperty && acctAddress.trim()) {
+        metadata.address = acctAddress.trim();
+        if (acctPlaceId) metadata.placeId = acctPlaceId;
+        if (acctLat !== null) metadata.lat = acctLat;
+        if (acctLng !== null) metadata.lng = acctLng;
+      }
+      // Skip the initial snapshot when a property has no manual value — the
+      // estimate will supply it. Non-property accounts default to 0.
+      const willEstimate = isProperty && !hasManualValue && acctAddress.trim() !== "";
       const result = await api.createManualAccount({
         name: acctName.trim(),
         type: activeType.type,
         subtype: activeType.subtype,
-        balance,
+        balance: hasManualValue ? parseFloat(acctBalance) : willEstimate ? undefined : 0,
         metadata: Object.keys(metadata).length ? metadata : undefined,
+        // Pin the typed value as a durable override so the estimate never
+        // overwrites it (matches the detail/edit page's "My own value").
+        ...(ownValueChosen ? { valueSource: "own" as const } : {}),
         linkedAccountId: pendingLinkedId || undefined,
       });
 
       const justAdded = activeType;
       const createdId = result.account.id;
+      // The user chose "+ Add a new <counterpart>" in the link picker: after this
+      // account is created, advance the modal straight to the counterpart's add
+      // form, pre-linked to it (reuses the same pendingLinkedId flow as the
+      // post-create banner). The counterpart type is derived from ACCOUNT_TYPES.
+      const chainCounterpart = addCounterpartAfter;
+
+      // Open the counterpart's add form pre-linked to the just-created account.
+      const openCounterpartForm = () => {
+        const target =
+          justAdded.type === "real_estate"
+            ? ACCOUNT_TYPES.find((at) => at.subtype === "mortgage")!
+            : ACCOUNT_TYPES.find((at) => at.type === "real_estate")!;
+        setAddCounterpartAfter(false);
+        setPendingLinkedId(createdId);
+        enterManualForm(target);
+        setShowManualModal(true);
+      };
+
+      // Property with an address but no manual value → the estimate runs async.
+      // Normally we hold the modal on the estimating spinner, but if the user
+      // also asked to chain the counterpart, don't block: the new property's
+      // account row polls its own estimate and shows the "Estimating…" pill
+      // (driven by valueEstimate.status, not the modal `estimating` state), so we
+      // just reload the list and advance to the counterpart form.
+      if (willEstimate) {
+        if (chainCounterpart) {
+          loadItems();
+          openCounterpartForm();
+          return;
+        }
+        setEstimating({ status: "pending" });
+        setPendingLinkedId(null);
+        loadItems();
+        void pollValueEstimate(createdId);
+        return;
+      }
+
+      // Chaining the counterpart: skip the banner, reset the form for the new
+      // type, and advance the modal to the pre-linked counterpart form.
+      if (chainCounterpart) {
+        loadItems();
+        openCounterpartForm();
+        return;
+      }
+
       resetManualForm();
       setPendingLinkedId(null);
       setShowManualModal(false);
@@ -478,8 +718,7 @@ export function Accounts() {
             setLinkedBanner(null);
             setPendingLinkedId(createdId);
             const mortgage = ACCOUNT_TYPES.find((at) => at.subtype === "mortgage")!;
-            setActiveType(mortgage);
-            setAcctName(mortgage.label);
+            enterManualForm(mortgage);
             setShowManualModal(true);
           },
         });
@@ -505,6 +744,31 @@ export function Accounts() {
 
   const allAccounts = items.flatMap((i) => i.accounts);
   const totalAccounts = allAccounts.length;
+
+  // Link-counterpart candidates for the add form. A property is secured by a
+  // mortgage/loan (never a credit card), so the property form offers unlinked
+  // `loan` accounts and the mortgage form offers real_estate accounts.
+  const typeLabel = (type: string, subtype?: string | null) =>
+    ACCOUNT_TYPES.find((at) => at.type === type && at.subtype === (subtype ?? undefined))?.label ??
+    ACCOUNT_TYPES.find((at) => at.type === type)?.label ??
+    type;
+  const linkCandidateOptions: AccountPickerOption[] = items.flatMap((i) =>
+    i.accounts
+      .filter((a) => {
+        if (!activeType) return false;
+        if (activeType.type === "real_estate") return a.type === "loan" && !a.propertyAccountId;
+        if (activeType.subtype === "mortgage") return a.type === "real_estate";
+        return false;
+      })
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        institution: i.institutionName || "Manual",
+        meta: typeLabel(a.type, a.subtype),
+      })),
+  );
+  const offersLink =
+    !!activeType && (activeType.type === "real_estate" || activeType.subtype === "mortgage");
 
   // Total tracked = sum of absolute balances across all accounts (a soft "scope" figure)
   const totalTracked = allAccounts.reduce((sum, a) => {
@@ -575,22 +839,13 @@ export function Accounts() {
               </Button>
             )}
             <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowManualModal(true)}
-              leadingIcon={<Pencil size={15} />}
-            >
-              Add manual
-            </Button>
-            <Button
               variant="primary"
               size="sm"
-              onClick={handleLink}
+              onClick={() => setShowManualModal(true)}
               disabled={linking || syncing}
-              loading={linking}
               leadingIcon={<Plus size={15} />}
             >
-              {linking ? "Connecting…" : "Connect an account"}
+              Add account
             </Button>
           </div>
         )}
@@ -754,9 +1009,7 @@ export function Accounts() {
       {!loading && items.length === 0 && (
         <FirstConnectEmptyState
           isDemoMode={isDemoMode}
-          linking={linking}
-          onLink={handleLink}
-          onAddManual={() => setShowManualModal(true)}
+          onAddAccount={() => setShowManualModal(true)}
         />
       )}
 
@@ -783,6 +1036,7 @@ export function Accounts() {
                 allAccounts={allAccounts}
                 isFree={isFree}
                 overLimit={overLimit}
+                onEstimateResolved={() => loadItems(false)}
               />
             ))}
           </div>
@@ -812,31 +1066,50 @@ export function Accounts() {
                 allAccounts={allAccounts}
                 isFree={isFree}
                 overLimit={overLimit}
+                onEstimateResolved={() => loadItems(false)}
               />
             ))}
           </div>
         </section>
       )}
 
-      {/* Add a manual account — always available below the lists. */}
+      {/* Add an account — always available below the lists. */}
       {!loading && items.length > 0 && !isDemoMode && (
         <button
           type="button"
           onClick={() => setShowManualModal(true)}
           className="ui-focus group mt-[18px] flex w-full items-center justify-center gap-2 rounded-ui-xl border border-dashed border-line-strong bg-canvas-sunken/40 px-4 py-4 text-[13.5px] font-bold text-content-secondary transition-colors hover:border-brand hover:bg-brand-softer hover:text-brand min-h-touch"
         >
-          <Pencil size={15} />
-          Add a manual account
+          <Plus size={15} />
+          Add an account
         </button>
       )}
 
-      {/* ── Manual Account Modal ── */}
+      {/* ── Add Account Modal ── */}
       <Modal
         open={showManualModal}
         onClose={() => { setShowManualModal(false); resetManualForm(); }}
-        title={activeType ? activeType.label : "Add an account"}
-        description="Manual balances are a snapshot — link accounts for automatic updates."
-        footer={activeType ? (
+        title={
+          activeType
+            ? activeType.label
+            : methodChoiceType
+              ? methodChoiceType.label
+              : "Add an account"
+        }
+        description={
+          activeType || methodChoiceType
+            ? undefined
+            : "Pick an account type to connect it or enter it manually."
+        }
+        footer={
+          activeType && estimating ? (
+            <Button
+              variant="primary"
+              onClick={() => { setShowManualModal(false); resetManualForm(); }}
+            >
+              {estimating.status === "pending" ? "Continue in background" : "Done"}
+            </Button>
+          ) : activeType ? (
           <>
             <Button variant="ghost" onClick={() => { setShowManualModal(false); resetManualForm(); }}>
               Cancel
@@ -853,7 +1126,45 @@ export function Accounts() {
           </>
         ) : undefined}
       >
-        {activeType ? (
+        {activeType && estimating ? (
+          <div role="status" aria-live="polite" className="flex flex-col items-center gap-3 py-8 text-center">
+            {estimating.status === "pending" ? (
+              <>
+                <RefreshCw size={22} className="animate-spin text-brand" />
+                <div className="text-[14px] font-semibold text-content">Estimating value…</div>
+                <p className="max-w-[19rem] text-[13px] text-content-secondary">
+                  We’re looking up an estimate for this address. This usually takes about a minute — you can keep using the app while we finish.
+                </p>
+              </>
+            ) : estimating.status === "ready" ? (
+              <>
+                <div className="text-[14px] font-semibold text-content">Estimated value</div>
+                <div className="ui-tnum text-[26px] font-bold text-content">
+                  {formatTotal(estimating.value)}
+                </div>
+                <p className="text-[13px] text-content-secondary">Added to your accounts.</p>
+              </>
+            ) : estimating.status === "timeout" ? (
+              <>
+                <div className="text-[14px] font-semibold text-content">
+                  Taking longer than expected
+                </div>
+                <p className="max-w-[19rem] text-[13px] text-content-secondary">
+                  We’re still working on it — refresh the account to check for the value.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-[14px] font-semibold text-content">
+                  Couldn’t estimate this address
+                </div>
+                <p className="max-w-[19rem] text-[13px] text-content-secondary">
+                  Enter a value manually from the account’s page instead.
+                </p>
+              </>
+            )}
+          </div>
+        ) : activeType ? (
           <div className="flex flex-col gap-5">
             <div className="flex items-center gap-2.5">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas-sunken px-2.5 py-1 text-[12px] font-semibold text-content-secondary">
@@ -861,7 +1172,7 @@ export function Accounts() {
               </span>
               <button
                 type="button"
-                onClick={resetManualForm}
+                onClick={() => { resetManualForm(); }}
                 className="ui-focus ml-auto rounded-ui-sm text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:opacity-80"
               >
                 change type
@@ -877,17 +1188,116 @@ export function Accounts() {
               />
             </Field>
 
-            <Field label={activeType.type === "real_estate" ? "Estimated value" : "Balance"}>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={acctBalance}
-                onChange={(e) => setAcctBalance(e.target.value.replace(/[^0-9.]/g, ""))}
-                placeholder="0"
-                className="ui-tnum"
-                leadingIcon={<span className="text-[13px]">$</span>}
+            {activeType.type === "real_estate" && (
+              <Field label="Address">
+                <AddressAutocomplete
+                  value={acctAddress}
+                  onTextChange={(text) => {
+                    setAcctAddress(text);
+                    // Editing by hand invalidates the resolved geocode.
+                    setAcctPlaceId("");
+                    setAcctLat(null);
+                    setAcctLng(null);
+                    setAcctAddressRejected(false);
+                  }}
+                  onPick={(r) => {
+                    setAcctAddress(r.address);
+                    setAcctPlaceId(r.placeId);
+                    setAcctLat(r.lat);
+                    setAcctLng(r.lng);
+                    setAcctAddressRejected(false);
+                  }}
+                  onReject={() => setAcctAddressRejected(true)}
+                />
+                {acctAddressRejected ? (
+                  <p className="mt-2 text-[12px] leading-relaxed text-negative">
+                    Commercial properties aren't supported — enter a home address.
+                  </p>
+                ) : (
+                  <p className="mt-2 text-[12px] leading-relaxed text-content-muted">
+                    Add an address and we’ll estimate the value for you.
+                  </p>
+                )}
+              </Field>
+            )}
+
+            {activeType.type === "real_estate" ? (
+              <ValueSourceControl
+                source={acctValueSource}
+                onSourceChange={setAcctValueSource}
+                ownValue={acctBalance}
+                onOwnValueChange={setAcctBalance}
               />
-            </Field>
+            ) : (
+              <Field label={activeType.isDebt ? "Amount owed" : "Balance"}>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={acctBalance}
+                  onChange={(e) => setAcctBalance(e.target.value.replace(/[^0-9.]/g, ""))}
+                  placeholder="0"
+                  className="ui-tnum"
+                  leadingIcon={<span className="text-[13px]">$</span>}
+                />
+              </Field>
+            )}
+
+            {offersLink && (
+              <Field
+                label={
+                  activeType.type === "real_estate"
+                    ? "Link a mortgage / loan (optional)"
+                    : "Secured by a property (optional)"
+                }
+              >
+                {addCounterpartAfter ? (
+                  // The user chose "+ Add a new …": show the pending choice with a
+                  // way to undo, in place of the picker. The counterpart's form
+                  // opens (pre-linked) right after this account is created.
+                  <div className="flex h-11 min-h-touch w-full items-center gap-2.5 rounded-ui-md border border-brand bg-brand-soft pl-3 pr-1.5 text-sm text-content shadow-ui-sm">
+                    <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-ui-sm bg-brand-softer text-brand">
+                      <Plus className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-semibold">
+                      {activeType.type === "real_estate"
+                        ? "New mortgage — we'll set it up next"
+                        : "New property — we'll set it up next"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAddCounterpartAfter(false)}
+                      aria-label="Undo"
+                      className="ui-focus grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm text-content-muted hover:bg-panel hover:text-content"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ) : (
+                  <AccountLinkPicker
+                    options={linkCandidateOptions}
+                    value={pendingLinkedId ?? ""}
+                    onChange={(v) => setPendingLinkedId(v || null)}
+                    placeholder={
+                      activeType.type === "real_estate" ? "No mortgage" : "No property"
+                    }
+                    addLabel={
+                      activeType.type === "real_estate"
+                        ? "Add a new mortgage"
+                        : "Add a new property"
+                    }
+                    onAdd={() => {
+                      setPendingLinkedId(null);
+                      setAddCounterpartAfter(true);
+                    }}
+                  />
+                )}
+                <p className="mt-2 text-[12px] leading-relaxed text-content-muted">
+                  {activeType.type === "real_estate"
+                    ? "Tie an existing mortgage to this property so we can show your equity. You can also add one later."
+                    : "Tie this loan to the property it's secured by. You can also add one later."}
+                </p>
+              </Field>
+            )}
 
             {activeType.type === "real_estate" && activeType.subtype === "rental" && (
               <>
@@ -944,18 +1354,79 @@ export function Accounts() {
               </Field>
             )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {ACCOUNT_TYPES.map((at) => (
+        ) : methodChoiceType ? (
+          // Step 2a — Plaid-eligible type: connect automatically or enter by hand.
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas-sunken px-2.5 py-1 text-[12px] font-semibold text-content-secondary">
+                <span>{methodChoiceType.emoji}</span> {methodChoiceType.label}
+              </span>
               <button
-                key={at.label}
                 type="button"
-                onClick={() => { setActiveType(at); setAcctName(at.label); setAcctBalance(""); setAcctRate(""); setRentMonthly(""); setInsAnnual(""); setMaintAnnual(""); }}
-                className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md border border-line bg-panel px-3.5 py-3 text-left text-[13.5px] font-semibold text-content-secondary transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
+                onClick={() => setMethodChoiceType(null)}
+                className="ui-focus ml-auto rounded-ui-sm text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:opacity-80"
               >
-                <span className="text-[16px] leading-none">{at.emoji}</span>
-                <span className="leading-tight text-content">{at.label}</span>
+                change type
               </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => { setShowManualModal(false); resetManualForm(); handleLink(); }}
+              disabled={linking}
+              className="ui-focus group flex items-start gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3.5 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand hover:shadow-ui-sm disabled:opacity-60"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
+                <Zap size={17} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-bold text-content">Connect automatically</span>
+                <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
+                  Securely link your institution so balances and transactions update on their own.
+                </span>
+              </span>
+              <span className="mt-1 text-content-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => enterManualForm(methodChoiceType)}
+              className="ui-focus group flex items-start gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3.5 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
+                <Pencil size={16} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-bold text-content">Enter manually</span>
+                <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
+                  Add a balance yourself — a snapshot you can update anytime.
+                </span>
+              </span>
+              <span className="mt-1 text-content-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
+            </button>
+          </div>
+        ) : (
+          // Step 1 — grouped type picker.
+          <div className="flex flex-col gap-5">
+            {ACCOUNT_TYPE_GROUPS.map((group) => (
+              <div key={group.title}>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">
+                  {group.title}
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {group.types.map((at) => (
+                    <button
+                      key={at.label}
+                      type="button"
+                      onClick={() => selectType(at)}
+                      className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md border border-line bg-panel px-3.5 py-3 text-left text-[13.5px] font-semibold text-content-secondary transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
+                    >
+                      <span className="text-[16px] leading-none">{at.emoji}</span>
+                      <span className="leading-tight text-content">{at.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -969,12 +1440,10 @@ export function Accounts() {
 // ---------------------------------------------------------------------------
 
 function FirstConnectEmptyState({
-  isDemoMode, linking, onLink, onAddManual,
+  isDemoMode, onAddAccount,
 }: {
   isDemoMode: boolean;
-  linking: boolean;
-  onLink: () => void;
-  onAddManual: () => void;
+  onAddAccount: () => void;
 }) {
   const reassurances = [
     { icon: <ShieldCheck size={15} />, text: "Bank-level encryption" },
@@ -1010,20 +1479,10 @@ function FirstConnectEmptyState({
             <Button
               variant="primary"
               className="w-full sm:w-auto"
-              onClick={onLink}
-              disabled={linking}
-              loading={linking}
+              onClick={onAddAccount}
               leadingIcon={<Plus size={15} />}
             >
-              {linking ? "Connecting…" : "Connect an account"}
-            </Button>
-            <Button
-              variant="secondary"
-              className="w-full sm:w-auto"
-              onClick={onAddManual}
-              leadingIcon={<Pencil size={15} />}
-            >
-              Add manually
+              Add account
             </Button>
           </div>
         )}
@@ -1105,6 +1564,7 @@ function InstitutionArticle({
   allAccounts,
   isFree,
   overLimit,
+  onEstimateResolved,
 }: {
   refCallback: (el: HTMLElement | null) => void;
   item: PlaidItem;
@@ -1121,6 +1581,7 @@ function InstitutionArticle({
   allAccounts: Account[];
   isFree: boolean;
   overLimit: boolean;
+  onEstimateResolved: () => void;
 }) {
   const isError = isItemError(item);
   const statusLabel = isManual
@@ -1220,6 +1681,7 @@ function InstitutionArticle({
                   key={account.id}
                   account={account}
                   overLimit={overLimit}
+                  onEstimateResolved={onEstimateResolved}
                   linkedAccountName={account.propertyAccountId
                     ? allAccounts.find((a) => a.id === account.propertyAccountId)?.name ?? null
                     : allAccounts.find((a) => a.propertyAccountId === account.id)?.name ?? null}
@@ -1260,15 +1722,44 @@ function InstitutionArticle({
 // there); no per-row overflow menu.
 // ---------------------------------------------------------------------------
 
-function AccountRow({ account, overLimit, linkedAccountName }: {
+function AccountRow({ account, overLimit, linkedAccountName, onEstimateResolved }: {
   account: Account; overLimit: boolean;
   linkedAccountName: string | null;
+  onEstimateResolved: () => void;
 }) {
   const balance = account.balance !== null ? parseFloat(account.balance) : null;
   const isNegative = balance !== null && balance < 0;
   const isFrozen = account.frozen === true;
   const [, setLocation] = useLocation();
   const openSettings = () => setLocation("/accounts/" + account.id);
+
+  // A property whose value estimate is still pending — surface an "Estimating…"
+  // pill and poll the estimate in the background so a value that lands after the
+  // create modal closed still shows here. Ends on ready/failed (parent reloads
+  // on ready). status pending → keep the pill; anything else clears it.
+  const veStatus = (account.metadata?.valueEstimate as { status?: string } | undefined)?.status;
+  const [estimating, setEstimating] = useState(veStatus === "pending");
+  useEffect(() => {
+    setEstimating(veStatus === "pending");
+    if (veStatus !== "pending") return;
+    let cancelled = false;
+    const deadline = Date.now() + 5 * 60 * 1000;
+    const tick = async () => {
+      if (cancelled || Date.now() > deadline) { if (!cancelled) setEstimating(false); return; }
+      try {
+        const res = await api.getValueEstimate(account.id);
+        if (cancelled) return;
+        if (res.status === "ready") { setEstimating(false); onEstimateResolved(); return; }
+        if (res.status === "failed" || res.status === "none") { setEstimating(false); return; }
+      } catch {
+        // transient — keep polling until the cap
+      }
+      if (!cancelled) setTimeout(tick, 10_000);
+    };
+    const t = setTimeout(tick, 10_000);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [veStatus, account.id]);
 
   return (
     <div
@@ -1319,6 +1810,18 @@ function AccountRow({ account, overLimit, linkedAccountName }: {
           ) : overLimit ? (
             <span className="mt-1 inline-flex items-center rounded-full bg-positive-soft px-2 py-0.5 text-[11px] font-bold text-positive">
               Active
+            </span>
+          ) : estimating ? (
+            <span
+              role="status"
+              aria-live="polite"
+              className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info"
+            >
+              <RefreshCw size={10} strokeWidth={2.2} className="animate-spin" aria-hidden="true" /> Estimating…
+            </span>
+          ) : account.valueSource ? (
+            <span className="mt-1 inline-flex">
+              <ValueSourceBadge source={account.valueSource} />
             </span>
           ) : null}
         </div>

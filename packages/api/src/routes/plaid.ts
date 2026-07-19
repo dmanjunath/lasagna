@@ -135,6 +135,15 @@ plaidRoutes.get("/items", async (c) => {
             where: eq(balanceSnapshots.accountId, acct.id),
             orderBy: [desc(balanceSnapshots.snapshotAt)],
           });
+          // Where the displayed value comes from: a Plaid-linked institution
+          // syncs it; otherwise a latest "estimate" snapshot means we valued it;
+          // else the user typed it in.
+          const valueSource: "synced" | "estimated" | "manual" =
+            item.institutionId !== "manual"
+              ? "synced"
+              : latest?.source === "estimate"
+                ? "estimated"
+                : "manual";
           return {
             id: acct.id,
             name: acct.name,
@@ -150,6 +159,7 @@ plaidRoutes.get("/items", async (c) => {
             invertBalance: acct.invertBalance,
             frozen: acct.frozen,
             propertyAccountId: acct.propertyAccountId ?? null,
+            valueSource,
           };
         })
       );

@@ -31,3 +31,6 @@ mockups/
 _mockup*
 _shots/
 _shots*/
+
+# Personal Claude Code config + skills (local only, never commit)
+.claude/

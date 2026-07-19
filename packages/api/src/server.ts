@@ -28,6 +28,7 @@ import { accountRouter } from "./routes/account.js";
 import { adminRoutes } from "./routes/admin.js";
 import { rulesRoutes } from "./routes/rules.js";
 import { categoryRoutes } from "./routes/categories.js";
+import { placesRoutes } from "./routes/places.js";
 
 export const app = new Hono<AuthEnv>();
 
@@ -142,3 +143,4 @@ app.route("/api/account", accountRouter);
 app.route("/api/admin", adminRoutes);
 app.route("/api/rules", rulesRoutes);
 app.route("/api/categories", categoryRoutes);
+app.route("/api/places", placesRoutes);

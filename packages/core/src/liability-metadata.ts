@@ -5,7 +5,8 @@ export interface MortgageMetadata {
   interestRateType?: "fixed" | "variable";
   originationDate?: string;         // YYYY-MM-DD
   originationPrincipal?: number;
-  maturityDate?: string;             // YYYY-MM-DD — primary payoff date
+  maturityDate?: string;             // YYYY-MM-DD — primary payoff date (Plaid-synced)
+  loanTermYears?: number;            // whole years, entered manually
   loanTerm?: string;                 // e.g. "30 year"
   loanTypeDescription?: string;      // e.g. "conventional"
   nextMonthlyPayment?: number;
@@ -25,7 +26,8 @@ export interface StudentLoanMetadata {
   interestRatePercentage?: number;
   originationDate?: string;          // YYYY-MM-DD
   originationPrincipal?: number;
-  expectedPayoffDate?: string;       // YYYY-MM-DD — primary payoff date
+  loanTermYears?: number;            // whole years, entered manually
+  expectedPayoffDate?: string;       // YYYY-MM-DD — primary payoff date (Plaid-synced)
   minimumPaymentAmount?: number;
   nextPaymentDueDate?: string;       // YYYY-MM-DD
   lastPaymentAmount?: number;
@@ -63,7 +65,8 @@ export interface OtherLoanMetadata {
   interestRatePercentage?: number;
   originationDate?: string;          // YYYY-MM-DD
   originationPrincipal?: number;
-  maturityDate?: string;             // YYYY-MM-DD — primary payoff date
+  loanTermYears?: number;            // whole years, entered manually
+  maturityDate?: string;             // YYYY-MM-DD — primary payoff date (Plaid-synced)
   minimumPaymentAmount?: number;
   nextPaymentDueDate?: string;       // YYYY-MM-DD
   lastPaymentAmount?: number;

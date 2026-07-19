@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, desc, and, sql, accounts, balanceSnapshots, plaidItems, parseLoanMetadata, accountTypeEnum } from "@lasagna/core";
+import { eq, desc, and, sql, accounts, balanceSnapshots, plaidItems, parseLoanMetadata, parsePropertyMetadata, accountTypeEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { validatePropertyLink } from "../lib/account-links.js";
 import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
+import { kickOffValueEstimate, advanceValueEstimate } from "../lib/value-estimate.js";
+import { pollRealEstateValue } from "../services/fetchRealEstateValues.js";
 
 export const accountRoutes = new Hono<AuthEnv>();
 
@@ -309,6 +311,34 @@ accountRoutes.get("/:id/history", async (c) => {
   return c.json({ account: acct, snapshots });
 });
 
+// Poll the async value estimate for a property account. Tenant-scoped to the
+// caller's own account. Reads the stored snapshot id and does one provider
+// poll; when a value has landed it records a balance snapshot (source
+// "estimate") and updates the displayed value, once. Returns { status, value? }.
+accountRoutes.get("/:id/value-estimate", async (c) => {
+  const session = c.get("session");
+  const accountId = c.req.param("id");
+
+  const acct = await db.query.accounts.findFirst({
+    where: eq(accounts.id, accountId),
+  });
+  if (!acct || acct.tenantId !== session.tenantId) {
+    return c.json({ error: "Account not found" }, 404);
+  }
+
+  const meta = parsePropertyMetadata(acct.metadata ?? null);
+  if (!meta?.valueEstimate) {
+    // No job was ever kicked off (no address, or provider unconfigured).
+    return c.json({ status: "none" });
+  }
+
+  const result = await advanceValueEstimate(
+    { id: acct.id, tenantId: acct.tenantId, metadata: acct.metadata ?? null },
+    pollRealEstateValue,
+  );
+  return c.json(result);
+});
+
 // Manual loan details override
 accountRoutes.patch("/:id/loan-details", async (c) => {
   const session = c.get("session");
@@ -337,6 +367,7 @@ accountRoutes.patch("/:id/loan-details", async (c) => {
       interestRateType: z.enum(["fixed", "variable"]).optional(),
       originationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       originationPrincipal: z.number().min(0).optional(),
+      loanTermYears: z.number().int().min(1).max(50).optional(),
       loanTerm: z.string().optional(),
     }),
     z.object({
@@ -344,6 +375,8 @@ accountRoutes.patch("/:id/loan-details", async (c) => {
       expectedPayoffDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       interestRatePercentage: z.number().min(0).max(100).optional(),
       minimumPaymentAmount: z.number().min(0).optional(),
+      originationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      loanTermYears: z.number().int().min(1).max(50).optional(),
       repaymentPlanType: z.string().optional(),
       nextPaymentDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     }),
@@ -367,6 +400,7 @@ accountRoutes.patch("/:id/loan-details", async (c) => {
       interestRatePercentage: z.number().min(0).max(100).optional(),
       minimumPaymentAmount: z.number().min(0).optional(),
       originationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      loanTermYears: z.number().int().min(1).max(50).optional(),
     }),
   ]);
 
@@ -445,11 +479,17 @@ accountRoutes.patch("/:id/property-details", async (c) => {
   const bodySchema = z
     .object({
       address: z.string().max(300).nullable(),
-      yearBuilt: z.number().int().min(1600).max(2100).nullable(),
-      squareFeet: z.number().min(0).nullable(),
+      placeId: z.string().max(300).nullable(),
+      lat: z.number().min(-90).max(90).nullable(),
+      lng: z.number().min(-180).max(180).nullable(),
       monthlyRent: z.number().min(0).nullable(),
       annualInsurance: z.number().min(0).nullable(),
       annualMaintenance: z.number().min(0).nullable(),
+      // Value source: "market" re-enables the auto-estimate (clears any
+      // override); "own" persists the user's own value as the source of truth.
+      valueSource: z.enum(["market", "own"]),
+      // The user's own value, sent alongside valueSource === "own".
+      ownValue: z.number().min(0),
     })
     .partial();
 
@@ -471,13 +511,57 @@ accountRoutes.patch("/:id/property-details", async (c) => {
     }
   }
   const metadata: Record<string, unknown> = { ...existing };
-  for (const [k, v] of Object.entries(parsed.data)) {
+  // Only the persisted property fields go straight into metadata — valueSource /
+  // ownValue are control signals handled separately below.
+  const { valueSource, ownValue, ...fields } = parsed.data;
+  for (const [k, v] of Object.entries(fields)) {
     if (v === null) delete metadata[k];
     else metadata[k] = v;
   }
 
+  // Value-source override handling. "own" pins the user's value; "market" clears
+  // the override so the auto-estimate resumes. We manage the valueEstimate blob
+  // here so the address re-kick below sees the right state.
+  const existingVe =
+    existing.valueEstimate && typeof existing.valueEstimate === "object"
+      ? (existing.valueEstimate as Record<string, unknown>)
+      : undefined;
+  const switchingToOwn = valueSource === "own";
+  const switchingToMarket = valueSource === "market";
+  if (switchingToOwn) {
+    // Persist the override flag so the auto-estimate never overwrites the value.
+    metadata.valueEstimate = { ...(existingVe ?? {}), override: true };
+  } else if (switchingToMarket) {
+    // Drop the override — a fresh estimate is (re)kicked below off the address.
+    delete metadata.valueEstimate;
+  }
+
   const metaStr = Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null;
   await db.update(accounts).set({ metadata: metaStr }).where(eq(accounts.id, accountId));
+
+  // "own" with a value → record it as the displayed balance (a manual snapshot),
+  // same as a manual value update. The override flag above keeps the estimate
+  // from clobbering it.
+  if (switchingToOwn && ownValue !== undefined) {
+    await db.insert(balanceSnapshots).values({
+      accountId,
+      tenantId: session.tenantId,
+      balance: String(ownValue),
+      isoCurrencyCode: "USD",
+      snapshotAt: new Date(),
+    });
+  }
+
+  // (Re)kick an async value estimate when the address changed, or when switching
+  // back to the market estimate. Compares against the prior stored address so
+  // re-saving the same address doesn't needlessly restart the job.
+  // Best-effort — never blocks the PATCH. Skip entirely while an override is set.
+  const newAddress = typeof metadata.address === "string" ? metadata.address : "";
+  const prevAddress = typeof existing.address === "string" ? existing.address : "";
+  const addressChanged = "address" in fields && newAddress.trim() !== prevAddress.trim();
+  if (!switchingToOwn && newAddress.trim() && (addressChanged || switchingToMarket)) {
+    await kickOffValueEstimate(accountId, metaStr, newAddress);
+  }
   return c.json({ metadata });
 });
 

@@ -30,6 +30,7 @@ interface Item {
     excludeTransactions?: boolean;
     invertBalance?: boolean;
     frozen?: boolean;
+    propertyAccountId?: string | null;
   }>;
 }
 interface Transaction {
@@ -579,6 +580,15 @@ function GroupSection({
   const accounts = items.flatMap((item) =>
     item.accounts.filter((a) => types.includes(a.type)).map((a) => ({ ...a, item })),
   );
+  // Resolve the property↔mortgage link so rows can show "linked to X", as /accounts does.
+  const allAccts = items.flatMap((i) => i.accounts);
+  const linkNameOf = (a: { name: string; mask: string | null }) =>
+    titleCase(stripAccountMask(a.name, a.mask));
+  const nameById = new Map(allAccts.map((a) => [a.id, linkNameOf(a)] as const));
+  const mortgageByProperty = new Map<string, string>();
+  for (const a of allAccts) {
+    if (a.propertyAccountId) mortgageByProperty.set(a.propertyAccountId, linkNameOf(a));
+  }
   const errorItems = items.filter(
     (item) =>
       (item.status === 'error' || item.status === 'item_login_required') &&
@@ -638,6 +648,12 @@ function GroupSection({
               const isManual = acct.item.institutionId === 'manual';
               const metaSegs: string[] = [institution];
               if (acct.subtype) metaSegs.push(titleCase(acct.subtype));
+              const linkedName = acct.propertyAccountId
+                ? nameById.get(acct.propertyAccountId) ?? null
+                : acct.type === 'real_estate'
+                  ? mortgageByProperty.get(acct.id) ?? null
+                  : null;
+              if (linkedName) metaSegs.push(`linked to ${linkedName}`);
               const badges: string[] = [];
               if (acct.excludeFromNetWorth) badges.push('Not counted');
               if (acct.invertBalance) badges.push('Inverted');

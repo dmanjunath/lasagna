@@ -269,6 +269,9 @@ export const balanceSnapshots = pgTable("balance_snapshots", {
   available: numeric("available", { precision: 19, scale: 4 }),
   limit: numeric("limit", { precision: 19, scale: 4 }),
   isoCurrencyCode: varchar("iso_currency_code", { length: 3 }),
+  // Where this snapshot came from — e.g. "plaid" (provider sync) or a valuation
+  // source for manual/real-estate accounts. Nullable so legacy rows stay valid.
+  source: varchar("source", { length: 40 }),
   snapshotAt: timestamp("snapshot_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

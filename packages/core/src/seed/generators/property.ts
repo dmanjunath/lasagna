@@ -33,8 +33,6 @@ export async function generateProperty(
         mask: null,
         metadata: JSON.stringify({
           address: generateAddress(isPrimary),
-          squareFeet: isPrimary ? 2500 : 1800,
-          yearBuilt: 2010 + Math.floor(Math.random() * 10),
         }),
       })
       .returning();

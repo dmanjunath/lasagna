@@ -6,16 +6,12 @@ describe("parsePropertyMetadata", () => {
   it("parses a full rental property blob", () => {
     const raw = JSON.stringify({
       address: "12 Maple St",
-      yearBuilt: 1987,
-      squareFeet: 1450,
       monthlyRent: 2400,
       annualInsurance: 1800,
       annualMaintenance: 3000,
     });
     assert.deepEqual(parsePropertyMetadata(raw), {
       address: "12 Maple St",
-      yearBuilt: 1987,
-      squareFeet: 1450,
       monthlyRent: 2400,
       annualInsurance: 1800,
       annualMaintenance: 3000,

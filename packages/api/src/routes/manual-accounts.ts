@@ -3,6 +3,7 @@ import { eq, and, desc, accounts, balanceSnapshots, plaidItems } from "@lasagna/
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { validatePropertyLink } from "../lib/account-links.js";
+import { kickOffValueEstimate } from "../lib/value-estimate.js";
 
 export const manualAccountRoutes = new Hono<AuthEnv>();
 
@@ -32,6 +33,9 @@ manualAccountRoutes.post("/", async (c) => {
   const session = c.get("session");
   const body = await c.req.json();
   const { name, type, subtype, balance, metadata, linkedAccountId } = body;
+  // "own" pins the user's typed value as a durable override the auto-estimate
+  // never overwrites (real_estate only; mirrors the property-details PATCH).
+  const ownValueOverride = type === "real_estate" && body.valueSource === "own";
 
   if (!name || !type) {
     return c.json({ error: "name and type are required" }, 400);
@@ -65,7 +69,12 @@ manualAccountRoutes.post("/", async (c) => {
     linked = row!;
   }
 
-  const metaStr = metadata && Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null;
+  // Seed the durable override flag so the estimate never clobbers the user's
+  // value. When an address is present it's (re)applied via kickOffValueEstimate
+  // below; this covers the no-address case where no estimate job runs.
+  const metaObj: Record<string, unknown> = metadata && typeof metadata === "object" ? { ...metadata } : {};
+  if (ownValueOverride) metaObj.valueEstimate = { override: true };
+  const metaStr = Object.keys(metaObj).length > 0 ? JSON.stringify(metaObj) : null;
 
   const [account] = await db.insert(accounts).values({
     tenantId: session.tenantId,
@@ -93,6 +102,22 @@ manualAccountRoutes.post("/", async (c) => {
       balance: String(balance),
       isoCurrencyCode: "USD",
       snapshotAt: new Date(),
+    });
+  }
+
+  // Real-estate account created with an address → kick off an async value
+  // estimate. Don't block the create response on the full poll; the trigger is
+  // quick and stores metadata.valueEstimate = { status: "pending" }, then the
+  // client polls GET /accounts/:id/value-estimate for the result.
+  const address = typeof metaObj.address === "string" ? metaObj.address : "";
+  if (type === "real_estate" && address.trim()) {
+    // "My own value" pins the typed value as a durable override; otherwise, if
+    // the user typed a value the estimate is advisory — either way it must never
+    // overwrite their number.
+    const userEnteredValue = balance !== undefined && balance !== null;
+    await kickOffValueEstimate(account.id, metaStr, address, {
+      override: ownValueOverride,
+      advisory: !ownValueOverride && userEnteredValue,
     });
   }
 

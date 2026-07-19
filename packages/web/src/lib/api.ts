@@ -167,6 +167,7 @@ export const api = {
           metadata?: Record<string, unknown> | null;
           frozen?: boolean;
           propertyAccountId?: string | null;
+          valueSource?: "synced" | "estimated" | "manual";
         }>;
       }>;
     }>("/plaid/items"),
@@ -252,6 +253,29 @@ export const api = {
         body: JSON.stringify(body),
       },
     ),
+
+  // Poll an async address-based value estimate for a property account.
+  getValueEstimate: (accountId: string) =>
+    request<{
+      status: "none" | "pending" | "ready" | "failed";
+      value?: number;
+      reason?: "no_home_value";
+    }>(`/accounts/${accountId}/value-estimate`),
+
+  // Google Places proxy — the API keeps the key server-side.
+  placesAutocomplete: (q: string) =>
+    request<{ predictions: Array<{ description: string; placeId: string }> }>(
+      `/places/autocomplete?q=${encodeURIComponent(q)}`,
+    ),
+  placeDetails: (placeId: string) =>
+    request<{
+      address: string | null;
+      placeId: string;
+      lat: number | null;
+      lng: number | null;
+      types: string[];
+      isBusiness: boolean;
+    }>(`/places/details?placeId=${encodeURIComponent(placeId)}`),
 
   getNetWorthHistory: () =>
     request<{
@@ -858,7 +882,7 @@ export const api = {
   },
 
   // Manual Accounts
-  createManualAccount: (data: { name: string; type: string; subtype?: string; balance?: number; metadata?: Record<string, unknown>; linkedAccountId?: string }) =>
+  createManualAccount: (data: { name: string; type: string; subtype?: string; balance?: number; metadata?: Record<string, unknown>; valueSource?: 'market' | 'own'; linkedAccountId?: string }) =>
     request<{ account: { id: string; name: string; type: string } }>('/manual-accounts', { method: 'POST', body: JSON.stringify(data) }),
 
   updateManualAccount: (id: string, data: { name?: string; balance?: number; metadata?: Record<string, unknown> }) =>

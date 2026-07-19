@@ -8,6 +8,10 @@ import { Button, Field, Input, Select, SegmentedControl, Skeleton } from '../com
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
 import { InstIcon } from '../components/common/InstIcon';
+import { AddressAutocomplete } from '../components/common/AddressAutocomplete';
+import { ValueSourceBadge, type ValueSource } from '../components/common/ValueSourceBadge';
+import { ValueSourceControl } from '../components/common/ValueSourceControl';
+import { AccountLinkPicker, type AccountPickerOption } from '../components/common/AccountLinkPicker';
 import { TransactionList } from '../components/transactions/TransactionList';
 
 // ---------------------------------------------------------------------------
@@ -70,6 +74,8 @@ interface LoadedData {
   // Every account across all items — for the property↔mortgage link pickers
   // and reverse lookups (which debts point at this property).
   allAccounts: DetailAccount[];
+  // accountId → institution display name, for favicons in the link pickers.
+  accountInstitution: Record<string, string>;
 }
 
 export function AccountDetail() {
@@ -92,11 +98,10 @@ export function AccountDetail() {
 
   // Loan-detail form state (credit/loan accounts only). Pre-filled in load()
   // from the account's parsed metadata + apr column. Mirrors LoanDetailsModal.
-  const [maturityDate, setMaturityDate] = useState('');
-  const [expectedPayoffDate, setExpectedPayoffDate] = useState('');
   const [interestRate, setInterestRate] = useState('');
   const [minPayment, setMinPayment] = useState('');
   const [originationDate, setOriginationDate] = useState('');
+  const [loanTermYears, setLoanTermYears] = useState('');
   const [repaymentPlanType, setRepaymentPlanType] = useState('');
   const [purchaseApr, setPurchaseApr] = useState('');
   // Snapshot of the loaded loan values so Save only patches when one changed.
@@ -114,12 +119,22 @@ export function AccountDetail() {
   // Property-detail form state (real_estate accounts only). Pre-filled in
   // load() from the account's parsed metadata. Mirrors the loan-detail form.
   const [address, setAddress] = useState('');
-  const [yearBuilt, setYearBuilt] = useState('');
-  const [squareFeet, setSquareFeet] = useState('');
+  // Google Places identity + geocode, set when an autocomplete result is picked.
+  const [placeId, setPlaceId] = useState('');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
   const [monthlyRent, setMonthlyRent] = useState('');
   const [annualInsurance, setAnnualInsurance] = useState('');
   const [annualMaintenance, setAnnualMaintenance] = useState('');
   const initialPropRef = useRef<Record<string, string>>({});
+  // Value source for a real_estate account: 'market' uses our auto-estimate,
+  // 'own' pins the user's own value as the source of truth (a persisted
+  // override the estimate never overwrites). Initialized from metadata in load().
+  const [valueSourceChoice, setValueSourceChoice] = useState<'market' | 'own'>('market');
+  const [ownValue, setOwnValue] = useState('');
+  const initialValueSourceRef = useRef<'market' | 'own'>('market');
+  // Set when the address picker rejects a commercial place, cleared on next edit.
+  const [addressRejected, setAddressRejected] = useState(false);
 
   // Presentation state — chart range, hover readout, and the collapsible
   // settings panel (hidden by default so the page leads with the chart).
@@ -159,7 +174,7 @@ export function AccountDetail() {
         // whole account read as not-found — fall back to no snapshots.
         api.getHistory(id).catch(() => ({ snapshots: [] as Snapshot[] })),
       ]);
-      let found: Omit<LoadedData, 'snapshots' | 'allAccounts'> | null = null;
+      let found: Omit<LoadedData, 'snapshots' | 'allAccounts' | 'accountInstitution'> | null = null;
       for (const item of items) {
         const match = (item.accounts as DetailAccount[]).find((a) => a.id === id);
         if (match) {
@@ -177,10 +192,16 @@ export function AccountDetail() {
         setNotFound(true);
         return;
       }
+      const accountInstitution: Record<string, string> = {};
+      for (const item of items) {
+        const inst = item.institutionName || 'Manual';
+        for (const a of item.accounts) accountInstitution[a.id] = inst;
+      }
       setData({
         ...found,
         snapshots: history.snapshots,
         allAccounts: items.flatMap((i) => i.accounts as DetailAccount[]),
+        accountInstitution,
       });
       setName(found.acct.name);
       setTypeKey(keyFor(found.acct.type, found.acct.subtype));
@@ -201,19 +222,17 @@ export function AccountDetail() {
           )?.aprPercentage
         : undefined;
       const loanVals = {
-        maturityDate: dateStr(meta.maturityDate),
-        expectedPayoffDate: dateStr(meta.expectedPayoffDate),
         interestRate: num(meta.interestRatePercentage) || aprCol,
         minPayment: num(meta.minimumPaymentAmount),
         originationDate: dateStr(meta.originationDate),
+        loanTermYears: num(meta.loanTermYears),
         repaymentPlanType: typeof meta.repaymentPlanType === 'string' ? meta.repaymentPlanType : '',
         purchaseApr: (purchaseAprMeta !== undefined ? String(purchaseAprMeta) : '') || aprCol,
       };
-      setMaturityDate(loanVals.maturityDate);
-      setExpectedPayoffDate(loanVals.expectedPayoffDate);
       setInterestRate(loanVals.interestRate);
       setMinPayment(loanVals.minPayment);
       setOriginationDate(loanVals.originationDate);
+      setLoanTermYears(loanVals.loanTermYears);
       setRepaymentPlanType(loanVals.repaymentPlanType);
       setPurchaseApr(loanVals.purchaseApr);
       initialLoanRef.current = loanVals;
@@ -225,19 +244,30 @@ export function AccountDetail() {
       // Pre-fill property-detail fields from parsed metadata.
       const propVals = {
         address: typeof meta.address === 'string' ? meta.address : '',
-        yearBuilt: num(meta.yearBuilt),
-        squareFeet: num(meta.squareFeet),
+        placeId: typeof meta.placeId === 'string' ? meta.placeId : '',
+        lat: num(meta.lat),
+        lng: num(meta.lng),
         monthlyRent: num(meta.monthlyRent),
         annualInsurance: num(meta.annualInsurance),
         annualMaintenance: num(meta.annualMaintenance),
       };
       setAddress(propVals.address);
-      setYearBuilt(propVals.yearBuilt);
-      setSquareFeet(propVals.squareFeet);
+      setPlaceId(propVals.placeId);
+      setLat(propVals.lat);
+      setLng(propVals.lng);
       setMonthlyRent(propVals.monthlyRent);
       setAnnualInsurance(propVals.annualInsurance);
       setAnnualMaintenance(propVals.annualMaintenance);
       initialPropRef.current = propVals;
+
+      // Value source — an override flag on the estimate blob means the user
+      // pinned their own value; otherwise we're using the market estimate.
+      const ve = (meta.valueEstimate ?? {}) as Record<string, unknown>;
+      const source: 'market' | 'own' = ve.override === true ? 'own' : 'market';
+      setValueSourceChoice(source);
+      initialValueSourceRef.current = source;
+      setOwnValue(source === 'own' ? (found.acct.balance ?? '') : '');
+      setAddressRejected(false);
     } catch {
       setNotFound(true);
     } finally {
@@ -329,6 +359,23 @@ export function AccountDetail() {
   const debtTotal = linkedDebts.reduce((s, d) => s + Math.abs(parseFloat(d.balance ?? '0')), 0);
   const equity = balance - debtTotal;
 
+  // Rich link-picker options. A property is secured by a mortgage/loan — NOT a
+  // credit card — so the loan picker offers `type === 'loan'` only. The
+  // property picker (debt-side "Secured by") offers real_estate accounts.
+  const optFor = (a: DetailAccount): AccountPickerOption => ({
+    id: a.id,
+    name: titleCase(a.name),
+    institution: data.accountInstitution[a.id] ?? 'Manual',
+    meta: titleCaseType(a.type, a.subtype),
+  });
+  const loanOptions: AccountPickerOption[] = data.allAccounts
+    .filter((a) => a.type === 'loan' && !a.propertyAccountId)
+    .sort((a, b) => Number(b.subtype === 'mortgage') - Number(a.subtype === 'mortgage'))
+    .map(optFor);
+  const propertyOptions: AccountPickerOption[] = data.allAccounts
+    .filter((a) => a.type === 'real_estate')
+    .map(optFor);
+
   // Key facts strip — read-only, derived straight from the persisted account so
   // it stays stable while the Settings form is being edited. Only defined keys
   // render, so the strip is naturally short for simple accounts.
@@ -342,7 +389,19 @@ export function AccountDetail() {
   };
   const aprVal = metaNum(meta.interestRatePercentage) ?? (acct.apr != null ? metaNum(acct.apr) : null);
   const minPmtVal = metaNum(meta.minimumPaymentAmount);
-  const payoffVal = metaDate(meta.maturityDate) ?? metaDate(meta.expectedPayoffDate);
+  // Payoff comes from a Plaid-synced maturity/expected-payoff date when present;
+  // otherwise it's derived from the manually-entered origination date + term so
+  // the info isn't lost after we stopped collecting a payoff date directly.
+  const derivedPayoff = (() => {
+    if (typeof meta.originationDate !== 'string') return null;
+    const years = metaNum(meta.loanTermYears);
+    if (years == null || years <= 0) return null;
+    const d = new Date(meta.originationDate);
+    if (Number.isNaN(d.getTime())) return null;
+    d.setFullYear(d.getFullYear() + Math.round(years));
+    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  })();
+  const payoffVal = metaDate(meta.maturityDate) ?? metaDate(meta.expectedPayoffDate) ?? derivedPayoff;
   const facts: Array<{ label: string; value: string }> = [
     { label: 'Type', value: typeLabel },
     {
@@ -372,6 +431,21 @@ export function AccountDetail() {
       });
       if (!ok) return;
     }
+    // Changing a property's address re-kicks the value estimate server-side and
+    // will replace the current value — warn before it happens silently. Only
+    // when using the market estimate; an own-value override isn't re-estimated.
+    if (isPropertyAcct && valueSourceChoice === 'market') {
+      const newAddress = address.trim();
+      const prevAddress = (initialPropRef.current.address ?? '').trim();
+      if (newAddress && newAddress !== prevAddress) {
+        const ok = await confirm({
+          title: 'Re-estimate this home?',
+          body: "Changing the address will re-estimate this home's value and replace the current one.",
+          confirmLabel: 'Change address',
+        });
+        if (!ok) return;
+      }
+    }
     setSaving(true);
     try {
       if (isManual) {
@@ -398,8 +472,8 @@ export function AccountDetail() {
       // Persist loan-detail edits (credit/loan accounts) when any field changed.
       if (isLiabilityAcct) {
         const cur: Record<string, string> = {
-          maturityDate, expectedPayoffDate, interestRate, minPayment,
-          originationDate, repaymentPlanType, purchaseApr,
+          interestRate, minPayment,
+          originationDate, loanTermYears, repaymentPlanType, purchaseApr,
         };
         const init = initialLoanRef.current;
         const changed = Object.keys(cur).some((k) => cur[k] !== (init[k] ?? ''));
@@ -407,24 +481,26 @@ export function AccountDetail() {
           // APR/min-payment are required numbers on a loan — clearing the
           // field saves 0 rather than silently keeping the old value.
           const numOr0 = (s: string) => (s.trim() === '' ? 0 : parseFloat(s));
+          const term = parseInt(loanTermYears, 10);
           const body: Record<string, unknown> = { type: loanType };
           if (loanType === 'mortgage') {
-            if (maturityDate) body.maturityDate = maturityDate;
             body.interestRatePercentage = numOr0(interestRate);
             if (originationDate) body.originationDate = originationDate;
+            if (Number.isFinite(term) && term > 0) body.loanTermYears = term;
           } else if (loanType === 'student_loan') {
-            if (expectedPayoffDate) body.expectedPayoffDate = expectedPayoffDate;
             body.interestRatePercentage = numOr0(interestRate);
             body.minimumPaymentAmount = numOr0(minPayment);
+            if (originationDate) body.originationDate = originationDate;
+            if (Number.isFinite(term) && term > 0) body.loanTermYears = term;
             if (repaymentPlanType) body.repaymentPlanType = repaymentPlanType;
           } else if (loanType === 'credit_card') {
             body.minimumPaymentAmount = numOr0(minPayment);
             body.aprs = [{ aprType: 'purchase_apr', aprPercentage: numOr0(purchaseApr) }];
           } else {
-            if (maturityDate) body.maturityDate = maturityDate;
             body.interestRatePercentage = numOr0(interestRate);
             body.minimumPaymentAmount = numOr0(minPayment);
             if (originationDate) body.originationDate = originationDate;
+            if (Number.isFinite(term) && term > 0) body.loanTermYears = term;
           }
           if (Object.keys(body).length > 1) await api.patchLoanDetails(id, body);
         }
@@ -434,17 +510,32 @@ export function AccountDetail() {
       // changed. Cleared fields are sent as null — the endpoint deletes them.
       if (isPropertyAcct) {
         const cur: Record<string, string> = {
-          address, yearBuilt, squareFeet, monthlyRent, annualInsurance, annualMaintenance,
+          address, placeId, lat, lng, monthlyRent, annualInsurance, annualMaintenance,
         };
         const init = initialPropRef.current;
         const changedKeys = Object.keys(cur).filter((k) => cur[k] !== (init[k] ?? ''));
-        if (changedKeys.length > 0) {
-          const body: Record<string, unknown> = {};
-          for (const k of changedKeys) {
-            const v = cur[k].trim();
-            // yearBuilt must be an integer server-side.
-            body[k] = v === '' ? null : k === 'address' ? v : k === 'yearBuilt' ? Math.round(parseFloat(v)) : parseFloat(v);
+        const body: Record<string, unknown> = {};
+        const stringKeys = new Set(['address', 'placeId']);
+        for (const k of changedKeys) {
+          const v = cur[k].trim();
+          // address/placeId stay text; the rest are numeric.
+          body[k] = v === '' ? null : stringKeys.has(k) ? v : parseFloat(v);
+        }
+        // Value-source switch: 'own' pins the user's value (override); 'market'
+        // clears it and re-enables the auto-estimate. Only send when it changed,
+        // or when re-typing an own value while already on 'own'.
+        const sourceChanged = valueSourceChoice !== initialValueSourceRef.current;
+        if (valueSourceChoice === 'own') {
+          const ownNum = parseFloat(ownValue);
+          const ownChanged = ownValue.trim() !== '' && ownNum !== parseFloat(acct.balance ?? '0');
+          if (sourceChanged || ownChanged) {
+            body.valueSource = 'own';
+            if (!Number.isNaN(ownNum)) body.ownValue = ownNum;
           }
+        } else if (sourceChanged) {
+          body.valueSource = 'market';
+        }
+        if (Object.keys(body).length > 0) {
           await api.patchPropertyDetails(id, body);
         }
       }
@@ -534,6 +625,10 @@ export function AccountDetail() {
   const heroValue = hoveredPoint ? hoveredPoint.value : heroLatest ? heroLatest.value : balance;
   const heroChange = heroLatest && heroFirst ? heroLatest.value - heroFirst.value : 0;
   const balanceLabel = isLiabilityAcct ? 'Balance owed' : 'Account value';
+  // Source-of-truth badge — prefer the server-computed value, fall back to the
+  // manual/synced split for older item payloads.
+  const valueSource: ValueSource =
+    (acct as { valueSource?: ValueSource }).valueSource ?? (isManual ? 'manual' : 'synced');
 
   return (
     <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
@@ -649,7 +744,10 @@ export function AccountDetail() {
         />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
+            <div className="flex items-center gap-2.5">
+              <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
+              {valueSource && <ValueSourceBadge source={valueSource} size="md" />}
+            </div>
             <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
               {fmtUsd(heroValue)}
             </div>
@@ -718,16 +816,22 @@ export function AccountDetail() {
         </div>
       </section>
 
+      {/* Value-estimate status — pending/ready/failed, ported from the create
+          modal so an estimate resolving after creation stays honest here too. */}
+      {isPropertyAcct && (
+        <PropertyEstimateStatus accountId={id} meta={meta} onResolved={load} />
+      )}
+
       {/* ── Settings — collapsible, organized into on-skin sub-sections. ── */}
-      <section className="mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+      <section className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
         <button
           ref={settingsRef}
           type="button"
           aria-expanded={settingsOpen}
           onClick={() => setSettingsOpen((o) => !o)}
           className={cn(
-            'ui-focus flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-brand-softer sm:px-5',
-            settingsOpen && 'border-b border-line',
+            'ui-focus flex w-full items-center gap-3 rounded-t-ui-xl px-4 py-4 text-left transition-colors hover:bg-brand-softer sm:px-5',
+            settingsOpen ? 'border-b border-line' : 'rounded-b-ui-xl',
           )}
         >
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
@@ -744,14 +848,58 @@ export function AccountDetail() {
 
         {settingsOpen && (
           <div className="p-4 sm:p-6">
+            {/* Address + value source lead the settings for a property — the
+                address drives valuation, so it's the most important field. */}
+            {isPropertyAcct && (
+              <SettingsGroup title="Address & value">
+                <Field label="Address">
+                  <AddressAutocomplete
+                    value={address}
+                    onTextChange={(text) => {
+                      // Hand-editing invalidates the resolved place/geocode.
+                      setAddress(text);
+                      setPlaceId('');
+                      setLat('');
+                      setLng('');
+                      setAddressRejected(false);
+                    }}
+                    onPick={(r) => {
+                      setAddress(r.address);
+                      setPlaceId(r.placeId);
+                      setLat(r.lat != null ? String(r.lat) : '');
+                      setLng(r.lng != null ? String(r.lng) : '');
+                      setAddressRejected(false);
+                    }}
+                    onReject={() => setAddressRejected(true)}
+                  />
+                  {addressRejected && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-negative">
+                      Commercial properties aren't supported — enter a home address.
+                    </p>
+                  )}
+                </Field>
+
+                <div className="mt-4">
+                  <ValueSourceControl
+                    source={valueSourceChoice}
+                    onSourceChange={setValueSourceChoice}
+                    ownValue={ownValue}
+                    onOwnValueChange={setOwnValue}
+                  />
+                </div>
+              </SettingsGroup>
+            )}
+
             {/* Details — name is editable for every account; value only for
                 manual ones (synced balances come from the provider). */}
-            <SettingsGroup title="Details">
+            <SettingsGroup title="Details" className={isPropertyAcct ? 'mt-6' : undefined}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Name">
                   <Input type="text" value={name} onChange={(e) => setName(e.target.value)} />
                 </Field>
-                {isManual && (
+                {/* Property value is edited in "Address & value" above (via the
+                    value-source control), so skip the plain Value field here. */}
+                {isManual && !isPropertyAcct && (
                   <Field label="Value">
                     <Input
                       type="number"
@@ -814,16 +962,6 @@ export function AccountDetail() {
             {isLiabilityAcct && (
               <SettingsGroup title="Loan details" className="mt-6">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {(loanType === 'mortgage' || loanType === 'other_loan') && (
-                    <Field label="Maturity / payoff date">
-                      <Input type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} />
-                    </Field>
-                  )}
-                  {loanType === 'student_loan' && (
-                    <Field label="Expected payoff date">
-                      <Input type="date" value={expectedPayoffDate} onChange={(e) => setExpectedPayoffDate(e.target.value)} />
-                    </Field>
-                  )}
                   {loanType !== 'credit_card' && (
                     <Field label="Interest rate (APR %)">
                       <Input type="number" step="0.01" min="0" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} className="ui-tnum" />
@@ -834,9 +972,14 @@ export function AccountDetail() {
                       <Input type="number" step="0.01" min="0" value={purchaseApr} onChange={(e) => setPurchaseApr(e.target.value)} className="ui-tnum" />
                     </Field>
                   )}
-                  {(loanType === 'mortgage' || loanType === 'other_loan') && (
+                  {loanType !== 'credit_card' && (
                     <Field label="Origination date">
                       <Input type="date" value={originationDate} onChange={(e) => setOriginationDate(e.target.value)} />
+                    </Field>
+                  )}
+                  {loanType !== 'credit_card' && (
+                    <Field label="Loan term (years)">
+                      <Input type="number" step="1" min="1" max="50" value={loanTermYears} onChange={(e) => setLoanTermYears(e.target.value)} className="ui-tnum" />
                     </Field>
                   )}
                   {(loanType === 'student_loan' || loanType === 'credit_card' || loanType === 'other_loan') && (
@@ -866,12 +1009,15 @@ export function AccountDetail() {
                   </button>
                 )}
                 <Field label="Secured by">
-                  <Select value={linkedPropertyId} disabled={saving} onChange={(e) => setLinkedPropertyId(e.target.value)}>
-                    <option value="">None</option>
-                    {data.allAccounts.filter((a) => a.type === 'real_estate').map((p) => (
-                      <option key={p.id} value={p.id}>{titleCase(p.name)}</option>
-                    ))}
-                  </Select>
+                  <AccountLinkPicker
+                    options={propertyOptions}
+                    value={linkedPropertyId}
+                    onChange={setLinkedPropertyId}
+                    disabled={saving}
+                    placeholder="No property"
+                    addLabel="Add a property"
+                    onAdd={() => setLocation(`/accounts?add=real_estate&link=${id}`)}
+                  />
                   <p className="mt-2 text-[12px] leading-relaxed text-content-muted">
                     Tie this loan to the property it's secured by — its page will show your equity.
                   </p>
@@ -907,15 +1053,15 @@ export function AccountDetail() {
                   <Field label="Link a mortgage / loan">
                     <div className="flex items-center gap-2.5">
                       <div className="min-w-0 flex-1">
-                        <Select value={pendingDebtId} disabled={saving} onChange={(e) => setPendingDebtId(e.target.value)}>
-                          <option value="">Choose an account…</option>
-                          {data.allAccounts
-                            .filter((a) => LIABILITY_TYPES.has(a.type) && !a.propertyAccountId)
-                            .sort((a, b) => Number(b.subtype === 'mortgage') - Number(a.subtype === 'mortgage'))
-                            .map((d) => (
-                              <option key={d.id} value={d.id}>{titleCase(d.name)}</option>
-                            ))}
-                        </Select>
+                        <AccountLinkPicker
+                          options={loanOptions}
+                          value={pendingDebtId}
+                          onChange={setPendingDebtId}
+                          disabled={saving}
+                          placeholder="Choose a loan…"
+                          addLabel="Add a mortgage"
+                          onAdd={() => setLocation(`/accounts?add=loan:mortgage&link=${id}`)}
+                        />
                       </div>
                       <Button size="sm" disabled={!pendingDebtId || saving} onClick={() => { linkDebt(pendingDebtId); setPendingDebtId(''); }}>
                         Link
@@ -929,31 +1075,18 @@ export function AccountDetail() {
               </SettingsGroup>
             )}
 
-            {isPropertyAcct && (
-              <SettingsGroup title="Property details" className="mt-6">
+            {isPropertyAcct && acct.subtype === 'rental' && (
+              <SettingsGroup title="Rental economics" className="mt-6">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Address">
-                    <Input type="text" value={address} onChange={(e) => setAddress(e.target.value)} />
+                  <Field label="Monthly rent ($)">
+                    <Input type="number" step="1" min="0" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} className="ui-tnum" />
                   </Field>
-                  <Field label="Year built">
-                    <Input type="number" step="1" min="1600" max="2100" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} className="ui-tnum" />
+                  <Field label="Annual insurance ($)">
+                    <Input type="number" step="1" min="0" value={annualInsurance} onChange={(e) => setAnnualInsurance(e.target.value)} className="ui-tnum" />
                   </Field>
-                  <Field label="Square feet">
-                    <Input type="number" step="1" min="0" value={squareFeet} onChange={(e) => setSquareFeet(e.target.value)} className="ui-tnum" />
+                  <Field label="Annual maintenance ($)">
+                    <Input type="number" step="1" min="0" value={annualMaintenance} onChange={(e) => setAnnualMaintenance(e.target.value)} className="ui-tnum" />
                   </Field>
-                  {acct.subtype === 'rental' && (
-                    <>
-                      <Field label="Monthly rent ($)">
-                        <Input type="number" step="1" min="0" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} className="ui-tnum" />
-                      </Field>
-                      <Field label="Annual insurance ($)">
-                        <Input type="number" step="1" min="0" value={annualInsurance} onChange={(e) => setAnnualInsurance(e.target.value)} className="ui-tnum" />
-                      </Field>
-                      <Field label="Annual maintenance ($)">
-                        <Input type="number" step="1" min="0" value={annualMaintenance} onChange={(e) => setAnnualMaintenance(e.target.value)} className="ui-tnum" />
-                      </Field>
-                    </>
-                  )}
                 </div>
               </SettingsGroup>
             )}
@@ -1009,6 +1142,86 @@ export function AccountDetail() {
         <TransactionList accountId={id} title="Transactions" />
       </section>
 
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Property value-estimate status — durable, honest states for the detail page.
+// Pending: poll the same endpoint the create modal uses (~10s, ~5min cap).
+//   still pending at the cap → "Taking longer than expected — refresh".
+//   failed / no estimate     → "Couldn't estimate — enter a value manually".
+// Ready is silent: the value is already the balance and the hero badge says so.
+// Advisory estimates (user typed their own value) surface nothing here.
+// ---------------------------------------------------------------------------
+
+function PropertyEstimateStatus({
+  accountId,
+  meta,
+  onResolved,
+}: {
+  accountId: string;
+  meta: Record<string, unknown>;
+  onResolved: () => void;
+}) {
+  const ve = meta.valueEstimate as { status?: string; advisory?: boolean; override?: boolean } | undefined;
+  const initialStatus = ve?.status;
+  const [state, setState] = useState<'pending' | 'ready' | 'failed' | 'no-home' | 'timeout' | null>(
+    initialStatus === 'pending' ? 'pending' : null,
+  );
+
+  useEffect(() => {
+    if (initialStatus !== 'pending') { setState(null); return; }
+    setState('pending');
+    let cancelled = false;
+    const deadline = Date.now() + 5 * 60 * 1000;
+    const tick = async () => {
+      if (cancelled) return;
+      if (Date.now() > deadline) { setState('timeout'); return; }
+      try {
+        const res = await api.getValueEstimate(accountId);
+        if (cancelled) return;
+        if (res.status === 'ready') { setState('ready'); onResolved(); return; }
+        if (res.status === 'failed' || res.status === 'none') {
+          // A "no home value" failure gets a distinct, clearer message than a
+          // generic couldn't-estimate error.
+          setState(res.reason === 'no_home_value' ? 'no-home' : 'failed');
+          return;
+        }
+      } catch {
+        // transient — keep polling until the cap
+      }
+      if (!cancelled) setTimeout(tick, 10_000);
+    };
+    const t = setTimeout(tick, 10_000);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStatus, accountId]);
+
+  // Advisory / override (user's own value is the source of truth) or
+  // resolved-to-ready: nothing to show.
+  if (ve?.advisory || ve?.override || state === null || state === 'ready') return null;
+
+  const copy =
+    state === 'pending'
+      ? { title: 'Estimating value…', body: 'We’re looking up an estimate for this address. This usually takes about a minute.' }
+      : state === 'timeout'
+        ? { title: 'Taking longer than expected', body: 'We’re still working on it — refresh to check for the value.' }
+        : state === 'no-home'
+          ? { title: "Couldn’t find a home value for this address", body: 'It may be commercial or unlisted — switch to “My own value” below to enter it yourself.' }
+          : { title: 'Couldn’t estimate this address', body: 'Enter a value manually in Settings below.' };
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="mt-4 flex items-center gap-2.5 rounded-ui-md border border-line bg-info-soft px-4 py-3"
+    >
+      {state === 'pending' && <RefreshCw size={15} className="shrink-0 animate-spin text-info" aria-hidden="true" />}
+      <span className="min-w-0">
+        <span className="block text-[13.5px] font-bold text-content">{copy.title}</span>
+        <span className="mt-0.5 block text-[12.5px] text-content-muted">{copy.body}</span>
+      </span>
     </div>
   );
 }

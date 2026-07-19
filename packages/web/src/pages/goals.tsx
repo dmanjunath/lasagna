@@ -684,7 +684,12 @@ function GoalCard({
 
   return (
     <article
-      className="g-rise group relative flex flex-col overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm p-6 sm:p-[22px_24px] transition-[box-shadow,border-color] hover:shadow-ui-md"
+      className="g-rise group relative flex cursor-pointer flex-col overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm p-6 sm:p-[22px_24px] transition-[box-shadow,border-color] hover:shadow-ui-md"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open goal ${goal.name}`}
+      onClick={() => onOpen(goal.id)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(goal.id); } }}
       style={{
         animationDelay: `${0.04 * index}s`,
         borderColor: complete ? 'color-mix(in srgb, rgb(var(--ui-brand)) 34%, var(--ui-hairline))' : 'var(--ui-hairline)',
@@ -719,11 +724,11 @@ function GoalCard({
                 <Check className="h-3 w-3" strokeWidth={3} />
               </span>
             )}
-            {/* The title is the card's open affordance (whole-card click caused
-                cursor flicker on macOS) — underline on hover signals it. */}
+            {/* The whole card opens the goal; the title keeps its own affordance
+                (underline on hover) but stops propagation to avoid a double-fire. */}
             <button
               type="button"
-              onClick={() => onOpen(goal.id)}
+              onClick={(e) => { e.stopPropagation(); onOpen(goal.id); }}
               className="ui-focus min-w-0 truncate rounded-ui-sm text-left underline-offset-4 transition-colors hover:text-[rgb(var(--ui-brand-ink))] hover:underline"
             >
               {goal.name}
@@ -828,7 +833,7 @@ function GoalCard({
         {complete ? (
           <button
             type="button"
-            onClick={() => onReallocate(goal)}
+            onClick={(e) => { e.stopPropagation(); onReallocate(goal); }}
             className="inline-flex min-h-touch flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft px-3.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[box-shadow] hover:shadow-ui-sm sm:flex-none"
           >
             <RotateCw className="h-4 w-4" />
@@ -837,7 +842,7 @@ function GoalCard({
         ) : !(goal.monthlyContribution && parseFloat(goal.monthlyContribution) > 0) ? (
           <button
             type="button"
-            onClick={() => onSetPlan(goal.id)}
+            onClick={(e) => { e.stopPropagation(); onSetPlan(goal.id); }}
             className="inline-flex min-h-touch flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft px-3.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[box-shadow] hover:shadow-ui-sm sm:flex-none"
           >
             <Plus className="h-4 w-4" />
@@ -847,7 +852,7 @@ function GoalCard({
         <span className="hidden flex-1 sm:block" />
         <button
           type="button"
-          onClick={() => onOpen(goal.id)}
+          onClick={(e) => { e.stopPropagation(); onOpen(goal.id); }}
           className="group/link inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13.5px] font-bold text-content-secondary transition-colors hover:bg-brand-softer hover:text-[rgb(var(--ui-brand-ink))]"
         >
           View goal

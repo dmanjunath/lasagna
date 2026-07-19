@@ -43,6 +43,23 @@ describe("parseLoanMetadata", () => {
     }
   });
 
+  it("parses a manual mortgage with originationDate + loanTermYears", () => {
+    const raw = JSON.stringify({
+      type: "mortgage",
+      source: "manual",
+      originationDate: "2021-05-01",
+      loanTermYears: 30,
+      interestRatePercentage: 4.25,
+    });
+    const result = parseLoanMetadata(raw);
+    assert.ok(result !== null);
+    assert.equal(result!.type, "mortgage");
+    if (result!.type === "mortgage") {
+      assert.equal(result.originationDate, "2021-05-01");
+      assert.equal(result.loanTermYears, 30);
+    }
+  });
+
   it("parses a valid student loan metadata object", () => {
     const raw = JSON.stringify({
       type: "student_loan",
