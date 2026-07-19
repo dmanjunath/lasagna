@@ -1064,7 +1064,7 @@ function SimulateView({
         <div className="ret-withdrawal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 28, width: '100%' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <label style={{ fontSize: 13, color: 'rgb(var(--ui-content-secondary))', fontWeight: 500, fontFamily: 'inherit' }}>
+              <label className="ret-slider-label">
                 Monthly spending
               </label>
               <input
@@ -1083,7 +1083,8 @@ function SimulateView({
                   setMonthlySpend(clamped);
                   setMonthlySpendStr(String(clamped));
                 }}
-                style={{ width: 104, textAlign: 'right', border: '1px solid var(--ui-line)', borderRadius: 'var(--ui-r-sm)', padding: '4px 9px', fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-brand-ink))', fontWeight: 600, background: 'rgb(var(--ui-canvas-sunken))' }}
+                className="ret-slider-input ret-slider-input--wide ui-tnum"
+                aria-label="Monthly spending"
               />
             </div>
             <Slider min={2000} max={20000} step={100} value={monthlySpend}
@@ -1098,8 +1099,9 @@ function SimulateView({
             <div style={{ fontSize: 13, color: 'rgb(var(--ui-content-secondary))', fontWeight: 500, marginBottom: 8, fontFamily: 'inherit' }}>
               Parameters
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, padding: '8px 0', cursor: 'pointer', fontFamily: 'inherit', color: 'rgb(var(--ui-content-secondary))' }}>
-              <input type="checkbox" checked={inflAdj} onChange={e => setInflAdj(e.target.checked)} style={{ accentColor: 'rgb(var(--ui-brand))' }} />
+            <label className="ret-check">
+              <input type="checkbox" checked={inflAdj} onChange={e => setInflAdj(e.target.checked)} />
+              <span className="ret-check__box" aria-hidden><Check size={12} strokeWidth={3.5} /></span>
               Inflation-adjusted withdrawals
             </label>
             {strategy === 'constant_dollar' && (
@@ -1163,26 +1165,29 @@ function SimulateView({
           {Object.keys(MC_LABELS).map(k => (
             <div key={k}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, color: 'rgb(var(--ui-content-secondary))', fontFamily: 'inherit' }}>
+                <span className="ret-slider-label">
                   {MC_LABELS[k]}
                 </span>
-                <input
-                  type="number" min={0} max={100} step={5}
-                  value={allocStrs[k] ?? String(mcAlloc[k as keyof typeof mcAlloc])}
-                  onChange={e => {
-                    setAllocStrs(prev => ({ ...prev, [k]: e.target.value }));
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v) && v >= 0 && v <= 100) updateAlloc(k, v);
-                  }}
-                  onBlur={() => {
-                    const str = allocStrs[k] ?? '0';
-                    const v = parseInt(str, 10);
-                    const clamped = isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
-                    updateAlloc(k, clamped);
-                    setAllocStrs(prev => ({ ...prev, [k]: String(clamped) }));
-                  }}
-                  style={{ width: 52, textAlign: 'right', border: '1px solid var(--ui-line)', borderRadius: 'var(--ui-r-sm)', padding: '4px 8px', fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 600, color: 'rgb(var(--ui-content))', background: 'rgb(var(--ui-canvas-sunken))' }}
-                />
+                <span className="ret-pct-field">
+                  <input
+                    type="number" min={0} max={100} step={5}
+                    value={allocStrs[k] ?? String(mcAlloc[k as keyof typeof mcAlloc])}
+                    onChange={e => {
+                      setAllocStrs(prev => ({ ...prev, [k]: e.target.value }));
+                      const v = parseInt(e.target.value, 10);
+                      if (!isNaN(v) && v >= 0 && v <= 100) updateAlloc(k, v);
+                    }}
+                    onBlur={() => {
+                      const str = allocStrs[k] ?? '0';
+                      const v = parseInt(str, 10);
+                      const clamped = isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
+                      updateAlloc(k, clamped);
+                      setAllocStrs(prev => ({ ...prev, [k]: String(clamped) }));
+                    }}
+                    className="ret-slider-input ui-tnum"
+                    aria-label={`${MC_LABELS[k]} allocation percent`}
+                  />
+                </span>
               </div>
               <Slider min={0} max={100} step={5}
                 value={mcAlloc[k as keyof typeof mcAlloc]}
@@ -1742,8 +1747,8 @@ export function Retirement() {
                     setMonthlyRetirementSpend(clamped);
                     setMonthlySpendStr(String(clamped));
                   }}
-                  className="ret-slider-input ui-tnum"
-                  style={{ width: 96 }}
+                  className="ret-slider-input ret-slider-input--wide ui-tnum"
+                  aria-label="Monthly spending"
                 />
               </div>
               <Slider min={2000} max={20000} step={100} value={monthlyRetirementSpend}
@@ -1851,7 +1856,7 @@ export function Retirement() {
           text-align: right;
           border: 1px solid var(--ui-line);
           border-radius: var(--ui-r-sm);
-          padding: 4px 9px;
+          padding: 5px 10px;
           font-variant-numeric: tabular-nums;
           font-size: 13px;
           /* Typed value reads as content (the user's choice), not a CTA. */
@@ -1860,10 +1865,107 @@ export function Retirement() {
           background: rgb(var(--ui-canvas-sunken));
           transition: border-color var(--ui-dur-fast) var(--ui-ease-soft), box-shadow var(--ui-dur-fast) var(--ui-ease-soft);
         }
+        /* Drop the native number-spinner arrows — they clutter these compact
+           wells and clash with the slider that already drives the value. */
+        .ret-slider-input::-webkit-outer-spin-button,
+        .ret-slider-input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .ret-slider-input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+        .ret-slider-input:hover {
+          border-color: var(--ui-line-strong);
+        }
+        .ret-slider-input:focus,
         .ret-slider-input:focus-visible {
           outline: none;
           border-color: rgb(var(--ui-brand));
           box-shadow: 0 0 0 3px var(--ui-brand-ring);
+        }
+        /* Roomier well for currency values ($15,317 needs more room than an age). */
+        .ret-slider-input--wide { width: 108px; }
+        /* Percentage well: a trailing "%" affordance rendered outside the input so
+           the allocation controls read as percentages (matching the slider bubble)
+           without the % becoming editable text. The field group carries the focus
+           ring so input + suffix read as one control. */
+        .ret-pct-field {
+          display: inline-flex;
+          align-items: center;
+          gap: 1px;
+          border: 1px solid var(--ui-line);
+          border-radius: var(--ui-r-sm);
+          background: rgb(var(--ui-canvas-sunken));
+          padding-right: 8px;
+          transition: border-color var(--ui-dur-fast) var(--ui-ease-soft), box-shadow var(--ui-dur-fast) var(--ui-ease-soft);
+        }
+        .ret-pct-field:hover { border-color: var(--ui-line-strong); }
+        .ret-pct-field:focus-within {
+          border-color: rgb(var(--ui-brand));
+          box-shadow: 0 0 0 3px var(--ui-brand-ring);
+        }
+        /* The inner input drops its own chrome; the group owns border + ring. */
+        .ret-pct-field .ret-slider-input {
+          width: 40px;
+          border: 0;
+          background: transparent;
+          padding: 5px 2px 5px 8px;
+        }
+        .ret-pct-field .ret-slider-input:hover,
+        .ret-pct-field .ret-slider-input:focus,
+        .ret-pct-field .ret-slider-input:focus-visible {
+          border: 0;
+          box-shadow: none;
+        }
+        .ret-pct-field::after {
+          content: '%';
+          font-size: 13px;
+          font-weight: 600;
+          color: rgb(var(--ui-content-muted));
+          font-variant-numeric: tabular-nums;
+        }
+        /* Themed checkbox — brand fill + tick when checked, calm well when not,
+           matching the field system's focus ring. Replaces the raw native box. */
+        .ret-check {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          font-family: inherit;
+          font-size: 13px;
+          padding: 8px 0;
+          cursor: pointer;
+          color: rgb(var(--ui-content-secondary));
+          user-select: none;
+        }
+        .ret-check input {
+          position: absolute;
+          opacity: 0;
+          width: 1px;
+          height: 1px;
+          pointer-events: none;
+        }
+        .ret-check__box {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          flex: none;
+          border-radius: 6px;
+          border: 1px solid var(--ui-line-strong);
+          background: rgb(var(--ui-panel));
+          color: transparent;
+          transition: background var(--ui-dur-fast) var(--ui-ease-soft),
+            border-color var(--ui-dur-fast) var(--ui-ease-soft),
+            box-shadow var(--ui-dur-fast) var(--ui-ease-soft);
+        }
+        .ret-check input:checked + .ret-check__box {
+          background: rgb(var(--ui-brand));
+          border-color: rgb(var(--ui-brand));
+          color: rgb(var(--ui-brand-fg));
+        }
+        .ret-check input:focus-visible + .ret-check__box {
+          box-shadow: 0 0 0 3px var(--ui-brand-ring);
+          border-color: rgb(var(--ui-brand));
         }
         /* Only own the bottom gap — leave margin-top to the element's mt-6
            utility (24px). Setting margin:0 here used to zero that top gap, so
