@@ -1038,7 +1038,7 @@ export function AccountDetail() {
                           onClick={() => setLocation(`/accounts/${d.id}`)}
                           className="ui-focus min-w-0 flex-1 rounded-ui-sm text-left"
                         >
-                          <span className="block truncate text-[14px] font-semibold text-content">{titleCase(d.name)}</span>
+                          <span className="inline-flex items-center gap-1 text-[14px] font-bold text-brand hover:underline">View {titleCase(d.name)} →</span>
                           <span className="mt-0.5 block text-[12.5px] text-content-muted ui-tnum">
                             {fmtUsd(Math.abs(parseFloat(d.balance ?? '0')))} owed
                           </span>

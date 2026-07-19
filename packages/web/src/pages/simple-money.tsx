@@ -31,6 +31,7 @@ interface Item {
     invertBalance?: boolean;
     frozen?: boolean;
     propertyAccountId?: string | null;
+    metadata?: Record<string, unknown> | null;
   }>;
 }
 interface Transaction {
@@ -92,6 +93,12 @@ export function SimpleMoney() {
     }
     setSyncingAll(false);
   }
+
+  // Refetch items — used when a background value estimate resolves so the new
+  // property value replaces the "Estimating…" pill.
+  const reloadItems = () => {
+    api.getItems().then((d) => setItems(d.items)).catch(() => {});
+  };
 
   // ── Totals from items ──
   // Account types: depository, investment, real_estate, alternative, credit, loan.
@@ -347,7 +354,7 @@ export function SimpleMoney() {
           title="Property" viz={5} count={realEstateAccounts.length}
           caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate` : 'real estate'}
           total={realEstateTotal} items={items} filterType="real_estate"
-
+          onEstimateResolved={reloadItems}
         />
       )}
       {altAccounts.length > 0 && (
@@ -561,7 +568,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
 // ─────────────────────────────────────────────────────────────────────────
 
 function GroupSection({
-  title, viz, count, caption, unit = 'account', total, totalNeg, items, filterType,
+  title, viz, count, caption, unit = 'account', total, totalNeg, items, filterType, onEstimateResolved,
 }: {
   title: string;
   viz: number;
@@ -572,6 +579,7 @@ function GroupSection({
   totalNeg?: boolean;
   items: Item[];
   filterType: string | string[];
+  onEstimateResolved?: () => void;
 }) {
   const [, setLocation] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -660,6 +668,7 @@ function GroupSection({
               return (
                 <AcctRow
                   key={acct.id}
+                  accountId={acct.id}
                   institution={institution}
                   name={titleCase(stripAccountMask(acct.name, acct.mask))}
                   mask={acct.mask}
@@ -669,6 +678,8 @@ function GroupSection({
                   negative={totalNeg}
                   frozen={frozen}
                   syncTime={synced}
+                  metadata={acct.metadata}
+                  onEstimateResolved={onEstimateResolved}
                   onSettings={() => setLocation('/accounts/' + acct.id)}
                 />
               );
@@ -687,9 +698,10 @@ function GroupSection({
 // ─────────────────────────────────────────────────────────────────────────
 
 function AcctRow({
-  institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime,
-  onSettings,
+  accountId, institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime,
+  metadata, onEstimateResolved, onSettings,
 }: {
+  accountId: string;
   institution: string;
   name: string;
   mask?: string | null;
@@ -699,10 +711,37 @@ function AcctRow({
   negative?: boolean;
   frozen: boolean;
   syncTime: string | null;
+  metadata?: Record<string, unknown> | null;
+  onEstimateResolved?: () => void;
   onSettings: () => void;
 }) {
   const showNeg = negative || value < 0;
   const formatted = fmtUsd(Math.abs(value));
+
+  // Property whose value estimate is still pending → "Estimating…" pill; poll
+  // it in the background (mirrors the /accounts row) so a value that lands later
+  // replaces the pill.
+  const veStatus = (metadata?.valueEstimate as { status?: string } | undefined)?.status;
+  const [estimating, setEstimating] = useState(veStatus === 'pending');
+  useEffect(() => {
+    setEstimating(veStatus === 'pending');
+    if (veStatus !== 'pending') return;
+    let cancelled = false;
+    const deadline = Date.now() + 5 * 60 * 1000;
+    const tick = async () => {
+      if (cancelled || Date.now() > deadline) { if (!cancelled) setEstimating(false); return; }
+      try {
+        const res = await api.getValueEstimate(accountId);
+        if (cancelled) return;
+        if (res.status === 'ready') { setEstimating(false); onEstimateResolved?.(); return; }
+        if (res.status === 'failed' || res.status === 'none') { setEstimating(false); return; }
+      } catch { /* transient — keep polling until the cap */ }
+      if (!cancelled) setTimeout(tick, 10_000);
+    };
+    const t = setTimeout(tick, 10_000);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [veStatus, accountId]);
   return (
     <div
       role="button"
@@ -722,6 +761,12 @@ function AcctRow({
           {badges.map((b) => (
             <span key={b} className="hidden shrink-0 rounded-full bg-canvas-sunken px-1.5 py-0.5 text-[10px] font-medium text-content-muted sm:inline">{b}</span>
           ))}
+          {estimating && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-info-soft px-1.5 py-0.5 text-[10px] font-semibold text-info">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-info" aria-hidden />
+              Estimating…
+            </span>
+          )}
         </div>
         <div className="mt-0.5 truncate text-[12.5px] text-content-muted">
           {metaSegs.map((seg, i) => (

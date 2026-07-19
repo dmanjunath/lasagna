@@ -26,19 +26,17 @@ export function AddressAutocomplete({
   const boxRef = useRef<HTMLDivElement>(null);
   // Suppress the fetch triggered by our own onTextChange right after a pick.
   const skipNextRef = useRef(false);
-  // Don't fire the autocomplete for a pre-filled value on mount (e.g. opening
-  // the account edit page) — only once the user actually changes the text.
-  const didMountRef = useRef(false);
+  // Only fetch predictions once the user has actually focused the field. A
+  // pre-filled value that loads after mount (opening the account edit page /
+  // expanding settings) must NOT pop the autocomplete on its own.
+  const focusedRef = useRef(false);
 
   useEffect(() => {
     if (skipNextRef.current) {
       skipNextRef.current = false;
       return;
     }
-    if (!didMountRef.current) {
-      didMountRef.current = true;
-      return;
-    }
+    if (!focusedRef.current) return;
     const q = value.trim();
     if (q.length < 3) {
       setPredictions([]);
@@ -94,7 +92,7 @@ export function AddressAutocomplete({
         type="text"
         value={value}
         onChange={(e) => onTextChange(e.target.value)}
-        onFocus={() => predictions.length > 0 && setOpen(true)}
+        onFocus={() => { focusedRef.current = true; if (predictions.length > 0) setOpen(true); }}
         autoComplete="off"
         autoFocus={autoFocus}
       />
