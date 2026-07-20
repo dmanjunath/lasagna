@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
   Wallet, TrendingUp, RefreshCw, Plus,
-  Lock, ChevronDown, ChevronRight,
+  Lock, ChevronDown, ChevronRight, Settings2, Pencil,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask } from '../lib/utils';
 import { Button, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
+import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
 import { filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../components/ds/TrendChart';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
@@ -31,6 +32,7 @@ interface Item {
     invertBalance?: boolean;
     frozen?: boolean;
     propertyAccountId?: string | null;
+    valueSource?: 'synced' | 'estimated' | 'manual';
     metadata?: Record<string, unknown> | null;
   }>;
 }
@@ -38,6 +40,9 @@ interface Transaction {
   id: string; date: string; name: string; merchantName: string | null;
   amount: string; categoryId: string;
 }
+
+type GroupBy = 'category' | 'institution';
+const GROUP_BY_KEY = 'lasagna-money-group-by';
 
 const fmtUsd = (n: number, frac = 0) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
@@ -60,6 +65,16 @@ export function SimpleMoney() {
   const [range, setRange] = useState<Range>('6M');
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
+  // How the account lists are grouped: by asset category (default) or by the
+  // institution they're connected through. Persisted so the choice survives.
+  const [groupBy, setGroupBy] = useState<GroupBy>(() => {
+    if (typeof window === 'undefined') return 'category';
+    return window.localStorage.getItem(GROUP_BY_KEY) === 'institution' ? 'institution' : 'category';
+  });
+  const setGroupByPersisted = (g: GroupBy) => {
+    setGroupBy(g);
+    try { window.localStorage.setItem(GROUP_BY_KEY, g); } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -332,46 +347,72 @@ export function SimpleMoney() {
         </div>
       )}
 
-      {/* ── Account sections, grouped by category ── */}
-      {cashAccounts.length > 0 && (
-        <GroupSection
-          title="Cash" viz={1} count={cashAccounts.length}
-          caption={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets · ready to deploy` : 'ready to deploy'}
-          total={cashTotal} items={items} filterType="depository"
-
-        />
+      {/* ── Grouping toggle — group the account lists by asset category or by
+             the institution they're connected through. ── */}
+      {hasMoney && (
+        <div className="mt-7 flex items-center justify-between gap-3 px-1">
+          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Accounts</h2>
+          <SegmentedControl
+            aria-label="Group accounts by"
+            value={groupBy}
+            onChange={(g) => setGroupByPersisted(g as GroupBy)}
+            options={[
+              { value: 'category', label: 'Type' },
+              { value: 'institution', label: 'Institution' },
+            ]}
+          />
+        </div>
       )}
-      {investAccounts.length > 0 && (
-        <GroupSection
-          title="Investments" viz={2} count={investAccounts.length}
-          caption={grossAssets > 0 ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · long-term growth` : 'long-term growth'}
-          total={investTotal} items={items} filterType="investment"
 
-        />
+      {/* ── Account sections, grouped by asset category ── */}
+      {groupBy === 'category' && (
+        <>
+          {cashAccounts.length > 0 && (
+            <GroupSection
+              title="Cash" viz={1} count={cashAccounts.length}
+              caption={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets · ready to deploy` : 'ready to deploy'}
+              total={cashTotal} items={items} filterType="depository"
+            />
+          )}
+          {investAccounts.length > 0 && (
+            <GroupSection
+              title="Investments" viz={2} count={investAccounts.length}
+              caption={grossAssets > 0 ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · long-term growth` : 'long-term growth'}
+              total={investTotal} items={items} filterType="investment"
+            />
+          )}
+          {realEstateAccounts.length > 0 && (
+            <GroupSection
+              title="Property" viz={5} count={realEstateAccounts.length}
+              caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate` : 'real estate'}
+              total={realEstateTotal} items={items} filterType="real_estate"
+              onEstimateResolved={reloadItems}
+            />
+          )}
+          {altAccounts.length > 0 && (
+            <GroupSection
+              title="Other assets" viz={5} count={altAccounts.length} unit="item"
+              caption={grossAssets > 0 ? `${Math.round((altTotal / grossAssets) * 100)}% of assets · alternative holdings` : 'alternative holdings'}
+              total={altTotal} items={items} filterType="alternative"
+            />
+          )}
+          {debtAccounts.length > 0 && (
+            <GroupSection
+              title="Debt" viz={4} count={debtAccounts.length}
+              caption={grossAssets > 0 ? `${Math.round((debtTotal / grossAssets) * 100)}% debt-to-assets` : 'reduces net worth'}
+              total={debtTotal} totalNeg items={items} filterType={['credit', 'loan']}
+            />
+          )}
+        </>
       )}
-      {realEstateAccounts.length > 0 && (
-        <GroupSection
-          title="Property" viz={5} count={realEstateAccounts.length}
-          caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate` : 'real estate'}
-          total={realEstateTotal} items={items} filterType="real_estate"
-          onEstimateResolved={reloadItems}
-        />
-      )}
-      {altAccounts.length > 0 && (
-        <GroupSection
-          title="Other assets" viz={5} count={altAccounts.length} unit="item"
-          caption={grossAssets > 0 ? `${Math.round((altTotal / grossAssets) * 100)}% of assets · alternative holdings` : 'alternative holdings'}
-          total={altTotal} items={items} filterType="alternative"
 
-        />
-      )}
-      {debtAccounts.length > 0 && (
-        <GroupSection
-          title="Debt" viz={4} count={debtAccounts.length}
-          caption={grossAssets > 0 ? `${Math.round((debtTotal / grossAssets) * 100)}% debt-to-assets` : 'reduces net worth'}
-          total={debtTotal} totalNeg items={items} filterType={['credit', 'loan']}
-
-        />
+      {/* ── Account sections, grouped by institution ── */}
+      {groupBy === 'institution' && (
+        <div className="mt-5 space-y-[18px]">
+          {items.map((item) => (
+            <InstitutionSection key={item.id} item={item} items={items} onEstimateResolved={reloadItems} />
+          ))}
+        </div>
       )}
 
       {/* ── Recent activity ── */}
@@ -678,6 +719,7 @@ function GroupSection({
                   negative={totalNeg}
                   frozen={frozen}
                   syncTime={synced}
+                  valueSource={acct.valueSource}
                   metadata={acct.metadata}
                   onEstimateResolved={onEstimateResolved}
                   onSettings={() => setLocation('/accounts/' + acct.id)}
@@ -692,6 +734,143 @@ function GroupSection({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Institution section — collapsible header (icon + name + status + net total)
+// over the accounts connected through it. Managing the connection (disconnect,
+// add accounts to it) lives on the Connected-Accounts page; "Manage" links out.
+// ─────────────────────────────────────────────────────────────────────────
+
+function InstitutionSection({
+  item, items, onEstimateResolved,
+}: {
+  item: Item;
+  items: Item[];
+  onEstimateResolved?: () => void;
+}) {
+  const [, setLocation] = useLocation();
+  const [collapsed, setCollapsed] = useState(false);
+
+  const institution = item.institutionName || 'Manual';
+  const isManual = item.institutionId === 'manual';
+  const isError = item.status === 'error' || item.status === 'item_login_required';
+  const synced = item.lastSyncedAt ? relativeTime(item.lastSyncedAt) : null;
+  const statusLabel = isManual
+    ? 'Manual entry'
+    : isError
+      ? 'Needs attention'
+      : synced ? `synced ${synced}` : 'Synced';
+
+  // Property↔mortgage link resolution (shared with the category grouping) so a
+  // row can read "linked to X".
+  const allAccts = items.flatMap((i) => i.accounts);
+  const linkNameOf = (a: { name: string; mask: string | null }) =>
+    titleCase(stripAccountMask(a.name, a.mask));
+  const nameById = new Map(allAccts.map((a) => [a.id, linkNameOf(a)] as const));
+  const mortgageByProperty = new Map<string, string>();
+  for (const a of allAccts) {
+    if (a.propertyAccountId) mortgageByProperty.set(a.propertyAccountId, linkNameOf(a));
+  }
+
+  // Net total across the institution — debts reduce, everything else adds
+  // (respecting the invert override, matching the net-worth math).
+  const total = item.accounts
+    .filter((a) => !a.excludeFromNetWorth)
+    .reduce((sum, a) => {
+      const v = effectiveBalance(a);
+      return a.type === 'credit' || a.type === 'loan' ? sum - Math.abs(v) : sum + v;
+    }, 0);
+  const totalNeg = total < 0;
+
+  return (
+    <section className={cn(
+      'overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm',
+      isError ? 'border-caution/40' : 'border-line',
+    )}>
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
+        className={cn(
+          'ui-focus flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-brand-softer sm:px-5',
+          !collapsed && 'border-b border-line',
+        )}
+      >
+        <InstIcon institution={institution} isManual={isManual} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-editorial text-[16.5px] font-bold leading-tight tracking-[-0.01em]" title={institution}>
+            {institution}
+          </div>
+          <div className="mt-0.5 text-[12.5px] text-content-muted">
+            <span className={cn('font-medium', isError && 'text-caution')}>{statusLabel}</span>
+            <span className="mx-1 text-content-faint">·</span>
+            <span>{item.accounts.length} account{item.accounts.length === 1 ? '' : 's'}</span>
+          </div>
+        </div>
+        <span className={cn('ml-3 shrink-0 font-editorial text-[16px] font-extrabold tracking-[-0.015em] ui-tnum', totalNeg && 'text-negative')}>
+          {totalNeg ? '−' : ''}{fmtUsd(Math.abs(total))}
+        </span>
+        <span className="grid h-[26px] w-[26px] shrink-0 place-items-center text-content-faint">
+          <ChevronDown size={18} className={cn('transition-transform duration-200 ease-ui', collapsed && '-rotate-90')} />
+        </span>
+      </button>
+
+      {!collapsed && (
+        <div>
+          {item.accounts.map((acct) => {
+            const bal = effectiveBalance(acct);
+            const frozen = acct.frozen === true;
+            const metaSegs: string[] = [];
+            if (acct.subtype) metaSegs.push(titleCase(acct.subtype));
+            else metaSegs.push(titleCase(acct.type.replace(/_/g, ' ')));
+            const linkedName = acct.propertyAccountId
+              ? nameById.get(acct.propertyAccountId) ?? null
+              : acct.type === 'real_estate'
+                ? mortgageByProperty.get(acct.id) ?? null
+                : null;
+            if (linkedName) metaSegs.push(`linked to ${linkedName}`);
+            const badges: string[] = [];
+            if (acct.excludeFromNetWorth) badges.push('Not counted');
+            if (acct.invertBalance) badges.push('Inverted');
+            const isDebt = acct.type === 'credit' || acct.type === 'loan';
+            return (
+              <AcctRow
+                key={acct.id}
+                accountId={acct.id}
+                institution={institution}
+                name={titleCase(stripAccountMask(acct.name, acct.mask))}
+                mask={acct.mask}
+                metaSegs={metaSegs}
+                badges={badges}
+                value={bal}
+                negative={isDebt}
+                frozen={frozen}
+                syncTime={synced}
+                valueSource={acct.valueSource}
+                metadata={acct.metadata}
+                onEstimateResolved={onEstimateResolved}
+                onSettings={() => setLocation('/accounts/' + acct.id)}
+                hideIcon
+              />
+            );
+          })}
+          {/* Managing a connection (add accounts to it, disconnect it) lives on
+              the Connected-Accounts page — link out so those flows stay intact. */}
+          <div className="flex items-center border-t border-line px-4 py-2.5 sm:px-5">
+            <button
+              type="button"
+              onClick={() => setLocation('/accounts')}
+              className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13px] font-semibold text-brand transition-colors hover:bg-brand-softer"
+            >
+              <Settings2 size={14} />
+              Manage connection
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Account row — institution icon · name/meta · balance · status · chevron.
 // The whole row navigates to the account detail page (edit/sync/delete live
 // there) — same pattern as /accounts.
@@ -699,7 +878,7 @@ function GroupSection({
 
 function AcctRow({
   accountId, institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime,
-  metadata, onEstimateResolved, onSettings,
+  valueSource, metadata, onEstimateResolved, onSettings, hideIcon,
 }: {
   accountId: string;
   institution: string;
@@ -711,9 +890,11 @@ function AcctRow({
   negative?: boolean;
   frozen: boolean;
   syncTime: string | null;
+  valueSource?: 'synced' | 'estimated' | 'manual';
   metadata?: Record<string, unknown> | null;
   onEstimateResolved?: () => void;
   onSettings: () => void;
+  hideIcon?: boolean;
 }) {
   const showNeg = negative || value < 0;
   const formatted = fmtUsd(Math.abs(value));
@@ -754,7 +935,7 @@ function AcctRow({
         frozen && 'opacity-70',
       )}
     >
-      <InstIcon institution={institution} />
+      {!hideIcon && <InstIcon institution={institution} />}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[14.5px] font-bold leading-tight" title={name}>{name}</span>
@@ -793,6 +974,10 @@ function AcctRow({
             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
               <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
             </span>
+          ) : estimating ? null : valueSource ? (
+            <span className="mt-1 inline-flex">
+              <ValueSourceBadge source={valueSource} />
+            </span>
           ) : syncTime ? (
             <div className="mt-0.5 hidden text-[12px] text-content-muted ui-tnum sm:block">{syncTime}</div>
           ) : null}
@@ -803,14 +988,16 @@ function AcctRow({
   );
 }
 
-function InstIcon({ institution }: { institution: string }) {
-  const url = faviconUrl(institutionDomainFor(institution), 64);
+function InstIcon({ institution, isManual }: { institution: string; isManual?: boolean }) {
+  const url = isManual ? null : faviconUrl(institutionDomainFor(institution), 64);
   const mono = (institution || '?').trim().charAt(0).toUpperCase();
   const [err, setErr] = useState(false);
   return (
     <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-ui-md border border-line bg-canvas-sunken text-[13px] font-bold text-content-secondary">
       {url && !err ? (
         <img src={url} alt="" className="h-6 w-6 rounded-[5px]" onError={() => setErr(true)} />
+      ) : isManual ? (
+        <Pencil size={16} className="text-content-muted" />
       ) : (
         mono
       )}

@@ -220,7 +220,7 @@ export function Sidebar({ className }: SidebarProps) {
                 </button>
               )}
               <button
-                onClick={() => { setUserMenuOpen(false); navigate('/accounts'); }}
+                onClick={() => { setUserMenuOpen(false); navigate('/money'); }}
                 className="w-full text-left px-4 py-2.5 text-sm text-content-secondary hover:bg-canvas-sunken transition-colors cursor-pointer"
               >
                 Connected Accounts
