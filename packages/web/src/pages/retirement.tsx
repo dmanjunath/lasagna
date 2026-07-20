@@ -764,12 +764,13 @@ function BacktestSection({ backtestRows, portfolioValue, monthlySpend, lifeHoriz
 }) {
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const sorted = useMemo(() => [...backtestRows].sort((a, b) => b.accStartYear - a.accStartYear), [backtestRows]);
+  const survivedCount = backtestRows.filter(r => r.survived).length;
 
   return (
     <>
       <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--ui-line)', fontSize: 13, color: 'rgb(var(--ui-content-secondary))', fontFamily: 'inherit' }}>
-          Starts with {formatMoney(portfolioValue, true)} and <strong>accumulates for {accumulationYears} years</strong> using historical returns + savings, then <strong>withdraws {formatMoney(monthlySpend * 12, true)}/yr</strong> for {lifeHorizon} years. Each row is a different historical starting point.
+          Starts with {formatMoney(portfolioValue, true)} and <strong>accumulates for {accumulationYears} years</strong> using historical returns + savings, then <strong>withdraws {formatMoney(monthlySpend * 12, true)}/yr</strong> for {lifeHorizon} years. Each row is a different historical starting point — <strong>{survivedCount} of {backtestRows.length}</strong> start years lasted the full {lifeHorizon} years.
         </div>
         <div className="ret-backtest-wrap" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -996,7 +997,6 @@ function SimulateView({
   );
 
   const mcSuccessRate = bands.mcSuccessRate;
-  const mcSuccessColor = mcSuccessRate >= 80 ? 'rgb(var(--ui-brand-ink))' : mcSuccessRate >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
 
   // Real vs nominal: deflate by 3% / yr from current age
   const displayBands = useMemo(() => {
@@ -1035,7 +1035,6 @@ function SimulateView({
   };
 
   const backtestSuccessRate = backtestRows.length > 0 ? Math.round((survived / backtestRows.length) * 100) : 0;
-  const btSuccessColor = backtestSuccessRate >= 80 ? 'rgb(var(--ui-brand-ink))' : backtestSuccessRate >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
 
   useEffect(() => { onRatesChange?.(mcSuccessRate, backtestSuccessRate); }, [mcSuccessRate, backtestSuccessRate, onRatesChange]);
 
@@ -1278,25 +1277,8 @@ function SimulateView({
         </div>
       </div>
 
-      {/* ── Focal probability — the confident number for the active method ──── */}
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
-          <span className="font-editorial ui-tnum" style={{ fontSize: 52, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.03em', color: simTab === 'mc' ? mcSuccessColor : btSuccessColor }}>
-            {simTab === 'mc' ? mcSuccessRate : backtestSuccessRate}%
-          </span>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontFamily: 'inherit', fontSize: 15, fontWeight: 600, color: 'rgb(var(--ui-content))' }}>
-              {simTab === 'mc' ? 'chance your money lasts through age ' + lifeExp : 'of historical retirements survived'}
-            </div>
-            <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, color: 'rgb(var(--ui-content-muted))', marginTop: 3, lineHeight: 1.5 }}>
-              {simTab === 'mc'
-                ? `${mcSuccessRate}% of 1,000 simulated market paths end with money left`
-                : `${survived} of ${backtestRows.length} start years (1928–${1928 + Math.max(backtestRows.length - 1, 0)}) lasted the full ${lifeHorizon} years`}
-              {dollars === 'real' && ` · shown in today's dollars${simTab === 'backtest' ? ' (historical CPI)' : ' (3%/yr)'}`}
-            </div>
-          </div>
-        </div>
-      </Card>
+      {/* The success figure itself lives in the hero (echoed by the bottom
+          strip while scrolled) — the cards below carry the evidence only. */}
 
       {/* ── Monte Carlo tab ─────────────────────────────────────────────────── */}
       {simTab === 'mc' && (
@@ -1429,9 +1411,17 @@ export function Retirement() {
   const [lifeExpectancy, setLifeExpectancy] = useState(90);
 
   // Success rates reported by SimulateView
-  const [mcRate, setMcRate] = useState(0);
+  // null until the Detailed simulation has reported — a genuine 0% rate must
+  // not be mistaken for "not loaded yet" and fall back to the plan figure.
+  const [mcRate, setMcRate] = useState<number | null>(null);
   const [btRate, setBtRate] = useState(0);
   const handleRatesChange = useMemo(() => (mc: number, bt: number) => { setMcRate(mc); setBtRate(bt); }, []);
+
+  // The hero's big success number. While it's on screen the bottom strip stays
+  // hidden (the number would just double-print); once it scrolls out of view
+  // the strip slides in so the figure stays readable next to the levers below.
+  const heroNumRef = useRef<HTMLSpanElement>(null);
+  const [heroNumVisible, setHeroNumVisible] = useState(true);
 
   // Draft strings for number inputs so typing isn't interrupted by clamping
   const [retAgeStr, setRetAgeStr] = useState('65');
@@ -1506,6 +1496,16 @@ export function Retirement() {
   useEffect(() => { setMonthlySpendStr(String(monthlyRetirementSpend)); }, [monthlyRetirementSpend]);
   useEffect(() => { setLifeExpStr(String(lifeExpectancy)); }, [lifeExpectancy]);
 
+  // Observe the hero success number; re-attach when the page (or view) swaps
+  // the element in, since the hero only exists once accounts have loaded.
+  useEffect(() => {
+    const el = heroNumRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => setHeroNumVisible(entry.isIntersecting));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loading, hasAccounts, view]);
+
   useEffect(() => {
     if (!loading && hasAccounts) {
       setPageContext({
@@ -1554,11 +1554,6 @@ export function Retirement() {
   // Only surface the dual figure when retirement accounts are both locked AND a
   // meaningful slice of the base — otherwise X≈Y and the caveat is just noise.
   const showAccessSplit = retirementAccountsLocked && liquidFrac < 0.97 && monthlyIncomeLiquid < monthlyRetirementIncome;
-  const readiness = fireNumber > 0 ? Math.min(100, (portfolioValue / fireNumber) * 100) : 0;
-  const readinessLabel =
-    readiness >= 80 ? "You're on track!" :
-    readiness >= 50 ? 'Getting there — keep saving.' :
-    'More savings needed.';
 
   // Monte Carlo bands for the Plan-tab projection. We derive equityFraction
   // from the live portfolio allocation (us + intl + reits) so the band width
@@ -1652,17 +1647,21 @@ export function Retirement() {
     );
   }
 
-  const readinessTone: 'pos' | 'warn' | 'neg' =
-    readiness >= 80 ? 'pos' : readiness >= 50 ? 'warn' : 'neg';
-
-  // Live "chance of success" for the pinned strip. Detailed mode uses the
-  // simulation's Monte Carlo rate (reflects the chosen strategy + allocation);
-  // Overview uses the plan projection's.
-  const chanceOfSuccess = view === 'advanced' && mcRate > 0 ? mcRate : planBands.mcSuccessRate;
+  // The page's single success figure: the Monte-Carlo chance the money lasts.
+  // Detailed mode uses the simulation's rate (reflects the chosen strategy +
+  // allocation); Overview uses the plan projection's. The hero leads with it
+  // and the bottom strip echoes the same number once the hero scrolls away.
+  const chanceOfSuccess = view === 'advanced' && mcRate !== null ? mcRate : planBands.mcSuccessRate;
   const chanceColor =
     chanceOfSuccess >= 80 ? 'rgb(var(--ui-brand-ink))' : chanceOfSuccess >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+  const successTone: 'pos' | 'warn' | 'neg' =
+    chanceOfSuccess >= 80 ? 'pos' : chanceOfSuccess >= 60 ? 'warn' : 'neg';
+  const successLabel =
+    successTone === 'pos' ? "You're on track!" :
+    successTone === 'warn' ? 'Getting there — keep saving.' :
+    'More savings needed.';
 
-  const askLasagnaPrompt = `I want to assess my retirement readiness. The dashboard says I'm ${readiness.toFixed(0)}% ready, can you explain that?`;
+  const askLasagnaPrompt = `I want to assess my retirement plan. The dashboard says my money has a ${chanceOfSuccess}% chance of lasting through age ${lifeExpectancy} — can you explain that?`;
 
   // Assumptions + advanced simulation extracted to nodes so Detailed can lead
   // with them (right under the hero) while Overview keeps them at the bottom —
@@ -2000,13 +1999,21 @@ export function Retirement() {
         .dark .ret-sw-outer { opacity: 0.18; }
         .dark .ret-sw-inner { opacity: 0.36; }
         /* Pinned chance-of-success strip. Rendered as the page's last child
-           and stuck to the bottom of the scrollport, so it stays visible while
-           scrolling; on mobile it clears the fixed bottom tab bar. */
+           and stuck to the bottom of the scrollport; on mobile it clears the
+           fixed bottom tab bar. Hidden while the hero's success number is on
+           screen (it would double-print the figure) and slides in once the
+           hero number scrolls out of view. */
         .ret-pin {
           position: sticky;
           bottom: 12px;
           z-index: 30;
           margin-top: 14px;
+          transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        .ret-pin[data-hidden='true'] {
+          opacity: 0;
+          transform: translateY(8px);
+          pointer-events: none;
         }
         .ret-pin__inner {
           display: flex;
@@ -2087,16 +2094,14 @@ export function Retirement() {
         {(() => {
           // Detailed mode leads with the advanced tools, so the hero collapses to
           // a compact single-row answer (number + status + one-line summary) and
-          // drops the coverage bar. Overview keeps the full readiness moment.
+          // drops the coverage bar. Overview keeps the full success moment.
           const compact = view === 'advanced';
-          const readinessColor =
-            readiness >= 80 ? 'rgb(var(--ui-brand-ink))' : readiness >= 50 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
           const covered = monthlyRetirementIncome >= monthlyRetirementSpend;
           const coveragePct = Math.min(100, (monthlyRetirementIncome / Math.max(monthlyRetirementSpend, 1)) * 100);
           const pill =
-            readinessTone === 'pos'
+            successTone === 'pos'
               ? { bg: 'var(--ui-brand-soft)', fg: 'rgb(var(--ui-brand-ink))' }
-              : readinessTone === 'warn'
+              : successTone === 'warn'
               ? { bg: 'var(--ui-caution-soft)', fg: 'rgb(var(--ui-caution))' }
               : { bg: 'var(--ui-negative-soft)', fg: 'rgb(var(--ui-negative))' };
           return (
@@ -2114,9 +2119,11 @@ export function Retirement() {
               />
               {/* hero header — eyebrow on the left, Ask Lasagna at the top
                   right. The button opens the chat sidebar seeded with the
-                  readiness number so the conversation starts on this data. */}
-              <div className="relative flex items-center justify-between gap-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement readiness</div>
+                  success number so the conversation starts on this data. The
+                  row owns a bottom margin so the button doesn't crowd the
+                  number and KPI column beneath it. */}
+              <div className="relative mb-3 flex items-center justify-between gap-3">
+                <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Chance of success</div>
                 <button
                   type="button"
                   onClick={() => openChat(askLasagnaPrompt)}
@@ -2130,29 +2137,37 @@ export function Retirement() {
                 className={cn('relative', !compact && 'ret-readiness-grid grid items-center gap-7 sm:gap-9')}
                 style={!compact ? { gridTemplateColumns: 'minmax(0, 1fr) 236px' } : undefined}
               >
-                {/* lead — the answer (single readiness moment: big % + coverage bar) */}
+                {/* lead — the answer (single success moment: big % + coverage bar) */}
                 <div className="min-w-0">
-                  <div className="mt-2 flex items-end gap-3 flex-wrap">
+                  {/* Baseline-align the status pill with the number so its text
+                      sits on the same line as the figure it qualifies. */}
+                  <div className="flex items-baseline gap-3 flex-wrap">
                     <span
+                      ref={heroNumRef}
+                      data-testid="hero-success"
                       className={cn(
-                        'font-editorial font-extrabold leading-[0.82] tracking-[-0.03em] ui-tnum',
+                        'font-editorial font-extrabold tracking-[-0.03em] ui-tnum',
                         compact ? 'text-[40px] sm:text-[48px]' : 'text-[56px] sm:text-[68px]',
+                        // After the size classes: tailwind-merge treats a later
+                        // font-size as owning line-height, so a leading-* listed
+                        // before text-[…] gets silently dropped.
+                        'leading-[0.82]',
                       )}
-                      style={{ color: readinessColor }}
+                      style={{ color: chanceColor }}
                     >
-                      {readiness.toFixed(0)}%
+                      {chanceOfSuccess}%
                     </span>
                     <span
-                      className="mb-2 inline-flex items-center h-7 px-3 rounded-full text-[12.5px] font-bold"
+                      className="inline-flex items-center h-7 px-3 rounded-full text-[12.5px] font-bold"
                       style={{ background: pill.bg, color: pill.fg }}
                     >
-                      {readinessLabel}
+                      {successLabel}
                     </span>
                   </div>
                   {compact ? (
                     <p className="mt-3 text-[13.5px] leading-[1.5] text-content-secondary max-w-[54ch]">
-                      Funding retirement at age <span className="ui-tnum">{retirementAge}</span> through{' '}
-                      <span className="ui-tnum">{lifeExpectancy}</span>.{' '}
+                      Odds your money lasts through age <span className="ui-tnum">{lifeExpectancy}</span>, retiring at{' '}
+                      <span className="ui-tnum">{retirementAge}</span> — from 1,000 simulated market paths.{' '}
                       {covered
                         ? 'Safe income covers your plan in full.'
                         : `${formatMoney(Math.max(0, monthlyRetirementSpend - monthlyRetirementIncome))}/mo short of plan.`}{' '}
@@ -2161,16 +2176,15 @@ export function Retirement() {
                   ) : (
                     <>
                       <p className="mt-4 text-[15px] leading-[1.55] text-content-secondary max-w-[50ch]">
-                        On track to fully fund retirement by age{' '}
-                        <span className="ui-tnum">{retirementAge}</span>. At a 4% safe withdrawal rate, that's{' '}
-                        {yearsMoneyLasts >= lifeHorizon
-                          ? 'enough income to last a full lifetime.'
-                          : `enough to last roughly ${yearsMoneyLasts} year${yearsMoneyLasts === 1 ? '' : 's'}.`}
+                        The chance your money lasts through age{' '}
+                        <span className="ui-tnum">{lifeExpectancy}</span>, retiring at{' '}
+                        <span className="ui-tnum">{retirementAge}</span> — across 1,000 simulated
+                        market paths of your portfolio, savings, and spending.
                       </p>
                       {/* coverage — does the safe income cover the plan? The big
-                          readiness figure already owns "100%"; this bar is a
-                          labeled status (check / shortfall), never a second
-                          "100%". */}
+                          success figure already owns the headline %; this bar is
+                          a labeled status (check / shortfall), never a second
+                          big number. */}
                       <div className="mt-5 max-w-[440px]">
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <span className="text-[12px] font-semibold text-content-muted">Safe income vs your {formatMoney(monthlyRetirementSpend)}/mo plan</span>
@@ -2342,9 +2356,9 @@ export function Retirement() {
             <Card style={{ padding: 0 }}>
               <div style={{ padding: '20px 20px 12px' }}>
                 {/* Anchor the median outcome in context — the believable proof.
-                    The readiness hero owns the headline %, and the section header
-                    owns the "today's dollars" framing, so the card leads straight
-                    with the dollar median + honest spread — no third label. */}
+                    The hero owns the headline %, and the section header owns the
+                    "today's dollars" framing, so the card leads straight with
+                    the dollar median + honest spread — no third label. */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
                   <span className="font-editorial ui-tnum" style={{ fontSize: 40, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.03em', color: 'rgb(var(--ui-content))' }}>
                     {abbr(medianEnd)}
@@ -2374,40 +2388,29 @@ export function Retirement() {
         {/* ── SUPPORTING KPIs (Detailed only) ────────────────────────────────
             Overview surfaces these in the hero's right column, so the strip
             would double-print them. Detailed's compact hero has no KPI column,
-            so the strip carries them here (plus Monte Carlo). */}
+            so the strip carries them here. */}
         {view === 'advanced' && (
-        <div data-stats className="ret-stats mt-8 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+        <div data-stats className="ret-stats mt-8 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
           {([
             {
               label: 'Portfolio at retirement',
               value: fmtBig(portfolioAtRetirement),
               sub: `age ${retirementAge}`,
-              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
             {
               label: 'FIRE number',
               value: fmtBig(fireNumber),
               sub: '25× annual spend',
-              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
             {
               label: 'Years money lasts',
               value: yearsMoneyLasts >= lifeHorizon ? 'lifetime' : String(yearsMoneyLasts),
               sub: `through age ${yearsMoneyLasts >= lifeHorizon ? lifeExpectancy : retirementAge + yearsMoneyLasts}`,
-              tone: undefined as 'pos' | 'warn' | 'neg' | undefined,
             },
-            { label: 'Monte Carlo', value: `${mcRate}%`, sub: '1,000 runs', tone: (mcRate >= 80 ? 'pos' : 'neg') as 'pos' | 'neg' },
           ]).map((item) => (
             <div key={item.label} className="border-l-2 border-line pl-3.5">
               <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{item.label}</div>
-              <div
-                className={cn(
-                  'mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
-                  item.tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
-                  item.tone === 'warn' && 'text-caution',
-                  item.tone === 'neg' && 'text-negative',
-                )}
-              >
+              <div className="mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum">
                 {item.value}
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted">{item.sub}</div>
@@ -2419,10 +2422,15 @@ export function Retirement() {
         <LegalDisclaimer variant="projections" />
 
         {/* Pinned chance of success — anchored at the end of the page and
-            sticky to the bottom of the viewport while the rest of the page
-            scrolls, so slider changes anywhere on the page read back on this
-            number immediately. */}
-        <div className="ret-pin" data-testid="pinned-chance">
+            sticky to the bottom of the viewport. Only revealed once the hero's
+            success number has scrolled out of view, so the figure follows the
+            reader without ever double-printing next to the hero. */}
+        <div
+          className="ret-pin"
+          data-testid="pinned-chance"
+          data-hidden={heroNumVisible ? 'true' : 'false'}
+          aria-hidden={heroNumVisible}
+        >
           <div className="ret-pin__inner">
             <span className="ret-pin__label">Chance of success</span>
             <span className="ret-pin__pct font-editorial ui-tnum" style={{ color: chanceColor }}>{chanceOfSuccess}%</span>
