@@ -3,8 +3,9 @@ import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
+import { useChatStore } from '../lib/chat-store';
 import { cn, formatMoney } from '../lib/utils';
-import { Building2, Check } from 'lucide-react';
+import { Building2, Check, Sparkles } from 'lucide-react';
 import { PageActions } from '../components/common/page-actions';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import {
@@ -1030,7 +1031,7 @@ function SimulateView({
   const strategyDescriptions: Record<string, string> = {
     constant_dollar: 'Withdraw the same real amount each year, regardless of portfolio.',
     percent_portfolio: 'Withdraw a fixed % of current portfolio each year — flexible but volatile.',
-    guardrails: 'Adjust withdrawals when portfolio hits upper/lower guardrail thresholds.',
+    guardrails: 'Guyton-Klinger: spending tracks inflation but flexes — cuts 10% when the withdrawal rate drifts too high, raises 10% when it falls low — so the portfolio lasts a lifetime.',
   };
 
   const backtestSuccessRate = backtestRows.length > 0 ? Math.round((survived / backtestRows.length) * 100) : 0;
@@ -1122,14 +1123,14 @@ function SimulateView({
             )}
             {strategy === 'guardrails' && (() => {
               const initialRate = portfolioValue > 0 ? (annualWithdrawal / portfolioValue) : 0.04;
-              const upperPct = (initialRate * 0.8 * 100).toFixed(1);
-              const lowerPct = (initialRate * 1.2 * 100).toFixed(1);
+              const prosperityPct = (initialRate * 0.8 * 100).toFixed(1);
+              const preservationPct = (initialRate * 1.2 * 100).toFixed(1);
               return (
                 <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'rgb(var(--ui-content-muted))', marginTop: 8, lineHeight: 1.7 }}>
-                  <div>Initial rate: {(initialRate * 100).toFixed(1)}% of portfolio</div>
-                  <div>If rate drops below {upperPct}% → increase withdrawal 10%</div>
-                  <div>If rate exceeds {lowerPct}% → decrease withdrawal 10%</div>
-                  <div>Otherwise → keep previous year's amount</div>
+                  <div>Initial rate: {(initialRate * 100).toFixed(1)}% of portfolio · withdrawals track inflation</div>
+                  <div>If rate rises past {preservationPct}% → cut spending 10%</div>
+                  <div>If rate falls below {prosperityPct}% → raise spending 10%</div>
+                  <div>After a down year above plan → skip the inflation increase</div>
                 </div>
               );
             })()}
@@ -1400,6 +1401,7 @@ function SimulateView({
 export function Retirement() {
   const [, navigate] = useLocation();
   const { setPageContext } = usePageContext();
+  const { openChat } = useChatStore();
   const [loading, setLoading] = useState(true);
   const [hasAccounts, setHasAccounts] = useState(false);
   const [view, setView] = useState<'simple' | 'advanced'>('simple');
@@ -1652,6 +1654,25 @@ export function Retirement() {
 
   const readinessTone: 'pos' | 'warn' | 'neg' =
     readiness >= 80 ? 'pos' : readiness >= 50 ? 'warn' : 'neg';
+
+  // Live "chance of success" for the pinned strip + Ask Lasagna context.
+  // Detailed mode uses the simulation's Monte Carlo rate (reflects the chosen
+  // strategy + allocation); Overview uses the plan projection's.
+  const chanceOfSuccess = view === 'advanced' && mcRate > 0 ? mcRate : planBands.mcSuccessRate;
+  const chanceColor =
+    chanceOfSuccess >= 80 ? 'rgb(var(--ui-brand-ink))' : chanceOfSuccess >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+
+  const askLasagnaPrompt = [
+    "Let's talk about my retirement readiness:",
+    '',
+    `- Readiness: ${readiness.toFixed(0)}% of my FIRE number (${fmtBig(fireNumber)})`,
+    `- Age ${currentAge}, retiring at ${retirementAge}, planning through age ${lifeExpectancy}`,
+    `- Portfolio today: ${fmtBig(portfolioValue)} · projected at retirement: ${fmtBig(portfolioAtRetirement)}`,
+    `- Planned retirement spending: ${formatMoney(monthlyRetirementSpend)}/mo`,
+    `- Chance of success (Monte Carlo): ${chanceOfSuccess}%`,
+    '',
+    'What stands out, and what should I adjust?',
+  ].join('\n');
 
   // Assumptions + advanced simulation extracted to nodes so Detailed can lead
   // with them (right under the hero) while Overview keeps them at the bottom —
@@ -1988,6 +2009,45 @@ export function Retirement() {
         .ret-sw-inner { background: var(--ui-viz-2); opacity: 0.55; }
         .dark .ret-sw-outer { opacity: 0.18; }
         .dark .ret-sw-inner { opacity: 0.36; }
+        /* Pinned chance-of-success strip. Sticky against the page scroller on
+           desktop; on mobile it clears the fixed 48px app header. */
+        .ret-pin {
+          position: sticky;
+          top: 10px;
+          z-index: 30;
+          margin-top: 14px;
+        }
+        .ret-pin__inner {
+          display: flex;
+          align-items: baseline;
+          gap: 10px;
+          flex-wrap: wrap;
+          padding: 10px 16px;
+          border: 1px solid var(--ui-line);
+          border-radius: var(--ui-r-lg, 14px);
+          background: rgb(var(--ui-panel) / 0.92);
+          backdrop-filter: saturate(1.4) blur(8px);
+          -webkit-backdrop-filter: saturate(1.4) blur(8px);
+          box-shadow: var(--ui-shadow-sm);
+        }
+        .ret-pin__label {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: rgb(var(--ui-content-muted));
+        }
+        .ret-pin__pct {
+          font-size: 20px;
+          font-weight: 800;
+          line-height: 1;
+          letter-spacing: -0.02em;
+        }
+        .ret-pin__sub { font-size: 12px; color: rgb(var(--ui-content-muted)); }
+        @media (max-width: 767px) {
+          .ret-pin { top: calc(env(safe-area-inset-top) + 52px); }
+          .ret-pin__sub { display: none; }
+        }
       `}</style>
 
       {/* Header sits outside the fade wrapper: the loading shell already
@@ -2137,6 +2197,18 @@ export function Retirement() {
                       </div>
                     </>
                   )}
+                  {/* Ask Lasagna — opens the chat sidebar seeded with the
+                      readiness numbers so the conversation starts on this data. */}
+                  <div className="mt-5">
+                    <button
+                      type="button"
+                      onClick={() => openChat(askLasagnaPrompt)}
+                      className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+                    >
+                      <Sparkles className="h-[15px] w-[15px]" />
+                      Ask Lasagna
+                    </button>
+                  </div>
                 </div>
                 {/* right — supporting KPIs fill the hero width (was dead space).
                     Simple view only; Detailed's compact hero leads with tools. */}
@@ -2164,6 +2236,17 @@ export function Retirement() {
             </section>
           );
         })()}
+
+        {/* Pinned chance of success — sticks to the top of the viewport while
+            the rest of the page scrolls, so slider changes anywhere on the
+            page read back on this number immediately. */}
+        <div className="ret-pin" data-testid="pinned-chance">
+          <div className="ret-pin__inner">
+            <span className="ret-pin__label">Chance of success</span>
+            <span className="ret-pin__pct font-editorial ui-tnum" style={{ color: chanceColor }}>{chanceOfSuccess}%</span>
+            <span className="ret-pin__sub">chance your money lasts · updates as you adjust the inputs below</span>
+          </div>
+        </div>
 
         {/* Composition + Actions surface directly under the hero (both views) —
             allocation and next-steps read as the at-a-glance layer, before the

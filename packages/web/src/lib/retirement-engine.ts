@@ -92,12 +92,24 @@ export interface BacktestRow {
 
 // ── Withdrawal strategy ──────────────────────────────────────────────────────
 
+// Extra per-year inputs the guardrails (Guyton-Klinger) strategy needs. The
+// other strategies ignore it.
+export interface WithdrawalContext {
+  /** Year-1 withdrawal in nominal dollars — fixes the initial rate forever. */
+  initialWithdrawal?: number;
+  /** This year's inflation multiplier (e.g. 1.03). 1 = no adjustment. */
+  inflationFactor?: number;
+  /** Whether the previous year's portfolio return was negative. */
+  prevReturnNegative?: boolean;
+}
+
 export function computeWithdrawal(
   strategy: WithdrawalStrategy,
   baseWithdrawal: number,
   currentValue: number,
   initialValue: number,
   prevWithdrawal: number,
+  ctx?: WithdrawalContext,
 ): number {
   switch (strategy) {
     case 'constant_dollar':
@@ -105,13 +117,23 @@ export function computeWithdrawal(
     case 'percent_portfolio':
       return currentValue * 0.04;
     case 'guardrails': {
-      const rate = currentValue > 0 ? prevWithdrawal / currentValue : 1;
-      const initialRate = initialValue > 0 ? baseWithdrawal / initialValue : 0.04;
-      const upper = initialRate * 0.8;
-      const lower = initialRate * 1.2;
-      if (rate < upper) return prevWithdrawal * 1.10;
-      if (rate > lower) return prevWithdrawal * 0.90;
-      return prevWithdrawal;
+      // Guyton-Klinger decision rules (mirrors FICalc.app's implementation):
+      // start from last year's withdrawal, track inflation, then adjust ±10%
+      // when the current withdrawal rate drifts past ±20% of the initial rate.
+      // Spending flexes instead of the portfolio depleting.
+      const initial = ctx?.initialWithdrawal ?? baseWithdrawal;
+      const initialRate = initialValue > 0 ? initial / initialValue : 0.04;
+      const factor = ctx?.inflationFactor ?? 1;
+      let wd = prevWithdrawal * factor;
+      // Modified withdrawal rule: after a down year, when the rate is already
+      // above the initial rate, skip the inflation increase.
+      if (ctx?.prevReturnNegative && factor > 1 && currentValue > 0 && wd / currentValue > initialRate) {
+        wd = prevWithdrawal;
+      }
+      const rate = currentValue > 0 ? wd / currentValue : Infinity;
+      if (rate >= initialRate * 1.2) return wd * 0.9; // capital preservation: cut 10%
+      if (rate <= initialRate * 0.8) return wd * 1.1; // prosperity: raise 10%
+      return wd;
     }
     default:
       return baseWithdrawal;
@@ -176,6 +198,7 @@ export function runBacktest(
   let totalInflation = 1;
   let baseWithdrawal = annualWithdrawal;
   let prevWithdrawal = annualWithdrawal;
+  let prevBlended = 0;
   for (let i = 0; i < retirementHorizon; i++) {
     const yr = retireStartYear + i;
     const stockRet = SP500_RETURNS[yr] ?? 0.07;
@@ -187,8 +210,13 @@ export function runBacktest(
       cumulativeInflation *= (1 + yearInflation);
       if (inflationAdjusted) baseWithdrawal *= (1 + yearInflation);
     }
-    const withdrawal = computeWithdrawal(strategy, baseWithdrawal, value, retireValue, prevWithdrawal);
+    const withdrawal = computeWithdrawal(strategy, baseWithdrawal, value, retireValue, prevWithdrawal, {
+      initialWithdrawal: annualWithdrawal,
+      inflationFactor: i > 0 && inflationAdjusted ? 1 + yearInflation : 1,
+      prevReturnNegative: i > 0 && prevBlended < 0,
+    });
     prevWithdrawal = withdrawal;
+    prevBlended = blended;
     const startValue = value;
     value = (value - withdrawal) * (1 + blended);
     totalInflation *= (1 + yearInflation);
@@ -239,6 +267,7 @@ export function buildBands(
     let baseWd = annualWithdrawal;
     let prevWd = annualWithdrawal;
     let retireValue = 0;
+    let prevR = 0;
     for (let yr = 0; yr <= horizon; yr++) {
       path.push(Math.max(0, Math.round(v)));
       const u1 = rngFn(), u2 = rngFn();
@@ -250,12 +279,17 @@ export function buildBands(
       } else {
         if (age === retirementAge) retireValue = v;
         if (inflationAdjusted && age > retirementAge) baseWd *= (1 + inflation);
-        const wd = computeWithdrawal(strategy, baseWd, v, retireValue || v, prevWd);
+        const wd = computeWithdrawal(strategy, baseWd, v, retireValue || v, prevWd, {
+          initialWithdrawal: annualWithdrawal,
+          inflationFactor: inflationAdjusted && age > retirementAge ? 1 + inflation : 1,
+          prevReturnNegative: age > retirementAge && prevR < 0,
+        });
         prevWd = wd;
         v = (v - wd) * (1 + r);
         if (v <= 0 && !depleted) { depleted = true; depletedCount++; }
       }
       if (v < 0) v = 0;
+      prevR = r;
     }
     allPaths.push(path);
   }

@@ -23,30 +23,67 @@ describe('computeWithdrawal', () => {
     expect(computeWithdrawal('percent_portfolio', 40_000, 2_000_000, 1_000_000, 40_000)).toBe(80_000);
   });
 
-  describe('guardrails', () => {
-    // initialRate = baseWithdrawal / initialValue = 40000 / 1000000 = 0.04
-    // upper threshold = initialRate * 0.8 = 0.032
-    // lower threshold = initialRate * 1.2 = 0.048
-    // rate = prevWithdrawal / currentValue
+  describe('guardrails (Guyton-Klinger)', () => {
+    // initialRate = initialWithdrawal / initialValue = 40000 / 1000000 = 0.04
+    // prosperity threshold        = initialRate * 0.8 = 0.032
+    // capital-preservation thresh = initialRate * 1.2 = 0.048
+    // rate = (prevWithdrawal * inflationFactor) / currentValue
 
-    it('stays flat when withdrawal rate is within thresholds', () => {
+    it('stays flat when withdrawal rate is within thresholds (no inflation)', () => {
       // rate = 40000 / 1000000 = 0.04  (between 0.032 and 0.048)
       const result = computeWithdrawal('guardrails', 40_000, 1_000_000, 1_000_000, 40_000);
       expect(result).toBe(40_000);
     });
 
-    it('raises by 10% when rate is below upper guardrail (portfolio grew a lot)', () => {
-      // rate = 40000 / 2000000 = 0.02  (< upper threshold 0.032)
+    it('raises by 10% when rate is at/below prosperity guardrail (portfolio grew a lot)', () => {
+      // rate = 40000 / 2000000 = 0.02  (<= 0.032)
       // So withdrawal should increase by 10%: 40000 * 1.10 = 44000
       const result = computeWithdrawal('guardrails', 40_000, 2_000_000, 1_000_000, 40_000);
       expect(result).toBe(44_000);
     });
 
-    it('cuts by 10% when rate is above lower guardrail (portfolio shrank a lot)', () => {
-      // rate = 40000 / 500000 = 0.08  (> lower threshold 0.048)
+    it('cuts by 10% when rate is at/above capital-preservation guardrail (portfolio shrank a lot)', () => {
+      // rate = 40000 / 500000 = 0.08  (>= 0.048)
       // So withdrawal should decrease by 10%: 40000 * 0.90 = 36000
       const result = computeWithdrawal('guardrails', 40_000, 500_000, 1_000_000, 40_000);
       expect(result).toBe(36_000);
+    });
+
+    it('tracks inflation year over year when within the guardrails', () => {
+      // wd = 40000 * 1.03 = 41200; rate = 41200 / 1000000 = 0.0412 → within
+      const result = computeWithdrawal('guardrails', 40_000, 1_000_000, 1_000_000, 40_000, {
+        initialWithdrawal: 40_000, inflationFactor: 1.03,
+      });
+      expect(result).toBeCloseTo(41_200, 5);
+    });
+
+    it('applies the capital-preservation cut on the inflation-adjusted amount', () => {
+      // wd = 40000 * 1.03 = 41200; rate = 41200 / 500000 = 0.0824 >= 0.048
+      // → 41200 * 0.90 = 37080
+      const result = computeWithdrawal('guardrails', 40_000, 500_000, 1_000_000, 40_000, {
+        initialWithdrawal: 40_000, inflationFactor: 1.03,
+      });
+      expect(result).toBeCloseTo(37_080, 5);
+    });
+
+    it('modified withdrawal rule: skips the inflation bump after a down year when above plan', () => {
+      // wd would be 40000 * 1.05 = 42000; rate = 42000 / 900000 ≈ 0.0467 > 0.04
+      // and previous year return was negative → freeze at 40000.
+      // Then rate = 40000 / 900000 ≈ 0.0444 → within guardrails → 40000.
+      const result = computeWithdrawal('guardrails', 40_000, 900_000, 1_000_000, 40_000, {
+        initialWithdrawal: 40_000, inflationFactor: 1.05, prevReturnNegative: true,
+      });
+      expect(result).toBe(40_000);
+    });
+
+    it('initial rate stays fixed: an inflation-grown baseWithdrawal must not shift thresholds', () => {
+      // baseWithdrawal (constant-dollar target, inflation-grown to 60k) is
+      // irrelevant when ctx.initialWithdrawal pins the initial rate at 4%.
+      // rate = 40000 / 1000000 = 0.04 → within → unchanged.
+      const result = computeWithdrawal('guardrails', 60_000, 1_000_000, 1_000_000, 40_000, {
+        initialWithdrawal: 40_000, inflationFactor: 1,
+      });
+      expect(result).toBe(40_000);
     });
   });
 
@@ -201,8 +238,8 @@ describe('runBacktest - Withdrawal strategies', () => {
     const wdYears = result.yearByYear.filter(y => y.phase === 'withdrawal');
 
     // initialRate = 40000/1000000 = 0.04
-    // upper = 0.04 * 0.8 = 0.032
-    // If portfolio grows enough that prevWithdrawal/currentValue < 0.032,
+    // prosperity threshold = 0.04 * 0.8 = 0.032
+    // If portfolio grows enough that the rate falls to/below 0.032,
     // withdrawal increases by 10%
     let sawAdjustment = false;
     for (let i = 1; i < wdYears.length; i++) {
@@ -212,6 +249,51 @@ describe('runBacktest - Withdrawal strategies', () => {
       }
     }
     expect(sawAdjustment).toBe(true);
+  });
+
+  it('guardrails: withdrawals track CPI when within the guardrails (1990 cohort)', () => {
+    // 1990 start, 60/40, $1M, $40k, inflation ON.
+    // Year 0: 40000.
+    // Year 1 (1991): CPI_1991 = 0.042 → 40000 * 1.042 = 41680.
+    //   Portfolio after 1990 (blended 0.6*(-0.032)+0.4*0.062 = 0.0056):
+    //   (1M - 40000) * 1.0056 = 965376 → rate 41680/965376 ≈ 0.0432, within.
+    // Year 2 (1992): CPI_1992 = 0.030 → 41680 * 1.030 = 42930 (within again).
+    const result = runBacktest(1990, 3, 1_000_000, 40_000, 0.6, true, 'guardrails', 0, 0);
+    const wds = result.yearByYear.map(y => y.withdrawal);
+    expect(wds[0]).toBe(40_000);
+    expect(wds[1]).toBeCloseTo(41_680, -1);
+    expect(wds[2]).toBeCloseTo(42_930, -1);
+  });
+
+  it('guardrails: modified withdrawal rule + capital preservation after the 1974 crash', () => {
+    // 1974 start, 60/40, $1M, $40k, inflation ON.
+    // Year 0 (1974): withdraw 40000. Blended = 0.6*(-0.265)+0.4*0.020 = -0.151
+    //   → portfolio (1M - 40000) * 0.849 = 815040.
+    // Year 1 (1975): CPI = 0.091 → inflation-adjusted wd 43640; rate
+    //   43640/815040 ≈ 0.0535 > 0.04 AND prior return was negative → the
+    //   modified withdrawal rule freezes at 40000. Rate 40000/815040 ≈ 0.0491
+    //   >= 0.048 → capital preservation cuts 10% → 36000.
+    // Year 2 (1976): CPI = 0.058 → 36000 * 1.058 = 38088; portfolio recovered
+    //   ((815040-36000) * 1.2376 ≈ 964140) → rate ≈ 0.0395, within → 38088.
+    const result = runBacktest(1974, 3, 1_000_000, 40_000, 0.6, true, 'guardrails', 0, 0);
+    const wds = result.yearByYear.map(y => y.withdrawal);
+    expect(wds[0]).toBe(40_000);
+    expect(wds[1]).toBeCloseTo(36_000, -1);
+    expect(wds[2]).toBeCloseTo(38_088, -1);
+  });
+
+  it('guardrails: survives every historical 30-year cohort at a 4% initial rate (spending flexes)', () => {
+    // The point of Guyton-Klinger: spending adjusts so the portfolio lasts a
+    // lifetime. Constant dollar at the same 4% fails the worst stagflation
+    // cohorts (1965-1969); guardrails must survive all of them.
+    let cdFailures = 0;
+    for (let yr = 1928; yr <= 1994; yr++) {
+      const gk = runBacktest(yr, 30, 1_000_000, 40_000, 0.6, true, 'guardrails', 0, 0);
+      expect(gk.survived).toBe(true);
+      const cd = runBacktest(yr, 30, 1_000_000, 40_000, 0.6, true, 'constant_dollar', 0, 0);
+      if (!cd.survived) cdFailures++;
+    }
+    expect(cdFailures).toBeGreaterThan(0);
   });
 
 });
