@@ -3,6 +3,7 @@ import { eq, desc, inArray, and, sql, holdings, securities, accounts, balanceSna
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { aggregatePortfolio, extractAllocation, symbolAccountBreakdown, type HoldingInput } from "../services/portfolio-aggregator.js";
+import { loadSecurityClassifications } from "../lib/security-classifier.js";
 
 export const portfolioRoutes = new Hono<AuthEnv>();
 
@@ -150,6 +151,17 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
       costBasis: bondValue,
       securityType: 'etf',
     });
+  }
+
+  // Attach any globally-cached AI classifications so looked-up securities stop
+  // showing as "Other"/"Unknown". The hardcoded ticker map still wins inside
+  // getTickerCategoryWithFallback; this only helps symbols it can't place.
+  const classifications = await loadSecurityClassifications(
+    holdingsInput.map((h) => h.ticker),
+  );
+  for (const h of holdingsInput) {
+    const cached = classifications.get(h.ticker.toUpperCase());
+    if (cached) h.classified = cached;
   }
 
   return holdingsInput;

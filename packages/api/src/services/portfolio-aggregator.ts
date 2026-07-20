@@ -1,4 +1,4 @@
-import { getTickerCategoryWithFallback, ASSET_CLASS_COLORS, type AssetClass } from "@lasagna/core";
+import { getTickerCategoryWithFallback, ASSET_CLASS_COLORS, type AssetClass, type CachedClassification } from "@lasagna/core";
 
 export interface HoldingInput {
   ticker: string;
@@ -8,6 +8,10 @@ export interface HoldingInput {
   account: string;
   costBasis: number | null;
   securityType?: string;
+  // AI-derived classification from the global cache, used when the ticker
+  // isn't in the hardcoded map. Lets a looked-up security land in a real asset
+  // class instead of "Other".
+  classified?: CachedClassification;
 }
 
 export interface Holding {
@@ -50,7 +54,7 @@ export function aggregatePortfolio(holdings: HoldingInput[]): PortfolioCompositi
   const assetClassMap = new Map<string, Map<string, Holding[]>>();
 
   for (const holding of holdings) {
-    const tickerCat = getTickerCategoryWithFallback(holding.ticker, holding.securityType);
+    const tickerCat = getTickerCategoryWithFallback(holding.ticker, holding.securityType, holding.classified);
 
     if (!assetClassMap.has(tickerCat.assetClass)) {
       assetClassMap.set(tickerCat.assetClass, new Map());

@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   getTickerCategory,
   getTickerCategoryWithFallback,
+  coerceAssetClass,
   ASSET_CLASS_COLORS,
+  ASSET_CLASSES,
   type AssetClass,
   type Category
 } from '../ticker-categories.js';
@@ -155,6 +157,69 @@ describe('ticker-categories', () => {
         category: 'Unknown',
         color: '#a8a29e',
       });
+    });
+
+    it('uses a cached classification for an unmapped symbol', () => {
+      const result = getTickerCategoryWithFallback('SOMESYM', undefined, {
+        assetClass: 'International Stocks',
+        category: 'Individual Stocks',
+      });
+      assert.deepEqual(result, {
+        assetClass: 'International Stocks',
+        category: 'Individual Stocks',
+        color: '#60a5fa',
+      });
+    });
+
+    it('lets the hardcoded map win over a cached classification', () => {
+      const result = getTickerCategoryWithFallback('VTI', 'etf', {
+        assetClass: 'Bonds',
+        category: 'Total Bond',
+      });
+      assert.equal(result.assetClass, 'US Stocks');
+      assert.equal(result.category, 'Total Market');
+    });
+
+    it('prefers a cached classification over the security-type fallback', () => {
+      // Without the cache this equity would land in US Stocks / Individual
+      // Stocks; the cache says International, and it wins.
+      const result = getTickerCategoryWithFallback('ABCD', 'equity', {
+        assetClass: 'International Stocks',
+        category: 'Individual Stocks',
+      });
+      assert.equal(result.assetClass, 'International Stocks');
+    });
+
+    it('ignores a cached "Other" so the security-type fallback still applies', () => {
+      const result = getTickerCategoryWithFallback('ABCD', 'equity', {
+        assetClass: 'Other',
+        category: 'Unknown',
+      });
+      assert.equal(result.assetClass, 'US Stocks');
+      assert.equal(result.category, 'Individual Stocks');
+    });
+  });
+
+  describe('coerceAssetClass', () => {
+    it('accepts every valid asset class verbatim', () => {
+      for (const cls of ASSET_CLASSES) {
+        assert.equal(coerceAssetClass(cls), cls);
+      }
+    });
+
+    it('trims surrounding whitespace', () => {
+      assert.equal(coerceAssetClass('  Bonds  '), 'Bonds');
+    });
+
+    it('returns null for a value outside the taxonomy', () => {
+      assert.equal(coerceAssetClass('Commodities'), null);
+      assert.equal(coerceAssetClass('us stocks'), null); // case-sensitive
+    });
+
+    it('returns null for empty/nullish input', () => {
+      assert.equal(coerceAssetClass(''), null);
+      assert.equal(coerceAssetClass(null), null);
+      assert.equal(coerceAssetClass(undefined), null);
     });
   });
 

@@ -82,6 +82,11 @@ export const tenants = pgTable("tenants", {
   // Admin pause: while set, account sync and insights generation are skipped.
   // Login and read access still work. Null = active.
   disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  // Last time this tenant's post-sync AI classification of unknown securities
+  // ran. Throttles the batch to at most once per 24h. Null = never run.
+  lastSecurityClassifyAt: timestamp("last_security_classify_at", {
+    withTimezone: true,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -296,6 +301,30 @@ export const securities = pgTable("securities", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+});
+
+// ── Security Classifications ─────────────────────────────────────────────────
+//
+// Global (not tenant-scoped) cache of AI-derived asset-class classifications for
+// securities that the hardcoded ticker map can't place. Securities are shared
+// across all users, so we look each unknown symbol up ONCE and every account
+// holding it reuses the result. `failed` rows are negative caches — the model
+// couldn't confidently classify the symbol — so we don't hammer it every sync.
+export const securityClassifications = pgTable("security_classifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Uppercased ticker/symbol — the shared key. Unique so one row per symbol.
+  symbol: varchar("symbol", { length: 40 }).notNull().unique(),
+  // Resolved asset class from the app's taxonomy (US Stocks, International
+  // Stocks, Bonds, REITs, Cash, Other). Null on a failed/negative cache.
+  assetClass: varchar("asset_class", { length: 40 }),
+  // Free-form sub-category label (e.g. "Individual Stocks"). Null when failed.
+  category: varchar("category", { length: 80 }),
+  // True when classification failed or was too low-confidence to trust — stored
+  // so we skip re-querying until the throttle window lets us refresh.
+  failed: boolean("failed").notNull().default(false),
+  classifiedAt: timestamp("classified_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 // ── Holdings ───────────────────────────────────────────────────────────────

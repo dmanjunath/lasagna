@@ -18,6 +18,7 @@ import { syncTransactions } from "./transaction-sync.js";
 import { resolveTenantPlan, isTenantDisabled } from "./billing.js";
 import { recomputeFrozenAccounts } from "./account-limits.js";
 import { logPlaidEvent } from "./activity.js";
+import { classifyUnknownSecuritiesForTenant } from "./security-classifier.js";
 
 export async function syncItem(itemId: string): Promise<void> {
   const item = await db.query.plaidItems.findFirst({
@@ -152,6 +153,13 @@ export async function syncItem(itemId: string): Promise<void> {
     } catch {
       // Not an investment account — skip
     }
+
+    // After securities land, classify any still-unknown symbols via the fast
+    // model so the portfolio hero stops showing them as "Other"/"Unknown".
+    // Fire-and-forget and self-contained error handling: this must never block
+    // or break the sync — a failed classification just leaves the security
+    // as-is. Throttled to once per 24h per tenant inside the helper.
+    void classifyUnknownSecuritiesForTenant(item.tenantId);
 
     // Sync liability details (mortgages, student loans, credit cards)
     try {

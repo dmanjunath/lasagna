@@ -8,6 +8,29 @@ export type AssetClass =
 
 export type Category = string;
 
+// The full set of asset classes, in taxonomy order. Anything the AI classifier
+// returns must match one of these exactly (see coerceAssetClass) or fall back
+// to 'Other'.
+export const ASSET_CLASSES: readonly AssetClass[] = [
+  'US Stocks',
+  'International Stocks',
+  'Bonds',
+  'REITs',
+  'Cash',
+  'Other',
+];
+
+// Validate an arbitrary string (e.g. an LLM's output) against the asset-class
+// enum. Returns the matching AssetClass or null when it isn't a valid class, so
+// callers can substitute a safe fallback instead of storing a garbage value.
+export function coerceAssetClass(value: string | null | undefined): AssetClass | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return (ASSET_CLASSES as readonly string[]).includes(trimmed)
+    ? (trimmed as AssetClass)
+    : null;
+}
+
 export interface TickerCategory {
   assetClass: AssetClass;
   category: Category;
@@ -276,13 +299,26 @@ function looksInternational(upperTicker: string): boolean {
   return FOREIGN_EXCHANGE_SUFFIXES.has(upperTicker.slice(dot + 1));
 }
 
-// Classify a holding not present in TICKER_MAP using the Plaid security type.
+// An asset-class classification looked up for a symbol we don't hardcode —
+// e.g. resolved by the post-sync AI classifier and cached globally. Passed in
+// so this pure function stays free of any DB dependency.
+export interface CachedClassification {
+  assetClass: AssetClass;
+  category: Category;
+}
+
+// Classify a holding not present in TICKER_MAP. Resolution order:
+//   1. the hardcoded TICKER_MAP (always authoritative),
+//   2. a cached classification (e.g. from the AI classifier),
+//   3. the Plaid security type,
+//   4. genuinely unclassifiable → "Other".
 // Recognizable equities/funds land in a real asset class instead of "Other";
 // only genuinely unclassifiable instruments (options, unknown/private) stay
 // in "Other".
 export function getTickerCategoryWithFallback(
   ticker: string,
-  securityType?: string
+  securityType?: string,
+  cached?: CachedClassification
 ): TickerCategory {
   const upperTicker = ticker.toUpperCase();
   const mapping = TICKER_MAP[upperTicker];
@@ -301,6 +337,14 @@ export function getTickerCategoryWithFallback(
     category,
     color: ASSET_CLASS_COLORS[assetClass],
   });
+
+  // A cached AI classification outranks the coarse security-type fallback, but
+  // never overrides the hardcoded map above. Only trust classifications that
+  // land in a real asset class — a cached "Other" adds nothing over the
+  // type-based fallback and can hide a better security-type match.
+  if (cached && cached.assetClass !== 'Other') {
+    return make(cached.assetClass, cached.category);
+  }
 
   // Normalize Plaid security types (equity, etf, mutual fund, fixed income,
   // cash, derivative, cryptocurrency, other, …) — spaces/dashes vary by feed.
