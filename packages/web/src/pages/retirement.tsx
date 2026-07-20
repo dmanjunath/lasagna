@@ -1655,24 +1655,14 @@ export function Retirement() {
   const readinessTone: 'pos' | 'warn' | 'neg' =
     readiness >= 80 ? 'pos' : readiness >= 50 ? 'warn' : 'neg';
 
-  // Live "chance of success" for the pinned strip + Ask Lasagna context.
-  // Detailed mode uses the simulation's Monte Carlo rate (reflects the chosen
-  // strategy + allocation); Overview uses the plan projection's.
+  // Live "chance of success" for the pinned strip. Detailed mode uses the
+  // simulation's Monte Carlo rate (reflects the chosen strategy + allocation);
+  // Overview uses the plan projection's.
   const chanceOfSuccess = view === 'advanced' && mcRate > 0 ? mcRate : planBands.mcSuccessRate;
   const chanceColor =
     chanceOfSuccess >= 80 ? 'rgb(var(--ui-brand-ink))' : chanceOfSuccess >= 60 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
 
-  const askLasagnaPrompt = [
-    "Let's talk about my retirement readiness:",
-    '',
-    `- Readiness: ${readiness.toFixed(0)}% of my FIRE number (${fmtBig(fireNumber)})`,
-    `- Age ${currentAge}, retiring at ${retirementAge}, planning through age ${lifeExpectancy}`,
-    `- Portfolio today: ${fmtBig(portfolioValue)} · projected at retirement: ${fmtBig(portfolioAtRetirement)}`,
-    `- Planned retirement spending: ${formatMoney(monthlyRetirementSpend)}/mo`,
-    `- Chance of success (Monte Carlo): ${chanceOfSuccess}%`,
-    '',
-    'What stands out, and what should I adjust?',
-  ].join('\n');
+  const askLasagnaPrompt = `I want to assess my retirement readiness. The dashboard says I'm ${readiness.toFixed(0)}% ready, can you explain that?`;
 
   // Assumptions + advanced simulation extracted to nodes so Detailed can lead
   // with them (right under the hero) while Overview keeps them at the bottom —
@@ -2009,11 +1999,12 @@ export function Retirement() {
         .ret-sw-inner { background: var(--ui-viz-2); opacity: 0.55; }
         .dark .ret-sw-outer { opacity: 0.18; }
         .dark .ret-sw-inner { opacity: 0.36; }
-        /* Pinned chance-of-success strip. Sticky against the page scroller on
-           desktop; on mobile it clears the fixed 48px app header. */
+        /* Pinned chance-of-success strip. Rendered as the page's last child
+           and stuck to the bottom of the scrollport, so it stays visible while
+           scrolling; on mobile it clears the fixed bottom tab bar. */
         .ret-pin {
           position: sticky;
-          top: 10px;
+          bottom: 12px;
           z-index: 30;
           margin-top: 14px;
         }
@@ -2045,7 +2036,8 @@ export function Retirement() {
         }
         .ret-pin__sub { font-size: 12px; color: rgb(var(--ui-content-muted)); }
         @media (max-width: 767px) {
-          .ret-pin { top: calc(env(safe-area-inset-top) + 52px); }
+          /* Sit above the fixed mobile tab bar (~68px + safe-area inset). */
+          .ret-pin { bottom: calc(env(safe-area-inset-bottom) + 76px); }
           .ret-pin__sub { display: none; }
         }
       `}</style>
@@ -2120,13 +2112,26 @@ export function Retirement() {
                     'radial-gradient(80% 70% at 100% 8%, var(--ui-info-soft), transparent 62%)',
                 }}
               />
+              {/* hero header — eyebrow on the left, Ask Lasagna at the top
+                  right. The button opens the chat sidebar seeded with the
+                  readiness number so the conversation starts on this data. */}
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement readiness</div>
+                <button
+                  type="button"
+                  onClick={() => openChat(askLasagnaPrompt)}
+                  className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+                >
+                  <Sparkles className="h-[15px] w-[15px]" />
+                  Ask Lasagna
+                </button>
+              </div>
               <div
                 className={cn('relative', !compact && 'ret-readiness-grid grid items-center gap-7 sm:gap-9')}
                 style={!compact ? { gridTemplateColumns: 'minmax(0, 1fr) 236px' } : undefined}
               >
                 {/* lead — the answer (single readiness moment: big % + coverage bar) */}
                 <div className="min-w-0">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement readiness</div>
                   <div className="mt-2 flex items-end gap-3 flex-wrap">
                     <span
                       className={cn(
@@ -2197,18 +2202,6 @@ export function Retirement() {
                       </div>
                     </>
                   )}
-                  {/* Ask Lasagna — opens the chat sidebar seeded with the
-                      readiness numbers so the conversation starts on this data. */}
-                  <div className="mt-5">
-                    <button
-                      type="button"
-                      onClick={() => openChat(askLasagnaPrompt)}
-                      className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
-                    >
-                      <Sparkles className="h-[15px] w-[15px]" />
-                      Ask Lasagna
-                    </button>
-                  </div>
                 </div>
                 {/* right — supporting KPIs fill the hero width (was dead space).
                     Simple view only; Detailed's compact hero leads with tools. */}
@@ -2236,17 +2229,6 @@ export function Retirement() {
             </section>
           );
         })()}
-
-        {/* Pinned chance of success — sticks to the top of the viewport while
-            the rest of the page scrolls, so slider changes anywhere on the
-            page read back on this number immediately. */}
-        <div className="ret-pin" data-testid="pinned-chance">
-          <div className="ret-pin__inner">
-            <span className="ret-pin__label">Chance of success</span>
-            <span className="ret-pin__pct font-editorial ui-tnum" style={{ color: chanceColor }}>{chanceOfSuccess}%</span>
-            <span className="ret-pin__sub">chance your money lasts · updates as you adjust the inputs below</span>
-          </div>
-        </div>
 
         {/* Composition + Actions surface directly under the hero (both views) —
             allocation and next-steps read as the at-a-glance layer, before the
@@ -2435,6 +2417,18 @@ export function Retirement() {
         )}
 
         <LegalDisclaimer variant="projections" />
+
+        {/* Pinned chance of success — anchored at the end of the page and
+            sticky to the bottom of the viewport while the rest of the page
+            scrolls, so slider changes anywhere on the page read back on this
+            number immediately. */}
+        <div className="ret-pin" data-testid="pinned-chance">
+          <div className="ret-pin__inner">
+            <span className="ret-pin__label">Chance of success</span>
+            <span className="ret-pin__pct font-editorial ui-tnum" style={{ color: chanceColor }}>{chanceOfSuccess}%</span>
+            <span className="ret-pin__sub">chance your money lasts · updates as you adjust the inputs above</span>
+          </div>
+        </div>
       </motion.div>
     </div>
   );
