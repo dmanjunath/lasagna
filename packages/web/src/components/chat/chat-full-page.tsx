@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { Minimize2, Plus, Trash2, Send, Sparkles, ArrowUpRight } from 'lucide-react';
+import { Minimize2, SquarePen, Trash2, Send, Sparkles, ArrowUpRight } from 'lucide-react';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { useChatStore, setChatExpanded } from '../../lib/chat-store';
 import { useGlobalChat } from './use-global-chat';
@@ -52,7 +52,7 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-transparent transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
+          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-line-heavy transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
             <textarea
               ref={inputRef}
               value={input}
@@ -179,7 +179,7 @@ export function ChatFullPage() {
             onClick={() => setActiveThread(null)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-ui-md bg-brand-soft text-[rgb(var(--ui-brand-ink))] text-xs font-bold hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <SquarePen className="w-3.5 h-3.5" />
             New chat
           </button>
         </div>

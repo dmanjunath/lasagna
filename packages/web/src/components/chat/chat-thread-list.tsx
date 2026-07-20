@@ -54,6 +54,82 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
     }
   };
 
+  // The message composer — rendered inline under the empty-state hero AND
+  // pinned to the bottom once a conversation list exists.
+  const composer = (
+    <form onSubmit={handleSubmit}>
+      <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-line-heavy transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask anything…"
+          aria-label="Message Lasagna"
+          rows={1}
+          className={cn(
+            'flex-1 min-w-0 bg-transparent text-content placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto py-2',
+            // ≥16px on mobile so iOS doesn't auto-zoom the viewport on focus.
+            isMobile ? 'text-[16px]' : 'text-[15px]'
+          )}
+          style={{ maxHeight: 80 }}
+        />
+        <button
+          type="submit"
+          disabled={!input.trim()}
+          aria-label="Send message"
+          className={cn(
+            'shrink-0 grid place-items-center rounded-full transition-[transform,box-shadow,background-color]',
+            isMobile ? 'w-11 h-11 min-w-[44px] min-h-[44px]' : 'w-10 h-10',
+            input.trim()
+              ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm'
+              : 'bg-canvas-sunken text-content-muted cursor-not-allowed'
+          )}
+        >
+          <Send className="w-4 h-4" />
+        </button>
+      </div>
+    </form>
+  );
+
+  // Suggested queries — a labelled list of tappable prompts. Placed BELOW the
+  // composer in the empty state so the input reads as the primary action.
+  const starters = suggestions && suggestions.length > 0 ? suggestions : DEFAULT_PROMPTS;
+
+  // Mobile empty state: a centred hero with the composer directly beneath it and
+  // suggested queries under that — so the page never reads as blank and the
+  // input is unmistakably the thing to use first.
+  if (isMobile && threads.length === 0) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0 justify-center px-5 pb-6">
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="w-14 h-14 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
+            <Sparkles className="w-6 h-6 text-[rgb(var(--ui-accent-ink))]" />
+          </div>
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))] mb-2">AI Assistant</span>
+          <h2 className="font-editorial font-bold text-[28px] text-content leading-[1.05] tracking-[-0.025em]">Ask anything about your finances</h2>
+          <p className="text-[14px] font-medium text-content-muted mt-2.5 leading-relaxed">I can analyze your accounts, spending, and plans — and walk you through what to do next.</p>
+        </div>
+
+        {composer}
+
+        <div className="mt-5 space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted px-1">Try asking</p>
+          {starters.map((prompt) => (
+            <button
+              key={prompt}
+              onClick={() => onNewMessage(prompt)}
+              className="group w-full text-left flex items-center justify-between gap-2 px-4 py-3.5 rounded-ui-md border border-line-strong bg-panel text-[14px] font-medium text-content-secondary hover:bg-brand-soft hover:border-transparent hover:text-[rgb(var(--ui-brand-ink))] active:scale-[0.99] transition-[background,color,border-color,transform] leading-snug"
+            >
+              <span>{prompt}</span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-content-muted group-hover:text-[rgb(var(--ui-brand-ink))] transition-colors flex-shrink-0" />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Thread list */}
@@ -153,39 +229,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
 
       {/* Input */}
       <div className={cn('flex-shrink-0 border-t border-line', isMobile ? 'px-4 py-3' : 'px-3 pt-2 pb-3')}>
-        <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-transparent transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask anything…"
-              aria-label="Message Lasagna"
-              rows={1}
-              className={cn(
-                'flex-1 min-w-0 bg-transparent text-content placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto py-2',
-                // ≥16px on mobile so iOS doesn't auto-zoom the viewport on focus.
-                isMobile ? 'text-[16px]' : 'text-[15px]'
-              )}
-              style={{ maxHeight: 80 }}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              aria-label="Send message"
-              className={cn(
-                'shrink-0 grid place-items-center rounded-full transition-[transform,box-shadow,background-color]',
-                isMobile ? 'w-11 h-11 min-w-[44px] min-h-[44px]' : 'w-10 h-10',
-                input.trim()
-                  ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm'
-                  : 'bg-canvas-sunken text-content-muted cursor-not-allowed'
-              )}
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
+        {composer}
       </div>
 
     </div>

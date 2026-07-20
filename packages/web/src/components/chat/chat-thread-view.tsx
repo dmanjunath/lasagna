@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Trash2, Plus, Sparkles } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, SquarePen, Sparkles } from 'lucide-react';
 import { MessageBubble } from './message-bubble';
 import { cn } from '../../lib/utils';
 import type { ChatMessage } from '../../lib/chat-store';
@@ -126,7 +126,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
               aria-label="New conversation"
               title="New conversation"
             >
-              <Plus className="w-4 h-4 text-content-secondary" />
+              <SquarePen className="w-4 h-4 text-content-secondary" />
             </button>
           )}
           {onDelete && (
@@ -156,7 +156,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
       {/* Follow-up input */}
       <form onSubmit={handleSubmit} className="border-t border-line flex-shrink-0">
         <div className={cn(composerPad, measure)}>
-          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-transparent transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
+          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-line-heavy transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
             <textarea
               ref={inputRef}
               value={input}
