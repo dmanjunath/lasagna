@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import {
   RefreshCw,
   Plus,
@@ -115,64 +115,77 @@ interface AccountTypeDef {
   plaidEligible: boolean;
 }
 
-interface AccountTypeGroup {
-  title: string;
-  types: AccountTypeDef[];
-}
-
-// Grouped so the type picker gives the eye an entry point instead of a flat
-// equal-weight grid. Cash & bank leads (the most common), property/cash/other
-// are manual-only.
-const ACCOUNT_TYPE_GROUPS: AccountTypeGroup[] = [
-  {
-    title: "Cash & bank",
-    types: [
-      { label: "Checking / Savings", emoji: "💵", type: "depository", isDebt: false, plaidEligible: true },
-      { label: "Cash", emoji: "🪙", type: "depository", subtype: "cash", isDebt: false, plaidEligible: false },
-    ],
-  },
-  {
-    title: "Credit",
-    types: [
-      { label: "Credit Card", emoji: "💳", type: "credit", isDebt: true, plaidEligible: true },
-    ],
-  },
-  {
-    title: "Investments",
-    types: [
-      { label: "Brokerage", emoji: "💼", type: "investment", subtype: "brokerage", isDebt: false, plaidEligible: true },
-      { label: "401(k) / 403(b)", emoji: "📈", type: "investment", subtype: "401k", isDebt: false, plaidEligible: true },
-      { label: "Roth IRA", emoji: "🌱", type: "investment", subtype: "roth_ira", isDebt: false, plaidEligible: true },
-      { label: "Traditional IRA", emoji: "📊", type: "investment", subtype: "ira", isDebt: false, plaidEligible: true },
-      { label: "HSA", emoji: "🏥", type: "investment", subtype: "hsa", isDebt: false, plaidEligible: true },
-    ],
-  },
-  {
-    title: "Loans",
-    types: [
-      { label: "Mortgage", emoji: "🏠", type: "loan", subtype: "mortgage", isDebt: true, plaidEligible: true },
-      { label: "Student Loan", emoji: "🎓", type: "loan", subtype: "student", isDebt: true, plaidEligible: true },
-      { label: "Auto Loan", emoji: "🚗", type: "loan", subtype: "auto", isDebt: true, plaidEligible: true },
-    ],
-  },
-  {
-    title: "Property",
-    types: [
-      { label: "Primary Residence", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false, plaidEligible: false },
-      { label: "Rental Property", emoji: "🏢", type: "real_estate", subtype: "rental", isDebt: false, plaidEligible: false },
-    ],
-  },
-  {
-    title: "Other",
-    types: [
-      { label: "Other Asset", emoji: "📦", type: "alternative", isDebt: false, plaidEligible: false },
-      { label: "Other Debt", emoji: "🧾", type: "loan", subtype: "other", isDebt: true, plaidEligible: false },
-    ],
-  },
+// Internal lookup table — NOT the picker. Deep-links (?add=type:subtype),
+// property↔mortgage counterpart resolution, and the link-picker's type labels
+// all resolve against this, so the granular defs must stay even though the
+// picker itself now shows a handful of top-level choices.
+const ACCOUNT_TYPES: AccountTypeDef[] = [
+  { label: "Checking / Savings", emoji: "💵", type: "depository", isDebt: false, plaidEligible: true },
+  { label: "Credit Card", emoji: "💳", type: "credit", isDebt: true, plaidEligible: true },
+  { label: "Mortgage", emoji: "🏠", type: "loan", subtype: "mortgage", isDebt: true, plaidEligible: true },
+  { label: "Loan", emoji: "🏦", type: "loan", isDebt: true, plaidEligible: true },
+  { label: "Primary Residence", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false, plaidEligible: false },
+  { label: "Rental Property", emoji: "🏢", type: "real_estate", subtype: "rental", isDebt: false, plaidEligible: false },
+  { label: "Other Asset", emoji: "📦", type: "alternative", isDebt: false, plaidEligible: false },
 ];
 
-// Flat list — still needed for the mortgage/property linked-banner lookups.
-const ACCOUNT_TYPES: AccountTypeDef[] = ACCOUNT_TYPE_GROUPS.flatMap((g) => g.types);
+// ---------------------------------------------------------------------------
+// Add-account picker — the six top-level choices the modal opens on.
+// ---------------------------------------------------------------------------
+
+// How selecting a top-level option routes:
+//   "plaid"       → connect-or-manual choice (Plaid is the preferred path)
+//   "realEstate"  → straight into the real-estate form (address + estimate)
+//   "manual"      → straight into the manual form
+//   "describe"    → the AI-style "describe your accounts" flow
+type AddRoute = "plaid" | "realEstate" | "manual" | "describe";
+
+interface AddOption {
+  label: string;
+  hint: string;
+  emoji: string;
+  route: AddRoute;
+  // The account-type def the manual/Plaid path uses. Omitted for "describe".
+  def?: AccountTypeDef;
+}
+
+const ADD_OPTIONS: AddOption[] = [
+  {
+    label: "Bank Accounts",
+    hint: "Checking, savings & cash",
+    emoji: "💵",
+    route: "plaid",
+    def: { label: "Bank Account", emoji: "💵", type: "depository", isDebt: false, plaidEligible: true },
+  },
+  {
+    label: "Debt",
+    hint: "Credit cards, Klarna, Afterpay, mortgage",
+    emoji: "💳",
+    route: "plaid",
+    def: { label: "Debt", emoji: "💳", type: "credit", isDebt: true, plaidEligible: true },
+  },
+  {
+    label: "Real Estate",
+    hint: "Home or rental — we'll estimate its value",
+    emoji: "🏡",
+    route: "realEstate",
+    def: { label: "Real Estate", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false, plaidEligible: false },
+  },
+  {
+    label: "Other",
+    hint: "Jewellery, watches, cars & more",
+    emoji: "💎",
+    route: "manual",
+    def: { label: "Other", emoji: "💎", type: "alternative", isDebt: false, plaidEligible: false },
+  },
+  {
+    label: "Manual",
+    hint: "Add any account with a balance yourself",
+    emoji: "✏️",
+    route: "manual",
+    def: { label: "Manual account", emoji: "✏️", type: "depository", isDebt: false, plaidEligible: false },
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -180,6 +193,7 @@ const ACCOUNT_TYPES: AccountTypeDef[] = ACCOUNT_TYPE_GROUPS.flatMap((g) => g.typ
 
 export function Accounts() {
   const confirm = useConfirm();
+  const [, navigate] = useLocation();
   const { tenant } = useAuth();
   const { status: billing } = useBilling();
   const isFree = tenant?.plan === "free";
@@ -579,13 +593,23 @@ export function Accounts() {
     setEstimating(null);
   };
 
-  // Step 1 → step 2. Plaid-eligible types offer connect-or-manual; manual-only
-  // types drop straight into the form.
-  const selectType = (at: AccountTypeDef) => {
-    if (at.plaidEligible) {
-      setMethodChoiceType(at);
+  // Step 1 → step 2. Each top-level option routes to its own next step:
+  //   plaid      → connect-or-manual choice (Plaid preferred)
+  //   realEstate → straight into the property form
+  //   manual     → straight into the manual form
+  //   describe   → the AI-style "describe your accounts" flow
+  const selectOption = (opt: AddOption) => {
+    if (opt.route === "describe") {
+      setShowManualModal(false);
+      resetManualForm();
+      navigate("/quick-import");
+      return;
+    }
+    if (opt.route === "plaid") {
+      setMethodChoiceType(opt.def!);
     } else {
-      enterManualForm(at);
+      // realEstate + manual both drop straight into the form.
+      enterManualForm(opt.def!);
     }
   };
 
@@ -900,21 +924,6 @@ export function Accounts() {
           )}
         </div>
       )}
-
-      {/* Quick Import CTA */}
-      <Link
-        href="/quick-import"
-        className="group mt-4 flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm px-4 py-3 transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong min-h-touch"
-      >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
-          <Sparkles size={16} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Quick import</span>
-          <span className="block truncate text-[13.5px] font-bold text-content">Describe your accounts in plain English</span>
-        </span>
-        <span className="text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" aria-hidden="true">→</span>
-      </Link>
 
       {/* Error banner */}
       {error && (
@@ -1406,28 +1415,55 @@ export function Accounts() {
             </button>
           </div>
         ) : (
-          // Step 1 — grouped type picker.
-          <div className="flex flex-col gap-5">
-            {ACCOUNT_TYPE_GROUPS.map((group) => (
-              <div key={group.title}>
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">
-                  {group.title}
-                </p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {group.types.map((at) => (
-                    <button
-                      key={at.label}
-                      type="button"
-                      onClick={() => selectType(at)}
-                      className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md border border-line bg-panel px-3.5 py-3 text-left text-[13.5px] font-semibold text-content-secondary transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
-                    >
-                      <span className="text-[16px] leading-none">{at.emoji}</span>
-                      <span className="leading-tight text-content">{at.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+          // Step 1 — the six top-level choices.
+          <div className="flex flex-col gap-2.5">
+            {ADD_OPTIONS.map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => selectOption(opt)}
+                className="ui-focus group flex min-h-touch items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-[17px] leading-none">
+                  {opt.emoji}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-bold text-content">{opt.label}</span>
+                  <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
+                    {opt.hint}
+                  </span>
+                </span>
+                <span className="text-content-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
+              </button>
             ))}
+
+            {/* Describe to add — the AI-magical path, set apart from the rest. */}
+            <button
+              type="button"
+              onClick={() => selectOption({ label: "Describe to add", hint: "", emoji: "✨", route: "describe" })}
+              className="ui-focus group relative mt-1.5 flex min-h-touch items-center gap-3.5 overflow-hidden rounded-ui-lg border border-brand/40 px-4 py-3 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand hover:shadow-ui-md"
+              style={{
+                background:
+                  "radial-gradient(120% 140% at 0% 0%, var(--ui-accent-softer), transparent 60%)," +
+                  "radial-gradient(120% 140% at 100% 100%, var(--ui-brand-softer), transparent 62%)",
+              }}
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
+                <Sparkles size={17} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[14px] font-bold text-content">Describe to add</span>
+                  <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.08em] text-brand">
+                    AI
+                  </span>
+                </span>
+                <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
+                  Type your accounts in plain English — we'll add them for you.
+                </span>
+              </span>
+              <span className="text-brand transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
+            </button>
           </div>
         )}
       </Modal>
