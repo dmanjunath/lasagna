@@ -199,6 +199,16 @@ const TICKER_MAP: Record<string, [AssetClass, Category]> = {
   VMMXX: ['Cash', 'Money Market'],
   CASH: ['Cash', 'Savings & Checking'],
 
+  // Cash - Treasuries. These are money-market funds that hold U.S. Treasury
+  // bills, so the underlying holding is Treasuries — categorize by what they
+  // own, not the "mutual fund" wrapper (e.g. VUSXX is the Vanguard Treasury
+  // Money Market Fund, not a generic equity mutual fund).
+  VUSXX: ['Cash', 'Treasuries'],
+  FDLXX: ['Cash', 'Treasuries'],
+  SNSXX: ['Cash', 'Treasuries'],
+  SNOXX: ['Cash', 'Treasuries'],
+  TTTXX: ['Cash', 'Treasuries'],
+
   // Cash - Short Term
   VGSH: ['Cash', 'Short-Term'],
   SHY: ['Cash', 'Short-Term'],
@@ -313,10 +323,13 @@ export function getTickerCategoryWithFallback(
       return make('Bonds', 'Bond Funds');
     case 'cash':
       return make('Cash', 'Cash');
+    case 'cryptocurrency':
+    case 'crypto':
+      return make('Other', 'Crypto');
   }
 
-  // Options, derivatives, crypto, private/unknown securities, or a missing type
-  // remain genuinely unclassifiable.
+  // Options, derivatives, private/unknown securities, or a missing type remain
+  // genuinely unclassifiable.
   return {
     assetClass: 'Other',
     category: securityType || 'Unknown',

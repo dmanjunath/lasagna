@@ -64,6 +64,15 @@ describe('ticker-categories', () => {
       });
     });
 
+    it('categorizes VUSXX (Treasury money-market fund) as Cash / Treasuries, not a mutual fund', () => {
+      const result = getTickerCategory('VUSXX');
+      assert.deepEqual(result, {
+        assetClass: 'Cash',
+        category: 'Treasuries',
+        color: '#ec4899',
+      });
+    });
+
     it('returns Other / Unknown for unmapped ticker', () => {
       const result = getTickerCategory('UNKNOWN123');
       assert.deepEqual(result, {
@@ -117,6 +126,21 @@ describe('ticker-categories', () => {
       const result = getTickerCategoryWithFallback('SOMEBOND', 'fixed income');
       assert.equal(result.assetClass, 'Bonds');
       assert.equal(result.category, 'Bond Funds');
+    });
+
+    it('labels an unmapped cryptocurrency as Other / Crypto', () => {
+      const result = getTickerCategoryWithFallback('BTC', 'cryptocurrency');
+      assert.deepEqual(result, {
+        assetClass: 'Other',
+        category: 'Crypto',
+        color: '#a8a29e',
+      });
+    });
+
+    it('still prefers the map for a Treasury money-market fund over the mutual-fund fallback', () => {
+      const result = getTickerCategoryWithFallback('VUSXX', 'mutual fund');
+      assert.equal(result.assetClass, 'Cash');
+      assert.equal(result.category, 'Treasuries');
     });
 
     it('keeps derivatives/options in Other', () => {

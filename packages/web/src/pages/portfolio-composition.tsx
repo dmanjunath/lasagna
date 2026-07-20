@@ -836,6 +836,28 @@ export default function PortfolioComposition() {
     }
 
     // account grouping
+    if (drillLevel1) {
+      // Drilled into one account → its holdings (summed per ticker), so the
+      // chain can keep going: account → holding → account …
+      const byTicker = new Map<string, number>();
+      for (const ac of filteredAssetClasses) {
+        for (const sc of ac.categories ?? []) {
+          for (const h of sc.holdings) {
+            if (h.account !== drillLevel1) continue;
+            byTicker.set(h.ticker, (byTicker.get(h.ticker) ?? 0) + h.value);
+          }
+        }
+      }
+      const acctTotal = Array.from(byTicker.values()).reduce((s, v) => s + v, 0);
+      return Array.from(byTicker.entries())
+        .map(([ticker, value], i) => ({
+          name: ticker,
+          value,
+          pct: acctTotal > 0 ? (value / acctTotal) * 100 : 0,
+          color: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+        }))
+        .sort((a, b) => b.value - a.value);
+    }
     const acctMap = new Map<string, number>();
     for (const ac of filteredAssetClasses) {
       for (const sc of ac.categories ?? []) {
@@ -878,8 +900,21 @@ export default function PortfolioComposition() {
 
   const selectAllAccounts = () => setActiveAccounts(null);
 
+  // Drill / loop through grouping dimensions. At the top level a click drills
+  // into the clicked bucket. Once drilled, the leaf is one dimension deeper, so
+  // clicking it hops the grouping to that dimension and drills again — the
+  // chain never dead-ends (Class ▸ VTSAX ▸ Brokerage ▸ VTI ▸ …). Under
+  // holding/account the leaf is an account → switch to Account grouping; under
+  // the other groupings the leaf is a ticker → switch to Holding grouping.
   const handleSliceClick = (name: string) => {
-    if (!drillLevel1) setDrillLevel1(name);
+    if (!drillLevel1) {
+      setDrillLevel1(name);
+      return;
+    }
+    const nextGroup: GroupBy = groupBy === 'holding' ? 'account' : 'holding';
+    if (nextGroup === groupBy) return; // safety — never re-enter the same view
+    setGroupBy(nextGroup);
+    setDrillLevel1(name);
   };
 
   const handleGroupByChange = (g: GroupBy) => {
