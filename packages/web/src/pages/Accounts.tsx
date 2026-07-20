@@ -151,11 +151,11 @@ interface AddOption {
 
 const ADD_OPTIONS: AddOption[] = [
   {
-    label: "Bank Accounts",
-    hint: "Checking, savings & cash",
+    label: "Bank & Investments",
+    hint: "Checking, savings, cash & brokerage",
     emoji: "💵",
     route: "plaid",
-    def: { label: "Bank Account", emoji: "💵", type: "depository", isDebt: false, plaidEligible: true },
+    def: { label: "Bank or investment account", emoji: "💵", type: "depository", isDebt: false, plaidEligible: true },
   },
   {
     label: "Debt",
@@ -1389,7 +1389,7 @@ export function Accounts() {
                 <Zap size={17} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-bold text-content">Connect automatically</span>
+                <span className="block text-[14px] font-bold text-content">Connect via Plaid</span>
                 <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
                   Securely link your institution so balances and transactions update on their own.
                 </span>
