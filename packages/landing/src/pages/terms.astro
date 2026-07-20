@@ -1,0 +1,88 @@
+---
+import LegalLayout from "../layouts/LegalLayout.astro";
+import { GITHUB_URL } from "../config";
+---
+
+<LegalLayout title="Terms of Service" lastUpdated="July 20, 2026">
+  <p>
+    These are the terms for using LasagnaFi, a personal finance app made by
+    <strong>SuperCoolLabs LLC</strong>. By using the app, you agree to them.
+    We've kept them short and in plain English.
+  </p>
+
+  <h2>The big one: we are not a financial advisor</h2>
+  <p>
+    <strong>
+      LasagnaFi is not a registered investment advisor, broker, or financial
+      planner, and nothing in the app is financial, investment, tax, or legal
+      advice.
+    </strong>
+    Everything you see is for information and education only. We show you your
+    numbers and point out things worth thinking about, but we don't know your
+    full situation and we can't make decisions for you.
+  </p>
+  <p>
+    The insights are generated in part by AI and can be wrong or incomplete.
+    Always double-check the numbers, and talk to a licensed professional before
+    making any real money decision. Any action you take based on the app is your
+    own choice, and you're responsible for it.
+  </p>
+
+  <h2>Using the app</h2>
+  <ul>
+    <li>You need to be at least 18 to use LasagnaFi.</li>
+    <li>Keep your login secure, and let us know if something looks off.</li>
+    <li>
+      Don't misuse the service — no trying to break it, scrape it, or use it to
+      harm others.
+    </li>
+    <li>The information you give us should be accurate and yours to share.</li>
+  </ul>
+
+  <h2>Connecting your accounts</h2>
+  <p>
+    When you link a financial account, you're letting us pull your balances and
+    transactions through Plaid so the app can do its job. Connections are
+    read-only — we can see your accounts but we can never move your money. How we
+    handle that data is covered in our
+    <a href="/privacy">Privacy Policy</a>.
+  </p>
+
+  <h2>Paid plans</h2>
+  <p>
+    Some features need a paid subscription. Payments are handled by Stripe. Plans
+    renew automatically until you cancel, and you can cancel anytime from
+    Settings. Prices may change, but we'll tell you first.
+  </p>
+
+  <h2>Your data and deleting your account</h2>
+  <p>
+    Your data stays yours. You can disconnect accounts or delete your account
+    entirely from Settings at any time. If you'd rather keep everything on your
+    own server, LasagnaFi is
+    <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">open source</a>
+    and you're free to self-host it.
+  </p>
+
+  <h2>No guarantees</h2>
+  <p>
+    We work hard to keep LasagnaFi accurate and available, but we provide it
+    "as is." We can't promise it will always be correct, uninterrupted, or
+    error-free. To the fullest extent allowed by law, SuperCoolLabs LLC is not
+    liable for any losses that come from using the app or from decisions you make
+    based on it.
+  </p>
+
+  <h2>Changes to these terms</h2>
+  <p>
+    We may update these terms from time to time. When we do, we'll change the
+    "Last updated" date at the top. If you keep using the app, that means you're
+    okay with the new terms.
+  </p>
+
+  <h2>Contact us</h2>
+  <p>
+    Questions about these terms? Email us at
+    <a href="mailto:support@lasagnafi.com">support@lasagnafi.com</a>.
+  </p>
+</LegalLayout>
