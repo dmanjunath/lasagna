@@ -153,8 +153,17 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
         </div>
       </div>
 
-      {/* Follow-up input */}
-      <form onSubmit={handleSubmit} className="border-t border-line flex-shrink-0">
+      {/* Follow-up input — on mobile a heavier top border plus a soft upward
+          shadow clearly divides the composer from the scrollable messages. */}
+      <form
+        onSubmit={handleSubmit}
+        className={cn(
+          'flex-shrink-0',
+          isMobile
+            ? 'border-t-2 border-line-heavy shadow-[0_-6px_16px_-8px_rgba(20,33,61,0.18)]'
+            : 'border-t border-line'
+        )}
+      >
         <div className={cn(composerPad, measure)}>
           <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-line-heavy transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
             <textarea

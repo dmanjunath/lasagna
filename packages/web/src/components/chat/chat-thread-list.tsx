@@ -209,17 +209,16 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
         )}
       </div>
 
-      {/* Suggestion chips */}
-      {suggestions && suggestions.length > 0 && (
+      {/* Suggestion chips — on the compact sidebar these sit above the input.
+          On mobile they move below the composer (see the input section), so the
+          input reads as the primary action. */}
+      {!isMobile && suggestions && suggestions.length > 0 && (
         <div className="px-3 py-2.5 flex flex-wrap gap-1.5 flex-shrink-0 border-t border-line">
           {suggestions.map((s, i) => (
             <button
               key={i}
               onClick={() => onNewMessage(s)}
-              className={cn(
-                'inline-flex items-center px-3 rounded-full text-xs font-semibold bg-panel border border-line-strong text-content-secondary hover:bg-brand-soft hover:text-[rgb(var(--ui-brand-ink))] hover:border-transparent active:scale-[0.98] transition-[background,color,border-color,transform]',
-                isMobile ? 'min-h-[44px]' : 'min-h-[32px]'
-              )}
+              className="inline-flex items-center px-3 min-h-[32px] rounded-full text-xs font-semibold bg-panel border border-line-strong text-content-secondary hover:bg-brand-soft hover:text-[rgb(var(--ui-brand-ink))] hover:border-transparent active:scale-[0.98] transition-[background,color,border-color,transform]"
             >
               {s}
             </button>
@@ -227,9 +226,31 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
         </div>
       )}
 
-      {/* Input */}
-      <div className={cn('flex-shrink-0 border-t border-line', isMobile ? 'px-4 py-3' : 'px-3 pt-2 pb-3')}>
+      {/* Input — a distinctly separated bottom section. On mobile a heavier top
+          border plus a soft upward shadow clearly divides it from the scrollable
+          history above, and the suggested queries sit directly beneath the box. */}
+      <div
+        className={cn(
+          'flex-shrink-0',
+          isMobile
+            ? 'px-4 py-3 border-t-2 border-line-heavy shadow-[0_-6px_16px_-8px_rgba(20,33,61,0.18)]'
+            : 'px-3 pt-2 pb-3 border-t border-line'
+        )}
+      >
         {composer}
+        {isMobile && suggestions && suggestions.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => onNewMessage(s)}
+                className="inline-flex items-center px-3 min-h-[40px] rounded-full text-[13px] font-semibold bg-panel border border-line-strong text-content-secondary hover:bg-brand-soft hover:text-[rgb(var(--ui-brand-ink))] hover:border-transparent active:scale-[0.98] transition-[background,color,border-color,transform]"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
     </div>
