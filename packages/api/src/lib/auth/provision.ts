@@ -28,8 +28,9 @@ export async function provisionUser(input: ProvisionInput) {
   // Pending, unexpired, unrevoked invite for this email → JOIN that tenant
   // instead of creating a brand-new one. Expiry is enforced here (the partial
   // unique index can't reference now()).
+  const inviteEmail = input.email.trim().toLowerCase();
   const invite = await db.query.invites.findFirst({
-    where: and(eq(invites.email, input.email), isNull(invites.acceptedAt), isNull(invites.revokedAt)),
+    where: and(eq(invites.email, inviteEmail), isNull(invites.acceptedAt), isNull(invites.revokedAt)),
   });
   if (invite && invite.expiresAt > new Date()) {
     const [created] = await db.insert(users).values({

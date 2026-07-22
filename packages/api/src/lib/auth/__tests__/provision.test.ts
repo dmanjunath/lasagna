@@ -114,6 +114,45 @@ describe("provisionUser", () => {
     expect(coreMock.seedTaxonomyForTenant).not.toHaveBeenCalled();
   });
 
+  it("join branch: matches a lowercased pending invite for a mixed-case input email", async () => {
+    const future = new Date(Date.now() + 60_000);
+    invitesFindFirst.mockResolvedValue({
+      id: "invite-1",
+      tenantId: "tenant-inviter",
+      email: "partner@user.com",
+      role: "member",
+      expiresAt: future,
+      acceptedAt: null,
+      revokedAt: null,
+    });
+    const { provisionUser } = await import("../provision.js");
+    const { user, isNew } = await provisionUser({ email: "Partner@User.com", name: "Partner" });
+
+    // the invite lookup normalizes the email to lowercase to match how invites are stored
+    const lookupWhere = invitesFindFirst.mock.calls[0][0].where;
+    expect(JSON.stringify(lookupWhere)).toContain("partner@user.com");
+    expect(JSON.stringify(lookupWhere)).not.toContain("Partner@User.com");
+
+    // joins the invite's tenant as a member on the income stage, invite marked accepted
+    expect(isNew).toBe(true);
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: "tenant-inviter",
+        role: "member",
+        onboardingStage: "income",
+        isAdmin: false,
+      }),
+    );
+    expect(user.tenantId).toBe("tenant-inviter");
+    expect(userProfileInsertValues).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: "tenant-inviter", userId: "user-1" }),
+    );
+    expect(inviteUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ acceptedByUserId: "user-1" }),
+    );
+    expect(inviteUpdateSet.mock.calls[0][0]).toHaveProperty("acceptedAt");
+  });
+
   it("ignores an expired invite and falls through to create-new-tenant", async () => {
     const past = new Date(Date.now() - 60_000);
     invitesFindFirst.mockResolvedValue({
