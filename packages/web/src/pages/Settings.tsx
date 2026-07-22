@@ -7,6 +7,7 @@ import { formatMoney, cn } from "../lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import {
   User,
+  Users,
   Briefcase,
   Building2,
   ChevronRight,
@@ -20,6 +21,9 @@ import {
   Trash2,
   SlidersHorizontal,
   ScanFace,
+  Mail,
+  UserPlus,
+  Clock,
 } from "lucide-react";
 import { useConfirm } from "../components/ds";
 import { isNativeApp, setNativeToken } from "../lib/native";
@@ -361,6 +365,16 @@ export function Settings() {
         </div>
       </section>
 
+      {/* ════════ Household ════════ */}
+      {!isDemoMode && (
+        <section className="mt-10">
+          <GroupHeader eyebrow="Household" hint="Share your accounts and financial picture with a partner — each with their own login and private chat" />
+          <div className="mt-4">
+            <HouseholdSection />
+          </div>
+        </section>
+      )}
+
       {/* ════════ Plan & billing ════════ */}
       <section className="mt-10">
         <GroupHeader eyebrow="Plan & billing" hint="Your subscription and what's included" />
@@ -405,6 +419,280 @@ export function Settings() {
         onChanged={() => {}}
       />
     </div>
+  );
+}
+
+// ─── Household — members, invites, and each member's personal profile ────────
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type HouseholdMember = { id: string; email: string; name: string | null; role: string; isYou: boolean };
+type PendingInvite = { id: string; email: string; role: string; expiresAt: string; createdAt: string };
+type MemberProfile = Awaited<ReturnType<typeof api.household.householdProfiles>>["members"][number];
+
+function HouseholdSection() {
+  const { user } = useAuth();
+  const confirm = useConfirm();
+  const isOwner = user?.role === "owner";
+
+  const [members, setMembers] = useState<HouseholdMember[]>([]);
+  const [invites, setInvites] = useState<PendingInvite[]>([]);
+  const [profiles, setProfiles] = useState<MemberProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const [m, p] = await Promise.all([
+        api.household.listMembers(),
+        api.household.householdProfiles(),
+      ]);
+      setMembers(m.members);
+      setProfiles(p.members);
+      // Only the owner can see pending invites.
+      if (user?.role === "owner") {
+        const inv = await api.household.listInvites();
+        setInvites(inv.invites);
+      }
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't load your household.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.role]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const removeMember = async (m: HouseholdMember) => {
+    const ok = await confirm({
+      title: `Remove ${m.name || m.email}?`,
+      body: "They'll lose their login and their private chat history. Your shared accounts and financial data stay intact.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.household.removeMember(m.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't remove that member.");
+    }
+  };
+
+  const leave = async () => {
+    const ok = await confirm({
+      title: "Leave this household?",
+      body: "You'll lose access to these shared accounts and your login here. This can't be undone.",
+      confirmLabel: "Leave",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.household.leave();
+      // Session cookie is cleared server-side — hard-reload to the signed-out landing page.
+      window.location.href = "/";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't leave the household.");
+    }
+  };
+
+  if (loading) {
+    return (
+      <Surface className="p-5 space-y-3">
+        <Skeleton className="h-10 rounded-ui-md" />
+        <Skeleton className="h-10 rounded-ui-md" />
+      </Surface>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {error && <Alert tone="negative">{error}</Alert>}
+
+      {/* Members */}
+      <Surface pad="none" className="overflow-hidden">
+        <div className="flex items-center gap-3.5 px-5 py-4 sm:px-6">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
+            <Users className="h-5 w-5" />
+          </span>
+          <h3 className="min-w-0 flex-1 font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+            Members
+          </h3>
+          <Badge tone="neutral" size="sm">{members.length}</Badge>
+        </div>
+
+        <ul className="divide-y divide-line border-t border-line">
+          {members.map((m) => {
+            const profile = profiles.find((p) => p.userId === m.id)?.profile;
+            return (
+              <li key={m.id} className="px-5 py-4 sm:px-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-[13px] text-brand">
+                      {(m.name || m.email).trim().charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-[14.5px] font-semibold text-content">{m.name || m.email}</p>
+                        {m.isYou && <Badge tone="brand" size="sm">You</Badge>}
+                        {m.role === "owner" && <Badge tone="neutral" size="sm">Owner</Badge>}
+                      </div>
+                      <p className="mt-0.5 truncate text-[12.5px] font-medium text-content-muted">{m.email}</p>
+                    </div>
+                  </div>
+                  {isOwner && !m.isYou && m.role !== "owner" && (
+                    <Button variant="ghost" size="sm" onClick={() => void removeMember(m)}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+
+                {/* Each member's personal profile snapshot. Only "you" is editable
+                    (via the Financial profile section above) — a partner's personal
+                    fields are theirs to edit from their own login. */}
+                <MemberProfileGrid profile={profile} />
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Member self-leave (owner uses account deletion instead). */}
+        {!isOwner && (
+          <div className="border-t border-line px-5 py-4 sm:px-6">
+            <Button variant="ghost" size="sm" onClick={() => void leave()} leadingIcon={<LogOut className="h-4 w-4" />}>
+              Leave household
+            </Button>
+          </div>
+        )}
+      </Surface>
+
+      {/* Invite + pending invites (owner only) */}
+      {isOwner && <InvitePanel invites={invites} onChanged={() => void load()} />}
+    </div>
+  );
+}
+
+function MemberProfileGrid({ profile }: { profile: MemberProfile["profile"] | undefined }) {
+  if (!profile) return null;
+  const income = profile.annualIncome != null ? `${formatMoney(profile.annualIncome, true)}/yr` : "Not set";
+  const age = profile.age != null ? String(profile.age) : "Not set";
+  const retire = profile.retirementAge != null ? String(profile.retirementAge) : "Not set";
+  const rows: { label: string; value: string; muted: boolean }[] = [
+    { label: "Income", value: income, muted: profile.annualIncome == null },
+    { label: "Age", value: age, muted: profile.age == null },
+    { label: "Retire at", value: retire, muted: profile.retirementAge == null },
+  ];
+  return (
+    <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-1 rounded-ui-md bg-canvas-sunken px-3.5 py-2.5">
+      {rows.map((r) => (
+        <div key={r.label} className="min-w-0">
+          <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-content-muted">{r.label}</div>
+          <div className={cn("mt-0.5 truncate text-[13.5px] font-semibold ui-tnum", r.muted ? "text-content-faint" : "text-content")}>
+            {r.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChanged: () => void }) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const invite = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(trimmed)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await api.household.createInvite(trimmed);
+      setEmail("");
+      setSent(true);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't send that invite.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async (id: string) => {
+    try {
+      await api.household.revokeInvite(id);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't revoke that invite.");
+    }
+  };
+
+  return (
+    <Surface pad="none" className="overflow-hidden">
+      <div className="flex items-center gap-3.5 px-5 py-4 sm:px-6">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
+          <UserPlus className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+            Invite a partner
+          </h3>
+          <p className="mt-0.5 text-[12.5px] font-medium text-content-muted">
+            They'll get an email link to create their own login on this household.
+          </p>
+        </div>
+      </div>
+
+      <div className="border-t border-line px-5 py-5 sm:px-6">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setSent(false); }}
+            onKeyDown={(e) => { if (e.key === "Enter") void invite(); }}
+            placeholder="partner@example.com"
+            leadingIcon={<Mail className="h-4 w-4" />}
+            autoComplete="off"
+          />
+          <Button onClick={() => void invite()} loading={busy} disabled={busy} className="shrink-0">
+            Send invite
+          </Button>
+        </div>
+
+        {error && <p role="alert" className="mt-2 text-[12.5px] font-medium text-negative">{error}</p>}
+        {sent && !error && (
+          <p className="mt-2 text-[12.5px] font-medium text-positive">Invite sent — they'll get a link by email.</p>
+        )}
+
+        {invites.length > 0 && (
+          <ul className="mt-4 divide-y divide-line border-t border-line">
+            {invites.map((inv) => (
+              <li key={inv.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Clock className="h-4 w-4 shrink-0 text-content-muted" />
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-content">{inv.email}</p>
+                    <p className="mt-0.5 text-[12px] font-medium text-content-muted">
+                      Pending · expires {new Date(inv.expiresAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => void revoke(inv.id)}>
+                  Revoke
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Surface>
   );
 }
 

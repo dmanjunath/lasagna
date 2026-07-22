@@ -494,6 +494,72 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Household sharing — members, invites, and the shared personal-profile view.
+  household: {
+    listMembers: () =>
+      request<{ members: Array<{ id: string; email: string; name: string | null; role: string; isYou: boolean }> }>(
+        "/household/members",
+      ),
+    listInvites: () =>
+      request<{ invites: Array<{ id: string; email: string; role: string; expiresAt: string; createdAt: string }> }>(
+        "/household/invites",
+      ),
+    createInvite: (email: string) =>
+      request<{ invite: { id: string; email: string; role: string; expiresAt: string } }>("/household/invites", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }),
+    revokeInvite: (id: string) =>
+      request<{ ok: true }>(`/household/invites/${id}`, { method: "DELETE" }),
+    removeMember: (userId: string) =>
+      request<{ ok: true }>(`/household/members/${userId}`, { method: "DELETE" }),
+    leave: () => request<{ ok: true }>("/household/leave", { method: "POST" }),
+    // Public — reachable logged-out via the /api/household/invite/ guard exemption.
+    validateInvite: (token: string) =>
+      request<{ status: "ok" | "expired" | "used" | "revoked" | "not_found"; householdName?: string | null; inviterName?: string | null }>(
+        `/household/invite/${encodeURIComponent(token)}`,
+      ),
+    householdProfiles: () =>
+      request<{
+        members: Array<{
+          userId: string;
+          name: string | null;
+          email: string;
+          isYou: boolean;
+          profile: {
+            dateOfBirth: string | null;
+            age: number | null;
+            annualIncome: number | null;
+            filingStatus: string | null;
+            stateOfResidence: string | null;
+            employmentType: string | null;
+            riskTolerance: string | null;
+            retirementAge: number | null;
+            employerMatchPercent: number | null;
+            dependentCount: number | null;
+            hasHDHP: boolean | null;
+            isPSLFEligible: boolean | null;
+          };
+        }>;
+      }>("/settings/household-profiles"),
+  },
+
+  // Admin membership tooling (operator only — 403 for non-admin sessions)
+  adminMoveUserToTenant: (userId: string, tenantId: string) =>
+    request<{ ok: true; user: { id: string; tenantId: string } }>(`/admin/users/${userId}/move-tenant`, {
+      method: "POST",
+      body: JSON.stringify({ tenantId }),
+    }),
+
+  adminSetUserRole: (userId: string, role: string) =>
+    request<{ ok: true; user: { id: string; role: string } }>(`/admin/users/${userId}/role`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
+
+  adminRemoveUser: (userId: string) =>
+    request<{ ok: true; deleted: string }>(`/admin/users/${userId}`, { method: "DELETE" }),
+
   // Account deletion (two-step: emailed code → confirm)
   requestDeletionCode: () =>
     request<{ ok: true }>("/account/deletion-code", { method: "POST" }),

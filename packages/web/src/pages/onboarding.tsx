@@ -9,6 +9,8 @@ import {
   Link2,
   Sparkles,
   LogOut,
+  Mail,
+  UserPlus,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
 import { Button, Surface, Field, Input, Label, Select, Eyebrow } from '../components/uikit';
@@ -81,7 +83,8 @@ const STAGE_TO_STEP: Record<string, number> = {
 
 export function Onboarding() {
   const [, navigate] = useLocation();
-  const { setOnboardingStage, logout } = useAuth();
+  const { user, setOnboardingStage, logout } = useAuth();
+  const isOwner = user?.role === "owner";
   const [initializing, setInitializing] = useState(true);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -451,6 +454,10 @@ export function Onboarding() {
               )}
             </Surface>
 
+            {/* Owner-only, optional: invite a partner into this household. Fully
+                skippable — the owner can just continue to the dashboard. */}
+            {isOwner && <InvitePartnerCard />}
+
             <div className="w-full max-w-[360px] flex flex-col items-center gap-2.5 pt-1">
               <Button className="w-full" onClick={handleConnectAccounts}
                 leadingIcon={<Link2 className="h-4 w-4" />}>
@@ -561,6 +568,66 @@ export function Onboarding() {
         </footer>
       )}
     </div>
+  );
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Optional invite-a-partner step, rendered on the owner's "all set" screen.
+// Skippable: doing nothing and continuing to the dashboard is fine.
+function InvitePartnerCard() {
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+
+  const invite = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(trimmed)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await api.household.createInvite(trimmed);
+      setEmail('');
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't send that invite.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Surface tone="sunken" className="w-full max-w-[360px] flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <UserPlus className="h-4 w-4 text-brand" aria-hidden />
+        <Eyebrow>Invite a partner (optional)</Eyebrow>
+      </div>
+      <p className="text-[13px] leading-relaxed text-content-secondary">
+        Share these accounts with a spouse or partner — they'll get their own login and private chat.
+      </p>
+      <div className="flex flex-col gap-2">
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); setSent(false); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') void invite(); }}
+          placeholder="partner@example.com"
+          leadingIcon={<Mail className="h-4 w-4" />}
+          autoComplete="off"
+        />
+        <Button variant="secondary" onClick={() => void invite()} loading={busy} disabled={busy}>
+          Send invite
+        </Button>
+      </div>
+      {error && <p role="alert" className="text-[12.5px] font-medium text-negative">{error}</p>}
+      {sent && !error && (
+        <p className="text-[12.5px] font-medium text-positive">Invite sent — they'll get a link by email.</p>
+      )}
+    </Surface>
   );
 }
 

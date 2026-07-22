@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
-import { Button, Input, Field, Modal } from '../uikit';
+import { Button, Input, Field, Modal, Select } from '../uikit';
 
 type CardUser = {
   id: string;
@@ -27,7 +27,10 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [notice, setNotice] = useState('');
-  const [confirm, setConfirm] = useState<null | 'reset' | 'signout' | 'admin'>(null);
+  const [confirm, setConfirm] = useState<null | 'reset' | 'signout' | 'admin' | 'remove'>(null);
+  // Household membership tooling (resolve merges / mistakes).
+  const [role, setRole] = useState('');
+  const [moveTenantId, setMoveTenantId] = useState('');
 
   const isSelf = u.id === selfId;
   // Trim to mirror the server's normalization — otherwise a whitespace-only
@@ -57,7 +60,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
 
   // Clear stale card-level errors/notices so they can't masquerade as
   // belonging to the confirmation being opened.
-  const openConfirm = (kind: 'reset' | 'signout' | 'admin') => {
+  const openConfirm = (kind: 'reset' | 'signout' | 'admin' | 'remove') => {
     setErr('');
     setNotice('');
     setConfirm(kind);
@@ -75,8 +78,39 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
       } else if (confirm === 'admin') {
         await api.adminUpdateUser(u.id, { isAdmin: !u.isAdmin });
         onChanged();
+      } else if (confirm === 'remove') {
+        await api.adminRemoveUser(u.id);
+        onChanged();
       }
       setConfirm(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeRole = async () => {
+    if (!role) return;
+    setBusy(true); setErr(''); setNotice('');
+    try {
+      await api.adminSetUserRole(u.id, role);
+      setNotice(`Role set to ${role}`);
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const moveTenant = async () => {
+    const target = moveTenantId.trim();
+    if (!target) return;
+    setBusy(true); setErr(''); setNotice('');
+    try {
+      await api.adminMoveUserToTenant(u.id, target);
+      onChanged();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -150,10 +184,52 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
         </Button>
       </div>
 
+      {/* ── Household membership tooling ── */}
+      <div className={actionRow}>
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold text-content">Household role</div>
+          <p className="text-[11.5px] text-content-muted">Change this user's role within their household.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={role} onChange={(e) => setRole(e.target.value)} className="h-9 w-[130px]">
+            <option value="">Set role…</option>
+            <option value="owner">Owner</option>
+            <option value="member">Member</option>
+            <option value="viewer">Viewer</option>
+          </Select>
+          <Button variant="secondary" size="sm" disabled={!role || busy} onClick={() => void changeRole()}>
+            Apply
+          </Button>
+        </div>
+      </div>
+
+      <div className={actionRow}>
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold text-content">Move to tenant</div>
+          <p className="text-[11.5px] text-content-muted">Reassign this user to a different household by tenant id.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input value={moveTenantId} onChange={(e) => setMoveTenantId(e.target.value)} placeholder="tenant uuid" className="h-9 w-[200px]" />
+          <Button variant="secondary" size="sm" disabled={!moveTenantId.trim() || busy} onClick={() => void moveTenant()}>
+            Move
+          </Button>
+        </div>
+      </div>
+
+      <div className={actionRow}>
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold text-content">Remove user</div>
+          <p className="text-[11.5px] text-content-muted">Deletes this login and their private data. Pooled household data is untouched.</p>
+        </div>
+        <Button variant="secondary" size="sm" disabled={busy} onClick={() => openConfirm('remove')}>
+          Remove user
+        </Button>
+      </div>
+
       <Modal
         open={confirm !== null}
         onClose={() => setConfirm(null)}
-        title={confirm === 'reset' ? 'Send password reset?' : confirm === 'signout' ? 'Sign out everywhere?' : u.isAdmin ? 'Revoke admin access?' : 'Grant admin access?'}
+        title={confirm === 'reset' ? 'Send password reset?' : confirm === 'signout' ? 'Sign out everywhere?' : confirm === 'remove' ? 'Remove this user?' : u.isAdmin ? 'Revoke admin access?' : 'Grant admin access?'}
       >
         <p className="text-[13.5px] text-content-secondary leading-[1.55]">
           {confirm === 'reset' && <>Email <b className="text-content">{u.email}</b> a WorkOS password-reset link?</>}
@@ -164,12 +240,13 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
           {confirm === 'admin' && (u.isAdmin
             ? <>Remove admin access from <b className="text-content">{u.email}</b>? Takes effect on their very next request.</>
             : <>Give <b className="text-content">{u.email}</b> full operator access, including this admin console?</>)}
+          {confirm === 'remove' && <>Delete the login for <b className="text-content">{u.email}</b> and their private chat + personal profile? Their household's pooled financial data stays intact. This can't be undone.</>}
         </p>
         {err && <p className="mt-2 text-[12.5px] text-negative">{err}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" size="sm" disabled={busy} onClick={() => setConfirm(null)}>Cancel</Button>
           <Button size="sm" disabled={busy} onClick={runConfirm}>
-            {busy ? 'Working…' : confirm === 'reset' ? 'Send reset email' : confirm === 'signout' ? 'Sign out everywhere' : u.isAdmin ? 'Revoke admin' : 'Make admin'}
+            {busy ? 'Working…' : confirm === 'reset' ? 'Send reset email' : confirm === 'signout' ? 'Sign out everywhere' : confirm === 'remove' ? 'Remove user' : u.isAdmin ? 'Revoke admin' : 'Make admin'}
           </Button>
         </div>
       </Modal>

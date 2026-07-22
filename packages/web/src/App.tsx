@@ -48,6 +48,9 @@ const Styleguide = lazy(() => import('./pages/_styleguide').then(m => ({ default
 const VerifyEmail = lazy(() => import('./pages/verify-email').then(m => ({ default: m.VerifyEmail })));
 const ForgotPassword = lazy(() => import('./pages/forgot-password').then(m => ({ default: m.ForgotPassword })));
 const ResetPassword = lazy(() => import('./pages/reset-password').then(m => ({ default: m.ResetPassword })));
+// Household invite acceptance — reachable logged-out (shows the invite summary,
+// then the sign-up/login form that joins the household by email match).
+const AcceptInvite = lazy(() => import('./pages/accept-invite').then(m => ({ default: m.AcceptInvite })));
 // Stripe checkout return page for the native app — public, works signed out
 // (a browser that didn't universal-link back into the app lands here).
 const BillingSuccess = lazy(() => import('./pages/billing-success'));
@@ -84,8 +87,9 @@ function AppRoutes() {
     );
   }
 
-  // Public auth pages — render logged out (email verification + password reset flows).
-  if (location.startsWith('/verify-email') || location.startsWith('/forgot-password') || location.startsWith('/reset-password') || location.startsWith('/billing/success')) {
+  // Public auth pages — render logged out (email verification + password reset +
+  // household invite acceptance flows).
+  if (location.startsWith('/verify-email') || location.startsWith('/forgot-password') || location.startsWith('/reset-password') || location.startsWith('/billing/success') || location.startsWith('/accept-invite')) {
     return (
       <Suspense fallback={null}>
         <Switch>
@@ -93,6 +97,7 @@ function AppRoutes() {
           <Route path="/forgot-password" component={ForgotPassword} />
           <Route path="/reset-password" component={ResetPassword} />
           <Route path="/billing/success" component={BillingSuccess} />
+          <Route path="/accept-invite" component={AcceptInvite} />
         </Switch>
       </Suspense>
     );

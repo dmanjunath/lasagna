@@ -10,11 +10,11 @@ import { BrandMark } from "../components/common/BrandMark";
 import { GoogleButton } from "../components/common/GoogleButton";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
-export function Login() {
+export function Login({ defaultSignup = false }: { defaultSignup?: boolean } = {}) {
   const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
   const { login, loginWithPasskey, signup } = useAuth();
   const [, navigate] = useLocation();
-  const [isSignup, setIsSignup] = useState(false);
+  const [isSignup, setIsSignup] = useState(defaultSignup);
   // Two-step login: "email" collects the address, "password" appears only when the
   // account has one. Passwordless accounts go straight to the emailed-code screen.
   const [step, setStep] = useState<"email" | "password">("email");
