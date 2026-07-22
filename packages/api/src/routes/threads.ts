@@ -27,7 +27,7 @@ function safeJsonParse<T>(str: string | null, fallback: T): T {
 
 // List threads (optionally filter by planId)
 threadsRouter.get("/", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, userId } = c.get("session");
   const planId = c.req.query("planId");
 
   // Validate planId if provided
@@ -53,14 +53,20 @@ threadsRouter.get("/", async (c) => {
       .select(baseQuery)
       .from(chatThreads)
       .where(
-        and(eq(chatThreads.tenantId, tenantId), eq(chatThreads.planId, planId))
+        and(
+          eq(chatThreads.tenantId, tenantId),
+          eq(chatThreads.userId, userId),
+          eq(chatThreads.planId, planId)
+        )
       )
       .orderBy(desc(chatThreads.updatedAt));
   } else {
     results = await db
       .select(baseQuery)
       .from(chatThreads)
-      .where(eq(chatThreads.tenantId, tenantId))
+      .where(
+        and(eq(chatThreads.tenantId, tenantId), eq(chatThreads.userId, userId))
+      )
       .orderBy(desc(chatThreads.updatedAt));
   }
 
@@ -93,7 +99,7 @@ threadsRouter.get("/", async (c) => {
 
 // Get thread with messages
 threadsRouter.get("/:id", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, userId } = c.get("session");
   const threadId = c.req.param("id");
 
   const uuidResult = uuidSchema.safeParse(threadId);
@@ -105,7 +111,11 @@ threadsRouter.get("/:id", async (c) => {
     .select()
     .from(chatThreads)
     .where(
-      and(eq(chatThreads.id, threadId), eq(chatThreads.tenantId, tenantId))
+      and(
+        eq(chatThreads.id, threadId),
+        eq(chatThreads.tenantId, tenantId),
+        eq(chatThreads.userId, userId)
+      )
     );
 
   if (!thread) {
@@ -130,7 +140,7 @@ threadsRouter.get("/:id", async (c) => {
 
 // Create thread
 threadsRouter.post("/", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, userId } = c.get("session");
   const rawBody = await c.req.json();
 
   const parseResult = createThreadSchema.safeParse(rawBody);
@@ -143,6 +153,7 @@ threadsRouter.post("/", async (c) => {
     .insert(chatThreads)
     .values({
       tenantId,
+      userId,
       planId: body.planId ?? null,
       title: body.title ?? null,
       tags: body.tags ?? [],
@@ -154,7 +165,7 @@ threadsRouter.post("/", async (c) => {
 
 // Delete thread
 threadsRouter.delete("/:id", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, userId } = c.get("session");
   const threadId = c.req.param("id");
 
   const uuidResult = uuidSchema.safeParse(threadId);
@@ -166,7 +177,11 @@ threadsRouter.delete("/:id", async (c) => {
     .select({ id: chatThreads.id })
     .from(chatThreads)
     .where(
-      and(eq(chatThreads.id, threadId), eq(chatThreads.tenantId, tenantId))
+      and(
+        eq(chatThreads.id, threadId),
+        eq(chatThreads.tenantId, tenantId),
+        eq(chatThreads.userId, userId)
+      )
     );
 
   if (!thread) {
@@ -174,7 +189,11 @@ threadsRouter.delete("/:id", async (c) => {
   }
 
   await db.delete(chatThreads).where(
-    and(eq(chatThreads.id, threadId), eq(chatThreads.tenantId, tenantId))
+    and(
+      eq(chatThreads.id, threadId),
+      eq(chatThreads.tenantId, tenantId),
+      eq(chatThreads.userId, userId)
+    )
   );
 
   return c.json({ success: true });

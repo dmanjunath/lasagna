@@ -25,7 +25,7 @@ const chatRequestSchema = z.object({
 });
 
 chatRouter.post("/", async (c) => {
-  const { tenantId, isDemo } = c.get("session");
+  const { tenantId, userId, isDemo } = c.get("session");
   const rawBody = await c.req.json();
 
   const parseResult = chatRequestSchema.safeParse(rawBody);
@@ -34,12 +34,17 @@ chatRouter.post("/", async (c) => {
   }
   const body = parseResult.data;
 
-  // Verify thread belongs to tenant
+  // Verify thread belongs to this user within the tenant. Scoping by userId as
+  // well as tenantId keeps household members' chat histories isolated.
   const [thread] = await db
     .select()
     .from(chatThreads)
     .where(
-      and(eq(chatThreads.id, body.threadId), eq(chatThreads.tenantId, tenantId))
+      and(
+        eq(chatThreads.id, body.threadId),
+        eq(chatThreads.tenantId, tenantId),
+        eq(chatThreads.userId, userId)
+      )
     );
 
   if (!thread) {
