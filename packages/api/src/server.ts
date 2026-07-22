@@ -26,6 +26,7 @@ import { quickImportRoutes } from "./routes/quick-import.js";
 import { billingRoutes } from "./routes/billing.js";
 import { accountRouter } from "./routes/account.js";
 import { adminRoutes } from "./routes/admin.js";
+import { householdRoutes } from "./routes/household.js";
 import { rulesRoutes } from "./routes/rules.js";
 import { categoryRoutes } from "./routes/categories.js";
 import { placesRoutes } from "./routes/places.js";
@@ -88,6 +89,11 @@ app.use("/api/*", async (ctx, next) => {
     "/api/billing/webhook",
   ];
   if (exempt.includes(ctx.req.path)) return next();
+  // Public invite-summary endpoint (/api/household/invite/:token) — the
+  // logged-out /accept-invite page calls it, and the per-request token means
+  // the resolved path can never be an exact-match exempt entry. All other
+  // /api/household/* actions stay guarded.
+  if (ctx.req.path.startsWith("/api/household/invite/")) return next();
   return requireAuth(ctx, next);
 });
 
@@ -141,6 +147,7 @@ app.route("/api/quick-import", quickImportRoutes);
 app.route("/api/billing", billingRoutes);
 app.route("/api/account", accountRouter);
 app.route("/api/admin", adminRoutes);
+app.route("/api/household", householdRoutes);
 app.route("/api/rules", rulesRoutes);
 app.route("/api/categories", categoryRoutes);
 app.route("/api/places", placesRoutes);
