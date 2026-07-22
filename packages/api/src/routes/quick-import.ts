@@ -8,12 +8,18 @@ import {
   balanceSnapshots,
   goals,
   financialProfiles,
+  userProfiles,
   plaidItems,
   users,
 } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { getModel } from "../agent/agent.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import {
+  HOUSEHOLD_FIELDS,
+  readHouseholdProfile,
+  readUserPersonalProfile,
+} from "../lib/profile-resolver.js";
 
 export const quickImportRoutes = new Hono<AuthEnv>();
 
@@ -279,31 +285,32 @@ async function getOrCreateManualItem(tenantId: string): Promise<string> {
 }
 
 async function loadCurrentProfile(tenantId: string, userId: string) {
-  const [p, u] = await Promise.all([
-    db.query.financialProfiles.findFirst({
-      where: eq(financialProfiles.tenantId, tenantId),
-    }),
+  // Household fields from the tenant profile; personal fields from THIS user's
+  // userProfiles row (prefills the onboarding form for the current user).
+  const [household, personal, u] = await Promise.all([
+    readHouseholdProfile(tenantId),
+    readUserPersonalProfile(tenantId, userId),
     db.query.users.findFirst({
       where: eq(users.id, userId),
     }),
   ]);
-  if (!p && !u?.name) return null;
+  if (!household && !personal && !u?.name) return null;
   return {
     name: u?.name ?? null,
-    dateOfBirth: p?.dateOfBirth ? p.dateOfBirth.toISOString().slice(0, 10) : null,
-    annualIncome: p?.annualIncome ? parseFloat(p.annualIncome) : null,
-    filingStatus: p?.filingStatus ?? null,
-    stateOfResidence: p?.stateOfResidence ?? null,
-    employmentType: p?.employmentType ?? null,
-    riskTolerance: p?.riskTolerance ?? null,
-    retirementAge: p?.retirementAge ?? null,
+    dateOfBirth: personal?.dateOfBirth ? personal.dateOfBirth.toISOString().slice(0, 10) : null,
+    annualIncome: personal?.annualIncome ? parseFloat(personal.annualIncome) : null,
+    filingStatus: household?.filingStatus ?? null,
+    stateOfResidence: household?.stateOfResidence ?? null,
+    employmentType: personal?.employmentType ?? null,
+    riskTolerance: personal?.riskTolerance ?? null,
+    retirementAge: personal?.retirementAge ?? null,
     employerMatch:
-      p?.employerMatch !== null && p?.employerMatch !== undefined
-        ? parseFloat(p.employerMatch)
+      personal?.employerMatch !== null && personal?.employerMatch !== undefined
+        ? parseFloat(personal.employerMatch)
         : null,
-    dependentCount: p?.dependentCount ?? null,
-    hasHDHP: p?.hasHDHP ?? null,
-    isPSLFEligible: p?.isPSLFEligible ?? null,
+    dependentCount: household?.dependentCount ?? null,
+    hasHDHP: personal?.hasHDHP ?? null,
+    isPSLFEligible: personal?.isPSLFEligible ?? null,
   };
 }
 
@@ -518,7 +525,17 @@ quickImportRoutes.post("/commit", async (c) => {
       if (profile.isPSLFEligible !== null && profile.isPSLFEligible !== undefined)
         values.isPSLFEligible = profile.isPSLFEligible;
 
-      if (Object.keys(values).length > 0) {
+      // Route each field to its table: household → financialProfiles (tenant),
+      // personal → userProfiles (this user, upsert on userId).
+      const householdFieldSet = new Set<string>(HOUSEHOLD_FIELDS);
+      const householdValues: Record<string, unknown> = {};
+      const personalValues: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(values)) {
+        if (householdFieldSet.has(k)) householdValues[k] = v;
+        else personalValues[k] = v;
+      }
+
+      if (Object.keys(householdValues).length > 0) {
         const existing = await tx.query.financialProfiles.findFirst({
           where: eq(financialProfiles.tenantId, session.tenantId),
         });
@@ -526,13 +543,21 @@ quickImportRoutes.post("/commit", async (c) => {
         if (existing) {
           await tx
             .update(financialProfiles)
-            .set(values)
+            .set(householdValues)
             .where(eq(financialProfiles.tenantId, session.tenantId));
         } else {
           await tx
             .insert(financialProfiles)
-            .values({ tenantId: session.tenantId, ...values });
+            .values({ tenantId: session.tenantId, ...householdValues });
         }
+        profileUpdated = true;
+      }
+
+      if (Object.keys(personalValues).length > 0) {
+        await tx
+          .insert(userProfiles)
+          .values({ tenantId: session.tenantId, userId: session.userId, ...personalValues })
+          .onConflictDoUpdate({ target: userProfiles.userId, set: personalValues });
         profileUpdated = true;
       }
     }

@@ -83,7 +83,7 @@ export async function runBenchmark(
   let errorMsg: string | undefined;
 
   try {
-    const tools = createAgentTools(tenantId, { isDemo: true });
+    const tools = createAgentTools(tenantId, 'benchmark-user', { isDemo: true });
     const MAX_TOOL_ROUNDS = benchCase.maxToolRounds ?? 5;
 
     const userContent = benchCase.context

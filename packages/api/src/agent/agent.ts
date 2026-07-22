@@ -59,10 +59,11 @@ export function getModel(level: ModelLevel = "quality"): LanguageModel {
 
 export function createAgentTools(
   tenantId: string,
+  userId: string,
   options?: { isDemo?: boolean }
 ) {
   const allTools = {
-    ...createFinancialTools(tenantId),
+    ...createFinancialTools(tenantId, userId),
     ...createPlanTools(tenantId),
     ...createSimulationTools(tenantId),
     ...createTaxTools(tenantId),

@@ -1,9 +1,15 @@
 import { Hono } from "hono";
-import { eq, users, tenants, financialProfiles } from "@lasagna/core";
+import { eq, users, tenants } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import { resolveTenantPlan } from "../lib/billing.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import {
+  readHouseholdProfile,
+  readUserPersonalProfile,
+  resolveProfile,
+  upsertSplitProfile,
+} from "../lib/profile-resolver.js";
 
 export const settingsRoutes = new Hono<AuthEnv>();
 
@@ -99,44 +105,56 @@ settingsRoutes.post("/change-password", async (c) => {
   return c.json({ ok: true });
 });
 
-// Get financial profile
+// Get financial profile — household fields (tenant) merged with THIS user's
+// personal fields (userProfiles). Returns null only when the household row is
+// absent AND this user has no personal profile yet.
 settingsRoutes.get("/financial-profile", async (c) => {
   const session = c.get("session");
 
-  const profile = await db.query.financialProfiles.findFirst({
-    where: eq(financialProfiles.tenantId, session.tenantId),
-  });
+  const [household, personal] = await Promise.all([
+    readHouseholdProfile(session.tenantId),
+    readUserPersonalProfile(session.tenantId, session.userId),
+  ]);
 
-  if (!profile) {
+  if (!household && !personal) {
     return c.json({ financialProfile: null });
   }
 
-  const age = profile.dateOfBirth
-    ? Math.floor(
-        (Date.now() - new Date(profile.dateOfBirth).getTime()) /
-          (365.25 * 24 * 60 * 60 * 1000)
-      )
-    : null;
-
   return c.json({
-    financialProfile: {
-      dateOfBirth: profile.dateOfBirth,
-      age,
-      annualIncome: profile.annualIncome ? parseFloat(profile.annualIncome) : null,
-      filingStatus: profile.filingStatus,
-      stateOfResidence: profile.stateOfResidence,
-      employmentType: profile.employmentType,
-      riskTolerance: profile.riskTolerance,
-      retirementAge: profile.retirementAge,
-      employerMatchPercent: profile.employerMatch !== null && profile.employerMatch !== undefined ? parseFloat(profile.employerMatch) : null,
-      dependentCount: profile.dependentCount ?? null,
-      hasHDHP: profile.hasHDHP ?? null,
-      isPSLFEligible: profile.isPSLFEligible ?? null,
-    },
+    financialProfile: resolveProfile(household ?? null, personal ?? null),
   });
 });
 
-// Create or update financial profile
+// All household members' personal profiles (shared "you vs your partner" view).
+settingsRoutes.get("/household-profiles", async (c) => {
+  const session = c.get("session");
+
+  const [household, members] = await Promise.all([
+    readHouseholdProfile(session.tenantId),
+    db.query.users.findMany({
+      where: eq(users.tenantId, session.tenantId),
+      columns: { id: true, name: true, email: true },
+    }),
+  ]);
+
+  const memberProfiles = await Promise.all(
+    members.map(async (u) => ({
+      userId: u.id,
+      name: u.name,
+      email: u.email,
+      isYou: u.id === session.userId,
+      profile: resolveProfile(
+        household ?? null,
+        (await readUserPersonalProfile(session.tenantId, u.id)) ?? null,
+      ),
+    })),
+  );
+
+  return c.json({ members: memberProfiles });
+});
+
+// Create or update financial profile — household fields write to the tenant
+// `financialProfiles` row; personal fields write to THIS user's `userProfiles`.
 settingsRoutes.patch("/financial-profile", async (c) => {
   const session = c.get("session");
   const body = await c.req.json<{
@@ -153,45 +171,7 @@ settingsRoutes.patch("/financial-profile", async (c) => {
     isPSLFEligible?: boolean | null;
   }>();
 
-  const existing = await db.query.financialProfiles.findFirst({
-    where: eq(financialProfiles.tenantId, session.tenantId),
-  });
-
-  const values: Record<string, unknown> = {};
-  if (body.dateOfBirth !== undefined)
-    values.dateOfBirth = body.dateOfBirth ? new Date(body.dateOfBirth) : null;
-  if (body.annualIncome !== undefined)
-    values.annualIncome = body.annualIncome?.toString() ?? null;
-  if (body.filingStatus !== undefined)
-    values.filingStatus = body.filingStatus;
-  if (body.stateOfResidence !== undefined)
-    values.stateOfResidence = body.stateOfResidence;
-  if (body.employmentType !== undefined)
-    values.employmentType = body.employmentType;
-  if (body.riskTolerance !== undefined)
-    values.riskTolerance = body.riskTolerance;
-  if (body.retirementAge !== undefined)
-    values.retirementAge = body.retirementAge;
-  if (body.employerMatchPercent !== undefined)
-    values.employerMatch = body.employerMatchPercent?.toString() ?? null;
-  if (body.dependentCount !== undefined)
-    values.dependentCount = body.dependentCount ?? null;
-  if (body.hasHDHP !== undefined)
-    values.hasHDHP = body.hasHDHP ?? null;
-  if (body.isPSLFEligible !== undefined)
-    values.isPSLFEligible = body.isPSLFEligible ?? null;
-
-  if (existing) {
-    await db
-      .update(financialProfiles)
-      .set(values)
-      .where(eq(financialProfiles.tenantId, session.tenantId));
-  } else {
-    await db.insert(financialProfiles).values({
-      tenantId: session.tenantId,
-      ...values,
-    });
-  }
+  await upsertSplitProfile(session.tenantId, session.userId, body);
 
   return c.json({ ok: true });
 });

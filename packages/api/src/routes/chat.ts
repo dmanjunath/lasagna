@@ -85,7 +85,7 @@ chatRouter.post("/", async (c) => {
     };
   }
 
-  const tools = createAgentTools(tenantId, { isDemo });
+  const tools = createAgentTools(tenantId, userId, { isDemo });
   const aliasMap = await buildAliasMap(tenantId);
   const threadId = body.threadId;
 

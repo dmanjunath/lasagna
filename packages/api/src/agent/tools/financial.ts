@@ -2,7 +2,6 @@ import { tool } from "ai";
 import { z } from "zod";
 import { db } from "../../lib/db.js";
 import {
-  financialProfiles,
   transactions,
   recurringTransactions,
   goals,
@@ -13,6 +12,7 @@ import {
   desc,
   sql,
 } from "@lasagna/core";
+import { readResolvedProfile } from "../../lib/profile-resolver.js";
 import { getHoldingsInput } from "../../routes/portfolio.js";
 import { aggregatePortfolio } from "../../services/portfolio-aggregator.js";
 import {
@@ -32,7 +32,7 @@ function parseMeta(m: string | null): unknown {
   }
 }
 
-export function createFinancialTools(tenantId: string) {
+export function createFinancialTools(tenantId: string, userId: string) {
   return {
     get_accounts: tool({
       description:
@@ -341,37 +341,40 @@ export function createFinancialTools(tenantId: string) {
         "Get the user's financial profile: annual income, filing status, age, state of residence, employment type, risk tolerance, target retirement age, employer 401(k) match %, number of dependents, HDHP and PSLF status. Use this for income, tax, and retirement-planning questions — income lives here, NOT in transactions (manual-entry users often have no income transactions).",
       inputSchema: z.object({}),
       execute: async () => {
-        const profile = await db.query.financialProfiles.findFirst({
-          where: eq(financialProfiles.tenantId, tenantId),
-        });
+        // Resolve THIS user's personal fields merged with the household fields —
+        // "your income", not your partner's.
+        const resolved = await readResolvedProfile(tenantId, userId);
 
-        if (!profile) {
+        // No profile at all → same "not set up" hint as before.
+        if (
+          resolved.annualIncome === null &&
+          resolved.filingStatus === null &&
+          resolved.age === null &&
+          resolved.stateOfResidence === null &&
+          resolved.employmentType === null &&
+          resolved.riskTolerance === null &&
+          resolved.retirementAge === null &&
+          resolved.employerMatchPercent === null &&
+          resolved.dependentCount === null &&
+          resolved.hasHDHP === null &&
+          resolved.isPSLFEligible === null
+        ) {
           return { profile: null, note: "No financial profile has been set up yet." };
         }
 
-        const age = profile.dateOfBirth
-          ? Math.floor(
-              (Date.now() - new Date(profile.dateOfBirth).getTime()) /
-                (365.25 * 24 * 60 * 60 * 1000)
-            )
-          : null;
-
         return {
           profile: {
-            annualIncome: profile.annualIncome ? parseFloat(profile.annualIncome) : null,
-            filingStatus: profile.filingStatus,
-            age,
-            stateOfResidence: profile.stateOfResidence,
-            employmentType: profile.employmentType,
-            riskTolerance: profile.riskTolerance,
-            retirementAge: profile.retirementAge,
-            employerMatchPercent:
-              profile.employerMatch !== null && profile.employerMatch !== undefined
-                ? parseFloat(profile.employerMatch)
-                : null,
-            dependentCount: profile.dependentCount ?? null,
-            hasHDHP: profile.hasHDHP ?? null,
-            isPSLFEligible: profile.isPSLFEligible ?? null,
+            annualIncome: resolved.annualIncome,
+            filingStatus: resolved.filingStatus,
+            age: resolved.age,
+            stateOfResidence: resolved.stateOfResidence,
+            employmentType: resolved.employmentType,
+            riskTolerance: resolved.riskTolerance,
+            retirementAge: resolved.retirementAge,
+            employerMatchPercent: resolved.employerMatchPercent,
+            dependentCount: resolved.dependentCount,
+            hasHDHP: resolved.hasHDHP,
+            isPSLFEligible: resolved.isPSLFEligible,
           },
         };
       },

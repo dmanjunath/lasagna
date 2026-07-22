@@ -7,6 +7,7 @@ import { type AuthEnv } from "../middleware/auth.js";
 import { z } from "zod";
 import { type UserFinancialContext } from '../lib/layer-selector.js';
 import { UNIVERSAL_LAYERS, assessLayer } from '../lib/universal-layers.js';
+import { readHouseholdProfile, readUserPersonalProfile, resolveProfile } from "../lib/profile-resolver.js";
 
 const VALID_LAYER_IDS = new Set(UNIVERSAL_LAYERS.map(l => l.id));
 
@@ -16,7 +17,7 @@ export const priorityRoutes = new Hono<AuthEnv>();
 priorityRoutes.get("/", async (c) => {
   const session = c.get("session");
 
-  const [accts, profile, activeGoals, goalLinks] = await Promise.all([
+  const [accts, household, personal, activeGoals, goalLinks] = await Promise.all([
     (async () => {
       const allAccounts = await db.query.accounts.findMany({
         where: eq(accounts.tenantId, session.tenantId),
@@ -32,9 +33,10 @@ priorityRoutes.get("/", async (c) => {
         })
       );
     })(),
-    db.query.financialProfiles.findFirst({
-      where: eq(financialProfiles.tenantId, session.tenantId),
-    }),
+    // Household row (also carries the priorities bookkeeping) + THIS user's
+    // personal profile → merged for the per-user "you vs partner" priorities.
+    readHouseholdProfile(session.tenantId),
+    readUserPersonalProfile(session.tenantId, session.userId),
     db.query.goals.findMany({
       where: and(
         eq(goals.tenantId, session.tenantId),
@@ -46,19 +48,21 @@ priorityRoutes.get("/", async (c) => {
     }),
   ]);
 
+  // Merged personal + household fields (session user). Bookkeeping arrays stay
+  // on the raw `household` row below.
+  const resolved = resolveProfile(household ?? null, personal ?? null);
+
   const goalAccountMap = buildGoalAccountMap(goalLinks);
   const goalBalanceById = new Map(accts.map((a) => [a.id, a.balance]));
 
   // ── Build UserFinancialContext from DB data ─────────────────────────────
 
-  const annualIncome = parseFloat(profile?.annualIncome ?? "0");
+  const annualIncome = resolved.annualIncome ?? 0;
   const monthlyIncome = annualIncome / 12;
-  const employerMatchPct = parseFloat(profile?.employerMatch ?? "0");
-  const age = profile?.dateOfBirth
-    ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-    : null;
-  const filingStatus = (profile?.filingStatus ?? null) as UserFinancialContext['filingStatus'];
-  const retirementAge = profile?.retirementAge ?? 65;
+  const employerMatchPct = resolved.employerMatchPercent ?? 0;
+  const age = resolved.age;
+  const filingStatus = (resolved.filingStatus ?? null) as UserFinancialContext['filingStatus'];
+  const retirementAge = resolved.retirementAge ?? 65;
 
   let cashTotal = 0, hsaBalance = 0, rothIraBalance = 0, trad401kBalance = 0, brokerageBalance = 0;
   let paydayLoanDebt = 0, creditCardDebt = 0, personalLoanHighDebt = 0, autoLoanHighDebt = 0;
@@ -146,14 +150,14 @@ priorityRoutes.get("/", async (c) => {
     age,
     annualIncome,
     filingStatus,
-    employmentType: profile?.employmentType ?? 'w2',
+    employmentType: resolved.employmentType ?? 'w2',
     employerMatchPct,
-    stateOfResidence: profile?.stateOfResidence ?? null,
+    stateOfResidence: resolved.stateOfResidence ?? null,
     retirementAge,
-    riskTolerance: profile?.riskTolerance ?? null,
-    hasHDHP: profile?.hasHDHP ?? false,
-    dependentCount: profile?.dependentCount ?? 0,
-    isPSLFEligible: profile?.isPSLFEligible ?? false,
+    riskTolerance: resolved.riskTolerance ?? null,
+    hasHDHP: resolved.hasHDHP ?? false,
+    dependentCount: resolved.dependentCount ?? 0,
+    isPSLFEligible: resolved.isPSLFEligible ?? false,
     goals: activeGoals.map(g => ({
       id: g.id,
       name: g.name,
@@ -166,7 +170,7 @@ priorityRoutes.get("/", async (c) => {
       ).amount,
       deadline: g.deadline ? new Date(g.deadline) : null,
     })),
-    skippedLayerIds: profile?.skippedPrioritySteps ?? [],
+    skippedLayerIds: household?.skippedPrioritySteps ?? [],
     cashTotal, hsaBalance, rothIraBalance, trad401kBalance, brokerageBalance,
     paydayLoanDebt, creditCardDebt, personalLoanHighDebt, autoLoanHighDebt,
     mediumInterestDebt, autoLoanMedDebt, personalLoanMedDebt,
@@ -180,11 +184,11 @@ priorityRoutes.get("/", async (c) => {
 
   // ── Assess all 12 universal layers ──────────────────────────────────────
 
-  const skippedSet = new Set(profile?.skippedPrioritySteps ?? []);
+  const skippedSet = new Set(household?.skippedPrioritySteps ?? []);
 
   // Build completion map from jsonb
   const completionEntries: Array<{id: string; note: string; completedAt: string}> =
-    (profile?.completedPrioritySteps as any) ?? [];
+    (household?.completedPrioritySteps as any) ?? [];
   const manuallyCompletedSet = new Set(completionEntries.map(e => e.id));
   const completionNoteMap = Object.fromEntries(completionEntries.map(e => [e.id, e.note]));
 

@@ -28,6 +28,11 @@ import {
   fetchAccountsWithBalances,
 } from "./account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "./goal-progress.js";
+import {
+  readHouseholdProfile,
+  readOwnerPersonalProfile,
+  resolveProfile,
+} from "./profile-resolver.js";
 
 interface FinancialSnapshot {
   accounts: Array<{
@@ -221,33 +226,25 @@ async function gatherFinancialData(
     accountName: h.accountName,
   }));
 
-  // Profile
-  const [profileRow] = await db
-    .select()
-    .from(financialProfiles)
-    .where(eq(financialProfiles.tenantId, tenantId))
-    .limit(1);
+  // Profile — session-less cron: household fields from the tenant profile,
+  // personal fields (income, DOB/age, risk, retirement age, match) from the
+  // tenant OWNER's personal profile.
+  const [householdRow, ownerPersonal] = await Promise.all([
+    readHouseholdProfile(tenantId),
+    readOwnerPersonalProfile(tenantId),
+  ]);
+  const resolvedOwner = resolveProfile(householdRow ?? null, ownerPersonal ?? null);
 
   let profile: FinancialSnapshot["profile"] = null;
-  if (profileRow) {
-    const age = profileRow.dateOfBirth
-      ? Math.floor(
-          (Date.now() - new Date(profileRow.dateOfBirth).getTime()) /
-            (365.25 * 24 * 60 * 60 * 1000)
-        )
-      : null;
+  if (householdRow || ownerPersonal) {
     profile = {
-      annualIncome: profileRow.annualIncome
-        ? parseFloat(profileRow.annualIncome)
-        : null,
-      filingStatus: profileRow.filingStatus,
-      stateOfResidence: profileRow.stateOfResidence,
-      riskTolerance: profileRow.riskTolerance,
-      retirementAge: profileRow.retirementAge,
-      employerMatchPercent: profileRow.employerMatch
-        ? parseFloat(profileRow.employerMatch)
-        : null,
-      age,
+      annualIncome: resolvedOwner.annualIncome,
+      filingStatus: resolvedOwner.filingStatus,
+      stateOfResidence: resolvedOwner.stateOfResidence,
+      riskTolerance: resolvedOwner.riskTolerance,
+      retirementAge: resolvedOwner.retirementAge,
+      employerMatchPercent: resolvedOwner.employerMatchPercent,
+      age: resolvedOwner.age,
     };
   }
 
@@ -483,9 +480,7 @@ async function gatherFinancialData(
 
   const monthlyIncomeCurrent = parseFloat(currentIncomeRow[0]?.total ?? "0");
   const monthlyIncomePrior = parseFloat(priorIncomeRow[0]?.total ?? "0");
-  const annualIncomeFromProfile = profileRow?.annualIncome
-    ? parseFloat(profileRow.annualIncome)
-    : 0;
+  const annualIncomeFromProfile = resolvedOwner.annualIncome ?? 0;
   const effectiveMonthlyIncome =
     monthlyIncomeCurrent > 0
       ? monthlyIncomeCurrent

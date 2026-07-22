@@ -1,8 +1,9 @@
 import { Hono } from "hono";
-import { eq, and, desc, insights, sql, financialProfiles } from "@lasagna/core";
+import { eq, and, desc, insights, sql } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { generateInsights } from "../lib/insights-engine.js";
+import { readHouseholdProfile } from "../lib/profile-resolver.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
 
@@ -33,10 +34,8 @@ insightsRoutes.get("/", async (c) => {
       desc(insights.createdAt)
     );
 
-  // Get financial profile to retrieve lastActionsGeneratedAt
-  const profile = await db.query.financialProfiles.findFirst({
-    where: eq(financialProfiles.tenantId, session.tenantId),
-  });
+  // lastActionsGeneratedAt is household bookkeeping on the tenant profile row.
+  const profile = await readHouseholdProfile(session.tenantId);
 
   return c.json({
     insights: rows.map((r) => ({
