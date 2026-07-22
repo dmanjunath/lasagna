@@ -3,7 +3,7 @@ export { simulationResults, simulationTypeEnum } from "./schema.js";
 export { createDb, type Database } from "./db.js";
 export { encrypt, decrypt } from "./crypto.js";
 export * from "./ticker-categories.js";
-export { eq, ne, desc, asc, and, or, sql, inArray, notInArray, gte, lte, ilike, count as countFn } from "drizzle-orm";
+export { eq, ne, desc, asc, and, or, sql, isNull, inArray, notInArray, gte, lte, ilike, count as countFn } from "drizzle-orm";
 export type { SQL } from "drizzle-orm";
 export { PgDialect } from "drizzle-orm/pg-core";
 export * from "./liability-metadata.js";
