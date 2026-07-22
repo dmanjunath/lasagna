@@ -10,14 +10,16 @@ import {
   jsonb,
   boolean,
   unique,
+  uniqueIndex,
   index,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 
 export const planEnum = pgEnum("plan", ["free", "pro"]);
-export const roleEnum = pgEnum("role", ["owner", "member"]);
+export const roleEnum = pgEnum("role", ["owner", "member", "viewer"]);
 export const accountTypeEnum = pgEnum("account_type", [
   "depository",
   "investment",
@@ -196,6 +198,57 @@ export const financialProfiles = pgTable("financial_profiles", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+// Personal (per-user) profile fields — the "you vs your partner" split.
+// Household-level fields (filingStatus, stateOfResidence, dependentCount,
+// and the priorities bookkeeping) stay on financialProfiles (tenant-scoped).
+export const userProfiles = pgTable("user_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" })
+    .unique(),
+  dateOfBirth: timestamp("date_of_birth", { withTimezone: true }),
+  annualIncome: numeric("annual_income", { precision: 19, scale: 2 }),
+  employmentType: varchar("employment_type", { length: 50 }),
+  riskTolerance: riskToleranceEnum("risk_tolerance"),
+  retirementAge: integer("retirement_age"),
+  employerMatch: numeric("employer_match_percent", { precision: 5, scale: 2 }),
+  hasHDHP: boolean("has_hdhp"),
+  isPSLFEligible: boolean("is_pslf_eligible"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const invites = pgTable("invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  email: varchar("email", { length: 255 }).notNull(),
+  role: roleEnum("role").notNull().default("member"),
+  token: text("token").notNull().unique(),
+  invitedByUserId: uuid("invited_by_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  // At most one PENDING invite per (tenant, email). Expiry is enforced in app
+  // logic — a partial-unique index predicate cannot reference now().
+  uniqueIndex("invites_pending_tenant_email_idx")
+    .on(t.tenantId, t.email)
+    .where(sql`${t.acceptedAt} IS NULL AND ${t.revokedAt} IS NULL`),
+]);
 
 // ── Plaid Items ────────────────────────────────────────────────────────────
 
@@ -413,6 +466,7 @@ export const chatThreads = pgTable("chat_threads", {
   tenantId: uuid("tenant_id")
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   planId: uuid("plan_id").references(() => plans.id, { onDelete: "cascade" }),
   title: text("title"),
   tags: text("tags").array().default([]),
