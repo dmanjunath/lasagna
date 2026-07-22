@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
 import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
-import { ChevronDown, ChevronUp, Download, Sparkles, Building2, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, Sparkles, Building2, GripVertical, Pencil, Check } from 'lucide-react';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import { Button, SegmentedControl, Skeleton } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
@@ -121,6 +122,103 @@ function Section({ title, eyebrow, children, className }: { title?: React.ReactN
       )}
       {children}
     </section>
+  );
+}
+
+// Single-select dropdown styled to match the app's other custom dropdowns
+// (trigger button + portaled popover, like the transactions filter menus)
+// rather than a native <select> whose option list is the OS's own chrome. The
+// menu is portaled to <body> so the verdict card's overflow-hidden can't clip
+// it. Closes on select, outside-click, Escape, scroll, or resize.
+function MethodDropdown<T extends string>({ value, onChange, options, ariaLabel, triggerTestId }: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+  ariaLabel?: string;
+  triggerTestId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    const menuH = options.length * 38 + 10;
+    const up = r.bottom + menuH + 8 > window.innerHeight && r.top - menuH > 8;
+    setPos({ top: up ? r.top - menuH - 6 : r.bottom + 6, left: r.left, width: r.width });
+  }, [open, options.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus(); } };
+    const onReflow = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onReflow, true);
+    window.addEventListener('resize', onReflow);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onReflow, true);
+      window.removeEventListener('resize', onReflow);
+    };
+  }, [open]);
+
+  const current = options.find(o => o.value === value);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        data-testid={triggerTestId}
+        className="ui-focus touch-target relative h-9 w-full appearance-none truncate rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-semibold text-content shadow-ui-sm"
+      >
+        {current?.label ?? ''}
+        <ChevronDown size={15} className={cn('pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          role="listbox"
+          aria-label={ariaLabel}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 60 }}
+          className="max-h-[280px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised py-1 shadow-ui-lg"
+        >
+          {options.map(opt => {
+            const active = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => { onChange(opt.value); setOpen(false); triggerRef.current?.focus(); }}
+                className={cn(
+                  'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium transition-colors',
+                  active ? 'bg-brand-soft text-brand' : 'text-content hover:bg-canvas-sunken',
+                )}
+              >
+                <Check size={14} className={cn('shrink-0', active ? 'opacity-100' : 'opacity-0')} aria-hidden />
+                <span className="truncate">{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -1098,6 +1196,7 @@ function RetirementV2Inner() {
   // Inputs & assumptions (collapsible; two tabbed sub-sections)
   const [inputsOpen, setInputsOpen] = useState(false);
   const [inputsTab, setInputsTab] = useState<'you' | 'portfolio'>('you');
+  const inputsRef = useRef<HTMLDivElement>(null);
   const [baseEquityPct, setBaseEquityPct] = useState(60);
   const [equityTouched, setEquityTouched] = useState(false);
   const [baseReturn, setBaseReturn] = useState(6.5);
@@ -1609,6 +1708,41 @@ function RetirementV2Inner() {
     ? `I want to assess my retirement plan. On one projected path at my ${expReturn.toFixed(1)}% expected return — retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved, spending ${formatMoney(monthlySpendEff, true)}/mo — the dashboard says "${verdict}": ${detOnTrack ? `the money lasts through age ${lifeExp}` : `the money runs out at age ${detRanShortAge}`}. Can you walk me through what's driving that?`
     : `I want to assess my retirement plan. The dashboard says "${verdict}" — a ${prob}% chance my money lasts through age ${method === 'hist' ? lifeExp : horizonEndAge}, retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved and spending ${formatMoney(monthlySpendEff, true)}/mo. Can you walk me through what's driving that?`;
 
+  // The pencil on the Monthly spending KPI: open the inputs panel (on the "You"
+  // tab, where the spending control lives), scroll the spending field to the
+  // middle of the view, then briefly flash its border so it's obvious what to
+  // edit. Falls back to the strategy's own rate field, or the panel top.
+  const editSpending = () => {
+    setInputsTab('you');
+    setInputsOpen(true);
+    window.setTimeout(() => {
+      const field =
+        document.querySelector<HTMLElement>('[data-testid="rv2-lever-spend"] .rv2-input') ??
+        document.querySelector<HTMLElement>('[data-testid="rv2-pct-rate"] .rv2-input') ??
+        document.querySelector<HTMLElement>('[data-testid="rv2-gk-rate"] .rv2-input');
+      if (!field) { inputsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      field.classList.remove('rv2-flash');
+      void field.offsetWidth; // reflow so a repeat click restarts the animation
+      field.classList.add('rv2-flash');
+      window.setTimeout(() => field.classList.remove('rv2-flash'), 2200);
+    }, 70);
+  };
+
+  // Rendered twice: top-right on desktop, above the KPI grid on mobile — the
+  // parent wrappers handle which one shows at each breakpoint.
+  const renderAskLasagna = (testId: string) => (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={() => openChat(askLasagnaPrompt)}
+      className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+    >
+      <Sparkles className="h-[15px] w-[15px]" />
+      Ask Lasagna
+    </button>
+  );
+
   if (loading) {
     return (
       <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -1635,11 +1769,16 @@ function RetirementV2Inner() {
         .dark .rv2-accum-zone { fill-opacity: 0.10; }
         .rv2-blend-area { fill-opacity: 0.14; }
         .dark .rv2-blend-area { fill-opacity: 0.10; }
-        .rv2-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 24px; }
+        .rv2-kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px 24px; }
         .rv2-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 40px; }
         @media (max-width: 800px) {
           .rv2-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .rv2-grid2 { grid-template-columns: 1fr; }
+        }
+        /* On narrow phones the 2-col KPI cell is too tight for the full method
+           labels, so let the method dropdown take its own full-width row. */
+        @media (max-width: 480px) {
+          .rv2-kpi-method-cell { grid-column: 1 / -1; }
         }
         .rv2-subhead {
           font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
@@ -1664,6 +1803,14 @@ function RetirementV2Inner() {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         .rv2-input:focus-within { border-color: rgb(var(--ui-brand)); box-shadow: 0 0 0 3px var(--ui-brand-ring); }
+        /* Transient border flash when the Monthly spending pencil jumps here:
+           holds the brand ring for ~1.2s then eases off over ~1s. */
+        .rv2-input.rv2-flash { animation: rv2-flash 2.2s ease-out; }
+        @keyframes rv2-flash {
+          0%, 55% { border-color: rgb(var(--ui-brand)); box-shadow: 0 0 0 3px var(--ui-brand-ring); }
+          100%    { border-color: var(--ui-line); box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+        }
+        @media (prefers-reduced-motion: reduce) { .rv2-input.rv2-flash { animation: none; } }
         .rv2-input input {
           flex: 1; min-width: 0; width: 100%;
           border: 0; background: transparent; outline: none; padding: 0;
@@ -1780,32 +1927,13 @@ function RetirementV2Inner() {
           }}
         />
         <div className="relative">
-          {/* hero header — eyebrow on the left; the method toggle + Ask Lasagna
-              on the right, so switching Monte Carlo / Historical / Blended
-              re-frames the verdict and the growth chart from right here. */}
+          {/* hero header — eyebrow on the left; Ask Lasagna on the right (desktop
+              only). The method toggle now lives in the Method KPI below, and on
+              mobile Ask Lasagna drops in just above the KPI grid. */}
           <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
             <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">{isBlend ? 'Plan outcome · deterministic' : 'Chance of success'}</div>
-            <div className="flex flex-wrap items-center gap-2.5" data-testid="rv2-hero-controls">
-              <SegmentedControl
-                tone="brand" size="sm" stretch={false}
-                value={method}
-                onChange={setMethod}
-                options={[
-                  { value: 'mc', label: 'Monte Carlo' },
-                  { value: 'hist', label: 'Historical' },
-                  { value: 'blend', label: 'Blended return' },
-                ]}
-                aria-label="Chance-of-success method"
-              />
-              <button
-                type="button"
-                data-testid="rv2-ask-lasagna"
-                onClick={() => openChat(askLasagnaPrompt)}
-                className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
-              >
-                <Sparkles className="h-[15px] w-[15px]" />
-                Ask Lasagna
-              </button>
+            <div className="hidden sm:flex flex-wrap items-center gap-2.5" data-testid="rv2-hero-controls">
+              {renderAskLasagna('rv2-ask-lasagna')}
             </div>
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
@@ -1847,6 +1975,9 @@ function RetirementV2Inner() {
               </>
             )}
           </p>
+          <div className="mt-4 sm:hidden">
+            {renderAskLasagna('rv2-ask-lasagna-mobile')}
+          </div>
           <div className="rv2-kpi-grid mt-6 pt-5 border-t border-line">
             <div className="min-w-0" data-testid="rv2-kpi-years">
               <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Years to retirement</div>
@@ -1854,6 +1985,24 @@ function RetirementV2Inner() {
                 {Math.max(0, effRetireAge - currentAge)}
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">retiring at {effRetireAge}</div>
+            </div>
+            <div className="min-w-0" data-testid="rv2-kpi-spend">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Monthly spending</span>
+                <button
+                  type="button"
+                  onClick={editSpending}
+                  aria-label="Edit monthly spending"
+                  data-testid="rv2-kpi-spend-edit"
+                  className="inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors"
+                >
+                  <Pencil className="h-[13px] w-[13px]" />
+                </button>
+              </div>
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {formatMoney(monthlySpendEff, true)}<span className="text-[14px] font-bold text-content-muted">/mo</span>
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">in today's dollars</div>
             </div>
             <div className="min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Sustainable draw</div>
@@ -1873,12 +2022,22 @@ function RetirementV2Inner() {
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">age {effRetireAge} → {lifeExp}</div>
             </div>
-            <div className="min-w-0" data-testid="rv2-kpi-method">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Method</div>
-              <div className={cn('mt-1.5 font-editorial font-extrabold leading-none tracking-[-0.02em] text-content', isBlend ? 'text-[22px] sm:text-[26px] mt-2' : 'text-[26px] sm:text-[30px]')}>
-                {method === 'hist' ? 'Historical' : isBlend ? 'Blended return' : 'Monte Carlo'}
+            <div className="min-w-0 rv2-kpi-method-cell" data-testid="rv2-kpi-method">
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Simulation method</div>
+              <div className="mt-2">
+                <MethodDropdown
+                  value={method}
+                  onChange={setMethod}
+                  ariaLabel="Chance-of-success method"
+                  triggerTestId="rv2-method-trigger"
+                  options={[
+                    { value: 'mc', label: 'Monte Carlo' },
+                    { value: 'hist', label: 'Historical' },
+                    { value: 'blend', label: 'Blended return' },
+                  ]}
+                />
               </div>
-              <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">
+              <div className="mt-2 text-[12px] font-medium text-content-muted ui-tnum">
                 {method === 'hist' ? `${backtestRows?.length ?? 0} start-years since 1928` : isBlend ? `one projected path at ${expReturn.toFixed(1)}%/yr` : '1,000 simulated paths'}
               </div>
             </div>
@@ -1887,6 +2046,7 @@ function RetirementV2Inner() {
       </section>
 
       {/* ── 2 · Inputs & assumptions (You / Portfolio) ─────────────────────── */}
+      <div ref={inputsRef} className="scroll-mt-4">
       <Section title="Inputs & assumptions" eyebrow="every edit re-runs the simulation live">
         <Card style={{ padding: 0 }}>
           <button
@@ -2255,6 +2415,7 @@ function RetirementV2Inner() {
           )}
         </Card>
       </Section>
+      </div>
 
       {/* ── 3 · Portfolio growth (re-renders per selected method) ──────────── */}
       <Section
