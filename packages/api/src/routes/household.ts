@@ -1,7 +1,11 @@
 import { Hono } from "hono";
+import { deleteCookie } from "hono/cookie";
 import { and, eq, isNull, desc, invites, users, tenants } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import { COOKIE_NAME } from "../lib/session.js";
+import { deleteWorkosUser } from "../lib/auth/workos.js";
+import { cookieFlagsFor } from "./auth.js";
 import {
   createInvite,
   resolveInvite,
@@ -111,4 +115,65 @@ householdRoutes.get("/invite/:token", async (c) => {
     householdName: tenant?.name ?? null,
     inviterName: inviter?.name ?? null,
   });
+});
+
+// ── Member management ───────────────────────────────────────────────────────
+// Removing a member deletes their `users` row (cascade removes their
+// userProfiles + chatThreads/messages) and invalidates their sessions (the auth
+// guard's users.findFirst then returns undefined → 401). The household's pooled,
+// tenant-scoped financial data is untouched. The OWNER can't be removed or leave
+// — they use the account-deletion flow instead. A member can only remove
+// themselves (leave), not others.
+
+// Delete a user's login + WorkOS identity (best-effort, mirrors account.ts).
+async function removeUserRow(tenantId: string, target: { id: string; workosUserId: string | null }) {
+  if (target.workosUserId) {
+    await deleteWorkosUser(target.workosUserId).catch((e) =>
+      console.error(`[Household] workos deleteUser failed (${target.workosUserId}):`, e instanceof Error ? e.message : e),
+    );
+  }
+  await db.delete(users).where(and(eq(users.id, target.id), eq(users.tenantId, tenantId)));
+}
+
+// ── List members (any member of the household) ──────────────────────────────
+householdRoutes.get("/members", async (c) => {
+  const session = c.get("session");
+  const rows = await db
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .from(users)
+    .where(eq(users.tenantId, session.tenantId));
+  return c.json({ members: rows.map((u) => ({ ...u, isYou: u.id === session.userId })) });
+});
+
+// ── Remove a member (owner only; owner can't be removed) ────────────────────
+householdRoutes.delete("/members/:userId", async (c) => {
+  const session = c.get("session");
+  if (session.role !== "owner") return c.json({ error: "Forbidden" }, 403);
+  const userId = c.req.param("userId");
+  const target = await db.query.users.findFirst({
+    where: and(eq(users.id, userId), eq(users.tenantId, session.tenantId)),
+    columns: { id: true, role: true, workosUserId: true },
+  });
+  if (!target) return c.json({ error: "Member not found" }, 404);
+  if (target.role === "owner") {
+    return c.json({ error: "The owner can't be removed — delete the household instead." }, 400);
+  }
+  await removeUserRow(session.tenantId, target);
+  return c.json({ ok: true });
+});
+
+// ── Leave the household (self; owner can't leave) ───────────────────────────
+householdRoutes.post("/leave", async (c) => {
+  const session = c.get("session");
+  if (session.role === "owner") {
+    return c.json({ error: "The owner can't leave — delete the household instead." }, 400);
+  }
+  const self = await db.query.users.findFirst({
+    where: and(eq(users.id, session.userId), eq(users.tenantId, session.tenantId)),
+    columns: { id: true, workosUserId: true },
+  });
+  if (!self) return c.json({ error: "Member not found" }, 404);
+  await removeUserRow(session.tenantId, self);
+  deleteCookie(c, COOKIE_NAME, { path: "/", ...cookieFlagsFor(c) });
+  return c.json({ ok: true });
 });

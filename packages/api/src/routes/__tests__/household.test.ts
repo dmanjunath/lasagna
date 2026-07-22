@@ -7,7 +7,15 @@ vi.mock("@lasagna/core", () => ({
   and: (...args: unknown[]) => ["and", ...args],
   isNull: (...args: unknown[]) => ["isNull", ...args],
   desc: (...args: unknown[]) => ["desc", ...args],
-  users: { email: "users.email", id: "users.id", tenantId: "users.tenantId" },
+  users: {
+    table: "users.table",
+    email: "users.email",
+    id: "users.id",
+    tenantId: "users.tenantId",
+    name: "users.name",
+    role: "users.role",
+    workosUserId: "users.workosUserId",
+  },
   tenants: { id: "tenants.id", name: "tenants.name" },
   invites: {
     id: "invites.id",
@@ -31,6 +39,9 @@ const inviteInsertValues = vi.fn();
 const inviteUpdateSet = vi.fn();
 const inviteUpdateWhere = vi.fn();
 const selectWhere = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
+// Members list + member deletion handles (Task 4).
+const usersSelectWhere = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
+const userDeleteWhere = vi.fn(async (..._a: unknown[]) => undefined as unknown);
 
 vi.mock("../../lib/db.js", () => ({
   db: {
@@ -52,9 +63,17 @@ vi.mock("../../lib/db.js", () => ({
       },
     }),
     select: () => ({
-      from: () => ({
-        where: (...a: unknown[]) => ({ orderBy: () => selectWhere(...a) }),
+      from: (table: unknown) => ({
+        // Members list selects `from(users)` → usersSelectWhere; the invites
+        // list selects `from(invites)` → selectWhere (ends in .orderBy()).
+        where: (...a: unknown[]) =>
+          (table as { table?: string })?.table === "users.table"
+            ? usersSelectWhere(...a)
+            : { orderBy: () => selectWhere(...a) },
       }),
+    }),
+    delete: () => ({
+      where: (...a: unknown[]) => userDeleteWhere(...a),
     }),
   },
 }));
@@ -62,6 +81,18 @@ vi.mock("../../lib/db.js", () => ({
 const sendInviteEmail = vi.fn(async (..._a: unknown[]) => {});
 vi.mock("../../lib/auth/invite-email.js", () => ({
   sendInviteEmail: (...a: unknown[]) => sendInviteEmail(...a),
+}));
+
+const deleteWorkosUser = vi.fn(async (..._a: unknown[]) => {});
+vi.mock("../../lib/auth/workos.js", () => ({
+  deleteWorkosUser: (...a: unknown[]) => deleteWorkosUser(...a),
+}));
+
+// Stub cookieFlagsFor so importing household.ts doesn't drag in auth.ts's heavy
+// dependency graph (insights-engine → portfolio → security-classifier), which
+// would need extra @lasagna/core exports in the mock above.
+vi.mock("../auth.js", () => ({
+  cookieFlagsFor: () => ({ secure: false, sameSite: "Lax" }),
 }));
 
 import type { AuthEnv } from "../../middleware/auth.js";
@@ -89,6 +120,8 @@ beforeEach(() => {
   invitesFindFirst.mockResolvedValue(undefined);
   tenantsFindFirst.mockResolvedValue({ id: "tenant-1", name: "The Smiths" });
   selectWhere.mockResolvedValue([]);
+  usersSelectWhere.mockResolvedValue([]);
+  userDeleteWhere.mockResolvedValue(undefined);
 });
 
 describe("POST /api/household/invites", () => {
@@ -207,5 +240,102 @@ describe("GET /api/household/invite/:token (public validate)", () => {
     const res = await app.request("/api/household/invite/nope");
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "not_found" });
+  });
+});
+
+// ── Task 4: member management ───────────────────────────────────────────────
+
+describe("GET /api/household/members", () => {
+  it("returns each user with role and an isYou marker (member can list)", async () => {
+    usersSelectWhere.mockResolvedValue([
+      { id: "owner-1", email: "o@u.com", name: "Owner O", role: "owner" },
+      { id: "member-1", email: "m@u.com", name: "Member M", role: "member" },
+    ]);
+    const app = appWithSession(member);
+    const res = await app.request("/api/household/members");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.members).toHaveLength(2);
+    expect(body.members).toContainEqual(
+      expect.objectContaining({ id: "owner-1", role: "owner", isYou: false }),
+    );
+    expect(body.members).toContainEqual(
+      expect.objectContaining({ id: "member-1", role: "member", isYou: true }),
+    );
+  });
+});
+
+describe("DELETE /api/household/members/:userId", () => {
+  it("owner removes a member → deletes the user row, best-effort WorkOS delete, 200", async () => {
+    usersFindFirst.mockResolvedValue({
+      id: "member-1", tenantId: "tenant-1", role: "member", workosUserId: "workos-abc",
+    });
+    const app = appWithSession(owner);
+    const res = await app.request("/api/household/members/member-1", { method: "DELETE" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true });
+    expect(userDeleteWhere).toHaveBeenCalledTimes(1);
+    expect(deleteWorkosUser).toHaveBeenCalledWith("workos-abc");
+  });
+
+  it("skips WorkOS delete when the target has no workosUserId", async () => {
+    usersFindFirst.mockResolvedValue({
+      id: "member-1", tenantId: "tenant-1", role: "member", workosUserId: null,
+    });
+    const app = appWithSession(owner);
+    const res = await app.request("/api/household/members/member-1", { method: "DELETE" });
+    expect(res.status).toBe(200);
+    expect(userDeleteWhere).toHaveBeenCalledTimes(1);
+    expect(deleteWorkosUser).not.toHaveBeenCalled();
+  });
+
+  it("member trying to remove another user → 403, no delete", async () => {
+    usersFindFirst.mockResolvedValue({
+      id: "member-2", tenantId: "tenant-1", role: "member", workosUserId: null,
+    });
+    const app = appWithSession(member);
+    const res = await app.request("/api/household/members/member-2", { method: "DELETE" });
+    expect(res.status).toBe(403);
+    expect(userDeleteWhere).not.toHaveBeenCalled();
+  });
+
+  it("owner targeting the owner (self) → 400, cannot remove the owner", async () => {
+    usersFindFirst.mockResolvedValue({
+      id: "owner-1", tenantId: "tenant-1", role: "owner", workosUserId: null,
+    });
+    const app = appWithSession(owner);
+    const res = await app.request("/api/household/members/owner-1", { method: "DELETE" });
+    expect(res.status).toBe(400);
+    expect(userDeleteWhere).not.toHaveBeenCalled();
+  });
+
+  it("target not in the tenant → 404", async () => {
+    usersFindFirst.mockResolvedValue(undefined);
+    const app = appWithSession(owner);
+    const res = await app.request("/api/household/members/ghost", { method: "DELETE" });
+    expect(res.status).toBe(404);
+    expect(userDeleteWhere).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/household/leave", () => {
+  it("member leaves → deletes own row, best-effort WorkOS delete, clears cookie, 200", async () => {
+    usersFindFirst.mockResolvedValue({
+      id: "member-1", tenantId: "tenant-1", role: "member", workosUserId: "workos-xyz",
+    });
+    const app = appWithSession(member);
+    const res = await app.request("/api/household/leave", { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true });
+    expect(userDeleteWhere).toHaveBeenCalledTimes(1);
+    expect(deleteWorkosUser).toHaveBeenCalledWith("workos-xyz");
+    expect(res.headers.get("set-cookie")).toContain(`${"lasagna_session"}=`);
+  });
+
+  it("owner cannot leave → 400, no delete", async () => {
+    const app = appWithSession(owner);
+    const res = await app.request("/api/household/leave", { method: "POST" });
+    expect(res.status).toBe(400);
+    expect(userDeleteWhere).not.toHaveBeenCalled();
   });
 });
