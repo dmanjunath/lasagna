@@ -3,7 +3,7 @@ import LegalLayout from "../layouts/LegalLayout.astro";
 import { GITHUB_URL } from "../config";
 ---
 
-<LegalLayout title="Terms of Service" lastUpdated="July 20, 2026">
+<LegalLayout title="Terms of Service" lastUpdated="July 22, 2026">
   <p>
     These are the terms for using LasagnaFi, a personal finance app made by
     <strong>SuperCoolLabs LLC</strong>. By using the app, you agree to them.
@@ -21,10 +21,17 @@ import { GITHUB_URL } from "../config";
     full situation and we can't make decisions for you.
   </p>
   <p>
-    The insights are generated in part by AI and can be wrong or incomplete.
-    Always double-check the numbers, and talk to a licensed professional before
-    making any real money decision. Any action you take based on the app is your
-    own choice, and you're responsible for it.
+    The insights are generated in part by AI and can be wrong or incomplete. The
+    balances and transactions we pull through Plaid can also be delayed, out of
+    date, or missing, and the same goes for anything you enter by hand. Always
+    double-check the numbers against your bank, and talk to a licensed
+    professional before making any real money decision. Any action you take based
+    on the app is your own choice, and you're responsible for it.
+  </p>
+  <p>
+    Using LasagnaFi does not create any advisory, fiduciary, or professional
+    relationship between you and SuperCoolLabs LLC. We are not acting on your
+    behalf, and we owe you no duty to manage your money or your decisions.
   </p>
 
   <h2>Using the app</h2>
@@ -55,6 +62,17 @@ import { GITHUB_URL } from "../config";
     Settings. Prices may change, but we'll tell you first.
   </p>
 
+  <h2>Services we rely on</h2>
+  <p>
+    LasagnaFi depends on other companies to work, including Plaid for account
+    connections, WorkOS for sign-in codes, Stripe for payments, and AI providers
+    (via OpenRouter) for insights. Each of them is its own company with its own
+    terms. We are not responsible for their outages, mistakes, or actions, or for
+    how they handle data on their side, and a problem with one of them may stop
+    parts of the app from working. Where you interact with those services, their
+    own terms apply too.
+  </p>
+
   <h2>Your data and deleting your account</h2>
   <p>
     Your data stays yours. You can disconnect accounts or delete your account
@@ -75,7 +93,45 @@ import { GITHUB_URL } from "../config";
     To the maximum extent permitted by law, SuperCoolLabs LLC is not liable for
     any damages, losses, or costs arising from your use of the app, from any
     errors or downtime, or from any decision you make in reliance on its
-    information. You use LasagnaFi at your own risk.
+    information. This includes indirect, incidental, special, consequential, or
+    punitive damages, and any lost profits, lost data, or lost savings, even if
+    we were told such damages were possible. You use LasagnaFi at your own risk.
+  </p>
+  <p>
+    If any liability is ever found despite the above, the total amount
+    SuperCoolLabs LLC owes you for all claims combined will not exceed the greater
+    of what you paid us in the twelve months before the claim or one hundred US
+    dollars. Some places don't allow these kinds of limits, so parts of this may
+    not apply to you.
+  </p>
+
+  <h2>You cover your own misuse</h2>
+  <p>
+    If your use of LasagnaFi, your breach of these terms, or your violation of
+    someone else's rights leads to a claim against us, you agree to cover
+    SuperCoolLabs LLC for it. That means you'll defend, indemnify, and hold us
+    harmless from the reasonable costs, damages, and legal fees that result.
+  </p>
+
+  <h2>Who owns what</h2>
+  <p>
+    The LasagnaFi name, logo, look and feel, and the content we create for the
+    hosted app belong to SuperCoolLabs LLC. The source code is a separate matter:
+    it is
+    <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">open source</a>
+    and you're free to use it under the terms of its license. These terms don't
+    take away any rights that license gives you, and they don't give you the right
+    to use our name or brand to pass your own service off as ours.
+  </p>
+
+  <h2>Ending your access</h2>
+  <p>
+    You can stop using LasagnaFi and delete your account at any time. We can also
+    suspend or close an account if it's being misused, if it puts the service or
+    other people at risk, or if we're required to. Where it's reasonable to, we'll
+    give you a heads-up first. The parts of these terms that should outlast your
+    account, like the disclaimers and the liability limits, stay in effect after
+    it ends.
   </p>
 
   <h2>Changes to these terms</h2>
@@ -84,6 +140,25 @@ import { GITHUB_URL } from "../config";
     "Last updated" date at the top. If you keep using the app, that means you're
     okay with the new terms.
   </p>
+
+  <h2>The legal fine print</h2>
+  <p>
+    A few standard points to round things out:
+  </p>
+  <ul>
+    <li>
+      These terms are governed by the laws of the United States and the state in
+      which SuperCoolLabs LLC is organized, without regard to conflict-of-law
+      rules.
+    </li>
+    <li>
+      If any part of these terms is found unenforceable, the rest still applies.
+    </li>
+    <li>
+      Together with our <a href="/privacy">Privacy Policy</a>, these terms are the
+      whole agreement between you and us about LasagnaFi.
+    </li>
+  </ul>
 
   <h2>Contact us</h2>
   <p>
