@@ -42,7 +42,7 @@ export function Shell({ children }: ShellProps) {
   // detail, plan detail/new, quick import, admin) swaps it for a back button —
   // pages don't render their own Back on mobile.
   const MAIN_PAGES = new Set([
-    '/', '/money', '/insights', '/goals', '/chat', '/retirement', '/portfolio',
+    '/', '/money', '/insights', '/goals', '/chat', '/retirement', '/retirement-v2', '/portfolio',
     '/spending', '/debt', '/tax', '/financial-level', '/accounts', '/profile', '/plans',
   ]);
   const isSubPage = !MAIN_PAGES.has(location);

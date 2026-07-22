@@ -17,6 +17,7 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   path: string;
+  adminOnly?: boolean;
 }
 
 interface NavSection {
@@ -45,8 +46,9 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Money',
     items: [
-      { id: 'money',      label: 'My Money',            icon: Wallet,      path: '/money' },
-      { id: 'retirement', label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
+      { id: 'money',         label: 'My Money',            icon: Wallet,      path: '/money' },
+      { id: 'retirement',    label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
+      { id: 'retirement-v2', label: 'Retirement (new)',    icon: TrendingUp,  path: '/retirement-v2', adminOnly: true },
       { id: 'portfolio',  label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
       { id: 'tax',        label: 'Tax',                 icon: Receipt,     path: '/tax' },
       { id: 'debt',       label: 'Debt',                icon: AlertCircle, path: '/debt' },
@@ -90,7 +92,9 @@ export function Sidebar({ className }: SidebarProps) {
 
   const isActive = (path: string) => {
     if (path === '/') return location === '/';
-    return location.startsWith(path);
+    // Exact or sub-route match — a plain startsWith would light "/retirement"
+    // up on "/retirement-v2" too.
+    return location === path || location.startsWith(path + '/');
   };
 
   // Sections default open; user toggles persist as a label->bool map.
@@ -178,7 +182,7 @@ export function Sidebar({ className }: SidebarProps) {
                     style={{ overflow: 'hidden' }}
                   >
                     <div className="ml-4 pl-2 border-l border-line flex flex-col gap-0.5 pb-0.5">
-                      {items.map((entry) => (
+                      {items.filter((entry) => !entry.adminOnly || user?.isAdmin).map((entry) => (
                         <NavButton
                           key={entry.id}
                           active={isActive(entry.path)}

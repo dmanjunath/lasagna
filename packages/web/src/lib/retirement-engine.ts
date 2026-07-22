@@ -101,6 +101,30 @@ export interface WithdrawalContext {
   inflationFactor?: number;
   /** Whether the previous year's portfolio return was negative. */
   prevReturnNegative?: boolean;
+  /**
+   * Cumulative inflation factor since the first withdrawal year — scales the
+   * gkFloor / gkCeiling limits (given in first-year dollars) into this year's
+   * nominal frame. 1 (or omitted) = no scaling.
+   */
+  cumulativeInflation?: number;
+}
+
+// User-tunable strategy parameters. Every field is optional; omitting them all
+// reproduces the historical hardcoded behavior exactly (4% rate, ±20% band,
+// ±10% adjustment, no floor/ceiling).
+export interface StrategyParams {
+  /** percent_portfolio: annual withdrawal rate as a fraction (default 0.04). */
+  percentRate?: number;
+  /** guardrails: initial withdrawal rate as a fraction — overrides the rate derived from initialWithdrawal / initialValue. */
+  gkInitialRate?: number;
+  /** guardrails: guardrail band around the initial rate as a fraction (default 0.2 → thresholds at ±20%). */
+  gkBand?: number;
+  /** guardrails: spending raise/cut applied when a guardrail is crossed, as a fraction (default 0.1 → ±10%). */
+  gkAdjust?: number;
+  /** guardrails: floor on annual spending, in first-withdrawal-year dollars (default none). */
+  gkFloor?: number;
+  /** guardrails: ceiling on annual spending, in first-withdrawal-year dollars (default none). */
+  gkCeiling?: number;
 }
 
 export function computeWithdrawal(
@@ -110,19 +134,28 @@ export function computeWithdrawal(
   initialValue: number,
   prevWithdrawal: number,
   ctx?: WithdrawalContext,
+  params?: StrategyParams,
 ): number {
   switch (strategy) {
     case 'constant_dollar':
       return baseWithdrawal;
     case 'percent_portfolio':
-      return currentValue * 0.04;
+      return currentValue * (params?.percentRate ?? 0.04);
     case 'guardrails': {
       // Guyton-Klinger decision rules (mirrors FICalc.app's implementation):
-      // start from last year's withdrawal, track inflation, then adjust ±10%
-      // when the current withdrawal rate drifts past ±20% of the initial rate.
-      // Spending flexes instead of the portfolio depleting.
+      // start from last year's withdrawal, track inflation, then adjust the
+      // spending (default ±10%) when the current withdrawal rate drifts past
+      // the guardrails (default ±20% of the initial rate). Spending flexes
+      // instead of the portfolio depleting.
       const initial = ctx?.initialWithdrawal ?? baseWithdrawal;
-      const initialRate = initialValue > 0 ? initial / initialValue : 0.04;
+      const initialRate = params?.gkInitialRate ?? (initialValue > 0 ? initial / initialValue : 0.04);
+      const band = params?.gkBand ?? 0.2;
+      const adjust = params?.gkAdjust ?? 0.1;
+      // Floor/ceiling arrive in first-year dollars; scale to this year's frame.
+      const cum = ctx?.cumulativeInflation ?? 1;
+      const floor = (params?.gkFloor ?? 0) * cum;
+      const ceiling = params?.gkCeiling !== undefined ? params.gkCeiling * cum : Infinity;
+      const lim = (w: number) => Math.min(ceiling, Math.max(floor, w));
       const factor = ctx?.inflationFactor ?? 1;
       let wd = prevWithdrawal * factor;
       // Modified withdrawal rule: after a down year, when the rate is already
@@ -131,13 +164,28 @@ export function computeWithdrawal(
         wd = prevWithdrawal;
       }
       const rate = currentValue > 0 ? wd / currentValue : Infinity;
-      if (rate >= initialRate * 1.2) return wd * 0.9; // capital preservation: cut 10%
-      if (rate <= initialRate * 0.8) return wd * 1.1; // prosperity: raise 10%
-      return wd;
+      if (rate >= initialRate * (1 + band)) return lim(wd * (1 - adjust)); // capital preservation: cut spending
+      if (rate <= initialRate * (1 - band)) return lim(wd * (1 + adjust)); // prosperity: raise spending
+      return lim(wd);
     }
     default:
       return baseWithdrawal;
   }
+}
+
+// ── Deterministic RNG (mulberry32) ───────────────────────────────────────────
+// Seeding makes a Monte Carlo run reproducible so every consumer of the same
+// inputs shows the same number (avoids the "98% vs 96%" flicker between two
+// independent 1,000-run passes). The MC algorithm itself is unchanged.
+
+export function makeRng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 // ── Era label ────────────────────────────────────────────────────────────────
@@ -174,6 +222,16 @@ export function runBacktest(
   strategy: WithdrawalStrategy = 'constant_dollar',
   accumulationYears: number = 0,
   annualSavings: number = 0,
+  // Optional guaranteed income (Social Security / pension), in first-retirement-
+  // year dollars, indexed by withdrawal year (0 = first retirement year). When
+  // inflationAdjusted, each year's amount is grown by the same cumulative CPI
+  // factor as the withdrawal target, so both stay in the same nominal frame.
+  // Net portfolio withdrawal = max(0, spending need − guaranteed income).
+  // Omitted => identical behavior to before.
+  guaranteedIncomeByYear?: number[],
+  // Optional user strategy parameters (percent rate, guardrail band, …).
+  // Omitted => identical behavior to before.
+  strategyParams?: StrategyParams,
 ): BacktestRow {
   let value = initialValue;
   const yearByYear: BacktestYearData[] = [];
@@ -210,11 +268,15 @@ export function runBacktest(
       cumulativeInflation *= (1 + yearInflation);
       if (inflationAdjusted) baseWithdrawal *= (1 + yearInflation);
     }
-    const withdrawal = computeWithdrawal(strategy, baseWithdrawal, value, retireValue, prevWithdrawal, {
+    const giBase = guaranteedIncomeByYear?.[i] ?? 0;
+    const gi = inflationAdjusted ? giBase * cumulativeInflation : giBase;
+    const netBase = gi > 0 ? Math.max(0, baseWithdrawal - gi) : baseWithdrawal;
+    const withdrawal = computeWithdrawal(strategy, netBase, value, retireValue, prevWithdrawal, {
       initialWithdrawal: annualWithdrawal,
       inflationFactor: i > 0 && inflationAdjusted ? 1 + yearInflation : 1,
       prevReturnNegative: i > 0 && prevBlended < 0,
-    });
+      cumulativeInflation: inflationAdjusted ? cumulativeInflation : 1,
+    }, strategyParams);
     prevWithdrawal = withdrawal;
     prevBlended = blended;
     const startValue = value;
@@ -251,6 +313,15 @@ export function buildBands(
   inflationAdjusted: boolean,
   strategy: WithdrawalStrategy = 'constant_dollar',
   rngFn: () => number = Math.random,
+  // Optional guaranteed income (Social Security / pension): nominal $/yr at a
+  // given age. Only applied in withdrawal years — the net portfolio withdrawal
+  // is max(0, spending need − guaranteed income). The caller owns the schedule
+  // (start age, inflation growth) so it stays consistent with the rest of the
+  // model. Omitted => identical behavior to before.
+  guaranteedIncome?: (age: number) => number,
+  // Optional user strategy parameters (percent rate, guardrail band, …).
+  // Omitted => identical behavior to before.
+  strategyParams?: StrategyParams,
 ): McBands {
   const N = 1000;
   const horizon = Math.max(retirementAge + 30, 90) - currentAge;
@@ -268,6 +339,7 @@ export function buildBands(
     let prevWd = annualWithdrawal;
     let retireValue = 0;
     let prevR = 0;
+    let cumInfl = 1;
     for (let yr = 0; yr <= horizon; yr++) {
       path.push(Math.max(0, Math.round(v)));
       const u1 = rngFn(), u2 = rngFn();
@@ -278,12 +350,15 @@ export function buildBands(
         v = v * (1 + r) + annualSavings;
       } else {
         if (age === retirementAge) retireValue = v;
-        if (inflationAdjusted && age > retirementAge) baseWd *= (1 + inflation);
-        const wd = computeWithdrawal(strategy, baseWd, v, retireValue || v, prevWd, {
+        if (inflationAdjusted && age > retirementAge) { baseWd *= (1 + inflation); cumInfl *= (1 + inflation); }
+        const gi = guaranteedIncome ? guaranteedIncome(age) : 0;
+        const netBase = gi > 0 ? Math.max(0, baseWd - gi) : baseWd;
+        const wd = computeWithdrawal(strategy, netBase, v, retireValue || v, prevWd, {
           initialWithdrawal: annualWithdrawal,
           inflationFactor: inflationAdjusted && age > retirementAge ? 1 + inflation : 1,
           prevReturnNegative: age > retirementAge && prevR < 0,
-        });
+          cumulativeInflation: cumInfl,
+        }, strategyParams);
         prevWd = wd;
         v = (v - wd) * (1 + r);
         if (v <= 0 && !depleted) { depleted = true; depletedCount++; }

@@ -15,6 +15,7 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   path: string;
+  adminOnly?: boolean;
 }
 
 interface NavSection {
@@ -46,6 +47,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'My Money',            icon: Wallet,      path: '/money' },
       { label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
+      { label: 'Retirement (new)',    icon: TrendingUp,  path: '/retirement-v2', adminOnly: true },
       { label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
       { label: 'Tax',                 icon: Receipt,     path: '/tax' },
       { label: 'Debt',                icon: AlertCircle, path: '/debt' },
@@ -67,9 +69,9 @@ interface MobileNavProps {
 
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const [location, navigate] = useLocation();
-  const { tenant, logout } = useAuth();
+  const { tenant, logout, user } = useAuth();
 
-  const isActive = (path: string) => path === '/' ? location === '/' : location.startsWith(path);
+  const isActive = (path: string) => path === '/' ? location === '/' : (location === path || location.startsWith(path + '/'));
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -159,7 +161,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                     {section}
                   </div>
                   <div className="ml-4 pl-2 border-l border-line">
-                    {items.map(({ label, icon: Icon, path }) => {
+                    {items.filter((e) => !e.adminOnly || user?.isAdmin).map(({ label, icon: Icon, path }) => {
                       const active = isActive(path);
                       return (
                         <button

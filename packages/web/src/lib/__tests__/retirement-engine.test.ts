@@ -89,6 +89,92 @@ describe('computeWithdrawal', () => {
 
 });
 
+// ── 1a. Strategy params (user-tunable rate / guardrail constants) ───────────
+
+describe('strategy params', () => {
+  function createSeededRng(seed: number): () => number {
+    let s = seed;
+    return () => {
+      s = (s * 1664525 + 1013904223) & 0x7fffffff;
+      return s / 0x7fffffff;
+    };
+  }
+
+  it('percent_portfolio: uses the given rate instead of the hardcoded 4%', () => {
+    expect(computeWithdrawal('percent_portfolio', 40_000, 1_000_000, 1_000_000, 40_000, undefined, { percentRate: 0.05 })).toBe(50_000);
+    expect(computeWithdrawal('percent_portfolio', 40_000, 500_000, 1_000_000, 40_000, undefined, { percentRate: 0.03 })).toBe(15_000);
+    // An empty params object falls back to the default 4%.
+    expect(computeWithdrawal('percent_portfolio', 40_000, 1_000_000, 1_000_000, 40_000, undefined, {})).toBe(40_000);
+  });
+
+  it('guardrails: a wider band suppresses the default cut', () => {
+    // rate = 40000 / 600000 ≈ 0.0667 ≥ 0.04·1.2 → the default band cuts 10%.
+    expect(computeWithdrawal('guardrails', 40_000, 600_000, 1_000_000, 40_000)).toBe(36_000);
+    // With a ±80% band the cut threshold moves to 0.072 → no adjustment.
+    expect(computeWithdrawal('guardrails', 40_000, 600_000, 1_000_000, 40_000, undefined, { gkBand: 0.8 })).toBe(40_000);
+  });
+
+  it('guardrails: custom adjustment size is applied on both guardrails', () => {
+    // Cut side: rate = 40000/500000 = 0.08 ≥ 0.048 → cut 20% → 32000.
+    expect(computeWithdrawal('guardrails', 40_000, 500_000, 1_000_000, 40_000, undefined, { gkAdjust: 0.2 })).toBe(32_000);
+    // Raise side: rate = 40000/2000000 = 0.02 ≤ 0.032 → raise 20% → 48000.
+    expect(computeWithdrawal('guardrails', 40_000, 2_000_000, 1_000_000, 40_000, undefined, { gkAdjust: 0.2 })).toBe(48_000);
+  });
+
+  it('guardrails: gkInitialRate overrides the derived initial rate', () => {
+    // Derived initial rate would be 0.04 (40k / 1M) → rate 0.0667 triggers the
+    // cut. Pinning it at 6% moves the cut threshold to 0.072 → stays flat.
+    expect(computeWithdrawal('guardrails', 40_000, 600_000, 1_000_000, 40_000, undefined, { gkInitialRate: 0.06 })).toBe(40_000);
+  });
+
+  it('guardrails: floor and ceiling clamp the spending', () => {
+    // The cut would land at 36000; a 38000 floor catches it.
+    expect(computeWithdrawal('guardrails', 40_000, 500_000, 1_000_000, 40_000, undefined, { gkFloor: 38_000 })).toBe(38_000);
+    // The raise would land at 44000; a 42000 ceiling caps it.
+    expect(computeWithdrawal('guardrails', 40_000, 2_000_000, 1_000_000, 40_000, undefined, { gkCeiling: 42_000 })).toBe(42_000);
+  });
+
+  it('guardrails: floor/ceiling scale with the cumulative inflation factor', () => {
+    // Floor is given in first-year dollars: 38000 · 1.2 = 45600 in this
+    // year's frame; the cut (→ 36000) is clamped up to it.
+    const result = computeWithdrawal('guardrails', 40_000, 500_000, 1_000_000, 40_000, { cumulativeInflation: 1.2 }, { gkFloor: 38_000 });
+    expect(result).toBeCloseTo(45_600, 5);
+  });
+
+  it("runBacktest threads params: percent_portfolio withdraws the given rate of each year's start value", () => {
+    const result = runBacktest(2020, 2, 1_000_000, 40_000, 1.0, false, 'percent_portfolio', 0, 0, undefined, { percentRate: 0.05 });
+    const yby = result.yearByYear;
+    expect(yby[0].withdrawal).toBeCloseTo(1_000_000 * 0.05, -1);
+    const end0 = (1_000_000 - 50_000) * (1 + SP500_RETURNS[2020]);
+    expect(yby[0].endValue).toBeCloseTo(end0, -2);
+    expect(yby[1].withdrawal).toBeCloseTo(end0 * 0.05, -1);
+  });
+
+  it('runBacktest threads params: guardrail band changes the withdrawal path (1974 cohort)', () => {
+    // The default band cuts 1975 spending to 36000 (see the guardrails tests
+    // above); a very wide band never triggers the cut, so the paths diverge.
+    const base = runBacktest(1974, 3, 1_000_000, 40_000, 0.6, true, 'guardrails', 0, 0);
+    const wide = runBacktest(1974, 3, 1_000_000, 40_000, 0.6, true, 'guardrails', 0, 0, undefined, { gkBand: 0.9 });
+    expect(base.yearByYear[1].withdrawal).toBeCloseTo(36_000, -1);
+    expect(wide.yearByYear[1].withdrawal).toBeGreaterThan(base.yearByYear[1].withdrawal);
+  });
+
+  it('buildBands threads params: a higher percent rate lowers the median path', () => {
+    const low = buildBands(1_000_000, 0, 60, 60, 6, 40_000, 0.6, true, 'percent_portfolio', createSeededRng(42), undefined, { percentRate: 0.03 });
+    const high = buildBands(1_000_000, 0, 60, 60, 6, 40_000, 0.6, true, 'percent_portfolio', createSeededRng(42), undefined, { percentRate: 0.08 });
+    const last = low.p50.length - 1;
+    expect(high.p50[last]).toBeLessThan(low.p50[last]);
+  });
+
+  it('omitting params (or passing an empty object) reproduces the defaults exactly', () => {
+    const a = buildBands(800_000, 0, 60, 60, 5, 48_000, 0.6, true, 'guardrails', createSeededRng(7));
+    const b = buildBands(800_000, 0, 60, 60, 5, 48_000, 0.6, true, 'guardrails', createSeededRng(7), undefined, {});
+    expect(b.p50).toEqual(a.p50);
+    expect(b.p5).toEqual(a.p5);
+    expect(b.mcSuccessRate).toBe(a.mcSuccessRate);
+  });
+});
+
 // ── 2. runBacktest - Basic mechanics ────────────────────────────────────────
 
 describe('runBacktest - Basic mechanics', () => {
@@ -565,6 +651,72 @@ describe('runBacktest - deterministic end-to-end math', () => {
     const result = runBacktest(2020, 3, 1_000_000, 40_000, 1.0, false, 'constant_dollar', 0, 0);
     const expectedTotalInflation = (1 + CPI_INFLATION[2020]) * (1 + CPI_INFLATION[2021]) * (1 + CPI_INFLATION[2022]);
     expect(result.finalValueReal).toBeCloseTo(result.finalValue / expectedTotalInflation, -2);
+  });
+});
+
+// ── 8a. Guaranteed income floor (Social Security / pension) ────────────────
+
+describe('guaranteed income floor', () => {
+  function createSeededRng(seed: number): () => number {
+    let s = seed;
+    return () => {
+      s = (s * 1664525 + 1013904223) & 0x7fffffff;
+      return s / 0x7fffffff;
+    };
+  }
+
+  it('buildBands: SS starting at 67 reduces depletion vs no SS; identical before the start age', () => {
+    // Retiree at 60 spending $48k/yr from an $800k portfolio — a 6% rate, so a
+    // large share of paths deplete without help; $24k/yr of SS from 67 halves
+    // the net withdrawal and should rescue many of them.
+    const noSS = buildBands(800_000, 0, 60, 60, 5, 48_000, 0.6, true, 'constant_dollar', createSeededRng(42));
+    const withSS = buildBands(
+      800_000, 0, 60, 60, 5, 48_000, 0.6, true, 'constant_dollar', createSeededRng(42),
+      // $24k/yr from age 67, grown at the model's 3% inflation from retirement.
+      (age) => (age >= 67 ? 24_000 * Math.pow(1.03, age - 60) : 0),
+    );
+    expect(withSS.mcSuccessRate).toBeGreaterThan(noSS.mcSuccessRate);
+    // Same seeded draws + income only from age 67 → paths are byte-identical
+    // through the value snapshot at age 67 (index 7); they diverge after.
+    for (let i = 0; i <= 7; i++) {
+      expect(withSS.p50[i]).toBe(noSS.p50[i]);
+      expect(withSS.p5[i]).toBe(noSS.p5[i]);
+    }
+    const last = withSS.p50.length - 1;
+    expect(withSS.p50[last]).toBeGreaterThan(noSS.p50[last]);
+  });
+
+  it('buildBands: omitting the schedule (or an all-zero schedule) matches current behavior exactly', () => {
+    const base = buildBands(500_000, 10_000, 65, 55, 6, 48_000, 0.6, true, 'constant_dollar', createSeededRng(7));
+    const zero = buildBands(500_000, 10_000, 65, 55, 6, 48_000, 0.6, true, 'constant_dollar', createSeededRng(7), () => 0);
+    expect(zero.mcSuccessRate).toBe(base.mcSuccessRate);
+    expect(zero.p50).toEqual(base.p50);
+    expect(zero.p5).toEqual(base.p5);
+    expect(zero.p95).toEqual(base.p95);
+  });
+
+  it('runBacktest: guaranteed income reduces the net withdrawal only from its start year', () => {
+    // 2020–2021, $1M, 100% stocks, $40k/yr, no inflation adj. GI of $25k starts
+    // in the second withdrawal year: net withdrawal = max(0, 40k − 25k) = 15k.
+    const base = runBacktest(2020, 2, 1_000_000, 40_000, 1.0, false, 'constant_dollar', 0, 0);
+    const withGI = runBacktest(2020, 2, 1_000_000, 40_000, 1.0, false, 'constant_dollar', 0, 0, [0, 25_000]);
+    expect(withGI.yearByYear[0].withdrawal).toBe(40_000);
+    expect(withGI.yearByYear[1].withdrawal).toBe(15_000);
+    // end2020 = (1M − 40k) × 1.184 = 1,136,640 (same as base year 0)
+    expect(withGI.yearByYear[0].endValue).toBe(base.yearByYear[0].endValue);
+    // end2021 = (1,136,640 − 15,000) × 1.287
+    expect(withGI.yearByYear[1].endValue).toBeCloseTo((1_136_640 - 15_000) * 1.287, -2);
+    expect(withGI.finalValue).toBeGreaterThan(base.finalValue);
+  });
+
+  it('runBacktest: with inflation adjustment, guaranteed income grows by the same CPI as the withdrawal', () => {
+    // 2020–2021, inflation ON. Year 1 (2021): CPI_2021 = 0.047.
+    //   spending need = 40,000 × 1.047 = 41,880
+    //   GI (COLA)     = 20,000 × 1.047 = 20,940
+    //   net           = 41,880 − 20,940 = 20,940
+    const result = runBacktest(2020, 2, 1_000_000, 40_000, 1.0, true, 'constant_dollar', 0, 0, [20_000, 20_000]);
+    expect(result.yearByYear[0].withdrawal).toBe(20_000); // 40k − 20k
+    expect(result.yearByYear[1].withdrawal).toBeCloseTo((40_000 - 20_000) * (1 + CPI_INFLATION[2021]), -1);
   });
 });
 

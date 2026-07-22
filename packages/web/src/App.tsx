@@ -19,6 +19,7 @@ const Shell = lazy(() => import('./components/layout/shell').then(m => ({ defaul
 const Accounts = lazy(() => import('./pages/Accounts').then(m => ({ default: m.Accounts })));
 const TaxStrategy = lazy(() => import('./pages/tax-strategy').then(m => ({ default: m.TaxStrategy })));
 const Retirement = lazy(() => import('./pages/retirement').then(m => ({ default: m.Retirement })));
+const RetirementV2 = lazy(() => import('./pages/retirement-v2').then(m => ({ default: m.RetirementV2 })));
 const SavingsGoal = lazy(() => import('./pages/savings-goal').then(m => ({ default: m.SavingsGoal })));
 const PortfolioComposition = lazy(() => import('./pages/portfolio-composition'));
 const ProbabilityOfSuccess = lazy(() => import('./pages/probability-of-success').then(m => ({ default: m.ProbabilityOfSuccess })));
@@ -160,6 +161,7 @@ function AppRoutes() {
                     <Route path="/financial-level" component={FinancialLevel} />
                     <Route path="/insights" component={Insights} />
                     <Route path="/retirement" component={Retirement} />
+                    <Route path="/retirement-v2" component={RetirementV2} />
                     <Route path="/probability" component={ProbabilityOfSuccess} />
                     <Route path="/profile" component={Settings} />
                     <Route path="/accounts/:id" component={AccountDetail} />
