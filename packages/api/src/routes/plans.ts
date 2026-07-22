@@ -93,7 +93,7 @@ plansRouter.get("/:id", async (c) => {
 
 // Create plan
 plansRouter.post("/", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, userId } = c.get("session");
   const rawBody = await c.req.json();
 
   const parseResult = createPlanSchema.safeParse(rawBody);
@@ -115,6 +115,7 @@ plansRouter.post("/", async (c) => {
   // Create default chat thread for plan
   await db.insert(chatThreads).values({
     tenantId,
+    userId,
     planId: newPlan.id,
     title: "Plan Chat",
   });
@@ -219,7 +220,7 @@ plansRouter.get("/:id/history", async (c) => {
 
 // Clone plan
 plansRouter.post("/:id/clone", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, userId } = c.get("session");
   const planId = c.req.param("id");
 
   const uuidResult = uuidSchema.safeParse(planId);
@@ -253,6 +254,7 @@ plansRouter.post("/:id/clone", async (c) => {
   // Create chat thread for cloned plan
   await db.insert(chatThreads).values({
     tenantId,
+    userId,
     planId: newPlan.id,
     title: "Plan Chat",
   });
