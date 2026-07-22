@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, sql, desc, users, tenants, accounts, activityEvents, plaidItems, balanceSnapshots } from "@lasagna/core";
+import { eq, and, sql, desc, users, tenants, accounts, activityEvents, plaidItems, balanceSnapshots, roleEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { resolveTenantPlan, classifyPlanSource, type PlanSource } from "../lib/billing.js";
 import { recomputeFrozenAccounts } from "../lib/account-limits.js";
@@ -214,6 +214,80 @@ adminRoutes.patch("/users/:userId", async (c) => {
     ok: true,
     user: { id: updated.id, email: updated.email, name: updated.name, isAdmin: updated.isAdmin },
   });
+});
+
+// ── Tenant membership tooling ────────────────────────────────────────────────
+// Operator tools to resolve merge/mistake cases: move a user to another tenant,
+// change their role, or remove them. The self-serve "email already has an
+// account" merge is intentionally NOT self-serve — admins fix it here.
+
+// Move a user into a different tenant (household). Used to merge a mistakenly
+// separate signup into an existing household.
+adminRoutes.post("/users/:userId/move-tenant", async (c) => {
+  const userId = c.req.param("userId");
+  if (!UUID_RE.test(userId)) return c.json({ error: "User not found" }, 404);
+  const body = await c.req.json<{ tenantId?: string }>().catch(() => ({}) as { tenantId?: string });
+  const tenantId = body.tenantId;
+  if (typeof tenantId !== "string" || !UUID_RE.test(tenantId)) {
+    return c.json({ error: "tenantId must be a valid tenant id" }, 400);
+  }
+
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!user) return c.json({ error: "User not found" }, 404);
+  const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, tenantId) });
+  if (!tenant) return c.json({ error: "Tenant not found" }, 404);
+
+  const [updated] = await db.update(users).set({ tenantId }).where(eq(users.id, userId)).returning();
+  return c.json({ ok: true, user: { id: updated.id, tenantId: updated.tenantId } });
+});
+
+// Change a user's household role (owner | member | viewer).
+adminRoutes.post("/users/:userId/role", async (c) => {
+  const userId = c.req.param("userId");
+  if (!UUID_RE.test(userId)) return c.json({ error: "User not found" }, 404);
+  const body = await c.req.json<{ role?: string }>().catch(() => ({}) as { role?: string });
+  const role = body.role;
+  if (typeof role !== "string" || !(roleEnum.enumValues as readonly string[]).includes(role)) {
+    return c.json({ error: `role must be one of: ${roleEnum.enumValues.join(", ")}` }, 400);
+  }
+
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!user) return c.json({ error: "User not found" }, 404);
+
+  const [updated] = await db
+    .update(users)
+    .set({ role: role as (typeof roleEnum.enumValues)[number] })
+    .where(eq(users.id, userId))
+    .returning();
+  return c.json({ ok: true, user: { id: updated.id, role: updated.role } });
+});
+
+// Remove a user (their login + per-user data cascade). Pooled household data is
+// untouched. Refuses to delete an admin or a tenant's last remaining user.
+adminRoutes.delete("/users/:userId", async (c) => {
+  const userId = c.req.param("userId");
+  if (!UUID_RE.test(userId)) return c.json({ error: "User not found" }, 404);
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!user) return c.json({ error: "User not found" }, 404);
+
+  // Mirror the tenant-delete guard: never remove an operator by accident.
+  if (user.isAdmin) {
+    return c.json({ error: "Cannot remove an admin user — clear the admin flag first" }, 400);
+  }
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(users)
+    .where(eq(users.tenantId, user.tenantId));
+  if (count <= 1) {
+    return c.json({ error: "Tenant would have no users — delete the tenant instead" }, 400);
+  }
+
+  if (user.workosUserId) {
+    await workos.deleteWorkosUser(user.workosUserId).catch(() => {});
+  }
+  await db.delete(users).where(and(eq(users.id, userId), eq(users.tenantId, user.tenantId)));
+  return c.json({ ok: true, deleted: userId });
 });
 
 // ── Auth actions ─────────────────────────────────────────────────────────────
