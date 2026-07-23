@@ -1,4 +1,5 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 import { createFinancialTools } from "./tools/financial.js";
 import { createPlanTools } from "./tools/plans.js";
@@ -7,8 +8,10 @@ import { createTaxTools } from "./tools/tax.js";
 import { createSpendingTools } from "./tools/spending.js";
 import { env } from "../lib/env.js";
 
-// Lazy-load models to avoid startup failure when OPENROUTER_API_KEY is not set
-const _models = new Map<ModelLevel, LanguageModel>();
+// Lazy-load models to avoid startup failure when OPENROUTER_API_KEY is not set.
+// Keyed by level plus whether OpenRouter's web-search plugin is enabled, so the
+// plain and web-search variants of a level don't collide in the cache.
+const _models = new Map<string, LanguageModel>();
 
 export const MODEL_LEVELS = [
   "free",
@@ -31,15 +34,57 @@ const modelMappings: Record<ModelLevel, string> = {
   "frontier": "anthropic/claude-opus-4.7",
 };
 
-/** OpenRouter slug for a given level — useful for telemetry / response metadata. */
-export function getModelSlug(level: ModelLevel): string {
-  return modelMappings[level];
+// sailresearch.com model catalog is open-weights only, so there's no 1:1 match
+// for the OpenRouter (Claude/Gemini) slugs above. Map each level to the closest
+// sail model by tier. See https://docs.sailresearch.com/models
+const sailModelMappings: Record<ModelLevel, string> = {
+  "free": "google/gemma-4-31B-it",
+  "fast": "google/gemma-4-31B-it",
+  "fast-claude": "Qwen/Qwen3.6-35B-A3B",
+  "medium-google": "Qwen/Qwen3.6-35B-A3B",
+  "medium": "Qwen/Qwen3.6-35B-A3B",
+  "quality": "moonshotai/Kimi-K2.6",
+  "frontier": "zai-org/GLM-5.2-FP8",
+};
+
+function useSail(): boolean {
+  return env.INFERENCE_PROVIDER === "sail" && Boolean(env.SAIL_RESEARCH_API_KEY);
 }
 
-export function getModel(level: ModelLevel = "quality"): LanguageModel {
+/** Provider slug for a given level — useful for telemetry / response metadata. */
+export function getModelSlug(level: ModelLevel): string {
+  return useSail() ? sailModelMappings[level] : modelMappings[level];
+}
+
+export function getModel(
+  level: ModelLevel = "quality",
+  options?: { webSearch?: boolean }
+): LanguageModel {
   console.log("Requested model level:", level);
-  const cached = _models.get(level);
+  const sail = useSail();
+  // OpenRouter runs web search server-side via its "web" plugin. sail is a plain
+  // OpenAI-compatible endpoint with no such plugin, so web search is only wired
+  // when the caller asks for it, the deployment hasn't disabled it, AND we're on
+  // OpenRouter — on sail it degrades to a normal (no web search) request.
+  const webSearch =
+    !sail && Boolean(options?.webSearch) && env.WEB_SEARCH_ENABLED;
+  const cacheKey = `${sail ? "sail" : "or"}:${webSearch ? `${level}:web` : level}`;
+  const cached = _models.get(cacheKey);
   if (cached) return cached;
+
+  if (sail) {
+    const sailProvider = createOpenAICompatible({
+      name: "sailresearch",
+      baseURL: "https://api.sailresearch.com/v1",
+      apiKey: env.SAIL_RESEARCH_API_KEY,
+    });
+    const sailModel = sailProvider(sailModelMappings[level]);
+    _models.set(cacheKey, sailModel);
+    console.log(
+      `Initialized sailresearch model: ${sailModelMappings[level]} (${level})`
+    );
+    return sailModel;
+  }
 
   if (!env.OPENROUTER_API_KEY) {
     throw new Error("OPENROUTER_API_KEY is required for AI features");
@@ -51,9 +96,17 @@ export function getModel(level: ModelLevel = "quality"): LanguageModel {
       "HTTP-Referer": "https://lasagnafi.com",
     },
   });
-  const model = openrouter(modelMappings[level]);
-  _models.set(level, model);
-  console.log(`Initialized OpenRouter model: ${modelMappings[level]} (${level})`);
+  // OpenRouter runs web search server-side via the "web" plugin and injects the
+  // results plus inline citation links into the response — no client-side tool.
+  const model = webSearch
+    ? openrouter(modelMappings[level], {
+        plugins: [{ id: "web", max_results: env.WEB_SEARCH_MAX_RESULTS }],
+      })
+    : openrouter(modelMappings[level]);
+  _models.set(cacheKey, model);
+  console.log(
+    `Initialized OpenRouter model: ${modelMappings[level]} (${level})${webSearch ? " [web search]" : ""}`
+  );
   return model;
 }
 

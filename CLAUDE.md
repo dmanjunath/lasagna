@@ -86,6 +86,10 @@ All specs and plans from superpowers skills (brainstorming, writing-plans, etc.)
 
 These paths are git-ignored. Never write to `docs/superpowers/`.
 
+## UX & Copy
+
+Anything a user sees — labels, hints, captions, empty states, layout — must follow the guidelines in **[UX.md](UX.md)**. In short: every element earns its place (cut zero-information text), delete an element when its reason is gone (don't substitute), say each thing once (no duplicate legends/labels), keep equivalent controls consistent, and judge the rendered result, not the diff. Read UX.md before building or changing UI.
+
 ## Visual Verification
 
 **Anything that could benefit from visual verification — UI changes, design polish, layout fixes, new pages, chart tweaks — must be verified with Playwright before claiming it works.** Type-checking and reading the diff are not substitutes for seeing the rendered pixels.

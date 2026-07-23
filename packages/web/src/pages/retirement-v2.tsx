@@ -1,27 +1,32 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
-import { api } from '../lib/api';
+import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
-import { ChevronDown, ChevronUp, Download, Sparkles, Building2, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import { Button, SegmentedControl, Skeleton } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
 import {
-  buildBands, runBacktest, makeRng, computeWithdrawal,
-  type WithdrawalStrategy, type BacktestRow, type StrategyParams,
+  computeWithdrawal,
+  type WithdrawalStrategy, type StrategyParams,
 } from '../lib/retirement-engine';
+import { sustainableDrawRate } from '../lib/retirement-kpi';
 
 // ── Model constants ──────────────────────────────────────────────────────────
-const SEED = 0x9e3779b9;
 const INFLATION = 0.03;           // matches the engine's hardcoded MC inflation
-const TARGET_SUCCESS = 85;        // "on track" threshold + safe-spend target
+const TARGET_SUCCESS = 85;        // "on track" threshold for the verdict display
 const SMILE_DECLINE = 0.99;       // ~1%/yr real spending decline when enabled
 
 // Social Security quick estimate — 2025 bend points + wage cap. A deliberate
 // rough cut (assumes current income ≈ career-average indexed earnings); the
 // user can overwrite the dollar figure directly.
+//
+// SERVER MIRROR: this is duplicated verbatim in
+// packages/api/src/services/retirement-defaults.ts (estimateSSMonthly) so the
+// chat agent resolves the same SS figure. INVARIANT: keep the two in lockstep.
 const SS_WAGE_CAP = 176_100;
 function estimateSSMonthly(annualIncome: number, claimAge: number): number {
   if (annualIncome <= 0) return 0;
@@ -37,46 +42,6 @@ function estimateSSMonthly(annualIncome: number, claimAge: number): number {
     ? 1 + Math.min(months, 36) * (0.08 / 12)
     : 1 - Math.min(-months, 36) * (5 / 900) - Math.max(0, -months - 36) * (5 / 1200);
   return Math.round(pia * factor);
-}
-
-// Guaranteed-income schedule for the Monte Carlo engine: nominal $/yr at each
-// age. SS + other income grow at the model's 3% from retirement (COLA), and
-// the spending "smile" is folded in as a reduction against the engine's
-// inflation-grown constant-dollar target (need·1.03ᵗ·(1 − 0.99ᵗ) ≥ 0).
-function makeGiFn(opts: {
-  retireAge: number; ssAnnual: number; ssClaimAge: number;
-  otherAnnual: number; otherStartAge: number;
-  smile: boolean; annualSpend: number;
-}): ((age: number) => number) | undefined {
-  const { retireAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend } = opts;
-  if (ssAnnual <= 0 && otherAnnual <= 0 && !smile) return undefined;
-  return (age: number) => {
-    const t = Math.max(0, age - retireAge);
-    const infl = Math.pow(1 + INFLATION, t);
-    let gi = 0;
-    if (ssAnnual > 0 && age >= ssClaimAge) gi += ssAnnual * infl;
-    if (otherAnnual > 0 && age >= otherStartAge) gi += otherAnnual * infl;
-    if (smile) gi += annualSpend * infl * (1 - Math.pow(SMILE_DECLINE, t));
-    return gi;
-  };
-}
-
-// Same schedule for the historical backtest — real (first-retirement-year) $
-// per withdrawal-year index; the engine applies its own CPI factor.
-function makeGiArray(opts: {
-  retireAge: number; lifeHorizon: number; ssAnnual: number; ssClaimAge: number;
-  otherAnnual: number; otherStartAge: number; smile: boolean; annualSpend: number;
-}): number[] | undefined {
-  const { retireAge, lifeHorizon, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend } = opts;
-  if (ssAnnual <= 0 && otherAnnual <= 0 && !smile) return undefined;
-  return Array.from({ length: lifeHorizon }, (_, i) => {
-    const age = retireAge + i;
-    let gi = 0;
-    if (ssAnnual > 0 && age >= ssClaimAge) gi += ssAnnual;
-    if (otherAnnual > 0 && age >= otherStartAge) gi += otherAnnual;
-    if (smile) gi += annualSpend * (1 - Math.pow(SMILE_DECLINE, i));
-    return gi;
-  });
 }
 
 // ── Formatting ───────────────────────────────────────────────────────────────
@@ -100,10 +65,10 @@ function Card({ children, className, style }: { children: React.ReactNode; class
   );
 }
 
-function Section({ title, eyebrow, children, className }: { title?: React.ReactNode; eyebrow?: React.ReactNode; children: React.ReactNode; className?: string }) {
+function Section({ title, eyebrow, right, children, className }: { title?: React.ReactNode; eyebrow?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={cn('mt-8', className)}>
-      {(title || eyebrow) && (
+      {(title || eyebrow || right) && (
         <div className="mb-4 flex items-center gap-3">
           {title && (
             <>
@@ -117,10 +82,173 @@ function Section({ title, eyebrow, children, className }: { title?: React.ReactN
           )}
           {eyebrow && <span className="hidden sm:block text-[12px] font-semibold text-content-muted ui-tnum">{eyebrow}</span>}
           <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
+          {right && <div className="shrink-0">{right}</div>}
         </div>
       )}
       {children}
     </section>
+  );
+}
+
+// Single-select dropdown styled to match the app's other custom dropdowns
+// (trigger button + portaled popover, like the transactions filter menus)
+// rather than a native <select> whose option list is the OS's own chrome. The
+// menu is portaled to <body> so the verdict card's overflow-hidden can't clip
+// it. Closes on select, outside-click, Escape, scroll, or resize.
+function MethodDropdown<T extends string>({ value, onChange, options, ariaLabel, triggerTestId }: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+  ariaLabel?: string;
+  triggerTestId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    const menuH = options.length * 38 + 10;
+    const up = r.bottom + menuH + 8 > window.innerHeight && r.top - menuH > 8;
+    setPos({ top: up ? r.top - menuH - 6 : r.bottom + 6, left: r.left, width: r.width });
+  }, [open, options.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus(); } };
+    const onReflow = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onReflow, true);
+    window.addEventListener('resize', onReflow);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onReflow, true);
+      window.removeEventListener('resize', onReflow);
+    };
+  }, [open]);
+
+  const current = options.find(o => o.value === value);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        data-testid={triggerTestId}
+        className="ui-focus touch-target relative h-9 w-full appearance-none truncate rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-semibold text-content shadow-ui-sm"
+      >
+        {current?.label ?? ''}
+        <ChevronDown size={15} className={cn('pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          role="listbox"
+          aria-label={ariaLabel}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 60 }}
+          className="max-h-[280px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised py-1 shadow-ui-lg"
+        >
+          {options.map(opt => {
+            const active = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => { onChange(opt.value); setOpen(false); triggerRef.current?.focus(); }}
+                className={cn(
+                  'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium transition-colors',
+                  active ? 'bg-brand-soft text-brand' : 'text-content hover:bg-canvas-sunken',
+                )}
+              >
+                <Check size={14} className={cn('shrink-0', active ? 'opacity-100' : 'opacity-0')} aria-hidden />
+                <span className="truncate">{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+// Info popover for KPI labels. A small tap/click toggle (not hover-only, so it
+// works on touch) rendered into a portal to escape the hero's overflow, closing
+// on outside-click or Escape. Label is a screen-reader question for the metric.
+function InfoPopover({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const PANEL_W = 260;
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - PANEL_W - 8);
+    setPos({ top: r.bottom + 6, left });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus(); } };
+    const onReflow = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onReflow, true);
+    window.addEventListener('resize', onReflow);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onReflow, true);
+      window.removeEventListener('resize', onReflow);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-label={label}
+        aria-expanded={open}
+        className="ui-focus inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors"
+      >
+        <Info className="h-[13px] w-[13px]" />
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={panelRef}
+          role="tooltip"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
+          className="ui-root z-[110] rounded-ui-md border border-line bg-panel-raised px-3 py-2.5 text-[12px] leading-[1.5] font-medium text-content-secondary shadow-ui-lg"
+        >
+          {children}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -929,17 +1057,19 @@ function Chip({ children }: { children: React.ReactNode }) {
 // canonical formatted value. The helper row is always rendered (min-height
 // reserved) so side-by-side fields stay equal-height across the grid.
 function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, suffix, decimals = 0, caption }: {
-  label: React.ReactNode; ariaLabel?: string; min: number; max: number;
+  label: React.ReactNode; ariaLabel?: string; min: number; max?: number;
   value: number; onChange: (v: number) => void; testId?: string;
   prefix?: string; suffix?: string; decimals?: number; caption?: React.ReactNode;
 }) {
+  // Omit `max` for an open-ended field (floored at `min`, no upper bound).
+  const hi = max ?? Infinity;
   const [draft, setDraft] = useState<string | null>(null);
   const fmt = (v: number) => (decimals > 0 ? v.toFixed(decimals) : Math.round(v).toLocaleString('en-US'));
   const parse = (s: string) => (decimals > 0 ? parseFloat(s) : parseInt(s, 10));
   const clean = (s: string) => (decimals > 0 ? s.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1') : s.replace(/[^0-9]/g, ''));
   const commit = () => {
     const v = parse(draft ?? '');
-    const clamped = Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : value;
+    const clamped = Number.isFinite(v) ? Math.max(min, Math.min(hi, v)) : value;
     onChange(decimals > 0 ? Math.round(clamped * 10 ** decimals) / 10 ** decimals : Math.round(clamped));
     setDraft(null);
   };
@@ -961,7 +1091,7 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
             const raw = clean(e.target.value);
             setDraft(raw);
             const v = parse(raw);
-            if (Number.isFinite(v) && v >= min && v <= max) onChange(v);
+            if (Number.isFinite(v) && v >= min && v <= hi) onChange(v);
           }}
           onBlur={commit}
           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
@@ -971,7 +1101,8 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
         {suffix && <span className="rv2-input__affix">{suffix}</span>}
       </span>
       <div className="rv2-field__help">
-        {caption}{caption && ' · '}<span className="rv2-field__range">{hint(min)}–{hint(max)}</span>
+        {caption}
+        {max !== undefined && <>{caption && ' · '}<span className="rv2-field__range">{hint(min)}–{hint(max)}</span></>}
       </div>
     </div>
   );
@@ -1016,12 +1147,14 @@ function NumInput({ value, onChange, min, max, money = false, prefix, suffix, wi
 // ── Portfolio composition (real holdings) ────────────────────────────────────
 // Fixed label/color/return metadata for the allocation categories the API
 // returns — same palette the /retirement page uses for its allocation bar.
-const ALLOC_META: Array<{ key: string; label: string; color: string; ret: number }> = [
-  { key: 'usStocks', label: 'US stocks', color: 'var(--ui-viz-2)', ret: 10.0 },
-  { key: 'intlStocks', label: "Int'l stocks", color: 'var(--ui-viz-5)', ret: 7.5 },
-  { key: 'bonds', label: 'Bonds', color: 'var(--ui-viz-1)', ret: 5.0 },
-  { key: 'reits', label: 'REITs', color: 'var(--ui-viz-3)', ret: 9.5 },
-  { key: 'cash', label: 'Cash', color: 'var(--ui-viz-7)', ret: 2.0 },
+// `ret`/`vol` mirror the server MARKET_MODEL (market-assumptions.ts) — keep in
+// lockstep so the displayed blended expected return matches the Monte Carlo.
+const ALLOC_META: Array<{ key: string; label: string; color: string; ret: number; vol: number }> = [
+  { key: 'usStocks', label: 'US stocks', color: 'var(--ui-viz-2)', ret: 10.0, vol: 18 },
+  { key: 'intlStocks', label: "Int'l stocks", color: 'var(--ui-viz-5)', ret: 8.0, vol: 20 },
+  { key: 'bonds', label: 'Bonds', color: 'var(--ui-viz-1)', ret: 5.0, vol: 7 },
+  { key: 'reits', label: 'REITs', color: 'var(--ui-viz-3)', ret: 9.0, vol: 22 },
+  { key: 'cash', label: 'Cash', color: 'var(--ui-viz-7)', ret: 2.0, vol: 1 },
 ];
 
 // Preset risk profiles from the /retirement advanced view (SimulateView) —
@@ -1098,12 +1231,14 @@ function RetirementV2Inner() {
   // Inputs & assumptions (collapsible; two tabbed sub-sections)
   const [inputsOpen, setInputsOpen] = useState(false);
   const [inputsTab, setInputsTab] = useState<'you' | 'portfolio'>('you');
-  const [baseEquityPct, setBaseEquityPct] = useState(60);
-  const [equityTouched, setEquityTouched] = useState(false);
+  const inputsRef = useRef<HTMLDivElement>(null);
+  // Hero success number visibility — drives the pinned chance-of-success strip.
+  const heroNumRef = useRef<HTMLDivElement>(null);
+  const [heroNumVisible, setHeroNumVisible] = useState(true);
   const [baseReturn, setBaseReturn] = useState(6.5);
   const [returnTouched, setReturnTouched] = useState(false);
-  // Composition switch: 'current' = the real portfolio (baseEquityPct /
-  // baseReturn above); a preset or custom mix derives both from customAlloc.
+  // Composition switch: 'current' = the real portfolio (derivedEquity /
+  // baseReturn); a preset or custom mix derives both from customAlloc.
   const [compPreset, setCompPreset] = useState<CompPreset>('current');
   const [customAlloc, setCustomAlloc] = useState<Record<string, number>>({ ...COMP_PRESETS[1].alloc });
   const [lifeExp, setLifeExp] = useState(90);
@@ -1202,10 +1337,13 @@ function RetirementV2Inner() {
       // Spending → desired retirement spend default (monthly)
       const sd = spendingData as { totalSpending?: number } | null;
       const monthly = sd && sd.totalSpending && sd.totalSpending > 0 ? Math.round(sd.totalSpending) : 5000;
-      setMonthlySpend(Math.max(1000, Math.min(30000, monthly)));
+      setMonthlySpend(Math.max(1, monthly));
 
       // Savings estimate: after-tax income minus current spending, plus a rough
       // employer match — just a starting point for the lever.
+      // SERVER MIRROR: this savings/spend derivation is replicated in
+      // packages/api/src/services/retirement-defaults.ts (deriveSimInputs) so
+      // the chat agent starts from the same inputs. INVARIANT: keep in lockstep.
       if (income > 0) {
         const annualSavings = Math.max(0, income * 0.75 - monthly * 12) + income * (matchPct / 100);
         setMonthlySavings(Math.max(0, Math.min(15000, Math.round(annualSavings / 12 / 50) * 50)));
@@ -1221,7 +1359,6 @@ function RetirementV2Inner() {
           setAllocation(a);
           const eq = ((a.usStocks ?? 0) + (a.intlStocks ?? 0) + (a.reits ?? 0)) / total;
           setDerivedEquity(Math.round(eq * 100));
-          setBaseEquityPct(Math.round(eq * 100));
           allocBlend = ALLOC_META.reduce((s, m) => s + (a[m.key] ?? 0) * m.ret, 0) / total;
           // Seed the custom-composition editor from the real mix, so "Custom"
           // starts where the user actually is.
@@ -1240,6 +1377,16 @@ function RetirementV2Inner() {
     }).finally(() => setLoading(false));
   }, []);
 
+  // Observe the hero success number; re-attach when the page swaps the element
+  // in, since the hero only exists once accounts have loaded.
+  useEffect(() => {
+    const el = heroNumRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => setHeroNumVisible(entry.isIntersecting));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loading, hasAccounts]);
+
   // SS benefit tracks the claim-age estimate until the user overrides it.
   useEffect(() => {
     if (ssTouched) return;
@@ -1247,16 +1394,33 @@ function RetirementV2Inner() {
   }, [annualIncome, ssClaimAge, ssTouched]);
 
   // ── Effective composition ──────────────────────────────────────────────────
-  // 'current' uses the real-portfolio-derived (and hand-adjustable) equity % +
-  // expected return; a preset/custom allocation derives both from the same
-  // allocation-weighted historical averages the old /retirement advanced view
-  // uses — every consumer below (chips, sims, drawdown, labels) reads these.
+  // 'current' uses the real-portfolio-derived equity % + expected return; a
+  // preset/custom allocation derives both from the same allocation-weighted
+  // historical averages the old /retirement advanced view uses — every consumer
+  // below (chips, sims, drawdown, labels) reads these.
   const isCustomComp = compPreset !== 'current';
   const customTotal = ALLOC_META.reduce((s, m) => s + (customAlloc[m.key] ?? 0), 0);
   const customReturn = Math.round((ALLOC_META.reduce((s, m) => s + (customAlloc[m.key] ?? 0) * m.ret, 0) / (customTotal || 1)) * 10) / 10;
   const customEquityPct = Math.round((((customAlloc.usStocks ?? 0) + (customAlloc.intlStocks ?? 0) + (customAlloc.reits ?? 0)) / (customTotal || 1)) * 100);
-  const equityPct = isCustomComp ? customEquityPct : baseEquityPct;
-  const expReturn = isCustomComp ? customReturn : baseReturn;
+  // Stock/bond split for the summary chip + no-holdings caption: real
+  // allocation-derived equity for "My portfolio" (falling back to 60% before
+  // holdings load), or the preset/custom mix's equity fraction.
+  const equityPct = isCustomComp ? customEquityPct : (derivedEquity ?? 60);
+
+  // Effective allocation (what the server MC actually runs) → MARKET_MODEL-
+  // weighted blended return/vol via the reconciled ALLOC_META. `expReturn` reads
+  // from this for BOTH presets so the deterministic "Blended" path and every
+  // caption match the server MC's `blendedExpectedReturn`. Falls back to the
+  // hand-adjustable baseReturn when the real allocation isn't loaded yet.
+  const effAlloc = compPreset === 'current' ? allocation : customAlloc;
+  const effTotal = effAlloc ? ALLOC_META.reduce((s, m) => s + (effAlloc[m.key] ?? 0), 0) : 0;
+  const allocReturn = effTotal > 0
+    ? Math.round((ALLOC_META.reduce((s, m) => s + ((effAlloc![m.key] ?? 0) * m.ret), 0) / effTotal) * 10) / 10
+    : null;
+  const blendedVol = effTotal > 0
+    ? Math.round((ALLOC_META.reduce((s, m) => s + ((effAlloc![m.key] ?? 0) * m.vol), 0) / effTotal) * 10) / 10
+    : null;
+  const expReturn = allocReturn ?? baseReturn;
 
   const selectCompPreset = (p: typeof COMP_PRESETS[number]) => {
     setCompPreset(p.id);
@@ -1271,7 +1435,6 @@ function RetirementV2Inner() {
   const annualSavings = monthlySavings * 12;
   const ssAnnual = ssMonthly * 12;
   const otherAnnual = otherMonthly * 12;
-  const equityFraction = equityPct / 100;
   const effRetireAge = Math.max(retireAge, currentAge); // engine guard
   const horizonEndAge = Math.max(effRetireAge + 30, 90);
 
@@ -1306,16 +1469,70 @@ function RetirementV2Inner() {
     return undefined;
   }, [strategy, pctRate, gkInitialRate, gkBand, gkAdjust, gkFloorMonthly, gkCeilingMonthly]);
 
-  const giFn = useMemo(
-    () => makeGiFn({ retireAge: effRetireAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend }),
-    [effRetireAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend],
-  );
+  // ── Main Monte Carlo (server engine — same runRetirementSim the chat uses) ──
+  // The effective 5-class mix, normalized to fractions summing to 1 (the
+  // endpoint validates the sum). Falls back to a fraction-safe divisor.
+  const simAllocation = useMemo(() => {
+    const src = compPreset === 'current' ? allocation : customAlloc;
+    const keys = ['usStocks', 'intlStocks', 'bonds', 'reits', 'cash'] as const;
+    const raw = keys.map(k => src?.[k] ?? 0);
+    const total = raw.reduce((s, v) => s + v, 0) || 1;
+    const [usStocks, intlStocks, bonds, reits, cash] = raw.map(v => v / total);
+    return { usStocks, intlStocks, bonds, reits, cash };
+  }, [compPreset, allocation, customAlloc]);
 
-  // Main Monte Carlo (seeded → stable across renders/consumers)
-  const bands = useMemo(
-    () => buildBands(portfolioValue, annualSavings, effRetireAge, currentAge, expReturn, annualSpend, equityFraction, true, strategy, makeRng(SEED), giFn, strategyParams),
-    [portfolioValue, annualSavings, effRetireAge, currentAge, expReturn, annualSpend, equityFraction, strategy, giFn, strategyParams],
-  );
+  const overrides = useMemo<RetirementSimOverrides>(() => ({
+    currentAge,
+    retirementAge: effRetireAge,
+    planThroughAge: lifeExp,
+    startingBalance: portfolioValue,
+    monthlySavings,
+    monthlySpend,
+    ssMonthly,
+    ssClaimAge,
+    otherMonthly,
+    otherStartAge,
+    strategy,
+    strategyParams: strategyParams as Record<string, unknown> | undefined,
+    allocation: simAllocation,
+    numSimulations: 1000,
+  }), [currentAge, effRetireAge, lifeExp, portfolioValue, monthlySavings, monthlySpend, ssMonthly, ssClaimAge, otherMonthly, otherStartAge, strategy, strategyParams, simAllocation]);
+
+  const [mcResult, setMcResult] = useState<SimResult | null>(null);
+  const [mcLoading, setMcLoading] = useState(false);
+  const overridesKey = JSON.stringify(overrides);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let superseded = false;
+    setMcLoading(true);
+    const timer = setTimeout(() => {
+      api
+        .simulateRetirement(JSON.parse(overridesKey))
+        .then((res) => {
+          if (superseded || controller.signal.aborted) return;
+          setMcResult(res);
+          setMcLoading(false);
+        })
+        .catch(() => {
+          if (superseded || controller.signal.aborted) return;
+          setMcLoading(false); // keep the previous result visible
+        });
+    }, 250);
+    return () => {
+      superseded = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [overridesKey]);
+
+  // MC bands, shaped like the old client buildBands result so the verdict + fan
+  // read from a single place. mcSuccessRate is 0..100; finalValues is unused.
+  const bands = useMemo(() => (
+    mcResult
+      ? { ...mcResult.percentiles, mcSuccessRate: Math.round(mcResult.successRate * 100), finalValues: [] as number[] }
+      : { p5: [], p25: [], p50: [], p75: [], p95: [], mcSuccessRate: 0, finalValues: [] as number[] }
+  ), [mcResult]);
 
   // Display bands in today's dollars (deflate 3%/yr from current age)
   const realBands = useMemo(() => {
@@ -1326,122 +1543,45 @@ function RetirementV2Inner() {
     };
   }, [bands]);
 
-  // Historical backtest (advanced method toggle)
-  const backtestRows = useMemo<BacktestRow[] | null>(() => {
-    if (method !== 'hist') return null;
-    const lifeHorizon = Math.max(1, lifeExp - effRetireAge);
-    const accYears = Math.max(0, effRetireAge - currentAge);
-    const giArr = makeGiArray({ retireAge: effRetireAge, lifeHorizon, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend });
-    const maxStart = 2024 - (accYears + lifeHorizon);
-    const rows: BacktestRow[] = [];
-    for (let yr = 1928; yr <= maxStart; yr++) {
-      rows.push(runBacktest(yr, lifeHorizon, portfolioValue, annualSpend, equityFraction, true, strategy, accYears, annualSavings, giArr, strategyParams));
-    }
-    return rows;
-  }, [method, lifeExp, effRetireAge, currentAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend, portfolioValue, equityFraction, strategy, strategyParams, annualSavings]);
-
-  const histRate = useMemo(() => {
-    if (!backtestRows || backtestRows.length === 0) return null;
-    return Math.round((backtestRows.filter(r => r.survived).length / backtestRows.length) * 100);
-  }, [backtestRows]);
-
-  // Historical cohort envelope for the growth chart: each cohort's aligned
-  // year-by-year portfolio value (the same runs behind the historical success
-  // rate), deflated to the engine's own real frame (actual CPI across that
-  // cohort's withdrawal years), summarized as 10th–90th + 25th–75th percentile
-  // bands + the median cohort — the same visual language as the MC fan.
-  const histBands = useMemo(() => {
-    if (method !== 'hist' || !backtestRows || backtestRows.length === 0) return null;
-    const L = Math.max(2, lifeExp - currentAge + 1);
-    const paths = backtestRows.map(row => {
-      const path: number[] = [portfolioValue];
-      for (const y of row.yearByYear) {
-        path.push(Math.round(y.endValue / (y.phase === 'withdrawal' ? y.cumulativeInflation : 1)));
-      }
-      while (path.length < L) path.push(0); // depleted cohorts stay at $0
-      return path.slice(0, L);
-    });
-    const out = { p5: [] as number[], p25: [] as number[], p50: [] as number[], p75: [] as number[], p95: [] as number[] };
-    const q = (vals: number[], pct: number) => vals[Math.floor((pct / 100) * (vals.length - 1))];
-    for (let i = 0; i < L; i++) {
-      const vals = paths.map(p => p[i]).sort((a, b) => a - b);
-      out.p5.push(q(vals, 10)); // outer band = 10th–90th across cohorts
-      out.p25.push(q(vals, 25));
-      out.p50.push(q(vals, 50));
-      out.p75.push(q(vals, 75));
-      out.p95.push(q(vals, 90));
-    }
-    return out;
-  }, [method, backtestRows, lifeExp, currentAge, portfolioValue]);
-
-  const prob = method === 'hist' && histRate !== null ? histRate : bands.mcSuccessRate;
-
-  // Median depletion age ("money lasts to age N"); null = beyond the horizon.
-  const medianLastsTo = useMemo(() => {
-    const idx = bands.p50.findIndex((v, i) => v <= 0 && currentAge + i >= effRetireAge);
-    return idx === -1 ? null : currentAge + idx;
-  }, [bands, currentAge, effRetireAge]);
-
-  // ── Safe spend + suggestions (debounced — ~20 extra MC runs) ───────────────
-  const [safeSpend, setSafeSpend] = useState<number | null>(null);
-  const [suggestions, setSuggestions] = useState<Array<{ label: string; prob: number }> | null>(null);
+  // Historical backtest (advanced method toggle) — same server engine the chat
+  // uses, via POST /retirement/backtest. Runs in every method so the Historical
+  // KPI always has a value; reuses the exact `overrides` object the MC path
+  // sends. NOTE: the server backtest does not model the dashboard's spending
+  // "smile" lever (it's not a SimInput), so toggling smile won't move the
+  // historical success rate — same as the MC path.
+  const [btResult, setBtResult] = useState<BacktestSummary | null>(null);
+  const [btLoading, setBtLoading] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let superseded = false;
+    setBtLoading(true);
     const timer = setTimeout(() => {
-      const runProb = (over: Partial<{ retireAge: number; monthlySpend: number; ssClaimAge: number; monthlySavings: number; ssMonthly: number }>) => {
-        const ra = Math.max(over.retireAge ?? retireAge, currentAge);
-        const ms = over.monthlySpend ?? monthlySpendEff;
-        const claim = over.ssClaimAge ?? ssClaimAge;
-        const ssm = over.ssMonthly ?? (ssTouched ? ssMonthly : estimateSSMonthly(annualIncome, claim));
-        const sav = (over.monthlySavings ?? monthlySavings) * 12;
-        const gi = makeGiFn({ retireAge: ra, ssAnnual: ssm * 12, ssClaimAge: claim, otherAnnual, otherStartAge, smile, annualSpend: ms * 12 });
-        return buildBands(portfolioValue, sav, ra, currentAge, expReturn, ms * 12, equityFraction, true, strategy, makeRng(SEED), gi, strategyParams).mcSuccessRate;
-      };
-
-      // Safe spend: binary-search the max monthly spend holding ≥ target
-      // success. Floored to a $100 grid so typing this exact value into the
-      // spending input reproduces ≥ target.
-      let safe: number;
-      if (runProb({ monthlySpend: 500 }) < TARGET_SUCCESS) safe = 0;
-      else if (runProb({ monthlySpend: 40000 }) >= TARGET_SUCCESS) safe = 40000;
-      else {
-        let lo = 500, hi = 40000;
-        for (let i = 0; i < 12; i++) {
-          const mid = (lo + hi) / 2;
-          if (runProb({ monthlySpend: mid }) >= TARGET_SUCCESS) lo = mid; else hi = mid;
-        }
-        safe = Math.floor(lo / 100) * 100;
-      }
-      setSafeSpend(safe);
-
-      // Suggestions: concrete moves that push toward the target.
-      const current = runProb({});
-      if (current >= TARGET_SUCCESS) {
-        setSuggestions([]);
-        return;
-      }
-      const candidates: Array<{ label: string; prob: number }> = [];
-      if (retireAge + 1 <= 75) candidates.push({ label: `Retire at ${retireAge + 1} (one more year)`, prob: runProb({ retireAge: retireAge + 1 }) });
-      if (retireAge + 2 <= 75) candidates.push({ label: `Retire at ${retireAge + 2} (two more years)`, prob: runProb({ retireAge: retireAge + 2 }) });
-      const spend5 = Math.round(monthlySpendEff * 0.95 / 50) * 50;
-      const spend10 = Math.round(monthlySpendEff * 0.90 / 50) * 50;
-      candidates.push({ label: `Spend ${formatMoney(spend5, true)}/mo (−5%)`, prob: runProb({ monthlySpend: spend5 }) });
-      candidates.push({ label: `Spend ${formatMoney(spend10, true)}/mo (−10%)`, prob: runProb({ monthlySpend: spend10 }) });
-      if (ssClaimAge < 70 && (ssTouched ? ssMonthly : estimateSSMonthly(annualIncome, 70)) > 0) {
-        candidates.push({ label: 'Delay Social Security to 70', prob: runProb({ ssClaimAge: 70 }) });
-      }
-      if (retireAge > currentAge) {
-        candidates.push({ label: `Save ${formatMoney(monthlySavings + 500, true)}/mo (+$500)`, prob: runProb({ monthlySavings: monthlySavings + 500 }) });
-      }
-      setSuggestions(
-        candidates
-          .filter(c => c.prob >= current + 2)
-          .sort((a, b) => b.prob - a.prob)
-          .slice(0, 3),
-      );
+      api
+        .backtestRetirement(JSON.parse(overridesKey))
+        .then((res) => {
+          if (superseded || controller.signal.aborted) return;
+          setBtResult(res);
+          setBtLoading(false);
+        })
+        .catch(() => {
+          if (superseded || controller.signal.aborted) return;
+          setBtLoading(false); // keep the previous result visible
+        });
     }, 250);
-    return () => clearTimeout(timer);
-  }, [portfolioValue, currentAge, retireAge, monthlySpendEff, ssClaimAge, monthlySavings, ssMonthly, ssTouched, annualIncome, otherAnnual, otherStartAge, smile, expReturn, equityFraction, strategy, strategyParams]);
+    return () => {
+      superseded = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [overridesKey]);
+
+  const histRate = btResult ? Math.round(btResult.successRate * 100) : null;
+  // Historical cohort envelope for the growth chart (real $, index 0 = currentAge;
+  // p5/p95 hold the 10th/90th cohort percentiles) — same shape as the MC fan.
+  const histBands = btResult ? btResult.cohortBands : null;
+
+  const prob = method === 'hist' && histRate !== null ? histRate : bands.mcSuccessRate;
 
   // ── Year-by-year deterministic plan (table + CSV + blended growth mode) ────
   const planRows = useMemo(
@@ -1455,49 +1595,12 @@ function RetirementV2Inner() {
     const short = planRows.find(r => r.phase === 'retired' && r.end <= 0);
     return short ? short.age : null;
   }, [planRows]);
-  const detEndReal = useMemo(() => {
-    // Start-of-final-year balance — the same frame as the chart's last point.
-    const last = planRows[planRows.length - 1];
-    return last && last.end > 0 ? Math.round(last.start / Math.pow(1 + INFLATION, last.age - currentAge)) : 0;
-  }, [planRows, currentAge]);
   // The blended growth line, in today's dollars — start-of-year balances, held
   // at $0 after depletion so the axis still runs to the plan-through age.
   const blendSeries = useMemo(() => {
     const L = Math.max(2, lifeExp - currentAge + 1);
     return Array.from({ length: L }, (_, i) => Math.round((planRows[i]?.start ?? 0) / Math.pow(1 + INFLATION, i)));
   }, [planRows, lifeExp, currentAge]);
-  // Deterministic sustainable draw: the max monthly spend whose single path
-  // still lasts through the plan-through age (binary search on the same $100
-  // grid as the Monte Carlo safe-spend; cheap — the sim is one pass per probe).
-  const detSafeSpend = useMemo(() => {
-    if (method !== 'blend') return null;
-    const lasts = (spendMonthly: number) => {
-      const rows = simulatePlan({ portfolioValue, currentAge, retireAge: effRetireAge, lifeExp, expReturn, annualSavings, annualSpend: spendMonthly * 12, smile, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, strategy, strategyParams });
-      return !rows.some(r => r.phase === 'retired' && r.end <= 0);
-    };
-    if (!lasts(500)) return 0;
-    if (lasts(40000)) return 40000;
-    let lo = 500, hi = 40000;
-    for (let i = 0; i < 13; i++) {
-      const mid = (lo + hi) / 2;
-      if (lasts(mid)) lo = mid; else hi = mid;
-    }
-    return Math.floor(lo / 100) * 100;
-  }, [method, portfolioValue, currentAge, effRetireAge, lifeExp, expReturn, annualSavings, smile, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, strategy, strategyParams]);
-
-  const exportCsv = () => {
-    const head = 'Age,Year,Phase,Start balance,Contribution,Guaranteed income,Portfolio withdrawal,Return %,End balance';
-    const lines = planRows.map(r =>
-      [r.age, r.year, r.phase, r.start, r.contribution, r.gi, r.withdrawal, expReturn.toFixed(1), r.end].join(','),
-    );
-    const blob = new Blob([[head, ...lines].join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'retirement-plan.csv';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
   // ── Drawdown by account: priority-ordered units + deterministic sim ────────
   // Per-kind totals of the linked accounts — the comprehensive by-type grouping
   // (also feeds the Portfolio tab's account-type chips).
@@ -1591,16 +1694,37 @@ function RetirementV2Inner() {
   // Blended return is one deterministic path — no probability. Its verdict is
   // simply whether the money lasts through the plan-through age.
   const isBlend = method === 'blend';
+  // Loading affordances — method-independent now that both signals feed the
+  // composite hero and KPI row 2. Recomputing = a stale result on screen with a
+  // fresh run in flight; pending = first run hasn't landed yet.
+  const mcRecomputing = mcLoading && mcResult !== null;
+  const mcPending = mcResult === null;
+  const histRecomputing = btLoading && btResult !== null;
+  const histPending = btResult === null;
   const detOnTrack = detRanShortAge === null;
   const verdict = isBlend
     ? (detOnTrack ? 'On track' : 'At risk')
     : prob >= TARGET_SUCCESS ? 'On track' : prob >= 70 ? 'Needs attention' : 'At risk';
-  const verdictColor = isBlend
-    ? (detOnTrack ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-negative))')
-    : prob >= TARGET_SUCCESS ? 'rgb(var(--ui-brand-ink))' : prob >= 70 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
-  const verdictBg = isBlend
-    ? (detOnTrack ? 'var(--ui-brand-soft)' : 'var(--ui-negative-soft)')
-    : prob >= TARGET_SUCCESS ? 'var(--ui-brand-soft)' : prob >= 70 ? 'var(--ui-caution-soft)' : 'var(--ui-negative-soft)';
+
+  // Composite hero verdict — method-independent. Three method signals; a signal
+  // "passes" at >= 90% chance the money lasts. The hero reads all three at once
+  // so switching the projection method (below) doesn't move the headline.
+  const blendPass = detRanShortAge === null;              // deterministic path stays funded
+  const mcPass = bands.mcSuccessRate >= 90;
+  const histPass = histRate !== null && histRate >= 90;
+  const passCount = [mcPass, histPass, blendPass].filter(Boolean).length;
+  const resultsPending = mcResult === null || btResult === null;  // any method still loading
+  const composite = passCount >= 2 ? 'On track' : passCount === 1 ? 'Needs attention' : 'At risk';
+  const compositeColor = passCount >= 2 ? 'rgb(var(--ui-brand-ink))' : passCount === 1 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+  const compositeBg = passCount >= 2 ? 'var(--ui-brand-soft)' : passCount === 1 ? 'var(--ui-caution-soft)' : 'var(--ui-negative-soft)';
+
+  // Age-based sustainable draw: rule-of-thumb withdrawal rate × projected
+  // retirement balance / 12. Same in all modes (MC, Hist, Blended).
+  const sustainableDrawRatePct = sustainableDrawRate(effRetireAge);
+  const sustainableDraw = Math.round(sustainableDrawRatePct * projRetireValue / 12);
+
+  // Short strategy label for the sticky bar's plan-facts line.
+  const strategyLabel = strategy === 'percent_portfolio' ? '% portfolio' : strategy === 'guardrails' ? 'Guardrails' : 'Constant $';
 
   // Ask Lasagna — opens the chat sidebar seeded with this plan's key numbers
   // (same mechanism as the /retirement hero button) so the conversation starts
@@ -1608,6 +1732,41 @@ function RetirementV2Inner() {
   const askLasagnaPrompt = isBlend
     ? `I want to assess my retirement plan. On one projected path at my ${expReturn.toFixed(1)}% expected return — retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved, spending ${formatMoney(monthlySpendEff, true)}/mo — the dashboard says "${verdict}": ${detOnTrack ? `the money lasts through age ${lifeExp}` : `the money runs out at age ${detRanShortAge}`}. Can you walk me through what's driving that?`
     : `I want to assess my retirement plan. The dashboard says "${verdict}" — a ${prob}% chance my money lasts through age ${method === 'hist' ? lifeExp : horizonEndAge}, retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved and spending ${formatMoney(monthlySpendEff, true)}/mo. Can you walk me through what's driving that?`;
+
+  // The pencil on the Monthly spending KPI: open the inputs panel (on the "You"
+  // tab, where the spending control lives), scroll the spending field to the
+  // middle of the view, then briefly flash its border so it's obvious what to
+  // edit. Falls back to the strategy's own rate field, or the panel top.
+  const editSpending = () => {
+    setInputsTab('you');
+    setInputsOpen(true);
+    window.setTimeout(() => {
+      const field =
+        document.querySelector<HTMLElement>('[data-testid="rv2-lever-spend"] .rv2-input') ??
+        document.querySelector<HTMLElement>('[data-testid="rv2-pct-rate"] .rv2-input') ??
+        document.querySelector<HTMLElement>('[data-testid="rv2-gk-rate"] .rv2-input');
+      if (!field) { inputsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      field.classList.remove('rv2-flash');
+      void field.offsetWidth; // reflow so a repeat click restarts the animation
+      field.classList.add('rv2-flash');
+      window.setTimeout(() => field.classList.remove('rv2-flash'), 2200);
+    }, 70);
+  };
+
+  // Rendered twice: top-right on desktop, above the KPI grid on mobile — the
+  // parent wrappers handle which one shows at each breakpoint.
+  const renderAskLasagna = (testId: string) => (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={() => openChat(askLasagnaPrompt)}
+      className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+    >
+      <Sparkles className="h-[15px] w-[15px]" />
+      Ask Lasagna
+    </button>
+  );
 
   if (loading) {
     return (
@@ -1635,7 +1794,7 @@ function RetirementV2Inner() {
         .dark .rv2-accum-zone { fill-opacity: 0.10; }
         .rv2-blend-area { fill-opacity: 0.14; }
         .dark .rv2-blend-area { fill-opacity: 0.10; }
-        .rv2-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 24px; }
+        .rv2-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; }
         .rv2-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 40px; }
         @media (max-width: 800px) {
           .rv2-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1664,6 +1823,14 @@ function RetirementV2Inner() {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         .rv2-input:focus-within { border-color: rgb(var(--ui-brand)); box-shadow: 0 0 0 3px var(--ui-brand-ring); }
+        /* Transient border flash when the Monthly spending pencil jumps here:
+           holds the brand ring for ~1.2s then eases off over ~1s. */
+        .rv2-input.rv2-flash { animation: rv2-flash 2.2s ease-out; }
+        @keyframes rv2-flash {
+          0%, 55% { border-color: rgb(var(--ui-brand)); box-shadow: 0 0 0 3px var(--ui-brand-ring); }
+          100%    { border-color: var(--ui-line); box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+        }
+        @media (prefers-reduced-motion: reduce) { .rv2-input.rv2-flash { animation: none; } }
         .rv2-input input {
           flex: 1; min-width: 0; width: 100%;
           border: 0; background: transparent; outline: none; padding: 0;
@@ -1741,6 +1908,68 @@ function RetirementV2Inner() {
         .rv2-table th { text-align: right; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: rgb(var(--ui-content-muted)); border-bottom: 1px solid var(--ui-line); white-space: nowrap; }
         .rv2-table th:first-child, .rv2-table td:first-child { text-align: left; }
         .rv2-table td { text-align: right; padding: 6px 12px; font-variant-numeric: tabular-nums; font-size: 12.5px; border-top: 1px solid var(--ui-hairline); color: rgb(var(--ui-content-secondary)); white-space: nowrap; }
+        /* Second KPI row: Monte Carlo, Historical backtest, Sustainable draw.
+           Three columns on desktop; stacks to one column on narrow phones. */
+        .rv2-kpi-grid2 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; }
+        @media (max-width: 640px) {
+          .rv2-kpi-grid2 { grid-template-columns: 1fr; }
+        }
+        /* Pinned chance-of-success strip. Rendered as the page's last child
+           and stuck to the bottom of the scrollport; on mobile it clears the
+           fixed bottom tab bar. Hidden while the hero's success number is on
+           screen (it would double-print the figure) and slides in once the
+           hero number scrolls out of view. */
+        .ret-pin {
+          position: sticky;
+          bottom: 12px;
+          z-index: 30;
+          margin-top: 14px;
+          transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        .ret-pin[data-hidden='true'] {
+          opacity: 0;
+          transform: translateY(8px);
+          pointer-events: none;
+        }
+        .ret-pin__inner {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+          padding: 9px 18px;
+          border: 1px solid var(--ui-line);
+          border-radius: var(--ui-r-lg, 14px);
+          background: rgb(var(--ui-panel) / 0.92);
+          backdrop-filter: saturate(1.4) blur(8px);
+          -webkit-backdrop-filter: saturate(1.4) blur(8px);
+          box-shadow: var(--ui-shadow-sm);
+        }
+        .ret-pin__tier1 { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+        .ret-pin__tier2 {
+          font-size: 11.5px;
+          line-height: 1.45;
+          color: rgb(var(--ui-content-muted));
+        }
+        .ret-pin__metric { display: flex; flex-direction: column; gap: 1px; line-height: 1.1; }
+        .ret-pin__label {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgb(var(--ui-content-muted));
+        }
+        .ret-pin__pct {
+          font-size: 18px;
+          font-weight: 800;
+          line-height: 1;
+          letter-spacing: -0.02em;
+        }
+        @media (max-width: 767px) {
+          /* Sit above the fixed mobile tab bar (~68px + safe-area inset). */
+          .ret-pin { bottom: calc(env(safe-area-inset-bottom) + 76px); }
+          .ret-pin__inner { gap: 6px; padding: 8px 14px; }
+          .ret-pin__tier1 { gap: 16px; }
+        }
       `}</style>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -1780,73 +2009,48 @@ function RetirementV2Inner() {
           }}
         />
         <div className="relative">
-          {/* hero header — eyebrow on the left; the method toggle + Ask Lasagna
-              on the right, so switching Monte Carlo / Historical / Blended
-              re-frames the verdict and the growth chart from right here. */}
+          {/* hero header — eyebrow on the left; Ask Lasagna on the right (desktop
+              only). The method toggle now lives in the Method KPI below, and on
+              mobile Ask Lasagna drops in just above the KPI grid. */}
           <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">{isBlend ? 'Plan outcome · deterministic' : 'Chance of success'}</div>
-            <div className="flex flex-wrap items-center gap-2.5" data-testid="rv2-hero-controls">
-              <SegmentedControl
-                tone="brand" size="sm" stretch={false}
-                value={method}
-                onChange={setMethod}
-                options={[
-                  { value: 'mc', label: 'Monte Carlo' },
-                  { value: 'hist', label: 'Historical' },
-                  { value: 'blend', label: 'Blended return' },
-                ]}
-                aria-label="Chance-of-success method"
-              />
-              <button
-                type="button"
-                data-testid="rv2-ask-lasagna"
-                onClick={() => openChat(askLasagnaPrompt)}
-                className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
-              >
-                <Sparkles className="h-[15px] w-[15px]" />
-                Ask Lasagna
-              </button>
+            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement outlook</div>
+            <div className="hidden sm:flex flex-wrap items-center gap-2.5" data-testid="rv2-hero-controls">
+              {renderAskLasagna('rv2-ask-lasagna')}
             </div>
           </div>
-          <div className="flex items-baseline gap-3 flex-wrap">
-            <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: verdictColor }}>
-              {verdict}
+          <div ref={heroNumRef} className="flex items-baseline gap-3 flex-wrap">
+            <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: resultsPending ? 'rgb(var(--ui-content-muted))' : compositeColor }}>
+              {resultsPending ? 'Estimating…' : composite}
             </span>
-            {isBlend ? (
-              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: verdictBg, color: verdictColor }} data-testid="rv2-outcome">
-                {detOnTrack ? `Fully funded — lasts through age ${lifeExp}` : `Runs short at age ${detRanShortAge}`}
+            {resultsPending ? (
+              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: 'var(--ui-canvas-sunken)', color: 'rgb(var(--ui-content-muted))' }} data-testid="rv2-outlook-badge">
+                <span
+                  aria-label="running simulation"
+                  className="inline-block h-3 w-3 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
+                />
               </span>
             ) : (
-              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: verdictBg, color: verdictColor }} data-testid="rv2-prob">
-                {prob}%
+              <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: compositeBg, color: compositeColor, transition: 'opacity 150ms ease', opacity: (mcRecomputing || histRecomputing) ? 0.55 : 1 }} data-testid="rv2-outlook-badge">
+                {passCount} of 3 methods on track
+                {(mcRecomputing || histRecomputing) && (
+                  <span
+                    aria-label="recomputing"
+                    className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
+                  />
+                )}
               </span>
             )}
           </div>
-          <p className="mt-3 text-[13.5px] leading-[1.55] text-content-secondary max-w-[62ch]">
-            {isBlend ? (
-              <>
-                One projected path at your blended <span className="ui-tnum">{expReturn.toFixed(1)}%</span> expected return — retiring at <span className="ui-tnum">{effRetireAge}</span> on {formatMoney(monthlySpendEff, true)}/mo, with no market randomness.
-                {' '}
-                <span data-testid="rv2-lasts">
-                  {detOnTrack
-                    ? <>You'd reach age <span className="ui-tnum">{lifeExp}</span> with about <span className="ui-tnum font-semibold">{fmtShort(detEndReal)}</span> left in today's dollars.</>
-                    : <>The money runs out at age <span className="ui-tnum font-semibold">{detRanShortAge}</span> — <span className="ui-tnum">{lifeExp - (detRanShortAge ?? lifeExp)}</span> years short of your plan-through age <span className="ui-tnum">{lifeExp}</span>.</>}
-                </span>
-              </>
-            ) : (
-              <>
-                {method === 'hist' && backtestRows
-                  ? <>Your plan survived <span className="ui-tnum font-semibold">{prob}%</span> of {backtestRows.length} historical start-years (1928 on), retiring at <span className="ui-tnum">{effRetireAge}</span> and planning through age <span className="ui-tnum">{lifeExp}</span>.</>
-                  : <>The chance your money lasts to age <span className="ui-tnum">{horizonEndAge}</span> without cutting spending — across 1,000 simulated market paths, retiring at <span className="ui-tnum">{effRetireAge}</span> on {formatMoney(monthlySpendEff, true)}/mo.</>}
-                {' '}
-                <span data-testid="rv2-lasts">
-                  {medianLastsTo === null
-                    ? <>On the median path your money is still funded at age <span className="ui-tnum">{horizonEndAge}</span>.</>
-                    : <>On the median path your money runs out at age <span className="ui-tnum font-semibold">{medianLastsTo}</span>.</>}
-                </span>
-              </>
-            )}
+          <p className="mt-3 text-[13.5px] leading-[1.55] text-content-secondary max-w-[62ch]" data-testid="rv2-outlook-explain">
+            {passCount >= 2
+              ? 'Two or more of the three methods below clear a 90% chance your money lasts.'
+              : passCount === 1
+                ? 'Only one of the three methods below clears a 90% chance your money lasts. Retiring later or spending less would help.'
+                : 'None of the three methods below clear a 90% chance your money lasts.'}
           </p>
+          <div className="mt-4 sm:hidden">
+            {renderAskLasagna('rv2-ask-lasagna-mobile')}
+          </div>
           <div className="rv2-kpi-grid mt-6 pt-5 border-t border-line">
             <div className="min-w-0" data-testid="rv2-kpi-years">
               <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Years to retirement</div>
@@ -1855,16 +2059,23 @@ function RetirementV2Inner() {
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">retiring at {effRetireAge}</div>
             </div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Sustainable draw</div>
-              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content" data-testid="rv2-safe-spend">
-                {isBlend && detSafeSpend !== null
-                  ? <>{detSafeSpend >= 40000 ? '$40k+' : `${formatMoney(detSafeSpend, true)}`}</>
-                  : <>{safeSpend === null ? '…' : safeSpend >= 40000 ? '$40k+' : `${formatMoney(safeSpend, true)}`}</>}<span className="text-[14px] font-bold text-content-muted">/mo</span>
+            <div className="min-w-0" data-testid="rv2-kpi-spend">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Monthly spending</span>
+                <button
+                  type="button"
+                  onClick={editSpending}
+                  aria-label="Edit monthly spending"
+                  data-testid="rv2-kpi-spend-edit"
+                  className="inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors"
+                >
+                  <Pencil className="h-[13px] w-[13px]" />
+                </button>
               </div>
-              <div className="mt-1.5 text-[12px] font-medium text-content-muted">
-                {isBlend && detSafeSpend !== null ? `lasts through age ${lifeExp} at ${expReturn.toFixed(1)}%` : `from liquid savings, at ${TARGET_SUCCESS}% success`}
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {formatMoney(monthlySpendEff, true)}<span className="text-[14px] font-bold text-content-muted">/mo</span>
               </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">in today's dollars</div>
             </div>
             <div className="min-w-0" data-testid="rv2-kpi-length">
               <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Length of retirement</div>
@@ -1873,13 +2084,48 @@ function RetirementV2Inner() {
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">age {effRetireAge} → {lifeExp}</div>
             </div>
-            <div className="min-w-0" data-testid="rv2-kpi-method">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Method</div>
-              <div className={cn('mt-1.5 font-editorial font-extrabold leading-none tracking-[-0.02em] text-content', isBlend ? 'text-[22px] sm:text-[26px] mt-2' : 'text-[26px] sm:text-[30px]')}>
-                {method === 'hist' ? 'Historical' : isBlend ? 'Blended return' : 'Monte Carlo'}
+          </div>
+
+          {/* Second KPI row — the three "how confident" readouts, each with a
+              tap-to-open explainer so the method-specific numbers are legible
+              without leaving the hero. */}
+          <div className="rv2-kpi-grid2 mt-6 pt-5 border-t border-line">
+            <div className="min-w-0" data-testid="rv2-kpi-mc">
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Monte Carlo</span>
+                <InfoPopover label="What is Monte Carlo?">
+                  Runs 1,000 randomized market scenarios and reports how often your money lasts to age {lifeExp}. It reflects good and bad luck, including a bad run of early returns.
+                </InfoPopover>
               </div>
-              <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">
-                {method === 'hist' ? `${backtestRows?.length ?? 0} start-years since 1928` : isBlend ? `one projected path at ${expReturn.toFixed(1)}%/yr` : '1,000 simulated paths'}
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {mcResult ? `${Math.round(mcResult.successRate * 100)}%` : '…'}
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">chance your money lasts</div>
+            </div>
+            <div className="min-w-0" data-testid="rv2-kpi-hist">
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Historical backtest</span>
+                <InfoPopover label="What is Historical backtest?">
+                  Replays every real market start year since 1928 and reports the share of those actual histories your plan would have survived.
+                </InfoPopover>
+              </div>
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {histRate !== null ? `${histRate}%` : '…'}
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">{btResult ? `${btResult.startYearCount} start-years since 1928` : ''}</div>
+            </div>
+            <div className="min-w-0" data-testid="rv2-kpi-draw">
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Sustainable draw</span>
+                <InfoPopover label="What is Sustainable draw?">
+                  A rule-of-thumb safe monthly spend, {Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement (set by your retirement age). It is a guideline, not one of the simulations above.
+                </InfoPopover>
+              </div>
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content" data-testid="rv2-safe-spend">
+                {formatMoney(sustainableDraw, true)}<span className="text-[14px] font-bold text-content-muted">/mo</span>
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">
+                ~{Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement
               </div>
             </div>
           </div>
@@ -1887,6 +2133,7 @@ function RetirementV2Inner() {
       </section>
 
       {/* ── 2 · Inputs & assumptions (You / Portfolio) ─────────────────────── */}
+      <div ref={inputsRef} className="scroll-mt-4">
       <Section title="Inputs & assumptions" eyebrow="every edit re-runs the simulation live">
         <Card style={{ padding: 0 }}>
           <button
@@ -1941,8 +2188,8 @@ function RetirementV2Inner() {
                 />
                 <Lever
                   label="Retirement age" testId="rv2-lever-retire"
-                  min={Math.min(currentAge + 1, 75)} max={75} value={retireAge} onChange={setRetireAge}
-                  caption="When saving stops and withdrawals begin."
+                  min={currentAge} max={Math.max(75, currentAge)} value={retireAge} onChange={setRetireAge}
+                  caption="When saving stops and withdrawals begin. Set it to your current age to retire now."
                 />
                 <Lever
                   label="Plan through age" testId="rv2-adv-lifeexp"
@@ -1984,7 +2231,7 @@ function RetirementV2Inner() {
                 {strategy === 'constant_dollar' && (
                   <Lever
                     label="Monthly spending in retirement" testId="rv2-lever-spend" prefix="$" suffix="/mo"
-                    min={1000} max={30000} value={monthlySpend} onChange={setMonthlySpend}
+                    min={1} value={monthlySpend} onChange={setMonthlySpend}
                     caption="In today's dollars."
                   />
                 )}
@@ -2155,15 +2402,7 @@ function RetirementV2Inner() {
                       <div key={s.key} style={{ width: `${s.pct}%`, background: s.color, minWidth: 2 }} title={`${s.label} · ${disp[i]}%`} />
                     ))}
                   </div>
-                  <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
-                    {segs.map((s, i) => (
-                      <span key={s.key} className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-content-secondary ui-tnum">
-                        <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} aria-hidden />
-                        {s.label} {disp[i]}%
-                      </span>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-[12px] text-content-muted leading-[1.5] ui-tnum">
+                  <p className="mt-2.5 text-[12px] text-content-muted leading-[1.5] ui-tnum">
                     your actual holdings
                     {blendedReturn !== null && <> · {blendedReturn.toFixed(1)}% blended historical return</>}
                     {derivedEquity !== null && <> · {derivedEquity}% in stocks &amp; REITs</>}
@@ -2219,30 +2458,55 @@ function RetirementV2Inner() {
                 </p>
               </div>
             )}
+
+            {/* Per-asset-class capital-market assumptions (MARKET_MODEL) — the
+                blended figures below drive the server Monte Carlo. */}
+            {effTotal > 0 && allocReturn !== null && blendedVol !== null && (
+              <div className="mt-3.5 rounded-ui-lg border border-line bg-canvas-sunken px-3.5 py-3" data-testid="rv2-assumptions">
+                {/* Column headers mirror the data-row grid below (swatch spacer,
+                    flex-1 title, held/return/vol) so all three numbers align. */}
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-content-muted">
+                  <span className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                  <span className="min-w-0 flex-1 uppercase tracking-[0.06em]">Return &amp; volatility assumptions</span>
+                  <span className="w-9 text-right">held</span>
+                  <span className="w-12 text-right">return</span>
+                  <span className="w-12 text-right">vol</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {ALLOC_META.filter(m => (effAlloc![m.key] ?? 0) > 0).map(m => (
+                    <div key={m.key} className="flex items-center gap-2 text-[12px] text-content-secondary ui-tnum">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: m.color }} aria-hidden />
+                      <span className="min-w-0 flex-1 truncate">{m.label}</span>
+                      <span className="w-9 text-right text-content-muted">{Math.round(((effAlloc![m.key] ?? 0) / effTotal) * 100)}%</span>
+                      <span className="w-12 text-right">{m.ret.toFixed(1)}%</span>
+                      <span className="w-12 text-right text-content-muted">±{m.vol}%</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2.5 border-t border-line pt-2.5 text-[12px] text-content-secondary ui-tnum">
+                  Blended <strong>{expReturn.toFixed(1)}%</strong> expected return · ~{blendedVol.toFixed(1)}% volatility
+                  <span className="text-content-muted"> — drives the Monte Carlo</span>
+                </div>
+              </div>
+            )}
             </div>
 
-            {!isCustomComp && (
+            {/* Expected return only matters in the no-holdings manual path
+                (allocReturn === null → expReturn = baseReturn). Once real
+                holdings load, the server MC derives the return from the
+                allocation, so this lever is hidden to avoid an inert control. */}
+            {!isCustomComp && allocReturn === null && (
             <div className="rv2-group">
             <div className="rv2-subhead">Simulation assumptions</div>
             <div className="rv2-grid2">
               <Lever
-                label="Stocks in portfolio" testId="rv2-adv-equity" suffix="%"
-                min={0} max={100} value={baseEquityPct}
-                onChange={v => { setBaseEquityPct(v); setEquityTouched(true); }}
-                caption={derivedEquity === null ? undefined : equityTouched && baseEquityPct !== derivedEquity ? (
-                  <>adjusted · <button type="button" className="rv2-reset" onClick={() => { setBaseEquityPct(derivedEquity); setEquityTouched(false); }}>reset to your actual {derivedEquity}%</button></>
-                ) : (
-                  'from your actual allocation'
-                )}
-              />
-              <Lever
                 label="Expected return (nominal)" testId="rv2-adv-return" suffix="%" decimals={1}
                 min={3} max={11} value={baseReturn}
                 onChange={v => { setBaseReturn(Math.round(v * 10) / 10); setReturnTouched(true); }}
-                caption={blendedReturn === null ? undefined : returnTouched && baseReturn !== blendedReturn ? (
-                  <>adjusted · <button type="button" className="rv2-reset" onClick={() => { setBaseReturn(blendedReturn); setReturnTouched(false); }}>reset to blended {blendedReturn.toFixed(1)}%</button></>
+                caption={returnTouched ? (
+                  <>adjusted · <button type="button" className="rv2-reset" onClick={() => { setBaseReturn(6.5); setReturnTouched(false); }}>reset to 6.5%</button></>
                 ) : (
-                  "blended from your holdings' historical averages"
+                  'no holdings linked yet — set your assumed annual return, or pick a preset mix above'
                 )}
               />
             </div>
@@ -2255,32 +2519,53 @@ function RetirementV2Inner() {
           )}
         </Card>
       </Section>
+      </div>
 
       {/* ── 3 · Portfolio growth (re-renders per selected method) ──────────── */}
       <Section
         title="Portfolio growth"
         eyebrow={
           method === 'hist'
-            ? `today's dollars · Historical · ${backtestRows?.length ?? 0} cohorts (from ${backtestRows?.[0]?.accStartYear ?? 1928}) · age ${currentAge} → ${lifeExp}`
+            ? `today's dollars · Historical · ${btResult?.startYearCount ?? 0} cohorts (from ${btResult?.firstStartYear ?? 1928}) · age ${currentAge} → ${lifeExp}`
             : isBlend
               ? `today's dollars · Blended return · deterministic · age ${currentAge} → ${lifeExp}`
-              : `today's dollars · Monte Carlo, 1,000 paths · age ${currentAge} → ${currentAge + bands.p50.length - 1}`
+              : `today's dollars · Monte Carlo, 1,000 paths · age ${currentAge} → ${bands.p50.length ? currentAge + bands.p50.length - 1 : lifeExp}`
+        }
+        right={
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:block text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Projection</span>
+            <div className="w-[150px]">
+              <MethodDropdown
+                value={method}
+                onChange={setMethod}
+                ariaLabel="Projection method"
+                triggerTestId="rv2-method-trigger"
+                options={[
+                  { value: 'mc', label: 'Monte Carlo' },
+                  { value: 'hist', label: 'Historical' },
+                  { value: 'blend', label: 'Blended return' },
+                ]}
+              />
+            </div>
+          </div>
         }
       >
         <Card>
           {method === 'hist' ? (
-            histBands ? (
-              <>
+            !btResult ? (
+              <Skeleton className="h-[300px] w-full rounded-ui-xl" />
+            ) : histBands ? (
+              <div style={{ opacity: btLoading ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
                 <FanChartV2 bands={histBands} currentAge={currentAge} retireAge={effRetireAge} clipLabel="best cohorts" percentileLabels={['10th', '25th', 'Median', '75th', '90th']} />
                 <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-hist">
                   <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />10th–90th cohort range</span>
                   <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />25th–75th</span>
                   <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median cohort</span>
                   <span style={{ marginLeft: 'auto' }}>
-                    {backtestRows?.length ?? 0} retirements 1928 on · median at {lifeExp}: <strong>{fmtShort(histBands.p50[histBands.p50.length - 1] || 0)}</strong>
+                    {btResult.startYearCount} retirements 1928 on · median at {lifeExp}: <strong>{fmtShort(histBands.p50[histBands.p50.length - 1] || 0)}</strong>
                   </span>
                 </div>
-              </>
+              </div>
             ) : (
               <p className="text-[13px] text-content-muted">Not enough market history for this horizon — switch method or shorten the plan.</p>
             )
@@ -2296,8 +2581,10 @@ function RetirementV2Inner() {
                 </span>
               </div>
             </>
+          ) : !mcResult ? (
+            <Skeleton className="h-[300px] w-full rounded-ui-xl" />
           ) : (
-            <>
+            <div style={{ opacity: mcLoading ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
               <FanChartV2 bands={realBands} currentAge={currentAge} retireAge={effRetireAge} />
               <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-mc">
                 <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />p5–p95 range</span>
@@ -2307,7 +2594,7 @@ function RetirementV2Inner() {
                   median at {currentAge + realBands.p50.length - 1}: <strong>{fmtShort(realBands.p50[realBands.p50.length - 1] || 0)}</strong>
                 </span>
               </div>
-            </>
+            </div>
           )}
         </Card>
         {/* Methodology footnote (relocated from the removed Chance-of-success
@@ -2452,14 +2739,11 @@ function RetirementV2Inner() {
               className="flex-1 flex items-center justify-between gap-3 cursor-pointer text-left"
             >
               <span className="text-[13.5px] font-semibold text-content">
-                Show the work — one row per year
+                Year by year projection
                 <span className="ml-2.5 text-[12px] font-medium text-content-muted ui-tnum">deterministic at {expReturn.toFixed(1)}%/yr · nominal $</span>
               </span>
               <ChevronDown size={16} className={cn('text-content-muted transition-transform', tableOpen && 'rotate-180')} />
             </button>
-            <Button variant="ghost" size="sm" onClick={exportCsv} data-testid="rv2-csv">
-              <Download size={14} className="mr-1.5" /> CSV
-            </Button>
           </div>
           {tableOpen && (
             <div className="border-t border-line overflow-x-auto" style={{ maxHeight: 420, overflowY: 'auto' }} data-testid="rv2-table">
@@ -2489,48 +2773,44 @@ function RetirementV2Inner() {
         </Card>
       </Section>
 
-      {/* ── 5 · What would make this work ──────────────────────────────────── */}
-      <Section title="What would make this work">
-        <Card>
-          <div data-testid="rv2-suggestions">
-          {suggestions === null ? (
-            <div className="text-[13px] text-content-muted">Crunching alternatives…</div>
-          ) : prob >= TARGET_SUCCESS ? (
-            <div className="flex items-center gap-3">
-              <Sparkles size={18} className="shrink-0" style={{ color: 'rgb(var(--ui-brand-ink))' }} />
-              <p className="text-[13.5px] leading-[1.55] text-content-secondary">
-                You're at <span className="ui-tnum font-bold" style={{ color: 'rgb(var(--ui-brand-ink))' }}>{prob}%</span> — on track.
-                {safeSpend !== null && safeSpend > monthlySpendEff && (
-                  <> You could spend up to <span className="ui-tnum font-semibold">{formatMoney(safeSpend, true)}/mo</span> and stay at the {TARGET_SUCCESS}% target.</>
-                )}
-              </p>
-            </div>
-          ) : suggestions.length === 0 ? (
-            <p className="text-[13.5px] leading-[1.55] text-content-secondary">
-              No single lever gets this plan to {TARGET_SUCCESS}% on its own — try combining a later retirement with lower spending, or revisit the assumptions above.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {suggestions.map((s) => (
-                <div key={s.label} className="flex items-center justify-between gap-3 rounded-ui-md border border-line bg-canvas-sunken px-4 py-3">
-                  <span className="text-[13.5px] font-medium text-content">{s.label}</span>
-                  <span className="text-[13.5px] font-bold ui-tnum shrink-0" style={{ color: s.prob >= TARGET_SUCCESS ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-caution))' }}>
-                    → {s.prob}%
-                  </span>
-                </div>
-              ))}
-              <p className="text-[12px] text-content-muted mt-1">Each move re-simulated on its own, everything else unchanged.</p>
-            </div>
-          )}
-          </div>
-        </Card>
-      </Section>
+      <div className="mt-8">
+        <LegalDisclaimer variant="projections" />
+      </div>
 
-      <p className="mt-8 text-[12px] leading-[1.6] text-content-muted">
-        Coming later: tax-aware withdrawals & Roth conversions, spouse / couples planning, and healthcare & long-term-care costs.
-        Today's model is pre-tax and single-earner — treat results as a planning range, not a guarantee.
-      </p>
-      <LegalDisclaimer variant="projections" />
+      {/* Pinned chance of success — anchored at the end of the page and sticky
+          to the bottom of the viewport. Revealed once the hero's success number
+          scrolls out of view, so the figure follows the reader without ever
+          double-printing next to the hero. Mirrors the currently selected method. */}
+      <div
+        className="ret-pin"
+        data-testid="rv2-pinned-chance"
+        data-hidden={heroNumVisible ? 'true' : 'false'}
+        aria-hidden={heroNumVisible}
+      >
+        <div className="ret-pin__inner">
+          <div className="ret-pin__tier1">
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Outlook</span>
+              <span className="ret-pin__pct font-editorial" style={{ color: compositeColor }}>{composite}</span>
+            </span>
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Monte Carlo</span>
+              <span className="ret-pin__pct font-editorial ui-tnum">{bands.mcSuccessRate}%</span>
+            </span>
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Historical</span>
+              <span className="ret-pin__pct font-editorial ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
+            </span>
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Sustainable draw</span>
+              <span className="ret-pin__pct font-editorial ui-tnum">{formatMoney(sustainableDraw, true)}<span className="text-[12px] font-bold text-content-muted">/mo</span></span>
+            </span>
+          </div>
+          <div className="ret-pin__tier2 ui-tnum">
+            Retiring at {effRetireAge} · {formatMoney(monthlySpendEff, true)}/mo spending · {Math.max(0, lifeExp - effRetireAge)} year retirement · {formatMoney(portfolioValue, true)} portfolio · {formatMoney(monthlySavings, true)}/mo saved · {expReturn.toFixed(1)}% return · {equityPct}% stocks · {strategyLabel} withdrawal strategy · SS {formatMoney(ssMonthly, true)}/mo
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

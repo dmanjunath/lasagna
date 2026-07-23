@@ -9,22 +9,36 @@ import {
   type StrategyParams,
   type WithdrawalContext,
 } from "./withdrawal-strategies.js";
+import {
+  ASSET_CLASSES,
+  MARKET_MODEL,
+  blendedExpectedReturn,
+  blendedVolatility,
+  type AssetAllocation,
+} from "./market-assumptions.js";
 
-export interface AssetAllocation {
-  usStocks: number;
-  intlStocks: number;
-  bonds: number;
-  reits: number;
-  cash: number;
+export type { AssetAllocation } from "./market-assumptions.js";
+export { ASSET_CLASSES, MARKET_MODEL, blendedExpectedReturn, blendedVolatility };
+
+// Alias so the engine's existing references to MODEL continue to work unchanged.
+const MODEL = MARKET_MODEL;
+
+// Matches the client-side SEED constant in retirement-engine.ts.
+export const DEFAULT_SEED = 0x9e3779b9;
+
+/**
+ * Mulberry32 seeded pseudo-random number generator.
+ * Taken verbatim from packages/web/src/lib/retirement-engine.ts.
+ */
+export function makeRng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
-
-const ASSET_CLASSES: (keyof AssetAllocation)[] = [
-  "usStocks",
-  "intlStocks",
-  "bonds",
-  "reits",
-  "cash",
-];
 
 export interface AssetFees {
   equities?: number;
@@ -45,6 +59,7 @@ export interface MonteCarloParams {
   strategyParams?: StrategyParams;
   includeSamplePaths?: boolean; // Whether to include sample paths for spaghetti chart
   numSamplePaths?: number; // Number of sample paths to include (default: 10)
+  seed?: number; // Optional seed for reproducible results
 }
 
 export interface HistogramBucket {
@@ -76,15 +91,6 @@ export interface MonteCarloResult {
   samplePaths?: number[][]; // Optional sample paths for spaghetti visualization
 }
 
-// Historical market data-based models (simplified)
-const MODEL = {
-  usStocks: { mean: 0.10, stdDev: 0.18 }, // 10% avg return, 18% volatility
-  intlStocks: { mean: 0.08, stdDev: 0.20 }, // 8% avg return, 20% volatility
-  bonds: { mean: 0.05, stdDev: 0.07 }, // 5% avg return, 7% volatility
-  reits: { mean: 0.09, stdDev: 0.22 }, // 9% avg return, 22% volatility
-  cash: { mean: 0.02, stdDev: 0.01 }, // 2% avg return, 1% volatility
-  inflation: { mean: 0.03, stdDev: 0.015 }, // 3% avg inflation, 1.5% volatility
-};
 
 export class MonteCarloEngine {
   /**
@@ -95,9 +101,13 @@ export class MonteCarloEngine {
     const failureYears: number[] = [];
     let successCount = 0;
 
+    // One rng instance shared across all simulations and all draws within them,
+    // so a fixed seed produces fully reproducible results.
+    const rng = makeRng(params.seed ?? DEFAULT_SEED);
+
     // Run all simulations
     for (let i = 0; i < params.numSimulations; i++) {
-      const simulation = this.runSingleSimulation(params);
+      const simulation = this.runSingleSimulation(params, rng);
       simulations.push(simulation);
 
       // Check if simulation succeeded (balance never went to zero)
@@ -156,7 +166,7 @@ export class MonteCarloEngine {
   /**
    * Run a single simulation path
    */
-  private runSingleSimulation(params: MonteCarloParams): number[] {
+  private runSingleSimulation(params: MonteCarloParams, rng: () => number): number[] {
     const strategy: StrategyType = params.strategy ?? "constant_dollar";
     const strategyParams: StrategyParams = params.strategyParams ?? { inflationAdjusted: true };
     const isRulesBased = strategy === "rules_based";
@@ -187,7 +197,7 @@ export class MonteCarloEngine {
             ? (fees.equities ?? 0)
             : cls === "bonds" ? (fees.bonds ?? 0)
             : (fees.reits ?? 0);
-          r = this.randomNormal(MODEL[cls].mean, MODEL[cls].stdDev) - fee;
+          r = this.randomNormal(MODEL[cls].mean, MODEL[cls].stdDev, rng) - fee;
         }
         returns[cls] = r;
         balanceByClass[cls] *= 1 + r;
@@ -202,7 +212,8 @@ export class MonteCarloEngine {
       // Generate inflation for this year
       const yearInflationRate = this.randomNormal(
         MODEL.inflation.mean,
-        MODEL.inflation.stdDev
+        MODEL.inflation.stdDev,
+        rng
       );
       cumulativeInflation *= 1 + yearInflationRate;
 
@@ -277,9 +288,9 @@ export class MonteCarloEngine {
   /**
    * Generate random number from normal distribution using Box-Muller transform
    */
-  private randomNormal(mean: number, stdDev: number): number {
-    const u1 = Math.random();
-    const u2 = Math.random();
+  private randomNormal(mean: number, stdDev: number, rng: () => number): number {
+    const u1 = rng();
+    const u2 = rng();
     const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
     return mean + stdDev * z0;
   }
