@@ -29,6 +29,7 @@ import { adminRoutes } from "./routes/admin.js";
 import { rulesRoutes } from "./routes/rules.js";
 import { categoryRoutes } from "./routes/categories.js";
 import { placesRoutes } from "./routes/places.js";
+import { retirementSimRouter } from "./routes/retirement-sim.js";
 
 export const app = new Hono<AuthEnv>();
 
@@ -107,7 +108,7 @@ app.use("/api/*", async (ctx, next) => {
   }
 
   // Allow read-only computation and chat routes through
-  const allowed = ["/api/chat", "/api/simulations", "/api/threads"];
+  const allowed = ["/api/chat", "/api/simulations", "/api/threads", "/api/retirement"];
   if (allowed.some((p) => path === p || path.startsWith(p + "/"))) {
     return next();
   }
@@ -144,3 +145,4 @@ app.route("/api/admin", adminRoutes);
 app.route("/api/rules", rulesRoutes);
 app.route("/api/categories", categoryRoutes);
 app.route("/api/places", placesRoutes);
+app.route("/api/retirement", retirementSimRouter);

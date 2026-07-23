@@ -1,11 +1,12 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { getMonteCarloEngine } from "../../services/monte-carlo.js";
-import { getBacktester } from "../../services/backtester.js";
 import { getScenarioEngine } from "../../services/scenario.js";
 import { getSimulationCache } from "../../services/simulation-cache.js";
 import { getHoldingsInput } from "../../routes/portfolio.js";
 import { aggregatePortfolio, extractAllocation } from "../../services/portfolio-aggregator.js";
+import { runRetirementSim } from "../../services/retirement-sim.js";
+import { runRetirementBacktest } from "../../services/retirement-backtest.js";
+import { resolveSimInputs } from "../../services/resolve-sim-inputs.js";
 
 export function createSimulationTools(tenantId: string) {
   return {
@@ -42,199 +43,146 @@ export function createSimulationTools(tenantId: string) {
 
     run_monte_carlo: tool({
       description:
-        "Run Monte Carlo simulation to test retirement portfolio sustainability with stochastic returns",
+        "Simulate the user's actual retirement plan using Monte Carlo analysis. Unspecified values default " +
+        "to the user's real data (portfolio balance, spending, savings, allocation, Social Security, etc.). " +
+        "Only pass overrides for explicit what-if questions (e.g. 'what if I retire at 55?'). " +
+        "Returns success rate, median balance trajectory, and percentile bands.",
       inputSchema: z.object({
-        planId: z.string().uuid().optional(),
-        initialBalance: z.number().positive(),
-        withdrawalRate: z
-          .number()
-          .min(0)
-          .max(1)
-          .describe("Annual withdrawal as percentage (e.g., 0.04 for 4%)"),
-        yearsToSimulate: z.number().int().positive(),
-        assetAllocation: z.object({
-          usStocks: z.number().min(0).max(1),
-          intlStocks: z.number().min(0).max(1),
-          bonds: z.number().min(0).max(1),
-          reits: z.number().min(0).max(1),
-          cash: z.number().min(0).max(1),
-        }).default({ usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 }),
-        inflationAdjusted: z.boolean().default(true),
-        numSimulations: z.number().int().positive().default(1000),
+        retirementAge: z.number().int().positive().optional(),
+        planThroughAge: z.number().int().positive().optional(),
+        monthlySpend: z.number().nonnegative().optional(),
+        monthlySavings: z.number().nonnegative().optional(),
+        startingBalance: z.number().nonnegative().optional(),
+        ssMonthly: z.number().nonnegative().optional(),
+        ssClaimAge: z.number().int().positive().optional(),
+        otherMonthly: z.number().nonnegative().optional(),
+        otherStartAge: z.number().int().positive().optional(),
+        strategy: z
+          .enum(["constant_dollar", "percent_of_portfolio", "guardrails", "rules_based"])
+          .optional(),
+        allocation: z
+          .object({
+            usStocks: z.number().min(0).max(1),
+            intlStocks: z.number().min(0).max(1),
+            bonds: z.number().min(0).max(1),
+            reits: z.number().min(0).max(1),
+            cash: z.number().min(0).max(1),
+          })
+          .optional(),
+        numSimulations: z.number().int().positive().optional(),
       }),
       execute: async (params) => {
-        // Use default allocation if not provided or malformed
-        const allocation = params.assetAllocation ?? { usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 };
+        const inputs = await resolveSimInputs(tenantId, params);
+        const result = runRetirementSim(inputs);
 
-        // Validate allocation sums to 1
-        const allocationSum =
-          allocation.usStocks +
-          allocation.intlStocks +
-          allocation.bonds +
-          allocation.reits +
-          allocation.cash;
-        if (Math.abs(allocationSum - 1) > 0.01) {
-          return {
-            error: "Asset allocation must sum to 1 (100%)",
-            currentSum: allocationSum,
-          };
-        }
-
-        // Check cache if planId provided
-        const cache = getSimulationCache();
-        if (params.planId) {
-          const cached = await cache.get(
-            params.planId,
-            "monte_carlo",
-            params
-          );
-          if (cached) {
-            return { ...cached, cached: true };
-          }
-        }
-
-        // Run simulation
-        const engine = getMonteCarloEngine();
-        const result = engine.run({
-          initialBalance: params.initialBalance,
-          annualWithdrawal: params.initialBalance * params.withdrawalRate,
-          yearsToSimulate: params.yearsToSimulate,
-          assetAllocation: allocation,
-          numSimulations: params.numSimulations,
-          strategyParams: { inflationAdjusted: params.inflationAdjusted },
-        });
-
-        // Cache result if planId provided
-        if (params.planId) {
-          await cache.set(params.planId, tenantId, "monte_carlo", params, result);
-        }
-
-        // Return a compact summary for the LLM (full percentile arrays are too large)
+        // Compact LLM-facing summary — full percentile arrays are too large for context.
         const lastIdx = result.percentiles.p50.length - 1;
+        const midIdx = Math.floor(lastIdx / 2);
         return {
-          numSimulations: result.numSimulations,
-          successRate: result.successRate,
-          finalBalanceDistribution: result.finalBalanceDistribution,
-          failureStats: result.failureStats,
-          // Only include start, midpoint, and end of percentiles to save tokens
-          percentileSummary: {
-            start: { p5: result.percentiles.p5[0], p50: result.percentiles.p50[0], p95: result.percentiles.p95[0] },
-            mid: { p5: result.percentiles.p5[Math.floor(lastIdx / 2)], p50: result.percentiles.p50[Math.floor(lastIdx / 2)], p95: result.percentiles.p95[Math.floor(lastIdx / 2)] },
-            end: { p5: result.percentiles.p5[lastIdx], p50: result.percentiles.p50[lastIdx], p95: result.percentiles.p95[lastIdx] },
+          successRate: Math.round(result.successRate * 100),
+          medianLastsToAge: result.medianLastsToAge,
+          blendedExpectedReturn: Math.round(result.blendedExpectedReturn * 10000) / 100,
+          horizonYears: result.horizonYears,
+          finalBalanceDistribution: {
+            mean: Math.round(result.finalBalanceDistribution.mean),
+            median: Math.round(result.finalBalanceDistribution.median),
           },
-          cached: false,
+          percentileSummary: {
+            start: {
+              p5: result.percentiles.p5[0],
+              p50: result.percentiles.p50[0],
+              p95: result.percentiles.p95[0],
+            },
+            mid: {
+              p5: result.percentiles.p5[midIdx],
+              p50: result.percentiles.p50[midIdx],
+              p95: result.percentiles.p95[midIdx],
+            },
+            end: {
+              p5: result.percentiles.p5[lastIdx],
+              p50: result.percentiles.p50[lastIdx],
+              p95: result.percentiles.p95[lastIdx],
+            },
+          },
         };
       },
     }),
 
     run_backtest: tool({
       description:
-        "Run historical backtesting to test portfolio against actual market data",
+        "Backtest the user's actual retirement plan against real historical market data " +
+        "(S&P 500 + bonds + CPI, every start year from 1928 on). Unspecified values default " +
+        "to the user's real data (portfolio balance, spending, savings, allocation, Social " +
+        "Security, etc.). Only pass overrides for explicit what-if questions (e.g. 'what if I " +
+        "retire at 55?'). Returns the historical success rate, how many start-year cohorts " +
+        "were tested, and the median real-dollar balance trajectory across cohorts.",
       inputSchema: z.object({
-        planId: z.string().uuid().optional(),
-        initialBalance: z.number().positive(),
-        withdrawalRate: z
-          .number()
-          .min(0)
-          .max(1)
-          .describe("Annual withdrawal as percentage (e.g., 0.04 for 4%)"),
-        yearsToSimulate: z.number().int().positive(),
-        assetAllocation: z.object({
-          usStocks: z.number().min(0).max(1),
-          intlStocks: z.number().min(0).max(1),
-          bonds: z.number().min(0).max(1),
-          reits: z.number().min(0).max(1),
-          cash: z.number().min(0).max(1),
-        }).default({ usStocks: 0.6, intlStocks: 0, bonds: 0.4, reits: 0, cash: 0 }),
-        inflationAdjusted: z.boolean().default(true),
-        startYearRange: z
+        retirementAge: z.number().int().positive().optional(),
+        planThroughAge: z.number().int().positive().optional(),
+        monthlySpend: z.number().nonnegative().optional(),
+        monthlySavings: z.number().nonnegative().optional(),
+        startingBalance: z.number().nonnegative().optional(),
+        ssMonthly: z.number().nonnegative().optional(),
+        ssClaimAge: z.number().int().positive().optional(),
+        otherMonthly: z.number().nonnegative().optional(),
+        otherStartAge: z.number().int().positive().optional(),
+        strategy: z
+          .enum(["constant_dollar", "percent_of_portfolio", "guardrails", "rules_based"])
+          .optional(),
+        allocation: z
           .object({
-            from: z.number().int(),
-            to: z.number().int(),
+            usStocks: z.number().min(0).max(1),
+            intlStocks: z.number().min(0).max(1),
+            bonds: z.number().min(0).max(1),
+            reits: z.number().min(0).max(1),
+            cash: z.number().min(0).max(1),
           })
           .optional(),
       }),
       execute: async (params) => {
-        // Use default allocation if not provided or malformed
-        const allocation = params.assetAllocation ?? { usStocks: 0.6, intlStocks: 0, bonds: 0.4, reits: 0, cash: 0 };
+        const inputs = await resolveSimInputs(tenantId, params);
+        const result = runRetirementBacktest(inputs);
 
-        // Validate allocation sums to 1
-        const allocationSum =
-          allocation.usStocks +
-          allocation.intlStocks +
-          allocation.bonds +
-          allocation.reits +
-          allocation.cash;
-        if (Math.abs(allocationSum - 1) > 0.01) {
-          return {
-            error: "Asset allocation must sum to 1 (100%)",
-            currentSum: allocationSum,
-          };
-        }
-
-        // Check cache if planId provided
-        const cache = getSimulationCache();
-        if (params.planId) {
-          const cached = await cache.get(params.planId, "backtest", params);
-          if (cached) {
-            return { ...cached, cached: true };
-          }
-        }
-
-        // Run backtest
-        const backtester = getBacktester();
-        const result = backtester.run({
-          initialBalance: params.initialBalance,
-          annualWithdrawal: params.initialBalance * params.withdrawalRate,
-          yearsToSimulate: params.yearsToSimulate,
-          assetAllocation: allocation,
-          strategy: "constant_dollar",
-          strategyParams: { inflationAdjusted: params.inflationAdjusted },
-          startYearRange: params.startYearRange,
-        });
-
-        // Cache result if planId provided
-        if (params.planId) {
-          await cache.set(params.planId, tenantId, "backtest", params, result);
-        }
-
-        // Return compact summary — full period details are too large for LLM context
-        const worstPeriod = result.periods.length > 0
-          ? result.periods.reduce((w, p) => (p.endBalance < w.endBalance ? p : w), result.periods[0])
-          : null;
-        const bestPeriod = result.periods.length > 0
-          ? result.periods.reduce((b, p) => (p.endBalance > b.endBalance ? p : b), result.periods[0])
-          : null;
+        // Compact LLM-facing summary — full cohort bands are too large for context.
+        const lastIdx = result.cohortBands.p50.length - 1;
+        const midIdx = Math.floor(lastIdx / 2);
         return {
-          totalPeriods: result.totalPeriods,
-          successfulPeriods: result.successfulPeriods,
-          successRate: result.successRate,
-          worstPeriod: worstPeriod ? { startYear: worstPeriod.startYear, endBalance: worstPeriod.endBalance, status: worstPeriod.status } : null,
-          bestPeriod: bestPeriod ? { startYear: bestPeriod.startYear, endBalance: bestPeriod.endBalance } : null,
-          cached: false,
+          successRate: Math.round(result.successRate * 100),
+          startYearCount: result.startYearCount,
+          firstStartYear: result.firstStartYear,
+          horizonYears: result.horizonYears,
+          // Median real-dollar balance across cohorts at the start, midpoint, and end.
+          cohortMedianSummary: {
+            start: result.cohortBands.p50[0],
+            mid: result.cohortBands.p50[midIdx],
+            end: result.cohortBands.p50[lastIdx],
+          },
         };
       },
     }),
 
     run_scenario: tool({
       description:
-        "Test portfolio against specific historical crisis scenarios like 2008 crash or Great Depression",
+        "Test portfolio against specific historical crisis scenarios like 2008 crash or Great Depression. " +
+        "initialBalance, assetAllocation, and retirementDuration default to the user's real plan data when omitted.",
       inputSchema: z.object({
         planId: z.string().uuid().optional(),
-        initialBalance: z.number().positive(),
+        initialBalance: z.number().positive().optional(),
         withdrawalRate: z
           .number()
           .min(0)
           .max(1)
           .describe("Annual withdrawal as percentage (e.g., 0.04 for 4%)"),
-        retirementDuration: z.number().int().positive(),
-        assetAllocation: z.object({
-          usStocks: z.number().min(0).max(1),
-          intlStocks: z.number().min(0).max(1),
-          bonds: z.number().min(0).max(1),
-          reits: z.number().min(0).max(1),
-          cash: z.number().min(0).max(1),
-        }).default({ usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 }),
+        retirementDuration: z.number().int().positive().optional(),
+        assetAllocation: z
+          .object({
+            usStocks: z.number().min(0).max(1),
+            intlStocks: z.number().min(0).max(1),
+            bonds: z.number().min(0).max(1),
+            reits: z.number().min(0).max(1),
+            cash: z.number().min(0).max(1),
+          })
+          .optional(),
         scenario: z.enum([
           "crash_2008",
           "great_depression",
@@ -252,8 +200,17 @@ export function createSimulationTools(tenantId: string) {
           .optional(),
       }),
       execute: async (params) => {
-        // Use default allocation if not provided or malformed
-        const allocation = params.assetAllocation ?? { usStocks: 0.6, intlStocks: 0, bonds: 0.3, reits: 0, cash: 0.1 };
+        // Fill omitted shared inputs from the user's real plan.
+        let allocation = params.assetAllocation;
+        let initialBalance = params.initialBalance;
+        let retirementDuration = params.retirementDuration;
+
+        if (!allocation || initialBalance === undefined || retirementDuration === undefined) {
+          const resolved = await resolveSimInputs(tenantId);
+          allocation ??= resolved.allocation;
+          initialBalance ??= resolved.startingBalance;
+          retirementDuration ??= resolved.planThroughAge - resolved.retirementAge;
+        }
 
         // Validate allocation sums to 1
         const allocationSum =
@@ -286,12 +243,12 @@ export function createSimulationTools(tenantId: string) {
           }
         }
 
-        // Run scenario
+        // Run scenario (crisis engine; %-based withdrawal — unchanged from original)
         const engine = getScenarioEngine();
         const result = engine.run({
-          initialBalance: params.initialBalance,
+          initialBalance,
           withdrawalRate: params.withdrawalRate,
-          retirementDuration: params.retirementDuration,
+          retirementDuration,
           assetAllocation: allocation,
           scenario: params.scenario,
           customParams: params.customParams,
