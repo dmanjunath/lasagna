@@ -918,7 +918,56 @@ export const api = {
       created: { accounts: { id: string; name: string }[]; goals: { id: string; name: string }[] };
       profileUpdated: boolean;
     }>('/quick-import/commit', { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Retirement Monte Carlo — server engine (same runRetirementSim the chat uses).
+  simulateRetirement: (overrides: RetirementSimOverrides) =>
+    request<SimResult>('/retirement/simulate', { method: 'POST', body: JSON.stringify(overrides) }),
+
+  // Retirement historical backtest — same server engine the chat's run_backtest uses.
+  backtestRetirement: (overrides: RetirementSimOverrides) =>
+    request<BacktestSummary>('/retirement/backtest', { method: 'POST', body: JSON.stringify(overrides) }),
 };
+
+// ─── Retirement simulation types ───────────────────────────────────────────
+
+// Partial overrides accepted by POST /retirement/simulate. `allocation` fields
+// must be fractions summing to ~1.0 (the route validates the sum).
+export interface RetirementSimOverrides {
+  currentAge?: number;
+  retirementAge?: number;
+  planThroughAge?: number;
+  startingBalance?: number;
+  monthlySavings?: number;
+  monthlySpend?: number;
+  strategy?: string;
+  strategyParams?: Record<string, unknown>;
+  ssMonthly?: number;
+  ssClaimAge?: number;
+  otherMonthly?: number;
+  otherStartAge?: number;
+  allocation?: { usStocks: number; intlStocks: number; bonds: number; reits: number; cash: number };
+  numSimulations?: number;
+}
+
+export interface SimResult {
+  successRate: number; // 0..1
+  percentiles: { p5: number[]; p25: number[]; p50: number[]; p75: number[]; p95: number[] }; // index 0 = currentAge
+  medianLastsToAge: number | null;
+  finalBalanceDistribution: { mean: number; median: number; stdDev: number };
+  blendedExpectedReturn: number; // fraction, e.g. 0.092
+  horizonYears: number;
+}
+
+// Result of POST /retirement/backtest — historical cohort backtest across
+// start-years since 1928. cohortBands are real (today's) dollars, index 0 =
+// currentAge; p5/p95 hold the 10th/90th percentiles across cohorts.
+export interface BacktestSummary {
+  successRate: number; // 0..1 across start-years
+  startYearCount: number;
+  firstStartYear: number; // e.g. 1928
+  cohortBands: { p5: number[]; p25: number[]; p50: number[]; p75: number[]; p95: number[] };
+  horizonYears: number;
+}
 
 // ─── Quick Import types ────────────────────────────────────────────────────
 

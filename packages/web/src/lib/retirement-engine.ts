@@ -173,21 +173,6 @@ export function computeWithdrawal(
   }
 }
 
-// ── Deterministic RNG (mulberry32) ───────────────────────────────────────────
-// Seeding makes a Monte Carlo run reproducible so every consumer of the same
-// inputs shows the same number (avoids the "98% vs 96%" flicker between two
-// independent 1,000-run passes). The MC algorithm itself is unchanged.
-
-export function makeRng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 // ── Era label ────────────────────────────────────────────────────────────────
 
 const ERA_LABELS: Array<[number, number, string]> = [

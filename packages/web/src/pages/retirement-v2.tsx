@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
-import { api } from '../lib/api';
+import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
@@ -10,19 +10,23 @@ import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import { Button, SegmentedControl, Skeleton } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
 import {
-  buildBands, runBacktest, makeRng, computeWithdrawal,
-  type WithdrawalStrategy, type BacktestRow, type StrategyParams,
+  computeWithdrawal,
+  type WithdrawalStrategy, type StrategyParams,
 } from '../lib/retirement-engine';
+import { sustainableDrawRate } from '../lib/retirement-kpi';
 
 // ── Model constants ──────────────────────────────────────────────────────────
-const SEED = 0x9e3779b9;
 const INFLATION = 0.03;           // matches the engine's hardcoded MC inflation
-const TARGET_SUCCESS = 85;        // "on track" threshold + safe-spend target
+const TARGET_SUCCESS = 85;        // "on track" threshold for the verdict display
 const SMILE_DECLINE = 0.99;       // ~1%/yr real spending decline when enabled
 
 // Social Security quick estimate — 2025 bend points + wage cap. A deliberate
 // rough cut (assumes current income ≈ career-average indexed earnings); the
 // user can overwrite the dollar figure directly.
+//
+// SERVER MIRROR: this is duplicated verbatim in
+// packages/api/src/services/retirement-defaults.ts (estimateSSMonthly) so the
+// chat agent resolves the same SS figure. INVARIANT: keep the two in lockstep.
 const SS_WAGE_CAP = 176_100;
 function estimateSSMonthly(annualIncome: number, claimAge: number): number {
   if (annualIncome <= 0) return 0;
@@ -38,46 +42,6 @@ function estimateSSMonthly(annualIncome: number, claimAge: number): number {
     ? 1 + Math.min(months, 36) * (0.08 / 12)
     : 1 - Math.min(-months, 36) * (5 / 900) - Math.max(0, -months - 36) * (5 / 1200);
   return Math.round(pia * factor);
-}
-
-// Guaranteed-income schedule for the Monte Carlo engine: nominal $/yr at each
-// age. SS + other income grow at the model's 3% from retirement (COLA), and
-// the spending "smile" is folded in as a reduction against the engine's
-// inflation-grown constant-dollar target (need·1.03ᵗ·(1 − 0.99ᵗ) ≥ 0).
-function makeGiFn(opts: {
-  retireAge: number; ssAnnual: number; ssClaimAge: number;
-  otherAnnual: number; otherStartAge: number;
-  smile: boolean; annualSpend: number;
-}): ((age: number) => number) | undefined {
-  const { retireAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend } = opts;
-  if (ssAnnual <= 0 && otherAnnual <= 0 && !smile) return undefined;
-  return (age: number) => {
-    const t = Math.max(0, age - retireAge);
-    const infl = Math.pow(1 + INFLATION, t);
-    let gi = 0;
-    if (ssAnnual > 0 && age >= ssClaimAge) gi += ssAnnual * infl;
-    if (otherAnnual > 0 && age >= otherStartAge) gi += otherAnnual * infl;
-    if (smile) gi += annualSpend * infl * (1 - Math.pow(SMILE_DECLINE, t));
-    return gi;
-  };
-}
-
-// Same schedule for the historical backtest — real (first-retirement-year) $
-// per withdrawal-year index; the engine applies its own CPI factor.
-function makeGiArray(opts: {
-  retireAge: number; lifeHorizon: number; ssAnnual: number; ssClaimAge: number;
-  otherAnnual: number; otherStartAge: number; smile: boolean; annualSpend: number;
-}): number[] | undefined {
-  const { retireAge, lifeHorizon, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend } = opts;
-  if (ssAnnual <= 0 && otherAnnual <= 0 && !smile) return undefined;
-  return Array.from({ length: lifeHorizon }, (_, i) => {
-    const age = retireAge + i;
-    let gi = 0;
-    if (ssAnnual > 0 && age >= ssClaimAge) gi += ssAnnual;
-    if (otherAnnual > 0 && age >= otherStartAge) gi += otherAnnual;
-    if (smile) gi += annualSpend * (1 - Math.pow(SMILE_DECLINE, i));
-    return gi;
-  });
 }
 
 // ── Formatting ───────────────────────────────────────────────────────────────
@@ -1027,17 +991,19 @@ function Chip({ children }: { children: React.ReactNode }) {
 // canonical formatted value. The helper row is always rendered (min-height
 // reserved) so side-by-side fields stay equal-height across the grid.
 function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, suffix, decimals = 0, caption }: {
-  label: React.ReactNode; ariaLabel?: string; min: number; max: number;
+  label: React.ReactNode; ariaLabel?: string; min: number; max?: number;
   value: number; onChange: (v: number) => void; testId?: string;
   prefix?: string; suffix?: string; decimals?: number; caption?: React.ReactNode;
 }) {
+  // Omit `max` for an open-ended field (floored at `min`, no upper bound).
+  const hi = max ?? Infinity;
   const [draft, setDraft] = useState<string | null>(null);
   const fmt = (v: number) => (decimals > 0 ? v.toFixed(decimals) : Math.round(v).toLocaleString('en-US'));
   const parse = (s: string) => (decimals > 0 ? parseFloat(s) : parseInt(s, 10));
   const clean = (s: string) => (decimals > 0 ? s.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1') : s.replace(/[^0-9]/g, ''));
   const commit = () => {
     const v = parse(draft ?? '');
-    const clamped = Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : value;
+    const clamped = Number.isFinite(v) ? Math.max(min, Math.min(hi, v)) : value;
     onChange(decimals > 0 ? Math.round(clamped * 10 ** decimals) / 10 ** decimals : Math.round(clamped));
     setDraft(null);
   };
@@ -1059,7 +1025,7 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
             const raw = clean(e.target.value);
             setDraft(raw);
             const v = parse(raw);
-            if (Number.isFinite(v) && v >= min && v <= max) onChange(v);
+            if (Number.isFinite(v) && v >= min && v <= hi) onChange(v);
           }}
           onBlur={commit}
           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
@@ -1069,7 +1035,8 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
         {suffix && <span className="rv2-input__affix">{suffix}</span>}
       </span>
       <div className="rv2-field__help">
-        {caption}{caption && ' · '}<span className="rv2-field__range">{hint(min)}–{hint(max)}</span>
+        {caption}
+        {max !== undefined && <>{caption && ' · '}<span className="rv2-field__range">{hint(min)}–{hint(max)}</span></>}
       </div>
     </div>
   );
@@ -1114,12 +1081,14 @@ function NumInput({ value, onChange, min, max, money = false, prefix, suffix, wi
 // ── Portfolio composition (real holdings) ────────────────────────────────────
 // Fixed label/color/return metadata for the allocation categories the API
 // returns — same palette the /retirement page uses for its allocation bar.
-const ALLOC_META: Array<{ key: string; label: string; color: string; ret: number }> = [
-  { key: 'usStocks', label: 'US stocks', color: 'var(--ui-viz-2)', ret: 10.0 },
-  { key: 'intlStocks', label: "Int'l stocks", color: 'var(--ui-viz-5)', ret: 7.5 },
-  { key: 'bonds', label: 'Bonds', color: 'var(--ui-viz-1)', ret: 5.0 },
-  { key: 'reits', label: 'REITs', color: 'var(--ui-viz-3)', ret: 9.5 },
-  { key: 'cash', label: 'Cash', color: 'var(--ui-viz-7)', ret: 2.0 },
+// `ret`/`vol` mirror the server MARKET_MODEL (market-assumptions.ts) — keep in
+// lockstep so the displayed blended expected return matches the Monte Carlo.
+const ALLOC_META: Array<{ key: string; label: string; color: string; ret: number; vol: number }> = [
+  { key: 'usStocks', label: 'US stocks', color: 'var(--ui-viz-2)', ret: 10.0, vol: 18 },
+  { key: 'intlStocks', label: "Int'l stocks", color: 'var(--ui-viz-5)', ret: 8.0, vol: 20 },
+  { key: 'bonds', label: 'Bonds', color: 'var(--ui-viz-1)', ret: 5.0, vol: 7 },
+  { key: 'reits', label: 'REITs', color: 'var(--ui-viz-3)', ret: 9.0, vol: 22 },
+  { key: 'cash', label: 'Cash', color: 'var(--ui-viz-7)', ret: 2.0, vol: 1 },
 ];
 
 // Preset risk profiles from the /retirement advanced view (SimulateView) —
@@ -1197,12 +1166,10 @@ function RetirementV2Inner() {
   const [inputsOpen, setInputsOpen] = useState(false);
   const [inputsTab, setInputsTab] = useState<'you' | 'portfolio'>('you');
   const inputsRef = useRef<HTMLDivElement>(null);
-  const [baseEquityPct, setBaseEquityPct] = useState(60);
-  const [equityTouched, setEquityTouched] = useState(false);
   const [baseReturn, setBaseReturn] = useState(6.5);
   const [returnTouched, setReturnTouched] = useState(false);
-  // Composition switch: 'current' = the real portfolio (baseEquityPct /
-  // baseReturn above); a preset or custom mix derives both from customAlloc.
+  // Composition switch: 'current' = the real portfolio (derivedEquity /
+  // baseReturn); a preset or custom mix derives both from customAlloc.
   const [compPreset, setCompPreset] = useState<CompPreset>('current');
   const [customAlloc, setCustomAlloc] = useState<Record<string, number>>({ ...COMP_PRESETS[1].alloc });
   const [lifeExp, setLifeExp] = useState(90);
@@ -1301,10 +1268,13 @@ function RetirementV2Inner() {
       // Spending → desired retirement spend default (monthly)
       const sd = spendingData as { totalSpending?: number } | null;
       const monthly = sd && sd.totalSpending && sd.totalSpending > 0 ? Math.round(sd.totalSpending) : 5000;
-      setMonthlySpend(Math.max(1000, Math.min(30000, monthly)));
+      setMonthlySpend(Math.max(1, monthly));
 
       // Savings estimate: after-tax income minus current spending, plus a rough
       // employer match — just a starting point for the lever.
+      // SERVER MIRROR: this savings/spend derivation is replicated in
+      // packages/api/src/services/retirement-defaults.ts (deriveSimInputs) so
+      // the chat agent starts from the same inputs. INVARIANT: keep in lockstep.
       if (income > 0) {
         const annualSavings = Math.max(0, income * 0.75 - monthly * 12) + income * (matchPct / 100);
         setMonthlySavings(Math.max(0, Math.min(15000, Math.round(annualSavings / 12 / 50) * 50)));
@@ -1320,7 +1290,6 @@ function RetirementV2Inner() {
           setAllocation(a);
           const eq = ((a.usStocks ?? 0) + (a.intlStocks ?? 0) + (a.reits ?? 0)) / total;
           setDerivedEquity(Math.round(eq * 100));
-          setBaseEquityPct(Math.round(eq * 100));
           allocBlend = ALLOC_META.reduce((s, m) => s + (a[m.key] ?? 0) * m.ret, 0) / total;
           // Seed the custom-composition editor from the real mix, so "Custom"
           // starts where the user actually is.
@@ -1346,16 +1315,33 @@ function RetirementV2Inner() {
   }, [annualIncome, ssClaimAge, ssTouched]);
 
   // ── Effective composition ──────────────────────────────────────────────────
-  // 'current' uses the real-portfolio-derived (and hand-adjustable) equity % +
-  // expected return; a preset/custom allocation derives both from the same
-  // allocation-weighted historical averages the old /retirement advanced view
-  // uses — every consumer below (chips, sims, drawdown, labels) reads these.
+  // 'current' uses the real-portfolio-derived equity % + expected return; a
+  // preset/custom allocation derives both from the same allocation-weighted
+  // historical averages the old /retirement advanced view uses — every consumer
+  // below (chips, sims, drawdown, labels) reads these.
   const isCustomComp = compPreset !== 'current';
   const customTotal = ALLOC_META.reduce((s, m) => s + (customAlloc[m.key] ?? 0), 0);
   const customReturn = Math.round((ALLOC_META.reduce((s, m) => s + (customAlloc[m.key] ?? 0) * m.ret, 0) / (customTotal || 1)) * 10) / 10;
   const customEquityPct = Math.round((((customAlloc.usStocks ?? 0) + (customAlloc.intlStocks ?? 0) + (customAlloc.reits ?? 0)) / (customTotal || 1)) * 100);
-  const equityPct = isCustomComp ? customEquityPct : baseEquityPct;
-  const expReturn = isCustomComp ? customReturn : baseReturn;
+  // Stock/bond split for the summary chip + no-holdings caption: real
+  // allocation-derived equity for "My portfolio" (falling back to 60% before
+  // holdings load), or the preset/custom mix's equity fraction.
+  const equityPct = isCustomComp ? customEquityPct : (derivedEquity ?? 60);
+
+  // Effective allocation (what the server MC actually runs) → MARKET_MODEL-
+  // weighted blended return/vol via the reconciled ALLOC_META. `expReturn` reads
+  // from this for BOTH presets so the deterministic "Blended" path and every
+  // caption match the server MC's `blendedExpectedReturn`. Falls back to the
+  // hand-adjustable baseReturn when the real allocation isn't loaded yet.
+  const effAlloc = compPreset === 'current' ? allocation : customAlloc;
+  const effTotal = effAlloc ? ALLOC_META.reduce((s, m) => s + (effAlloc[m.key] ?? 0), 0) : 0;
+  const allocReturn = effTotal > 0
+    ? Math.round((ALLOC_META.reduce((s, m) => s + ((effAlloc![m.key] ?? 0) * m.ret), 0) / effTotal) * 10) / 10
+    : null;
+  const blendedVol = effTotal > 0
+    ? Math.round((ALLOC_META.reduce((s, m) => s + ((effAlloc![m.key] ?? 0) * m.vol), 0) / effTotal) * 10) / 10
+    : null;
+  const expReturn = allocReturn ?? baseReturn;
 
   const selectCompPreset = (p: typeof COMP_PRESETS[number]) => {
     setCompPreset(p.id);
@@ -1370,7 +1356,6 @@ function RetirementV2Inner() {
   const annualSavings = monthlySavings * 12;
   const ssAnnual = ssMonthly * 12;
   const otherAnnual = otherMonthly * 12;
-  const equityFraction = equityPct / 100;
   const effRetireAge = Math.max(retireAge, currentAge); // engine guard
   const horizonEndAge = Math.max(effRetireAge + 30, 90);
 
@@ -1405,16 +1390,70 @@ function RetirementV2Inner() {
     return undefined;
   }, [strategy, pctRate, gkInitialRate, gkBand, gkAdjust, gkFloorMonthly, gkCeilingMonthly]);
 
-  const giFn = useMemo(
-    () => makeGiFn({ retireAge: effRetireAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend }),
-    [effRetireAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend],
-  );
+  // ── Main Monte Carlo (server engine — same runRetirementSim the chat uses) ──
+  // The effective 5-class mix, normalized to fractions summing to 1 (the
+  // endpoint validates the sum). Falls back to a fraction-safe divisor.
+  const simAllocation = useMemo(() => {
+    const src = compPreset === 'current' ? allocation : customAlloc;
+    const keys = ['usStocks', 'intlStocks', 'bonds', 'reits', 'cash'] as const;
+    const raw = keys.map(k => src?.[k] ?? 0);
+    const total = raw.reduce((s, v) => s + v, 0) || 1;
+    const [usStocks, intlStocks, bonds, reits, cash] = raw.map(v => v / total);
+    return { usStocks, intlStocks, bonds, reits, cash };
+  }, [compPreset, allocation, customAlloc]);
 
-  // Main Monte Carlo (seeded → stable across renders/consumers)
-  const bands = useMemo(
-    () => buildBands(portfolioValue, annualSavings, effRetireAge, currentAge, expReturn, annualSpend, equityFraction, true, strategy, makeRng(SEED), giFn, strategyParams),
-    [portfolioValue, annualSavings, effRetireAge, currentAge, expReturn, annualSpend, equityFraction, strategy, giFn, strategyParams],
-  );
+  const overrides = useMemo<RetirementSimOverrides>(() => ({
+    currentAge,
+    retirementAge: effRetireAge,
+    planThroughAge: lifeExp,
+    startingBalance: portfolioValue,
+    monthlySavings,
+    monthlySpend,
+    ssMonthly,
+    ssClaimAge,
+    otherMonthly,
+    otherStartAge,
+    strategy,
+    strategyParams: strategyParams as Record<string, unknown> | undefined,
+    allocation: simAllocation,
+    numSimulations: 1000,
+  }), [currentAge, effRetireAge, lifeExp, portfolioValue, monthlySavings, monthlySpend, ssMonthly, ssClaimAge, otherMonthly, otherStartAge, strategy, strategyParams, simAllocation]);
+
+  const [mcResult, setMcResult] = useState<SimResult | null>(null);
+  const [mcLoading, setMcLoading] = useState(false);
+  const overridesKey = JSON.stringify(overrides);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let superseded = false;
+    setMcLoading(true);
+    const timer = setTimeout(() => {
+      api
+        .simulateRetirement(JSON.parse(overridesKey))
+        .then((res) => {
+          if (superseded || controller.signal.aborted) return;
+          setMcResult(res);
+          setMcLoading(false);
+        })
+        .catch(() => {
+          if (superseded || controller.signal.aborted) return;
+          setMcLoading(false); // keep the previous result visible
+        });
+    }, 250);
+    return () => {
+      superseded = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [overridesKey]);
+
+  // MC bands, shaped like the old client buildBands result so the verdict + fan
+  // read from a single place. mcSuccessRate is 0..100; finalValues is unused.
+  const bands = useMemo(() => (
+    mcResult
+      ? { ...mcResult.percentiles, mcSuccessRate: Math.round(mcResult.successRate * 100), finalValues: [] as number[] }
+      : { p5: [], p25: [], p50: [], p75: [], p95: [], mcSuccessRate: 0, finalValues: [] as number[] }
+  ), [mcResult]);
 
   // Display bands in today's dollars (deflate 3%/yr from current age)
   const realBands = useMemo(() => {
@@ -1425,122 +1464,49 @@ function RetirementV2Inner() {
     };
   }, [bands]);
 
-  // Historical backtest (advanced method toggle)
-  const backtestRows = useMemo<BacktestRow[] | null>(() => {
-    if (method !== 'hist') return null;
-    const lifeHorizon = Math.max(1, lifeExp - effRetireAge);
-    const accYears = Math.max(0, effRetireAge - currentAge);
-    const giArr = makeGiArray({ retireAge: effRetireAge, lifeHorizon, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend });
-    const maxStart = 2024 - (accYears + lifeHorizon);
-    const rows: BacktestRow[] = [];
-    for (let yr = 1928; yr <= maxStart; yr++) {
-      rows.push(runBacktest(yr, lifeHorizon, portfolioValue, annualSpend, equityFraction, true, strategy, accYears, annualSavings, giArr, strategyParams));
-    }
-    return rows;
-  }, [method, lifeExp, effRetireAge, currentAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, smile, annualSpend, portfolioValue, equityFraction, strategy, strategyParams, annualSavings]);
+  // Historical backtest (advanced method toggle) — same server engine the chat
+  // uses, via POST /retirement/backtest. Only runs in hist mode; reuses the
+  // exact `overrides` object the MC path sends. NOTE: the server backtest does
+  // not model the dashboard's spending "smile" lever (it's not a SimInput), so
+  // toggling smile won't move the historical success rate — same as the MC path.
+  const [btResult, setBtResult] = useState<BacktestSummary | null>(null);
+  const [btLoading, setBtLoading] = useState(false);
 
-  const histRate = useMemo(() => {
-    if (!backtestRows || backtestRows.length === 0) return null;
-    return Math.round((backtestRows.filter(r => r.survived).length / backtestRows.length) * 100);
-  }, [backtestRows]);
+  useEffect(() => {
+    if (method !== 'hist') return;
+    const controller = new AbortController();
+    let superseded = false;
+    setBtLoading(true);
+    const timer = setTimeout(() => {
+      api
+        .backtestRetirement(JSON.parse(overridesKey))
+        .then((res) => {
+          if (superseded || controller.signal.aborted) return;
+          setBtResult(res);
+          setBtLoading(false);
+        })
+        .catch(() => {
+          if (superseded || controller.signal.aborted) return;
+          setBtLoading(false); // keep the previous result visible
+        });
+    }, 250);
+    return () => {
+      superseded = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [method, overridesKey]);
 
-  // Historical cohort envelope for the growth chart: each cohort's aligned
-  // year-by-year portfolio value (the same runs behind the historical success
-  // rate), deflated to the engine's own real frame (actual CPI across that
-  // cohort's withdrawal years), summarized as 10th–90th + 25th–75th percentile
-  // bands + the median cohort — the same visual language as the MC fan.
-  const histBands = useMemo(() => {
-    if (method !== 'hist' || !backtestRows || backtestRows.length === 0) return null;
-    const L = Math.max(2, lifeExp - currentAge + 1);
-    const paths = backtestRows.map(row => {
-      const path: number[] = [portfolioValue];
-      for (const y of row.yearByYear) {
-        path.push(Math.round(y.endValue / (y.phase === 'withdrawal' ? y.cumulativeInflation : 1)));
-      }
-      while (path.length < L) path.push(0); // depleted cohorts stay at $0
-      return path.slice(0, L);
-    });
-    const out = { p5: [] as number[], p25: [] as number[], p50: [] as number[], p75: [] as number[], p95: [] as number[] };
-    const q = (vals: number[], pct: number) => vals[Math.floor((pct / 100) * (vals.length - 1))];
-    for (let i = 0; i < L; i++) {
-      const vals = paths.map(p => p[i]).sort((a, b) => a - b);
-      out.p5.push(q(vals, 10)); // outer band = 10th–90th across cohorts
-      out.p25.push(q(vals, 25));
-      out.p50.push(q(vals, 50));
-      out.p75.push(q(vals, 75));
-      out.p95.push(q(vals, 90));
-    }
-    return out;
-  }, [method, backtestRows, lifeExp, currentAge, portfolioValue]);
+  const histRate = btResult ? Math.round(btResult.successRate * 100) : null;
+  // Historical cohort envelope for the growth chart (real $, index 0 = currentAge;
+  // p5/p95 hold the 10th/90th cohort percentiles) — same shape as the MC fan.
+  const histBands = btResult ? btResult.cohortBands : null;
 
   const prob = method === 'hist' && histRate !== null ? histRate : bands.mcSuccessRate;
 
   // Median depletion age ("money lasts to age N"); null = beyond the horizon.
-  const medianLastsTo = useMemo(() => {
-    const idx = bands.p50.findIndex((v, i) => v <= 0 && currentAge + i >= effRetireAge);
-    return idx === -1 ? null : currentAge + idx;
-  }, [bands, currentAge, effRetireAge]);
-
-  // ── Safe spend + suggestions (debounced — ~20 extra MC runs) ───────────────
-  const [safeSpend, setSafeSpend] = useState<number | null>(null);
-  const [suggestions, setSuggestions] = useState<Array<{ label: string; prob: number }> | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const runProb = (over: Partial<{ retireAge: number; monthlySpend: number; ssClaimAge: number; monthlySavings: number; ssMonthly: number }>) => {
-        const ra = Math.max(over.retireAge ?? retireAge, currentAge);
-        const ms = over.monthlySpend ?? monthlySpendEff;
-        const claim = over.ssClaimAge ?? ssClaimAge;
-        const ssm = over.ssMonthly ?? (ssTouched ? ssMonthly : estimateSSMonthly(annualIncome, claim));
-        const sav = (over.monthlySavings ?? monthlySavings) * 12;
-        const gi = makeGiFn({ retireAge: ra, ssAnnual: ssm * 12, ssClaimAge: claim, otherAnnual, otherStartAge, smile, annualSpend: ms * 12 });
-        return buildBands(portfolioValue, sav, ra, currentAge, expReturn, ms * 12, equityFraction, true, strategy, makeRng(SEED), gi, strategyParams).mcSuccessRate;
-      };
-
-      // Safe spend: binary-search the max monthly spend holding ≥ target
-      // success. Floored to a $100 grid so typing this exact value into the
-      // spending input reproduces ≥ target.
-      let safe: number;
-      if (runProb({ monthlySpend: 500 }) < TARGET_SUCCESS) safe = 0;
-      else if (runProb({ monthlySpend: 40000 }) >= TARGET_SUCCESS) safe = 40000;
-      else {
-        let lo = 500, hi = 40000;
-        for (let i = 0; i < 12; i++) {
-          const mid = (lo + hi) / 2;
-          if (runProb({ monthlySpend: mid }) >= TARGET_SUCCESS) lo = mid; else hi = mid;
-        }
-        safe = Math.floor(lo / 100) * 100;
-      }
-      setSafeSpend(safe);
-
-      // Suggestions: concrete moves that push toward the target.
-      const current = runProb({});
-      if (current >= TARGET_SUCCESS) {
-        setSuggestions([]);
-        return;
-      }
-      const candidates: Array<{ label: string; prob: number }> = [];
-      if (retireAge + 1 <= 75) candidates.push({ label: `Retire at ${retireAge + 1} (one more year)`, prob: runProb({ retireAge: retireAge + 1 }) });
-      if (retireAge + 2 <= 75) candidates.push({ label: `Retire at ${retireAge + 2} (two more years)`, prob: runProb({ retireAge: retireAge + 2 }) });
-      const spend5 = Math.round(monthlySpendEff * 0.95 / 50) * 50;
-      const spend10 = Math.round(monthlySpendEff * 0.90 / 50) * 50;
-      candidates.push({ label: `Spend ${formatMoney(spend5, true)}/mo (−5%)`, prob: runProb({ monthlySpend: spend5 }) });
-      candidates.push({ label: `Spend ${formatMoney(spend10, true)}/mo (−10%)`, prob: runProb({ monthlySpend: spend10 }) });
-      if (ssClaimAge < 70 && (ssTouched ? ssMonthly : estimateSSMonthly(annualIncome, 70)) > 0) {
-        candidates.push({ label: 'Delay Social Security to 70', prob: runProb({ ssClaimAge: 70 }) });
-      }
-      if (retireAge > currentAge) {
-        candidates.push({ label: `Save ${formatMoney(monthlySavings + 500, true)}/mo (+$500)`, prob: runProb({ monthlySavings: monthlySavings + 500 }) });
-      }
-      setSuggestions(
-        candidates
-          .filter(c => c.prob >= current + 2)
-          .sort((a, b) => b.prob - a.prob)
-          .slice(0, 3),
-      );
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [portfolioValue, currentAge, retireAge, monthlySpendEff, ssClaimAge, monthlySavings, ssMonthly, ssTouched, annualIncome, otherAnnual, otherStartAge, smile, expReturn, equityFraction, strategy, strategyParams]);
+  // From the server MC result (first age where the median path crosses <= 0).
+  const medianLastsTo = mcResult?.medianLastsToAge ?? null;
 
   // ── Year-by-year deterministic plan (table + CSV + blended growth mode) ────
   const planRows = useMemo(
@@ -1565,25 +1531,6 @@ function RetirementV2Inner() {
     const L = Math.max(2, lifeExp - currentAge + 1);
     return Array.from({ length: L }, (_, i) => Math.round((planRows[i]?.start ?? 0) / Math.pow(1 + INFLATION, i)));
   }, [planRows, lifeExp, currentAge]);
-  // Deterministic sustainable draw: the max monthly spend whose single path
-  // still lasts through the plan-through age (binary search on the same $100
-  // grid as the Monte Carlo safe-spend; cheap — the sim is one pass per probe).
-  const detSafeSpend = useMemo(() => {
-    if (method !== 'blend') return null;
-    const lasts = (spendMonthly: number) => {
-      const rows = simulatePlan({ portfolioValue, currentAge, retireAge: effRetireAge, lifeExp, expReturn, annualSavings, annualSpend: spendMonthly * 12, smile, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, strategy, strategyParams });
-      return !rows.some(r => r.phase === 'retired' && r.end <= 0);
-    };
-    if (!lasts(500)) return 0;
-    if (lasts(40000)) return 40000;
-    let lo = 500, hi = 40000;
-    for (let i = 0; i < 13; i++) {
-      const mid = (lo + hi) / 2;
-      if (lasts(mid)) lo = mid; else hi = mid;
-    }
-    return Math.floor(lo / 100) * 100;
-  }, [method, portfolioValue, currentAge, effRetireAge, lifeExp, expReturn, annualSavings, smile, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, strategy, strategyParams]);
-
   const exportCsv = () => {
     const head = 'Age,Year,Phase,Start balance,Contribution,Guaranteed income,Portfolio withdrawal,Return %,End balance';
     const lines = planRows.map(r =>
@@ -1690,6 +1637,13 @@ function RetirementV2Inner() {
   // Blended return is one deterministic path — no probability. Its verdict is
   // simply whether the money lasts through the plan-through age.
   const isBlend = method === 'blend';
+  // Recomputing affordance: MC mode, a stale server result on screen, new run in flight.
+  const mcRecomputing = method === 'mc' && mcLoading && mcResult !== null;
+  // First MC run hasn't landed yet — show a neutral pending state, not "0%".
+  const mcPending = method === 'mc' && mcResult === null;
+  // Same affordances for the historical backtest (also server-side now).
+  const histRecomputing = method === 'hist' && btLoading && btResult !== null;
+  const histPending = method === 'hist' && btResult === null;
   const detOnTrack = detRanShortAge === null;
   const verdict = isBlend
     ? (detOnTrack ? 'On track' : 'At risk')
@@ -1700,6 +1654,11 @@ function RetirementV2Inner() {
   const verdictBg = isBlend
     ? (detOnTrack ? 'var(--ui-brand-soft)' : 'var(--ui-negative-soft)')
     : prob >= TARGET_SUCCESS ? 'var(--ui-brand-soft)' : prob >= 70 ? 'var(--ui-caution-soft)' : 'var(--ui-negative-soft)';
+
+  // Age-based sustainable draw: rule-of-thumb withdrawal rate × projected
+  // retirement balance / 12. Same in all modes (MC, Hist, Blended).
+  const sustainableDrawRatePct = sustainableDrawRate(effRetireAge);
+  const sustainableDraw = Math.round(sustainableDrawRatePct * projRetireValue / 12);
 
   // Ask Lasagna — opens the chat sidebar seeded with this plan's key numbers
   // (same mechanism as the /retirement hero button) so the conversation starts
@@ -1937,16 +1896,29 @@ function RetirementV2Inner() {
             </div>
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
-            <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: verdictColor }}>
-              {verdict}
+            <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: (mcPending || histPending) ? 'rgb(var(--ui-content-muted))' : verdictColor }}>
+              {(mcPending || histPending) ? 'Estimating…' : verdict}
             </span>
             {isBlend ? (
               <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: verdictBg, color: verdictColor }} data-testid="rv2-outcome">
                 {detOnTrack ? `Fully funded — lasts through age ${lifeExp}` : `Runs short at age ${detRanShortAge}`}
               </span>
+            ) : (mcPending || histPending) ? (
+              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: 'var(--ui-canvas-sunken)', color: 'rgb(var(--ui-content-muted))' }} data-testid="rv2-prob">
+                <span
+                  aria-label="running simulation"
+                  className="inline-block h-3 w-3 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
+                />
+              </span>
             ) : (
-              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: verdictBg, color: verdictColor }} data-testid="rv2-prob">
+              <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: verdictBg, color: verdictColor, transition: 'opacity 150ms ease', opacity: (mcRecomputing || histRecomputing) ? 0.55 : 1 }} data-testid="rv2-prob">
                 {prob}%
+                {(mcRecomputing || histRecomputing) && (
+                  <span
+                    aria-label="recomputing"
+                    className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
+                  />
+                )}
               </span>
             )}
           </div>
@@ -1963,8 +1935,8 @@ function RetirementV2Inner() {
               </>
             ) : (
               <>
-                {method === 'hist' && backtestRows
-                  ? <>Your plan survived <span className="ui-tnum font-semibold">{prob}%</span> of {backtestRows.length} historical start-years (1928 on), retiring at <span className="ui-tnum">{effRetireAge}</span> and planning through age <span className="ui-tnum">{lifeExp}</span>.</>
+                {method === 'hist'
+                  ? <>Your plan survived <span className="ui-tnum font-semibold">{prob}%</span> of {btResult?.startYearCount ?? 0} historical start-years (1928 on), retiring at <span className="ui-tnum">{effRetireAge}</span> and planning through age <span className="ui-tnum">{lifeExp}</span>.</>
                   : <>The chance your money lasts to age <span className="ui-tnum">{horizonEndAge}</span> without cutting spending — across 1,000 simulated market paths, retiring at <span className="ui-tnum">{effRetireAge}</span> on {formatMoney(monthlySpendEff, true)}/mo.</>}
                 {' '}
                 <span data-testid="rv2-lasts">
@@ -2007,12 +1979,10 @@ function RetirementV2Inner() {
             <div className="min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Sustainable draw</div>
               <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content" data-testid="rv2-safe-spend">
-                {isBlend && detSafeSpend !== null
-                  ? <>{detSafeSpend >= 40000 ? '$40k+' : `${formatMoney(detSafeSpend, true)}`}</>
-                  : <>{safeSpend === null ? '…' : safeSpend >= 40000 ? '$40k+' : `${formatMoney(safeSpend, true)}`}</>}<span className="text-[14px] font-bold text-content-muted">/mo</span>
+                {formatMoney(sustainableDraw, true)}<span className="text-[14px] font-bold text-content-muted">/mo</span>
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted">
-                {isBlend && detSafeSpend !== null ? `lasts through age ${lifeExp} at ${expReturn.toFixed(1)}%` : `from liquid savings, at ${TARGET_SUCCESS}% success`}
+                ~{Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement
               </div>
             </div>
             <div className="min-w-0" data-testid="rv2-kpi-length">
@@ -2038,7 +2008,7 @@ function RetirementV2Inner() {
                 />
               </div>
               <div className="mt-2 text-[12px] font-medium text-content-muted ui-tnum">
-                {method === 'hist' ? `${backtestRows?.length ?? 0} start-years since 1928` : isBlend ? `one projected path at ${expReturn.toFixed(1)}%/yr` : '1,000 simulated paths'}
+                {method === 'hist' ? `${btResult?.startYearCount ?? 0} start-years since 1928` : isBlend ? `one projected path at ${expReturn.toFixed(1)}%/yr` : '1,000 simulated paths'}
               </div>
             </div>
           </div>
@@ -2144,7 +2114,7 @@ function RetirementV2Inner() {
                 {strategy === 'constant_dollar' && (
                   <Lever
                     label="Monthly spending in retirement" testId="rv2-lever-spend" prefix="$" suffix="/mo"
-                    min={1000} max={30000} value={monthlySpend} onChange={setMonthlySpend}
+                    min={1} value={monthlySpend} onChange={setMonthlySpend}
                     caption="In today's dollars."
                   />
                 )}
@@ -2315,15 +2285,7 @@ function RetirementV2Inner() {
                       <div key={s.key} style={{ width: `${s.pct}%`, background: s.color, minWidth: 2 }} title={`${s.label} · ${disp[i]}%`} />
                     ))}
                   </div>
-                  <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
-                    {segs.map((s, i) => (
-                      <span key={s.key} className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-content-secondary ui-tnum">
-                        <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} aria-hidden />
-                        {s.label} {disp[i]}%
-                      </span>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-[12px] text-content-muted leading-[1.5] ui-tnum">
+                  <p className="mt-2.5 text-[12px] text-content-muted leading-[1.5] ui-tnum">
                     your actual holdings
                     {blendedReturn !== null && <> · {blendedReturn.toFixed(1)}% blended historical return</>}
                     {derivedEquity !== null && <> · {derivedEquity}% in stocks &amp; REITs</>}
@@ -2379,30 +2341,55 @@ function RetirementV2Inner() {
                 </p>
               </div>
             )}
+
+            {/* Per-asset-class capital-market assumptions (MARKET_MODEL) — the
+                blended figures below drive the server Monte Carlo. */}
+            {effTotal > 0 && allocReturn !== null && blendedVol !== null && (
+              <div className="mt-3.5 rounded-ui-lg border border-line bg-canvas-sunken px-3.5 py-3" data-testid="rv2-assumptions">
+                {/* Column headers mirror the data-row grid below (swatch spacer,
+                    flex-1 title, held/return/vol) so all three numbers align. */}
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-content-muted">
+                  <span className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                  <span className="min-w-0 flex-1 uppercase tracking-[0.06em]">Return &amp; volatility assumptions</span>
+                  <span className="w-9 text-right">held</span>
+                  <span className="w-12 text-right">return</span>
+                  <span className="w-12 text-right">vol</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {ALLOC_META.filter(m => (effAlloc![m.key] ?? 0) > 0).map(m => (
+                    <div key={m.key} className="flex items-center gap-2 text-[12px] text-content-secondary ui-tnum">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: m.color }} aria-hidden />
+                      <span className="min-w-0 flex-1 truncate">{m.label}</span>
+                      <span className="w-9 text-right text-content-muted">{Math.round(((effAlloc![m.key] ?? 0) / effTotal) * 100)}%</span>
+                      <span className="w-12 text-right">{m.ret.toFixed(1)}%</span>
+                      <span className="w-12 text-right text-content-muted">±{m.vol}%</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2.5 border-t border-line pt-2.5 text-[12px] text-content-secondary ui-tnum">
+                  Blended <strong>{expReturn.toFixed(1)}%</strong> expected return · ~{blendedVol.toFixed(1)}% volatility
+                  <span className="text-content-muted"> — drives the Monte Carlo</span>
+                </div>
+              </div>
+            )}
             </div>
 
-            {!isCustomComp && (
+            {/* Expected return only matters in the no-holdings manual path
+                (allocReturn === null → expReturn = baseReturn). Once real
+                holdings load, the server MC derives the return from the
+                allocation, so this lever is hidden to avoid an inert control. */}
+            {!isCustomComp && allocReturn === null && (
             <div className="rv2-group">
             <div className="rv2-subhead">Simulation assumptions</div>
             <div className="rv2-grid2">
               <Lever
-                label="Stocks in portfolio" testId="rv2-adv-equity" suffix="%"
-                min={0} max={100} value={baseEquityPct}
-                onChange={v => { setBaseEquityPct(v); setEquityTouched(true); }}
-                caption={derivedEquity === null ? undefined : equityTouched && baseEquityPct !== derivedEquity ? (
-                  <>adjusted · <button type="button" className="rv2-reset" onClick={() => { setBaseEquityPct(derivedEquity); setEquityTouched(false); }}>reset to your actual {derivedEquity}%</button></>
-                ) : (
-                  'from your actual allocation'
-                )}
-              />
-              <Lever
                 label="Expected return (nominal)" testId="rv2-adv-return" suffix="%" decimals={1}
                 min={3} max={11} value={baseReturn}
                 onChange={v => { setBaseReturn(Math.round(v * 10) / 10); setReturnTouched(true); }}
-                caption={blendedReturn === null ? undefined : returnTouched && baseReturn !== blendedReturn ? (
-                  <>adjusted · <button type="button" className="rv2-reset" onClick={() => { setBaseReturn(blendedReturn); setReturnTouched(false); }}>reset to blended {blendedReturn.toFixed(1)}%</button></>
+                caption={returnTouched ? (
+                  <>adjusted · <button type="button" className="rv2-reset" onClick={() => { setBaseReturn(6.5); setReturnTouched(false); }}>reset to 6.5%</button></>
                 ) : (
-                  "blended from your holdings' historical averages"
+                  'no holdings linked yet — set your assumed annual return, or pick a preset mix above'
                 )}
               />
             </div>
@@ -2422,26 +2409,28 @@ function RetirementV2Inner() {
         title="Portfolio growth"
         eyebrow={
           method === 'hist'
-            ? `today's dollars · Historical · ${backtestRows?.length ?? 0} cohorts (from ${backtestRows?.[0]?.accStartYear ?? 1928}) · age ${currentAge} → ${lifeExp}`
+            ? `today's dollars · Historical · ${btResult?.startYearCount ?? 0} cohorts (from ${btResult?.firstStartYear ?? 1928}) · age ${currentAge} → ${lifeExp}`
             : isBlend
               ? `today's dollars · Blended return · deterministic · age ${currentAge} → ${lifeExp}`
-              : `today's dollars · Monte Carlo, 1,000 paths · age ${currentAge} → ${currentAge + bands.p50.length - 1}`
+              : `today's dollars · Monte Carlo, 1,000 paths · age ${currentAge} → ${bands.p50.length ? currentAge + bands.p50.length - 1 : lifeExp}`
         }
       >
         <Card>
           {method === 'hist' ? (
-            histBands ? (
-              <>
+            !btResult ? (
+              <Skeleton className="h-[300px] w-full rounded-ui-xl" />
+            ) : histBands ? (
+              <div style={{ opacity: btLoading ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
                 <FanChartV2 bands={histBands} currentAge={currentAge} retireAge={effRetireAge} clipLabel="best cohorts" percentileLabels={['10th', '25th', 'Median', '75th', '90th']} />
                 <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-hist">
                   <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />10th–90th cohort range</span>
                   <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />25th–75th</span>
                   <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median cohort</span>
                   <span style={{ marginLeft: 'auto' }}>
-                    {backtestRows?.length ?? 0} retirements 1928 on · median at {lifeExp}: <strong>{fmtShort(histBands.p50[histBands.p50.length - 1] || 0)}</strong>
+                    {btResult.startYearCount} retirements 1928 on · median at {lifeExp}: <strong>{fmtShort(histBands.p50[histBands.p50.length - 1] || 0)}</strong>
                   </span>
                 </div>
-              </>
+              </div>
             ) : (
               <p className="text-[13px] text-content-muted">Not enough market history for this horizon — switch method or shorten the plan.</p>
             )
@@ -2457,8 +2446,10 @@ function RetirementV2Inner() {
                 </span>
               </div>
             </>
+          ) : !mcResult ? (
+            <Skeleton className="h-[300px] w-full rounded-ui-xl" />
           ) : (
-            <>
+            <div style={{ opacity: mcLoading ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
               <FanChartV2 bands={realBands} currentAge={currentAge} retireAge={effRetireAge} />
               <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-mc">
                 <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />p5–p95 range</span>
@@ -2468,7 +2459,7 @@ function RetirementV2Inner() {
                   median at {currentAge + realBands.p50.length - 1}: <strong>{fmtShort(realBands.p50[realBands.p50.length - 1] || 0)}</strong>
                 </span>
               </div>
-            </>
+            </div>
           )}
         </Card>
         {/* Methodology footnote (relocated from the removed Chance-of-success
@@ -2613,7 +2604,7 @@ function RetirementV2Inner() {
               className="flex-1 flex items-center justify-between gap-3 cursor-pointer text-left"
             >
               <span className="text-[13.5px] font-semibold text-content">
-                Show the work — one row per year
+                Year by year projection
                 <span className="ml-2.5 text-[12px] font-medium text-content-muted ui-tnum">deterministic at {expReturn.toFixed(1)}%/yr · nominal $</span>
               </span>
               <ChevronDown size={16} className={cn('text-content-muted transition-transform', tableOpen && 'rotate-180')} />
@@ -2650,48 +2641,9 @@ function RetirementV2Inner() {
         </Card>
       </Section>
 
-      {/* ── 5 · What would make this work ──────────────────────────────────── */}
-      <Section title="What would make this work">
-        <Card>
-          <div data-testid="rv2-suggestions">
-          {suggestions === null ? (
-            <div className="text-[13px] text-content-muted">Crunching alternatives…</div>
-          ) : prob >= TARGET_SUCCESS ? (
-            <div className="flex items-center gap-3">
-              <Sparkles size={18} className="shrink-0" style={{ color: 'rgb(var(--ui-brand-ink))' }} />
-              <p className="text-[13.5px] leading-[1.55] text-content-secondary">
-                You're at <span className="ui-tnum font-bold" style={{ color: 'rgb(var(--ui-brand-ink))' }}>{prob}%</span> — on track.
-                {safeSpend !== null && safeSpend > monthlySpendEff && (
-                  <> You could spend up to <span className="ui-tnum font-semibold">{formatMoney(safeSpend, true)}/mo</span> and stay at the {TARGET_SUCCESS}% target.</>
-                )}
-              </p>
-            </div>
-          ) : suggestions.length === 0 ? (
-            <p className="text-[13.5px] leading-[1.55] text-content-secondary">
-              No single lever gets this plan to {TARGET_SUCCESS}% on its own — try combining a later retirement with lower spending, or revisit the assumptions above.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {suggestions.map((s) => (
-                <div key={s.label} className="flex items-center justify-between gap-3 rounded-ui-md border border-line bg-canvas-sunken px-4 py-3">
-                  <span className="text-[13.5px] font-medium text-content">{s.label}</span>
-                  <span className="text-[13.5px] font-bold ui-tnum shrink-0" style={{ color: s.prob >= TARGET_SUCCESS ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-caution))' }}>
-                    → {s.prob}%
-                  </span>
-                </div>
-              ))}
-              <p className="text-[12px] text-content-muted mt-1">Each move re-simulated on its own, everything else unchanged.</p>
-            </div>
-          )}
-          </div>
-        </Card>
-      </Section>
-
-      <p className="mt-8 text-[12px] leading-[1.6] text-content-muted">
-        Coming later: tax-aware withdrawals & Roth conversions, spouse / couples planning, and healthcare & long-term-care costs.
-        Today's model is pre-tax and single-earner — treat results as a planning range, not a guarantee.
-      </p>
-      <LegalDisclaimer variant="projections" />
+      <div className="mt-8">
+        <LegalDisclaimer variant="projections" />
+      </div>
     </div>
   );
 }
