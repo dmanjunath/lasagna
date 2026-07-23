@@ -5,7 +5,7 @@ import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary 
 import { useChatStore } from '../lib/chat-store';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
-import { ChevronDown, ChevronUp, Download, Sparkles, Building2, GripVertical, Pencil, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import { Button, SegmentedControl, Skeleton } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
@@ -65,10 +65,10 @@ function Card({ children, className, style }: { children: React.ReactNode; class
   );
 }
 
-function Section({ title, eyebrow, children, className }: { title?: React.ReactNode; eyebrow?: React.ReactNode; children: React.ReactNode; className?: string }) {
+function Section({ title, eyebrow, right, children, className }: { title?: React.ReactNode; eyebrow?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={cn('mt-8', className)}>
-      {(title || eyebrow) && (
+      {(title || eyebrow || right) && (
         <div className="mb-4 flex items-center gap-3">
           {title && (
             <>
@@ -82,6 +82,7 @@ function Section({ title, eyebrow, children, className }: { title?: React.ReactN
           )}
           {eyebrow && <span className="hidden sm:block text-[12px] font-semibold text-content-muted ui-tnum">{eyebrow}</span>}
           <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
+          {right && <div className="shrink-0">{right}</div>}
         </div>
       )}
       {children}
@@ -179,6 +180,71 @@ function MethodDropdown<T extends string>({ value, onChange, options, ariaLabel,
               </button>
             );
           })}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+// Info popover for KPI labels. A small tap/click toggle (not hover-only, so it
+// works on touch) rendered into a portal to escape the hero's overflow, closing
+// on outside-click or Escape. Label is a screen-reader question for the metric.
+function InfoPopover({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const PANEL_W = 260;
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - PANEL_W - 8);
+    setPos({ top: r.bottom + 6, left });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus(); } };
+    const onReflow = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onReflow, true);
+    window.addEventListener('resize', onReflow);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onReflow, true);
+      window.removeEventListener('resize', onReflow);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-label={label}
+        aria-expanded={open}
+        className="ui-focus inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors"
+      >
+        <Info className="h-[13px] w-[13px]" />
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={panelRef}
+          role="tooltip"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
+          className="ui-root z-[110] rounded-ui-md border border-line bg-panel-raised px-3 py-2.5 text-[12px] leading-[1.5] font-medium text-content-secondary shadow-ui-lg"
+        >
+          {children}
         </div>,
         document.body,
       )}
@@ -1166,6 +1232,9 @@ function RetirementV2Inner() {
   const [inputsOpen, setInputsOpen] = useState(false);
   const [inputsTab, setInputsTab] = useState<'you' | 'portfolio'>('you');
   const inputsRef = useRef<HTMLDivElement>(null);
+  // Hero success number visibility — drives the pinned chance-of-success strip.
+  const heroNumRef = useRef<HTMLDivElement>(null);
+  const [heroNumVisible, setHeroNumVisible] = useState(true);
   const [baseReturn, setBaseReturn] = useState(6.5);
   const [returnTouched, setReturnTouched] = useState(false);
   // Composition switch: 'current' = the real portfolio (derivedEquity /
@@ -1307,6 +1376,16 @@ function RetirementV2Inner() {
       }
     }).finally(() => setLoading(false));
   }, []);
+
+  // Observe the hero success number; re-attach when the page swaps the element
+  // in, since the hero only exists once accounts have loaded.
+  useEffect(() => {
+    const el = heroNumRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => setHeroNumVisible(entry.isIntersecting));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loading, hasAccounts]);
 
   // SS benefit tracks the claim-age estimate until the user overrides it.
   useEffect(() => {
@@ -1465,15 +1544,15 @@ function RetirementV2Inner() {
   }, [bands]);
 
   // Historical backtest (advanced method toggle) — same server engine the chat
-  // uses, via POST /retirement/backtest. Only runs in hist mode; reuses the
-  // exact `overrides` object the MC path sends. NOTE: the server backtest does
-  // not model the dashboard's spending "smile" lever (it's not a SimInput), so
-  // toggling smile won't move the historical success rate — same as the MC path.
+  // uses, via POST /retirement/backtest. Runs in every method so the Historical
+  // KPI always has a value; reuses the exact `overrides` object the MC path
+  // sends. NOTE: the server backtest does not model the dashboard's spending
+  // "smile" lever (it's not a SimInput), so toggling smile won't move the
+  // historical success rate — same as the MC path.
   const [btResult, setBtResult] = useState<BacktestSummary | null>(null);
   const [btLoading, setBtLoading] = useState(false);
 
   useEffect(() => {
-    if (method !== 'hist') return;
     const controller = new AbortController();
     let superseded = false;
     setBtLoading(true);
@@ -1495,7 +1574,7 @@ function RetirementV2Inner() {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [method, overridesKey]);
+  }, [overridesKey]);
 
   const histRate = btResult ? Math.round(btResult.successRate * 100) : null;
   // Historical cohort envelope for the growth chart (real $, index 0 = currentAge;
@@ -1503,10 +1582,6 @@ function RetirementV2Inner() {
   const histBands = btResult ? btResult.cohortBands : null;
 
   const prob = method === 'hist' && histRate !== null ? histRate : bands.mcSuccessRate;
-
-  // Median depletion age ("money lasts to age N"); null = beyond the horizon.
-  // From the server MC result (first age where the median path crosses <= 0).
-  const medianLastsTo = mcResult?.medianLastsToAge ?? null;
 
   // ── Year-by-year deterministic plan (table + CSV + blended growth mode) ────
   const planRows = useMemo(
@@ -1520,30 +1595,12 @@ function RetirementV2Inner() {
     const short = planRows.find(r => r.phase === 'retired' && r.end <= 0);
     return short ? short.age : null;
   }, [planRows]);
-  const detEndReal = useMemo(() => {
-    // Start-of-final-year balance — the same frame as the chart's last point.
-    const last = planRows[planRows.length - 1];
-    return last && last.end > 0 ? Math.round(last.start / Math.pow(1 + INFLATION, last.age - currentAge)) : 0;
-  }, [planRows, currentAge]);
   // The blended growth line, in today's dollars — start-of-year balances, held
   // at $0 after depletion so the axis still runs to the plan-through age.
   const blendSeries = useMemo(() => {
     const L = Math.max(2, lifeExp - currentAge + 1);
     return Array.from({ length: L }, (_, i) => Math.round((planRows[i]?.start ?? 0) / Math.pow(1 + INFLATION, i)));
   }, [planRows, lifeExp, currentAge]);
-  const exportCsv = () => {
-    const head = 'Age,Year,Phase,Start balance,Contribution,Guaranteed income,Portfolio withdrawal,Return %,End balance';
-    const lines = planRows.map(r =>
-      [r.age, r.year, r.phase, r.start, r.contribution, r.gi, r.withdrawal, expReturn.toFixed(1), r.end].join(','),
-    );
-    const blob = new Blob([[head, ...lines].join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'retirement-plan.csv';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
   // ── Drawdown by account: priority-ordered units + deterministic sim ────────
   // Per-kind totals of the linked accounts — the comprehensive by-type grouping
   // (also feeds the Portfolio tab's account-type chips).
@@ -1637,28 +1694,37 @@ function RetirementV2Inner() {
   // Blended return is one deterministic path — no probability. Its verdict is
   // simply whether the money lasts through the plan-through age.
   const isBlend = method === 'blend';
-  // Recomputing affordance: MC mode, a stale server result on screen, new run in flight.
-  const mcRecomputing = method === 'mc' && mcLoading && mcResult !== null;
-  // First MC run hasn't landed yet — show a neutral pending state, not "0%".
-  const mcPending = method === 'mc' && mcResult === null;
-  // Same affordances for the historical backtest (also server-side now).
-  const histRecomputing = method === 'hist' && btLoading && btResult !== null;
-  const histPending = method === 'hist' && btResult === null;
+  // Loading affordances — method-independent now that both signals feed the
+  // composite hero and KPI row 2. Recomputing = a stale result on screen with a
+  // fresh run in flight; pending = first run hasn't landed yet.
+  const mcRecomputing = mcLoading && mcResult !== null;
+  const mcPending = mcResult === null;
+  const histRecomputing = btLoading && btResult !== null;
+  const histPending = btResult === null;
   const detOnTrack = detRanShortAge === null;
   const verdict = isBlend
     ? (detOnTrack ? 'On track' : 'At risk')
     : prob >= TARGET_SUCCESS ? 'On track' : prob >= 70 ? 'Needs attention' : 'At risk';
-  const verdictColor = isBlend
-    ? (detOnTrack ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-negative))')
-    : prob >= TARGET_SUCCESS ? 'rgb(var(--ui-brand-ink))' : prob >= 70 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
-  const verdictBg = isBlend
-    ? (detOnTrack ? 'var(--ui-brand-soft)' : 'var(--ui-negative-soft)')
-    : prob >= TARGET_SUCCESS ? 'var(--ui-brand-soft)' : prob >= 70 ? 'var(--ui-caution-soft)' : 'var(--ui-negative-soft)';
+
+  // Composite hero verdict — method-independent. Three method signals; a signal
+  // "passes" at >= 90% chance the money lasts. The hero reads all three at once
+  // so switching the projection method (below) doesn't move the headline.
+  const blendPass = detRanShortAge === null;              // deterministic path stays funded
+  const mcPass = bands.mcSuccessRate >= 90;
+  const histPass = histRate !== null && histRate >= 90;
+  const passCount = [mcPass, histPass, blendPass].filter(Boolean).length;
+  const resultsPending = mcResult === null || btResult === null;  // any method still loading
+  const composite = passCount >= 2 ? 'On track' : passCount === 1 ? 'Needs attention' : 'At risk';
+  const compositeColor = passCount >= 2 ? 'rgb(var(--ui-brand-ink))' : passCount === 1 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+  const compositeBg = passCount >= 2 ? 'var(--ui-brand-soft)' : passCount === 1 ? 'var(--ui-caution-soft)' : 'var(--ui-negative-soft)';
 
   // Age-based sustainable draw: rule-of-thumb withdrawal rate × projected
   // retirement balance / 12. Same in all modes (MC, Hist, Blended).
   const sustainableDrawRatePct = sustainableDrawRate(effRetireAge);
   const sustainableDraw = Math.round(sustainableDrawRatePct * projRetireValue / 12);
+
+  // Short strategy label for the sticky bar's plan-facts line.
+  const strategyLabel = strategy === 'percent_portfolio' ? '% portfolio' : strategy === 'guardrails' ? 'Guardrails' : 'Constant $';
 
   // Ask Lasagna — opens the chat sidebar seeded with this plan's key numbers
   // (same mechanism as the /retirement hero button) so the conversation starts
@@ -1728,16 +1794,11 @@ function RetirementV2Inner() {
         .dark .rv2-accum-zone { fill-opacity: 0.10; }
         .rv2-blend-area { fill-opacity: 0.14; }
         .dark .rv2-blend-area { fill-opacity: 0.10; }
-        .rv2-kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px 24px; }
+        .rv2-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; }
         .rv2-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 40px; }
         @media (max-width: 800px) {
           .rv2-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .rv2-grid2 { grid-template-columns: 1fr; }
-        }
-        /* On narrow phones the 2-col KPI cell is too tight for the full method
-           labels, so let the method dropdown take its own full-width row. */
-        @media (max-width: 480px) {
-          .rv2-kpi-method-cell { grid-column: 1 / -1; }
         }
         .rv2-subhead {
           font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
@@ -1847,6 +1908,68 @@ function RetirementV2Inner() {
         .rv2-table th { text-align: right; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: rgb(var(--ui-content-muted)); border-bottom: 1px solid var(--ui-line); white-space: nowrap; }
         .rv2-table th:first-child, .rv2-table td:first-child { text-align: left; }
         .rv2-table td { text-align: right; padding: 6px 12px; font-variant-numeric: tabular-nums; font-size: 12.5px; border-top: 1px solid var(--ui-hairline); color: rgb(var(--ui-content-secondary)); white-space: nowrap; }
+        /* Second KPI row: Monte Carlo, Historical backtest, Sustainable draw.
+           Three columns on desktop; stacks to one column on narrow phones. */
+        .rv2-kpi-grid2 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; }
+        @media (max-width: 640px) {
+          .rv2-kpi-grid2 { grid-template-columns: 1fr; }
+        }
+        /* Pinned chance-of-success strip. Rendered as the page's last child
+           and stuck to the bottom of the scrollport; on mobile it clears the
+           fixed bottom tab bar. Hidden while the hero's success number is on
+           screen (it would double-print the figure) and slides in once the
+           hero number scrolls out of view. */
+        .ret-pin {
+          position: sticky;
+          bottom: 12px;
+          z-index: 30;
+          margin-top: 14px;
+          transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        .ret-pin[data-hidden='true'] {
+          opacity: 0;
+          transform: translateY(8px);
+          pointer-events: none;
+        }
+        .ret-pin__inner {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+          padding: 9px 18px;
+          border: 1px solid var(--ui-line);
+          border-radius: var(--ui-r-lg, 14px);
+          background: rgb(var(--ui-panel) / 0.92);
+          backdrop-filter: saturate(1.4) blur(8px);
+          -webkit-backdrop-filter: saturate(1.4) blur(8px);
+          box-shadow: var(--ui-shadow-sm);
+        }
+        .ret-pin__tier1 { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+        .ret-pin__tier2 {
+          font-size: 11.5px;
+          line-height: 1.45;
+          color: rgb(var(--ui-content-muted));
+        }
+        .ret-pin__metric { display: flex; flex-direction: column; gap: 1px; line-height: 1.1; }
+        .ret-pin__label {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgb(var(--ui-content-muted));
+        }
+        .ret-pin__pct {
+          font-size: 18px;
+          font-weight: 800;
+          line-height: 1;
+          letter-spacing: -0.02em;
+        }
+        @media (max-width: 767px) {
+          /* Sit above the fixed mobile tab bar (~68px + safe-area inset). */
+          .ret-pin { bottom: calc(env(safe-area-inset-bottom) + 76px); }
+          .ret-pin__inner { gap: 6px; padding: 8px 14px; }
+          .ret-pin__tier1 { gap: 16px; }
+        }
       `}</style>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -1890,29 +2013,25 @@ function RetirementV2Inner() {
               only). The method toggle now lives in the Method KPI below, and on
               mobile Ask Lasagna drops in just above the KPI grid. */}
           <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">{isBlend ? 'Plan outcome · deterministic' : 'Chance of success'}</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement outlook</div>
             <div className="hidden sm:flex flex-wrap items-center gap-2.5" data-testid="rv2-hero-controls">
               {renderAskLasagna('rv2-ask-lasagna')}
             </div>
           </div>
-          <div className="flex items-baseline gap-3 flex-wrap">
-            <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: (mcPending || histPending) ? 'rgb(var(--ui-content-muted))' : verdictColor }}>
-              {(mcPending || histPending) ? 'Estimating…' : verdict}
+          <div ref={heroNumRef} className="flex items-baseline gap-3 flex-wrap">
+            <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: resultsPending ? 'rgb(var(--ui-content-muted))' : compositeColor }}>
+              {resultsPending ? 'Estimating…' : composite}
             </span>
-            {isBlend ? (
-              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: verdictBg, color: verdictColor }} data-testid="rv2-outcome">
-                {detOnTrack ? `Fully funded — lasts through age ${lifeExp}` : `Runs short at age ${detRanShortAge}`}
-              </span>
-            ) : (mcPending || histPending) ? (
-              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: 'var(--ui-canvas-sunken)', color: 'rgb(var(--ui-content-muted))' }} data-testid="rv2-prob">
+            {resultsPending ? (
+              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: 'var(--ui-canvas-sunken)', color: 'rgb(var(--ui-content-muted))' }} data-testid="rv2-outlook-badge">
                 <span
                   aria-label="running simulation"
                   className="inline-block h-3 w-3 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
                 />
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: verdictBg, color: verdictColor, transition: 'opacity 150ms ease', opacity: (mcRecomputing || histRecomputing) ? 0.55 : 1 }} data-testid="rv2-prob">
-                {prob}%
+              <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: compositeBg, color: compositeColor, transition: 'opacity 150ms ease', opacity: (mcRecomputing || histRecomputing) ? 0.55 : 1 }} data-testid="rv2-outlook-badge">
+                {passCount} of 3 methods on track
                 {(mcRecomputing || histRecomputing) && (
                   <span
                     aria-label="recomputing"
@@ -1922,30 +2041,12 @@ function RetirementV2Inner() {
               </span>
             )}
           </div>
-          <p className="mt-3 text-[13.5px] leading-[1.55] text-content-secondary max-w-[62ch]">
-            {isBlend ? (
-              <>
-                One projected path at your blended <span className="ui-tnum">{expReturn.toFixed(1)}%</span> expected return — retiring at <span className="ui-tnum">{effRetireAge}</span> on {formatMoney(monthlySpendEff, true)}/mo, with no market randomness.
-                {' '}
-                <span data-testid="rv2-lasts">
-                  {detOnTrack
-                    ? <>You'd reach age <span className="ui-tnum">{lifeExp}</span> with about <span className="ui-tnum font-semibold">{fmtShort(detEndReal)}</span> left in today's dollars.</>
-                    : <>The money runs out at age <span className="ui-tnum font-semibold">{detRanShortAge}</span> — <span className="ui-tnum">{lifeExp - (detRanShortAge ?? lifeExp)}</span> years short of your plan-through age <span className="ui-tnum">{lifeExp}</span>.</>}
-                </span>
-              </>
-            ) : (
-              <>
-                {method === 'hist'
-                  ? <>Your plan survived <span className="ui-tnum font-semibold">{prob}%</span> of {btResult?.startYearCount ?? 0} historical start-years (1928 on), retiring at <span className="ui-tnum">{effRetireAge}</span> and planning through age <span className="ui-tnum">{lifeExp}</span>.</>
-                  : <>The chance your money lasts to age <span className="ui-tnum">{horizonEndAge}</span> without cutting spending — across 1,000 simulated market paths, retiring at <span className="ui-tnum">{effRetireAge}</span> on {formatMoney(monthlySpendEff, true)}/mo.</>}
-                {' '}
-                <span data-testid="rv2-lasts">
-                  {medianLastsTo === null
-                    ? <>On the median path your money is still funded at age <span className="ui-tnum">{horizonEndAge}</span>.</>
-                    : <>On the median path your money runs out at age <span className="ui-tnum font-semibold">{medianLastsTo}</span>.</>}
-                </span>
-              </>
-            )}
+          <p className="mt-3 text-[13.5px] leading-[1.55] text-content-secondary max-w-[62ch]" data-testid="rv2-outlook-explain">
+            {passCount >= 2
+              ? 'Two or more of the three methods below clear a 90% chance your money lasts.'
+              : passCount === 1
+                ? 'Only one of the three methods below clears a 90% chance your money lasts. Retiring later or spending less would help.'
+                : 'None of the three methods below clear a 90% chance your money lasts.'}
           </p>
           <div className="mt-4 sm:hidden">
             {renderAskLasagna('rv2-ask-lasagna-mobile')}
@@ -1976,15 +2077,6 @@ function RetirementV2Inner() {
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted">in today's dollars</div>
             </div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Sustainable draw</div>
-              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content" data-testid="rv2-safe-spend">
-                {formatMoney(sustainableDraw, true)}<span className="text-[14px] font-bold text-content-muted">/mo</span>
-              </div>
-              <div className="mt-1.5 text-[12px] font-medium text-content-muted">
-                ~{Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement
-              </div>
-            </div>
             <div className="min-w-0" data-testid="rv2-kpi-length">
               <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Length of retirement</div>
               <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
@@ -1992,23 +2084,48 @@ function RetirementV2Inner() {
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">age {effRetireAge} → {lifeExp}</div>
             </div>
-            <div className="min-w-0 rv2-kpi-method-cell" data-testid="rv2-kpi-method">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Simulation method</div>
-              <div className="mt-2">
-                <MethodDropdown
-                  value={method}
-                  onChange={setMethod}
-                  ariaLabel="Chance-of-success method"
-                  triggerTestId="rv2-method-trigger"
-                  options={[
-                    { value: 'mc', label: 'Monte Carlo' },
-                    { value: 'hist', label: 'Historical' },
-                    { value: 'blend', label: 'Blended return' },
-                  ]}
-                />
+          </div>
+
+          {/* Second KPI row — the three "how confident" readouts, each with a
+              tap-to-open explainer so the method-specific numbers are legible
+              without leaving the hero. */}
+          <div className="rv2-kpi-grid2 mt-6 pt-5 border-t border-line">
+            <div className="min-w-0" data-testid="rv2-kpi-mc">
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Monte Carlo</span>
+                <InfoPopover label="What is Monte Carlo?">
+                  Runs 1,000 randomized market scenarios and reports how often your money lasts to age {lifeExp}. It reflects good and bad luck, including a bad run of early returns.
+                </InfoPopover>
               </div>
-              <div className="mt-2 text-[12px] font-medium text-content-muted ui-tnum">
-                {method === 'hist' ? `${btResult?.startYearCount ?? 0} start-years since 1928` : isBlend ? `one projected path at ${expReturn.toFixed(1)}%/yr` : '1,000 simulated paths'}
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {mcResult ? `${Math.round(mcResult.successRate * 100)}%` : '…'}
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">chance your money lasts</div>
+            </div>
+            <div className="min-w-0" data-testid="rv2-kpi-hist">
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Historical backtest</span>
+                <InfoPopover label="What is Historical backtest?">
+                  Replays every real market start year since 1928 and reports the share of those actual histories your plan would have survived.
+                </InfoPopover>
+              </div>
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {histRate !== null ? `${histRate}%` : '…'}
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">{btResult ? `${btResult.startYearCount} start-years since 1928` : ''}</div>
+            </div>
+            <div className="min-w-0" data-testid="rv2-kpi-draw">
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Sustainable draw</span>
+                <InfoPopover label="What is Sustainable draw?">
+                  A rule-of-thumb safe monthly spend, {Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement (set by your retirement age). It is a guideline, not one of the simulations above.
+                </InfoPopover>
+              </div>
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content" data-testid="rv2-safe-spend">
+                {formatMoney(sustainableDraw, true)}<span className="text-[14px] font-bold text-content-muted">/mo</span>
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">
+                ~{Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement
               </div>
             </div>
           </div>
@@ -2071,8 +2188,8 @@ function RetirementV2Inner() {
                 />
                 <Lever
                   label="Retirement age" testId="rv2-lever-retire"
-                  min={Math.min(currentAge + 1, 75)} max={75} value={retireAge} onChange={setRetireAge}
-                  caption="When saving stops and withdrawals begin."
+                  min={currentAge} max={Math.max(75, currentAge)} value={retireAge} onChange={setRetireAge}
+                  caption="When saving stops and withdrawals begin. Set it to your current age to retire now."
                 />
                 <Lever
                   label="Plan through age" testId="rv2-adv-lifeexp"
@@ -2414,6 +2531,24 @@ function RetirementV2Inner() {
               ? `today's dollars · Blended return · deterministic · age ${currentAge} → ${lifeExp}`
               : `today's dollars · Monte Carlo, 1,000 paths · age ${currentAge} → ${bands.p50.length ? currentAge + bands.p50.length - 1 : lifeExp}`
         }
+        right={
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:block text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Projection</span>
+            <div className="w-[150px]">
+              <MethodDropdown
+                value={method}
+                onChange={setMethod}
+                ariaLabel="Projection method"
+                triggerTestId="rv2-method-trigger"
+                options={[
+                  { value: 'mc', label: 'Monte Carlo' },
+                  { value: 'hist', label: 'Historical' },
+                  { value: 'blend', label: 'Blended return' },
+                ]}
+              />
+            </div>
+          </div>
+        }
       >
         <Card>
           {method === 'hist' ? (
@@ -2609,9 +2744,6 @@ function RetirementV2Inner() {
               </span>
               <ChevronDown size={16} className={cn('text-content-muted transition-transform', tableOpen && 'rotate-180')} />
             </button>
-            <Button variant="ghost" size="sm" onClick={exportCsv} data-testid="rv2-csv">
-              <Download size={14} className="mr-1.5" /> CSV
-            </Button>
           </div>
           {tableOpen && (
             <div className="border-t border-line overflow-x-auto" style={{ maxHeight: 420, overflowY: 'auto' }} data-testid="rv2-table">
@@ -2643,6 +2775,41 @@ function RetirementV2Inner() {
 
       <div className="mt-8">
         <LegalDisclaimer variant="projections" />
+      </div>
+
+      {/* Pinned chance of success — anchored at the end of the page and sticky
+          to the bottom of the viewport. Revealed once the hero's success number
+          scrolls out of view, so the figure follows the reader without ever
+          double-printing next to the hero. Mirrors the currently selected method. */}
+      <div
+        className="ret-pin"
+        data-testid="rv2-pinned-chance"
+        data-hidden={heroNumVisible ? 'true' : 'false'}
+        aria-hidden={heroNumVisible}
+      >
+        <div className="ret-pin__inner">
+          <div className="ret-pin__tier1">
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Outlook</span>
+              <span className="ret-pin__pct font-editorial" style={{ color: compositeColor }}>{composite}</span>
+            </span>
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Monte Carlo</span>
+              <span className="ret-pin__pct font-editorial ui-tnum">{bands.mcSuccessRate}%</span>
+            </span>
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Historical</span>
+              <span className="ret-pin__pct font-editorial ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
+            </span>
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Sustainable draw</span>
+              <span className="ret-pin__pct font-editorial ui-tnum">{formatMoney(sustainableDraw, true)}<span className="text-[12px] font-bold text-content-muted">/mo</span></span>
+            </span>
+          </div>
+          <div className="ret-pin__tier2 ui-tnum">
+            Retiring at {effRetireAge} · {formatMoney(monthlySpendEff, true)}/mo spending · {Math.max(0, lifeExp - effRetireAge)} year retirement · {formatMoney(portfolioValue, true)} portfolio · {formatMoney(monthlySavings, true)}/mo saved · {expReturn.toFixed(1)}% return · {equityPct}% stocks · {strategyLabel} withdrawal strategy · SS {formatMoney(ssMonthly, true)}/mo
+          </div>
+        </div>
       </div>
     </div>
   );
