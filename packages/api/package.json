@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.62",
     "@hono/node-server": "^1.19.11",
     "@lasagna/core": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.3.3",

@@ -1,4 +1,5 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 import { createFinancialTools } from "./tools/financial.js";
 import { createPlanTools } from "./tools/plans.js";
@@ -33,9 +34,26 @@ const modelMappings: Record<ModelLevel, string> = {
   "frontier": "anthropic/claude-opus-4.7",
 };
 
-/** OpenRouter slug for a given level — useful for telemetry / response metadata. */
+// sailresearch.com model catalog is open-weights only, so there's no 1:1 match
+// for the OpenRouter (Claude/Gemini) slugs above. Map each level to the closest
+// sail model by tier. See https://docs.sailresearch.com/models
+const sailModelMappings: Record<ModelLevel, string> = {
+  "free": "google/gemma-4-31B-it",
+  "fast": "google/gemma-4-31B-it",
+  "fast-claude": "Qwen/Qwen3.6-35B-A3B",
+  "medium-google": "Qwen/Qwen3.6-35B-A3B",
+  "medium": "Qwen/Qwen3.6-35B-A3B",
+  "quality": "moonshotai/Kimi-K2.6",
+  "frontier": "zai-org/GLM-5.2-FP8",
+};
+
+function useSail(): boolean {
+  return env.INFERENCE_PROVIDER === "sail" && Boolean(env.SAIL_RESEARCH_API_KEY);
+}
+
+/** Provider slug for a given level — useful for telemetry / response metadata. */
 export function getModelSlug(level: ModelLevel): string {
-  return modelMappings[level];
+  return useSail() ? sailModelMappings[level] : modelMappings[level];
 }
 
 export function getModel(
@@ -43,13 +61,30 @@ export function getModel(
   options?: { webSearch?: boolean }
 ): LanguageModel {
   console.log("Requested model level:", level);
-  // Only turn on web search when the caller asks for it AND the deployment
-  // hasn't disabled it — the plugin adds latency/cost, so utility calls (titles,
-  // classification, insights) leave it off.
-  const webSearch = Boolean(options?.webSearch) && env.WEB_SEARCH_ENABLED;
-  const cacheKey = webSearch ? `${level}:web` : level;
+  const sail = useSail();
+  // OpenRouter runs web search server-side via its "web" plugin. sail is a plain
+  // OpenAI-compatible endpoint with no such plugin, so web search is only wired
+  // when the caller asks for it, the deployment hasn't disabled it, AND we're on
+  // OpenRouter — on sail it degrades to a normal (no web search) request.
+  const webSearch =
+    !sail && Boolean(options?.webSearch) && env.WEB_SEARCH_ENABLED;
+  const cacheKey = `${sail ? "sail" : "or"}:${webSearch ? `${level}:web` : level}`;
   const cached = _models.get(cacheKey);
   if (cached) return cached;
+
+  if (sail) {
+    const sailProvider = createOpenAICompatible({
+      name: "sailresearch",
+      baseURL: "https://api.sailresearch.com/v1",
+      apiKey: env.SAIL_RESEARCH_API_KEY,
+    });
+    const sailModel = sailProvider(sailModelMappings[level]);
+    _models.set(cacheKey, sailModel);
+    console.log(
+      `Initialized sailresearch model: ${sailModelMappings[level]} (${level})`
+    );
+    return sailModel;
+  }
 
   if (!env.OPENROUTER_API_KEY) {
     throw new Error("OPENROUTER_API_KEY is required for AI features");

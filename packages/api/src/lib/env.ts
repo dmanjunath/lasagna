@@ -16,6 +16,18 @@ export const env = {
     // Optional - AI features disabled if not set
     return optional("OPENROUTER_API_KEY", "");
   },
+  // sailresearch.com inference (OpenAI-compatible). When set, inference routes
+  // through sail instead of OpenRouter. Optional — falls back to OpenRouter.
+  get SAIL_RESEARCH_API_KEY() {
+    return optional("SAIL_RESEARCH_API_KEY", "");
+  },
+  // Which inference provider to use: "openrouter" (default) or "sail". If unset,
+  // sail is auto-selected when SAIL_RESEARCH_API_KEY is present.
+  get INFERENCE_PROVIDER() {
+    const explicit = optional("INFERENCE_PROVIDER", "");
+    if (explicit) return explicit as "openrouter" | "sail";
+    return this.SAIL_RESEARCH_API_KEY ? "sail" : "openrouter";
+  },
   // Enable OpenRouter's server-side web search on the chat agent. On by default;
   // set to "false" to turn off (it adds per-request search cost and latency).
   get WEB_SEARCH_ENABLED() {
