@@ -32,7 +32,7 @@ export const env = {
     return parseInt(optional("PORT", "3000"), 10);
   },
   get MULTI_TENANT() {
-    return optional("MULTI_TENANT", "false") === "true";
+    return optional("MULTI_TENANT", "true") === "true";
   },
   get APP_ENV() {
     return optional("APP_ENV", process.env.NODE_ENV || "dev");

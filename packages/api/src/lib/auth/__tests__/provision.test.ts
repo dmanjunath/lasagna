@@ -30,14 +30,24 @@ vi.mock("../../db.js", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  delete process.env.MULTI_TENANT;
 });
 
 describe("provisionUser", () => {
-  it("creates a brand-new user with isAdmin false", async () => {
+  it("does not grant admin on signup with the default (multi-tenant) config", async () => {
     const { provisionUser } = await import("../provision.js");
     const { user, isNew } = await provisionUser({ email: "new@user.com", name: "New User" });
     expect(isNew).toBe(true);
     expect(user.isAdmin).toBe(false);
     expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ isAdmin: false }));
+  });
+
+  it("makes new users internal admins when MULTI_TENANT=false", async () => {
+    process.env.MULTI_TENANT = "false";
+    const { provisionUser } = await import("../provision.js");
+    const { user, isNew } = await provisionUser({ email: "internal@user.com", name: "Internal User" });
+    expect(isNew).toBe(true);
+    expect(user.isAdmin).toBe(true);
+    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ isAdmin: true }));
   });
 });

@@ -1,5 +1,6 @@
 import { eq, users, tenants, seedTaxonomyForTenant } from "@lasagna/core";
 import { db } from "../db.js";
+import { env } from "../env.js";
 
 export interface ProvisionInput {
   email: string;
@@ -34,7 +35,9 @@ export async function provisionUser(input: ProvisionInput) {
     passwordHash: input.passwordHash ?? null,
     workosUserId: input.workosUserId ?? null,
     role: "owner",
-    isAdmin: false,
+    // Multi-tenant (the default) never grants admin on signup. A deliberate
+    // MULTI_TENANT=false single-tenant deployment makes every new user internal admin.
+    isAdmin: !env.MULTI_TENANT,
     onboardingStage: "profile",
     acceptedTermsAt: input.acceptedTerms ? new Date() : null,
     hasPassword: input.hasPassword ?? false,
