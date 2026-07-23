@@ -110,7 +110,9 @@ chatRouter.post("/", async (c) => {
     }
 
     const stepResult = await generateText({
-      model: getModel(agentLevel),
+      // Enable OpenRouter's server-side web search so the assistant can pull in
+      // live figures (rates, tax thresholds, market context) with citations.
+      model: getModel(agentLevel, { webSearch: true }),
       system: systemPrompt,
       messages: conversationMessages,
       tools,

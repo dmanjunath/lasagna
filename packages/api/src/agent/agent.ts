@@ -7,8 +7,10 @@ import { createTaxTools } from "./tools/tax.js";
 import { createSpendingTools } from "./tools/spending.js";
 import { env } from "../lib/env.js";
 
-// Lazy-load models to avoid startup failure when OPENROUTER_API_KEY is not set
-const _models = new Map<ModelLevel, LanguageModel>();
+// Lazy-load models to avoid startup failure when OPENROUTER_API_KEY is not set.
+// Keyed by level plus whether OpenRouter's web-search plugin is enabled, so the
+// plain and web-search variants of a level don't collide in the cache.
+const _models = new Map<string, LanguageModel>();
 
 export const MODEL_LEVELS = [
   "free",
@@ -36,9 +38,17 @@ export function getModelSlug(level: ModelLevel): string {
   return modelMappings[level];
 }
 
-export function getModel(level: ModelLevel = "quality"): LanguageModel {
+export function getModel(
+  level: ModelLevel = "quality",
+  options?: { webSearch?: boolean }
+): LanguageModel {
   console.log("Requested model level:", level);
-  const cached = _models.get(level);
+  // Only turn on web search when the caller asks for it AND the deployment
+  // hasn't disabled it — the plugin adds latency/cost, so utility calls (titles,
+  // classification, insights) leave it off.
+  const webSearch = Boolean(options?.webSearch) && env.WEB_SEARCH_ENABLED;
+  const cacheKey = webSearch ? `${level}:web` : level;
+  const cached = _models.get(cacheKey);
   if (cached) return cached;
 
   if (!env.OPENROUTER_API_KEY) {
@@ -51,9 +61,17 @@ export function getModel(level: ModelLevel = "quality"): LanguageModel {
       "HTTP-Referer": "https://lasagnafi.com",
     },
   });
-  const model = openrouter(modelMappings[level]);
-  _models.set(level, model);
-  console.log(`Initialized OpenRouter model: ${modelMappings[level]} (${level})`);
+  // OpenRouter runs web search server-side via the "web" plugin and injects the
+  // results plus inline citation links into the response — no client-side tool.
+  const model = webSearch
+    ? openrouter(modelMappings[level], {
+        plugins: [{ id: "web", max_results: env.WEB_SEARCH_MAX_RESULTS }],
+      })
+    : openrouter(modelMappings[level]);
+  _models.set(cacheKey, model);
+  console.log(
+    `Initialized OpenRouter model: ${modelMappings[level]} (${level})${webSearch ? " [web search]" : ""}`
+  );
   return model;
 }
 

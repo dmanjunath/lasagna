@@ -16,6 +16,14 @@ export const env = {
     // Optional - AI features disabled if not set
     return optional("OPENROUTER_API_KEY", "");
   },
+  // Enable OpenRouter's server-side web search on the chat agent. On by default;
+  // set to "false" to turn off (it adds per-request search cost and latency).
+  get WEB_SEARCH_ENABLED() {
+    return optional("WEB_SEARCH_ENABLED", "true") === "true";
+  },
+  get WEB_SEARCH_MAX_RESULTS() {
+    return parseInt(optional("WEB_SEARCH_MAX_RESULTS", "3"), 10);
+  },
   get ENCRYPTION_KEY() {
     return required("ENCRYPTION_KEY");
   },
