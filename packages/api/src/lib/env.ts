@@ -80,4 +80,16 @@ export const env = {
   get WORKOS_REDIRECT_URI() {
     return optional("WORKOS_REDIRECT_URI", `${this.APP_URL}/api/auth/google/callback`);
   },
+  // Cloudflare Email Service (transactional send). All three must be set for
+  // invite emails to go out; otherwise the invite flow logs the accept link.
+  get CLOUDFLARE_EMAIL_TOKEN() {
+    return optional("CLOUDFLARE_EMAIL_TOKEN", "");
+  },
+  get CLOUDFLARE_EMAIL_ACCOUNT_ID() {
+    return optional("CLOUDFLARE_EMAIL_ACCOUNT_ID", "");
+  },
+  // A verified sender on the domain onboarded for Cloudflare Email Sending.
+  get CLOUDFLARE_EMAIL_FROM() {
+    return optional("CLOUDFLARE_EMAIL_FROM", "");
+  },
 };
