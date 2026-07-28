@@ -1,6 +1,7 @@
 import { eq, and, isNull, users, tenants, invites, userProfiles, seedTaxonomyForTenant } from "@lasagna/core";
 import { db } from "../db.js";
 import { env } from "../env.js";
+import { normalizeEmail } from "../normalize-email.js";
 import { resolveInvite, type InviteRow } from "../invites.js";
 
 export interface ProvisionInput {
@@ -16,7 +17,7 @@ export async function provisionUser(input: ProvisionInput) {
   // Normalize once so the existing-user lookup, the invite match, and the
   // stored value all agree on casing (the users.email unique index is
   // case-sensitive; invites are stored lowercased).
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeEmail(input.email);
   let user = input.workosUserId
     ? await db.query.users.findFirst({ where: eq(users.workosUserId, input.workosUserId) })
     : undefined;

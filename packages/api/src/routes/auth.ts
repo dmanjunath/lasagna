@@ -15,6 +15,7 @@ import { authMode } from "../lib/auth/mode.js";
 import * as workos from "../lib/auth/workos.js";
 import { localSignUp, localLogin } from "../lib/auth/local.js";
 import { provisionUser } from "../lib/auth/provision.js";
+import { normalizeEmail } from "../lib/normalize-email.js";
 import { resolveTenantPlan } from "../lib/billing.js";
 import { createOauthState, statesMatch, OAUTH_STATE_COOKIE } from "../lib/auth/state.js";
 
@@ -67,7 +68,8 @@ function userPayload(u: any) {
 
 // Sign up — creates a new tenant + user (owner)
 authRoutes.post("/signup", async (c) => {
-  const { email, password, name, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
+  const { email: rawEmail, password, name, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
+  const email = normalizeEmail(rawEmail);
   if (!email) return c.json({ error: "Email is required" }, 400);
   if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)
     return c.json({ error: "You must accept the Terms of Service, Privacy Policy, and RIA acknowledgment" }, 400);
@@ -92,7 +94,8 @@ authRoutes.post("/signup", async (c) => {
 
 // Login
 authRoutes.post("/login", async (c) => {
-  const { email, password } = await c.req.json();
+  const { email: rawEmail, password } = await c.req.json();
+  const email = normalizeEmail(rawEmail);
 
   // Local-account bypass — demo and local-only users (a stored password hash
   // and NO WorkOS link) authenticate against the local hash even in workos
@@ -127,7 +130,8 @@ authRoutes.post("/login", async (c) => {
 // ── Two-step (email-first) login ──────────────────────────────────────────
 // Step 1: decide whether this account uses a password or an emailed code.
 authRoutes.post("/login/start", async (c) => {
-  const { email } = await c.req.json<{ email?: string }>();
+  const { email: rawEmail } = await c.req.json<{ email?: string }>();
+  const email = normalizeEmail(rawEmail);
   if (!email) return c.json({ error: "Email is required" }, 400);
   // Local mode → always password.
   if (authMode() !== "workos") return c.json({ step: "password" as const });
@@ -150,7 +154,8 @@ authRoutes.post("/login/start", async (c) => {
 // local table) so it also works during signup (WorkOS user exists, local row does not yet).
 authRoutes.post("/login/send-code", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
-  const { email } = await c.req.json<{ email?: string }>();
+  const { email: rawEmail } = await c.req.json<{ email?: string }>();
+  const email = normalizeEmail(rawEmail);
   try { if (email && (await workos.hasWorkosUser(email))) await workos.sendMagicAuth({ email }); }
   catch (err) { console.error("[login/send-code] failed:", workos.friendlyError(err, String(err))); }
   return c.json({ ok: true });
@@ -159,7 +164,8 @@ authRoutes.post("/login/send-code", async (c) => {
 // Step 2 (code path) for LOGIN — no consent write (returning users).
 authRoutes.post("/login/code", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
-  const { email, code } = await c.req.json<{ email?: string; code?: string }>();
+  const { email: rawEmail, code } = await c.req.json<{ email?: string; code?: string }>();
+  const email = normalizeEmail(rawEmail);
   if (!email || !code) return c.json({ error: "Email and code are required" }, 400);
   let identity;
   try { identity = await workos.authenticateWithMagicAuth({ email, code }); }
@@ -310,7 +316,8 @@ authRoutes.patch("/onboarding-stage", requireAuth, async (c) => {
 // Signup email verification — Magic Auth (email-keyed), writes consent + hasPassword.
 authRoutes.post("/verify-email", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
-  const { email, code, setPassword, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
+  const { email: rawEmail, code, setPassword, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
+  const email = normalizeEmail(rawEmail);
   if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)
     return c.json({ error: "You must accept all agreements" }, 400);
   let identity;
@@ -337,7 +344,8 @@ authRoutes.post("/set-password", requireAuth, async (c) => {
 
 authRoutes.post("/forgot-password", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
-  const { email } = await c.req.json();
+  const { email: rawEmail } = await c.req.json();
+  const email = normalizeEmail(rawEmail);
   try { if (email) await workos.sendPasswordReset({ email }); } catch { /* no enumeration */ }
   return c.json({ ok: true });
 });
