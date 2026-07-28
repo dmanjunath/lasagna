@@ -426,7 +426,6 @@ export function Settings() {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type HouseholdMember = { id: string; email: string; name: string | null; role: string; isYou: boolean };
 type PendingInvite = { id: string; email: string; role: string; expiresAt: string; createdAt: string };
 type MemberProfile = Awaited<ReturnType<typeof api.household.householdProfiles>>["members"][number];
 
@@ -435,7 +434,6 @@ function HouseholdSection() {
   const confirm = useConfirm();
   const isOwner = user?.role === "owner";
 
-  const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [profiles, setProfiles] = useState<MemberProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -443,11 +441,7 @@ function HouseholdSection() {
 
   const load = useCallback(async () => {
     try {
-      const [m, p] = await Promise.all([
-        api.household.listMembers(),
-        api.household.householdProfiles(),
-      ]);
-      setMembers(m.members);
+      const p = await api.household.householdProfiles();
       setProfiles(p.members);
       // Only the owner can see pending invites.
       if (user?.role === "owner") {
@@ -466,7 +460,7 @@ function HouseholdSection() {
     void load();
   }, [load]);
 
-  const removeMember = async (m: HouseholdMember) => {
+  const removeMember = async (m: MemberProfile) => {
     const ok = await confirm({
       title: `Remove ${m.name || m.email}?`,
       body: "They'll lose their login and their private chat history. Your shared accounts and financial data stay intact.",
@@ -475,7 +469,7 @@ function HouseholdSection() {
     });
     if (!ok) return;
     try {
-      await api.household.removeMember(m.id);
+      await api.household.removeMember(m.userId);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't remove that member.");
@@ -521,14 +515,14 @@ function HouseholdSection() {
           <h3 className="min-w-0 flex-1 font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
             Members
           </h3>
-          <Badge tone="neutral" size="sm">{members.length}</Badge>
+          <Badge tone="neutral" size="sm">{profiles.length}</Badge>
         </div>
 
         <ul className="divide-y divide-line border-t border-line">
-          {members.map((m) => {
-            const profile = profiles.find((p) => p.userId === m.id)?.profile;
+          {profiles.map((m) => {
+            const profile = m.profile;
             return (
-              <li key={m.id} className="px-5 py-4 sm:px-6">
+              <li key={m.userId} className="px-5 py-4 sm:px-6">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-[13px] text-brand">

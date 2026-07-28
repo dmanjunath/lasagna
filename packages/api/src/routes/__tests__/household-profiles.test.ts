@@ -16,6 +16,7 @@ const usersFindMany = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
 const usersFindFirst = vi.fn(async (..._a: unknown[]) => undefined as unknown);
 const financialProfilesFindFirst = vi.fn(async (..._a: unknown[]) => undefined as unknown);
 const userProfilesFindFirst = vi.fn(async (..._a: unknown[]) => undefined as unknown);
+const userProfilesFindMany = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
 
 vi.mock("../../lib/db.js", () => ({
   db: {
@@ -25,7 +26,10 @@ vi.mock("../../lib/db.js", () => ({
         findFirst: (...a: unknown[]) => usersFindFirst(...a),
       },
       financialProfiles: { findFirst: (...a: unknown[]) => financialProfilesFindFirst(...a) },
-      userProfiles: { findFirst: (...a: unknown[]) => userProfilesFindFirst(...a) },
+      userProfiles: {
+        findFirst: (...a: unknown[]) => userProfilesFindFirst(...a),
+        findMany: (...a: unknown[]) => userProfilesFindMany(...a),
+      },
     },
   },
 }));
@@ -57,13 +61,14 @@ beforeEach(() => {
   usersFindMany.mockResolvedValue([]);
   financialProfilesFindFirst.mockResolvedValue(undefined);
   userProfilesFindFirst.mockResolvedValue(undefined);
+  userProfilesFindMany.mockResolvedValue([]);
 });
 
 describe("GET /household-profiles", () => {
   it("returns one entry per member with isYou and merged household+personal profiles", async () => {
     usersFindMany.mockResolvedValue([
-      { id: "u-you", name: "You", email: "you@example.com" },
-      { id: "u-partner", name: "Partner", email: "partner@example.com" },
+      { id: "u-you", name: "You", email: "you@example.com", role: "owner" },
+      { id: "u-partner", name: "Partner", email: "partner@example.com", role: "member" },
     ]);
     // Shared household row (same for both members).
     financialProfilesFindFirst.mockResolvedValue({
@@ -71,18 +76,11 @@ describe("GET /household-profiles", () => {
       stateOfResidence: "CA",
       dependentCount: 1,
     });
-    // Each member's personal row differs by userId → keyed off the where arg.
-    userProfilesFindFirst.mockImplementation(async (arg: any) => {
-      // where: and(eq(userProfiles.tenantId, tenantId), eq(userProfiles.userId, userId))
-      const whereStr = JSON.stringify(arg?.where ?? arg);
-      if (whereStr.includes("u-you")) {
-        return { dateOfBirth: null, annualIncome: "150000", employmentType: "w2", riskTolerance: "moderate", retirementAge: 65, employerMatch: "5", hasHDHP: false, isPSLFEligible: false };
-      }
-      if (whereStr.includes("u-partner")) {
-        return { dateOfBirth: null, annualIncome: "90000", employmentType: "1099", riskTolerance: "aggressive", retirementAge: 60, employerMatch: null, hasHDHP: true, isPSLFEligible: true };
-      }
-      return undefined;
-    });
+    // All members' personal rows in one query; the handler keys them by userId.
+    userProfilesFindMany.mockResolvedValue([
+      { userId: "u-you", dateOfBirth: null, annualIncome: "150000", employmentType: "w2", riskTolerance: "moderate", retirementAge: 65, employerMatch: "5", hasHDHP: false, isPSLFEligible: false },
+      { userId: "u-partner", dateOfBirth: null, annualIncome: "90000", employmentType: "1099", riskTolerance: "aggressive", retirementAge: 60, employerMatch: null, hasHDHP: true, isPSLFEligible: true },
+    ]);
 
     const res = await appWithSession(you).request("/api/settings/household-profiles");
     expect(res.status).toBe(200);
@@ -113,9 +111,9 @@ describe("GET /household-profiles", () => {
   });
 
   it("returns nulled personal fields for a member with no personal profile", async () => {
-    usersFindMany.mockResolvedValue([{ id: "u-you", name: "You", email: "you@example.com" }]);
+    usersFindMany.mockResolvedValue([{ id: "u-you", name: "You", email: "you@example.com", role: "owner" }]);
     financialProfilesFindFirst.mockResolvedValue({ filingStatus: "single", stateOfResidence: "NY", dependentCount: 0 });
-    userProfilesFindFirst.mockResolvedValue(undefined);
+    userProfilesFindMany.mockResolvedValue([]);
 
     const res = await appWithSession(you).request("/api/settings/household-profiles");
     const body = await res.json();

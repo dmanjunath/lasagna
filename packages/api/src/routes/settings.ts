@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, users, tenants } from "@lasagna/core";
+import { eq, users, tenants, userProfiles } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import { resolveTenantPlan } from "../lib/billing.js";
@@ -9,6 +9,7 @@ import {
   readUserPersonalProfile,
   resolveProfile,
   upsertSplitProfile,
+  type ProfileInput,
 } from "../lib/profile-resolver.js";
 
 export const settingsRoutes = new Hono<AuthEnv>();
@@ -126,29 +127,34 @@ settingsRoutes.get("/financial-profile", async (c) => {
 });
 
 // All household members' personal profiles (shared "you vs your partner" view).
+// Includes each member's role + isYou so this is the single source the Settings
+// household view needs (no separate members call).
 settingsRoutes.get("/household-profiles", async (c) => {
   const session = c.get("session");
 
-  const [household, members] = await Promise.all([
+  // Fetch the household row, every member, and every personal profile in three
+  // queries — then join in memory (no per-member round-trip).
+  const [household, members, personals] = await Promise.all([
     readHouseholdProfile(session.tenantId),
     db.query.users.findMany({
       where: eq(users.tenantId, session.tenantId),
-      columns: { id: true, name: true, email: true },
+      columns: { id: true, name: true, email: true, role: true },
+    }),
+    db.query.userProfiles.findMany({
+      where: eq(userProfiles.tenantId, session.tenantId),
     }),
   ]);
 
-  const memberProfiles = await Promise.all(
-    members.map(async (u) => ({
-      userId: u.id,
-      name: u.name,
-      email: u.email,
-      isYou: u.id === session.userId,
-      profile: resolveProfile(
-        household ?? null,
-        (await readUserPersonalProfile(session.tenantId, u.id)) ?? null,
-      ),
-    })),
-  );
+  const personalByUser = new Map(personals.map((p) => [p.userId, p]));
+
+  const memberProfiles = members.map((u) => ({
+    userId: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    isYou: u.id === session.userId,
+    profile: resolveProfile(household ?? null, personalByUser.get(u.id) ?? null),
+  }));
 
   return c.json({ members: memberProfiles });
 });
@@ -157,19 +163,7 @@ settingsRoutes.get("/household-profiles", async (c) => {
 // `financialProfiles` row; personal fields write to THIS user's `userProfiles`.
 settingsRoutes.patch("/financial-profile", async (c) => {
   const session = c.get("session");
-  const body = await c.req.json<{
-    dateOfBirth?: string | null;
-    annualIncome?: number | null;
-    filingStatus?: string | null;
-    stateOfResidence?: string | null;
-    employmentType?: string | null;
-    riskTolerance?: string | null;
-    retirementAge?: number | null;
-    employerMatchPercent?: number | null;
-    dependentCount?: number | null;
-    hasHDHP?: boolean | null;
-    isPSLFEligible?: boolean | null;
-  }>();
+  const body = await c.req.json<ProfileInput>();
 
   await upsertSplitProfile(session.tenantId, session.userId, body);
 

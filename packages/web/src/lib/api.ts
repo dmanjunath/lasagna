@@ -496,10 +496,6 @@ export const api = {
 
   // Household sharing — members, invites, and the shared personal-profile view.
   household: {
-    listMembers: () =>
-      request<{ members: Array<{ id: string; email: string; name: string | null; role: string; isYou: boolean }> }>(
-        "/household/members",
-      ),
     listInvites: () =>
       request<{ invites: Array<{ id: string; email: string; role: string; expiresAt: string; createdAt: string }> }>(
         "/household/invites",
@@ -525,6 +521,7 @@ export const api = {
           userId: string;
           name: string | null;
           email: string;
+          role: string;
           isYou: boolean;
           profile: {
             dateOfBirth: string | null;

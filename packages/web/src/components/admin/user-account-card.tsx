@@ -195,7 +195,6 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
             <option value="">Set role…</option>
             <option value="owner">Owner</option>
             <option value="member">Member</option>
-            <option value="viewer">Viewer</option>
           </Select>
           <Button variant="secondary" size="sm" disabled={!role || busy} onClick={() => void changeRole()}>
             Apply

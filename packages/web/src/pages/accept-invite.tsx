@@ -88,8 +88,7 @@ export function AcceptInvite() {
                 {invitationHeadline(validation)}
               </h1>
               <p className="mt-2 text-[14px] leading-relaxed text-content-secondary">
-                You'll share the same accounts, balances, and financial picture — but keep your own login, chat, and
-                personal profile.
+                You'll share the same accounts, balances, and plans — each with your own private login and chat.
               </p>
             </div>
           </div>
@@ -109,7 +108,7 @@ export function AcceptInvite() {
             // New/returning recipient: authenticate with the invited email. provisionUser
             // matches the pending invite by email and joins the household automatically.
             <div className="relative w-full max-w-[420px]">
-              <Login defaultSignup />
+              <Login defaultSignup requireName />
             </div>
           )}
         </>

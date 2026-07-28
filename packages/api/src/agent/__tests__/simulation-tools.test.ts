@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { holdings } from "@lasagna/core";
+import { eq, holdings, users } from "@lasagna/core";
 import { db } from "../../lib/db.js";
 import { resolveSimInputs } from "../../services/resolve-sim-inputs.js";
 import { runRetirementSim } from "../../services/retirement-sim.js";
@@ -14,6 +14,7 @@ import { createSimulationTools } from "../tools/simulation.js";
 // Self-skips if no DB reachable so CI without a DB stays green.
 
 let tenantId: string | null = null;
+let userId: string | null = null;
 let dbAvailable = false;
 
 beforeAll(async () => {
@@ -25,7 +26,14 @@ beforeAll(async () => {
       .limit(1);
     if (rows.length > 0) {
       tenantId = rows[0].tenantId;
-      dbAvailable = true;
+      // Personal sim inputs resolve per-user — use any member of the tenant.
+      const urows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.tenantId, tenantId))
+        .limit(1);
+      userId = urows[0]?.id ?? null;
+      dbAvailable = userId != null;
     }
   } catch {
     dbAvailable = false;
@@ -39,14 +47,14 @@ describe("createSimulationTools – run_monte_carlo", () => {
       return;
     }
 
-    const tools = createSimulationTools(tenantId);
+    const tools = createSimulationTools(tenantId, userId!);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const toolResult = (await tools.run_monte_carlo.execute!({}, { messages: [], toolCallId: "test" })) as {
       successRate: number;
     };
 
     // Compute the expected value the same way the tool does internally.
-    const resolved = await resolveSimInputs(tenantId);
+    const resolved = await resolveSimInputs(tenantId, userId!);
     const simResult = runRetirementSim(resolved);
     const expectedSuccessRate = Math.round(simResult.successRate * 100);
 
@@ -59,7 +67,7 @@ describe("createSimulationTools – run_monte_carlo", () => {
       return;
     }
 
-    const tools = createSimulationTools(tenantId);
+    const tools = createSimulationTools(tenantId, userId!);
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const baseResult = (await tools.run_monte_carlo.execute!({}, { messages: [], toolCallId: "test-base" })) as {
@@ -77,7 +85,7 @@ describe("createSimulationTools – run_monte_carlo", () => {
     // The numbers should differ (early retirement means fewer accumulation years
     // and more withdrawal years, which typically changes the success rate).
     // If the base plan already retires at 45, resolve and check horizonYears diff.
-    const resolved = await resolveSimInputs(tenantId);
+    const resolved = await resolveSimInputs(tenantId, userId!);
     if (resolved.retirementAge !== 45) {
       expect(earlyRetireResult.successRate).not.toBe(baseResult.successRate);
     } else {
@@ -94,14 +102,14 @@ describe("createSimulationTools – run_backtest", () => {
       return;
     }
 
-    const tools = createSimulationTools(tenantId);
+    const tools = createSimulationTools(tenantId, userId!);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const toolResult = (await tools.run_backtest.execute!({}, { messages: [], toolCallId: "test" })) as {
       successRate: number;
       startYearCount: number;
     };
 
-    const resolved = await resolveSimInputs(tenantId);
+    const resolved = await resolveSimInputs(tenantId, userId!);
     const summary = runRetirementBacktest(resolved);
     expect(toolResult.successRate).toBe(Math.round(summary.successRate * 100));
     expect(toolResult.startYearCount).toBe(summary.startYearCount);

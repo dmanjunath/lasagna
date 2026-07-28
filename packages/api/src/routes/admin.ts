@@ -1,9 +1,10 @@
 import { Hono } from "hono";
-import { eq, and, sql, desc, users, tenants, accounts, activityEvents, plaidItems, balanceSnapshots, roleEnum } from "@lasagna/core";
+import { eq, and, ne, sql, desc, inArray, users, tenants, accounts, activityEvents, plaidItems, balanceSnapshots, userProfiles, chatThreads, messages } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { resolveTenantPlan, classifyPlanSource, type PlanSource } from "../lib/billing.js";
 import { recomputeFrozenAccounts } from "../lib/account-limits.js";
 import { type AuthEnv } from "../middleware/auth.js";
+import { removeUserRow } from "../lib/auth/remove-user.js";
 import * as workos from "../lib/auth/workos.js";
 import { authMode } from "../lib/auth/mode.js";
 import { env } from "../lib/env.js";
@@ -234,29 +235,100 @@ adminRoutes.post("/users/:userId/move-tenant", async (c) => {
 
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!user) return c.json({ error: "User not found" }, 404);
+  if (user.tenantId === tenantId) {
+    return c.json({ error: "User is already in that tenant" }, 400);
+  }
   const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, tenantId) });
   if (!tenant) return c.json({ error: "Tenant not found" }, 404);
 
-  const [updated] = await db.update(users).set({ tenantId }).where(eq(users.id, userId)).returning();
-  return c.json({ ok: true, user: { id: updated.id, tenantId: updated.tenantId } });
+  // Don't strand the source household: moving its only owner while other
+  // members remain would leave it ownerless (owner-only actions become
+  // impossible). Require ownership to be reassigned first.
+  if (user.role === "owner") {
+    const others = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(and(eq(users.tenantId, user.tenantId), ne(users.id, userId)));
+    if (others.length > 0 && !others.some((u) => u.role === "owner")) {
+      return c.json(
+        { error: "This user is the only owner of a household with other members — reassign ownership before moving them." },
+        400,
+      );
+    }
+  }
+
+  const oldTenantId = user.tenantId;
+  await db.transaction(async (tx) => {
+    // Joining an existing household is a member action; normalize the role to
+    // "member" so the destination can't end up with two owners, and revoke
+    // sessions so the stale (old-tenant) token can't keep acting on old data.
+    await tx
+      .update(users)
+      .set({ tenantId, role: "member", sessionsRevokedAt: new Date() })
+      .where(eq(users.id, userId));
+    // Re-point the user's per-user data so it follows them — otherwise it stays
+    // orphaned at the old tenant and is invisible under their new session.
+    await tx
+      .update(userProfiles)
+      .set({ tenantId })
+      .where(and(eq(userProfiles.userId, userId), eq(userProfiles.tenantId, oldTenantId)));
+    const threadRows = await tx
+      .select({ id: chatThreads.id })
+      .from(chatThreads)
+      .where(and(eq(chatThreads.userId, userId), eq(chatThreads.tenantId, oldTenantId)));
+    await tx
+      .update(chatThreads)
+      .set({ tenantId })
+      .where(and(eq(chatThreads.userId, userId), eq(chatThreads.tenantId, oldTenantId)));
+    const threadIds = threadRows.map((r) => r.id);
+    if (threadIds.length > 0) {
+      await tx.update(messages).set({ tenantId }).where(inArray(messages.threadId, threadIds));
+    }
+  });
+  return c.json({ ok: true, user: { id: userId, tenantId } });
 });
 
-// Change a user's household role (owner | member | viewer).
+// Change a user's household role. v1 assignable roles are owner | member;
+// `viewer` is reserved (read-only enforcement isn't built yet) so it can't be
+// assigned. A tenant must have exactly one owner, so promoting a second owner
+// or demoting the last owner is refused.
 adminRoutes.post("/users/:userId/role", async (c) => {
   const userId = c.req.param("userId");
   if (!UUID_RE.test(userId)) return c.json({ error: "User not found" }, 404);
   const body = await c.req.json<{ role?: string }>().catch(() => ({}) as { role?: string });
   const role = body.role;
-  if (typeof role !== "string" || !(roleEnum.enumValues as readonly string[]).includes(role)) {
-    return c.json({ error: `role must be one of: ${roleEnum.enumValues.join(", ")}` }, 400);
+  if (role !== "owner" && role !== "member") {
+    return c.json({ error: "role must be one of: owner, member" }, 400);
   }
 
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!user) return c.json({ error: "User not found" }, 404);
+  if (user.role === role) {
+    return c.json({ ok: true, user: { id: user.id, role: user.role } });
+  }
+
+  // Preserve the single-owner invariant that readOwnerPersonalProfile (and the
+  // migration backfill) rely on.
+  const owners = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.tenantId, user.tenantId), eq(users.role, "owner")));
+  if (role === "owner" && owners.some((o) => o.id !== userId)) {
+    return c.json(
+      { error: "This household already has an owner — demote them first, or move this user instead." },
+      409,
+    );
+  }
+  if (role !== "owner" && user.role === "owner" && owners.length <= 1) {
+    return c.json(
+      { error: "This is the household's only owner — promote another member to owner first." },
+      409,
+    );
+  }
 
   const [updated] = await db
     .update(users)
-    .set({ role: role as (typeof roleEnum.enumValues)[number] })
+    .set({ role })
     .where(eq(users.id, userId))
     .returning();
   return c.json({ ok: true, user: { id: updated.id, role: updated.role } });
@@ -283,10 +355,8 @@ adminRoutes.delete("/users/:userId", async (c) => {
     return c.json({ error: "Tenant would have no users — delete the tenant instead" }, 400);
   }
 
-  if (user.workosUserId) {
-    await workos.deleteWorkosUser(user.workosUserId).catch(() => {});
-  }
-  await db.delete(users).where(and(eq(users.id, userId), eq(users.tenantId, user.tenantId)));
+  // Same login + WorkOS-identity teardown the household leave/remove flow uses.
+  await removeUserRow(user.tenantId, { id: user.id, workosUserId: user.workosUserId });
   return c.json({ ok: true, deleted: userId });
 });
 

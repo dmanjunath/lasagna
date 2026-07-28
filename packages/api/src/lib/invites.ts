@@ -36,14 +36,24 @@ export async function createInvite(
 ): Promise<InviteRow> {
   const stale = await deps.findPending(input.tenantId, input.email);
   if (stale) await deps.revokeInvite(stale.id); // frees the partial-unique slot (also covers expired-but-not-revoked)
-  return deps.insertInvite({
-    tenantId: input.tenantId,
-    email: input.email,
-    role: input.role,
-    token: generateInviteToken(),
-    invitedByUserId: input.invitedByUserId,
-    expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-  });
+  try {
+    return await deps.insertInvite({
+      tenantId: input.tenantId,
+      email: input.email,
+      role: input.role,
+      token: generateInviteToken(),
+      invitedByUserId: input.invitedByUserId,
+      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+    });
+  } catch (err) {
+    // A concurrent create for the same (tenantId, email) can win the
+    // partial-unique race (invites_pending_tenant_email_idx). Rather than
+    // surfacing a 500, treat it as idempotent and return the pending invite
+    // that landed. If nothing pending is found, the failure was something else.
+    const winner = await deps.findPending(input.tenantId, input.email);
+    if (winner) return winner;
+    throw err;
+  }
 }
 
 export type ResolveResult =

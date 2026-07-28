@@ -10,7 +10,7 @@ import { BrandMark } from "../components/common/BrandMark";
 import { GoogleButton } from "../components/common/GoogleButton";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
-export function Login({ defaultSignup = false }: { defaultSignup?: boolean } = {}) {
+export function Login({ defaultSignup = false, requireName = false }: { defaultSignup?: boolean; requireName?: boolean } = {}) {
   const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
   const { login, loginWithPasskey, signup } = useAuth();
   const [, navigate] = useLocation();
@@ -107,6 +107,10 @@ export function Login({ defaultSignup = false }: { defaultSignup?: boolean } = {
   };
 
   const handleSignup = async () => {
+    if (requireName && !name.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
     if (!consentOk) {
       setError("Please accept all agreements before creating an account.");
       return;
@@ -205,7 +209,7 @@ export function Login({ defaultSignup = false }: { defaultSignup?: boolean } = {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             {isSignup && (
-              <Field label="Name" hint="Optional">
+              <Field label="Name" hint={requireName ? undefined : "Optional"}>
                 <Input
                   type="text"
                   placeholder="Your name"

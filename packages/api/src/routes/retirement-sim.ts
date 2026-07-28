@@ -113,21 +113,21 @@ async function parseOverrides(
 }
 
 retirementSimRouter.post("/simulate", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, userId } = c.get("session");
 
   const parsed = await parseOverrides(c);
   if (!parsed.ok) return c.json({ error: parsed.error }, parsed.status);
 
-  const inputs = await resolveSimInputs(tenantId, parsed.overrides as any);
+  const inputs = await resolveSimInputs(tenantId, userId, parsed.overrides as any);
   return c.json(runRetirementSim(inputs));
 });
 
 retirementSimRouter.post("/backtest", async (c) => {
-  const { tenantId } = c.get("session");
+  const { tenantId, userId } = c.get("session");
 
   const parsed = await parseOverrides(c);
   if (!parsed.ok) return c.json({ error: parsed.error }, parsed.status);
 
-  const inputs = await resolveSimInputs(tenantId, parsed.overrides as any);
+  const inputs = await resolveSimInputs(tenantId, userId, parsed.overrides as any);
   return c.json(runRetirementBacktest(inputs));
 });

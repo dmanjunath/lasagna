@@ -29,10 +29,13 @@ export const requireAuth = createMiddleware<AuthEnv>(async (c, next) => {
   }
 
   // Stateless tokens can't be revoked by themselves — check the user row so
-  // "sign out everywhere" and user deletion take effect immediately.
+  // "sign out everywhere" and user deletion take effect immediately. The
+  // household `role` is read live here too (not trusted from the token) so an
+  // owner→member demotion or promotion takes effect on the next request rather
+  // than lingering until the token expires.
   const user = await db.query.users.findFirst({
     where: eq(users.id, session.userId),
-    columns: { sessionsRevokedAt: true },
+    columns: { sessionsRevokedAt: true, role: true },
   });
   if (!user) {
     return c.json({ error: "Invalid or expired session" }, 401);
@@ -46,6 +49,6 @@ export const requireAuth = createMiddleware<AuthEnv>(async (c, next) => {
     return c.json({ error: "Invalid or expired session" }, 401);
   }
 
-  c.set("session", session);
+  c.set("session", { ...session, role: user.role });
   await next();
 });

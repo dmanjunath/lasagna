@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { eq, sql, holdings } from "@lasagna/core";
+import { eq, sql, holdings, users } from "@lasagna/core";
 import { db } from "../../lib/db.js";
 import { fetchAccountsWithBalances } from "../../lib/account-balances.js";
 import { getHoldingsInput } from "../../routes/portfolio.js";
@@ -21,6 +21,7 @@ import { resolveSimInputs } from "../resolve-sim-inputs.js";
 const INVESTABLE_TYPES = new Set(["investment", "depository"]);
 
 let tenantId: string | null = null;
+let userId: string | null = null;
 let dbAvailable = false;
 
 beforeAll(async () => {
@@ -34,7 +35,15 @@ beforeAll(async () => {
       .limit(1);
     if (rows.length > 0) {
       tenantId = rows[0].tenantId;
-      dbAvailable = true;
+      // Personal profile fields now resolve per-user, so the resolver needs a
+      // user id — use any member of the discovered tenant.
+      const urows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.tenantId, tenantId))
+        .limit(1);
+      userId = urows[0]?.id ?? null;
+      dbAvailable = userId != null;
     }
   } catch {
     dbAvailable = false;
@@ -47,7 +56,7 @@ describe("resolveSimInputs (integration)", () => {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
     }
-    const resolved = await resolveSimInputs(tenantId);
+    const resolved = await resolveSimInputs(tenantId, userId!);
     const expected = extractAllocation(
       aggregatePortfolio(await getHoldingsInput(tenantId)),
     );
@@ -59,7 +68,7 @@ describe("resolveSimInputs (integration)", () => {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
     }
-    const resolved = await resolveSimInputs(tenantId);
+    const resolved = await resolveSimInputs(tenantId, userId!);
     const accts = await fetchAccountsWithBalances(tenantId);
     let expected = 0;
     for (const a of accts) {
@@ -75,7 +84,7 @@ describe("resolveSimInputs (integration)", () => {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
     }
-    const resolved = await resolveSimInputs(tenantId);
+    const resolved = await resolveSimInputs(tenantId, userId!);
     // Scalar defaults always applied by the pure deriver.
     expect(resolved.planThroughAge).toBe(90);
     expect(resolved.ssClaimAge).toBe(67);
@@ -97,7 +106,7 @@ describe("resolveSimInputs (integration)", () => {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
     }
-    const resolved = await resolveSimInputs(tenantId, { retirementAge: 55, numSimulations: 200 });
+    const resolved = await resolveSimInputs(tenantId, userId!, { retirementAge: 55, numSimulations: 200 });
     expect(resolved.retirementAge).toBe(55);
     expect(resolved.numSimulations).toBe(200);
   });

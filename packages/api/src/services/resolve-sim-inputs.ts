@@ -15,8 +15,7 @@
  *  - spending:    computeSpendingTotal (mirrors /transactions/spending-summary)
  */
 
-import { eq, financialProfiles } from "@lasagna/core";
-import { db } from "../lib/db.js";
+import { readUserPersonalProfile } from "../lib/profile-resolver.js";
 import { fetchAccountsWithBalances } from "../lib/account-balances.js";
 import { computeSpendingTotal, defaultSpendingWindow } from "../lib/spending.js";
 import { getHoldingsInput } from "../routes/portfolio.js";
@@ -39,6 +38,7 @@ const ZERO_ALLOCATION: AssetAllocation = {
 
 export async function resolveSimInputs(
   tenantId: string,
+  userId: string,
   overrides?: Partial<SimInputs>,
 ): Promise<SimInputs> {
   // ── Allocation ──────────────────────────────────────────────────────────────
@@ -61,10 +61,12 @@ export async function resolveSimInputs(
   }
   startingBalance = Math.round(startingBalance);
 
-  // ── Financial profile ───────────────────────────────────────────────────────
-  const profile = await db.query.financialProfiles.findFirst({
-    where: eq(financialProfiles.tenantId, tenantId),
-  });
+  // ── Personal profile (per-user) ─────────────────────────────────────────────
+  // dateOfBirth/annualIncome/employerMatch/retirementAge are PERSONAL fields —
+  // they live on the requesting user's userProfiles row, not the shared tenant
+  // financialProfiles row. Reading by userId keeps a household member's sim
+  // scoped to their own data instead of the owner's.
+  const profile = await readUserPersonalProfile(tenantId, userId);
 
   // ── Spending total (previous calendar month, same default as the dashboard) ──
   const { startDate, endDate } = defaultSpendingWindow();

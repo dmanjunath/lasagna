@@ -5,8 +5,10 @@ import { Hono } from "hono";
 vi.mock("@lasagna/core", () => ({
   eq: (...args: unknown[]) => ["eq", ...args],
   and: (...args: unknown[]) => ["and", ...args],
+  ne: (...args: unknown[]) => ["ne", ...args],
   sql: (...args: unknown[]) => ["sql", ...args],
   desc: (...args: unknown[]) => ["desc", ...args],
+  inArray: (...args: unknown[]) => ["inArray", ...args],
   users: {
     table: "users.table",
     id: "users.id",
@@ -22,7 +24,9 @@ vi.mock("@lasagna/core", () => ({
   activityEvents: {},
   plaidItems: {},
   balanceSnapshots: {},
-  roleEnum: { enumValues: ["owner", "member", "viewer"] },
+  userProfiles: { userId: "userProfiles.userId", tenantId: "userProfiles.tenantId" },
+  chatThreads: { id: "chatThreads.id", userId: "chatThreads.userId", tenantId: "chatThreads.tenantId" },
+  messages: { threadId: "messages.threadId", tenantId: "messages.tenantId" },
 }));
 
 // ── DB mock: overridable per-test via these handles ──
@@ -43,32 +47,40 @@ function usersFindFirst(arg: { columns?: Record<string, boolean> }) {
   return targetUserFindFirst(arg);
 }
 
-vi.mock("../../lib/db.js", () => ({
-  db: {
-    query: {
-      users: { findFirst: (a: { columns?: Record<string, boolean> }) => usersFindFirst(a) },
-      tenants: { findFirst: (...a: unknown[]) => tenantsFindFirst(...a) },
+vi.mock("../../lib/db.js", () => {
+  const update = () => ({
+    set: (vals: Record<string, unknown>) => {
+      userUpdateSet(vals);
+      return {
+        where: (w: unknown) => {
+          userUpdateWhere(w);
+          return { returning: async () => [{ id: "target-1", ...vals }] };
+        },
+      };
     },
-    update: () => ({
-      set: (vals: Record<string, unknown>) => {
-        userUpdateSet(vals);
-        return {
-          where: (w: unknown) => {
-            userUpdateWhere(w);
-            return { returning: async () => [{ id: "target-1", ...vals }] };
-          },
-        };
+  });
+  const del = () => ({ where: (...a: unknown[]) => userDeleteWhere(...a) });
+  // Used by the DELETE last-user guard, the move-tenant ownerless check, and the
+  // move-tenant chat-thread lookup — all return an array; the count shape covers
+  // the guard and the thread lookup treats a rowless result as "no threads".
+  const select = () => ({
+    from: () => ({ where: async () => [{ count: await tenantUserCount() }] }),
+  });
+  return {
+    db: {
+      query: {
+        users: { findFirst: (a: { columns?: Record<string, boolean> }) => usersFindFirst(a) },
+        tenants: { findFirst: (...a: unknown[]) => tenantsFindFirst(...a) },
       },
-    }),
-    delete: () => ({
-      where: (...a: unknown[]) => userDeleteWhere(...a),
-    }),
-    // Only used by the last-user-count guard in DELETE.
-    select: () => ({
-      from: () => ({ where: async () => [{ count: await tenantUserCount() }] }),
-    }),
-  },
-}));
+      update,
+      delete: del,
+      select,
+      // move-tenant re-scopes the user's rows atomically; the tx exposes the
+      // same builders the mock already models.
+      transaction: async (cb: (tx: unknown) => unknown) => cb({ update, select, delete: del }),
+    },
+  };
+});
 
 vi.mock("../../lib/auth/workos.js", () => ({
   deleteWorkosUser: vi.fn(async () => {}),
@@ -156,6 +168,18 @@ describe("POST /api/admin/users/:userId/move-tenant", () => {
     expect(res.status).toBe(403);
     expect(userUpdateSet).not.toHaveBeenCalled();
   });
+
+  it("moving a user already in the target tenant → 400, no update", async () => {
+    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: TENANT_A, role: "member", isAdmin: false });
+    const app = appWithSession(admin);
+    const res = await app.request(`/api/admin/users/${USER_A}/move-tenant`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId: TENANT_A }),
+    });
+    expect(res.status).toBe(400);
+    expect(userUpdateSet).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/admin/users/:userId/role", () => {
@@ -204,6 +228,42 @@ describe("POST /api/admin/users/:userId/role", () => {
       body: JSON.stringify({ role: "member" }),
     });
     expect(res.status).toBe(403);
+    expect(userUpdateSet).not.toHaveBeenCalled();
+  });
+
+  it("rejects the reserved 'viewer' role → 400, no update", async () => {
+    const app = appWithSession(admin);
+    const res = await app.request(`/api/admin/users/${USER_A}/role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "viewer" }),
+    });
+    expect(res.status).toBe(400);
+    expect(userUpdateSet).not.toHaveBeenCalled();
+  });
+
+  it("refuses to promote a second owner while one exists → 409, no update", async () => {
+    // The owner-count select returns a pre-existing owner (id ≠ target).
+    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: TENANT_A, role: "member", isAdmin: false });
+    const app = appWithSession(admin);
+    const res = await app.request(`/api/admin/users/${USER_A}/role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "owner" }),
+    });
+    expect(res.status).toBe(409);
+    expect(userUpdateSet).not.toHaveBeenCalled();
+  });
+
+  it("refuses to demote the only owner → 409, no update", async () => {
+    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: TENANT_A, role: "owner", isAdmin: false });
+    const app = appWithSession(admin);
+    const res = await app.request(`/api/admin/users/${USER_A}/role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "member" }),
+    });
+    expect(res.status).toBe(409);
     expect(userUpdateSet).not.toHaveBeenCalled();
   });
 });

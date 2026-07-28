@@ -17,38 +17,46 @@ vi.mock("@lasagna/core", () => ({
 
 const invitesFindFirst = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("../../db.js", () => ({
-  db: {
-    query: {
-      users: { findFirst: vi.fn().mockResolvedValue(undefined) },
-      tenants: { findFirst: vi.fn() },
-      invites: { findFirst: (...args: unknown[]) => invitesFindFirst(...args) },
+vi.mock("../../db.js", () => {
+  const insert = (table: Record<string, string>) => ({
+    values: (vals: Record<string, unknown>) => {
+      if (table === undefined) throw new Error("no table");
+      // tenants insert returns a tenant row
+      const isTenant = "name" in vals && !("email" in vals);
+      if (isTenant) return { returning: () => [{ id: "tenant-1" }] };
+      // userProfiles insert has userId but no email
+      const isUserProfile = "userId" in vals && !("email" in vals);
+      if (isUserProfile) {
+        userProfileInsertValues(vals);
+        return { returning: () => [{ id: "user-profile-1", ...vals }] };
+      }
+      // users insert records the values
+      insertValues(vals);
+      return { returning: () => [{ id: "user-1", ...vals }] };
     },
-    insert: (table: Record<string, string>) => ({
-      values: (vals: Record<string, unknown>) => {
-        if (table === undefined) throw new Error("no table");
-        // tenants insert returns a tenant row
-        const isTenant = "name" in vals && !("email" in vals);
-        if (isTenant) return { returning: () => [{ id: "tenant-1" }] };
-        // userProfiles insert has userId but no email
-        const isUserProfile = "userId" in vals && !("email" in vals);
-        if (isUserProfile) {
-          userProfileInsertValues(vals);
-          return { returning: () => [{ id: "user-profile-1", ...vals }] };
-        }
-        // users insert records the values
-        insertValues(vals);
-        return { returning: () => [{ id: "user-1", ...vals }] };
+  });
+  const update = () => ({
+    set: (vals: Record<string, unknown>) => {
+      inviteUpdateSet(vals);
+      return { where: () => Promise.resolve(undefined) };
+    },
+  });
+  // The join branch wraps its writes in db.transaction; the tx exposes the same
+  // insert/update the mock already models.
+  const tx = { insert, update };
+  return {
+    db: {
+      query: {
+        users: { findFirst: vi.fn().mockResolvedValue(undefined) },
+        tenants: { findFirst: vi.fn() },
+        invites: { findFirst: (...args: unknown[]) => invitesFindFirst(...args) },
       },
-    }),
-    update: () => ({
-      set: (vals: Record<string, unknown>) => {
-        inviteUpdateSet(vals);
-        return { where: () => Promise.resolve(undefined) };
-      },
-    }),
-  },
-}));
+      insert,
+      update,
+      transaction: async (cb: (tx: unknown) => unknown) => cb(tx),
+    },
+  };
+});
 
 beforeEach(() => {
   vi.clearAllMocks();

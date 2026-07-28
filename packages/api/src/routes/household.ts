@@ -4,7 +4,7 @@ import { and, eq, isNull, desc, invites, users, tenants } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { COOKIE_NAME } from "../lib/session.js";
-import { deleteWorkosUser } from "../lib/auth/workos.js";
+import { removeUserRow } from "../lib/auth/remove-user.js";
 import { cookieFlagsFor } from "./auth.js";
 import {
   createInvite,
@@ -59,8 +59,13 @@ householdRoutes.post("/invites", async (c) => {
     invitedByUserId: session.userId,
   });
 
-  // Best-effort email; the token in the URL is the security primitive.
-  await sendInviteEmail({ email, inviterName: null, token: invite.token });
+  // Best-effort email; the token in the URL is the security primitive. Name the
+  // inviter so the email reads "<name> invited you" rather than "Someone".
+  const inviter = await db.query.users.findFirst({
+    where: eq(users.id, session.userId),
+    columns: { name: true },
+  });
+  await sendInviteEmail({ email, inviterName: inviter?.name ?? null, token: invite.token });
 
   // Never leak the token in the owner-facing response.
   return c.json({ invite: { id: invite.id, email: invite.email, role: invite.role, expiresAt: invite.expiresAt } });
@@ -124,16 +129,6 @@ householdRoutes.get("/invite/:token", async (c) => {
 // tenant-scoped financial data is untouched. The OWNER can't be removed or leave
 // — they use the account-deletion flow instead. A member can only remove
 // themselves (leave), not others.
-
-// Delete a user's login + WorkOS identity (best-effort, mirrors account.ts).
-async function removeUserRow(tenantId: string, target: { id: string; workosUserId: string | null }) {
-  if (target.workosUserId) {
-    await deleteWorkosUser(target.workosUserId).catch((e) =>
-      console.error(`[Household] workos deleteUser failed (${target.workosUserId}):`, e instanceof Error ? e.message : e),
-    );
-  }
-  await db.delete(users).where(and(eq(users.id, target.id), eq(users.tenantId, tenantId)));
-}
 
 // ── List members (any member of the household) ──────────────────────────────
 householdRoutes.get("/members", async (c) => {

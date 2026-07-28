@@ -8,7 +8,7 @@ import { runRetirementSim } from "../../services/retirement-sim.js";
 import { runRetirementBacktest } from "../../services/retirement-backtest.js";
 import { resolveSimInputs } from "../../services/resolve-sim-inputs.js";
 
-export function createSimulationTools(tenantId: string) {
+export function createSimulationTools(tenantId: string, userId: string) {
   return {
     get_portfolio_summary: tool({
       description:
@@ -72,7 +72,7 @@ export function createSimulationTools(tenantId: string) {
         numSimulations: z.number().int().positive().optional(),
       }),
       execute: async (params) => {
-        const inputs = await resolveSimInputs(tenantId, params);
+        const inputs = await resolveSimInputs(tenantId, userId, params);
         const result = runRetirementSim(inputs);
 
         // Compact LLM-facing summary — full percentile arrays are too large for context.
@@ -140,7 +140,7 @@ export function createSimulationTools(tenantId: string) {
           .optional(),
       }),
       execute: async (params) => {
-        const inputs = await resolveSimInputs(tenantId, params);
+        const inputs = await resolveSimInputs(tenantId, userId, params);
         const result = runRetirementBacktest(inputs);
 
         // Compact LLM-facing summary — full cohort bands are too large for context.
@@ -206,7 +206,7 @@ export function createSimulationTools(tenantId: string) {
         let retirementDuration = params.retirementDuration;
 
         if (!allocation || initialBalance === undefined || retirementDuration === undefined) {
-          const resolved = await resolveSimInputs(tenantId);
+          const resolved = await resolveSimInputs(tenantId, userId);
           allocation ??= resolved.allocation;
           initialBalance ??= resolved.startingBalance;
           retirementDuration ??= resolved.planThroughAge - resolved.retirementAge;

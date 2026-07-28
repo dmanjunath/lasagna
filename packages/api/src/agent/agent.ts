@@ -118,7 +118,7 @@ export function createAgentTools(
   const allTools = {
     ...createFinancialTools(tenantId, userId),
     ...createPlanTools(tenantId),
-    ...createSimulationTools(tenantId),
+    ...createSimulationTools(tenantId, userId),
     ...createTaxTools(tenantId),
     ...createSpendingTools(tenantId),
   };
