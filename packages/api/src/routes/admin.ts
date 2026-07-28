@@ -276,9 +276,12 @@ adminRoutes.post("/users/:userId/move-tenant", async (c) => {
       .select({ id: chatThreads.id })
       .from(chatThreads)
       .where(and(eq(chatThreads.userId, userId), eq(chatThreads.tenantId, oldTenantId)));
+    // Detach from any old-tenant plan (plans are tenant-scoped and don't move) so
+    // the thread doesn't hold a dangling cross-tenant planId / get cascade-deleted
+    // when that plan is later removed.
     await tx
       .update(chatThreads)
-      .set({ tenantId })
+      .set({ tenantId, planId: null })
       .where(and(eq(chatThreads.userId, userId), eq(chatThreads.tenantId, oldTenantId)));
     const threadIds = threadRows.map((r) => r.id);
     if (threadIds.length > 0) {

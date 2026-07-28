@@ -41,6 +41,10 @@ const userUpdateWhere = vi.fn();
 const userDeleteWhere = vi.fn(async (..._a: unknown[]) => undefined as unknown);
 // Count of users remaining in a tenant, for the last-user guard.
 const tenantUserCount = vi.fn(async () => 2);
+// Rows returned by the row-shaped db.select() calls: the change-role
+// owner-count query (`{ id }`), the move-tenant ownerless-source check
+// (`{ role }`), and the move-tenant chat-thread lookup (`{ id }`). Set per test.
+const ownerRows = vi.fn(async () => [] as unknown[]);
 
 function usersFindFirst(arg: { columns?: Record<string, boolean> }) {
   if (arg?.columns?.isAdmin) return gateUser();
@@ -60,11 +64,13 @@ vi.mock("../../lib/db.js", () => {
     },
   });
   const del = () => ({ where: (...a: unknown[]) => userDeleteWhere(...a) });
-  // Used by the DELETE last-user guard, the move-tenant ownerless check, and the
-  // move-tenant chat-thread lookup — all return an array; the count shape covers
-  // the guard and the thread lookup treats a rowless result as "no threads".
-  const select = () => ({
-    from: () => ({ where: async () => [{ count: await tenantUserCount() }] }),
+  // The DELETE last-user guard selects `{ count }`; the change-role owner-count,
+  // the move-tenant ownerless check, and the chat-thread lookup select rows.
+  // Dispatch on the selected columns so each can be controlled independently.
+  const select = (cols?: Record<string, unknown>) => ({
+    from: () => ({
+      where: async () => (cols && "count" in cols ? [{ count: await tenantUserCount() }] : await ownerRows()),
+    }),
   });
   return {
     db: {
@@ -116,11 +122,12 @@ beforeEach(() => {
   tenantsFindFirst.mockResolvedValue({ id: TENANT_A, name: "Other" });
   userDeleteWhere.mockResolvedValue(undefined);
   tenantUserCount.mockResolvedValue(2);
+  ownerRows.mockResolvedValue([]);
 });
 
 describe("POST /api/admin/users/:userId/move-tenant", () => {
-  it("admin moves a user to an existing tenant → 200, updates tenantId", async () => {
-    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: "old-tenant", isAdmin: false });
+  it("admin moves a user → 200, re-scopes to the tenant as a member and revokes sessions", async () => {
+    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: "old-tenant", role: "member", isAdmin: false });
     tenantsFindFirst.mockResolvedValue({ id: TENANT_A, name: "Other" });
     const app = appWithSession(admin);
     const res = await app.request(`/api/admin/users/${USER_A}/move-tenant`, {
@@ -129,7 +136,41 @@ describe("POST /api/admin/users/:userId/move-tenant", () => {
       body: JSON.stringify({ tenantId: TENANT_A }),
     });
     expect(res.status).toBe(200);
-    expect(userUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT_A }));
+    // The users row is re-pointed to the destination, normalized to member, and
+    // its sessions revoked (so the stale-tenant token can't linger).
+    const usersUpdate = userUpdateSet.mock.calls.find((c) => "role" in c[0]);
+    expect(usersUpdate?.[0]).toMatchObject({ tenantId: TENANT_A, role: "member" });
+    expect(usersUpdate?.[0]).toHaveProperty("sessionsRevokedAt");
+    // Per-user data (userProfiles / chatThreads) is re-pointed too.
+    expect(userUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ tenantId: TENANT_A, planId: null }));
+  });
+
+  it("refuses to move a household's only owner while other members remain → 400", async () => {
+    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: "old-tenant", role: "owner", isAdmin: false });
+    tenantsFindFirst.mockResolvedValue({ id: TENANT_A, name: "Other" });
+    // The source tenant's OTHER users — members, no other owner.
+    ownerRows.mockResolvedValue([{ role: "member" }]);
+    const app = appWithSession(admin);
+    const res = await app.request(`/api/admin/users/${USER_A}/move-tenant`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId: TENANT_A }),
+    });
+    expect(res.status).toBe(400);
+    expect(userUpdateSet).not.toHaveBeenCalled();
+  });
+
+  it("allows moving an owner when the source has another owner → 200", async () => {
+    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: "old-tenant", role: "owner", isAdmin: false });
+    tenantsFindFirst.mockResolvedValue({ id: TENANT_A, name: "Other" });
+    ownerRows.mockResolvedValue([{ role: "owner" }, { role: "member" }]);
+    const app = appWithSession(admin);
+    const res = await app.request(`/api/admin/users/${USER_A}/move-tenant`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId: TENANT_A }),
+    });
+    expect(res.status).toBe(200);
   });
 
   it("moving into a nonexistent tenant → 404, no update", async () => {
@@ -242,9 +283,10 @@ describe("POST /api/admin/users/:userId/role", () => {
     expect(userUpdateSet).not.toHaveBeenCalled();
   });
 
-  it("refuses to promote a second owner while one exists → 409, no update", async () => {
-    // The owner-count select returns a pre-existing owner (id ≠ target).
+  it("refuses to promote a second owner while a DIFFERENT owner exists → 409, no update", async () => {
     targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: TENANT_A, role: "member", isAdmin: false });
+    // A real pre-existing owner whose id differs from the target.
+    ownerRows.mockResolvedValue([{ id: "99999999-9999-9999-9999-999999999999" }]);
     const app = appWithSession(admin);
     const res = await app.request(`/api/admin/users/${USER_A}/role`, {
       method: "POST",
@@ -255,8 +297,23 @@ describe("POST /api/admin/users/:userId/role", () => {
     expect(userUpdateSet).not.toHaveBeenCalled();
   });
 
+  it("allows promoting a member to owner when the household has no owner → 200", async () => {
+    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: TENANT_A, role: "member", isAdmin: false });
+    ownerRows.mockResolvedValue([]); // no existing owner
+    const app = appWithSession(admin);
+    const res = await app.request(`/api/admin/users/${USER_A}/role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "owner" }),
+    });
+    expect(res.status).toBe(200);
+    expect(userUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ role: "owner" }));
+  });
+
   it("refuses to demote the only owner → 409, no update", async () => {
     targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: TENANT_A, role: "owner", isAdmin: false });
+    // The owner list contains only the target — demoting would leave zero owners.
+    ownerRows.mockResolvedValue([{ id: USER_A }]);
     const app = appWithSession(admin);
     const res = await app.request(`/api/admin/users/${USER_A}/role`, {
       method: "POST",
@@ -265,6 +322,19 @@ describe("POST /api/admin/users/:userId/role", () => {
     });
     expect(res.status).toBe(409);
     expect(userUpdateSet).not.toHaveBeenCalled();
+  });
+
+  it("allows demoting an owner when a second owner exists → 200", async () => {
+    targetUserFindFirst.mockResolvedValue({ id: USER_A, tenantId: TENANT_A, role: "owner", isAdmin: false });
+    ownerRows.mockResolvedValue([{ id: USER_A }, { id: "99999999-9999-9999-9999-999999999999" }]);
+    const app = appWithSession(admin);
+    const res = await app.request(`/api/admin/users/${USER_A}/role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "member" }),
+    });
+    expect(res.status).toBe(200);
+    expect(userUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ role: "member" }));
   });
 });
 
