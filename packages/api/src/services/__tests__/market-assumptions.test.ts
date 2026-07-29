@@ -76,6 +76,19 @@ describe("market-assumptions", () => {
       const allocation = { usStocks: 2, intlStocks: 0, bonds: 2, reits: 0, cash: 0 } as AssetAllocation;
       expect(blendedExpectedReturn(allocation)).toBeCloseTo(0.075);
     });
+
+    it("uses per-class return overrides where provided, falling back to MARKET_MODEL", () => {
+      // 60% usStocks @ 0.13 override + 40% bonds @ MARKET_MODEL (0.05)
+      // = 0.6 * 0.13 + 0.4 * 0.05 = 0.078 + 0.02 = 0.098
+      const allocation: AssetAllocation = {
+        usStocks: 0.6,
+        intlStocks: 0,
+        bonds: 0.4,
+        reits: 0,
+        cash: 0,
+      };
+      expect(blendedExpectedReturn(allocation, { usStocks: 0.13 })).toBeCloseTo(0.098);
+    });
   });
 
   describe("blendedVolatility", () => {

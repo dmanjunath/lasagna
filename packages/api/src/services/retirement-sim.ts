@@ -40,6 +40,11 @@ export interface SimInputs {
   otherMonthly: number;
   otherStartAge: number;
   allocation: AssetAllocation;
+  // Per-class expected returns (decimals) derived from the user's actual
+  // holdings. When present, overrides the flat MARKET_MODEL mean per class (and
+  // the fixed cash growth rate) so the projection runs on the holdings-specific
+  // blended return. Absent → flat capital-market assumptions (hypothetical mixes).
+  assetClassReturns?: Partial<Record<keyof AssetAllocation, number>>;
   inflationAdjusted: boolean;
   numSimulations: number;
   seed?: number;
@@ -94,6 +99,7 @@ export function runRetirementSim(inputs: SimInputs): SimResult {
     otherMonthly,
     otherStartAge,
     allocation,
+    assetClassReturns,
     inflationAdjusted,
     numSimulations,
     seed,
@@ -153,9 +159,12 @@ export function runRetirementSim(inputs: SimInputs): SimResult {
       for (const cls of ASSET_CLASSES) {
         let r: number;
         if (cls === "cash") {
-          r = CASH_GROWTH_RATE; // fixed, no random draw
+          r = assetClassReturns?.cash ?? CASH_GROWTH_RATE; // fixed, no random draw
         } else {
-          r = randomNormal(MARKET_MODEL[cls].mean, MARKET_MODEL[cls].stdDev, rng);
+          // Holdings-derived mean when available; volatility stays at the
+          // bucket level (that's where we have real risk data).
+          const mean = assetClassReturns?.[cls] ?? MARKET_MODEL[cls].mean;
+          r = randomNormal(mean, MARKET_MODEL[cls].stdDev, rng);
         }
         returns[cls] = r;
         balanceByClass[cls] *= 1 + r;
@@ -309,7 +318,7 @@ export function runRetirementSim(inputs: SimInputs): SimResult {
     percentiles: { p5, p25, p50, p75, p95 },
     medianLastsToAge,
     finalBalanceDistribution: { mean, median, stdDev },
-    blendedExpectedReturn: blendedExpectedReturn(allocation),
+    blendedExpectedReturn: blendedExpectedReturn(allocation, assetClassReturns),
     horizonYears: horizon,
   };
 }

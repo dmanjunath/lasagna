@@ -1,4 +1,5 @@
 import { getTickerCategoryWithFallback, ASSET_CLASS_COLORS, type AssetClass, type CachedClassification } from "@lasagna/core";
+import { MARKET_MODEL, ASSET_CLASSES, type AssetAllocation } from "./market-assumptions.js";
 
 export interface HoldingInput {
   ticker: string;
@@ -173,4 +174,73 @@ export function extractAllocation(composition: PortfolioComposition): {
     reits: findPercentage('REITs'),
     cash: findPercentage('Cash'),
   };
+}
+
+/**
+ * Historical average annual returns (percent) by holding category. Finer-grained
+ * than the 5-bucket MARKET_MODEL — this is what lets a Nasdaq-heavy US-stock
+ * sleeve read higher than a plain total-market one. Single source of truth for
+ * both the /portfolio/exposure endpoint and the sim's holdings-derived returns.
+ */
+export const CATEGORY_RETURNS: Record<string, number> = {
+  "S&P 500": 10.2,
+  "Total Market": 10.0,
+  "Total World": 9.5,
+  Growth: 11.5,
+  Nasdaq: 12.0,
+  Value: 9.5,
+  "Small Cap": 10.5,
+  "Mid Cap": 10.0,
+  Dividend: 9.0,
+  Developed: 7.5,
+  Emerging: 8.0,
+  "Total International": 7.5,
+  "Total Bond": 5.0,
+  Corporate: 5.5,
+  Government: 4.5,
+  TIPS: 4.0,
+  Municipal: 4.0,
+  "US REITs": 9.5,
+  "International REITs": 7.0,
+  "Money Market": 2.0,
+  Treasuries: 2.5, // treasury money-market funds (VUSXX etc.) — cash-like, T-bill yield
+  "Short-Term": 2.5,
+  "Savings & Checking": 1.5,
+  "Large Cap": 10.5,
+  Unknown: 7.0,
+};
+
+const DEFAULT_CATEGORY_RETURN = 7.0;
+
+// Composition asset-class names → the 5 sim buckets.
+const CLASS_NAME_TO_KEY: Record<string, keyof AssetAllocation> = {
+  "US Stocks": "usStocks",
+  "International Stocks": "intlStocks",
+  Bonds: "bonds",
+  REITs: "reits",
+  Cash: "cash",
+};
+
+/**
+ * Per-bucket expected returns (decimals) derived from the user's ACTUAL holdings:
+ * within each of the 5 sim buckets, the value-weighted average of its holdings'
+ * category returns. Buckets with no holdings fall back to the flat MARKET_MODEL
+ * mean. Blending these by allocation reproduces the /portfolio/exposure endpoint's
+ * headline return, so the displayed figure and the Monte Carlo agree.
+ */
+export function extractClassReturns(composition: PortfolioComposition): AssetAllocation {
+  const out = {} as AssetAllocation;
+  for (const cls of ASSET_CLASSES) out[cls] = MARKET_MODEL[cls].mean;
+
+  for (const ac of composition.assetClasses) {
+    const key = CLASS_NAME_TO_KEY[ac.name];
+    if (!key || ac.value <= 0) continue;
+    const weighted = ac.categories.reduce(
+      (sum, cat) => sum + cat.value * (CATEGORY_RETURNS[cat.name] ?? DEFAULT_CATEGORY_RETURN),
+      0,
+    );
+    out[key] = weighted / ac.value / 100; // percent → decimal
+  }
+
+  return out;
 }

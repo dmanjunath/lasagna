@@ -19,7 +19,7 @@ import { readUserPersonalProfile } from "../lib/profile-resolver.js";
 import { fetchAccountsWithBalances } from "../lib/account-balances.js";
 import { computeSpendingTotal, defaultSpendingWindow } from "../lib/spending.js";
 import { getHoldingsInput } from "../routes/portfolio.js";
-import { aggregatePortfolio, extractAllocation } from "./portfolio-aggregator.js";
+import { aggregatePortfolio, extractAllocation, extractClassReturns } from "./portfolio-aggregator.js";
 import { deriveSimInputs, type RawResolverData } from "./retirement-defaults.js";
 import type { SimInputs } from "./retirement-sim.js";
 import type { AssetAllocation } from "./market-assumptions.js";
@@ -41,12 +41,19 @@ export async function resolveSimInputs(
   userId: string,
   overrides?: Partial<SimInputs>,
 ): Promise<SimInputs> {
-  // ── Allocation ──────────────────────────────────────────────────────────────
+  // ── Allocation + holdings-derived returns ────────────────────────────────────
   const holdingsInput = await getHoldingsInput(tenantId);
-  const allocation =
-    holdingsInput.length === 0
-      ? ZERO_ALLOCATION
-      : extractAllocation(aggregatePortfolio(holdingsInput));
+  const composition = holdingsInput.length === 0 ? null : aggregatePortfolio(holdingsInput);
+  const allocation = composition ? extractAllocation(composition) : ZERO_ALLOCATION;
+
+  // Per-bucket expected returns from the user's actual holdings. Applied only
+  // when the caller is simulating the REAL portfolio (no allocation override) —
+  // a hypothetical preset/custom mix uses flat capital-market assumptions.
+  // Keeps the dashboard and the chat agent in lockstep on the same number.
+  const assetClassReturns =
+    composition && overrides?.allocation === undefined
+      ? extractClassReturns(composition)
+      : undefined;
 
   // ── Investable balance ──────────────────────────────────────────────────────
   // Sum raw balances over investment/depository accounts with balance > 0.
@@ -84,5 +91,6 @@ export async function resolveSimInputs(
     allocation,
   };
 
-  return deriveSimInputs(raw, overrides);
+  const inputs = deriveSimInputs(raw, overrides);
+  return assetClassReturns ? { ...inputs, assetClassReturns } : inputs;
 }

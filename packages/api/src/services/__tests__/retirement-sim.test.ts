@@ -74,4 +74,37 @@ describe("runRetirementSim", () => {
     expect(result.successRate).toBeGreaterThanOrEqual(0);
     expect(result.successRate).toBeLessThanOrEqual(1);
   });
+
+  describe("assetClassReturns overrides", () => {
+    it("reports the blended return computed from the holdings-derived means", () => {
+      const assetClassReturns = { usStocks: 0.13, bonds: 0.04 };
+      const result = runRetirementSim({ ...base, assetClassReturns });
+      expect(result.blendedExpectedReturn).toBe(
+        blendedExpectedReturn(allocation, assetClassReturns),
+      );
+      // Strictly higher than the flat-model blend (usStocks 0.10→0.13 dominates).
+      expect(result.blendedExpectedReturn).toBeGreaterThan(
+        blendedExpectedReturn(allocation),
+      );
+    });
+
+    it("raises the success rate when the holdings-derived returns are higher", () => {
+      // A spend generous enough to cause failures on the flat model; higher
+      // per-class means (same seed, same volatility) must succeed strictly more.
+      const stressed: SimInputs = {
+        ...base,
+        currentAge: 60,
+        retirementAge: 62,
+        planThroughAge: 95,
+        startingBalance: 900_000,
+        monthlySpend: 5500,
+      };
+      const flat = runRetirementSim(stressed);
+      const richer = runRetirementSim({
+        ...stressed,
+        assetClassReturns: { usStocks: 0.13, intlStocks: 0.11, bonds: 0.06, reits: 0.11 },
+      });
+      expect(richer.successRate).toBeGreaterThan(flat.successRate);
+    });
+  });
 });

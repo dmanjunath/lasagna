@@ -1213,7 +1213,9 @@ function RetirementV2Inner() {
   const [accounts, setAccounts] = useState<DrawAccount[]>([]);
   const [allocation, setAllocation] = useState<Record<string, number> | null>(null);
   const [derivedEquity, setDerivedEquity] = useState<number | null>(null);
-  const [blendedReturn, setBlendedReturn] = useState<number | null>(null);
+  // Per-bucket expected returns (percent) derived from real holdings — the same
+  // figures the server Monte Carlo runs on. Null until the exposure fetch lands.
+  const [perClassReturns, setPerClassReturns] = useState<Record<string, number> | null>(null);
   // Liquid/investable savings only (real estate, alternatives and debt are
   // excluded at classification time) — this is what every simulation draws on.
   const portfolioValue = buckets.taxable + buckets.deferred + buckets.roth + buckets.hsa;
@@ -1366,12 +1368,13 @@ function RetirementV2Inner() {
           setCustomAlloc(Object.fromEntries(ALLOC_META.map((m, i) => [m.key, ints[i]])));
         }
       }
-      const ed = exposureData as { blendedReturn?: number } | null;
-      // Prefer the server-computed blended return (holding-level granularity);
-      // fall back to the historical-average blend of the real allocation.
+      const ed = exposureData as { perClassReturns?: Record<string, number>; blendedReturn?: number } | null;
+      // Holdings-derived per-bucket returns drive the "My portfolio" expected
+      // return everywhere (caption, assumptions, sim). Fall back to the
+      // allocation-average blend only to seed the manual no-holdings lever.
+      if (ed?.perClassReturns) setPerClassReturns(ed.perClassReturns);
       const blend = ed && ed.blendedReturn ? ed.blendedReturn : allocBlend;
       if (blend !== null) {
-        setBlendedReturn(Math.round(blend * 10) / 10);
         setBaseReturn(Math.round(blend * 10) / 10);
       }
     }).finally(() => setLoading(false));
@@ -1407,20 +1410,35 @@ function RetirementV2Inner() {
   // holdings load), or the preset/custom mix's equity fraction.
   const equityPct = isCustomComp ? customEquityPct : (derivedEquity ?? 60);
 
-  // Effective allocation (what the server MC actually runs) → MARKET_MODEL-
-  // weighted blended return/vol via the reconciled ALLOC_META. `expReturn` reads
-  // from this for BOTH presets so the deterministic "Blended" path and every
-  // caption match the server MC's `blendedExpectedReturn`. Falls back to the
-  // hand-adjustable baseReturn when the real allocation isn't loaded yet.
+  // Effective allocation (what the server MC actually runs) → blended return/vol.
+  // `expReturn` reads from this so the deterministic "Blended" path and every
+  // caption match the server MC's `blendedExpectedReturn`: for "My portfolio"
+  // that's the holdings-derived per-bucket returns, for a preset/custom mix the
+  // flat ALLOC_META historical averages. Falls back to the hand-adjustable
+  // baseReturn when the real allocation isn't loaded yet.
   const effAlloc = compPreset === 'current' ? allocation : customAlloc;
   const effTotal = effAlloc ? ALLOC_META.reduce((s, m) => s + (effAlloc[m.key] ?? 0), 0) : 0;
+  // Per-bucket return: holdings-derived for the real portfolio (so the sim's
+  // expected return reflects the user's actual funds), flat historical averages
+  // for a hypothetical preset/custom mix (no holding granularity to draw on).
+  const retForClass = (key: string, fallback: number) =>
+    compPreset === 'current' && perClassReturns ? (perClassReturns[key] ?? fallback) : fallback;
   const allocReturn = effTotal > 0
-    ? Math.round((ALLOC_META.reduce((s, m) => s + ((effAlloc![m.key] ?? 0) * m.ret), 0) / effTotal) * 10) / 10
+    ? Math.round((ALLOC_META.reduce((s, m) => s + ((effAlloc![m.key] ?? 0) * retForClass(m.key, m.ret)), 0) / effTotal) * 10) / 10
     : null;
   const blendedVol = effTotal > 0
     ? Math.round((ALLOC_META.reduce((s, m) => s + ((effAlloc![m.key] ?? 0) * m.vol), 0) / effTotal) * 10) / 10
     : null;
   const expReturn = allocReturn ?? baseReturn;
+
+  // The real portfolio's blended expected return (holdings-weighted), regardless
+  // of the active preset — used to compare a custom mix against reality.
+  const holdingsBlendedReturn = (() => {
+    if (!allocation || !perClassReturns) return null;
+    const total = ALLOC_META.reduce((s, m) => s + (allocation[m.key] ?? 0), 0);
+    if (total <= 0) return null;
+    return Math.round((ALLOC_META.reduce((s, m) => s + (allocation[m.key] ?? 0) * (perClassReturns[m.key] ?? m.ret), 0) / total) * 10) / 10;
+  })();
 
   const selectCompPreset = (p: typeof COMP_PRESETS[number]) => {
     setCompPreset(p.id);
@@ -1494,9 +1512,13 @@ function RetirementV2Inner() {
     otherStartAge,
     strategy,
     strategyParams: strategyParams as Record<string, unknown> | undefined,
-    allocation: simAllocation,
+    // Omit the allocation for "My portfolio" so the server resolves the real
+    // allocation AND its holdings-derived per-bucket returns (keeping the sim's
+    // expected return equal to the figure shown below). A preset/custom mix is
+    // hypothetical, so it's sent explicitly and runs on flat assumptions.
+    allocation: compPreset === 'current' ? undefined : simAllocation,
     numSimulations: 1000,
-  }), [currentAge, effRetireAge, lifeExp, portfolioValue, monthlySavings, monthlySpend, ssMonthly, ssClaimAge, otherMonthly, otherStartAge, strategy, strategyParams, simAllocation]);
+  }), [currentAge, effRetireAge, lifeExp, portfolioValue, monthlySavings, monthlySpend, ssMonthly, ssClaimAge, otherMonthly, otherStartAge, strategy, strategyParams, compPreset, simAllocation]);
 
   const [mcResult, setMcResult] = useState<SimResult | null>(null);
   const [mcLoading, setMcLoading] = useState(false);
@@ -1921,7 +1943,7 @@ function RetirementV2Inner() {
            hero number scrolls out of view. */
         .ret-pin {
           position: sticky;
-          bottom: 12px;
+          bottom: 18px;
           z-index: 30;
           margin-top: 14px;
           transition: opacity 0.25s ease, transform 0.25s ease;
@@ -1937,12 +1959,20 @@ function RetirementV2Inner() {
           align-items: stretch;
           gap: 8px;
           padding: 9px 18px;
-          border: 1px solid var(--ui-line);
           border-radius: var(--ui-r-lg, 14px);
-          background: rgb(var(--ui-panel) / 0.92);
-          backdrop-filter: saturate(1.4) blur(8px);
-          -webkit-backdrop-filter: saturate(1.4) blur(8px);
-          box-shadow: var(--ui-shadow-sm);
+          /* Elevated overlay: an OPAQUE raised surface (nothing bleeds through)
+             that follows the theme — light in light mode, dark in dark mode —
+             with an aggressive halo shadow all the way around so page content
+             never blends into its edges. Light theme below. */
+          background: rgb(var(--ui-panel-raised));
+          color: rgb(var(--ui-content));
+          border: 1px solid var(--ui-line-strong);
+          box-shadow:
+            0 0 0 1px rgba(20, 33, 61, 0.06),
+            0 0 28px 3px rgba(20, 33, 61, 0.13),
+            0 12px 30px rgba(20, 33, 61, 0.16),
+            0 30px 66px rgba(20, 33, 61, 0.20),
+            inset 0 1px 0 rgb(255 255 255 / 0.7);
         }
         .ret-pin__tier1 { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
         .ret-pin__tier2 {
@@ -1963,6 +1993,18 @@ function RetirementV2Inner() {
           font-weight: 800;
           line-height: 1;
           letter-spacing: -0.02em;
+          color: rgb(var(--ui-content));
+        }
+        /* Dark app theme: same raised surface (resolves darker via the token),
+           but the halo goes near-black so the bar still carves itself out of the
+           dark page instead of melting into the content behind its edges. */
+        .dark .ret-pin__inner {
+          box-shadow:
+            0 0 0 1px rgba(0, 0, 0, 0.5),
+            0 0 36px 6px rgba(0, 0, 0, 0.58),
+            0 16px 40px rgba(0, 0, 0, 0.64),
+            0 36px 80px rgba(0, 0, 0, 0.58),
+            inset 0 1px 0 rgb(255 255 255 / 0.06);
         }
         @media (max-width: 767px) {
           /* Sit above the fixed mobile tab bar (~68px + safe-area inset). */
@@ -2404,7 +2446,6 @@ function RetirementV2Inner() {
                   </div>
                   <p className="mt-2.5 text-[12px] text-content-muted leading-[1.5] ui-tnum">
                     your actual holdings
-                    {blendedReturn !== null && <> · {blendedReturn.toFixed(1)}% blended historical return</>}
                     {derivedEquity !== null && <> · {derivedEquity}% in stocks &amp; REITs</>}
                   </p>
                 </div>
@@ -2446,7 +2487,7 @@ function RetirementV2Inner() {
                 <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12.5px] text-content-secondary">
                   <span className="ui-tnum" data-testid="rv2-comp-derived">
                     Blended return <strong>{customReturn.toFixed(1)}%</strong> · {customEquityPct}% stocks &amp; REITs
-                    {blendedReturn !== null && <span className="text-content-muted"> (your actual portfolio: {blendedReturn.toFixed(1)}%)</span>}
+                    {holdingsBlendedReturn !== null && <span className="text-content-muted"> (your actual portfolio: {holdingsBlendedReturn.toFixed(1)}%)</span>}
                   </span>
                   {Math.abs(customTotal - 100) > 1 && (
                     <span className="ui-tnum" style={{ color: 'rgb(var(--ui-caution))' }}>allocation totals {customTotal}%</span>
@@ -2459,8 +2500,9 @@ function RetirementV2Inner() {
               </div>
             )}
 
-            {/* Per-asset-class capital-market assumptions (MARKET_MODEL) — the
-                blended figures below drive the server Monte Carlo. */}
+            {/* Per-asset-class assumptions — holdings-derived returns for "My
+                portfolio", flat capital-market averages for a preset/custom mix.
+                The blended figure below drives the server Monte Carlo. */}
             {effTotal > 0 && allocReturn !== null && blendedVol !== null && (
               <div className="mt-3.5 rounded-ui-lg border border-line bg-canvas-sunken px-3.5 py-3" data-testid="rv2-assumptions">
                 {/* Column headers mirror the data-row grid below (swatch spacer,
@@ -2478,7 +2520,7 @@ function RetirementV2Inner() {
                       <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: m.color }} aria-hidden />
                       <span className="min-w-0 flex-1 truncate">{m.label}</span>
                       <span className="w-9 text-right text-content-muted">{Math.round(((effAlloc![m.key] ?? 0) / effTotal) * 100)}%</span>
-                      <span className="w-12 text-right">{m.ret.toFixed(1)}%</span>
+                      <span className="w-12 text-right">{retForClass(m.key, m.ret).toFixed(1)}%</span>
                       <span className="w-12 text-right text-content-muted">±{m.vol}%</span>
                     </div>
                   ))}

@@ -33,12 +33,20 @@ export const MARKET_MODEL = {
 /**
  * Allocation-weighted blended expected return.
  * If the weights sum to more than 1 they are normalized by their sum.
+ *
+ * `returns` optionally overrides the per-class mean (decimals) — pass the
+ * holdings-derived class returns so the reported blend matches what the Monte
+ * Carlo actually runs on. Classes absent from `returns` fall back to MARKET_MODEL.
  */
-export function blendedExpectedReturn(allocation: AssetAllocation): number {
+export function blendedExpectedReturn(
+  allocation: AssetAllocation,
+  returns?: Partial<Record<AssetClass, number>>,
+): number {
   const sum = ASSET_CLASSES.reduce((acc, cls) => acc + allocation[cls], 0);
   const divisor = sum > 0 ? sum : 1;
   return ASSET_CLASSES.reduce(
-    (acc, cls) => acc + (allocation[cls] / divisor) * MARKET_MODEL[cls].mean,
+    (acc, cls) =>
+      acc + (allocation[cls] / divisor) * (returns?.[cls] ?? MARKET_MODEL[cls].mean),
     0
   );
 }

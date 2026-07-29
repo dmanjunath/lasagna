@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { eq, desc, inArray, and, sql, holdings, securities, accounts, balanceSnapshots } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
-import { aggregatePortfolio, extractAllocation, symbolAccountBreakdown, type HoldingInput } from "../services/portfolio-aggregator.js";
+import { aggregatePortfolio, extractAllocation, extractClassReturns, symbolAccountBreakdown, CATEGORY_RETURNS, type HoldingInput } from "../services/portfolio-aggregator.js";
+import { ASSET_CLASSES } from "../services/market-assumptions.js";
 import { loadSecurityClassifications } from "../lib/security-classifier.js";
 
 export const portfolioRoutes = new Hono<AuthEnv>();
@@ -175,34 +176,6 @@ portfolioRoutes.get("/exposure", async (c) => {
   const holdingsInput = await getHoldingsInput(session.tenantId);
   const composition = aggregatePortfolio(holdingsInput);
 
-  // Historical average annual returns by category
-  const CATEGORY_RETURNS: Record<string, number> = {
-    "S&P 500": 10.2,
-    "Total Market": 10.0,
-    "Total World": 9.5,
-    Growth: 11.5,
-    Nasdaq: 12.0,
-    Value: 9.5,
-    "Small Cap": 10.5,
-    "Mid Cap": 10.0,
-    Dividend: 9.0,
-    Developed: 7.5,
-    Emerging: 8.0,
-    "Total International": 7.5,
-    "Total Bond": 5.0,
-    Corporate: 5.5,
-    Government: 4.5,
-    TIPS: 4.0,
-    Municipal: 4.0,
-    "US REITs": 9.5,
-    "International REITs": 7.0,
-    "Money Market": 2.0,
-    "Short-Term": 2.5,
-    "Savings & Checking": 1.5,
-    "Large Cap": 10.5,
-    Unknown: 7.0,
-  };
-
   // Build exposure groups: category across all accounts
   const exposures: Array<{
     name: string;
@@ -241,9 +214,17 @@ portfolioRoutes.get("/exposure", async (c) => {
     weightedReturn += (e.percentage / 100) * e.historicalReturn;
   }
 
+  // Per-bucket holdings-derived returns (percent) — the sim's expected-return
+  // inputs, exposed so the dashboard shows the same figure the Monte Carlo runs on.
+  const classReturns = extractClassReturns(composition);
+  const perClassReturns = Object.fromEntries(
+    ASSET_CLASSES.map((cls) => [cls, Math.round(classReturns[cls] * 10000) / 100]),
+  ) as Record<(typeof ASSET_CLASSES)[number], number>;
+
   return c.json({
     totalValue: composition.totalValue,
     blendedReturn: Math.round(weightedReturn * 100) / 100,
+    perClassReturns,
     exposures,
   });
 });

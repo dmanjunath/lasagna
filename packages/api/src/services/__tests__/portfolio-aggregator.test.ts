@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { aggregatePortfolio, symbolAccountBreakdown } from '../portfolio-aggregator';
+import { aggregatePortfolio, symbolAccountBreakdown, extractAllocation, extractClassReturns, CATEGORY_RETURNS } from '../portfolio-aggregator';
+import { blendedExpectedReturn, MARKET_MODEL } from '../market-assumptions';
 
 describe('portfolio-aggregator', () => {
   describe('aggregatePortfolio', () => {
@@ -133,6 +134,55 @@ describe('portfolio-aggregator', () => {
       const result = symbolAccountBreakdown(holdings, 'NVDA');
       expect(result.totalValue).toBe(0);
       expect(result.accounts).toEqual([]);
+    });
+  });
+
+  describe('extractClassReturns', () => {
+    it('value-weights category returns within a bucket', () => {
+      // US Stocks sleeve: $60k VTI (Total Market 10.0) + $20k QQQ (Nasdaq 12.0)
+      // → (60*10 + 20*12) / 80 = 10.5% → 0.105
+      const comp = aggregatePortfolio([
+        { ticker: 'VTI', value: 60000, shares: 1, name: 'VTI', account: 'A', costBasis: null },
+        { ticker: 'QQQ', value: 20000, shares: 1, name: 'QQQ', account: 'A', costBasis: null },
+        { ticker: 'BND', value: 20000, shares: 1, name: 'BND', account: 'A', costBasis: null },
+      ]);
+      const r = extractClassReturns(comp);
+      expect(r.usStocks).toBeCloseTo(0.105);
+      expect(r.bonds).toBeCloseTo(CATEGORY_RETURNS['Total Bond'] / 100); // 0.05
+    });
+
+    it('falls back to the flat MARKET_MODEL mean for buckets with no holdings', () => {
+      const comp = aggregatePortfolio([
+        { ticker: 'VTI', value: 100000, shares: 1, name: 'VTI', account: 'A', costBasis: null },
+      ]);
+      const r = extractClassReturns(comp);
+      expect(r.intlStocks).toBeCloseTo(MARKET_MODEL.intlStocks.mean);
+      expect(r.reits).toBeCloseTo(MARKET_MODEL.reits.mean);
+      expect(r.cash).toBeCloseTo(MARKET_MODEL.cash.mean);
+    });
+
+    it('reconciles: blending the per-bucket returns by allocation equals the whole-portfolio category blend', () => {
+      // The invariant the whole feature rests on — the displayed/simulated blend
+      // must equal the value-weighted category return across all holdings.
+      const holdings = [
+        { ticker: 'VTI', value: 60000, shares: 1, name: 'VTI', account: 'A', costBasis: null },
+        { ticker: 'QQQ', value: 20000, shares: 1, name: 'QQQ', account: 'A', costBasis: null },
+        { ticker: 'BND', value: 20000, shares: 1, name: 'BND', account: 'A', costBasis: null },
+      ];
+      const comp = aggregatePortfolio(holdings);
+      const blended = blendedExpectedReturn(extractAllocation(comp), extractClassReturns(comp));
+
+      // Direct whole-portfolio category blend: (60*10 + 20*12 + 20*5) / 100 = 9.4%
+      const total = holdings.reduce((s, h) => s + h.value, 0);
+      const direct =
+        (60000 * CATEGORY_RETURNS['Total Market'] +
+          20000 * CATEGORY_RETURNS['Nasdaq'] +
+          20000 * CATEGORY_RETURNS['Total Bond']) /
+        total /
+        100;
+
+      expect(blended).toBeCloseTo(direct);
+      expect(blended).toBeCloseTo(0.094);
     });
   });
 });

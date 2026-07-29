@@ -765,6 +765,7 @@ export const api = {
     request<{
       totalValue: number;
       blendedReturn: number;
+      perClassReturns: { usStocks: number; intlStocks: number; bonds: number; reits: number; cash: number };
       exposures: Array<{
         name: string;
         assetClass: string;
