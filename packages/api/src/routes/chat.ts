@@ -194,6 +194,26 @@ chatRouter.post("/", async (c) => {
     // Add tool results as a proper tool message
     conversationMessages.push({ role: "tool" as const, content: toolResultParts });
   }
+
+  // If the tool-round budget ran out while the model was still calling tools it
+  // never got a turn to write its answer, so finalText is empty. Open-weight
+  // models (via sail) tend to call one tool per round and hit this cap on
+  // data-heavy prompts. Make one final tool-free call so the model synthesizes a
+  // response from the data it already gathered instead of returning a blank
+  // "couldn't respond" message.
+  if (!finalText.trim()) {
+    console.log("[Chat] Tool rounds exhausted with no text — forcing a final synthesis");
+    const synthResult = await generateText({
+      model: getModel(agentLevel, { webSearch: true }),
+      system: systemPrompt,
+      messages: conversationMessages,
+      maxOutputTokens: 4096,
+      // No tools this turn — the model must answer from the results it gathered.
+    });
+    finalText = synthResult.text;
+    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: synthResult.usage?.inputTokens, outputTokens: synthResult.usage?.outputTokens });
+    console.log(`[Chat] Synthesis: text=${finalText.length} chars, finishReason=${synthResult.finishReason}`);
+  }
   } catch (err) {
     // The AI provider call failed (e.g. OpenRouter 402 out-of-credits, rate
     // limit, upstream outage). Don't 500 — return a clear assistant message the

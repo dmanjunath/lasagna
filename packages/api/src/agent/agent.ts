@@ -40,9 +40,13 @@ const modelMappings: Record<ModelLevel, string> = {
 const sailModelMappings: Record<ModelLevel, string> = {
   "free": "google/gemma-4-31B-it",
   "fast": "google/gemma-4-31B-it",
-  "fast-claude": "Qwen/Qwen3.6-35B-A3B",
-  "medium-google": "Qwen/Qwen3.6-35B-A3B",
-  "medium": "Qwen/Qwen3.6-35B-A3B",
+  // Qwen3.6-35B-A3B is served only in sail's "flex" completion window, which is
+  // best-effort/offline and can't serve an interactive chat turn (a synchronous
+  // request is rejected). The mid tiers use gpt-oss-120b, a sync-capable model
+  // of comparable tier that supports tool calls.
+  "fast-claude": "openai/gpt-oss-120b",
+  "medium-google": "openai/gpt-oss-120b",
+  "medium": "openai/gpt-oss-120b",
   "quality": "moonshotai/Kimi-K2.6",
   "frontier": "zai-org/GLM-5.2-FP8",
 };
