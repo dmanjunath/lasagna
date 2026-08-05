@@ -323,9 +323,7 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
   let progressDetail = '';
   if (step.target !== null && step.current !== null) {
     if (step.target === 0) progressDetail = 'Goal: $0';
-    else if (isComplete) progressDetail = fmt(step.current) + ' saved';
-    else if (step.target > step.current) progressDetail = fmt(step.target - step.current) + ' to go';
-    else progressDetail = fmt(step.current) + ' saved';
+    else progressDetail = `${fmt(step.current)} saved of ${fmt(step.target)} target`;
   }
   const hasProgress = !isComplete && fill > 0;
 

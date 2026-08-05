@@ -142,6 +142,27 @@ priorityRoutes.get("/", async (c) => {
   const realMonthlyExpenses = parseFloat(txnResult?.total ?? "0");
   const hasTransactionData = realMonthlyExpenses > 0;
   const monthlyExpenses = hasTransactionData ? realMonthlyExpenses : null;
+
+  // Stable monthly spend for progress targets: total non-transfer expense over the
+  // last 3 full calendar months ÷ 3, so the emergency-fund target doesn't drift daily.
+  const now = new Date();
+  const threeMonthStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [stableTxnResult] = await db
+    .select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+    .where(and(
+      eq(transactions.tenantId, session.tenantId),
+      sql`${transactions.amount} > 0`,
+      sql`coalesce(${categoryGroups.type}::text, 'expense') != 'transfer'`,
+      sql`${transactions.date} >= ${threeMonthStart.toISOString().split('T')[0]}`,
+      sql`${transactions.date} < ${currentMonthStart.toISOString().split('T')[0]}`,
+      ...(excludedTxnIds.length > 0 ? [notInArray(transactions.accountId, excludedTxnIds)] : []),
+    ));
+  const threeMonthExpense = parseFloat(stableTxnResult?.total ?? "0");
+  const stableMonthlyExpenses = threeMonthExpense > 0 ? threeMonthExpense / 3 : monthlyExpenses;
   const savingsRate = monthlyExpenses !== null && monthlyIncome > 0
     ? Math.round(((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100)
     : null;
@@ -179,6 +200,7 @@ priorityRoutes.get("/", async (c) => {
     medicalDebt, collectionsDebt,
     hasOverdraft, hasESPP, hasPension, has457b, has403b, hasInheritedIRA,
     monthlyExpenses,
+    stableMonthlyExpenses,
     savingsRate,
   };
 

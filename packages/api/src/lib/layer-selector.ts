@@ -45,6 +45,8 @@ export interface UserFinancialContext {
 
   // Computed
   monthlyExpenses: number | null;
+  /** Stable trailing-average monthly spend for progress targets that shouldn't drift daily. Falls back to monthlyExpenses when unset. */
+  stableMonthlyExpenses: number | null;
   savingsRate: number | null;
 }
 
@@ -89,6 +91,7 @@ export function buildContextDefaults(overrides: Partial<UserFinancialContext> = 
     has403b: false,
     hasInheritedIRA: false,
     monthlyExpenses: null,
+    stableMonthlyExpenses: null,
     savingsRate: null,
     ...overrides,
   };

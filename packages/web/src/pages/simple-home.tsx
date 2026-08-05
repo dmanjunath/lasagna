@@ -817,13 +817,14 @@ function urgencyAccent(urgency: string): { accent: AccentKey; label: string } {
 
 /** One numbered move card with the timeline node. */
 function MoveCard({
-  node, accent, tag, tagIcon, title, why, impactVal, impactLab, progress, progressDetail, footer,
+  node, accent, tag, tagIcon, title, subtitle, why, impactVal, impactLab, progress, progressDetail, footer,
 }: {
   node: React.ReactNode;
   accent: AccentKey;
   tag: string;
   tagIcon?: React.ReactNode;
   title: string;
+  subtitle?: string;
   why?: React.ReactNode;
   impactVal?: string;
   impactLab?: string;
@@ -860,6 +861,9 @@ function MoveCard({
               {tagIcon}{tag}
             </span>
             <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em]">{title}</h3>
+            {subtitle && (
+              <p className="mt-1.5 text-[13px] leading-[1.4] text-content-muted max-w-[50ch]">{subtitle}</p>
+            )}
             {why && (
               <>
                 <p
@@ -958,8 +962,8 @@ function MovesQueue({
   const isStepComplete = step?.status === 'complete';
   const stepProgress = step ? Math.max(0, Math.min(100, Math.round(step.progress || 0))) : 0;
   const stepDetail =
-    step?.current != null && step?.target != null
-      ? `${formatMoneyShort(step.current)} of ${formatMoneyShort(step.target)}`
+    step?.current != null && step?.target != null && step.target > 0
+      ? `${formatMoneyShort(step.current)} saved of ${formatMoneyShort(step.target)} target`
       : null;
 
   return (
@@ -977,7 +981,8 @@ function MovesQueue({
             tag={`Level ${step.order}`}
             tagIcon={<Check className="h-3 w-3" />}
             title={step.title}
-            why={step.description || step.subtitle}
+            subtitle={step.subtitle}
+            why={step.description}
             impactVal={isStepComplete ? '✓' : `${stepProgress}%`}
             impactLab={isStepComplete ? 'complete' : 'progress'}
             progress={isStepComplete ? 0 : stepProgress}

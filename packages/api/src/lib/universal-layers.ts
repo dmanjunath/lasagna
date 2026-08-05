@@ -212,9 +212,11 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
       const isSelfEmployed =
         ctx.employmentType === 'self_employed' || ctx.employmentType === '1099';
       const months = isSelfEmployed ? 9 : 6;
+      // Prefer the stable trailing-average spend so the target doesn't drift day to day.
+      const monthlySpend = ctx.stableMonthlyExpenses ?? ctx.monthlyExpenses;
       const expBase =
-        ctx.monthlyExpenses !== null
-          ? ctx.monthlyExpenses
+        monthlySpend !== null
+          ? monthlySpend
           : ctx.annualIncome > 0
           ? (ctx.annualIncome / 12) * 0.7
           : 0;
