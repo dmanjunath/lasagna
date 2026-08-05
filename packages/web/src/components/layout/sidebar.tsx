@@ -48,7 +48,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: 'money',         label: 'My Money',            icon: Wallet,      path: '/money' },
       { id: 'retirement',    label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
-      { id: 'retirement-v2', label: 'Retirement (new)',    icon: TrendingUp,  path: '/retirement-v2', adminOnly: true },
       { id: 'portfolio',  label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
       { id: 'tax',        label: 'Tax',                 icon: Receipt,     path: '/tax' },
       { id: 'debt',       label: 'Debt',                icon: AlertCircle, path: '/debt' },

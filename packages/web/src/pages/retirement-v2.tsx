@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
 import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
-import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
 import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
@@ -1188,19 +1187,7 @@ function intPercents(parts: number[]): number[] {
 }
 
 // ── Main page ────────────────────────────────────────────────────────────────
-// Admin-only for now: the page is registered on its route, but non-admins are
-// bounced back to the standard retirement planner (nav links are hidden too).
 export function RetirementV2() {
-  const { user, loading } = useAuth();
-  const [, navigate] = useLocation();
-  useEffect(() => {
-    if (!loading && !user?.isAdmin) navigate('/retirement');
-  }, [loading, user, navigate]);
-  if (!user?.isAdmin) return null;
-  return <RetirementV2Inner />;
-}
-
-function RetirementV2Inner() {
   const [, navigate] = useLocation();
   const { openChat } = useChatStore();
   const [loading, setLoading] = useState(true);
