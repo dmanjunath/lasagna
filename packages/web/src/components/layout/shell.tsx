@@ -290,7 +290,7 @@ export function Shell({ children }: ShellProps) {
           )}
           {/* Collapsed chat toggle — also hidden on /chat (full page is open). */}
           {location !== '/chat' && !desktopChatOpen && (
-            <div className="flex-shrink-0 border-l border-line flex flex-col items-center pt-3 px-1.5 bg-canvas">
+            <div className="print:hidden flex-shrink-0 border-l border-line flex flex-col items-center pt-3 px-1.5 bg-canvas">
               <button
                 onClick={() => setDesktopChatOpen(true)}
                 className="relative p-2.5 rounded-ui-md bg-panel hover:bg-canvas-sunken border border-line transition-colors text-content-secondary hover:text-brand"

@@ -2788,3 +2788,153 @@
 .nw-equation .nw-num--total { font-size: calc(34px * var(--nws, 1)); }
 .nw-equation .nw-op { font-size: calc(26px * var(--nws, 1)); }
 .nw-eq--tight .nw-chip { display: none; }
+
+/* ============================================================================
+   PRINT — financial-plan "Download PDF" report
+   ----------------------------------------------------------------------------
+   The plan detail page renders `.plan-print-root` around the whole document.
+   In print we strip app chrome, force the light palette (the click handler also
+   removes `.dark`, this is the safety net), and add page-break hints so cards
+   and charts don't split mid-figure. The cover header + legal footer live in
+   the page as `.plan-print-only` (hidden on screen, shown in print).
+   ============================================================================ */
+.plan-print-only { display: none; }
+
+@page {
+  size: A4;
+  margin: 18mm 16mm;
+}
+
+@media print {
+  /* White paper, light palette — never bleed dark mode into the PDF. */
+  html, body {
+    background: #fff !important;
+    color-scheme: light;
+  }
+
+  /* CSS safety net: force the LIGHT palette even when `.dark` is on <html>.
+     The Download-PDF button strips `.dark` before printing, but a plain
+     Cmd+P / browser-menu print would otherwise resolve the `.dark`-scoped
+     --ui-* tokens and ink a near-black page. Re-declare the tokens the plan
+     document uses to their :root (light) values, scoped to print + .dark so
+     on-screen dark mode is untouched. */
+  html.dark, .dark {
+    --ui-canvas:          247 249 252;
+    --ui-canvas-sunken:   238 242 247;
+    --ui-panel:           255 255 255;
+    --ui-panel-raised:    255 255 255;
+
+    --ui-content:           16 24 38;
+    --ui-content-secondary: 56 70 90;
+    --ui-content-muted:     92 107 128;
+    --ui-content-faint:     134 147 166;
+
+    --ui-hairline:     rgba(16, 24, 38, 0.07);
+    --ui-line:         rgba(16, 24, 38, 0.12);
+    --ui-line-strong:  rgba(16, 24, 38, 0.20);
+
+    --ui-brand:        5 178 121;
+    --ui-brand-hover:  4 158 107;
+    --ui-brand-active: 3 138 93;
+    --ui-brand-ink:    4 122 84;
+    --ui-brand-fg:     255 255 255;
+    --ui-brand-soft:   rgba(5, 178, 121, 0.12);
+    --ui-brand-softer: rgba(5, 178, 121, 0.06);
+    --ui-brand-ring:   rgba(5, 178, 121, 0.42);
+
+    --ui-accent:       99 102 241;
+    --ui-accent-ink:   79 70 229;
+    --ui-accent-soft:  rgba(99, 102, 241, 0.12);
+    --ui-accent-softer: rgba(99, 102, 241, 0.06);
+
+    --ui-positive:       13 110 103;
+    --ui-positive-soft:  rgba(13, 148, 136, 0.13);
+    --ui-negative:       190 20 62;
+    --ui-negative-soft:  rgba(244, 73, 110, 0.14);
+    --ui-danger-solid:   201 24 68;
+    --ui-danger-on:      255 255 255;
+    --ui-caution:        140 86 0;
+    --ui-caution-soft:   rgba(245, 158, 11, 0.16);
+    --ui-info:           79 70 229;
+    --ui-info-soft:      rgba(99, 102, 241, 0.13);
+
+    --ui-viz-1: #14B8A6;
+    --ui-viz-2: #6366F1;
+    --ui-viz-3: #F59E0B;
+    --ui-viz-4: #F4496E;
+    --ui-viz-5: #0EA5E9;
+    --ui-viz-6: #84CC16;
+    --ui-viz-7: #64748B;
+  }
+
+  /* Pure-white paper: kill the ambient canvas wash (tint + indigo/amber
+     radial-gradients) so the report prints on clean white, not rgb(247,249,252). */
+  .app-wash {
+    background: #fff !important;
+    background-image: none !important;
+  }
+
+  /* App chrome has no place in the report. Sidebars (nav + chat), the mobile
+     header/tab bar (nav), and anything explicitly marked print-hidden are
+     removed. Buttons inside the document (Download PDF, the Goals "Complete
+     your goals" CTA, the back link) are interactive-only, so they drop too. */
+  aside,
+  header,
+  nav,
+  .plan-print-hide,
+  .plan-print-root button {
+    display: none !important;
+  }
+
+  /* Show the print-only cover + legal footer. */
+  .plan-print-only { display: block !important; }
+
+  /* Let the document own the full page. The app shell is a stack of
+     height-constrained, overflow-hidden flex containers (h-dvh, overflow-hidden,
+     overflow-y-auto) — left as-is they clip the report to a single viewport
+     instead of paginating. Neutralize height/overflow ONLY on the plan root and
+     its ancestors (`:has`), so the content flows and paginates across A4 pages
+     without clobbering the fixed heights of the document's own bars/dots. */
+  html, body,
+  html:has(.plan-print-root) *:has(.plan-print-root) {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .plan-print-root {
+    display: block !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Keep cards, sections, and figures whole across page boundaries. */
+  .plan-print-root section,
+  .plan-print-root .rounded-ui-xl,
+  .plan-print-root li,
+  .plan-print-root svg {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* The branded cover owns page 1 by itself — the first section starts on
+     page 2 (no giant blank gap: the break, not a margin, forces the page). */
+  .plan-print-cover {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  /* Large snapshot KPIs (e.g. TOTAL DEBT) crowd the card edge in the A4 3-up
+     grid — trim the Stat value type a touch so big numbers keep their gutter.
+     Targets the uikit Stat value span (`ui-tnum text-[28px]`). Print-only;
+     on-screen sizing is untouched. */
+  .plan-print-root .ui-tnum.text-\[28px\] {
+    font-size: 23px !important;
+  }
+
+  /* Tinted card/verdict backgrounds must actually ink on the page. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

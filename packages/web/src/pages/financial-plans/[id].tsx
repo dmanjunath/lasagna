@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, FileText, PieChart, LineChart, Target, Lightbulb } from "lucide-react";
+import { ArrowLeft, FileText, PieChart, LineChart, Target, Lightbulb, Download } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { vizColor } from "../../components/uikit/viz.js";
 import { formatMoney } from "../../lib/utils.js";
 import { ChatPanel } from "../../components/chat/index.js";
+import { BrandMark } from "../../components/common/BrandMark.js";
+import { DISCLAIMER_COPY } from "../../components/common/legal-disclaimer.js";
+import { useAuth } from "../../lib/auth.js";
 import type {
   FinancialPlan,
   FinancialSnapshotBreakdownItem,
@@ -610,7 +613,8 @@ function GoalsSectionView({
               <h3 className="text-[15px] font-bold text-content">Set your plan goals</h3>
               <p className="mt-1 max-w-md text-[13.5px] font-semibold text-content-muted">
                 Tell us when you want to retire, how long your money should last, the income you
-                want, and any goals like college or travel. We'll ask in chat and fill them in.
+                want, and any goals like college or travel.{" "}
+                <span className="plan-print-hide">We'll ask in chat and fill them in.</span>
               </p>
             </div>
           </div>
@@ -723,7 +727,12 @@ function SuggestionsSectionView({ suggestions }: { suggestions: SuggestionsSecti
           className="mt-4"
           icon={<Lightbulb className="h-5 w-5" />}
           title="No suggestions yet"
-          description="Ask in chat for concrete next steps, or create a new plan once your accounts are linked."
+          description={
+            <span className="plan-print-hide">
+              Ask in chat for concrete next steps, or create a new plan once your accounts are
+              linked.
+            </span>
+          }
         />
       ) : (
         <ul className="mt-4 space-y-3">
@@ -925,9 +934,64 @@ function PlanChat({
   );
 }
 
+// Print the plan document to PDF. Dark mode is a `.dark` class on <html>; the
+// report must print on white with the light palette, so we drop `.dark` for the
+// duration of the print and restore it after (the print CSS is the safety net).
+// `window.print()` blocks until the dialog resolves in most browsers, but we
+// also listen for `afterprint` so the theme is restored even when it doesn't.
+function printPlanToPdf() {
+  const root = document.documentElement;
+  const wasDark = root.classList.contains("dark");
+  if (wasDark) root.classList.remove("dark");
+  const restore = () => {
+    if (wasDark) root.classList.add("dark");
+    window.removeEventListener("afterprint", restore);
+  };
+  window.addEventListener("afterprint", restore);
+  window.print();
+  // Fallback for browsers where print() returns before `afterprint` fires.
+  setTimeout(restore, 0);
+}
+
+// Branded cover block, print-only. Reads like the first page of a consulting
+// report: wordmark, plan title, whose plan it is, and the generated date.
+function PrintCover({
+  title,
+  userName,
+  generatedAt,
+}: {
+  title: string;
+  userName: string | null;
+  generatedAt: string;
+}) {
+  return (
+    <div className="plan-print-only plan-print-cover">
+      <div className="flex items-center gap-3">
+        <BrandMark size={34} />
+        <span className="font-editorial text-[20px] font-semibold leading-none tracking-[-0.01em] text-content">
+          LasagnaFi
+        </span>
+      </div>
+      <div className="mt-10 border-t border-line pt-8">
+        <div className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-content-muted">
+          Financial Plan
+        </div>
+        <h1 className="mt-3 font-editorial text-[40px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+          {title}
+        </h1>
+        <p className="mt-4 text-[14px] font-semibold text-content-muted ui-tnum">
+          {userName ? `Prepared for ${userName} · ` : ""}
+          Generated {new Date(generatedAt).toLocaleDateString()}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function FinancialPlanDetailPage() {
   const [, params] = useRoute("/financial-plans/:id");
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const id = params?.id;
 
   const [plan, setPlan] = useState<FinancialPlan | null>(null);
@@ -972,10 +1036,10 @@ export function FinancialPlanDetailPage() {
   const suggestions = plan?.document?.sections.suggestions ?? null;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="plan-print-root mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       <button
         onClick={() => navigate("/financial-plans")}
-        className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-content-muted hover:text-content transition-colors"
+        className="plan-print-hide inline-flex items-center gap-1.5 text-[13px] font-semibold text-content-muted hover:text-content transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         Financial Plans
@@ -1019,13 +1083,31 @@ export function FinancialPlanDetailPage() {
       {/* ════════ Document ════════ */}
       {!loading && !error && plan && snapshot && (
         <>
-          <header className="mt-6">
-            <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-              {plan.title}
-            </h1>
-            <p className="mt-2 text-[14px] font-semibold text-content-muted ui-tnum">
-              Generated {new Date(snapshot.generatedAt).toLocaleDateString()}
-            </p>
+          {/* Branded cover — print only. */}
+          <PrintCover
+            title={plan.title}
+            userName={user?.name ?? null}
+            generatedAt={snapshot.generatedAt}
+          />
+
+          {/* On-screen header + the Download PDF action (hidden in print). */}
+          <header className="mt-6 flex items-start justify-between gap-4 print:hidden">
+            <div>
+              <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+                {plan.title}
+              </h1>
+              <p className="mt-2 text-[14px] font-semibold text-content-muted ui-tnum">
+                Generated {new Date(snapshot.generatedAt).toLocaleDateString()}
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              className="shrink-0"
+              leadingIcon={<Download className="h-4 w-4" />}
+              onClick={printPlanToPdf}
+            >
+              Download PDF
+            </Button>
           </header>
 
           {/* Goals section — the user's stated intent frames the plan, so it
@@ -1219,15 +1301,24 @@ export function FinancialPlanDetailPage() {
           <SuggestionsSectionView suggestions={suggestions} />
 
           {/* Chat about this plan — grounded in the sections above. Also the
-              surface where the Goals CTA seeds the goals intake. */}
+              surface where the Goals CTA seeds the goals intake. Interactive,
+              so it's dropped from the printed report. */}
           {id && (
-            <PlanChat
-              planId={id}
-              seed={{ n: goalsSeed, prompt: GOALS_INTAKE_PROMPT }}
-              onChatResponse={refreshIfGoalsSaved}
-              chatRef={chatRef}
-            />
+            <div className="plan-print-hide">
+              <PlanChat
+                planId={id}
+                seed={{ n: goalsSeed, prompt: GOALS_INTAKE_PROMPT }}
+                onChatResponse={refreshIfGoalsSaved}
+                chatRef={chatRef}
+              />
+            </div>
           )}
+
+          {/* Legal disclaimer — print only, closes the report. Reuses the
+              projections copy so it stays single-sourced with the app. */}
+          <p className="plan-print-only mt-12 border-t border-line pt-6 text-center text-[11px] leading-[1.5] text-content-muted">
+            {DISCLAIMER_COPY.projections}
+          </p>
         </>
       )}
     </div>
