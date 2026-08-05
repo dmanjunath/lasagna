@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../lib/db.js";
-import { chatThreads, messages, eq, and, desc, asc, inArray } from "@lasagna/core";
+import { chatThreads, messages, financialPlans, eq, and, ne, desc, asc, inArray } from "@lasagna/core";
 import { type AuthEnv } from "../middleware/auth.js";
 
 export const threadsRouter = new Hono<AuthEnv>();
@@ -11,6 +11,9 @@ const uuidSchema = z.string().uuid();
 
 const createThreadSchema = z.object({
   planId: z.string().uuid().optional(),
+  // Links the thread to a NEW Financial Plan document. Distinct from planId,
+  // which FKs the legacy `plans` table.
+  financialPlanId: z.string().uuid().optional(),
   title: z.string().max(255).optional(),
   tags: z.array(z.string().max(50)).max(10).optional(),
 });
@@ -25,10 +28,11 @@ function safeJsonParse<T>(str: string | null, fallback: T): T {
   }
 }
 
-// List threads (optionally filter by planId)
+// List threads (optionally filter by planId or financialPlanId)
 threadsRouter.get("/", async (c) => {
   const { tenantId, userId } = c.get("session");
   const planId = c.req.query("planId");
+  const financialPlanId = c.req.query("financialPlanId");
 
   // Validate planId if provided
   if (planId) {
@@ -37,10 +41,17 @@ threadsRouter.get("/", async (c) => {
       return c.json({ error: "Invalid planId format" }, 400);
     }
   }
+  if (financialPlanId) {
+    const uuidResult = uuidSchema.safeParse(financialPlanId);
+    if (!uuidResult.success) {
+      return c.json({ error: "Invalid financialPlanId format" }, 400);
+    }
+  }
 
   const baseQuery = {
     id: chatThreads.id,
     planId: chatThreads.planId,
+    financialPlanId: chatThreads.financialPlanId,
     title: chatThreads.title,
     tags: chatThreads.tags,
     createdAt: chatThreads.createdAt,
@@ -57,6 +68,18 @@ threadsRouter.get("/", async (c) => {
           eq(chatThreads.tenantId, tenantId),
           eq(chatThreads.userId, userId),
           eq(chatThreads.planId, planId)
+        )
+      )
+      .orderBy(desc(chatThreads.updatedAt));
+  } else if (financialPlanId) {
+    results = await db
+      .select(baseQuery)
+      .from(chatThreads)
+      .where(
+        and(
+          eq(chatThreads.tenantId, tenantId),
+          eq(chatThreads.userId, userId),
+          eq(chatThreads.financialPlanId, financialPlanId)
         )
       )
       .orderBy(desc(chatThreads.updatedAt));
@@ -149,12 +172,33 @@ threadsRouter.post("/", async (c) => {
   }
   const body = parseResult.data;
 
+  // Before linking a thread to a Financial Plan, verify the caller owns it
+  // (same tenant + user, not archived). Prevents linking a thread to another
+  // user's plan.
+  if (body.financialPlanId) {
+    const [ownedPlan] = await db
+      .select({ id: financialPlans.id })
+      .from(financialPlans)
+      .where(
+        and(
+          eq(financialPlans.id, body.financialPlanId),
+          eq(financialPlans.tenantId, tenantId),
+          eq(financialPlans.userId, userId),
+          ne(financialPlans.status, "archived")
+        )
+      );
+    if (!ownedPlan) {
+      return c.json({ error: "Financial plan not found" }, 404);
+    }
+  }
+
   const [thread] = await db
     .insert(chatThreads)
     .values({
       tenantId,
       userId,
       planId: body.planId ?? null,
+      financialPlanId: body.financialPlanId ?? null,
       title: body.title ?? null,
       tags: body.tags ?? [],
     })

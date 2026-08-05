@@ -468,6 +468,11 @@ export const chatThreads = pgTable("chat_threads", {
     .references(() => tenants.id, { onDelete: "cascade" }),
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   planId: uuid("plan_id").references(() => plans.id, { onDelete: "cascade" }),
+  // Links a thread to a Financial Plan document (the new financial_plans table).
+  // Kept distinct from planId, which FKs the legacy `plans` table.
+  financialPlanId: uuid("financial_plan_id").references(() => financialPlans.id, {
+    onDelete: "cascade",
+  }),
   title: text("title"),
   tags: text("tags").array().default([]),
   createdAt: timestamp("created_at", { withTimezone: true })

@@ -5,12 +5,15 @@ import { api } from "../../lib/api.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { vizColor } from "../../components/uikit/viz.js";
 import { formatMoney } from "../../lib/utils.js";
+import { ChatPanel } from "../../components/chat/index.js";
 import type {
   FinancialPlan,
   FinancialSnapshotBreakdownItem,
   PortfolioSection,
   RetirementReadinessSection,
   ReadinessVerdict,
+  ChatThread,
+  Message,
 } from "../../lib/types.js";
 
 // Account-type → friendly label for the breakdown legend/chart.
@@ -423,6 +426,134 @@ function RetirementReadinessSectionView({ section }: { section: RetirementReadin
   );
 }
 
+// Chat ABOUT this plan. The thread is scoped to the plan (financialPlanId), so
+// the chat route grounds the agent in the plan's already-computed sections and
+// answers reconcile with the Retirement Readiness verdict above. The thread is
+// created lazily on the first send — a page view alone never creates one.
+function PlanChat({ planId }: { planId: string }) {
+  const [thread, setThread] = useState<ChatThread | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  // Captured first prompt; passed to ChatPanel as initialMessage so the loop
+  // auto-sends once the freshly-created thread mounts.
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [composer, setComposer] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Reset + load any existing plan-scoped thread when the plan changes.
+  useEffect(() => {
+    setThread(null);
+    setMessages([]);
+    setLoaded(false);
+    setPendingPrompt(null);
+    setComposer("");
+    let cancelled = false;
+    api
+      .getFinancialPlanThreads(planId)
+      .then(async ({ threads }) => {
+        if (cancelled) return;
+        if (threads.length > 0) {
+          const t = threads[0];
+          const { messages: msgs } = await api.getThread(t.id);
+          if (cancelled) return;
+          setThread(t);
+          setMessages(msgs);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [planId]);
+
+  const startThread = async (prompt: string) => {
+    const text = prompt.trim();
+    if (!text || creating) return;
+    setCreating(true);
+    try {
+      const { thread: newThread } = await api.createThread(undefined, undefined, undefined, planId);
+      setThread(newThread);
+      setPendingPrompt(text);
+      setComposer("");
+    } catch (err) {
+      console.error("Failed to start plan chat:", err);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const eyebrow = (
+    <div className="flex items-center gap-2.5">
+      <span
+        className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+        style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+        aria-hidden
+      />
+      <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+        Ask about this plan
+      </span>
+    </div>
+  );
+
+  if (!loaded) {
+    return (
+      <section className="mt-10">
+        {eyebrow}
+        <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <Skeleton className="h-4 w-1/3" />
+          <Skeleton className="mt-3 h-10 w-full" />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-10">
+      {eyebrow}
+      <div className="mt-4 h-[520px] overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+        {thread ? (
+          <ChatPanel
+            threadId={thread.id}
+            initialMessages={messages}
+            initialMessage={pendingPrompt}
+            onMessageSent={() => setPendingPrompt(null)}
+            hideHeader
+          />
+        ) : (
+          <div className="flex h-full flex-col">
+            <div className="flex-1 flex items-center justify-center p-6 text-center">
+              <p className="max-w-sm text-[14px] font-semibold text-content-muted">
+                Ask whether you're on track, how a different retirement age changes the odds,
+                or anything else about this plan.
+              </p>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                startThread(composer);
+              }}
+              className="flex gap-2 border-t border-line p-4"
+            >
+              <input
+                value={composer}
+                onChange={(e) => setComposer(e.target.value)}
+                placeholder="Am I on track to retire?"
+                disabled={creating}
+                className="flex-1 rounded-ui-md border border-line-strong bg-panel px-4 py-2 text-[14px] text-content placeholder:text-content-faint shadow-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-ring)]"
+              />
+              <Button type="submit" disabled={creating || !composer.trim()}>
+                Ask
+              </Button>
+            </form>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function FinancialPlanDetailPage() {
   const [, params] = useRoute("/financial-plans/:id");
   const [, navigate] = useLocation();
@@ -678,6 +809,9 @@ export function FinancialPlanDetailPage() {
               }
             }
           />
+
+          {/* Chat about this plan — grounded in the sections above. */}
+          {id && <PlanChat planId={id} />}
         </>
       )}
     </div>

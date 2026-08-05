@@ -2,7 +2,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 import { createFinancialTools } from "./tools/financial.js";
-import { createPlanTools } from "./tools/plans.js";
+import { createPlanTools, createFinancialPlanTools } from "./tools/plans.js";
 import { createSimulationTools } from "./tools/simulation.js";
 import { createTaxTools } from "./tools/tax.js";
 import { createSpendingTools } from "./tools/spending.js";
@@ -156,11 +156,16 @@ export function getModel(
 export function createAgentTools(
   tenantId: string,
   userId: string,
-  options?: { isDemo?: boolean }
+  options?: { isDemo?: boolean; financialPlanId?: string }
 ) {
   const allTools = {
     ...createFinancialTools(tenantId, userId),
     ...createPlanTools(tenantId),
+    // The financial-plan tool is bound to the thread's plan and only exists on a
+    // plan-scoped thread — a non-plan thread has no get_financial_plan.
+    ...(options?.financialPlanId
+      ? createFinancialPlanTools(tenantId, userId, options.financialPlanId)
+      : {}),
     ...createSimulationTools(tenantId, userId),
     ...createTaxTools(tenantId),
     ...createSpendingTools(tenantId),

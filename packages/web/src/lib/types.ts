@@ -564,6 +564,7 @@ export type FinancialPlan = FinancialPlanSummary & {
 export type ChatThread = {
   id: string;
   planId: string | null;
+  financialPlanId: string | null;
   title: string | null;
   tags: string[];
   createdAt: string;

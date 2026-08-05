@@ -356,13 +356,18 @@ export const api = {
       planId ? `/threads?planId=${planId}` : "/threads"
     ),
 
+  // Threads scoped to a NEW Financial Plan document (financial_plans table),
+  // distinct from the legacy planId linkage above.
+  getFinancialPlanThreads: (financialPlanId: string) =>
+    request<{ threads: ChatThread[] }>(`/threads?financialPlanId=${financialPlanId}`),
+
   getThread: (id: string) =>
     request<{ thread: ChatThread; messages: Message[] }>(`/threads/${id}`),
 
-  createThread: (planId?: string, title?: string, tags?: string[]) =>
+  createThread: (planId?: string, title?: string, tags?: string[], financialPlanId?: string) =>
     request<{ thread: ChatThread }>("/threads", {
       method: "POST",
-      body: JSON.stringify({ planId, title, tags }),
+      body: JSON.stringify({ planId, title, tags, financialPlanId }),
     }),
 
   deleteThread: (id: string) =>

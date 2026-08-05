@@ -11,6 +11,7 @@ import { resolveTenantPlan } from "../lib/billing.js";
 import { resolveModelLevel } from "../lib/model-gate.js";
 import { logLlmUsage } from "../lib/activity.js";
 import { FREE_MODEL_LEVEL } from "@lasagna/core";
+import { resolvePlanGrounding } from "../services/plan-grounding.js";
 
 export const chatRouter = new Hono<AuthEnv>();
 
@@ -91,17 +92,37 @@ chatRouter.post("/", async (c) => {
     content: m.content,
   }));
 
-  // Prepend page context to the current (last) user message so the AI has it,
-  // without persisting the raw context blob in the DB
-  if (body.context && conversationMessages.length > 0) {
+  // When the thread is scoped to a Financial Plan, prepend the SAME compact
+  // sections the get_financial_plan tool returns as non-persisted context, so
+  // the plan's real numbers are in-context even if the model skips the tool.
+  // Grounds "am I on track?" to the plan's stored Retirement Readiness verdict.
+  let planContext = "";
+  if (thread.financialPlanId) {
+    const grounding = await resolvePlanGrounding(tenantId, userId, thread.financialPlanId);
+    if (grounding) {
+      planContext =
+        `This conversation is about the user's Financial Plan "${grounding.title}" (planId ${grounding.planId}). ` +
+        `Here are its already-computed sections — use ONLY these numbers for any question about this plan; do not recompute or invent figures:\n` +
+        `${JSON.stringify(grounding)}\n\n`;
+    }
+  }
+
+  // Prepend page context (plan grounding + any caller-supplied context) to the
+  // current (last) user message so the AI has it, without persisting the raw
+  // context blob in the DB.
+  const contextPrefix = planContext + (body.context ?? "");
+  if (contextPrefix && conversationMessages.length > 0) {
     const lastIdx = conversationMessages.length - 1;
     conversationMessages[lastIdx] = {
       ...conversationMessages[lastIdx],
-      content: body.context + conversationMessages[lastIdx].content,
+      content: contextPrefix + conversationMessages[lastIdx].content,
     };
   }
 
-  const tools = createAgentTools(tenantId, userId, { isDemo });
+  const tools = createAgentTools(tenantId, userId, {
+    isDemo,
+    financialPlanId: thread.financialPlanId ?? undefined,
+  });
   const aliasMap = await buildAliasMap(tenantId);
   const threadId = body.threadId;
 

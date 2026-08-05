@@ -15,6 +15,7 @@ type ChatPanelProps = {
   onMessageSent?: () => void;
   onChatResponse?: (response: ResponseV2 | null, toolResults: ToolResult[]) => void;
   planId?: string;
+  hideHeader?: boolean;
 };
 
 export function ChatPanel({
@@ -23,6 +24,7 @@ export function ChatPanel({
   initialMessage = null,
   onMessageSent,
   onChatResponse,
+  hideHeader = false,
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -134,9 +136,11 @@ export function ChatPanel({
 
   return (
     <div className="flex flex-col h-full bg-bg-elevated rounded-2xl border border-border">
-      <div className="p-4 border-b border-border">
-        <h3 className="font-medium text-text">Chat</h3>
-      </div>
+      {!hideHeader && (
+        <div className="p-4 border-b border-border">
+          <h3 className="font-medium text-text">Chat</h3>
+        </div>
+      )}
 
       <MessageList messages={messages} />
 
