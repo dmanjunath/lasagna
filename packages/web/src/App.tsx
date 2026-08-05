@@ -25,6 +25,8 @@ const ProbabilityOfSuccess = lazy(() => import('./pages/probability-of-success')
 const PlansPage = lazy(() => import('./pages/plans/index').then(m => ({ default: m.PlansPage })));
 const NewPlanPage = lazy(() => import('./pages/plans/new').then(m => ({ default: m.NewPlanPage })));
 const PlanDetailPage = lazy(() => import('./pages/plans/[id]').then(m => ({ default: m.PlanDetailPage })));
+const FinancialPlansPage = lazy(() => import('./pages/financial-plans/index').then(m => ({ default: m.FinancialPlansPage })));
+const FinancialPlanDetailPage = lazy(() => import('./pages/financial-plans/[id]').then(m => ({ default: m.FinancialPlanDetailPage })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const Debt = lazy(() => import('./pages/debt').then(m => ({ default: m.Debt })));
 const Spending = lazy(() => import('./pages/spending').then(m => ({ default: m.Spending })));
@@ -162,6 +164,8 @@ function AppRoutes() {
                     <Route path="/plans/retirement"><Redirect to="/retirement" /></Route>
                     <Route path="/plans/:id" component={PlanDetailPage} />
                     <Route path="/plans/savings/:id" component={SavingsGoal} />
+                    <Route path="/financial-plans" component={FinancialPlansPage} />
+                    <Route path="/financial-plans/:id" component={FinancialPlanDetailPage} />
                     <Route path="/financial-level" component={FinancialLevel} />
                     <Route path="/insights" component={Insights} />
                     <Route path="/retirement" component={RetirementV2} />

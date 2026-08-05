@@ -447,6 +447,43 @@ export type PlanEdit = {
   createdAt: string;
 };
 
+// ── Financial Plans ─────────────────────────────────────────────────────────
+
+export type FinancialSnapshotBreakdownItem = {
+  kind: "asset" | "debt";
+  type: string;
+  value: number;
+};
+
+export type FinancialSnapshotSection = {
+  section: "snapshot";
+  totalAssets: number;
+  totalDebt: number;
+  netWorth: number;
+  monthlySpend: number;
+  age: number | null;
+  annualIncome: number | null;
+  breakdown: FinancialSnapshotBreakdownItem[];
+  generatedAt: string;
+};
+
+export type FinancialPlanDocument = {
+  sections: { snapshot: FinancialSnapshotSection };
+};
+
+// List rows omit the (potentially large) document blob.
+export type FinancialPlanSummary = {
+  id: string;
+  title: string;
+  status: PlanStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FinancialPlan = FinancialPlanSummary & {
+  document: FinancialPlanDocument | null;
+};
+
 // ── Chat Types ────────────────────────────────────────────────────────────
 
 export type ChatThread = {

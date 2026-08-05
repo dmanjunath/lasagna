@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 're
 import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
 import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
+import type { FinancialPlanSummary } from '../lib/types';
 import { useChatStore } from '../lib/chat-store';
 import { cn, formatMoney } from '../lib/utils';
 import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
@@ -1192,6 +1193,10 @@ export function RetirementV2() {
   const { openChat } = useChatStore();
   const [loading, setLoading] = useState(true);
   const [hasAccounts, setHasAccounts] = useState(false);
+  // Financial Plans (advisor-grade documents) — drives the entry banner below
+  // the header. Loaded independently so a slow/failed fetch never blocks the page.
+  const [financialPlans, setFinancialPlans] = useState<FinancialPlanSummary[]>([]);
+  const [creatingPlan, setCreatingPlan] = useState(false);
 
   // Prefilled data (with spec fallbacks)
   const [currentAge, setCurrentAge] = useState(40);
@@ -1366,6 +1371,24 @@ export function RetirementV2() {
       }
     }).finally(() => setLoading(false));
   }, []);
+
+  // Financial Plans list for the entry banner.
+  useEffect(() => {
+    api.listFinancialPlans()
+      .then(({ plans }) => setFinancialPlans(plans))
+      .catch(() => setFinancialPlans([]));
+  }, []);
+
+  const handleCreateFinancialPlan = async () => {
+    if (creatingPlan) return;
+    setCreatingPlan(true);
+    try {
+      const { plan } = await api.createFinancialPlan();
+      navigate(`/financial-plans/${plan.id}`);
+    } catch {
+      setCreatingPlan(false);
+    }
+  };
 
   // Observe the hero success number; re-attach when the page swaps the element
   // in, since the hero only exists once accounts have loaded.
@@ -2018,10 +2041,43 @@ export function RetirementV2() {
         <div className="mt-5 flex flex-wrap items-center gap-3 rounded-ui-lg border border-line bg-canvas-sunken px-4 py-3">
           <Building2 size={18} className="text-content-muted shrink-0" />
           <span className="text-[13px] text-content-secondary flex-1 min-w-[220px]">
-            No linked accounts yet — these numbers start from example defaults. Connect your accounts to plan with real balances.
+            No linked accounts yet. These numbers start from example defaults. Connect your accounts to plan with real balances.
           </span>
           <Button variant="secondary" size="sm" onClick={() => navigate('/accounts')}>Link accounts</Button>
         </div>
+      )}
+
+      {/* Financial Plans entry — a saved snapshot document built from real data.
+          Gated on hasAccounts: a plan needs real balances, and showing this
+          under the "link accounts" banner would contradict it. */}
+      {hasAccounts && (
+      <div className="mt-5 flex flex-wrap items-center gap-3 rounded-ui-lg border border-line bg-canvas-sunken px-4 py-3">
+        <Sparkles size={18} className="text-content-muted shrink-0" />
+        {financialPlans.length === 0 ? (
+          <>
+            <span className="text-[13px] text-content-secondary flex-1 min-w-[220px]">
+              Turn today's numbers into a saved plan, a snapshot of your net worth, assets vs debt, and monthly spending.
+            </span>
+            <Button size="sm" onClick={handleCreateFinancialPlan} disabled={creatingPlan}>
+              {creatingPlan ? 'Creating…' : 'Create a plan'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => navigate('/financial-plans')}
+              className="text-[13px] font-semibold text-content-secondary flex-1 min-w-[220px] text-left hover:text-content transition-colors ui-tnum"
+            >
+              {financialPlans.length} plan{financialPlans.length === 1 ? '' : 's'} ·{' '}
+              <span className="text-content-muted underline underline-offset-2">View all</span>
+            </button>
+            <Button variant="secondary" size="sm" onClick={handleCreateFinancialPlan} disabled={creatingPlan}>
+              {creatingPlan ? 'Creating…' : 'New plan'}
+            </Button>
+          </>
+        )}
+      </div>
       )}
 
       {/* ── 1 · Verdict band ───────────────────────────────────────────────── */}

@@ -819,3 +819,28 @@ export const activityEvents = pgTable(
     index("activity_events_tenant_created_idx").on(t.tenantId, t.createdAt),
   ],
 );
+
+// ── Financial Plans ─────────────────────────────────────────────────────────
+// Advisor-grade "Financial Plans" documents — a distinct, personal (per-user)
+// entity from the lightweight `plans` chat-plan concept above. `document` holds
+// the structured multi-section payload as a JSON string (Financial Snapshot
+// only for now). Reuses planStatusEnum (draft/active/archived).
+export const financialPlans = pgTable("financial_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  document: text("document"), // JSON string (structured multi-section payload)
+  status: planStatusEnum("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});

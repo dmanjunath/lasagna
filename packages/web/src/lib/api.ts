@@ -1,4 +1,4 @@
-import type { Plan, PlanType, PlanStatus, PlanEdit, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, TaxInputResult, ExtractionResult } from "./types.js";
+import type { Plan, PlanType, PlanStatus, PlanEdit, FinancialPlan, FinancialPlanSummary, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, TaxInputResult, ExtractionResult } from "./types.js";
 import { isNativeApp, getNativeToken } from "./native.js";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -333,6 +333,22 @@ export const api = {
 
   clonePlan: (id: string) =>
     request<{ plan: Plan }>(`/plans/${id}/clone`, { method: "POST" }),
+
+  // Financial Plans (advisor-grade documents — distinct from the chat Plans above)
+  listFinancialPlans: () =>
+    request<{ plans: FinancialPlanSummary[] }>("/financial-plans"),
+
+  getFinancialPlan: (id: string) =>
+    request<FinancialPlan>(`/financial-plans/${id}`),
+
+  createFinancialPlan: (title?: string) =>
+    request<{ plan: FinancialPlan }>("/financial-plans", {
+      method: "POST",
+      body: JSON.stringify(title ? { title } : {}),
+    }),
+
+  deleteFinancialPlan: (id: string) =>
+    request(`/financial-plans/${id}`, { method: "DELETE" }),
 
   // Threads
   getThreads: (planId?: string) =>
