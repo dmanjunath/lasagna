@@ -4,6 +4,7 @@ import { db } from "../lib/db.js";
 import { financialPlans, eq, ne, and, desc } from "@lasagna/core";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildFinancialSnapshot } from "../services/financial-snapshot.js";
+import { buildPortfolioSection } from "../services/portfolio-section.js";
 
 export const financialPlansRouter = new Hono<AuthEnv>();
 
@@ -63,8 +64,11 @@ financialPlansRouter.post("/", async (c) => {
     return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
   }
 
-  const snapshot = await buildFinancialSnapshot(tenantId, userId);
-  const document = { sections: { snapshot } };
+  const [snapshot, portfolio] = await Promise.all([
+    buildFinancialSnapshot(tenantId, userId),
+    buildPortfolioSection(tenantId),
+  ]);
+  const document = { sections: { snapshot, portfolio } };
 
   const [plan] = await db
     .insert(financialPlans)

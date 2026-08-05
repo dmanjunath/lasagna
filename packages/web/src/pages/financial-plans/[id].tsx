@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, FileText, PieChart } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { vizColor } from "../../components/uikit/viz.js";
 import { formatMoney } from "../../lib/utils.js";
-import type { FinancialPlan, FinancialSnapshotBreakdownItem } from "../../lib/types.js";
+import type { FinancialPlan, FinancialSnapshotBreakdownItem, PortfolioSection } from "../../lib/types.js";
 
 // Account-type → friendly label for the breakdown legend/chart.
 const TYPE_LABELS: Record<string, string> = {
@@ -35,6 +35,128 @@ function itemColor(item: FinancialSnapshotBreakdownItem): string {
   return vizColor(5);
 }
 
+// Asset-class → viz slot, mirroring portfolio-composition.tsx so the plan's
+// composition reads with the same hues as the /portfolio page.
+const ASSET_CLASS_VIZ: Record<string, number> = {
+  "US Stocks": 2,
+  "International Stocks": 5,
+  Bonds: 6,
+  REITs: 3,
+  Cash: 1,
+  Other: 7,
+};
+
+function classColor(name: string, index: number): string {
+  return vizColor(ASSET_CLASS_VIZ[name] ?? ((index % 7) + 1));
+}
+
+function fmtPct(p: number): string {
+  if (p <= 0) return "0%";
+  if (p < 0.1) return "<0.1%";
+  return `${p.toFixed(1)}%`;
+}
+
+// Portfolio Composition — the top-level asset-type split as one shared-scale bar
+// plus a grouped, de-duped breakdown (each class, then its de-duplicated category
+// lines). Values come straight from aggregatePortfolio via the stored section.
+function PortfolioCompositionSection({ portfolio }: { portfolio: PortfolioSection }) {
+  const segments = portfolio.classes.filter((c) => c.value > 0);
+
+  return (
+    <section className="mt-10">
+      <div className="flex items-center gap-2.5">
+        <span
+          className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+          style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+          aria-hidden
+        />
+        <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+          Portfolio composition
+        </span>
+      </div>
+
+      {segments.length === 0 ? (
+        <EmptyState
+          className="mt-4"
+          icon={<PieChart className="h-5 w-5" />}
+          title="No investment holdings linked"
+          description="Link an investment account to see how your portfolio breaks down by asset type."
+        />
+      ) : (
+        <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-content-muted">
+              By asset type
+            </h3>
+            <span className="ui-tnum text-[13px] font-bold text-content">
+              {formatMoney(portfolio.totalValue)}
+            </span>
+          </div>
+
+          {/* Shared-scale allocation bar across asset classes. */}
+          <div
+            className="mt-3 flex h-3.5 overflow-hidden rounded-full bg-canvas-sunken"
+            role="img"
+            aria-label="Portfolio allocation by asset type"
+          >
+            {segments.map((c, i) => (
+              <span
+                key={c.name}
+                className="h-full first:rounded-l-full last:rounded-r-full"
+                style={{
+                  width: `${(c.value / portfolio.totalValue) * 100}%`,
+                  background: classColor(c.name, i),
+                }}
+                aria-hidden
+              />
+            ))}
+          </div>
+
+          {/* Grouped, de-duped breakdown: each class then its category lines. */}
+          <div className="mt-6 space-y-6">
+            {segments.map((c, i) => (
+              <div key={c.name}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: classColor(c.name, i) }}
+                      aria-hidden
+                    />
+                    <span className="truncate text-[14px] font-bold text-content">{c.name}</span>
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
+                    <span className="text-[14px] font-bold text-content">{formatMoney(c.value)}</span>
+                    <span className="ml-2 text-[12.5px] font-semibold text-content-muted">
+                      {fmtPct(c.weight)}
+                    </span>
+                  </span>
+                </div>
+                <ul className="mt-2 space-y-1.5 border-l border-line pl-4">
+                  {c.categories.map((cat) => (
+                    <li
+                      key={cat.name}
+                      className="flex items-center justify-between gap-3 text-[13.5px]"
+                    >
+                      <span className="truncate font-semibold text-content-secondary">{cat.name}</span>
+                      <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
+                        <span className="font-bold text-content">{formatMoney(cat.value)}</span>
+                        <span className="ml-2 text-[12.5px] font-semibold text-content-muted">
+                          {fmtPct(cat.weight)}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function FinancialPlanDetailPage() {
   const [, params] = useRoute("/financial-plans/:id");
   const [, navigate] = useLocation();
@@ -58,6 +180,7 @@ export function FinancialPlanDetailPage() {
   }, [id]);
 
   const snapshot = plan?.document?.sections.snapshot ?? null;
+  const portfolio = plan?.document?.sections.portfolio ?? null;
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -249,6 +372,20 @@ export function FinancialPlanDetailPage() {
               </div>
             </div>
           </section>
+
+          {/* Portfolio Composition section — absent on plans created before it
+              shipped, in which case we recompute nothing and show the empty
+              state so old plans never crash. */}
+          <PortfolioCompositionSection
+            portfolio={
+              portfolio ?? {
+                section: "portfolio",
+                totalValue: 0,
+                classes: [],
+                generatedAt: snapshot.generatedAt,
+              }
+            }
+          />
         </>
       )}
     </div>

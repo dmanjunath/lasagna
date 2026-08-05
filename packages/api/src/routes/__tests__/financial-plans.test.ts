@@ -27,6 +27,11 @@ vi.mock("../../services/financial-snapshot.js", () => ({
   buildFinancialSnapshot: (...args: unknown[]) => buildFinancialSnapshot(...args),
 }));
 
+const buildPortfolioSection = vi.fn();
+vi.mock("../../services/portfolio-section.js", () => ({
+  buildPortfolioSection: (...args: unknown[]) => buildPortfolioSection(...args),
+}));
+
 interface PlanRow {
   id: string;
   tenantId: string;
@@ -139,10 +144,20 @@ const SNAPSHOT = {
   generatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+const PORTFOLIO = {
+  section: "portfolio" as const,
+  totalValue: 100,
+  classes: [
+    { name: "US Stocks", value: 100, weight: 100, categories: [{ name: "S&P 500", value: 100, weight: 100 }] },
+  ],
+  generatedAt: "2026-01-01T00:00:00.000Z",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   planTable = [];
   buildFinancialSnapshot.mockResolvedValue(SNAPSHOT);
+  buildPortfolioSection.mockResolvedValue(PORTFOLIO);
 });
 
 describe("POST /api/financial-plans", () => {
@@ -154,14 +169,16 @@ describe("POST /api/financial-plans", () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { plan: { document: { sections: { snapshot: unknown } }; tenantId: string; userId: string } };
+    const body = (await res.json()) as { plan: { document: { sections: { snapshot: unknown; portfolio: unknown } }; tenantId: string; userId: string } };
     expect(buildFinancialSnapshot).toHaveBeenCalledWith("tenant-1", "user-a");
+    expect(buildPortfolioSection).toHaveBeenCalledWith("tenant-1");
     // Stored as a JSON string on the row, returned parsed.
     const stored = insertValues.mock.calls[0][0] as { document: string; tenantId: string; userId: string };
-    expect(JSON.parse(stored.document)).toEqual({ sections: { snapshot: SNAPSHOT } });
+    expect(JSON.parse(stored.document)).toEqual({ sections: { snapshot: SNAPSHOT, portfolio: PORTFOLIO } });
     expect(stored.tenantId).toBe("tenant-1");
     expect(stored.userId).toBe("user-a");
     expect(body.plan.document.sections.snapshot).toEqual(SNAPSHOT);
+    expect(body.plan.document.sections.portfolio).toEqual(PORTFOLIO);
   });
 });
 

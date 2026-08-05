@@ -467,8 +467,30 @@ export type FinancialSnapshotSection = {
   generatedAt: string;
 };
 
+export type PortfolioCategoryLine = {
+  name: string;
+  value: number;
+  weight: number;
+};
+
+export type PortfolioClassGroup = {
+  name: string;
+  value: number;
+  weight: number;
+  categories: PortfolioCategoryLine[];
+};
+
+export type PortfolioSection = {
+  section: "portfolio";
+  totalValue: number;
+  classes: PortfolioClassGroup[];
+  generatedAt: string;
+};
+
 export type FinancialPlanDocument = {
-  sections: { snapshot: FinancialSnapshotSection };
+  // `portfolio` is optional — plans created before the Portfolio Composition
+  // section shipped won't carry the key.
+  sections: { snapshot: FinancialSnapshotSection; portfolio?: PortfolioSection };
 };
 
 // List rows omit the (potentially large) document blob.
