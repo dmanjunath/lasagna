@@ -37,6 +37,11 @@ vi.mock("../../services/retirement-readiness.js", () => ({
   buildRetirementReadiness: (...args: unknown[]) => buildRetirementReadiness(...args),
 }));
 
+const buildWhatIfSection = vi.fn();
+vi.mock("../../services/what-if-section.js", () => ({
+  buildWhatIfSection: (...args: unknown[]) => buildWhatIfSection(...args),
+}));
+
 // The suggestions builder wraps the LLM; stub it (and the grounding helper it's
 // fed) so this stays a routing test with no model call. Default: no suggestions.
 const buildSuggestionsSection = vi.fn();
@@ -192,12 +197,22 @@ const RETIREMENT = {
   generatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+const WHAT_IFS = {
+  section: "what_ifs" as const,
+  baseSuccessRate: 88,
+  scenarios: [
+    { label: "Retire 3 years earlier", overrides: { retirementAge: 62 }, successRate: 76, medianLastsToAge: null, deltaVsBase: -12 },
+  ],
+  generatedAt: "2026-01-01T00:00:00.000Z",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   planTable = [];
   buildFinancialSnapshot.mockResolvedValue(SNAPSHOT);
   buildPortfolioSection.mockResolvedValue(PORTFOLIO);
   buildRetirementReadiness.mockResolvedValue(RETIREMENT);
+  buildWhatIfSection.mockResolvedValue(WHAT_IFS);
   buildSuggestionsSection.mockResolvedValue(null);
 });
 
@@ -216,18 +231,48 @@ describe("POST /api/financial-plans", () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { plan: { document: { sections: { snapshot: unknown; portfolio: unknown; retirement: unknown } }; tenantId: string; userId: string } };
+    const body = (await res.json()) as { plan: { document: { sections: { snapshot: unknown; portfolio: unknown; retirement: unknown; whatIfs: unknown } }; tenantId: string; userId: string } };
     expect(buildFinancialSnapshot).toHaveBeenCalledWith("tenant-1", "user-a");
     expect(buildPortfolioSection).toHaveBeenCalledWith("tenant-1");
     expect(buildRetirementReadiness).toHaveBeenCalledWith("tenant-1", "user-a");
+    // What-ifs re-run the engine against the retirement section's base rate.
+    expect(buildWhatIfSection).toHaveBeenCalledWith("tenant-1", "user-a", RETIREMENT.successRate);
     // Stored as a JSON string on the row, returned parsed.
     const stored = insertValues.mock.calls[0][0] as { document: string; tenantId: string; userId: string };
-    expect(JSON.parse(stored.document)).toEqual({ sections: { snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT } });
+    expect(JSON.parse(stored.document)).toEqual({ sections: { snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT, whatIfs: WHAT_IFS } });
     expect(stored.tenantId).toBe("tenant-1");
     expect(stored.userId).toBe("user-a");
     expect(body.plan.document.sections.snapshot).toEqual(SNAPSHOT);
     expect(body.plan.document.sections.portfolio).toEqual(PORTFOLIO);
     expect(body.plan.document.sections.retirement).toEqual(RETIREMENT);
+    expect(body.plan.document.sections.whatIfs).toEqual(WHAT_IFS);
+  });
+
+  it("skips the what-if section when the retirement projection wasn't computable", async () => {
+    buildRetirementReadiness.mockResolvedValue({ ...RETIREMENT, computed: false, successRate: 0 });
+    const res = await appWithSession(userA).request("/api/financial-plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(201);
+    // No base to compare against → the builder isn't even called.
+    expect(buildWhatIfSection).not.toHaveBeenCalled();
+    const stored = insertValues.mock.calls[0][0] as { document: string };
+    expect(JSON.parse(stored.document).sections).not.toHaveProperty("whatIfs");
+  });
+
+  it("still creates the plan (no what-ifs) when the what-if builder throws", async () => {
+    buildWhatIfSection.mockRejectedValue(new Error("sim exploded"));
+    const res = await appWithSession(userA).request("/api/financial-plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    // A scenario failure must never 500 the create — the plan ships without what-ifs.
+    expect(res.status).toBe(201);
+    const stored = insertValues.mock.calls[0][0] as { document: string };
+    expect(JSON.parse(stored.document).sections).not.toHaveProperty("whatIfs");
   });
 
   it("includes the suggestions section when the builder returns items", async () => {
@@ -243,7 +288,7 @@ describe("POST /api/financial-plans", () => {
     expect(grounding.sections).toEqual({ snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT });
     const stored = insertValues.mock.calls[0][0] as { document: string };
     expect(JSON.parse(stored.document)).toEqual({
-      sections: { snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT, suggestions: SUGGESTIONS },
+      sections: { snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT, whatIfs: WHAT_IFS, suggestions: SUGGESTIONS },
     });
   });
 

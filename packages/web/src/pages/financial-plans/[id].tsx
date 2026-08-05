@@ -12,6 +12,7 @@ import type {
   PortfolioSection,
   RetirementReadinessSection,
   ReadinessVerdict,
+  WhatIfSection,
   GoalsSection,
   SuggestionsSection,
   ChatThread,
@@ -431,6 +432,99 @@ function RetirementReadinessSectionView({ section }: { section: RetirementReadin
           </ol>
         </div>
       )}
+    </section>
+  );
+}
+
+// ── What-if scenarios ─────────────────────────────────────────────────────────
+
+// Render a scenario's delta vs the base success rate: a real minus sign for
+// negatives, color from the --ui-positive/--ui-negative tokens, and an
+// arrow glyph so the direction reads without relying on color alone. A delta of
+// 0 stays neutral ("no change").
+function DeltaBadge({ delta }: { delta: number }) {
+  if (delta === 0) {
+    return (
+      <span className="ui-tnum text-[12.5px] font-bold text-content-muted">no change</span>
+    );
+  }
+  const positive = delta > 0;
+  return (
+    <span
+      className="ui-tnum inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold"
+      style={{
+        color: positive ? "rgb(var(--ui-positive))" : "rgb(var(--ui-negative))",
+        background: positive ? "var(--ui-positive-soft)" : "var(--ui-negative-soft)",
+      }}
+    >
+      <span aria-hidden>{positive ? "↑" : "↓"}</span>
+      {positive ? "+" : "−"}
+      {Math.abs(delta)} pts
+    </span>
+  );
+}
+
+// The What-if section: re-runs of the SAME engine with overrides, each compared
+// to the base plan's success rate so the "am I on track?" story stays explicit
+// and consistent with the Retirement Readiness verdict above.
+function WhatIfSectionView({ whatIfs }: { whatIfs: WhatIfSection | null }) {
+  const eyebrow = (
+    <div className="flex items-center gap-2.5">
+      <span
+        className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+        style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+        aria-hidden
+      />
+      <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+        What if?
+      </span>
+    </div>
+  );
+
+  if (!whatIfs || whatIfs.scenarios.length === 0) {
+    return (
+      <section className="mt-10">
+        {eyebrow}
+        <EmptyState
+          className="mt-4"
+          icon={<LineChart className="h-5 w-5" />}
+          title="No scenarios yet"
+          description="Once we can project your retirement, we'll model a few what-if scenarios here."
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-10">
+      {eyebrow}
+      <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-content-muted">
+            Try a different plan
+          </h3>
+          <span className="ui-tnum text-[12.5px] font-semibold text-content-muted">
+            Base {whatIfs.baseSuccessRate}%
+          </span>
+        </div>
+        <p className="mt-1 text-[13px] text-content-muted">
+          Each scenario re-runs your plan with one change, compared to your current base success rate.
+        </p>
+        <ul className="mt-4 space-y-2">
+          {whatIfs.scenarios.map((s) => (
+            <li
+              key={s.label}
+              className="flex flex-col gap-1.5 rounded-ui-md border border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+            >
+              <span className="text-[14px] font-bold text-content">{s.label}</span>
+              <span className="flex shrink-0 items-center gap-2.5 whitespace-nowrap sm:justify-end ui-tnum">
+                <span className="text-[14px] font-bold text-content">{s.successRate}%</span>
+                <DeltaBadge delta={s.deltaVsBase} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
@@ -873,6 +967,7 @@ export function FinancialPlanDetailPage() {
   const snapshot = plan?.document?.sections.snapshot ?? null;
   const portfolio = plan?.document?.sections.portfolio ?? null;
   const retirement = plan?.document?.sections.retirement ?? null;
+  const whatIfs = plan?.document?.sections.whatIfs ?? null;
   const goals = plan?.document?.sections.goals ?? null;
   const suggestions = plan?.document?.sections.suggestions ?? null;
 
@@ -1109,6 +1204,13 @@ export function FinancialPlanDetailPage() {
               }
             }
           />
+
+          {/* What-if scenarios — deterministic re-runs of the SAME engine with
+              overrides, each shown as a delta vs the base success rate. Absent
+              on plans created before it shipped (and when the base wasn't
+              computable), so we render it only when the section exists rather
+              than showing an empty state on old plans. */}
+          {whatIfs && <WhatIfSectionView whatIfs={whatIfs} />}
 
           {/* Suggestions section — LLM-generated next steps grounded in the
               plan's real figures. Absent on plans created before it shipped or

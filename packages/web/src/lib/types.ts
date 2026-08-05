@@ -555,6 +555,28 @@ export type GoalsSection = {
   generatedAt: string;
 };
 
+// ── What-if section ───────────────────────────────────────────────────────────
+
+export type WhatIfScenario = {
+  label: string;
+  overrides: {
+    retirementAge?: number;
+    monthlySpend?: number;
+    planThroughAge?: number;
+  };
+  successRate: number;
+  medianLastsToAge: number | null;
+  /** scenario.successRate − baseSuccessRate, in percentage points. */
+  deltaVsBase: number;
+};
+
+export type WhatIfSection = {
+  section: "what_ifs";
+  baseSuccessRate: number;
+  scenarios: WhatIfScenario[];
+  generatedAt: string;
+};
+
 // ── Suggestions section ───────────────────────────────────────────────────────
 
 export type Suggestion = {
@@ -580,6 +602,7 @@ export type FinancialPlanDocument = {
     snapshot: FinancialSnapshotSection;
     portfolio?: PortfolioSection;
     retirement?: RetirementReadinessSection;
+    whatIfs?: WhatIfSection;
     goals?: GoalsSection;
     suggestions?: SuggestionsSection;
   };
