@@ -53,6 +53,20 @@ accountRouter.delete("/", async (c) => {
   try { await workos.authenticateWithMagicAuth({ email: user.email, code }); }
   catch { return c.json({ error: "Invalid or expired code" }, 401); }
 
+  // Deletion cascades from the tenant row, so it would take down every member
+  // of a shared household. Refuse until the other members are removed first.
+  const tenantUsers = await db.query.users.findMany({
+    where: eq(users.tenantId, session.tenantId),
+    columns: { id: true, email: true },
+  });
+  if (tenantUsers.length > 1) {
+    const blockingUsers = tenantUsers.filter((u) => u.id !== session.userId).map((u) => u.email);
+    return c.json({
+      error: "This household has other members. Remove them before deleting the account.",
+      blockingUsers,
+    }, 409);
+  }
+
   const summary = await deleteTenantAccount(session.tenantId);
   deleteCookie(c, COOKIE_NAME, { path: "/", ...cookieFlagsFor(c) });
   return c.json({ ok: true, ...summary });
