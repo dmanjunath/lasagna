@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, FileText, PieChart } from "lucide-react";
+import { ArrowLeft, FileText, PieChart, LineChart } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { vizColor } from "../../components/uikit/viz.js";
 import { formatMoney } from "../../lib/utils.js";
-import type { FinancialPlan, FinancialSnapshotBreakdownItem, PortfolioSection } from "../../lib/types.js";
+import type {
+  FinancialPlan,
+  FinancialSnapshotBreakdownItem,
+  PortfolioSection,
+  RetirementReadinessSection,
+  ReadinessVerdict,
+} from "../../lib/types.js";
 
 // Account-type → friendly label for the breakdown legend/chart.
 const TYPE_LABELS: Record<string, string> = {
@@ -157,6 +163,266 @@ function PortfolioCompositionSection({ portfolio }: { portfolio: PortfolioSectio
   );
 }
 
+// ── Retirement Readiness ──────────────────────────────────────────────────────
+
+// Short money label for the growth chart axis, matching the retirement page's
+// terse "$1.2M / $340k" style.
+function fmtShortMoney(v: number): string {
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `$${Math.round(v / 1e3)}k`;
+  return `$${Math.round(v)}`;
+}
+
+const VERDICT_LABEL: Record<ReadinessVerdict, string> = {
+  on_track: "On track",
+  needs_attention: "Needs attention",
+  at_risk: "At risk",
+};
+
+// Verdict-band colors, mirroring retirement-v2.tsx's compositeColor/compositeBg
+// (on track → brand, needs attention → caution, at risk → negative).
+const VERDICT_STYLE: Record<ReadinessVerdict, { ink: string; bg: string }> = {
+  on_track: { ink: "rgb(var(--ui-brand-ink))", bg: "var(--ui-brand-soft)" },
+  needs_attention: { ink: "rgb(var(--ui-caution))", bg: "var(--ui-caution-soft)" },
+  at_risk: { ink: "rgb(var(--ui-negative))", bg: "var(--ui-negative-soft)" },
+};
+
+// Median + 25th-75th band growth chart, segmented at retirement. A stored,
+// non-interactive SVG mirroring the /retirement fan idiom with --ui-* tokens:
+// accumulation tint before retirement, a dashed retirement marker, the p25-p75
+// band, and the median path.
+function GrowthChart({ section }: { section: RetirementReadinessSection }) {
+  const pts = section.growth;
+  const n = pts.length;
+  if (n < 2) return null;
+
+  const W = 760;
+  const H = 240;
+  const PL = 52;
+  const PR = 16;
+  const PT = 16;
+  const PB = 28;
+  const chartW = W - PL - PR;
+  const chartH = H - PT - PB;
+
+  const maxV = Math.max(...pts.map((p) => p.p75), 1);
+  const xf = (i: number) => PL + (i / Math.max(n - 1, 1)) * chartW;
+  const yf = (v: number) => PT + chartH - Math.max(0, Math.min(1, v / maxV)) * chartH;
+  const yTicks = [0.25, 0.5, 0.75, 1].map((pct) => ({ pct, val: maxV * pct, y: PT + chartH - pct * chartH }));
+
+  const band = (upper: (p: (typeof pts)[number]) => number, lower: (p: (typeof pts)[number]) => number) => {
+    let d = `M ${xf(0)},${yf(upper(pts[0]))}`;
+    for (let i = 1; i < n; i++) d += ` L ${xf(i)},${yf(upper(pts[i]))}`;
+    for (let i = n - 1; i >= 0; i--) d += ` L ${xf(i)},${yf(lower(pts[i]))}`;
+    return d + " Z";
+  };
+  const line = (get: (p: (typeof pts)[number]) => number) => {
+    let d = `M ${xf(0)},${yf(get(pts[0]))}`;
+    for (let i = 1; i < n; i++) d += ` L ${xf(i)},${yf(get(pts[i]))}`;
+    return d;
+  };
+
+  const retireIdx = Math.max(0, section.retirementAge - section.currentAge);
+  const midIdx = Math.floor((n - 1) / 2);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} role="img" aria-label="Projected portfolio balance by age">
+      {/* Accumulation tint before retirement */}
+      {retireIdx > 0 && retireIdx < n && (
+        <rect x={xf(0)} y={PT} width={Math.max(0, xf(retireIdx) - xf(0))} height={chartH} fill="var(--ui-brand-softer)" />
+      )}
+
+      {/* Gridlines + y labels */}
+      {yTicks.map(({ pct, val, y }) => (
+        <g key={pct}>
+          <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
+          <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">
+            {fmtShortMoney(val)}
+          </text>
+        </g>
+      ))}
+
+      {/* p25-p75 band + median path */}
+      <path d={band((p) => p.p75, (p) => p.p25)} fill="var(--ui-viz-2)" fillOpacity={0.18} />
+      <path d={line((p) => p.median)} fill="none" stroke="var(--ui-viz-2)" strokeWidth={2} strokeLinecap="round" />
+
+      {/* Retirement marker */}
+      {retireIdx > 0 && retireIdx < n && (
+        <>
+          <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={H - PB} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
+          <text x={xf(retireIdx) + 5} y={H - PB - 6} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontWeight={600} fontSize={11} fill="rgb(var(--ui-brand-ink))">
+            retire {section.retirementAge}
+          </text>
+        </>
+      )}
+
+      {/* X-axis ages */}
+      <text x={xf(0)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">age {section.currentAge}</text>
+      <text x={xf(midIdx)} y={H - 6} textAnchor="middle" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">{section.currentAge + midIdx}</text>
+      <text x={xf(n - 1)} y={H - 6} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">{section.currentAge + n - 1}</text>
+    </svg>
+  );
+}
+
+function RetirementReadinessSectionView({ section }: { section: RetirementReadinessSection }) {
+  const eyebrow = (
+    <div className="flex items-center gap-2.5">
+      <span
+        className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+        style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+        aria-hidden
+      />
+      <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+        Retirement readiness
+      </span>
+    </div>
+  );
+
+  if (!section.computed) {
+    return (
+      <section className="mt-10">
+        {eyebrow}
+        <EmptyState
+          className="mt-4"
+          icon={<LineChart className="h-5 w-5" />}
+          title="Not enough to project yet"
+          description="Link an investment or cash account so we can model whether you're on track to retire."
+        />
+      </section>
+    );
+  }
+
+  const style = VERDICT_STYLE[section.verdict];
+  const lastsThrough =
+    section.medianLastsToAge === null
+      ? `through age ${section.planThroughAge}`
+      : `to age ${section.medianLastsToAge}`;
+
+  return (
+    <section className="mt-10">
+      {eyebrow}
+
+      {/* On-track verdict band: same threshold + color idiom as /retirement. */}
+      <div
+        className="mt-4 rounded-ui-xl border border-line shadow-ui-sm p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+        style={{ background: style.bg }}
+      >
+        <div>
+          <div className="text-[24px] sm:text-[28px] font-bold leading-none" style={{ color: style.ink }}>
+            {VERDICT_LABEL[section.verdict]}
+          </div>
+          <p className="mt-2 text-[13.5px] font-semibold text-content-secondary">
+            Odds your money lasts {lastsThrough}, retiring at {section.retirementAge}.
+            {" "}Target is {section.targetSuccess}%.
+          </p>
+        </div>
+        <div className="shrink-0 sm:text-right">
+          <div className="ui-tnum text-[28px] font-bold leading-none" style={{ color: style.ink }}>
+            {section.successRate}%
+          </div>
+          <div className="mt-1.5 text-[11.5px] font-bold uppercase tracking-[0.08em] text-content-muted">
+            Success rate
+          </div>
+        </div>
+      </div>
+
+      {/* Projected growth: median + 25th-75th band, split at retirement. */}
+      <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-content-muted">
+            Projected balance
+          </h3>
+          <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">
+            {section.blendedExpectedReturn > 0 && (
+              <>{(section.blendedExpectedReturn * 100).toFixed(1)}% expected return</>
+            )}
+          </span>
+        </div>
+        <div className="mt-4">
+          <GrowthChart section={section} />
+        </div>
+        <div className="mt-2 flex items-center gap-5 text-[12px] font-semibold text-content-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-[3px] w-4 rounded-full" style={{ background: "var(--ui-viz-2)" }} aria-hidden />
+            Median
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "var(--ui-viz-2)", opacity: 0.18 }} aria-hidden />
+            25th-75th percentile
+          </span>
+        </div>
+      </div>
+
+      {/* Drawdown method comparison: the recommended optimal is marked. */}
+      <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+        <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-content-muted">
+          Withdrawal method
+        </h3>
+        <p className="mt-1 text-[13px] text-content-muted">
+          How you draw the portfolio down changes how long it lasts. We ran each method on your plan.
+        </p>
+        <ul className="mt-4 space-y-2">
+          {section.methods.map((m) => (
+            <li
+              key={m.strategy}
+              className="flex flex-col gap-1.5 rounded-ui-md border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              style={
+                m.recommended
+                  ? { borderColor: "rgb(var(--ui-brand))", background: "var(--ui-brand-softer)" }
+                  : { borderColor: "rgb(var(--ui-line))" }
+              }
+            >
+              <span className="flex flex-wrap items-center gap-2.5">
+                <span className="text-[14px] font-bold text-content">{m.label}</span>
+                {m.recommended && (
+                  <span className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft">
+                    Recommended
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 whitespace-nowrap sm:text-right ui-tnum">
+                <span className="text-[14px] font-bold text-content">{m.successRate}%</span>
+                {m.medianLastsToAge !== null && (
+                  <span className="ml-2 text-[12.5px] font-semibold text-content-muted">
+                    depletes at age {m.medianLastsToAge}
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Drawdown order: the tax-treatment spending sequence. */}
+      {section.drawdownOrder.length > 0 && (
+        <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-content-muted">
+            Drawdown order
+          </h3>
+          <p className="mt-1 text-[13px] text-content-muted">
+            Which accounts to spend first in retirement, most tax-efficient first.
+          </p>
+          <ol className="mt-4 space-y-2">
+            {section.drawdownOrder.map((u, i) => (
+              <li key={u.bucket} className="flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-3 min-w-0">
+                  <span className="ui-tnum inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-canvas-sunken text-[12px] font-bold text-content-secondary">
+                    {i + 1}
+                  </span>
+                  <span className="truncate text-[14px] font-bold text-content">{u.label}</span>
+                </span>
+                <span className="ui-tnum shrink-0 text-[14px] font-bold text-content">
+                  {formatMoney(u.balance, true)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function FinancialPlanDetailPage() {
   const [, params] = useRoute("/financial-plans/:id");
   const [, navigate] = useLocation();
@@ -181,6 +447,7 @@ export function FinancialPlanDetailPage() {
 
   const snapshot = plan?.document?.sections.snapshot ?? null;
   const portfolio = plan?.document?.sections.portfolio ?? null;
+  const retirement = plan?.document?.sections.retirement ?? null;
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -382,6 +649,31 @@ export function FinancialPlanDetailPage() {
                 section: "portfolio",
                 totalValue: 0,
                 classes: [],
+                generatedAt: snapshot.generatedAt,
+              }
+            }
+          />
+
+          {/* Retirement Readiness section: absent on plans created before it
+              shipped, in which case we show the un-computed empty state so old
+              plans never crash. */}
+          <RetirementReadinessSectionView
+            section={
+              retirement ?? {
+                section: "retirement",
+                computed: false,
+                currentAge: snapshot.age ?? 40,
+                retirementAge: 65,
+                planThroughAge: 90,
+                successRate: 0,
+                targetSuccess: 85,
+                verdict: "at_risk",
+                medianLastsToAge: null,
+                blendedExpectedReturn: 0,
+                growth: [],
+                methods: [],
+                recommendedStrategy: "constant_dollar",
+                drawdownOrder: [],
                 generatedAt: snapshot.generatedAt,
               }
             }

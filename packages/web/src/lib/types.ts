@@ -487,10 +487,63 @@ export type PortfolioSection = {
   generatedAt: string;
 };
 
+// ── Retirement Readiness section ─────────────────────────────────────────────
+
+export type ReadinessVerdict = "on_track" | "needs_attention" | "at_risk";
+export type WithdrawalMethod =
+  | "constant_dollar"
+  | "percent_of_portfolio"
+  | "guardrails"
+  | "rules_based";
+
+export type RetirementGrowthPoint = {
+  age: number;
+  median: number;
+  p25: number;
+  p75: number;
+  phase: "accumulation" | "retirement";
+};
+
+export type RetirementMethodComparison = {
+  strategy: WithdrawalMethod;
+  label: string;
+  successRate: number;
+  medianLastsToAge: number | null;
+  recommended: boolean;
+};
+
+export type RetirementDrawdownOrderUnit = {
+  bucket: "taxable" | "deferred" | "roth" | "hsa";
+  label: string;
+  balance: number;
+};
+
+export type RetirementReadinessSection = {
+  section: "retirement";
+  computed: boolean;
+  currentAge: number;
+  retirementAge: number;
+  planThroughAge: number;
+  successRate: number;
+  targetSuccess: number;
+  verdict: ReadinessVerdict;
+  medianLastsToAge: number | null;
+  blendedExpectedReturn: number;
+  growth: RetirementGrowthPoint[];
+  methods: RetirementMethodComparison[];
+  recommendedStrategy: WithdrawalMethod;
+  drawdownOrder: RetirementDrawdownOrderUnit[];
+  generatedAt: string;
+};
+
 export type FinancialPlanDocument = {
-  // `portfolio` is optional — plans created before the Portfolio Composition
-  // section shipped won't carry the key.
-  sections: { snapshot: FinancialSnapshotSection; portfolio?: PortfolioSection };
+  // `portfolio` and `retirement` are optional — plans created before those
+  // sections shipped won't carry the key.
+  sections: {
+    snapshot: FinancialSnapshotSection;
+    portfolio?: PortfolioSection;
+    retirement?: RetirementReadinessSection;
+  };
 };
 
 // List rows omit the (potentially large) document blob.

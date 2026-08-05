@@ -32,6 +32,11 @@ vi.mock("../../services/portfolio-section.js", () => ({
   buildPortfolioSection: (...args: unknown[]) => buildPortfolioSection(...args),
 }));
 
+const buildRetirementReadiness = vi.fn();
+vi.mock("../../services/retirement-readiness.js", () => ({
+  buildRetirementReadiness: (...args: unknown[]) => buildRetirementReadiness(...args),
+}));
+
 interface PlanRow {
   id: string;
   tenantId: string;
@@ -153,11 +158,32 @@ const PORTFOLIO = {
   generatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+const RETIREMENT = {
+  section: "retirement" as const,
+  computed: true,
+  currentAge: 40,
+  retirementAge: 65,
+  planThroughAge: 90,
+  successRate: 88,
+  targetSuccess: 85,
+  verdict: "on_track" as const,
+  medianLastsToAge: null,
+  blendedExpectedReturn: 0.062,
+  growth: [{ age: 40, median: 100, p25: 90, p75: 110, phase: "accumulation" as const }],
+  methods: [
+    { strategy: "guardrails" as const, label: "Guardrails", successRate: 88, medianLastsToAge: null, recommended: true },
+  ],
+  recommendedStrategy: "guardrails" as const,
+  drawdownOrder: [{ bucket: "taxable" as const, label: "Taxable", balance: 100 }],
+  generatedAt: "2026-01-01T00:00:00.000Z",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   planTable = [];
   buildFinancialSnapshot.mockResolvedValue(SNAPSHOT);
   buildPortfolioSection.mockResolvedValue(PORTFOLIO);
+  buildRetirementReadiness.mockResolvedValue(RETIREMENT);
 });
 
 describe("POST /api/financial-plans", () => {
@@ -169,16 +195,18 @@ describe("POST /api/financial-plans", () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { plan: { document: { sections: { snapshot: unknown; portfolio: unknown } }; tenantId: string; userId: string } };
+    const body = (await res.json()) as { plan: { document: { sections: { snapshot: unknown; portfolio: unknown; retirement: unknown } }; tenantId: string; userId: string } };
     expect(buildFinancialSnapshot).toHaveBeenCalledWith("tenant-1", "user-a");
     expect(buildPortfolioSection).toHaveBeenCalledWith("tenant-1");
+    expect(buildRetirementReadiness).toHaveBeenCalledWith("tenant-1", "user-a");
     // Stored as a JSON string on the row, returned parsed.
     const stored = insertValues.mock.calls[0][0] as { document: string; tenantId: string; userId: string };
-    expect(JSON.parse(stored.document)).toEqual({ sections: { snapshot: SNAPSHOT, portfolio: PORTFOLIO } });
+    expect(JSON.parse(stored.document)).toEqual({ sections: { snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT } });
     expect(stored.tenantId).toBe("tenant-1");
     expect(stored.userId).toBe("user-a");
     expect(body.plan.document.sections.snapshot).toEqual(SNAPSHOT);
     expect(body.plan.document.sections.portfolio).toEqual(PORTFOLIO);
+    expect(body.plan.document.sections.retirement).toEqual(RETIREMENT);
   });
 });
 
