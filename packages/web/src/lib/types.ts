@@ -536,13 +536,33 @@ export type RetirementReadinessSection = {
   generatedAt: string;
 };
 
+// ── Goals section ────────────────────────────────────────────────────────────
+
+export type NamedGoal = {
+  label: string;
+  targetAmount?: number;
+  targetYear?: number;
+  note?: string;
+};
+
+export type GoalsSection = {
+  section: "goals";
+  retirementAge?: number;
+  planEndAge?: number;
+  /** Desired ANNUAL retirement income, pre-tax dollars. */
+  retirementIncome?: number;
+  namedGoals?: NamedGoal[];
+  generatedAt: string;
+};
+
 export type FinancialPlanDocument = {
-  // `portfolio` and `retirement` are optional — plans created before those
-  // sections shipped won't carry the key.
+  // `portfolio`, `retirement`, and `goals` are optional — plans created before
+  // those sections shipped won't carry the key.
   sections: {
     snapshot: FinancialSnapshotSection;
     portfolio?: PortfolioSection;
     retirement?: RetirementReadinessSection;
+    goals?: GoalsSection;
   };
 };
 

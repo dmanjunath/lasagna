@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, FileText, PieChart, LineChart } from "lucide-react";
+import { ArrowLeft, FileText, PieChart, LineChart, Target } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { vizColor } from "../../components/uikit/viz.js";
@@ -12,9 +12,17 @@ import type {
   PortfolioSection,
   RetirementReadinessSection,
   ReadinessVerdict,
+  GoalsSection,
   ChatThread,
   Message,
 } from "../../lib/types.js";
+import type { ToolResult } from "../../lib/types-v2.js";
+
+// The message the "Complete your goals" CTA seeds into the plan chat. It nudges
+// the agent to run its goals intake (ask for the missing goal inputs and call
+// update_financial_plan_goals as the user answers).
+const GOALS_INTAKE_PROMPT =
+  "Help me set up my plan goals. Ask me for whatever is still missing (retirement age, the age my money should last through, my target annual retirement income, and any named goals like college, travel, or charity), then save them.";
 
 // Account-type → friendly label for the breakdown legend/chart.
 const TYPE_LABELS: Record<string, string> = {
@@ -426,11 +434,187 @@ function RetirementReadinessSectionView({ section }: { section: RetirementReadin
   );
 }
 
+// ── Goals ─────────────────────────────────────────────────────────────────────
+
+// A goals section is "complete enough" once the three core numbers are set;
+// named goals are optional extras, so they don't gate completeness.
+function goalsComplete(goals: GoalsSection | null): boolean {
+  return Boolean(
+    goals &&
+      goals.retirementAge != null &&
+      goals.planEndAge != null &&
+      goals.retirementIncome != null,
+  );
+}
+
+function goalsEmpty(goals: GoalsSection | null): boolean {
+  return (
+    !goals ||
+    (goals.retirementAge == null &&
+      goals.planEndAge == null &&
+      goals.retirementIncome == null &&
+      (goals.namedGoals?.length ?? 0) === 0)
+  );
+}
+
+// One stated goal value, or a muted "Not set yet" placeholder that reads as an
+// invitation to fill it in via chat.
+function GoalStat({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+      <div className="text-[11.5px] font-bold uppercase tracking-[0.08em] text-content-muted">
+        {label}
+      </div>
+      {value ? (
+        <div className="mt-2 ui-tnum text-[22px] font-bold text-content">{value}</div>
+      ) : (
+        <div className="mt-2 text-[15px] font-semibold text-content-faint">Not set yet</div>
+      )}
+    </div>
+  );
+}
+
+// The Goals section: the user's stated intent (retirement age, plan-end age,
+// target annual income, named goals). Goals frame the plan, so this renders
+// first. When the core goals aren't complete, a CTA seeds the plan chat with a
+// goals intake so the agent gathers them and writes them back.
+function GoalsSectionView({
+  goals,
+  onComplete,
+}: {
+  goals: GoalsSection | null;
+  onComplete: () => void;
+}) {
+  const eyebrow = (
+    <div className="flex items-center gap-2.5">
+      <span
+        className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+        style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+        aria-hidden
+      />
+      <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+        Goals
+      </span>
+    </div>
+  );
+
+  // Fully empty: a single invitation card, no half-filled stats to clutter it.
+  if (goalsEmpty(goals)) {
+    return (
+      <section className="mt-8">
+        {eyebrow}
+        <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span
+              className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[rgb(var(--ui-brand-ink))]"
+              aria-hidden
+            >
+              <Target className="h-[18px] w-[18px]" />
+            </span>
+            <div>
+              <h3 className="text-[15px] font-bold text-content">Set your plan goals</h3>
+              <p className="mt-1 max-w-md text-[13.5px] font-semibold text-content-muted">
+                Tell us when you want to retire, how long your money should last, the income you
+                want, and any goals like college or travel. We'll ask in chat and fill them in.
+              </p>
+            </div>
+          </div>
+          <Button className="shrink-0" onClick={onComplete}>
+            Complete your goals
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  const complete = goalsComplete(goals);
+  const named = goals?.namedGoals ?? [];
+
+  return (
+    <section className="mt-8">
+      <div className="flex items-center justify-between gap-3">
+        {eyebrow}
+        {!complete && (
+          <Button variant="secondary" onClick={onComplete}>
+            Complete your goals
+          </Button>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <GoalStat
+          label="Retirement age"
+          value={goals?.retirementAge != null ? String(goals.retirementAge) : null}
+        />
+        <GoalStat
+          label="Plan through age"
+          value={goals?.planEndAge != null ? String(goals.planEndAge) : null}
+        />
+        <GoalStat
+          label="Annual income goal"
+          value={goals?.retirementIncome != null ? formatMoney(goals.retirementIncome, true) : null}
+        />
+      </div>
+
+      {named.length > 0 && (
+        <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-content-muted">
+            Named goals
+          </h3>
+          <ul className="mt-4 space-y-2">
+            {named.map((g, i) => (
+              <li
+                key={`${g.label}-${i}`}
+                className="flex flex-col gap-1 rounded-ui-md border border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              >
+                <span className="min-w-0">
+                  <span className="text-[14px] font-bold text-content">{g.label}</span>
+                  {g.note && (
+                    <span className="mt-0.5 block text-[12.5px] font-semibold text-content-muted">
+                      {g.note}
+                    </span>
+                  )}
+                </span>
+                {(g.targetAmount != null || g.targetYear != null) && (
+                  <span className="shrink-0 whitespace-nowrap sm:text-right ui-tnum">
+                    {g.targetAmount != null && (
+                      <span className="text-[14px] font-bold text-content">
+                        {formatMoney(g.targetAmount, true)}
+                      </span>
+                    )}
+                    {g.targetYear != null && (
+                      <span className="ml-2 text-[12.5px] font-semibold text-content-muted">
+                        by {g.targetYear}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // Chat ABOUT this plan. The thread is scoped to the plan (financialPlanId), so
 // the chat route grounds the agent in the plan's already-computed sections and
 // answers reconcile with the Retirement Readiness verdict above. The thread is
 // created lazily on the first send — a page view alone never creates one.
-function PlanChat({ planId }: { planId: string }) {
+function PlanChat({
+  planId,
+  seed,
+  onChatResponse,
+  chatRef,
+}: {
+  planId: string;
+  // Bump `seed.n` to inject `seed.prompt` into the chat (starting a thread if
+  // needed). Used by the Goals "Complete your goals" CTA.
+  seed: { n: number; prompt: string };
+  onChatResponse: (toolResults: ToolResult[]) => void;
+  chatRef: React.RefObject<HTMLDivElement | null>;
+}) {
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -439,6 +623,10 @@ function PlanChat({ planId }: { planId: string }) {
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [composer, setComposer] = useState("");
   const [creating, setCreating] = useState(false);
+  // Bumped every time a prompt is seeded so the ChatPanel remounts and re-fires
+  // its one-shot initialMessage even when a thread already exists (its
+  // initialMessageSent ref only resets on remount).
+  const [seedKey, setSeedKey] = useState(0);
 
   // Reset + load any existing plan-scoped thread when the plan changes.
   useEffect(() => {
@@ -476,6 +664,7 @@ function PlanChat({ planId }: { planId: string }) {
       const { thread: newThread } = await api.createThread(undefined, undefined, undefined, planId);
       setThread(newThread);
       setPendingPrompt(text);
+      setSeedKey((k) => k + 1);
       setComposer("");
     } catch (err) {
       console.error("Failed to start plan chat:", err);
@@ -483,6 +672,25 @@ function PlanChat({ planId }: { planId: string }) {
       setCreating(false);
     }
   };
+
+  // Seed a prompt into the chat from an outside CTA (the Goals "Complete your
+  // goals" button). Creates the thread if there isn't one yet, otherwise sends
+  // into the existing thread; scrolls the chat into view either way.
+  const seededN = useRef(0);
+  useEffect(() => {
+    if (!loaded || seed.n === 0 || seed.n === seededN.current) return;
+    seededN.current = seed.n;
+    chatRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (thread) {
+      setPendingPrompt(seed.prompt);
+      setSeedKey((k) => k + 1);
+    } else {
+      startThread(seed.prompt);
+    }
+    // startThread/thread are stable enough for this one-shot signal; guarding on
+    // seed.n keeps it from re-firing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed.n, loaded]);
 
   const eyebrow = (
     <div className="flex items-center gap-2.5">
@@ -499,7 +707,7 @@ function PlanChat({ planId }: { planId: string }) {
 
   if (!loaded) {
     return (
-      <section className="mt-10">
+      <section ref={chatRef} className="mt-10 scroll-mt-6">
         {eyebrow}
         <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
           <Skeleton className="h-4 w-1/3" />
@@ -510,15 +718,17 @@ function PlanChat({ planId }: { planId: string }) {
   }
 
   return (
-    <section className="mt-10">
+    <section ref={chatRef} className="mt-10 scroll-mt-6">
       {eyebrow}
       <div className="mt-4 h-[520px] overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
         {thread ? (
           <ChatPanel
+            key={`${thread.id}:${seedKey}`}
             threadId={thread.id}
             initialMessages={messages}
             initialMessage={pendingPrompt}
             onMessageSent={() => setPendingPrompt(null)}
+            onChatResponse={(_r, toolResults) => onChatResponse(toolResults)}
             hideHeader
           />
         ) : (
@@ -562,6 +772,10 @@ export function FinancialPlanDetailPage() {
   const [plan, setPlan] = useState<FinancialPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<"notfound" | "generic" | null>(null);
+  // The Goals "Complete your goals" CTA bumps this counter to seed the plan
+  // chat's goals intake; PlanChat reacts to the count change.
+  const [goalsSeed, setGoalsSeed] = useState(0);
+  const chatRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -576,9 +790,23 @@ export function FinancialPlanDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // After a chat turn, if the agent saved goals, refetch the plan so the Goals
+  // section reflects what was just written (no full page reload).
+  const refreshIfGoalsSaved = (toolResults: ToolResult[]) => {
+    if (!id) return;
+    if (!toolResults.some((t) => t.toolName === "update_financial_plan_goals")) return;
+    api
+      .getFinancialPlan(id)
+      .then((p) => setPlan(p))
+      .catch(() => {
+        // Non-fatal: the next page load will show the saved goals.
+      });
+  };
+
   const snapshot = plan?.document?.sections.snapshot ?? null;
   const portfolio = plan?.document?.sections.portfolio ?? null;
   const retirement = plan?.document?.sections.retirement ?? null;
+  const goals = plan?.document?.sections.goals ?? null;
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -636,6 +864,10 @@ export function FinancialPlanDetailPage() {
               Generated {new Date(snapshot.generatedAt).toLocaleDateString()}
             </p>
           </header>
+
+          {/* Goals section — the user's stated intent frames the plan, so it
+              leads. Its CTA seeds the plan chat's goals intake below. */}
+          <GoalsSectionView goals={goals} onComplete={() => setGoalsSeed((n) => n + 1)} />
 
           {/* Financial Snapshot section */}
           <section className="mt-8">
@@ -810,8 +1042,16 @@ export function FinancialPlanDetailPage() {
             }
           />
 
-          {/* Chat about this plan — grounded in the sections above. */}
-          {id && <PlanChat planId={id} />}
+          {/* Chat about this plan — grounded in the sections above. Also the
+              surface where the Goals CTA seeds the goals intake. */}
+          {id && (
+            <PlanChat
+              planId={id}
+              seed={{ n: goalsSeed, prompt: GOALS_INTAKE_PROMPT }}
+              onChatResponse={refreshIfGoalsSaved}
+              chatRef={chatRef}
+            />
+          )}
         </>
       )}
     </div>

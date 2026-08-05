@@ -52,11 +52,26 @@ function matchPlans(where: unknown): PlanRow[] {
   });
 }
 
+// Captures the last update()'s SET payload so a test can assert what was written.
+let lastUpdate: { set: Record<string, unknown>; where: unknown } | null = null;
+
 vi.mock("../../lib/db.js", () => ({
   db: {
     select: (_proj?: unknown) => ({
       from: (_table: unknown) => ({
         where: (where: unknown) => Promise.resolve(matchPlans(where)),
+      }),
+    }),
+    update: (_table: unknown) => ({
+      set: (set: Record<string, unknown>) => ({
+        where: (where: unknown) => {
+          lastUpdate = { set, where };
+          // Apply the write to the fake table so a follow-up read sees it.
+          for (const row of matchPlans(where)) {
+            if (typeof set.document === "string") row.document = set.document;
+          }
+          return Promise.resolve(undefined);
+        },
       }),
     }),
   },
@@ -126,6 +141,7 @@ beforeEach(() => {
   planTable = [
     { id: PLAN_ID, tenantId: "tenant-1", userId: "user-a", title: "My Plan", document: JSON.stringify(DOCUMENT), status: "draft" },
   ];
+  lastUpdate = null;
 });
 
 describe("get_financial_plan tool", () => {
@@ -193,5 +209,81 @@ describe("get_financial_plan tool", () => {
       error?: string;
     };
     expect(result.error).toBe("Plan not found");
+  });
+});
+
+// Reads the goals section back off the (mutated) fake row.
+function storedGoals(): Record<string, unknown> | undefined {
+  const row = planTable.find((r) => r.id === PLAN_ID);
+  if (!row?.document) return undefined;
+  return (JSON.parse(row.document) as { sections?: { goals?: Record<string, unknown> } }).sections
+    ?.goals;
+}
+
+describe("update_financial_plan_goals tool", () => {
+  it("merges supplied goal fields into the bound plan without clobbering the rest", async () => {
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+
+    // First write: two core numbers.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const first = (await tools.update_financial_plan_goals.execute!(
+      { retirementAge: 62, retirementIncome: 90000 },
+      { messages: [], toolCallId: "t" },
+    )) as { success?: boolean; goals?: Record<string, unknown> };
+    expect(first.success).toBe(true);
+    expect(first.goals).toMatchObject({ retirementAge: 62, retirementIncome: 90000 });
+
+    // Second write: a different field + named goals. The first write's fields
+    // must survive (a merge, not a replace).
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await tools.update_financial_plan_goals.execute!(
+      {
+        planEndAge: 95,
+        namedGoals: [{ label: "Kids' college", targetAmount: 200000, targetYear: 2038 }],
+      },
+      { messages: [], toolCallId: "t" },
+    );
+
+    const goals = storedGoals();
+    expect(goals).toMatchObject({
+      section: "goals",
+      retirementAge: 62,
+      retirementIncome: 90000,
+      planEndAge: 95,
+      namedGoals: [{ label: "Kids' college", targetAmount: 200000, targetYear: 2038 }],
+    });
+
+    // Untouched sections are preserved in the document.
+    const row = planTable.find((r) => r.id === PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const doc = JSON.parse(row!.document!) as { sections: Record<string, unknown> };
+    expect(doc.sections.snapshot).toBeDefined();
+    expect(doc.sections.retirement).toBeDefined();
+  });
+
+  it("errors for a plan owned by another user in the same tenant and writes nothing", async () => {
+    planTable = [
+      { id: PLAN_ID, tenantId: "tenant-1", userId: "user-b", title: "Someone else's", document: JSON.stringify(DOCUMENT), status: "draft" },
+    ];
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const result = (await tools.update_financial_plan_goals.execute!(
+      { retirementAge: 62 },
+      { messages: [], toolCallId: "t" },
+    )) as { error?: string };
+    expect(result.error).toBe("Plan not found");
+    expect(lastUpdate).toBeNull();
+  });
+
+  // The demo gate in agent.ts strips tools BY NAME
+  // (`const { update_financial_plan_goals, ... } = allTools`). This asserts the
+  // real tool keys the gate targets, so a rename here can't silently un-gate the
+  // write tool while leaving the read-only tool intact.
+  it("exposes the exact tool keys the demo gate targets: write mutates, read stays", () => {
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    expect(Object.keys(tools).sort()).toEqual([
+      "get_financial_plan",
+      "update_financial_plan_goals",
+    ]);
   });
 });

@@ -18,11 +18,13 @@ import { financialPlans, eq, and, ne } from "@lasagna/core";
 import type { FinancialSnapshotSection } from "./financial-snapshot.js";
 import type { PortfolioSection } from "./portfolio-section.js";
 import type { RetirementReadinessSection } from "./retirement-readiness.js";
+import type { GoalsSection } from "./goals-section.js";
 
 interface StoredSections {
   snapshot?: FinancialSnapshotSection;
   portfolio?: PortfolioSection;
   retirement?: RetirementReadinessSection;
+  goals?: GoalsSection;
 }
 
 export interface CompactPlanGrounding {
@@ -62,6 +64,12 @@ export interface CompactPlanGrounding {
     /** Tax-treatment spend order: bucket + label + balance. */
     drawdownOrder: { bucket: string; label: string; balance: number }[];
   } | null;
+  /**
+   * The user's STATED goals (retirement age, plan-end age, target annual
+   * retirement income, named goals). Present only if any goal is filled — so
+   * the agent knows what's already captured and only asks for the rest.
+   */
+  goals: GoalsSection | null;
 }
 
 function safeParse(str: string | null): { sections?: StoredSections } | null {
@@ -82,6 +90,7 @@ function toCompact(
   const s = sections.snapshot;
   const p = sections.portfolio;
   const r = sections.retirement;
+  const g = sections.goals;
   return {
     planId,
     title,
@@ -126,6 +135,7 @@ function toCompact(
           })),
         }
       : null,
+    goals: g ?? null,
   };
 }
 

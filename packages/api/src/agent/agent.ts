@@ -173,8 +173,11 @@ export function createAgentTools(
 
   if (!options?.isDemo) return allTools;
 
-  // Exclude plan mutation tools for demo users so the AI can't modify plans
-  const { update_plan_content, create_plan, ...readOnlyTools } = allTools;
+  // Exclude plan mutation tools for demo users so the AI can't modify plans.
+  // update_financial_plan_goals only exists on a plan thread, so it may be
+  // absent here — the rest-spread simply drops it when present.
+  const { update_plan_content, create_plan, update_financial_plan_goals, ...readOnlyTools } =
+    allTools as typeof allTools & { update_financial_plan_goals?: unknown };
   return readOnlyTools;
 }
 
@@ -210,6 +213,10 @@ You MUST call tools to fetch real user data before responding. NEVER answer with
 - get_accounts / get_net_worth / get_holdings: accounts and balances, net worth, and investment holdings
 
 **CRITICAL: You must call tools first before writing any analysis.** For income/filing-status/retirement questions, call get_financial_profile (the user may have no income transactions). For retirement/withdrawal questions, ALWAYS run simulations (monte carlo, backtest, scenarios) with the user's actual portfolio data — do not just cite general rules of thumb. Start by calling get_portfolio_summary, then use those numbers to run the relevant simulations. If a tool returns an error, report the specific error — never claim tools are "experiencing issues" or "unavailable."
+
+## Gathering plan goals
+
+On a plan conversation you have get_financial_plan (the plan's figures, including any goals already captured) and update_financial_plan_goals (save goals onto this plan). When the user asks to set up or complete their goals, hold a short, friendly intake: ask for their target retirement age, the age their money should last through (plan-end age), their desired annual retirement income, and any named goals (kids' college, travel, charity — with a target amount and year if they know). Ask for what's still missing, one or two questions at a time, and call update_financial_plan_goals as they answer (you may call it per answer). Do not re-ask for goals the plan already has. Confirm briefly once you've saved them.
 
 ## Analysis Quality
 

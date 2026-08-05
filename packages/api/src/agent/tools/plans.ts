@@ -1,10 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "../../lib/db.js";
-import { plans, planEdits } from "@lasagna/core";
-import { eq, and } from "@lasagna/core";
+import { plans, planEdits, financialPlans } from "@lasagna/core";
+import { eq, and, ne } from "@lasagna/core";
 import { uiPayloadSchema } from "../types.js";
 import { resolvePlanGrounding } from "../../services/plan-grounding.js";
+import type { GoalsSection, NamedGoal } from "../../services/goals-section.js";
 
 // Read-only tool for the NEW Financial Plans (financial_plans table). Grounds
 // the agent in a plan's already-computed sections so its answers reconcile with
@@ -29,6 +30,93 @@ export function createFinancialPlanTools(
         const grounding = await resolvePlanGrounding(tenantId, userId, financialPlanId);
         if (!grounding) return { error: "Plan not found" };
         return grounding;
+      },
+    }),
+
+    update_financial_plan_goals: tool({
+      description:
+        "Save the user's stated plan GOALS onto THIS plan. Call this as the user answers, once per field or in batches — you only need to pass the fields you learned, and any field you omit keeps its current value (a merge, never a clobber). Use it for: retirement age, plan-end age (the age money should last through), desired ANNUAL pre-tax retirement income, and named goals (e.g. kids' college, travel, charity). Named goals REPLACE the existing named-goals list, so include every named goal you want kept.",
+      // Only the goal fields — the plan id is bound server-side to the thread's
+      // plan, so the model never supplies (and can't request) a plan id.
+      inputSchema: z.object({
+        retirementAge: z.number().int().min(30).max(100).optional(),
+        planEndAge: z.number().int().min(50).max(120).optional(),
+        retirementIncome: z.number().min(0).optional(),
+        namedGoals: z
+          .array(
+            z.object({
+              label: z.string().min(1).max(80),
+              targetAmount: z.number().min(0).optional(),
+              targetYear: z.number().int().min(1900).max(2200).optional(),
+              note: z.string().max(500).optional(),
+            }),
+          )
+          .optional(),
+      }),
+      // @ts-ignore
+      execute: async (input: {
+        retirementAge?: number;
+        planEndAge?: number;
+        retirementIncome?: number;
+        namedGoals?: NamedGoal[];
+      }) => {
+        // Load the bound plan, scoped to this tenant + user + non-archived, so
+        // the agent can never write to another user's (or a deleted) plan.
+        const [plan] = await db
+          .select({ id: financialPlans.id, document: financialPlans.document })
+          .from(financialPlans)
+          .where(
+            and(
+              eq(financialPlans.id, financialPlanId),
+              eq(financialPlans.tenantId, tenantId),
+              eq(financialPlans.userId, userId),
+              ne(financialPlans.status, "archived"),
+            ),
+          );
+
+        if (!plan) return { error: "Plan not found" };
+
+        let document: { sections?: Record<string, unknown> };
+        try {
+          document = plan.document ? JSON.parse(plan.document) : {};
+        } catch {
+          document = {};
+        }
+        const sections = document.sections ?? {};
+        const existing = (sections.goals as GoalsSection | undefined) ?? {
+          section: "goals" as const,
+        };
+
+        // Merge: only overwrite a field the model actually supplied. namedGoals
+        // is treated as a full replacement (the tool description tells the model
+        // to send the complete list).
+        const merged: GoalsSection = {
+          ...existing,
+          section: "goals",
+          ...(input.retirementAge !== undefined ? { retirementAge: input.retirementAge } : {}),
+          ...(input.planEndAge !== undefined ? { planEndAge: input.planEndAge } : {}),
+          ...(input.retirementIncome !== undefined
+            ? { retirementIncome: input.retirementIncome }
+            : {}),
+          ...(input.namedGoals !== undefined ? { namedGoals: input.namedGoals } : {}),
+          generatedAt: new Date().toISOString(),
+        };
+
+        const nextDocument = { ...document, sections: { ...sections, goals: merged } };
+
+        await db
+          .update(financialPlans)
+          .set({ document: JSON.stringify(nextDocument) })
+          .where(
+            and(
+              eq(financialPlans.id, financialPlanId),
+              eq(financialPlans.tenantId, tenantId),
+              eq(financialPlans.userId, userId),
+              ne(financialPlans.status, "archived"),
+            ),
+          );
+
+        return { success: true, goals: merged };
       },
     }),
   };
