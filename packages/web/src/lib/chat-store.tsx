@@ -18,6 +18,28 @@ export function setPreferredModelLevel(level: ModelLevel) {
   try { localStorage.setItem('lf-chat-model', level); } catch { /* ignore */ }
 }
 
+// Admin-only exact provider+model override. Null → use the tier default above.
+// Persisted in localStorage so the choice survives reloads (client-side only;
+// the server re-validates and gates it to admins on every request).
+export type ChatModelOverride = { provider: string; model: string };
+
+export function getPreferredModel(): ChatModelOverride | null {
+  try {
+    const stored = localStorage.getItem('lf-chat-model-override');
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (parsed && typeof parsed.provider === 'string' && typeof parsed.model === 'string') return parsed;
+  } catch { /* ignore */ }
+  return null;
+}
+
+export function setPreferredModel(override: ChatModelOverride | null) {
+  try {
+    if (override) localStorage.setItem('lf-chat-model-override', JSON.stringify(override));
+    else localStorage.removeItem('lf-chat-model-override');
+  } catch { /* ignore */ }
+}
+
 // Chat opens in the sidebar by default. If the user expands it to the full
 // /chat page we remember that, and collapsing back resets to the sidebar — so
 // the last-used view is what reopens next time, defaulting to sidebar.
@@ -120,6 +142,9 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
         threadId = thread.id;
       }
 
+      // Admin-only exact provider+model override (server re-validates + gates
+      // to admins); null for everyone else → server uses the default provider.
+      const override = getPreferredModel();
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,6 +154,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
           message: content,
           context: contextString || undefined,
           uiPayload: contextMeta ? { context: contextMeta } : undefined,
+          ...(override ? { provider: override.provider, model: override.model } : {}),
         }),
       });
 

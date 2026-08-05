@@ -51,6 +51,34 @@ const sailModelMappings: Record<ModelLevel, string> = {
   "frontier": "zai-org/GLM-5.2-FP8",
 };
 
+export type Provider = "openrouter" | "sail";
+
+// Curated, selectable chat models per provider — the admin model picker offers
+// exactly these, and the chat route validates any override against this list.
+// Seeded from the tier→slug maps above; `label` is what the picker shows.
+export const CHAT_MODEL_CATALOG: Record<Provider, { id: string; label: string }[]> = {
+  openrouter: [
+    { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash" },
+    { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
+    { id: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5" },
+    { id: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
+    { id: "moonshotai/kimi-k2.6", label: "Kimi K2.6" },
+    { id: "anthropic/claude-opus-4.7", label: "Claude Opus 4.7" },
+  ],
+  sail: [
+    { id: "google/gemma-4-31B-it", label: "Gemma 4 31B" },
+    { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
+    { id: "moonshotai/Kimi-K2.6", label: "Kimi K2.6" },
+    { id: "zai-org/GLM-5.2-FP8", label: "GLM 5.2" },
+  ],
+};
+
+/** True only for a (provider, model) pair present in the curated catalog. */
+export function isAllowedModel(provider: string, model: string): boolean {
+  const list = CHAT_MODEL_CATALOG[provider as Provider];
+  return Boolean(list) && list.some((m) => m.id === model);
+}
+
 function useSail(): boolean {
   return env.INFERENCE_PROVIDER === "sail" && Boolean(env.SAIL_RESEARCH_API_KEY);
 }
@@ -62,31 +90,42 @@ export function getModelSlug(level: ModelLevel): string {
 
 export function getModel(
   level: ModelLevel = "quality",
-  options?: { webSearch?: boolean }
+  options?: { webSearch?: boolean; override?: { provider: Provider; model: string } }
 ): LanguageModel {
   console.log("Requested model level:", level);
-  const sail = useSail();
+  // An admin override pins the exact provider + model, bypassing the env
+  // provider and the tier→slug mapping; otherwise fall back to the configured
+  // provider and the tier's default slug.
+  const override = options?.override;
+  const provider: Provider = override ? override.provider : useSail() ? "sail" : "openrouter";
+  const slug = override
+    ? override.model
+    : provider === "sail"
+      ? sailModelMappings[level]
+      : modelMappings[level];
   // OpenRouter runs web search server-side via its "web" plugin. sail is a plain
   // OpenAI-compatible endpoint with no such plugin, so web search is only wired
   // when the caller asks for it, the deployment hasn't disabled it, AND we're on
   // OpenRouter — on sail it degrades to a normal (no web search) request.
   const webSearch =
-    !sail && Boolean(options?.webSearch) && env.WEB_SEARCH_ENABLED;
-  const cacheKey = `${sail ? "sail" : "or"}:${webSearch ? `${level}:web` : level}`;
+    provider === "openrouter" && Boolean(options?.webSearch) && env.WEB_SEARCH_ENABLED;
+  const label = override ? "override" : level;
+  const cacheKey = `${provider}:${slug}${webSearch ? ":web" : ""}`;
   const cached = _models.get(cacheKey);
   if (cached) return cached;
 
-  if (sail) {
+  if (provider === "sail") {
+    if (!env.SAIL_RESEARCH_API_KEY) {
+      throw new Error("SAIL_RESEARCH_API_KEY is required to use the sail provider");
+    }
     const sailProvider = createOpenAICompatible({
       name: "sailresearch",
       baseURL: "https://api.sailresearch.com/v1",
       apiKey: env.SAIL_RESEARCH_API_KEY,
     });
-    const sailModel = sailProvider(sailModelMappings[level]);
+    const sailModel = sailProvider(slug);
     _models.set(cacheKey, sailModel);
-    console.log(
-      `Initialized sailresearch model: ${sailModelMappings[level]} (${level})`
-    );
+    console.log(`Initialized sailresearch model: ${slug} (${label})`);
     return sailModel;
   }
 
@@ -103,13 +142,13 @@ export function getModel(
   // OpenRouter runs web search server-side via the "web" plugin and injects the
   // results plus inline citation links into the response — no client-side tool.
   const model = webSearch
-    ? openrouter(modelMappings[level], {
+    ? openrouter(slug, {
         plugins: [{ id: "web", max_results: env.WEB_SEARCH_MAX_RESULTS }],
       })
-    : openrouter(modelMappings[level]);
+    : openrouter(slug);
   _models.set(cacheKey, model);
   console.log(
-    `Initialized OpenRouter model: ${modelMappings[level]} (${level})${webSearch ? " [web search]" : ""}`
+    `Initialized OpenRouter model: ${slug} (${label})${webSearch ? " [web search]" : ""}`
   );
   return model;
 }

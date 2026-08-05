@@ -352,6 +352,10 @@ export const api = {
   deleteThread: (id: string) =>
     request<{ success: boolean }>(`/threads/${id}`, { method: "DELETE" }),
 
+  // Admin-only: selectable chat provider+model catalog for the model picker.
+  getChatModels: () =>
+    request<{ providers: { id: string; label: string; models: { id: string; label: string }[] }[] }>("/chat/models"),
+
   // Tax Documents
   getTaxDocuments: () =>
     request<{ documents: TaxDocumentSummary[] }>("/tax/documents"),

@@ -21,12 +21,11 @@ export const env = {
   get SAIL_RESEARCH_API_KEY() {
     return optional("SAIL_RESEARCH_API_KEY", "");
   },
-  // Which inference provider to use: "openrouter" (default) or "sail". If unset,
-  // sail is auto-selected when SAIL_RESEARCH_API_KEY is present.
+  // Which inference provider to use by default: "openrouter" (default) or "sail".
+  // OpenRouter is the default even when a sail key is present — sail is used only
+  // when explicitly selected here, or per-request by an admin's model override.
   get INFERENCE_PROVIDER() {
-    const explicit = optional("INFERENCE_PROVIDER", "");
-    if (explicit) return explicit as "openrouter" | "sail";
-    return this.SAIL_RESEARCH_API_KEY ? "sail" : "openrouter";
+    return optional("INFERENCE_PROVIDER", "openrouter") as "openrouter" | "sail";
   },
   // Enable OpenRouter's server-side web search on the chat agent. On by default;
   // set to "false" to turn off (it adds per-request search cost and latency).

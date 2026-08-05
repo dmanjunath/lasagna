@@ -6,6 +6,7 @@ import { useChatStore, setChatExpanded } from '../../lib/chat-store';
 import { useGlobalChat } from './use-global-chat';
 import { ChatThreadView } from './chat-thread-view';
 import { ChatThreadList } from './chat-thread-list';
+import { AdminModelPicker } from './admin-model-picker';
 
 // Compact composer + suggested prompts shown in the conversation pane when no
 // thread is active (the "new chat" state).
@@ -52,30 +53,33 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-line-heavy transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask anything…"
-              aria-label="Message Lasagna"
-              rows={1}
-              className="flex-1 min-w-0 py-2 bg-transparent text-content text-[15px] placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto"
-              style={{ maxHeight: 120 }}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              aria-label="Send message"
-              className={`shrink-0 grid place-items-center w-10 h-10 rounded-full transition-[transform,box-shadow,background-color] ${
-                input.trim()
-                  ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm'
-                  : 'bg-canvas-sunken text-content-muted cursor-not-allowed'
-              }`}
-            >
-              <Send className="w-4 h-4" />
-            </button>
+          <div className="rounded-[16px] bg-canvas-sunken border-[1.5px] border-line-heavy transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
+            <div className="flex items-end gap-2 pl-4 pr-2 py-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything…"
+                aria-label="Message Lasagna"
+                rows={1}
+                className="flex-1 min-w-0 py-2 bg-transparent text-content text-[15px] placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto"
+                style={{ maxHeight: 120 }}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                aria-label="Send message"
+                className={`shrink-0 grid place-items-center w-10 h-10 rounded-full transition-[transform,box-shadow,background-color] ${
+                  input.trim()
+                    ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm'
+                    : 'bg-canvas-sunken text-content-muted cursor-not-allowed'
+                }`}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+            <AdminModelPicker variant="composer" />
           </div>
         </form>
 

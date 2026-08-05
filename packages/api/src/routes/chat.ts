@@ -3,7 +3,8 @@ import { z } from "zod";
 import { generateText } from "ai";
 import { db } from "../lib/db.js";
 import { chatThreads, messages, eq, and } from "@lasagna/core";
-import { getModel, getModelSlug, createAgentTools, systemPrompt, MODEL_LEVELS, type ModelLevel } from "../agent/index.js";
+import { getModel, getModelSlug, createAgentTools, systemPrompt, MODEL_LEVELS, CHAT_MODEL_CATALOG, isAllowedModel, type ModelLevel, type Provider } from "../agent/index.js";
+import { env } from "../lib/env.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildAliasMap, scrub, descrub, PII_DEBUG } from "../lib/pii-scrubber.js";
 import { resolveTenantPlan } from "../lib/billing.js";
@@ -22,10 +23,25 @@ const chatRequestSchema = z.object({
   uiPayload: z.unknown().optional(),
   // Optional model quality level
   modelLevel: z.enum(MODEL_LEVELS).optional(),
+  // Optional admin-only exact provider + model override (validated + gated to
+  // admins below; ignored for everyone else).
+  provider: z.enum(["openrouter", "sail"]).optional(),
+  model: z.string().max(200).optional(),
+});
+
+// Admin-only: the selectable provider+model catalog for the model picker. Only
+// lists a provider whose key is configured, and returns nothing for non-admins.
+chatRouter.get("/models", async (c) => {
+  const { isAdmin } = c.get("session");
+  if (!isAdmin) return c.json({ providers: [] });
+  const providers: { id: Provider; label: string; models: { id: string; label: string }[] }[] = [];
+  if (env.OPENROUTER_API_KEY) providers.push({ id: "openrouter", label: "OpenRouter", models: CHAT_MODEL_CATALOG.openrouter });
+  if (env.SAIL_RESEARCH_API_KEY) providers.push({ id: "sail", label: "Sail", models: CHAT_MODEL_CATALOG.sail });
+  return c.json({ providers });
 });
 
 chatRouter.post("/", async (c) => {
-  const { tenantId, userId, isDemo } = c.get("session");
+  const { tenantId, userId, isDemo, isAdmin } = c.get("session");
   const rawBody = await c.req.json();
 
   const parseResult = chatRequestSchema.safeParse(rawBody);
@@ -94,7 +110,15 @@ chatRouter.post("/", async (c) => {
   const plan = await resolveTenantPlan(tenantId);
   // Free tenants are served the free model regardless of the requested level.
   const agentLevel: ModelLevel = resolveModelLevel(plan, body.modelLevel);
-  const agentModelSlug = getModelSlug(agentLevel);
+  // Admin-only exact provider+model override. Honored ONLY for admins and only
+  // for a (provider, model) pair in the curated catalog — a non-admin (or an
+  // unknown slug) is silently ignored and falls back to the tier default. Never
+  // trust the client with this.
+  const modelOverride =
+    isAdmin && body.provider && body.model && isAllowedModel(body.provider, body.model)
+      ? { provider: body.provider as Provider, model: body.model }
+      : undefined;
+  const agentModelSlug = modelOverride ? modelOverride.model : getModelSlug(agentLevel);
 
   console.log("[Chat] Starting agentic loop with", Object.keys(tools).length, "tools");
 
@@ -117,7 +141,7 @@ chatRouter.post("/", async (c) => {
     const stepResult = await generateText({
       // Enable OpenRouter's server-side web search so the assistant can pull in
       // live figures (rates, tax thresholds, market context) with citations.
-      model: getModel(agentLevel, { webSearch: true }),
+      model: getModel(agentLevel, { webSearch: true, override: modelOverride }),
       system: systemPrompt,
       messages: conversationMessages,
       tools,
@@ -204,7 +228,7 @@ chatRouter.post("/", async (c) => {
   if (!finalText.trim()) {
     console.log("[Chat] Tool rounds exhausted with no text — forcing a final synthesis");
     const synthResult = await generateText({
-      model: getModel(agentLevel, { webSearch: true }),
+      model: getModel(agentLevel, { webSearch: true, override: modelOverride }),
       system: systemPrompt,
       messages: conversationMessages,
       maxOutputTokens: 4096,

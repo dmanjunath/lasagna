@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Send, Trash2, SquarePen, Sparkles } from 'lucide-react';
 import { MessageBubble } from './message-bubble';
+import { AdminModelPicker } from './admin-model-picker';
 import { cn } from '../../lib/utils';
 import type { ChatMessage } from '../../lib/chat-store';
 import type { Thread } from './chat-thread-list';
@@ -165,37 +166,40 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
         )}
       >
         <div className={cn(composerPad, measure)}>
-          <div className="flex items-end gap-2 pl-4 pr-2 py-2 rounded-[16px] bg-canvas-sunken border-[1.5px] border-line-heavy transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Follow up…"
-              aria-label="Message Lasagna"
-              disabled={loading}
-              rows={1}
-              className={cn(
-                'flex-1 min-w-0 bg-transparent text-content placeholder:text-content-muted focus:outline-none disabled:opacity-50 resize-none overflow-y-auto py-2',
-                // ≥16px on mobile so iOS doesn't auto-zoom the viewport on focus.
-                isMobile ? 'text-[16px]' : 'text-[15px]'
-              )}
-              style={{ maxHeight: 80 }}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || loading}
-              aria-label="Send message"
-              className={cn(
-                "shrink-0 grid place-items-center rounded-full transition-[transform,box-shadow,background-color]",
-                isMobile ? "w-11 h-11 min-w-[44px] min-h-[44px]" : "w-10 h-10",
-                input.trim() && !loading
-                  ? "bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm"
-                  : "bg-canvas-sunken text-content-muted cursor-not-allowed"
-              )}
-            >
-              <Send className="w-4 h-4" />
-            </button>
+          <div className="rounded-[16px] bg-canvas-sunken border-[1.5px] border-line-heavy transition-[background,border-color,box-shadow] focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft">
+            <div className="flex items-end gap-2 pl-4 pr-2 py-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Follow up…"
+                aria-label="Message Lasagna"
+                disabled={loading}
+                rows={1}
+                className={cn(
+                  'flex-1 min-w-0 bg-transparent text-content placeholder:text-content-muted focus:outline-none disabled:opacity-50 resize-none overflow-y-auto py-2',
+                  // ≥16px on mobile so iOS doesn't auto-zoom the viewport on focus.
+                  isMobile ? 'text-[16px]' : 'text-[15px]'
+                )}
+                style={{ maxHeight: 80 }}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || loading}
+                aria-label="Send message"
+                className={cn(
+                  "shrink-0 grid place-items-center rounded-full transition-[transform,box-shadow,background-color]",
+                  isMobile ? "w-11 h-11 min-w-[44px] min-h-[44px]" : "w-10 h-10",
+                  input.trim() && !loading
+                    ? "bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm"
+                    : "bg-canvas-sunken text-content-muted cursor-not-allowed"
+                )}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+            <AdminModelPicker variant="composer" />
           </div>
         </div>
       </form>
