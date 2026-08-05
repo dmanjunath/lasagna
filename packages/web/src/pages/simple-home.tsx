@@ -252,9 +252,12 @@ export function SimpleHome() {
       };
       const map = new Map<string, { name: string; balance: number }>();
       for (const b of balanceData.balances) {
-        const v = parseFloat(b.balance ?? '0');
+        // Effective balance = raw with the user's invert override applied, matching
+        // the server's net-worth math. Skip accounts excluded from net worth so the
+        // headline reconciles with the graph and the Money page.
+        const v = b.effectiveBalance ?? (b.invertBalance ? -1 : 1) * parseFloat(b.balance ?? '0');
         map.set(b.accountId, { name: b.name, balance: Number.isNaN(v) ? 0 : v });
-        if (Number.isNaN(v)) continue;
+        if (Number.isNaN(v) || b.excludeFromNetWorth) continue;
         if (b.type === 'depository') { next.cash += v; next.cashCount++; }
         else if (b.type === 'investment') { next.investments += v; next.investmentsCount++; }
         else if (b.type === 'real_estate') { next.assets += v; next.assetsCount++; next.realEstateValue += v; }

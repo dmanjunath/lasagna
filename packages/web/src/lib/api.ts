@@ -199,9 +199,12 @@ export const api = {
         institutionId: string | null;
         institutionName: string | null;
         balance: string | null;
+        effectiveBalance: number | null;
         available: string | null;
         currency: string;
         asOf: string | null;
+        excludeFromNetWorth: boolean;
+        invertBalance: boolean;
       }>;
     }>("/accounts/balances"),
 
