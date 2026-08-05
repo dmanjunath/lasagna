@@ -6,6 +6,8 @@ import { type AuthEnv } from "../middleware/auth.js";
 import { buildFinancialSnapshot } from "../services/financial-snapshot.js";
 import { buildPortfolioSection } from "../services/portfolio-section.js";
 import { buildRetirementReadiness } from "../services/retirement-readiness.js";
+import { buildSuggestionsSection } from "../services/suggestions-section.js";
+import { toCompactGrounding } from "../services/plan-grounding.js";
 
 export const financialPlansRouter = new Hono<AuthEnv>();
 
@@ -70,7 +72,24 @@ financialPlansRouter.post("/", async (c) => {
     buildPortfolioSection(tenantId),
     buildRetirementReadiness(tenantId, userId),
   ]);
-  const document = { sections: { snapshot, portfolio, retirement } };
+
+  // LLM suggestions, grounded on the SAME compact figures the chat agent sees.
+  // Runs AFTER the deterministic sections and is wrapped so a model error or
+  // timeout can never fail plan creation — on failure the plan simply ships
+  // without a suggestions section.
+  let suggestions = null;
+  try {
+    const grounding = toCompactGrounding("pending", parsed.data.title ?? "Financial Plan", {
+      snapshot,
+      portfolio,
+      retirement,
+    });
+    suggestions = await buildSuggestionsSection(tenantId, userId, grounding);
+  } catch (e) {
+    console.error("[financial-plans] suggestions generation failed:", e);
+  }
+
+  const document = { sections: { snapshot, portfolio, retirement, ...(suggestions ? { suggestions } : {}) } };
 
   const [plan] = await db
     .insert(financialPlans)

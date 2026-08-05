@@ -37,6 +37,20 @@ vi.mock("../../services/retirement-readiness.js", () => ({
   buildRetirementReadiness: (...args: unknown[]) => buildRetirementReadiness(...args),
 }));
 
+// The suggestions builder wraps the LLM; stub it (and the grounding helper it's
+// fed) so this stays a routing test with no model call. Default: no suggestions.
+const buildSuggestionsSection = vi.fn();
+vi.mock("../../services/suggestions-section.js", () => ({
+  buildSuggestionsSection: (...args: unknown[]) => buildSuggestionsSection(...args),
+}));
+vi.mock("../../services/plan-grounding.js", () => ({
+  toCompactGrounding: (planId: string, title: string, sections: unknown) => ({
+    planId,
+    title,
+    sections,
+  }),
+}));
+
 interface PlanRow {
   id: string;
   tenantId: string;
@@ -184,7 +198,14 @@ beforeEach(() => {
   buildFinancialSnapshot.mockResolvedValue(SNAPSHOT);
   buildPortfolioSection.mockResolvedValue(PORTFOLIO);
   buildRetirementReadiness.mockResolvedValue(RETIREMENT);
+  buildSuggestionsSection.mockResolvedValue(null);
 });
+
+const SUGGESTIONS = {
+  section: "suggestions" as const,
+  items: [{ title: "Rebalance", rationale: "You are 100% US Stocks." }],
+  generatedAt: "2026-01-01T00:00:00.000Z",
+};
 
 describe("POST /api/financial-plans", () => {
   it("builds a snapshot, stores the document, and returns the parsed document", async () => {
@@ -207,6 +228,38 @@ describe("POST /api/financial-plans", () => {
     expect(body.plan.document.sections.snapshot).toEqual(SNAPSHOT);
     expect(body.plan.document.sections.portfolio).toEqual(PORTFOLIO);
     expect(body.plan.document.sections.retirement).toEqual(RETIREMENT);
+  });
+
+  it("includes the suggestions section when the builder returns items", async () => {
+    buildSuggestionsSection.mockResolvedValue(SUGGESTIONS);
+    const res = await appWithSession(userA).request("/api/financial-plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(201);
+    // Grounded on the SAME deterministic sections just assembled.
+    const grounding = buildSuggestionsSection.mock.calls[0][2] as { sections: unknown };
+    expect(grounding.sections).toEqual({ snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT });
+    const stored = insertValues.mock.calls[0][0] as { document: string };
+    expect(JSON.parse(stored.document)).toEqual({
+      sections: { snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT, suggestions: SUGGESTIONS },
+    });
+  });
+
+  it("still creates the plan (no suggestions) when the suggestions builder throws", async () => {
+    buildSuggestionsSection.mockRejectedValue(new Error("model exploded"));
+    const res = await appWithSession(userA).request("/api/financial-plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    // An LLM hiccup must never 500 the create — the plan ships without suggestions.
+    expect(res.status).toBe(201);
+    const stored = insertValues.mock.calls[0][0] as { document: string };
+    const parsed = JSON.parse(stored.document) as { sections: Record<string, unknown> };
+    expect(parsed.sections.snapshot).toEqual(SNAPSHOT);
+    expect(parsed.sections).not.toHaveProperty("suggestions");
   });
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, FileText, PieChart, LineChart, Target } from "lucide-react";
+import { ArrowLeft, FileText, PieChart, LineChart, Target, Lightbulb } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { vizColor } from "../../components/uikit/viz.js";
@@ -13,6 +13,7 @@ import type {
   RetirementReadinessSection,
   ReadinessVerdict,
   GoalsSection,
+  SuggestionsSection,
   ChatThread,
   Message,
 } from "../../lib/types.js";
@@ -598,6 +599,72 @@ function GoalsSectionView({
   );
 }
 
+// ── Suggestions ───────────────────────────────────────────────────────────────
+
+// LLM-generated next steps grounded in the plan's real figures. Each item is a
+// title + rationale, with an optional impact line and category chip. Absent on
+// plans created before it shipped (or when the create-time model call failed),
+// in which case a quiet empty state stands in so old plans never look broken.
+function SuggestionsSectionView({ suggestions }: { suggestions: SuggestionsSection | null }) {
+  const eyebrow = (
+    <div className="flex items-center gap-2.5">
+      <span
+        className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+        style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+        aria-hidden
+      />
+      <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+        Suggestions
+      </span>
+    </div>
+  );
+
+  const items = suggestions?.items ?? [];
+
+  return (
+    <section className="mt-10">
+      {eyebrow}
+      {items.length === 0 ? (
+        <EmptyState
+          className="mt-4"
+          icon={<Lightbulb className="h-5 w-5" />}
+          title="No suggestions yet"
+          description="Ask in chat for concrete next steps, or create a new plan once your accounts are linked."
+        />
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {items.map((s, i) => (
+            <li
+              key={`${s.title}-${i}`}
+              className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-[15px] font-bold text-content">{s.title}</h3>
+                {s.category && (
+                  <span className="shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft">
+                    {s.category}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1.5 text-[13.5px] font-semibold leading-relaxed text-content-secondary">
+                {s.rationale}
+              </p>
+              {s.impact && (
+                <p className="mt-2.5 text-[12.5px] font-semibold text-content-muted">
+                  <span className="font-bold uppercase tracking-[0.06em] text-content-faint">
+                    Impact
+                  </span>{" "}
+                  {s.impact}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 // Chat ABOUT this plan. The thread is scoped to the plan (financialPlanId), so
 // the chat route grounds the agent in the plan's already-computed sections and
 // answers reconcile with the Retirement Readiness verdict above. The thread is
@@ -807,6 +874,7 @@ export function FinancialPlanDetailPage() {
   const portfolio = plan?.document?.sections.portfolio ?? null;
   const retirement = plan?.document?.sections.retirement ?? null;
   const goals = plan?.document?.sections.goals ?? null;
+  const suggestions = plan?.document?.sections.suggestions ?? null;
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -1041,6 +1109,12 @@ export function FinancialPlanDetailPage() {
               }
             }
           />
+
+          {/* Suggestions section — LLM-generated next steps grounded in the
+              plan's real figures. Absent on plans created before it shipped or
+              when the create-time model call failed; shows a quiet empty
+              state in that case. */}
+          <SuggestionsSectionView suggestions={suggestions} />
 
           {/* Chat about this plan — grounded in the sections above. Also the
               surface where the Goals CTA seeds the goals intake. */}

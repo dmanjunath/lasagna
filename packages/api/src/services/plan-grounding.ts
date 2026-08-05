@@ -20,7 +20,7 @@ import type { PortfolioSection } from "./portfolio-section.js";
 import type { RetirementReadinessSection } from "./retirement-readiness.js";
 import type { GoalsSection } from "./goals-section.js";
 
-interface StoredSections {
+export interface StoredSections {
   snapshot?: FinancialSnapshotSection;
   portfolio?: PortfolioSection;
   retirement?: RetirementReadinessSection;
@@ -81,8 +81,12 @@ function safeParse(str: string | null): { sections?: StoredSections } | null {
   }
 }
 
-/** Turn a plan's stored sections into the compact grounding shape. */
-function toCompact(
+/**
+ * Turn a plan's sections into the compact grounding shape. Exported so plan-
+ * create can ground the suggestions call on the SAME compaction it will read
+ * back later, without re-querying the row it just assembled in memory.
+ */
+export function toCompactGrounding(
   planId: string,
   title: string,
   sections: StoredSections,
@@ -167,5 +171,5 @@ export async function resolvePlanGrounding(
   if (!plan) return null;
 
   const parsed = safeParse(plan.document);
-  return toCompact(plan.id, plan.title, parsed?.sections ?? {});
+  return toCompactGrounding(plan.id, plan.title, parsed?.sections ?? {});
 }

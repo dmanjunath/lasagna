@@ -555,14 +555,33 @@ export type GoalsSection = {
   generatedAt: string;
 };
 
+// ── Suggestions section ───────────────────────────────────────────────────────
+
+export type Suggestion = {
+  title: string;
+  rationale: string;
+  /** Optional expected impact of taking the step. */
+  impact?: string;
+  /** Optional grouping label, e.g. "Portfolio", "Tax", "Healthcare". */
+  category?: string;
+};
+
+export type SuggestionsSection = {
+  section: "suggestions";
+  items: Suggestion[];
+  generatedAt?: string;
+};
+
 export type FinancialPlanDocument = {
-  // `portfolio`, `retirement`, and `goals` are optional — plans created before
-  // those sections shipped won't carry the key.
+  // `portfolio`, `retirement`, `goals`, and `suggestions` are optional — plans
+  // created before those sections shipped won't carry the key, and suggestions
+  // is also absent when the LLM call failed at create time.
   sections: {
     snapshot: FinancialSnapshotSection;
     portfolio?: PortfolioSection;
     retirement?: RetirementReadinessSection;
     goals?: GoalsSection;
+    suggestions?: SuggestionsSection;
   };
 };
 
