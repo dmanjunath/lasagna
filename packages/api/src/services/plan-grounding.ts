@@ -63,12 +63,30 @@ export interface PersonContext {
       monthlyRent: number | null;
       annualInsurance: number | null;
       annualMaintenance: number | null;
+      /** monthlyRent × 12 (null when no rent on file). Pre-computed so the narrative cites it. */
+      annualRent: number | null;
+      /** annualInsurance + annualMaintenance (0 when neither on file). */
+      annualCarryingCosts: number;
+      /** annualRent − annualCarryingCosts (null when no rent on file). */
+      netAnnualRent: number | null;
     }[];
     totalValue: number;
     totalMortgage: number;
     totalEquity: number;
     /** Sum of every property's monthlyRent (only those that have it). */
     totalMonthlyRent: number;
+    /** Sum of every property's annualRent. */
+    totalAnnualRent: number;
+    /** Sum of every property's annualCarryingCosts. */
+    totalAnnualCarryingCosts: number;
+    /** totalAnnualRent − totalAnnualCarryingCosts. */
+    totalNetAnnualRent: number;
+    /**
+     * Balance of mortgage-type debts NOT linked to any property via
+     * propertyAccountId. `totalEquity` already nets these out; surfaced so the
+     * narrative can see the linkage gap. 0 when every mortgage is linked.
+     */
+    unlinkedMortgageTotal: number;
   } | null;
   /**
    * The Social Security figure the retirement sim already derived from income —
@@ -292,16 +310,41 @@ export async function resolvePersonContext(
     const meta = parsePropertyMetadata(a.metadata);
     const value = a.rawBalance;
     const mortgage = mortgageByProperty.get(a.id) ?? 0;
+    const monthlyRent = meta?.monthlyRent ?? null;
+    const annualInsurance = meta?.annualInsurance ?? null;
+    const annualMaintenance = meta?.annualMaintenance ?? null;
+    // Pre-compute the derived figures so the narrative cites them rather than
+    // doing (and mis-doing) its own arithmetic on the grounding.
+    const annualRent = monthlyRent != null ? monthlyRent * 12 : null;
+    const annualCarryingCosts = (annualInsurance ?? 0) + (annualMaintenance ?? 0);
+    const netAnnualRent = annualRent != null ? annualRent - annualCarryingCosts : null;
     return {
       name: a.name,
       value,
       mortgage,
       equity: value - mortgage,
-      monthlyRent: meta?.monthlyRent ?? null,
-      annualInsurance: meta?.annualInsurance ?? null,
-      annualMaintenance: meta?.annualMaintenance ?? null,
+      monthlyRent,
+      annualInsurance,
+      annualMaintenance,
+      annualRent,
+      annualCarryingCosts,
+      netAnnualRent,
     };
   });
+
+  // Total real-estate equity must net out ALL property-secured debt, including
+  // a mortgage that isn't linked to its property via propertyAccountId (a data-
+  // linkage gap that otherwise overstates equity). subtype === "mortgage" is a
+  // reliable signal (seeded that way; Plaid marks mortgages likewise), so we can
+  // identify unlinked mortgages cleanly rather than guessing.
+  const propertyIds = new Set(propertyRows.map((a) => a.id));
+  const unlinkedMortgageTotal = accts
+    .filter(
+      (a) =>
+        a.subtype === "mortgage" &&
+        (!a.propertyAccountId || !propertyIds.has(a.propertyAccountId)),
+    )
+    .reduce((s, a) => s + Math.abs(a.rawBalance), 0);
 
   const realEstate =
     properties.length > 0
@@ -309,8 +352,18 @@ export async function resolvePersonContext(
           properties,
           totalValue: properties.reduce((s, p) => s + p.value, 0),
           totalMortgage: properties.reduce((s, p) => s + p.mortgage, 0),
-          totalEquity: properties.reduce((s, p) => s + p.equity, 0),
+          // Per-property equity nets only LINKED mortgages; the total also nets
+          // out unlinked mortgage-type debt so it isn't overstated.
+          totalEquity:
+            properties.reduce((s, p) => s + p.equity, 0) - unlinkedMortgageTotal,
           totalMonthlyRent: properties.reduce((s, p) => s + (p.monthlyRent ?? 0), 0),
+          totalAnnualRent: properties.reduce((s, p) => s + (p.annualRent ?? 0), 0),
+          totalAnnualCarryingCosts: properties.reduce(
+            (s, p) => s + p.annualCarryingCosts,
+            0,
+          ),
+          totalNetAnnualRent: properties.reduce((s, p) => s + (p.netAnnualRent ?? 0), 0),
+          unlinkedMortgageTotal,
         }
       : null;
 

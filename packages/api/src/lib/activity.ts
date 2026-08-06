@@ -29,7 +29,7 @@ const PLAID_EVENT_COST: Record<string, number> = {
   link: 1.5,
 };
 
-export type LlmSource = "chat" | "chat-title" | "insights" | "recurring" | "tax-vision" | "security-classify" | "suggestions";
+export type LlmSource = "chat" | "chat-title" | "insights" | "recurring" | "tax-vision" | "security-classify" | "suggestions" | "narrative";
 export type PlaidSource = keyof typeof PLAID_EVENT_COST;
 
 /** Pure + unit-testable: estimated USD for a call. */

@@ -8,6 +8,7 @@ import { buildPortfolioSection } from "../services/portfolio-section.js";
 import { buildRetirementReadiness } from "../services/retirement-readiness.js";
 import { buildWhatIfSection } from "../services/what-if-section.js";
 import { buildSuggestionsSection } from "../services/suggestions-section.js";
+import { buildNarrativeSection } from "../services/narrative-section.js";
 import { toCompactGrounding, resolvePersonContext } from "../services/plan-grounding.js";
 
 export const financialPlansRouter = new Hono<AuthEnv>();
@@ -88,11 +89,12 @@ financialPlansRouter.post("/", async (c) => {
     }
   }
 
-  // LLM suggestions, grounded on the SAME compact figures the chat agent sees.
-  // Runs AFTER the deterministic sections and is wrapped so a model error or
-  // timeout can never fail plan creation — on failure the plan simply ships
-  // without a suggestions section.
+  // LLM sections (suggestions + editorial narrative), grounded on the SAME
+  // compact figures the chat agent sees. Both run AFTER the deterministic
+  // sections and each is wrapped so a model error or timeout can never fail plan
+  // creation — on failure the plan simply ships without that section.
   let suggestions = null;
+  let narrative = null;
   try {
     const person = await resolvePersonContext(tenantId, userId);
     const grounding = toCompactGrounding(
@@ -101,12 +103,16 @@ financialPlansRouter.post("/", async (c) => {
       { snapshot, portfolio, retirement },
       person,
     );
-    suggestions = await buildSuggestionsSection(tenantId, userId, grounding);
+    // Independent calls off the same grounding; either can fail without the other.
+    [suggestions, narrative] = await Promise.all([
+      buildSuggestionsSection(tenantId, userId, grounding),
+      buildNarrativeSection(tenantId, userId, grounding),
+    ]);
   } catch (e) {
-    console.error("[financial-plans] suggestions generation failed:", e);
+    console.error("[financial-plans] LLM section generation failed:", e);
   }
 
-  const document = { sections: { snapshot, portfolio, retirement, ...(whatIfs ? { whatIfs } : {}), ...(suggestions ? { suggestions } : {}) } };
+  const document = { sections: { snapshot, portfolio, retirement, ...(whatIfs ? { whatIfs } : {}), ...(suggestions ? { suggestions } : {}), ...(narrative ? { narrative } : {}) } };
 
   const [plan] = await db
     .insert(financialPlans)

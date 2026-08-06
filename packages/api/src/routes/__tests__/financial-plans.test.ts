@@ -42,11 +42,16 @@ vi.mock("../../services/what-if-section.js", () => ({
   buildWhatIfSection: (...args: unknown[]) => buildWhatIfSection(...args),
 }));
 
-// The suggestions builder wraps the LLM; stub it (and the grounding helper it's
-// fed) so this stays a routing test with no model call. Default: no suggestions.
+// The suggestions + narrative builders wrap the LLM; stub them (and the
+// grounding helper they're fed) so this stays a routing test with no model call.
+// Default: no suggestions, no narrative.
 const buildSuggestionsSection = vi.fn();
 vi.mock("../../services/suggestions-section.js", () => ({
   buildSuggestionsSection: (...args: unknown[]) => buildSuggestionsSection(...args),
+}));
+const buildNarrativeSection = vi.fn();
+vi.mock("../../services/narrative-section.js", () => ({
+  buildNarrativeSection: (...args: unknown[]) => buildNarrativeSection(...args),
 }));
 vi.mock("../../services/plan-grounding.js", () => ({
   toCompactGrounding: (planId: string, title: string, sections: unknown, person: unknown) => ({
@@ -216,11 +221,19 @@ beforeEach(() => {
   buildRetirementReadiness.mockResolvedValue(RETIREMENT);
   buildWhatIfSection.mockResolvedValue(WHAT_IFS);
   buildSuggestionsSection.mockResolvedValue(null);
+  buildNarrativeSection.mockResolvedValue(null);
 });
 
 const SUGGESTIONS = {
   section: "suggestions" as const,
   items: [{ title: "Rebalance", rationale: "You are 100% US Stocks." }],
+  generatedAt: "2026-01-01T00:00:00.000Z",
+};
+
+const NARRATIVE = {
+  section: "narrative" as const,
+  executiveSummary: "You are on track.",
+  themes: [{ key: "situation" as const, heading: "Where you stand", body: "Net worth is strong." }],
   generatedAt: "2026-01-01T00:00:00.000Z",
 };
 
@@ -307,6 +320,34 @@ describe("POST /api/financial-plans", () => {
     const parsed = JSON.parse(stored.document) as { sections: Record<string, unknown> };
     expect(parsed.sections.snapshot).toEqual(SNAPSHOT);
     expect(parsed.sections).not.toHaveProperty("suggestions");
+  });
+
+  it("includes the narrative section when the builder returns one, grounded on the same figures", async () => {
+    buildNarrativeSection.mockResolvedValue(NARRATIVE);
+    const res = await appWithSession(userA).request("/api/financial-plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(201);
+    // Narrative is grounded on the SAME compact figures fed to suggestions.
+    const grounding = buildNarrativeSection.mock.calls[0][2] as { sections: unknown };
+    expect(grounding.sections).toEqual({ snapshot: SNAPSHOT, portfolio: PORTFOLIO, retirement: RETIREMENT });
+    const stored = insertValues.mock.calls[0][0] as { document: string };
+    expect(JSON.parse(stored.document).sections.narrative).toEqual(NARRATIVE);
+  });
+
+  it("still creates the plan (no narrative) when the narrative builder throws", async () => {
+    buildNarrativeSection.mockRejectedValue(new Error("narrative exploded"));
+    const res = await appWithSession(userA).request("/api/financial-plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    // An LLM hiccup must never 500 the create — the plan ships without a narrative.
+    expect(res.status).toBe(201);
+    const stored = insertValues.mock.calls[0][0] as { document: string };
+    expect(JSON.parse(stored.document).sections).not.toHaveProperty("narrative");
   });
 });
 

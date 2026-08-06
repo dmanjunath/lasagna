@@ -2917,6 +2917,28 @@
     page-break-inside: avoid;
   }
 
+  /* Editorial prose (exec summary + per-theme ledes): keep each paragraph whole
+     rather than splitting a sentence across a page, and never orphan a section's
+     eyebrow/heading from the prose that follows it. */
+  .plan-print-root .plan-prose p {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .plan-print-root h1,
+  .plan-print-root h3,
+  .plan-print-root .plan-prose {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* The executive summary opens the report body: let it lead cleanly after the
+     cover without inheriting the section break-inside-avoid (its prose is long
+     enough to paginate on its own). */
+  .plan-exec-summary {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
   /* The branded cover owns page 1 by itself — the first section starts on
      page 2 (no giant blank gap: the break, not a margin, forces the page). */
   .plan-print-cover {

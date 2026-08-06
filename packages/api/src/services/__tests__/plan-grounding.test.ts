@@ -26,10 +26,18 @@ let userId: string | null = null;
 let propertyId: string | null = null;
 let propertyOriginalMeta: string | null = null;
 let tempMortgageId: string | null = null;
+let tempUnlinkedMortgageId: string | null = null;
+// Baseline unlinkedMortgageTotal BEFORE we insert our temp unlinked mortgage —
+// the seed tenant may already carry unlinked mortgage-subtype loans, so we
+// assert on the DELTA our insert contributes rather than an absolute.
+let baselineUnlinkedMortgage = 0;
 let dbAvailable = false;
 
 const MORTGAGE_BALANCE = 275_000;
+const UNLINKED_MORTGAGE_BALANCE = 120_000;
 const PROPERTY_RENT = 3_100;
+const PROPERTY_INSURANCE = 1_800;
+const PROPERTY_MAINTENANCE = 3_000;
 
 beforeAll(async () => {
   try {
@@ -60,8 +68,13 @@ beforeAll(async () => {
     userId = u?.id ?? null;
     if (!userId) return;
 
-    // Stamp rent metadata onto the property (reversible in afterAll).
-    const meta = { ...(propertyOriginalMeta ? JSON.parse(propertyOriginalMeta) : {}), monthlyRent: PROPERTY_RENT };
+    // Stamp rent + carrying-cost metadata onto the property (reversible in afterAll).
+    const meta = {
+      ...(propertyOriginalMeta ? JSON.parse(propertyOriginalMeta) : {}),
+      monthlyRent: PROPERTY_RENT,
+      annualInsurance: PROPERTY_INSURANCE,
+      annualMaintenance: PROPERTY_MAINTENANCE,
+    };
     await db.update(accounts).set({ metadata: JSON.stringify(meta) }).where(eq(accounts.id, propertyId));
 
     // Insert a temp mortgage (loan) linked to the property + a balance snapshot.
@@ -85,6 +98,33 @@ beforeAll(async () => {
       isoCurrencyCode: "USD",
     });
 
+    // Capture the baseline unlinked-mortgage total (seed tenants can already
+    // carry unlinked mortgage-subtype loans) so the assertion checks the delta
+    // our insert adds, not an absolute that depends on seed contents.
+    baselineUnlinkedMortgage = (await resolvePersonContext(tenantId, userId))
+      .realEstate!.unlinkedMortgageTotal;
+
+    // Insert a temp mortgage-subtype loan that is NOT linked to any property
+    // (propertyAccountId null) — the data-linkage gap totalEquity must net out.
+    const [unlinked] = await db
+      .insert(accounts)
+      .values({
+        tenantId,
+        plaidItemId: prop.plaidItemId,
+        plaidAccountId: `test-unlinked-mortgage-${Date.now()}`,
+        name: "Test Unlinked Mortgage (plan-grounding.test)",
+        type: "loan",
+        subtype: "mortgage",
+      })
+      .returning({ id: accounts.id });
+    tempUnlinkedMortgageId = unlinked.id;
+    await db.insert(balanceSnapshots).values({
+      accountId: tempUnlinkedMortgageId,
+      tenantId,
+      balance: String(-UNLINKED_MORTGAGE_BALANCE),
+      isoCurrencyCode: "USD",
+    });
+
     dbAvailable = true;
   } catch {
     dbAvailable = false;
@@ -95,6 +135,9 @@ afterAll(async () => {
   // Revert everything the setup wrote so seed data is left exactly as found.
   if (tempMortgageId) {
     await db.delete(accounts).where(eq(accounts.id, tempMortgageId)).catch(() => {});
+  }
+  if (tempUnlinkedMortgageId) {
+    await db.delete(accounts).where(eq(accounts.id, tempUnlinkedMortgageId)).catch(() => {});
   }
   if (propertyId) {
     await db
@@ -121,9 +164,34 @@ describe("resolvePersonContext (integration)", () => {
     expect(patched!.monthlyRent).toBeCloseTo(PROPERTY_RENT, 0);
     // equity is derived, not stored.
     expect(patched!.equity).toBeCloseTo(patched!.value - patched!.mortgage, 0);
-    // Totals reconcile to the per-property rows.
+
+    // ── Pre-computed derived figures so the narrative cites rather than computes.
+    expect(patched!.annualRent).toBeCloseTo(PROPERTY_RENT * 12, 0);
+    expect(patched!.annualCarryingCosts).toBeCloseTo(
+      PROPERTY_INSURANCE + PROPERTY_MAINTENANCE,
+      0,
+    );
+    expect(patched!.netAnnualRent).toBeCloseTo(
+      PROPERTY_RENT * 12 - (PROPERTY_INSURANCE + PROPERTY_MAINTENANCE),
+      0,
+    );
+    // Totals reconcile to the per-property derived rows.
+    expect(ctx.realEstate!.totalNetAnnualRent).toBeCloseTo(
+      ctx.realEstate!.totalAnnualRent - ctx.realEstate!.totalAnnualCarryingCosts,
+      0,
+    );
+
+    // ── Total equity nets out the UNLINKED mortgage too (data-linkage robustness).
+    // Assert on the DELTA our insert adds so the test is robust to any unlinked
+    // mortgages the seed tenant already carries.
+    expect(ctx.realEstate!.unlinkedMortgageTotal).toBeCloseTo(
+      baselineUnlinkedMortgage + UNLINKED_MORTGAGE_BALANCE,
+      0,
+    );
     expect(ctx.realEstate!.totalEquity).toBeCloseTo(
-      ctx.realEstate!.totalValue - ctx.realEstate!.totalMortgage,
+      ctx.realEstate!.totalValue -
+        ctx.realEstate!.totalMortgage -
+        ctx.realEstate!.unlinkedMortgageTotal,
       0,
     );
     expect(ctx.realEstate!.totalMonthlyRent).toBeGreaterThanOrEqual(PROPERTY_RENT);

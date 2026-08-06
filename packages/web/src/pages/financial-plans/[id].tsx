@@ -18,6 +18,8 @@ import type {
   WhatIfSection,
   GoalsSection,
   SuggestionsSection,
+  NarrativeSection,
+  NarrativeThemeKey,
   ChatThread,
   Message,
 } from "../../lib/types.js";
@@ -76,6 +78,91 @@ function fmtPct(p: number): string {
   if (p <= 0) return "0%";
   if (p < 0.1) return "<0.1%";
   return `${p.toFixed(1)}%`;
+}
+
+// ── Narrative (editorial prose) ───────────────────────────────────────────────
+
+// Look up a theme's prose body by key. Returns null when the narrative is absent
+// (old plans, or a failed create-time gen) or the theme wasn't produced, so every
+// section degrades gracefully to its exhibit-only rendering.
+function themeBody(narrative: NarrativeSection | null, key: NarrativeThemeKey): string | null {
+  return narrative?.themes.find((t) => t.key === key)?.body ?? null;
+}
+
+// A theme's prose rendered as the LEDE atop its section's exhibits: comfortable
+// measure, readable body color, paragraphs split on any run of newlines. Nothing renders
+// when the body is absent, so a missing theme leaves the section exactly as it
+// was before the narrative shipped.
+function ThemeLede({ body }: { body: string | null }) {
+  if (!body) return null;
+  const paras = body.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  return (
+    <div className="plan-prose mt-4 max-w-[540px] space-y-3">
+      {paras.map((p, i) => (
+        <p key={i} className="text-[15px] leading-[1.7] text-content-secondary">
+          {p}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// The executive summary — the report's lead block, right after the header. Reads
+// like the opening of a consulting report: an eyebrow, the editorial display
+// face for the eyebrow, and generous prose beneath. Absent on plans with no
+// narrative, so old plans render exactly as before.
+function ExecutiveSummary({ narrative }: { narrative: NarrativeSection | null }) {
+  const summary = narrative?.executiveSummary?.trim();
+  if (!summary) return null;
+  const paras = summary.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  return (
+    <section className="plan-exec-summary mt-8">
+      <div className="flex items-center gap-2.5">
+        <span
+          className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+          style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+          aria-hidden
+        />
+        <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+          Executive summary
+        </span>
+      </div>
+      <div className="plan-prose mt-4 max-w-[620px] space-y-4">
+        {paras.map((p, i) => (
+          <p
+            key={i}
+            className="text-[17px] sm:text-[18px] font-normal leading-[1.6] tracking-[-0.005em] text-content"
+          >
+            {p}
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Income sources — a small prose block placed near Retirement (SS, rental income,
+// and property equity are all retirement income). Prose only; the numbers behind
+// it live in the grounding and the Retirement / Snapshot exhibits above. Renders
+// only when the income_sources theme exists.
+function IncomeSourcesSection({ narrative }: { narrative: NarrativeSection | null }) {
+  const body = themeBody(narrative, "income_sources");
+  if (!body) return null;
+  return (
+    <section className="mt-10">
+      <div className="flex items-center gap-2.5">
+        <span
+          className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
+          style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
+          aria-hidden
+        />
+        <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+          Income sources
+        </span>
+      </div>
+      <ThemeLede body={body} />
+    </section>
+  );
 }
 
 // Portfolio Composition — the top-level asset-type split as one shared-scale bar
@@ -280,7 +367,13 @@ function GrowthChart({ section }: { section: RetirementReadinessSection }) {
   );
 }
 
-function RetirementReadinessSectionView({ section }: { section: RetirementReadinessSection }) {
+function RetirementReadinessSectionView({
+  section,
+  lede,
+}: {
+  section: RetirementReadinessSection;
+  lede?: React.ReactNode;
+}) {
   const eyebrow = (
     <div className="flex items-center gap-2.5">
       <span
@@ -317,6 +410,7 @@ function RetirementReadinessSectionView({ section }: { section: RetirementReadin
   return (
     <section className="mt-10">
       {eyebrow}
+      {lede}
 
       {/* On-track verdict band: same threshold + color idiom as /retirement. */}
       <div
@@ -470,7 +564,13 @@ function DeltaBadge({ delta }: { delta: number }) {
 // The What-if section: re-runs of the SAME engine with overrides, each compared
 // to the base plan's success rate so the "am I on track?" story stays explicit
 // and consistent with the Retirement Readiness verdict above.
-function WhatIfSectionView({ whatIfs }: { whatIfs: WhatIfSection | null }) {
+function WhatIfSectionView({
+  whatIfs,
+  lede,
+}: {
+  whatIfs: WhatIfSection | null;
+  lede?: React.ReactNode;
+}) {
   const eyebrow = (
     <div className="flex items-center gap-2.5">
       <span
@@ -501,6 +601,7 @@ function WhatIfSectionView({ whatIfs }: { whatIfs: WhatIfSection | null }) {
   return (
     <section className="mt-10">
       {eyebrow}
+      {lede}
       <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
         <div className="flex items-baseline justify-between gap-3">
           <h3 className="text-[13px] font-bold uppercase tracking-[0.08em] text-content-muted">
@@ -703,7 +804,13 @@ function GoalsSectionView({
 // title + rationale, with an optional impact line and category chip. Absent on
 // plans created before it shipped (or when the create-time model call failed),
 // in which case a quiet empty state stands in so old plans never look broken.
-function SuggestionsSectionView({ suggestions }: { suggestions: SuggestionsSection | null }) {
+function SuggestionsSectionView({
+  suggestions,
+  lede,
+}: {
+  suggestions: SuggestionsSection | null;
+  lede?: React.ReactNode;
+}) {
   const eyebrow = (
     <div className="flex items-center gap-2.5">
       <span
@@ -722,6 +829,7 @@ function SuggestionsSectionView({ suggestions }: { suggestions: SuggestionsSecti
   return (
     <section className="mt-10">
       {eyebrow}
+      {lede}
       {items.length === 0 ? (
         <EmptyState
           className="mt-4"
@@ -1034,6 +1142,7 @@ export function FinancialPlanDetailPage() {
   const whatIfs = plan?.document?.sections.whatIfs ?? null;
   const goals = plan?.document?.sections.goals ?? null;
   const suggestions = plan?.document?.sections.suggestions ?? null;
+  const narrative = plan?.document?.sections.narrative ?? null;
 
   return (
     <div className="plan-print-root mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -1110,6 +1219,12 @@ export function FinancialPlanDetailPage() {
             </Button>
           </header>
 
+          {/* Executive summary — the prose lead of the report, right after the
+              header. Absent on plans with no narrative (old plans, or a failed
+              create-time gen), in which case nothing renders and the report reads
+              exactly as before. */}
+          <ExecutiveSummary narrative={narrative} />
+
           {/* Goals section — the user's stated intent frames the plan, so it
               leads. Its CTA seeds the plan chat's goals intake below. */}
           <GoalsSectionView goals={goals} onComplete={() => setGoalsSeed((n) => n + 1)} />
@@ -1126,6 +1241,9 @@ export function FinancialPlanDetailPage() {
                 Financial snapshot
               </span>
             </div>
+
+            {/* Situation prose lede atop the snapshot exhibits. */}
+            <ThemeLede body={themeBody(narrative, "situation")} />
 
             {/* Net worth headline + supporting KPIs */}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1266,6 +1384,7 @@ export function FinancialPlanDetailPage() {
               shipped, in which case we show the un-computed empty state so old
               plans never crash. */}
           <RetirementReadinessSectionView
+            lede={<ThemeLede body={themeBody(narrative, "retirement_readiness")} />}
             section={
               retirement ?? {
                 section: "retirement",
@@ -1287,18 +1406,38 @@ export function FinancialPlanDetailPage() {
             }
           />
 
+          {/* Income sources — a prose block on how Social Security, rental
+              income, and property equity layer with portfolio withdrawals to
+              fund retirement. Placed by Retirement since these are retirement
+              income. Renders only when the narrative produced the theme. */}
+          <IncomeSourcesSection narrative={narrative} />
+
           {/* What-if scenarios — deterministic re-runs of the SAME engine with
               overrides, each shown as a delta vs the base success rate. Absent
               on plans created before it shipped (and when the base wasn't
               computable), so we render it only when the section exists rather
               than showing an empty state on old plans. */}
-          {whatIfs && <WhatIfSectionView whatIfs={whatIfs} />}
+          {whatIfs && (
+            <WhatIfSectionView
+              whatIfs={whatIfs}
+              lede={<ThemeLede body={themeBody(narrative, "whatifs")} />}
+            />
+          )}
 
           {/* Suggestions section — LLM-generated next steps grounded in the
-              plan's real figures. Absent on plans created before it shipped or
-              when the create-time model call failed; shows a quiet empty
-              state in that case. */}
-          <SuggestionsSectionView suggestions={suggestions} />
+              plan's real figures. The narrative's risks/opportunities and
+              recommendations prose lead into it. Absent on plans created before
+              it shipped or when the create-time model call failed; shows a quiet
+              empty state in that case. */}
+          <SuggestionsSectionView
+            suggestions={suggestions}
+            lede={
+              <>
+                <ThemeLede body={themeBody(narrative, "risks_opportunities")} />
+                <ThemeLede body={themeBody(narrative, "recommendations")} />
+              </>
+            }
+          />
 
           {/* Chat about this plan — grounded in the sections above. Also the
               surface where the Goals CTA seeds the goals intake. Interactive,

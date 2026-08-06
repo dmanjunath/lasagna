@@ -594,6 +594,32 @@ export type SuggestionsSection = {
   generatedAt?: string;
 };
 
+// ── Narrative section ─────────────────────────────────────────────────────────
+
+// The FIXED theme keys the detail page maps onto its existing sections. Kept in
+// sync with NARRATIVE_THEME_KEYS in packages/api/src/services/narrative-section.ts.
+export type NarrativeThemeKey =
+  | "situation"
+  | "retirement_readiness"
+  | "income_sources"
+  | "risks_opportunities"
+  | "recommendations"
+  | "whatifs";
+
+export type NarrativeTheme = {
+  key: NarrativeThemeKey;
+  heading: string;
+  /** 1-3 paragraphs of prose interpreting the figures. */
+  body: string;
+};
+
+export type NarrativeSection = {
+  section: "narrative";
+  executiveSummary: string;
+  themes: NarrativeTheme[];
+  generatedAt?: string;
+};
+
 export type FinancialPlanDocument = {
   // `portfolio`, `retirement`, `goals`, and `suggestions` are optional — plans
   // created before those sections shipped won't carry the key, and suggestions
@@ -605,6 +631,7 @@ export type FinancialPlanDocument = {
     whatIfs?: WhatIfSection;
     goals?: GoalsSection;
     suggestions?: SuggestionsSection;
+    narrative?: NarrativeSection;
   };
 };
 
