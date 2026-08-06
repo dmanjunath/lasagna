@@ -22,7 +22,7 @@ import { getHoldingsInput } from "../routes/portfolio.js";
 import { aggregatePortfolio, extractAllocation, extractClassReturns } from "./portfolio-aggregator.js";
 import { deriveSimInputs, type RawResolverData } from "./retirement-defaults.js";
 import type { SimInputs } from "./retirement-sim.js";
-import type { AssetAllocation } from "./market-assumptions.js";
+import { ASSET_CLASSES, type AssetAllocation } from "./market-assumptions.js";
 
 // Account types the dashboard treats as investable (property/loans/credit are
 // excluded). Mirrors retirement-v2.tsx:1263.
@@ -40,6 +40,11 @@ export async function resolveSimInputs(
   tenantId: string,
   userId: string,
   overrides?: Partial<SimInputs>,
+  // A flat expected-return override (decimal, e.g. 0.06). The engine has no
+  // scalar return — it reads per-class `assetClassReturns` — so this is applied
+  // as a flat map over EVERY asset class. It must land AFTER the holdings-derived
+  // `assetClassReturns` re-attach below, which would otherwise clobber it.
+  flatReturn?: number,
 ): Promise<SimInputs> {
   // ── Allocation + holdings-derived returns ────────────────────────────────────
   const holdingsInput = await getHoldingsInput(tenantId);
@@ -92,5 +97,16 @@ export async function resolveSimInputs(
   };
 
   const inputs = deriveSimInputs(raw, overrides);
-  return assetClassReturns ? { ...inputs, assetClassReturns } : inputs;
+  const withHoldingsReturns = assetClassReturns ? { ...inputs, assetClassReturns } : inputs;
+
+  // Flat expected-return override, applied LAST so it wins over the holdings-
+  // derived `assetClassReturns` just re-attached above. Force every class (incl.
+  // cash) to the same decimal; the sim's `blendedExpectedReturn` then reconciles
+  // to ~that value.
+  if (flatReturn !== undefined) {
+    const flat: Partial<Record<keyof AssetAllocation, number>> = {};
+    for (const cls of ASSET_CLASSES) flat[cls] = flatReturn;
+    return { ...withHoldingsReturns, assetClassReturns: flat };
+  }
+  return withHoldingsReturns;
 }

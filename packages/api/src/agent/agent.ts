@@ -174,10 +174,19 @@ export function createAgentTools(
   if (!options?.isDemo) return allTools;
 
   // Exclude plan mutation tools for demo users so the AI can't modify plans.
-  // update_financial_plan_goals only exists on a plan thread, so it may be
-  // absent here — the rest-spread simply drops it when present.
-  const { update_plan_content, create_plan, update_financial_plan_goals, ...readOnlyTools } =
-    allTools as typeof allTools & { update_financial_plan_goals?: unknown };
+  // update_financial_plan_goals / update_financial_plan_assumptions only exist
+  // on a plan thread, so they may be absent here — the rest-spread simply drops
+  // them when present.
+  const {
+    update_plan_content,
+    create_plan,
+    update_financial_plan_goals,
+    update_financial_plan_assumptions,
+    ...readOnlyTools
+  } = allTools as typeof allTools & {
+    update_financial_plan_goals?: unknown;
+    update_financial_plan_assumptions?: unknown;
+  };
   return readOnlyTools;
 }
 
@@ -217,6 +226,18 @@ You MUST call tools to fetch real user data before responding. NEVER answer with
 ## Gathering plan goals
 
 On a plan conversation you have get_financial_plan (the plan's figures, including any goals already captured) and update_financial_plan_goals (save goals onto this plan). When the user asks to set up or complete their goals, hold a short, friendly intake: ask for their target retirement age, the age their money should last through (plan-end age), their desired annual retirement income, and any named goals (kids' college, travel, charity — with a target amount and year if they know). Ask for what's still missing, one or two questions at a time, and call update_financial_plan_goals as they answer (you may call it per answer). Do not re-ask for goals the plan already has. Confirm briefly once you've saved them.
+
+## Requesting plan changes
+
+On a plan conversation you also have update_financial_plan_assumptions, which adjusts an assumption AND regenerates the plan (the retirement success rate, the what-ifs, and the narrative all recompute). Call it whenever the user asks to change one of these:
+- Exclude or restore Social Security. "Don't count Social Security" / "ignore SS" -> includeSocialSecurity: false. Reversals like "put Social Security back" / "count it again" -> includeSocialSecurity: true.
+- Retire at a different age -> retirementAge (a whole number).
+- Assume a different expected return -> expectedReturn as a DECIMAL (6% is 0.06, not 6).
+- Spend a different amount in retirement -> monthlySpend in dollars per month (convert an annual figure by dividing by 12).
+
+Pass ONLY the fields the user asked to change; omitted fields keep their current value. After the tool returns, confirm in prose exactly what changed and how it moved the plan (e.g. the new success rate), reading the fresh figures from the tool result or a follow-up get_financial_plan.
+
+For any change OUTSIDE that set, do NOT silently do nothing: explain what you can and cannot adjust. You can adjust Social Security inclusion, retirement age, expected return, and monthly spend. You cannot yet act on things like selling a house or property, changing the tax bracket, or altering account balances; tell the user that plainly and offer the closest supported adjustment.
 
 ## Analysis Quality
 

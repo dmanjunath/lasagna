@@ -31,6 +31,7 @@ import type { FinancialSnapshotSection } from "./financial-snapshot.js";
 import type { PortfolioSection } from "./portfolio-section.js";
 import type { RetirementReadinessSection } from "./retirement-readiness.js";
 import type { GoalsSection } from "./goals-section.js";
+import { deriveSimOverrides, type PlanAssumptions } from "./plan-assumptions-overrides.js";
 
 export interface StoredSections {
   snapshot?: FinancialSnapshotSection;
@@ -181,6 +182,42 @@ export interface CompactPlanGrounding {
    * it in when it has DB scope); populated for every DB-backed grounding read.
    */
   person: PersonContext | null;
+  /**
+   * The scalar assumptions the reader applied to THIS plan (a chosen scenario),
+   * summarized so the narrative frames them correctly — e.g. Social Security has
+   * been EXCLUDED at the reader's request, not "not on file". Null when the plan
+   * has no assumptions applied (its derived defaults stand).
+   */
+  appliedAssumptions: AppliedAssumptions | null;
+}
+
+/**
+ * A reader-chosen scenario, summarized from the plan's `assumptions` for the
+ * narrative. Only the fields the reader actually overrode are present, so the
+ * narrative frames exactly what was changed and nothing else.
+ */
+export interface AppliedAssumptions {
+  /** true → Social Security was EXCLUDED from the projection at the reader's request. */
+  socialSecurityExcluded?: boolean;
+  /** The retirement age the reader pinned for this scenario. */
+  retirementAgeOverride?: number;
+  /** The flat expected return (decimal, e.g. 0.06) the reader assumed. */
+  expectedReturnOverride?: number;
+  /** The monthly retirement spend (dollars) the reader assumed. */
+  monthlySpendOverride?: number;
+}
+
+/** Summarize a plan's assumptions into the narrative-facing scenario, or null when none apply. */
+function summarizeAppliedAssumptions(
+  assumptions: PlanAssumptions | null,
+): AppliedAssumptions | null {
+  if (!assumptions) return null;
+  const applied: AppliedAssumptions = {};
+  if (assumptions.includeSocialSecurity === false) applied.socialSecurityExcluded = true;
+  if (assumptions.retirementAge !== undefined) applied.retirementAgeOverride = assumptions.retirementAge;
+  if (assumptions.expectedReturn !== undefined) applied.expectedReturnOverride = assumptions.expectedReturn;
+  if (assumptions.monthlySpend !== undefined) applied.monthlySpendOverride = assumptions.monthlySpend;
+  return Object.keys(applied).length > 0 ? applied : null;
 }
 
 function safeParse(str: string | null): { sections?: StoredSections } | null {
@@ -202,6 +239,10 @@ export function toCompactGrounding(
   title: string,
   sections: StoredSections,
   person: PersonContext | null = null,
+  // The plan's active assumptions, if any. Summarized into `appliedAssumptions`
+  // so the narrative frames the reader's chosen scenario (e.g. Social Security
+  // EXCLUDED at their request) rather than speculating about missing data.
+  assumptions: PlanAssumptions | null = null,
 ): CompactPlanGrounding {
   const s = sections.snapshot;
   const p = sections.portfolio;
@@ -254,6 +295,7 @@ export function toCompactGrounding(
       : null,
     goals: g ?? null,
     person,
+    appliedAssumptions: summarizeAppliedAssumptions(assumptions),
   };
 }
 
@@ -269,13 +311,21 @@ export function toCompactGrounding(
 export async function resolvePersonContext(
   tenantId: string,
   userId: string,
+  // The plan's active assumptions, if any. Threaded into the resolved sim inputs
+  // (ssMonthly:0 for a Social Security exclusion, retirement-age / spend / flat
+  // expected-return overrides) so the person context the narrative sees reflects
+  // the change — e.g. socialSecurity nulls out rather than reporting a benefit
+  // the plan no longer counts.
+  assumptions?: PlanAssumptions | null,
 ): Promise<PersonContext> {
+  const { overrides, flatReturn } = deriveSimOverrides(assumptions ?? null);
+
   // resolveSimInputs (and getHoldingsInput below) are imported lazily: they pull
   // in portfolio.ts → security-classifier.ts, which reads @lasagna/core exports
   // at module load. A static import would eagerly drag that graph into unrelated
   // test suites that only partially mock @lasagna/core.
   const simInputsP = import("./resolve-sim-inputs.js")
-    .then((m) => m.resolveSimInputs(tenantId, userId))
+    .then((m) => m.resolveSimInputs(tenantId, userId, overrides, flatReturn))
     .catch(() => null);
 
   const [accts, profile, simInputs, goalRows, taxDoc] = await Promise.all([
@@ -446,6 +496,7 @@ export async function resolvePlanGrounding(
       id: financialPlans.id,
       title: financialPlans.title,
       document: financialPlans.document,
+      assumptions: financialPlans.assumptions,
     })
     .from(financialPlans)
     .where(
@@ -460,6 +511,20 @@ export async function resolvePlanGrounding(
   if (!plan) return null;
 
   const parsed = safeParse(plan.document);
-  const person = await resolvePersonContext(tenantId, userId);
-  return toCompactGrounding(plan.id, plan.title, parsed?.sections ?? {}, person);
+  // Reflect the plan's active assumptions in the person context (e.g. a Social
+  // Security exclusion nulls socialSecurity), so the agent's grounding matches
+  // the regenerated document rather than reporting a benefit the plan dropped.
+  const assumptions = parseAssumptions(plan.assumptions);
+  const person = await resolvePersonContext(tenantId, userId, assumptions);
+  return toCompactGrounding(plan.id, plan.title, parsed?.sections ?? {}, person, assumptions);
+}
+
+/** Parse the plan's stored `assumptions` JSON column; null on absent/invalid. */
+export function parseAssumptions(str: string | null): PlanAssumptions | null {
+  if (!str) return null;
+  try {
+    return JSON.parse(str) as PlanAssumptions;
+  } catch {
+    return null;
+  }
 }

@@ -21,6 +21,7 @@
 import { fetchAccountsWithBalances } from "../lib/account-balances.js";
 import { resolveSimInputs } from "./resolve-sim-inputs.js";
 import { runRetirementSim } from "./retirement-sim.js";
+import type { SimInputs } from "./retirement-sim.js";
 import type { StrategyType } from "./withdrawal-strategies.js";
 
 // "On track" threshold for the verdict — the SAME value /retirement uses
@@ -173,8 +174,13 @@ function pickRecommended(methods: MethodComparison[]): StrategyType {
 export async function buildRetirementReadiness(
   tenantId: string,
   userId: string,
+  // Plan-change overrides (retirement age, monthly spend, ssMonthly:0 for a
+  // Social Security exclusion) and a flat expected-return decimal, threaded into
+  // the resolved sim inputs so the readiness verdict reconciles with the change.
+  overrides?: Partial<SimInputs>,
+  flatReturn?: number,
 ): Promise<RetirementReadinessSection> {
-  const inputs = await resolveSimInputs(tenantId, userId);
+  const inputs = await resolveSimInputs(tenantId, userId, overrides, flatReturn);
   const accts = await fetchAccountsWithBalances(tenantId);
   const drawdownOrder = buildDrawdownOrder(accts);
   const generatedAt = new Date().toISOString();

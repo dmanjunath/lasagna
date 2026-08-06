@@ -644,8 +644,20 @@ export type FinancialPlanSummary = {
   updatedAt: string;
 };
 
+// Scalar plan-change assumptions applied to the plan (mirrors PlanAssumptions in
+// packages/api/src/services/plan-assumptions.ts). Only present fields are active.
+export type PlanAssumptions = {
+  /** false → Social Security excluded from the projection. */
+  includeSocialSecurity?: boolean;
+  retirementAge?: number;
+  /** Expected return as a decimal, e.g. 0.06 for 6%. */
+  expectedReturn?: number;
+  monthlySpend?: number;
+};
+
 export type FinancialPlan = FinancialPlanSummary & {
   document: FinancialPlanDocument | null;
+  assumptions: PlanAssumptions | null;
 };
 
 // ── Chat Types ────────────────────────────────────────────────────────────

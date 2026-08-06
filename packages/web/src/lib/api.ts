@@ -1,4 +1,4 @@
-import type { Plan, PlanType, PlanStatus, PlanEdit, FinancialPlan, FinancialPlanSummary, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, TaxInputResult, ExtractionResult } from "./types.js";
+import type { Plan, PlanType, PlanStatus, PlanEdit, FinancialPlan, FinancialPlanSummary, FinancialPlanDocument, PlanAssumptions, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, TaxInputResult, ExtractionResult } from "./types.js";
 import { isNativeApp, getNativeToken } from "./native.js";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -352,6 +352,22 @@ export const api = {
 
   deleteFinancialPlan: (id: string) =>
     request(`/financial-plans/${id}`, { method: "DELETE" }),
+
+  // Update a plan's assumptions (a value sets a field, null clears it) and
+  // regenerate the plan document. Used by the "Assumptions applied" chip remove.
+  updateFinancialPlanAssumptions: (
+    id: string,
+    patch: { [K in keyof PlanAssumptions]?: PlanAssumptions[K] | null },
+  ) =>
+    request<{
+      success: boolean;
+      assumptions: PlanAssumptions | null;
+      regenerated: boolean;
+      document: FinancialPlanDocument | null;
+    }>(`/financial-plans/${id}/assumptions`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
 
   // Threads
   getThreads: (planId?: string) =>

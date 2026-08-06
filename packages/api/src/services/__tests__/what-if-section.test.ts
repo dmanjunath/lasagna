@@ -5,9 +5,10 @@ import type { SimInputs, SimResult } from "../retirement-sim.js";
 // against fixtures — we assert it REUSES these (same engine as the base) and
 // applies the overrides correctly.
 const resolveSimInputs =
-  vi.fn<(t: string, u: string, o?: Partial<SimInputs>) => Promise<SimInputs>>();
+  vi.fn<(t: string, u: string, o?: Partial<SimInputs>, f?: number) => Promise<SimInputs>>();
 vi.mock("../resolve-sim-inputs.js", () => ({
-  resolveSimInputs: (t: string, u: string, o?: Partial<SimInputs>) => resolveSimInputs(t, u, o),
+  resolveSimInputs: (t: string, u: string, o?: Partial<SimInputs>, f?: number) =>
+    resolveSimInputs(t, u, o, f),
 }));
 
 const runRetirementSim = vi.fn<(i: SimInputs) => SimResult>();
@@ -49,7 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Empty overrides → the resolved base inputs (used to read base age/spend and
   // to reconcile with the stored success rate). Overridden per-test as needed.
-  resolveSimInputs.mockImplementation(async (_t, _u, _o) => BASE_INPUTS);
+  resolveSimInputs.mockImplementation(async (_t, _u, _o, _f) => BASE_INPUTS);
   runRetirementSim.mockImplementation(() => simResult(0.85));
 });
 
@@ -59,10 +60,12 @@ describe("buildWhatIfSection", () => {
     // returns 85% → each delta vs the passed base (85) is 0.
     const section = await buildWhatIfSection("tenant-1", "user-a", 85);
 
-    // First resolve call is the base read (no overrides).
+    // First resolve call is the base read: no active assumptions → empty base
+    // overrides (equivalent to no overrides) and no flat return.
     expect(resolveSimInputs.mock.calls[0][0]).toBe("tenant-1");
     expect(resolveSimInputs.mock.calls[0][1]).toBe("user-a");
-    expect(resolveSimInputs.mock.calls[0][2]).toBeUndefined();
+    expect(resolveSimInputs.mock.calls[0][2]).toEqual({});
+    expect(resolveSimInputs.mock.calls[0][3]).toBeUndefined();
     expect(section.baseSuccessRate).toBe(85);
     expect(section.section).toBe("what_ifs");
     for (const s of section.scenarios) {

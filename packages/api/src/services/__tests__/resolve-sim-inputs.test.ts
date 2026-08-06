@@ -110,4 +110,18 @@ describe("resolveSimInputs (integration)", () => {
     expect(resolved.retirementAge).toBe(55);
     expect(resolved.numSimulations).toBe(200);
   });
+
+  it("flatReturn forces assetClassReturns for EVERY class, clobbering the holdings-derived map", async () => {
+    if (!dbAvailable || !tenantId) {
+      console.warn("SKIP: no DB / no seeded tenant with holdings");
+      return;
+    }
+    // A flat 6% must win over the holdings-derived per-class returns that
+    // resolveSimInputs re-attaches last for the real portfolio.
+    const resolved = await resolveSimInputs(tenantId, userId!, undefined, 0.06);
+    expect(resolved.assetClassReturns).toBeDefined();
+    for (const cls of ["usStocks", "intlStocks", "bonds", "reits", "cash"] as const) {
+      expect(resolved.assetClassReturns![cls]).toBe(0.06);
+    }
+  });
 });

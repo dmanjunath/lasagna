@@ -99,6 +99,7 @@ const grounding: CompactPlanGrounding = {
     taxDocumentSummary: null,
     portfolioBasis: null,
   },
+  appliedAssumptions: null,
 };
 
 // A well-formed model response covering every fixed theme key.

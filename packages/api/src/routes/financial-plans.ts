@@ -9,7 +9,8 @@ import { buildRetirementReadiness } from "../services/retirement-readiness.js";
 import { buildWhatIfSection } from "../services/what-if-section.js";
 import { buildSuggestionsSection } from "../services/suggestions-section.js";
 import { buildNarrativeSection } from "../services/narrative-section.js";
-import { toCompactGrounding, resolvePersonContext } from "../services/plan-grounding.js";
+import { toCompactGrounding, resolvePersonContext, parseAssumptions } from "../services/plan-grounding.js";
+import { regeneratePlan, type PlanAssumptions, type DocumentSections } from "../services/plan-assumptions.js";
 
 export const financialPlansRouter = new Hono<AuthEnv>();
 
@@ -17,6 +18,15 @@ const uuidSchema = z.string().uuid();
 
 const createSchema = z.object({
   title: z.string().min(1).max(255).optional(),
+});
+
+// Assumptions PATCH — each supplied field is merged; a null clears that field
+// (the chip's remove affordance sends null). Slice (a) scalar fields only.
+const assumptionsSchema = z.object({
+  includeSocialSecurity: z.boolean().nullable().optional(),
+  retirementAge: z.number().int().nullable().optional(),
+  expectedReturn: z.number().nullable().optional(),
+  monthlySpend: z.number().nullable().optional(),
 });
 
 function safeJsonParse<T>(str: string | null, fallback: T): T {
@@ -153,7 +163,11 @@ financialPlansRouter.get("/:id", async (c) => {
     return c.json({ error: "Plan not found" }, 404);
   }
 
-  return c.json({ ...plan, document: safeJsonParse(plan.document, null) });
+  return c.json({
+    ...plan,
+    document: safeJsonParse(plan.document, null),
+    assumptions: safeJsonParse(plan.assumptions, null),
+  });
 });
 
 // Soft delete → status archived.
@@ -192,4 +206,107 @@ financialPlansRouter.delete("/:id", async (c) => {
     );
 
   return c.json({ success: true });
+});
+
+// Update a plan's assumptions and regenerate. Each supplied field is merged;
+// null clears that field (the "Assumptions applied" chip's remove affordance).
+// Regenerates into a NEW document and swaps it in only on success, so a regen
+// failure records the assumptions change without corrupting the stored plan.
+financialPlansRouter.patch("/:id/assumptions", async (c) => {
+  const { tenantId, userId } = c.get("session");
+  const planId = c.req.param("id");
+
+  if (!uuidSchema.safeParse(planId).success) {
+    return c.json({ error: "Invalid plan ID format" }, 400);
+  }
+
+  let rawBody: unknown = {};
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    // empty body → no-op merge
+  }
+  const parsed = assumptionsSchema.safeParse(rawBody ?? {});
+  if (!parsed.success) {
+    return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
+  }
+
+  const [plan] = await db
+    .select({
+      id: financialPlans.id,
+      title: financialPlans.title,
+      document: financialPlans.document,
+      assumptions: financialPlans.assumptions,
+    })
+    .from(financialPlans)
+    .where(
+      and(
+        eq(financialPlans.id, planId),
+        eq(financialPlans.tenantId, tenantId),
+        eq(financialPlans.userId, userId),
+        ne(financialPlans.status, "archived"),
+      ),
+    );
+
+  if (!plan) {
+    return c.json({ error: "Plan not found" }, 404);
+  }
+
+  // Merge: a value sets the field, null deletes it, an omitted field is kept.
+  const merged: PlanAssumptions = { ...(parseAssumptions(plan.assumptions) ?? {}) };
+  const body = parsed.data;
+  for (const key of ["includeSocialSecurity", "retirementAge", "expectedReturn", "monthlySpend"] as const) {
+    if (!(key in body)) continue;
+    const v = body[key];
+    if (v === null) delete merged[key];
+    else (merged as Record<string, unknown>)[key] = v;
+  }
+  // An empty assumptions set persists as null (nothing applied → chips render nothing).
+  const assumptionsJson = Object.keys(merged).length > 0 ? JSON.stringify(merged) : null;
+
+  await db
+    .update(financialPlans)
+    .set({ assumptions: assumptionsJson })
+    .where(
+      and(
+        eq(financialPlans.id, planId),
+        eq(financialPlans.tenantId, tenantId),
+        eq(financialPlans.userId, userId),
+        ne(financialPlans.status, "archived"),
+      ),
+    );
+
+  const nextAssumptions = assumptionsJson ? merged : null;
+  let document = safeJsonParse<{ sections?: DocumentSections }>(plan.document, {});
+  let regenerated = false;
+  try {
+    const next = await regeneratePlan(
+      tenantId,
+      userId,
+      { title: plan.title, sections: document.sections ?? {} },
+      nextAssumptions,
+    );
+    document = { ...document, sections: next.sections };
+    await db
+      .update(financialPlans)
+      .set({ document: JSON.stringify(document) })
+      .where(
+        and(
+          eq(financialPlans.id, planId),
+          eq(financialPlans.tenantId, tenantId),
+          eq(financialPlans.userId, userId),
+          ne(financialPlans.status, "archived"),
+        ),
+      );
+    regenerated = true;
+  } catch (e) {
+    console.error("[financial-plans] assumptions regeneration failed:", e);
+  }
+
+  return c.json({
+    success: true,
+    assumptions: nextAssumptions,
+    regenerated,
+    document: document.sections ? document : null,
+  });
 });

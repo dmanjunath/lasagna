@@ -62,9 +62,19 @@ async function runScenario(
   userId: string,
   spec: ScenarioSpec,
   baseSuccessRate: number,
+  baseOverrides: Partial<SimInputs>,
+  flatReturn: number | undefined,
 ): Promise<WhatIfScenario | null> {
   try {
-    const inputs = await resolveSimInputs(tenantId, userId, spec.overrides);
+    // The plan's active assumptions form the base; the scenario's own override
+    // sits ON TOP (a scenario field wins when both set the same key), so each
+    // delta is measured against the assumptions-adjusted base, not the raw plan.
+    const inputs = await resolveSimInputs(
+      tenantId,
+      userId,
+      { ...baseOverrides, ...spec.overrides },
+      flatReturn,
+    );
     const res = runRetirementSim(inputs);
     const successRate = Math.round(res.successRate * 100);
     return {
@@ -90,9 +100,14 @@ export async function buildWhatIfSection(
   tenantId: string,
   userId: string,
   baseSuccessRate: number,
+  // The plan's active assumption overrides + flat expected-return, so the base
+  // (and every scenario, which sits on top of these) reflects the change rather
+  // than the raw plan.
+  baseOverrides: Partial<SimInputs> = {},
+  flatReturn?: number,
 ): Promise<WhatIfSection> {
   const generatedAt = new Date().toISOString();
-  const base: SimInputs = await resolveSimInputs(tenantId, userId);
+  const base: SimInputs = await resolveSimInputs(tenantId, userId, baseOverrides, flatReturn);
 
   // Retire N years earlier, but never below the current age.
   const earlierAge = Math.max(base.currentAge, base.retirementAge - RETIRE_EARLIER_YEARS);
@@ -112,7 +127,9 @@ export async function buildWhatIfSection(
   ];
 
   const results = await Promise.all(
-    specs.map((spec) => runScenario(tenantId, userId, spec, baseSuccessRate)),
+    specs.map((spec) =>
+      runScenario(tenantId, userId, spec, baseSuccessRate, baseOverrides, flatReturn),
+    ),
   );
 
   return {

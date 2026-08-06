@@ -840,6 +840,7 @@ export const financialPlans = pgTable("financial_plans", {
     .references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   document: text("document"), // JSON string (structured multi-section payload)
+  assumptions: text("assumptions"), // JSON string (PlanAssumptions: scalar overrides applied to the plan)
   status: planStatusEnum("status").notNull().default("draft"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

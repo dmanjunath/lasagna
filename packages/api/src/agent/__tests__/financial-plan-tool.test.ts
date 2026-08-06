@@ -13,6 +13,7 @@ vi.mock("@lasagna/core", () => ({
     id: "financialPlans.id",
     title: "financialPlans.title",
     document: "financialPlans.document",
+    assumptions: "financialPlans.assumptions",
     tenantId: "financialPlans.tenantId",
     userId: "financialPlans.userId",
     status: "financialPlans.status",
@@ -29,6 +30,7 @@ interface PlanRow {
   userId: string;
   title: string;
   document: string | null;
+  assumptions: string | null;
   status: string;
 }
 let planTable: PlanRow[] = [];
@@ -83,12 +85,39 @@ vi.mock("../../lib/db.js", () => ({
           // Apply the write to the fake table so a follow-up read sees it.
           for (const row of matchPlans(where)) {
             if (typeof set.document === "string") row.document = set.document;
+            if ("assumptions" in set) row.assumptions = set.assumptions as string | null;
           }
           return Promise.resolve(undefined);
         },
       }),
     }),
   },
+}));
+
+// Regeneration is exercised in its own unit test (plan-assumptions.test.ts).
+// Here we mock it so the tool test stays focused on scoping / merge / persistence
+// and can simulate BOTH a clean regen and a regen that throws (to prove a failure
+// still persists the assumptions and never corrupts the stored document).
+let regenShouldThrow = false;
+const regeneratePlanMock = vi.fn(
+  async (
+    _tenantId: string,
+    _userId: string,
+    plan: { title: string; sections: Record<string, unknown> },
+  ) => {
+    if (regenShouldThrow) throw new Error("regen boom");
+    // A trivial, deterministic "regeneration": bump a marker onto retirement so
+    // the test can prove the swapped document reflects the regen.
+    return {
+      sections: {
+        ...plan.sections,
+        retirement: { ...(plan.sections.retirement as object), regenMarker: true },
+      },
+    };
+  },
+);
+vi.mock("../../services/plan-assumptions.js", () => ({
+  regeneratePlan: (...args: Parameters<typeof regeneratePlanMock>) => regeneratePlanMock(...args),
 }));
 
 import { createFinancialPlanTools } from "../tools/plans.js";
@@ -153,9 +182,11 @@ const PLAN_ID = "11111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
   planTable = [
-    { id: PLAN_ID, tenantId: "tenant-1", userId: "user-a", title: "My Plan", document: JSON.stringify(DOCUMENT), status: "draft" },
+    { id: PLAN_ID, tenantId: "tenant-1", userId: "user-a", title: "My Plan", document: JSON.stringify(DOCUMENT), assumptions: null, status: "draft" },
   ];
   lastUpdate = null;
+  regenShouldThrow = false;
+  regeneratePlanMock.mockClear();
 });
 
 describe("get_financial_plan tool", () => {
@@ -206,7 +237,7 @@ describe("get_financial_plan tool", () => {
 
   it("errors for a plan owned by another user in the same tenant", async () => {
     planTable = [
-      { id: PLAN_ID, tenantId: "tenant-1", userId: "user-b", title: "Someone else's", document: JSON.stringify(DOCUMENT), status: "draft" },
+      { id: PLAN_ID, tenantId: "tenant-1", userId: "user-b", title: "Someone else's", document: JSON.stringify(DOCUMENT), assumptions: null, status: "draft" },
     ];
     const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -277,7 +308,7 @@ describe("update_financial_plan_goals tool", () => {
 
   it("errors for a plan owned by another user in the same tenant and writes nothing", async () => {
     planTable = [
-      { id: PLAN_ID, tenantId: "tenant-1", userId: "user-b", title: "Someone else's", document: JSON.stringify(DOCUMENT), status: "draft" },
+      { id: PLAN_ID, tenantId: "tenant-1", userId: "user-b", title: "Someone else's", document: JSON.stringify(DOCUMENT), assumptions: null, status: "draft" },
     ];
     const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -293,11 +324,99 @@ describe("update_financial_plan_goals tool", () => {
   // (`const { update_financial_plan_goals, ... } = allTools`). This asserts the
   // real tool keys the gate targets, so a rename here can't silently un-gate the
   // write tool while leaving the read-only tool intact.
-  it("exposes the exact tool keys the demo gate targets: write mutates, read stays", () => {
+  it("exposes the exact tool keys the demo gate targets: writes mutate, read stays", () => {
     const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
     expect(Object.keys(tools).sort()).toEqual([
       "get_financial_plan",
+      "update_financial_plan_assumptions",
       "update_financial_plan_goals",
     ]);
+  });
+});
+
+// Reads the assumptions column back off the (mutated) fake row.
+function storedAssumptions(): Record<string, unknown> | null {
+  const row = planTable.find((r) => r.id === PLAN_ID);
+  if (!row?.assumptions) return null;
+  return JSON.parse(row.assumptions) as Record<string, unknown>;
+}
+
+describe("update_financial_plan_assumptions tool", () => {
+  it("merges supplied assumption fields, persists them, and swaps the regenerated document", async () => {
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+
+    // First change: exclude Social Security.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const first = (await tools.update_financial_plan_assumptions.execute!(
+      { includeSocialSecurity: false },
+      { messages: [], toolCallId: "t" },
+    )) as { success?: boolean; assumptions?: Record<string, unknown>; regenerated?: boolean };
+    expect(first.success).toBe(true);
+    expect(first.regenerated).toBe(true);
+    expect(first.assumptions).toEqual({ includeSocialSecurity: false });
+    expect(regeneratePlanMock).toHaveBeenCalledTimes(1);
+
+    // Second change: retirement age. The SS exclusion must survive (a merge).
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await tools.update_financial_plan_assumptions.execute!(
+      { retirementAge: 60 },
+      { messages: [], toolCallId: "t" },
+    );
+    expect(storedAssumptions()).toEqual({ includeSocialSecurity: false, retirementAge: 60 });
+
+    // The regenerated document was swapped in (our mock stamps a marker) and
+    // untouched sections are preserved.
+    const row = planTable.find((r) => r.id === PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const doc = JSON.parse(row!.document!) as { sections: Record<string, Record<string, unknown>> };
+    expect(doc.sections.retirement.regenMarker).toBe(true);
+    expect(doc.sections.snapshot).toBeDefined();
+    expect(doc.sections.portfolio).toBeDefined();
+  });
+
+  it("supports reversal: includeSocialSecurity:true flips the field back", async () => {
+    planTable[0].assumptions = JSON.stringify({ includeSocialSecurity: false, retirementAge: 60 });
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await tools.update_financial_plan_assumptions.execute!(
+      { includeSocialSecurity: true },
+      { messages: [], toolCallId: "t" },
+    );
+    expect(storedAssumptions()).toEqual({ includeSocialSecurity: true, retirementAge: 60 });
+  });
+
+  it("persists the assumptions even when regeneration fails, and does NOT corrupt the stored document", async () => {
+    regenShouldThrow = true;
+    const originalDoc = planTable[0].document;
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const result = (await tools.update_financial_plan_assumptions.execute!(
+      { monthlySpend: 8000 },
+      { messages: [], toolCallId: "t" },
+    )) as { success?: boolean; regenerated?: boolean; assumptions?: Record<string, unknown> };
+
+    // The change is recorded (intent persisted) but regeneration is reported failed.
+    expect(result.success).toBe(true);
+    expect(result.regenerated).toBe(false);
+    expect(result.assumptions).toEqual({ monthlySpend: 8000 });
+    expect(storedAssumptions()).toEqual({ monthlySpend: 8000 });
+
+    // The stored document is UNCHANGED — a regen failure never corrupts the plan.
+    expect(planTable[0].document).toBe(originalDoc);
+  });
+
+  it("errors for a plan owned by another user and writes nothing", async () => {
+    planTable = [
+      { id: PLAN_ID, tenantId: "tenant-1", userId: "user-b", title: "Someone else's", document: JSON.stringify(DOCUMENT), assumptions: null, status: "draft" },
+    ];
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const result = (await tools.update_financial_plan_assumptions.execute!(
+      { includeSocialSecurity: false },
+      { messages: [], toolCallId: "t" },
+    )) as { error?: string };
+    expect(result.error).toBe("Plan not found");
+    expect(lastUpdate).toBeNull();
+    expect(regeneratePlanMock).not.toHaveBeenCalled();
   });
 });

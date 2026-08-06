@@ -4,7 +4,12 @@ import { db } from "../../lib/db.js";
 import { plans, planEdits, financialPlans } from "@lasagna/core";
 import { eq, and, ne } from "@lasagna/core";
 import { uiPayloadSchema } from "../types.js";
-import { resolvePlanGrounding } from "../../services/plan-grounding.js";
+import { resolvePlanGrounding, parseAssumptions } from "../../services/plan-grounding.js";
+import {
+  regeneratePlan,
+  type PlanAssumptions,
+  type DocumentSections,
+} from "../../services/plan-assumptions.js";
 import type { GoalsSection, NamedGoal } from "../../services/goals-section.js";
 
 // Read-only tool for the NEW Financial Plans (financial_plans table). Grounds
@@ -117,6 +122,116 @@ export function createFinancialPlanTools(
           );
 
         return { success: true, goals: merged };
+      },
+    }),
+
+    update_financial_plan_assumptions: tool({
+      description:
+        "Apply a plan CHANGE that adjusts an assumption and regenerates THIS plan. Supported changes: exclude/restore Social Security (includeSocialSecurity false/true), override the retirement age, the expected return (a DECIMAL, e.g. 0.06 for 6%), and the monthly retirement spend (dollars). Only pass the fields the user asked to change; any field you omit keeps its current value (a merge, never a clobber). Do NOT use this for anything outside that set (e.g. selling a property, tax bracket); explain what you can and cannot adjust instead. After it returns, confirm in prose what changed.",
+      // Only the assumption fields — the plan id is bound server-side to the
+      // thread's plan, so the model never supplies (and can't request) a plan id.
+      // No .min/.max on numbers and no string maxLength: those serialize to
+      // JSON-Schema keywords the OpenRouter -> Bedrock route rejects.
+      inputSchema: z.object({
+        includeSocialSecurity: z.boolean().optional(),
+        retirementAge: z.number().int().optional(),
+        expectedReturn: z.number().optional(),
+        monthlySpend: z.number().optional(),
+      }),
+      // @ts-ignore
+      execute: async (input: {
+        includeSocialSecurity?: boolean;
+        retirementAge?: number;
+        expectedReturn?: number;
+        monthlySpend?: number;
+      }) => {
+        // Load the bound plan, scoped to this tenant + user + non-archived, so
+        // the agent can never write to another user's (or a deleted) plan.
+        const [plan] = await db
+          .select({
+            id: financialPlans.id,
+            title: financialPlans.title,
+            document: financialPlans.document,
+            assumptions: financialPlans.assumptions,
+          })
+          .from(financialPlans)
+          .where(
+            and(
+              eq(financialPlans.id, financialPlanId),
+              eq(financialPlans.tenantId, tenantId),
+              eq(financialPlans.userId, userId),
+              ne(financialPlans.status, "archived"),
+            ),
+          );
+
+        if (!plan) return { error: "Plan not found" };
+
+        // Merge: only overwrite an assumption the model actually supplied, so a
+        // change to one field leaves the others intact (and a reversal like
+        // includeSocialSecurity:true simply flips that one field back).
+        const existing = parseAssumptions(plan.assumptions) ?? {};
+        const merged: PlanAssumptions = {
+          ...existing,
+          ...(input.includeSocialSecurity !== undefined
+            ? { includeSocialSecurity: input.includeSocialSecurity }
+            : {}),
+          ...(input.retirementAge !== undefined ? { retirementAge: input.retirementAge } : {}),
+          ...(input.expectedReturn !== undefined ? { expectedReturn: input.expectedReturn } : {}),
+          ...(input.monthlySpend !== undefined ? { monthlySpend: input.monthlySpend } : {}),
+        };
+
+        let document: { sections?: DocumentSections };
+        try {
+          document = plan.document ? JSON.parse(plan.document) : {};
+        } catch {
+          document = {};
+        }
+        const sections = document.sections ?? {};
+
+        // Persist the merged assumptions FIRST so a regen failure still records
+        // the user's intent. Then regenerate into a NEW document and swap it in
+        // only on success — a regen error leaves the stored document untouched
+        // (never corrupts the plan) and reports regenerated:false.
+        await db
+          .update(financialPlans)
+          .set({ assumptions: JSON.stringify(merged) })
+          .where(
+            and(
+              eq(financialPlans.id, financialPlanId),
+              eq(financialPlans.tenantId, tenantId),
+              eq(financialPlans.userId, userId),
+              ne(financialPlans.status, "archived"),
+            ),
+          );
+
+        let regenerated = false;
+        try {
+          const next = await regeneratePlan(
+            tenantId,
+            userId,
+            { title: plan.title, sections },
+            merged,
+          );
+          await db
+            .update(financialPlans)
+            .set({ document: JSON.stringify({ ...document, sections: next.sections }) })
+            .where(
+              and(
+                eq(financialPlans.id, financialPlanId),
+                eq(financialPlans.tenantId, tenantId),
+                eq(financialPlans.userId, userId),
+                ne(financialPlans.status, "archived"),
+              ),
+            );
+          regenerated = true;
+        } catch (e) {
+          console.error(
+            `[update_financial_plan_assumptions] regeneration failed for plan ${financialPlanId}:`,
+            e,
+          );
+        }
+
+        return { success: true, assumptions: merged, regenerated };
       },
     }),
   };

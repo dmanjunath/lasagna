@@ -101,6 +101,7 @@ const grounding: CompactPlanGrounding = {
     taxDocumentSummary: null,
     portfolioBasis: null,
   },
+  appliedAssumptions: null,
 };
 
 beforeEach(() => {

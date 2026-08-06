@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, FileText, Download } from "lucide-react";
+import { ArrowLeft, FileText, Download, X } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { vizColor } from "../../components/uikit/viz.js";
@@ -11,6 +11,7 @@ import { DISCLAIMER_COPY } from "../../components/common/legal-disclaimer.js";
 import { useAuth } from "../../lib/auth.js";
 import type {
   FinancialPlan,
+  PlanAssumptions,
   FinancialSnapshotBreakdownItem,
   PortfolioSection,
   RetirementReadinessSection,
@@ -167,13 +168,24 @@ function themeBody(narrative: NarrativeSection | null, key: NarrativeThemeKey): 
   return narrative?.themes.find((t) => t.key === key)?.body ?? null;
 }
 
+// Split a narrative body into paragraphs on paragraph breaks. Handles both real
+// newlines AND the literal two-character "\n" sequence the model sometimes emits
+// as text (which would otherwise print verbatim, e.g. "robust pace.\n\nThe...").
+function splitParagraphs(body: string): string[] {
+  return body
+    .replace(/\\n/g, "\n")
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
 // A theme's prose rendered as the LEDE atop its section's exhibits: a comfortable
 // ~65ch measure, readable body color, paragraphs split on any run of newlines.
 // Nothing renders when the body is absent, so a missing theme leaves the section
 // exactly as it was before the narrative shipped.
 function ThemeLede({ body }: { body: string | null }) {
   if (!body) return null;
-  const paras = body.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  const paras = splitParagraphs(body);
   return (
     <div className="plan-prose mt-4 max-w-[620px] space-y-3">
       {paras.map((p, i) => (
@@ -997,11 +1009,14 @@ function PrintCover({
   title,
   preparedFor,
   dateLabel,
+  assumptions,
 }: {
   title: string;
   preparedFor: string | null;
   dateLabel: string;
+  assumptions: PlanAssumptions | null;
 }) {
+  const assumptionNote = assumptionLabels(assumptions);
   return (
     <div className="plan-print-only plan-print-cover">
       {/* Masthead lockup */}
@@ -1030,11 +1045,100 @@ function PrintCover({
         <p className="mt-1.5 text-[13px] font-semibold uppercase tracking-[0.14em] text-content-muted ui-tnum">
           {dateLabel}
         </p>
+        {/* Assumptions applied — discloses the basis of the printed figures so a
+            saved PDF states its scenario. Only renders when assumptions are set. */}
+        {assumptionNote.length > 0 && (
+          <div className="mt-8">
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-content-faint">
+              Assumptions
+            </div>
+            <ul className="mt-2 space-y-1">
+              {assumptionNote.map(({ field, label }) => (
+                <li key={field} className="text-[13.5px] font-semibold text-content-secondary ui-tnum">
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Foot: quiet confidentiality line */}
       <div className="plan-cover-foot text-[10.5px] font-semibold uppercase tracking-[0.18em] text-content-faint">
         Prepared privately for the named recipient
+      </div>
+    </div>
+  );
+}
+
+// ── Assumptions applied ───────────────────────────────────────────────────────
+
+// The active plan-change assumptions as field/label pairs, single-sourced so the
+// on-screen chips and the print-only cover note read identically. Empty when no
+// assumptions are applied.
+function assumptionLabels(
+  assumptions: PlanAssumptions | null,
+): { field: keyof PlanAssumptions; label: string }[] {
+  if (!assumptions) return [];
+  const chips: { field: keyof PlanAssumptions; label: string }[] = [];
+  if (assumptions.includeSocialSecurity === false)
+    chips.push({ field: "includeSocialSecurity", label: "Social Security excluded" });
+  if (assumptions.retirementAge !== undefined)
+    chips.push({ field: "retirementAge", label: `Retirement age ${assumptions.retirementAge}` });
+  if (assumptions.expectedReturn !== undefined)
+    chips.push({
+      field: "expectedReturn",
+      label: `Assumes ${(assumptions.expectedReturn * 100).toFixed(assumptions.expectedReturn * 100 % 1 === 0 ? 0 : 1)}% returns`,
+    });
+  if (assumptions.monthlySpend !== undefined)
+    chips.push({ field: "monthlySpend", label: `Spending ${formatMoney(assumptions.monthlySpend, true)}/mo` });
+  return chips;
+}
+
+// The active plan-change assumptions, as a small labeled row of removable chips
+// in the cover zone. Each chip clears its own field (a PATCH that regenerates the
+// plan) via the × affordance. Renders nothing when no assumptions are applied, so
+// the report reads exactly as before. On-screen only — the print cover carries its
+// own static assumptions note instead (chips are interactive, so they drop).
+function AssumptionsApplied({
+  assumptions,
+  onRemove,
+  pending,
+}: {
+  assumptions: PlanAssumptions | null;
+  onRemove: (field: keyof PlanAssumptions) => void;
+  /** The field currently being cleared (its chip shows a busy, disabled state). */
+  pending: keyof PlanAssumptions | null;
+}) {
+  const chips = assumptionLabels(assumptions);
+  if (chips.length === 0) return null;
+
+  return (
+    <div className="plan-print-hide mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="text-[11px] font-bold uppercase tracking-[0.13em] text-content-faint">
+        Assumptions applied
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {chips.map(({ field, label }) => {
+          const busy = pending === field;
+          return (
+            <span
+              key={field}
+              className="inline-flex items-center gap-1 rounded-full border border-line-strong bg-panel py-0.5 pl-2.5 pr-1 text-[12.5px] font-semibold text-content-secondary shadow-ui-sm"
+            >
+              <span className="ui-tnum">{label}</span>
+              <button
+                type="button"
+                onClick={() => onRemove(field)}
+                disabled={busy}
+                aria-label={`Remove: ${label}`}
+                className="-my-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-content-faint transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-ring)]"
+              >
+                <X className="h-3 w-3" strokeWidth={2.5} />
+              </button>
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -1052,6 +1156,8 @@ export function FinancialPlanDetailPage() {
   // The Goals "Complete your goals" CTA bumps this counter to seed the plan
   // chat's goals intake; PlanChat reacts to the count change.
   const [goalsSeed, setGoalsSeed] = useState(0);
+  // The assumption field whose chip is being cleared (drives its busy state).
+  const [removingAssumption, setRemovingAssumption] = useState<keyof PlanAssumptions | null>(null);
   const chatRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -1067,17 +1173,40 @@ export function FinancialPlanDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // After a chat turn, if the agent saved goals, refetch the plan so the Goals
-  // section reflects what was just written (no full page reload).
-  const refreshIfGoalsSaved = (toolResults: ToolResult[]) => {
+  // After a chat turn, if the agent saved goals OR changed the plan's
+  // assumptions (regenerating the document), refetch the plan so the Goals
+  // section, the regenerated sections, and the "Assumptions applied" chips
+  // reflect what was just written (no full page reload).
+  const refreshAfterChat = (toolResults: ToolResult[]) => {
     if (!id) return;
-    if (!toolResults.some((t) => t.toolName === "update_financial_plan_goals")) return;
+    const wrote = toolResults.some(
+      (t) =>
+        t.toolName === "update_financial_plan_goals" ||
+        t.toolName === "update_financial_plan_assumptions",
+    );
+    if (!wrote) return;
     api
       .getFinancialPlan(id)
       .then((p) => setPlan(p))
       .catch(() => {
-        // Non-fatal: the next page load will show the saved goals.
+        // Non-fatal: the next page load will show the saved changes.
       });
+  };
+
+  // Clear one applied assumption (the chip's × affordance): PATCH null for that
+  // field, which regenerates the plan, then swap in the returned plan state.
+  const removeAssumption = (field: keyof PlanAssumptions) => {
+    if (!id || removingAssumption) return;
+    setRemovingAssumption(field);
+    api
+      .updateFinancialPlanAssumptions(id, { [field]: null })
+      .then(() =>
+        api.getFinancialPlan(id).then((p) => setPlan(p)),
+      )
+      .catch(() => {
+        // Non-fatal: leave the chip; the next load reflects the true state.
+      })
+      .finally(() => setRemovingAssumption(null));
   };
 
   const snapshot = plan?.document?.sections.snapshot ?? null;
@@ -1178,6 +1307,7 @@ export function FinancialPlanDetailPage() {
             title={plan.title}
             preparedFor={user?.name ?? null}
             dateLabel={planCoverDate(snapshot.generatedAt)}
+            assumptions={plan.assumptions}
           />
 
           {/* ── Masthead + chat: one "cover" zone, closed by a rule ──
@@ -1187,7 +1317,7 @@ export function FinancialPlanDetailPage() {
           <div className="plan-print-hide border-b border-line pb-8">
             {/* On-screen masthead + the Download PDF action (hidden in print so
                 it doesn't double with the cover). */}
-            <header className="mt-6 flex items-start justify-between gap-4 print:hidden">
+            <header className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between print:hidden">
               <div className="min-w-0">
                 <div className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-content-muted">
                   Financial Plan
@@ -1198,10 +1328,15 @@ export function FinancialPlanDetailPage() {
                 <p className="mt-3 text-[14px] font-semibold text-content-muted ui-tnum">
                   {planByline(user?.name ?? null, snapshot.generatedAt)}
                 </p>
+                <AssumptionsApplied
+                  assumptions={plan.assumptions}
+                  onRemove={removeAssumption}
+                  pending={removingAssumption}
+                />
               </div>
               <Button
                 variant="secondary"
-                className="shrink-0"
+                className="self-start shrink-0"
                 leadingIcon={<Download className="h-4 w-4" />}
                 onClick={printPlanToPdf}
               >
@@ -1218,7 +1353,7 @@ export function FinancialPlanDetailPage() {
                 <PlanChat
                   planId={id}
                   seed={{ n: goalsSeed, prompt: GOALS_INTAKE_PROMPT }}
-                  onChatResponse={refreshIfGoalsSaved}
+                  onChatResponse={refreshAfterChat}
                   chatRef={chatRef}
                 />
               </div>
@@ -1232,10 +1367,7 @@ export function FinancialPlanDetailPage() {
           {narrative?.executiveSummary?.trim() && (
             <div className="plan-exec-summary mt-10">
               <div className="plan-prose max-w-[620px] space-y-4">
-                {narrative.executiveSummary
-                  .split(/\n+/)
-                  .map((p) => p.trim())
-                  .filter(Boolean)
+                {splitParagraphs(narrative.executiveSummary)
                   .map((p, i) => (
                     <p
                       key={i}
