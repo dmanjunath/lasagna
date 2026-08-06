@@ -2794,8 +2794,8 @@
    ----------------------------------------------------------------------------
    The plan detail page renders `.plan-print-root` around the whole document.
    In print we strip app chrome, force the light palette (the click handler also
-   removes `.dark`, this is the safety net), and add page-break hints so cards
-   and charts don't split mid-figure. The cover header + legal footer live in
+   removes `.dark`, this is the safety net), and add page-break hints so figures
+   and charts don't split mid-exhibit. The cover header + legal footer live in
    the page as `.plan-print-only` (hidden on screen, shown in print).
    ============================================================================ */
 .plan-print-only { display: none; }
@@ -2908,9 +2908,11 @@
     margin: 0 !important;
   }
 
-  /* Keep cards, sections, and figures whole across page boundaries. */
+  /* Keep sections, exhibits, and rows whole across page boundaries. The report
+     body is de-carded, so the figure wrapper (.plan-figure), not the old card
+     radius, is the break-inside target. */
   .plan-print-root section,
-  .plan-print-root .rounded-ui-xl,
+  .plan-print-root .plan-figure,
   .plan-print-root li,
   .plan-print-root svg {
     break-inside: avoid;
@@ -2946,10 +2948,10 @@
     page-break-after: always;
   }
 
-  /* Large snapshot KPIs (e.g. TOTAL DEBT) crowd the card edge in the A4 3-up
-     grid — trim the Stat value type a touch so big numbers keep their gutter.
-     Targets the uikit Stat value span (`ui-tnum text-[28px]`). Print-only;
-     on-screen sizing is untouched. */
+  /* Large snapshot / goals KPIs (e.g. TOTAL DEBT) can crowd the divider in the
+     A4 3-up row — trim the Stat value type a touch so big numbers keep their
+     gutter. Targets the uikit Stat value span (`ui-tnum text-[28px]`).
+     Print-only; on-screen sizing is untouched. */
   .plan-print-root .ui-tnum.text-\[28px\] {
     font-size: 23px !important;
   }
