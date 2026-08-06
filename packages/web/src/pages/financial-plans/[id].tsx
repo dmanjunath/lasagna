@@ -52,6 +52,17 @@ function planByline(userName: string | null, generatedAt: string): string {
   return userName ? `Prepared for ${userName} · Generated ${date}` : `Generated ${date}`;
 }
 
+// The cover's generated date, set apart as its own line (the cover composes
+// "Prepared for {name}" and the date on separate rows, unlike the compact
+// masthead byline). A long-form month/day/year reads more like a report.
+function planCoverDate(generatedAt: string): string {
+  return new Date(generatedAt).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 // Viz slot per breakdown item: assets read cash/investments/property hues,
 // debts read distinct debt-family hues so no two legend rows collide.
 // Keeps the chart legible in light + dark.
@@ -103,8 +114,8 @@ function ReportSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-12 sm:mt-14 border-t border-line pt-10">
-      <div className="flex items-baseline gap-3">
+    <section className="plan-section mt-12 sm:mt-14 border-t border-line pt-10">
+      <div className="plan-section-head flex items-baseline gap-3">
         <span className="font-editorial text-[15px] font-bold leading-none text-content-faint ui-tnum">
           {n}
         </span>
@@ -343,7 +354,7 @@ function RetirementReadinessSectionView({
           </>
         }
       >
-        <div className="rounded-ui-md bg-canvas-sunken/50 p-5">
+        <div className="plan-chart-well rounded-ui-md bg-canvas-sunken/50 p-5">
           <GrowthChart section={section} />
           <div className="mt-2 flex items-center gap-5 text-[12px] font-semibold text-content-muted">
             <span className="inline-flex items-center gap-1.5">
@@ -977,30 +988,53 @@ function printPlanToPdf() {
 }
 
 // Branded cover block, print-only. Reads like the first page of a consulting
-// report: wordmark, plan title, whose plan it is, and the generated date.
+// report: a masthead lockup at the top, the plan title set large in the
+// editorial face over a thin brand accent rule in the vertical middle of the
+// page, then "Prepared for {name}" + the date, and a quiet confidentiality
+// line pinned to the foot. `.plan-print-cover` owns A4 page 1 alone (the print
+// CSS forces the flex column to the full page height + the page break after).
 function PrintCover({
   title,
-  byline,
+  preparedFor,
+  dateLabel,
 }: {
   title: string;
-  byline: string;
+  preparedFor: string | null;
+  dateLabel: string;
 }) {
   return (
     <div className="plan-print-only plan-print-cover">
-      <div className="flex items-center gap-3">
-        <BrandMark size={34} />
-        <span className="font-editorial text-[20px] font-semibold leading-none tracking-[-0.01em] text-content">
+      {/* Masthead lockup */}
+      <div className="plan-cover-mast flex items-center gap-3">
+        <BrandMark size={30} />
+        <span className="font-editorial text-[17px] font-semibold leading-none tracking-[-0.01em] text-content">
           LasagnaFi
         </span>
       </div>
-      <div className="mt-10 border-t border-line pt-8">
-        <div className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-content-muted">
+
+      {/* Title block, vertically centered on the page */}
+      <div className="plan-cover-body">
+        <div className="text-[12px] font-bold uppercase tracking-[0.22em] text-content-muted">
           Financial Plan
         </div>
-        <h1 className="mt-3 font-editorial text-[40px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+        <h1 className="mt-5 font-editorial text-[52px] font-bold leading-[1.02] tracking-[-0.03em] text-content">
           {title}
         </h1>
-        <p className="mt-4 text-[14px] font-semibold text-content-muted ui-tnum">{byline}</p>
+        {/* Thin brand accent rule */}
+        <div className="plan-cover-rule mt-8" />
+        {preparedFor && (
+          <p className="mt-8 text-[16px] font-semibold text-content-secondary">
+            Prepared for {preparedFor}
+          </p>
+        )}
+        <p className="mt-1.5 text-[13px] font-semibold uppercase tracking-[0.14em] text-content-muted ui-tnum">
+          {dateLabel}
+        </p>
+      </div>
+
+      {/* Foot: quiet confidentiality line */}
+      <div className="plan-cover-foot text-[10.5px] font-semibold uppercase tracking-[0.18em] text-content-faint">
+        Prepared privately for the named recipient
       </div>
     </div>
   );
@@ -1142,11 +1176,15 @@ export function FinancialPlanDetailPage() {
           {/* Branded cover — print only. */}
           <PrintCover
             title={plan.title}
-            byline={planByline(user?.name ?? null, snapshot.generatedAt)}
+            preparedFor={user?.name ?? null}
+            dateLabel={planCoverDate(snapshot.generatedAt)}
           />
 
-          {/* ── Masthead + chat: one "cover" zone, closed by a rule ── */}
-          <div className="border-b border-line pb-8">
+          {/* ── Masthead + chat: one "cover" zone, closed by a rule ──
+              Entirely on-screen: the print cover replaces the masthead and the
+              chat is interactive, so the whole zone (and its closing rule) is
+              dropped in print to avoid an orphan rule atop the printed body. */}
+          <div className="plan-print-hide border-b border-line pb-8">
             {/* On-screen masthead + the Download PDF action (hidden in print so
                 it doesn't double with the cover). */}
             <header className="mt-6 flex items-start justify-between gap-4 print:hidden">
@@ -1420,7 +1458,9 @@ export function FinancialPlanDetailPage() {
           />
 
           {/* Legal disclaimer — print only, closes the report. Reuses the
-              projections copy so it stays single-sourced with the app. */}
+              projections copy so it stays single-sourced with the app. The
+              running page footer is drawn in the @page margin boxes (index.css),
+              not as an in-flow element. */}
           <p className="plan-print-only mt-12 border-t border-line pt-6 text-center text-[11px] leading-[1.5] text-content-muted">
             {DISCLAIMER_COPY.projections}
           </p>

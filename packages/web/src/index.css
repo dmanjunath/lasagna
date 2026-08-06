@@ -2800,9 +2800,41 @@
    ============================================================================ */
 .plan-print-only { display: none; }
 
+/* A4 with a comfortable consulting-report margin. The running footer is drawn
+   in the @page margin boxes below.
+   PAGE FOOTER + NUMBERS: verified empirically that Chromium's page.pdf() (and
+   the interactive window.print() path that ships) DO render @page margin-box
+   `content`, including the live `counter(page)` page number. So the footer and
+   page numbers are done natively in CSS here — a thin identity line at
+   bottom-left and "Page N" at bottom-right, repeated on every page. Margin-box
+   `content` can only be static strings + counters (no dynamic date, no flex),
+   so the identity line is static text and the generated date lives on the cover.
+   Note: the interactive browser print dialog may also add its OWN default
+   header/footer (URL, date, page count) on top of these; that is user-toggleable
+   and outside our control. */
 @page {
   size: A4;
-  margin: 18mm 16mm;
+  margin: 20mm 18mm 22mm;
+
+  @bottom-left {
+    content: "LasagnaFi  ·  Financial Plan";
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-size: 8pt;
+    letter-spacing: 0.1em;
+    color: #86939f; /* --ui-content-faint (light), literal: margin boxes can't read var() reliably */
+  }
+  @bottom-right {
+    content: "Page " counter(page);
+    font-size: 8pt;
+    letter-spacing: 0.04em;
+    color: #86939f;
+  }
+}
+
+/* No running footer on the cover (page 1): it carries its own foot line. */
+@page :first {
+  @bottom-left { content: ""; }
+  @bottom-right { content: ""; }
 }
 
 @media print {
@@ -2819,6 +2851,11 @@
      document uses to their :root (light) values, scoped to print + .dark so
      on-screen dark mode is untouched. */
   html.dark, .dark {
+    /* Override `.dark { color-scheme: dark }` (theme.css) which — at higher
+       specificity than the `html, body` rule above — otherwise makes the
+       browser ink the page backdrop black on a raw Cmd+P from dark mode. */
+    color-scheme: light;
+
     --ui-canvas:          247 249 252;
     --ui-canvas-sunken:   238 242 247;
     --ui-panel:           255 255 255;
@@ -2908,23 +2945,40 @@
     margin: 0 !important;
   }
 
-  /* Keep sections, exhibits, and rows whole across page boundaries. The report
-     body is de-carded, so the figure wrapper (.plan-figure), not the old card
-     radius, is the break-inside target. */
-  .plan-print-root section,
-  .plan-print-root .plan-figure,
+  /* Pagination: fill columns instead of crater. We DON'T blanket
+     break-inside-avoid whole sections or figures — that pushes every exhibit to
+     the next page and leaves 50%+ blank at the foot of the prior one. Instead we
+     keep whole only the SHORT units that would read badly split (list rows) and
+     the SVG chart (never split mid-figure). Tall figures and sections are free to
+     break, so prose and short exhibits pack the page above a chart. */
   .plan-print-root li,
   .plan-print-root svg {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  /* Editorial prose (exec summary + per-theme ledes): keep each paragraph whole
-     rather than splitting a sentence across a page, and never orphan a section's
-     eyebrow/heading from the prose that follows it. */
-  .plan-print-root .plan-prose p {
+  /* The projected-balance chart figure must not split mid-SVG — the SVG rule
+     above already keeps the chart whole, but the exhibit's label + legend +
+     caption should travel with it too, so this one figure stays intact. It's
+     short enough (<⅔ page) that keeping it whole doesn't crater the page above. */
+  .plan-print-root .plan-figure:has(.plan-chart-well) {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  /* Editorial prose (exec summary + per-theme ledes): let a long paragraph split
+     across a page rather than jumping whole to the next (which craters the foot),
+     but never leave 1-2 dangling lines stranded at a page edge. */
+  .plan-print-root .plan-prose p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* A figure's label/caption must stay with the start of its content — never
+     orphan an "Exhibit N  Title" head alone at a page foot. */
+  .plan-print-root .plan-figure figcaption {
+    break-after: avoid;
+    page-break-after: avoid;
   }
   .plan-print-root h1,
   .plan-print-root h3,
@@ -2941,11 +2995,80 @@
     page-break-inside: auto;
   }
 
-  /* The branded cover owns page 1 by itself — the first section starts on
-     page 2 (no giant blank gap: the break, not a margin, forces the page). */
+  /* ── Cover: a designed title page that owns A4 page 1 by itself ──────────
+     A three-zone flex column (masthead / centered title block / foot) sized to
+     the full printable page height, so the composition sits on the page like a
+     consulting report cover rather than a top-left header. The page break after
+     forces the first section onto page 2 (no giant blank gap: the break, not a
+     margin, does it). 247mm ≈ A4 height (297mm) minus the 20mm+22mm @page
+     margins, so the column fills the paper without overflowing to a blank p2. */
   .plan-print-cover {
+    display: flex !important;
+    flex-direction: column;
+    min-height: 247mm;
     break-after: page;
     page-break-after: always;
+  }
+  /* Center the title block vertically; masthead and foot bookend it. */
+  .plan-print-cover .plan-cover-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .plan-print-cover .plan-cover-foot {
+    flex: 0 0 auto;
+  }
+  /* The brand accent rule under the title: a short thick brand-green bar, not a
+     full-width hairline — the signature mark of the cover. */
+  .plan-print-cover .plan-cover-rule {
+    width: 56px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgb(var(--ui-brand));
+  }
+
+  /* The BrandMark strokes draw themselves in via a dash-offset animation; in a
+     static print snapshot that animation may be captured mid-draw (or not run),
+     leaving the mark invisible. Force the three wave strokes fully drawn so the
+     brand glyph always inks on the cover. */
+  .plan-print-cover .brand-wave-path {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+    animation: none !important;
+  }
+
+  /* ── Exhibits: lightly framed figures ───────────────────────────────────
+     On paper each exhibit reads as a discrete framed panel — a hairline border,
+     a rounded corner, inset padding, and a whisper-tinted ground — so charts and
+     tables sit in their own bordered plate instead of floating between rules.
+     The screen keeps the borderless editorial treatment; this is print-only.
+     The label + caption stay inside the frame. */
+  .plan-print-root .plan-figure {
+    /* The `border` shorthand replaces the on-screen top-only rule with a full
+       hairline frame on all four sides. */
+    border: 1px solid var(--ui-line);
+    border-radius: 10px;
+    padding: 16px 18px 18px;
+    background: rgb(var(--ui-panel));
+    margin-top: 20px;
+  }
+
+  /* The projected-balance chart sits in a gray inner tray on screen. In print the
+     figure already IS a bordered plate, so the tray is a panel-in-a-panel — flatten
+     it so the chart sits directly on the figure ground like every other exhibit. */
+  .plan-print-root .plan-chart-well {
+    background: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Section head: never orphan the numeral + label from the body that follows
+     it at a page foot. `.plan-section` is the numbered section wrapper; its head
+     is `.plan-section-head`. */
+  .plan-print-root .plan-section-head {
+    break-after: avoid;
+    page-break-after: avoid;
   }
 
   /* Large snapshot / goals KPIs (e.g. TOTAL DEBT) can crowd the divider in the
