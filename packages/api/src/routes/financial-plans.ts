@@ -8,7 +8,7 @@ import { buildPortfolioSection } from "../services/portfolio-section.js";
 import { buildRetirementReadiness } from "../services/retirement-readiness.js";
 import { buildWhatIfSection } from "../services/what-if-section.js";
 import { buildSuggestionsSection } from "../services/suggestions-section.js";
-import { toCompactGrounding } from "../services/plan-grounding.js";
+import { toCompactGrounding, resolvePersonContext } from "../services/plan-grounding.js";
 
 export const financialPlansRouter = new Hono<AuthEnv>();
 
@@ -94,11 +94,13 @@ financialPlansRouter.post("/", async (c) => {
   // without a suggestions section.
   let suggestions = null;
   try {
-    const grounding = toCompactGrounding("pending", parsed.data.title ?? "Financial Plan", {
-      snapshot,
-      portfolio,
-      retirement,
-    });
+    const person = await resolvePersonContext(tenantId, userId);
+    const grounding = toCompactGrounding(
+      "pending",
+      parsed.data.title ?? "Financial Plan",
+      { snapshot, portfolio, retirement },
+      person,
+    );
     suggestions = await buildSuggestionsSection(tenantId, userId, grounding);
   } catch (e) {
     console.error("[financial-plans] suggestions generation failed:", e);

@@ -45,6 +45,7 @@ const grounding: CompactPlanGrounding = {
     planThroughAge: 92,
     medianLastsToAge: 88,
     blendedExpectedReturn: 0.062,
+    socialSecurity: { monthlyBenefit: 2800, claimAge: 67 },
     recommendedStrategy: "guardrails",
     methods: [
       {
@@ -61,6 +62,38 @@ const grounding: CompactPlanGrounding = {
     ],
   },
   goals: null,
+  person: {
+    realEstate: {
+      properties: [
+        {
+          name: "Primary Residence",
+          value: 620000,
+          mortgage: 310000,
+          equity: 310000,
+          monthlyRent: null,
+          annualInsurance: null,
+          annualMaintenance: null,
+        },
+      ],
+      totalValue: 620000,
+      totalMortgage: 310000,
+      totalEquity: 310000,
+      totalMonthlyRent: 0,
+    },
+    socialSecurity: { monthlyBenefit: 2800, claimAge: 67 },
+    guaranteedIncome: [],
+    demographics: {
+      filingStatus: "married_jointly",
+      stateOfResidence: "CA",
+      dependentCount: 2,
+      riskTolerance: "moderate",
+      employmentType: "w2",
+    },
+    topSpendingCategories: [{ name: "Housing", total: 3200 }],
+    goals: [],
+    taxDocumentSummary: null,
+    portfolioBasis: null,
+  },
 };
 
 beforeEach(() => {
@@ -96,6 +129,9 @@ describe("buildSuggestionsSection", () => {
     expect(callArg.prompt).toContain("78.5"); // US stock weight
     expect(callArg.prompt).toContain("380000"); // tax-deferred balance
     expect(callArg.prompt).toContain("plan-123"); // plan id from grounding
+    // (a2) the enriched person context reaches the prompt too.
+    expect(callArg.prompt).toContain("310000"); // real-estate equity
+    expect(callArg.prompt).toContain("married_jointly"); // demographics filing status
     // The system prompt instructs it to ground on the provided figures only.
     expect(callArg.system).toMatch(/NEVER invent a number/i);
 

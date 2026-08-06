@@ -49,11 +49,13 @@ vi.mock("../../services/suggestions-section.js", () => ({
   buildSuggestionsSection: (...args: unknown[]) => buildSuggestionsSection(...args),
 }));
 vi.mock("../../services/plan-grounding.js", () => ({
-  toCompactGrounding: (planId: string, title: string, sections: unknown) => ({
+  toCompactGrounding: (planId: string, title: string, sections: unknown, person: unknown) => ({
     planId,
     title,
     sections,
+    person,
   }),
+  resolvePersonContext: vi.fn(async () => ({ realEstate: null })),
 }));
 
 interface PlanRow {

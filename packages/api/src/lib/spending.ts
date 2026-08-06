@@ -70,3 +70,50 @@ export async function computeSpendingTotal(
 
   return Math.round(totalSpending * 100) / 100;
 }
+
+/**
+ * The top spending categories over a date range, largest first. Same window +
+ * exclusion + non-income/non-transfer, positive-total rules as
+ * `computeSpendingTotal`, but keyed by category name for the plan grounding.
+ * Returns at most `limit` rows; `null` category ids fold into "Uncategorized".
+ */
+export async function topSpendingCategories(
+  tenantId: string,
+  startDate: Date,
+  endDate: Date,
+  limit = 5,
+): Promise<{ name: string; total: number }[]> {
+  const conditions = [
+    eq(transactions.tenantId, tenantId),
+    sql`${transactions.date} >= ${startDate.toISOString()}::timestamptz`,
+    sql`${transactions.date} <= ${endDate.toISOString()}::timestamptz`,
+    sql`${transactions.excludedAt} is null`,
+  ];
+  const excludedIds = await excludedTxnAccountIds(tenantId);
+  if (excludedIds.length > 0) {
+    conditions.push(notInArray(transactions.accountId, excludedIds));
+  }
+
+  const rows = await db
+    .select({
+      name: categories.name,
+      groupType: categoryGroups.type,
+      total: sql<string>`sum(${transactions.amount})`,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+    .where(and(...conditions))
+    .groupBy(categories.name, categoryGroups.type);
+
+  return rows
+    .map((r) => ({
+      name: r.name ?? "Uncategorized",
+      total: Math.round(parseFloat(r.total || "0") * 100) / 100,
+      groupType: r.groupType ?? "expense",
+    }))
+    .filter((r) => r.groupType !== "income" && r.groupType !== "transfer" && r.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit)
+    .map(({ name, total }) => ({ name, total }));
+}

@@ -6,6 +6,8 @@ vi.mock("@lasagna/core", () => ({
   eq: (...args: unknown[]) => ["eq", ...args],
   ne: (...args: unknown[]) => ["ne", ...args],
   and: (...args: unknown[]) => ["and", ...args],
+  desc: (...args: unknown[]) => ["desc", ...args],
+  parsePropertyMetadata: () => null,
   financialPlans: {
     _table: "financialPlans",
     id: "financialPlans.id",
@@ -15,6 +17,10 @@ vi.mock("@lasagna/core", () => ({
     userId: "financialPlans.userId",
     status: "financialPlans.status",
   },
+  // Table markers the enriched grounding (resolvePersonContext) references.
+  accounts: { tenantId: "accounts.tenantId" },
+  goals: { tenantId: "goals.tenantId", createdAt: "goals.createdAt" },
+  taxDocuments: { tenantId: "taxDocuments.tenantId", createdAt: "taxDocuments.createdAt" },
 }));
 
 interface PlanRow {
@@ -55,8 +61,16 @@ function matchPlans(where: unknown): PlanRow[] {
 // Captures the last update()'s SET payload so a test can assert what was written.
 let lastUpdate: { set: Record<string, unknown>; where: unknown } | null = null;
 
+// The enriched grounding (resolvePersonContext) reads accounts/profiles/goals/
+// tax-docs via db.query.*. This tool test only cares about plan scoping + the
+// compact shape, so every enrichment read returns empty — person comes back
+// with null/empty blocks and the assertions below (which don't inspect person)
+// stay valid.
+const emptyQuery = { findMany: async () => [], findFirst: async () => undefined };
+
 vi.mock("../../lib/db.js", () => ({
   db: {
+    query: new Proxy({}, { get: () => emptyQuery }),
     select: (_proj?: unknown) => ({
       from: (_table: unknown) => ({
         where: (where: unknown) => Promise.resolve(matchPlans(where)),

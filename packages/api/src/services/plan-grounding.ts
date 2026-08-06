@@ -14,7 +14,19 @@
  */
 
 import { db } from "../lib/db.js";
-import { financialPlans, eq, and, ne } from "@lasagna/core";
+import {
+  financialPlans,
+  goals as goalsTable,
+  taxDocuments,
+  eq,
+  and,
+  ne,
+  desc,
+  parsePropertyMetadata,
+} from "@lasagna/core";
+import { fetchAccountsWithBalances } from "../lib/account-balances.js";
+import { readResolvedProfile } from "../lib/profile-resolver.js";
+import { defaultSpendingWindow, topSpendingCategories } from "../lib/spending.js";
 import type { FinancialSnapshotSection } from "./financial-snapshot.js";
 import type { PortfolioSection } from "./portfolio-section.js";
 import type { RetirementReadinessSection } from "./retirement-readiness.js";
@@ -25,6 +37,75 @@ export interface StoredSections {
   portfolio?: PortfolioSection;
   retirement?: RetirementReadinessSection;
   goals?: GoalsSection;
+}
+
+/**
+ * Everything we already KNOW about the person that the stored plan sections
+ * don't carry — resolved live from existing data (no schema change, nothing
+ * persisted). Threaded into the grounding so the suggestions section (and, next,
+ * the editorial narrative) sees the full picture: real estate + equity, the
+ * already-computed Social Security estimate, derivable guaranteed income,
+ * demographics, and a few cheap extras (top spend categories, structured goals,
+ * latest tax-doc summary, portfolio cost basis / unrealized gain).
+ *
+ * Every field is null-safe: many are empty for a bare tenant.
+ */
+export interface PersonContext {
+  realEstate: {
+    properties: {
+      name: string;
+      /** Property market value (its account balance). */
+      value: number;
+      /** Balance on the linked mortgage (0 when none linked). */
+      mortgage: number;
+      /** value − mortgage. */
+      equity: number;
+      monthlyRent: number | null;
+      annualInsurance: number | null;
+      annualMaintenance: number | null;
+    }[];
+    totalValue: number;
+    totalMortgage: number;
+    totalEquity: number;
+    /** Sum of every property's monthlyRent (only those that have it). */
+    totalMonthlyRent: number;
+  } | null;
+  /**
+   * The Social Security figure the retirement sim already derived from income —
+   * surfaced (never recomputed) so the report can explain it.
+   */
+  socialSecurity: { monthlyBenefit: number; claimAge: number } | null;
+  /**
+   * Guaranteed / recurring income sources visible to the generator but NOT fed
+   * into the sim. Rental income is derivable today (sum of property rents).
+   */
+  guaranteedIncome: { source: string; monthly: number }[];
+  demographics: {
+    filingStatus: string | null;
+    stateOfResidence: string | null;
+    dependentCount: number | null;
+    riskTolerance: string | null;
+    employmentType: string | null;
+  };
+  /** Top spending categories (previous calendar month), largest first. */
+  topSpendingCategories: { name: string; total: number }[];
+  /** Structured goals-table rows (distinct from the free-form goals section). */
+  goals: {
+    name: string;
+    targetAmount: number;
+    currentAmount: number;
+    monthlyContribution: number | null;
+    deadline: string | null;
+    status: string;
+  }[];
+  /** Most recent uploaded tax document's LLM summary, if any. */
+  taxDocumentSummary: string | null;
+  /** Portfolio cost basis + unrealized gain, when holdings carry cost basis. */
+  portfolioBasis: {
+    costBasis: number;
+    marketValue: number;
+    unrealizedGain: number;
+  } | null;
 }
 
 export interface CompactPlanGrounding {
@@ -52,6 +133,12 @@ export interface CompactPlanGrounding {
     planThroughAge: number;
     medianLastsToAge: number | null;
     blendedExpectedReturn: number;
+    /**
+     * Social Security estimate the sim derived from income (monthly benefit +
+     * claim age). Surfaced here so the report can explain SS; null when the sim
+     * inputs couldn't be resolved.
+     */
+    socialSecurity: { monthlyBenefit: number; claimAge: number } | null;
     recommendedStrategy: RetirementReadinessSection["recommendedStrategy"];
     /** Withdrawal-method comparison, minus any large arrays. */
     methods: {
@@ -70,6 +157,12 @@ export interface CompactPlanGrounding {
    * the agent knows what's already captured and only asks for the rest.
    */
   goals: GoalsSection | null;
+  /**
+   * Full picture of what we already know about the person, resolved live from
+   * existing data. Null on the pure in-memory compaction path (the caller passes
+   * it in when it has DB scope); populated for every DB-backed grounding read.
+   */
+  person: PersonContext | null;
 }
 
 function safeParse(str: string | null): { sections?: StoredSections } | null {
@@ -90,6 +183,7 @@ export function toCompactGrounding(
   planId: string,
   title: string,
   sections: StoredSections,
+  person: PersonContext | null = null,
 ): CompactPlanGrounding {
   const s = sections.snapshot;
   const p = sections.portfolio;
@@ -124,6 +218,7 @@ export function toCompactGrounding(
           planThroughAge: r.planThroughAge,
           medianLastsToAge: r.medianLastsToAge,
           blendedExpectedReturn: r.blendedExpectedReturn,
+          socialSecurity: person?.socialSecurity ?? null,
           recommendedStrategy: r.recommendedStrategy,
           methods: r.methods.map((m) => ({
             strategy: m.strategy,
@@ -140,6 +235,147 @@ export function toCompactGrounding(
         }
       : null,
     goals: g ?? null,
+    person,
+  };
+}
+
+/**
+ * Resolve everything we already know about the person into the compact
+ * `PersonContext` — real estate + equity, the sim's Social Security estimate,
+ * derivable guaranteed income, demographics, and cheap extras. Reuses existing
+ * resolvers/helpers; recomputes no property/mortgage/portfolio math. Scoped by
+ * (tenantId, userId) exactly like `resolvePlanGrounding`. Resilient: any block
+ * that fails to resolve degrades to null/empty rather than throwing, so a
+ * grounding read never fails on a partial data set.
+ */
+export async function resolvePersonContext(
+  tenantId: string,
+  userId: string,
+): Promise<PersonContext> {
+  // resolveSimInputs (and getHoldingsInput below) are imported lazily: they pull
+  // in portfolio.ts → security-classifier.ts, which reads @lasagna/core exports
+  // at module load. A static import would eagerly drag that graph into unrelated
+  // test suites that only partially mock @lasagna/core.
+  const simInputsP = import("./resolve-sim-inputs.js")
+    .then((m) => m.resolveSimInputs(tenantId, userId))
+    .catch(() => null);
+
+  const [accts, profile, simInputs, goalRows, taxDoc] = await Promise.all([
+    fetchAccountsWithBalances(tenantId),
+    readResolvedProfile(tenantId, userId).catch(() => null),
+    simInputsP,
+    db.query.goals
+      .findMany({ where: eq(goalsTable.tenantId, tenantId), orderBy: [desc(goalsTable.createdAt)] })
+      .catch(() => []),
+    db.query.taxDocuments
+      .findFirst({
+        where: eq(taxDocuments.tenantId, tenantId),
+        orderBy: [desc(taxDocuments.createdAt)],
+      })
+      .catch(() => undefined),
+  ]);
+
+  // ── Real estate + linked mortgages (via accounts.propertyAccountId FK) ───────
+  // Sum every debt account's balance that points at a given property, so a
+  // property with more than one linked loan still nets correctly.
+  const mortgageByProperty = new Map<string, number>();
+  for (const a of accts) {
+    if (!a.propertyAccountId) continue;
+    mortgageByProperty.set(
+      a.propertyAccountId,
+      (mortgageByProperty.get(a.propertyAccountId) ?? 0) + Math.abs(a.rawBalance),
+    );
+  }
+
+  const propertyRows = accts.filter((a) => a.type === "real_estate");
+  const properties = propertyRows.map((a) => {
+    const meta = parsePropertyMetadata(a.metadata);
+    const value = a.rawBalance;
+    const mortgage = mortgageByProperty.get(a.id) ?? 0;
+    return {
+      name: a.name,
+      value,
+      mortgage,
+      equity: value - mortgage,
+      monthlyRent: meta?.monthlyRent ?? null,
+      annualInsurance: meta?.annualInsurance ?? null,
+      annualMaintenance: meta?.annualMaintenance ?? null,
+    };
+  });
+
+  const realEstate =
+    properties.length > 0
+      ? {
+          properties,
+          totalValue: properties.reduce((s, p) => s + p.value, 0),
+          totalMortgage: properties.reduce((s, p) => s + p.mortgage, 0),
+          totalEquity: properties.reduce((s, p) => s + p.equity, 0),
+          totalMonthlyRent: properties.reduce((s, p) => s + (p.monthlyRent ?? 0), 0),
+        }
+      : null;
+
+  // ── Social Security (already computed by the sim; never recomputed here) ─────
+  const socialSecurity =
+    simInputs && simInputs.ssMonthly > 0
+      ? { monthlyBenefit: simInputs.ssMonthly, claimAge: simInputs.ssClaimAge }
+      : null;
+
+  // ── Guaranteed income (derivable now: rental income) — visible, not simulated ─
+  const guaranteedIncome: { source: string; monthly: number }[] = [];
+  if (realEstate && realEstate.totalMonthlyRent > 0) {
+    guaranteedIncome.push({ source: "Rental income", monthly: realEstate.totalMonthlyRent });
+  }
+
+  // ── Top spending categories (previous calendar month) ────────────────────────
+  const { startDate, endDate } = defaultSpendingWindow();
+  const topCats = await topSpendingCategories(tenantId, startDate, endDate).catch(() => []);
+
+  // ── Portfolio cost basis + unrealized gain (only holdings that carry basis) ──
+  let costBasis = 0;
+  let marketValue = 0;
+  let anyBasis = false;
+  try {
+    const { getHoldingsInput } = await import("../routes/portfolio.js");
+    for (const h of await getHoldingsInput(tenantId)) {
+      if (h.costBasis == null) continue;
+      anyBasis = true;
+      costBasis += h.costBasis;
+      marketValue += h.value;
+    }
+  } catch {
+    anyBasis = false;
+  }
+  const portfolioBasis = anyBasis
+    ? {
+        costBasis: Math.round(costBasis),
+        marketValue: Math.round(marketValue),
+        unrealizedGain: Math.round(marketValue - costBasis),
+      }
+    : null;
+
+  return {
+    realEstate,
+    socialSecurity,
+    guaranteedIncome,
+    demographics: {
+      filingStatus: profile?.filingStatus ?? null,
+      stateOfResidence: profile?.stateOfResidence ?? null,
+      dependentCount: profile?.dependentCount ?? null,
+      riskTolerance: profile?.riskTolerance ?? null,
+      employmentType: profile?.employmentType ?? null,
+    },
+    topSpendingCategories: topCats,
+    goals: goalRows.map((goal) => ({
+      name: goal.name,
+      targetAmount: parseFloat(goal.targetAmount),
+      currentAmount: parseFloat(goal.currentAmount),
+      monthlyContribution:
+        goal.monthlyContribution != null ? parseFloat(goal.monthlyContribution) : null,
+      deadline: goal.deadline ? goal.deadline.toISOString() : null,
+      status: goal.status,
+    })),
+    taxDocumentSummary: taxDoc?.llmSummary ?? null,
+    portfolioBasis,
   };
 }
 
@@ -171,5 +407,6 @@ export async function resolvePlanGrounding(
   if (!plan) return null;
 
   const parsed = safeParse(plan.document);
-  return toCompactGrounding(plan.id, plan.title, parsed?.sections ?? {});
+  const person = await resolvePersonContext(tenantId, userId);
+  return toCompactGrounding(plan.id, plan.title, parsed?.sections ?? {}, person);
 }
