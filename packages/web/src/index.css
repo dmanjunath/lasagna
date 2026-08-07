@@ -2789,6 +2789,16 @@
 .nw-equation .nw-op { font-size: calc(26px * var(--nws, 1)); }
 .nw-eq--tight .nw-chip { display: none; }
 
+/* Report-scoped KPI size. The financial-plan report packs the shared uikit Stat
+   (28px value) next to the plan's own GoalStat (21px). Two KPI sizes clash with
+   the report's denser editorial scale, so shrink the Stat value to ~22px on THIS
+   page only (scoped to `.plan-print-root`, not the shared Stat.tsx) so net worth
+   / total assets / total debt read at one size with the goals KPIs. Print has its
+   own 23px override inside @media print below. */
+.plan-print-root .ui-tnum.text-\[28px\] {
+  font-size: 22px;
+}
+
 /* ============================================================================
    PRINT — financial-plan "Download PDF" report
    ----------------------------------------------------------------------------

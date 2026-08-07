@@ -135,10 +135,10 @@ export function ChatPanel({
   }, [initialMessage, isLoading, sendMessage, onMessageSent]);
 
   return (
-    <div className="flex flex-col h-full bg-bg-elevated rounded-2xl border border-border">
+    <div className="flex flex-col h-full bg-panel rounded-ui-lg border border-line">
       {!hideHeader && (
-        <div className="p-4 border-b border-border">
-          <h3 className="font-medium text-text">Chat</h3>
+        <div className="p-4 border-b border-line">
+          <h3 className="font-medium text-content">Chat</h3>
         </div>
       )}
 
@@ -150,13 +150,13 @@ export function ChatPanel({
 
       <form
         onSubmit={handleSubmit}
-        className="p-4 border-t border-border flex gap-2"
+        className="p-4 border-t border-line flex gap-2"
       >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about your finances..."
-          className="flex-1 px-4 py-2 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+          className="flex-1 px-4 py-2 bg-canvas-sunken rounded-ui-md border border-line text-content placeholder:text-content-faint outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-ring)]"
           disabled={isLoading}
         />
         <Button type="submit" disabled={isLoading || !input.trim()}>

@@ -109,7 +109,7 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
             )}
           </div>
         )}
-        <div className="max-w-[80%] rounded-ui-lg rounded-br-md px-4 py-2.5 bg-brand-soft border border-brand-soft text-content break-words">
+        <div className="max-w-[80%] rounded-ui-lg rounded-br-md px-4 py-2.5 bg-brand-soft border border-brand/30 text-content break-words">
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
         </div>
       </div>

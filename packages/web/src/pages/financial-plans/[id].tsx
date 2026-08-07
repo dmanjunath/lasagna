@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, FileText, Download, X } from "lucide-react";
+import { ArrowLeft, FileText, Download, X, ChevronDown } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { vizColor } from "../../components/uikit/viz.js";
@@ -101,10 +101,10 @@ function fmtPct(p: number): string {
 
 // ── Editorial primitives (single-use, inline per CLAUDE.md) ───────────────────
 
-// A numbered section head: a thin top rule across the full 720 rail, then the
-// numeral in the editorial face + the section name as a tracked muted label.
+// A numbered section head: a thin top rule across the full frame, then the
+// numeral in Sans + the section name as a tracked muted label.
 // Replaces the old accent-dot eyebrows. Prose/body is constrained by callers to
-// ~65ch; wide figures fill the rail.
+// ~65ch; wide figures fill a wider measure.
 function ReportSection({
   n,
   label,
@@ -117,10 +117,12 @@ function ReportSection({
   return (
     <section className="plan-section mt-12 sm:mt-14 border-t border-line pt-10">
       <div className="plan-section-head flex items-baseline gap-3">
-        <span className="font-editorial text-[15px] font-bold leading-none text-content-faint ui-tnum">
-          {n}
-        </span>
-        <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-content-muted">
+        {n && (
+          <span className="text-[12px] font-semibold leading-none text-content-faint ui-tnum">
+            {n}
+          </span>
+        )}
+        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-muted">
           {label}
         </span>
       </div>
@@ -144,17 +146,17 @@ function Figure({
   children: React.ReactNode;
 }) {
   return (
-    <figure className="plan-figure mt-6 border-t border-line pt-5">
+    <figure className="plan-figure mt-6 max-w-[720px] border-t border-line pt-5">
       <figcaption className="flex items-baseline gap-2.5">
-        <span className="font-editorial text-[13px] font-bold leading-none text-content-faint ui-tnum">
+        <span className="text-[11px] font-semibold leading-none text-content-faint ui-tnum">
           Exhibit {n}
         </span>
-        <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-content-muted">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-content-muted">
           {title}
         </span>
       </figcaption>
       <div className="mt-4">{children}</div>
-      {caption && <p className="mt-2 text-[12.5px] leading-[1.5] text-content-muted">{caption}</p>}
+      {caption && <p className="mt-2 text-[12px] leading-[1.5] text-content-muted">{caption}</p>}
     </figure>
   );
 }
@@ -187,9 +189,9 @@ function ThemeLede({ body }: { body: string | null }) {
   if (!body) return null;
   const paras = splitParagraphs(body);
   return (
-    <div className="plan-prose mt-4 max-w-[620px] space-y-3">
+    <div className="plan-prose mt-4 max-w-[660px] space-y-3">
       {paras.map((p, i) => (
-        <p key={i} className="text-[15.5px] leading-[1.72] text-content-secondary">
+        <p key={i} className="text-[14.5px] leading-[1.56] text-content-secondary">
           {p}
         </p>
       ))}
@@ -200,9 +202,12 @@ function ThemeLede({ body }: { body: string | null }) {
 // ── Retirement Readiness ──────────────────────────────────────────────────────
 
 // Short money label for the growth chart axis, matching the retirement page's
-// terse "$1.2M / $340k" style.
+// terse "$1.2M / $340k" style. Drops a trailing ".0" so round decade ticks read
+// as "$1M" not "$1.0M", and handles billions for long-horizon terminal values.
 function fmtShortMoney(v: number): string {
-  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  const trim = (s: string) => s.replace(/\.0$/, "");
+  if (v >= 1e9) return `$${trim((v / 1e9).toFixed(1))}B`;
+  if (v >= 1e6) return `$${trim((v / 1e6).toFixed(1))}M`;
   if (v >= 1e3) return `$${Math.round(v / 1e3)}k`;
   return `$${Math.round(v)}`;
 }
@@ -222,9 +227,15 @@ const VERDICT_STYLE: Record<ReadinessVerdict, { ink: string; bg: string }> = {
 };
 
 // Median + 25th-75th band growth chart, segmented at retirement. A stored,
-// non-interactive SVG mirroring the /retirement fan idiom with --ui-* tokens:
-// accumulation tint before retirement, a dashed retirement marker, the p25-p75
-// band, and the median path.
+// non-interactive SVG mirroring the /retirement fan idiom with --ui-* tokens.
+//
+// The balance compounds ~1000x over a 50+ year horizon, so a LINEAR y-axis pins
+// the curve to the baseline for decades before it spikes — uninformative. The
+// y-axis is therefore LOG-scaled: steady compounding reads as a near-straight
+// climb across the whole width, and the p25-p75 band stays a legible ribbon
+// rather than a hairline. Decade ($1M, $10M, $100M) gridlines are labelled, a
+// few age ticks anchor x, a dashed marker calls out retirement, and the
+// at-retirement + terminal medians are annotated.
 function GrowthChart({ section }: { section: RetirementReadinessSection }) {
   const pts = section.growth;
   const n = pts.length;
@@ -232,17 +243,32 @@ function GrowthChart({ section }: { section: RetirementReadinessSection }) {
 
   const W = 760;
   const H = 240;
-  const PL = 52;
-  const PR = 16;
-  const PT = 16;
+  const PL = 56;
+  const PR = 64; // room for the terminal-value annotation at the right edge
+  const PT = 20;
   const PB = 28;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
 
-  const maxV = Math.max(...pts.map((p) => p.p75), 1);
+  // Log-scale domain. Floor at the smallest lower-band value (never < $1k so
+  // log() stays finite), ceiling at the largest upper-band value, each padded
+  // out to the enclosing power of ten so the curve doesn't kiss the frame.
+  const rawMin = Math.max(1e3, Math.min(...pts.map((p) => p.p25)));
+  const rawMax = Math.max(...pts.map((p) => p.p75), rawMin * 10);
+  const minV = Math.pow(10, Math.floor(Math.log10(rawMin)));
+  const maxV = Math.pow(10, Math.ceil(Math.log10(rawMax)));
+  const lgMin = Math.log10(minV);
+  const lgMax = Math.log10(maxV);
+
   const xf = (i: number) => PL + (i / Math.max(n - 1, 1)) * chartW;
-  const yf = (v: number) => PT + chartH - Math.max(0, Math.min(1, v / maxV)) * chartH;
-  const yTicks = [0.25, 0.5, 0.75, 1].map((pct) => ({ pct, val: maxV * pct, y: PT + chartH - pct * chartH }));
+  const yf = (v: number) => {
+    const t = (Math.log10(Math.max(v, minV)) - lgMin) / (lgMax - lgMin || 1);
+    return PT + chartH - Math.max(0, Math.min(1, t)) * chartH;
+  };
+
+  // A gridline per decade across the log domain.
+  const yTicks: number[] = [];
+  for (let e = lgMin; e <= lgMax + 0.001; e++) yTicks.push(Math.pow(10, e));
 
   const band = (upper: (p: (typeof pts)[number]) => number, lower: (p: (typeof pts)[number]) => number) => {
     let d = `M ${xf(0)},${yf(upper(pts[0]))}`;
@@ -256,44 +282,75 @@ function GrowthChart({ section }: { section: RetirementReadinessSection }) {
     return d;
   };
 
-  const retireIdx = Math.max(0, section.retirementAge - section.currentAge);
-  const midIdx = Math.floor((n - 1) / 2);
+  const retireIdx = Math.max(0, Math.min(n - 1, section.retirementAge - section.currentAge));
+  const showRetire = retireIdx > 0 && retireIdx < n - 1;
+  const atRetire = pts[retireIdx]?.median ?? 0;
+  const terminal = pts[n - 1]?.median ?? 0;
+
+  // X-axis: current age, retirement, and the final age. The retirement tick is
+  // only added when it's far enough from the start age that the labels won't
+  // collide (the dashed marker + its top annotation already call it out).
+  const frac = retireIdx / Math.max(n - 1, 1);
+  const ages: Array<{ i: number; label: string; anchor: "start" | "middle" | "end" }> = [
+    { i: 0, label: `age ${section.currentAge}`, anchor: "start" },
+  ];
+  if (showRetire && frac > 0.12 && frac < 0.88) {
+    ages.push({ i: retireIdx, label: String(section.retirementAge), anchor: "middle" });
+  }
+  ages.push({ i: n - 1, label: String(section.currentAge + n - 1), anchor: "end" });
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} role="img" aria-label="Projected portfolio balance by age">
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} role="img" aria-label="Projected portfolio balance by age, log scale">
       {/* Accumulation tint before retirement */}
-      {retireIdx > 0 && retireIdx < n && (
+      {showRetire && (
         <rect x={xf(0)} y={PT} width={Math.max(0, xf(retireIdx) - xf(0))} height={chartH} fill="var(--ui-brand-softer)" />
       )}
 
-      {/* Gridlines + y labels */}
-      {yTicks.map(({ pct, val, y }) => (
-        <g key={pct}>
-          <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
-          <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">
-            {fmtShortMoney(val)}
-          </text>
-        </g>
-      ))}
+      {/* Decade gridlines + y labels */}
+      {yTicks.map((val) => {
+        const y = yf(val);
+        return (
+          <g key={val}>
+            <line x1={PL} x2={PL + chartW} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
+            <text x={PL - 8} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">
+              {fmtShortMoney(val)}
+            </text>
+          </g>
+        );
+      })}
 
       {/* p25-p75 band + median path */}
       <path d={band((p) => p.p75, (p) => p.p25)} fill="var(--ui-viz-2)" fillOpacity={0.18} />
-      <path d={line((p) => p.median)} fill="none" stroke="var(--ui-viz-2)" strokeWidth={2} strokeLinecap="round" />
+      <path d={line((p) => p.median)} fill="none" stroke="var(--ui-viz-2)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
-      {/* Retirement marker */}
-      {retireIdx > 0 && retireIdx < n && (
+      {/* Retirement marker + at-retirement median. The "retire N · $X" label is
+          only drawn when the marker is far enough from the left edge (frac >
+          0.14) that it won't crowd the opening "age N" x-tick; near the start
+          the dashed marker + circle alone call retirement out. */}
+      {showRetire && (
         <>
-          <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={H - PB} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
-          <text x={xf(retireIdx) + 5} y={H - PB - 6} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontWeight={600} fontSize={11} fill="rgb(var(--ui-brand-ink))">
-            retire {section.retirementAge}
-          </text>
+          <line x1={xf(retireIdx)} x2={xf(retireIdx)} y1={PT} y2={PT + chartH} stroke="rgb(var(--ui-brand))" strokeDasharray="4 4" strokeWidth={1} />
+          <circle cx={xf(retireIdx)} cy={yf(atRetire)} r={3} fill="rgb(var(--ui-brand))" />
+          {frac > 0.14 && (
+            <text x={xf(retireIdx) + 6} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontWeight={600} fontSize={11} fill="rgb(var(--ui-brand-ink))">
+              retire {section.retirementAge} · {fmtShortMoney(atRetire)}
+            </text>
+          )}
         </>
       )}
 
+      {/* Terminal median value, pinned to the right of the last point */}
+      <circle cx={xf(n - 1)} cy={yf(terminal)} r={3} fill="var(--ui-viz-2)" />
+      <text x={xf(n - 1) + 7} y={yf(terminal) + 4} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontWeight={700} fontSize={11.5} fill="var(--ui-viz-2)">
+        {fmtShortMoney(terminal)}
+      </text>
+
       {/* X-axis ages */}
-      <text x={xf(0)} y={H - 6} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">age {section.currentAge}</text>
-      <text x={xf(midIdx)} y={H - 6} textAnchor="middle" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">{section.currentAge + midIdx}</text>
-      <text x={xf(n - 1)} y={H - 6} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">{section.currentAge + n - 1}</text>
+      {ages.map(({ i, label, anchor }) => (
+        <text key={label} x={xf(i)} y={H - 6} textAnchor={anchor} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">
+          {label}
+        </text>
+      ))}
     </svg>
   );
 }
@@ -316,7 +373,7 @@ function RetirementReadinessSectionView({
   if (!section.computed) {
     return (
       <ReportSection n={sectionNo} label="Retirement readiness">
-        <p className="mt-4 max-w-[620px] text-[15.5px] leading-[1.72] text-content-muted">
+        <p className="mt-4 max-w-[660px] text-[14.5px] leading-[1.56] text-content-muted">
           There is not enough linked yet to project retirement. Link an investment or cash account
           so we can model whether you are on track to retire.
         </p>
@@ -336,18 +393,18 @@ function RetirementReadinessSectionView({
 
       {/* Verdict as a restrained left-rule pull-quote, not a loud card. */}
       <div
-        className="mt-6 max-w-[620px] rounded-ui-md py-4 pl-5 pr-4"
+        className="mt-6 max-w-[660px] rounded-ui-md py-4 pl-5 pr-4"
         style={{ background: style.bg, borderLeft: `3px solid ${style.ink}` }}
       >
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <span className="text-[20px] font-bold leading-none" style={{ color: style.ink }}>
+          <span className="text-[19px] font-bold leading-none" style={{ color: style.ink }}>
             {VERDICT_LABEL[section.verdict]}
           </span>
-          <span className="ui-tnum text-[20px] font-bold leading-none" style={{ color: style.ink }}>
+          <span className="ui-tnum text-[19px] font-bold leading-none" style={{ color: style.ink }}>
             {section.successRate}%
           </span>
         </div>
-        <p className="mt-2 text-[14px] leading-[1.6] text-content-secondary">
+        <p className="mt-2 text-[13.5px] leading-[1.55] text-content-secondary">
           Odds your money lasts {lastsThrough}, retiring at {section.retirementAge}. Target is{" "}
           {section.targetSuccess}%.
         </p>
@@ -359,7 +416,8 @@ function RetirementReadinessSectionView({
         title="Projected balance"
         caption={
           <>
-            Median with the 25th to 75th percentile band, split at retirement.
+            Median with the 25th to 75th percentile band, split at retirement. Log
+            scale, so steady compounding reads as a straight climb.
             {section.blendedExpectedReturn > 0 && (
               <> {(section.blendedExpectedReturn * 100).toFixed(1)}% blended expected return.</>
             )}
@@ -375,7 +433,7 @@ function RetirementReadinessSectionView({
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "var(--ui-viz-2)", opacity: 0.18 }} aria-hidden />
-              25th-75th percentile
+              25th to 75th percentile
             </span>
           </div>
         </div>
@@ -394,7 +452,7 @@ function RetirementReadinessSectionView({
               className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
               <span className="flex flex-wrap items-center gap-2.5">
-                <span className="text-[14px] font-bold text-content">{m.label}</span>
+                <span className="text-[14px] font-semibold text-content">{m.label}</span>
                 {m.recommended && (
                   <span className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft">
                     Recommended
@@ -428,7 +486,7 @@ function RetirementReadinessSectionView({
                   <span className="ui-tnum inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-canvas-sunken text-[12px] font-bold text-content-secondary">
                     {i + 1}
                   </span>
-                  <span className="truncate text-[14px] font-bold text-content">{u.label}</span>
+                  <span className="truncate text-[14px] font-semibold text-content">{u.label}</span>
                 </span>
                 <span className="ui-tnum shrink-0 text-[14px] font-bold text-content">
                   {formatMoney(u.balance, true)}
@@ -498,7 +556,7 @@ function WhatIfSectionView({
               key={s.label}
               className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
-              <span className="text-[14px] font-bold text-content">{s.label}</span>
+              <span className="text-[14px] font-semibold text-content">{s.label}</span>
               <span className="flex shrink-0 items-center gap-2.5 whitespace-nowrap sm:justify-end ui-tnum">
                 <span className="text-[14px] font-bold text-content">{s.successRate}%</span>
                 <DeltaBadge delta={s.deltaVsBase} />
@@ -543,7 +601,7 @@ function GoalStat({ label, value }: { label: string; value: string | null }) {
         {label}
       </div>
       {value ? (
-        <div className="mt-2 ui-tnum text-[22px] font-bold text-content">{value}</div>
+        <div className="mt-2 ui-tnum text-[21px] font-bold text-content">{value}</div>
       ) : (
         <div className="mt-2 text-[15px] font-semibold text-content-faint">Not set yet</div>
       )}
@@ -571,7 +629,7 @@ function GoalsSectionView({
     return (
       <ReportSection n={sectionNo} label="Goals">
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <p className="max-w-[540px] border-l-[3px] border-line-strong pl-4 text-[15.5px] leading-[1.72] text-content-secondary">
+          <p className="max-w-[540px] border-l-[3px] border-line-strong pl-4 text-[14.5px] leading-[1.56] text-content-secondary">
             Tell us when you want to retire, how long your money should last, the income you want,
             and any goals like college or travel.{" "}
             <span className="plan-print-hide text-content-muted">We will ask in chat and fill them in.</span>
@@ -598,7 +656,7 @@ function GoalsSectionView({
       )}
 
       {/* Borderless KPI rows: hairline dividers between, stacked on mobile. */}
-      <div className="mt-6 grid grid-cols-1 divide-y divide-line min-[640px]:grid-cols-3 min-[640px]:divide-x min-[640px]:divide-y-0">
+      <div className="mt-6 max-w-[720px] grid grid-cols-1 divide-y divide-line min-[640px]:grid-cols-3 min-[640px]:divide-x min-[640px]:divide-y-0">
         <div className="py-4 min-[640px]:py-0 min-[640px]:pr-6">
           <GoalStat
             label="Retirement age"
@@ -628,7 +686,7 @@ function GoalsSectionView({
                 className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
                 <span className="min-w-0">
-                  <span className="text-[14px] font-bold text-content">{g.label}</span>
+                  <span className="text-[14px] font-semibold text-content">{g.label}</span>
                   {g.note && (
                     <span className="mt-0.5 block text-[12.5px] font-semibold text-content-muted">
                       {g.note}
@@ -680,7 +738,7 @@ function SuggestionsSectionView({
     <ReportSection n={sectionNo} label="Suggestions">
       {lede}
       {items.length === 0 ? (
-        <p className="mt-4 max-w-[620px] text-[15.5px] leading-[1.72] text-content-muted">
+        <p className="mt-4 max-w-[660px] text-[14.5px] leading-[1.56] text-content-muted">
           No suggestions yet.{" "}
           <span className="plan-print-hide">
             Ask in chat for concrete next steps, or create a new plan once your accounts are linked.
@@ -690,20 +748,20 @@ function SuggestionsSectionView({
         <ol className="mt-6">
           {items.map((s, i) => (
             <li key={`${s.title}-${i}`} className="border-t border-line pt-5 mt-5 first:mt-0">
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="flex items-baseline gap-2.5 text-[16px] font-bold text-content">
-                  <span className="font-editorial text-[14px] leading-none text-content-faint ui-tnum">
+              <div className="flex items-start justify-between gap-4">
+                <h3 className="flex min-w-0 items-baseline gap-2.5 text-[15px] font-bold text-content">
+                  <span className="shrink-0 text-[12px] font-semibold leading-none text-content-faint ui-tnum">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span>{s.title}</span>
+                  <span className="min-w-0 break-words">{s.title}</span>
                 </h3>
                 {s.category && (
-                  <span className="shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft">
+                  <span className="mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft">
                     {s.category}
                   </span>
                 )}
               </div>
-              <p className="mt-2 max-w-[620px] text-[15px] leading-[1.65] text-content-secondary">
+              <p className="mt-2 max-w-[660px] text-[14.5px] leading-[1.56] text-content-secondary">
                 {s.rationale}
               </p>
               {s.impact && (
@@ -741,7 +799,7 @@ function PortfolioCompositionSection({
   return (
     <ReportSection n={sectionNo} label="Portfolio composition">
       {segments.length === 0 ? (
-        <p className="mt-4 max-w-[620px] text-[15.5px] leading-[1.72] text-content-muted">
+        <p className="mt-4 max-w-[660px] text-[14.5px] leading-[1.56] text-content-muted">
           No investment holdings are linked. Link an investment account to see how your portfolio
           breaks down by asset type.
         </p>
@@ -749,7 +807,7 @@ function PortfolioCompositionSection({
         <Figure
           n={byAssetTypeExhibit}
           title="By asset type"
-          caption={`Total portfolio value ${formatMoney(portfolio.totalValue)}.`}
+          caption={`Total portfolio value ${formatMoney(portfolio.totalValue, true)}.`}
         >
           {/* Shared-scale allocation bar across asset classes. */}
           <div
@@ -781,10 +839,10 @@ function PortfolioCompositionSection({
                       style={{ background: classColor(c.name, i) }}
                       aria-hidden
                     />
-                    <span className="truncate text-[14px] font-bold text-content">{c.name}</span>
+                    <span className="truncate text-[14px] font-semibold text-content">{c.name}</span>
                   </span>
                   <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
-                    <span className="text-[14px] font-bold text-content">{formatMoney(c.value)}</span>
+                    <span className="text-[14px] font-bold text-content">{formatMoney(c.value, true)}</span>
                     <span className="ml-2 text-[12.5px] font-semibold text-content-muted">
                       {fmtPct(c.weight)}
                     </span>
@@ -798,7 +856,7 @@ function PortfolioCompositionSection({
                     >
                       <span className="truncate font-semibold text-content-secondary">{cat.name}</span>
                       <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
-                        <span className="font-bold text-content">{formatMoney(cat.value)}</span>
+                        <span className="font-bold text-content">{formatMoney(cat.value, true)}</span>
                         <span className="ml-2 text-[12.5px] font-semibold text-content-muted">
                           {fmtPct(cat.weight)}
                         </span>
@@ -848,6 +906,9 @@ function PlanChat({
   // its one-shot initialMessage even when a thread already exists (its
   // initialMessageSent ref only resets on remount).
   const [seedKey, setSeedKey] = useState(0);
+  // Collapsed by default so the report/exec-summary leads. The transcript slab
+  // only mounts on expand; the compact composer is always the entry point.
+  const [expanded, setExpanded] = useState(false);
 
   // Reset + load any existing plan-scoped thread when the plan changes.
   useEffect(() => {
@@ -856,6 +917,7 @@ function PlanChat({
     setLoaded(false);
     setPendingPrompt(null);
     setComposer("");
+    setExpanded(false);
     let cancelled = false;
     api
       .getFinancialPlanThreads(planId)
@@ -887,11 +949,24 @@ function PlanChat({
       setPendingPrompt(text);
       setSeedKey((k) => k + 1);
       setComposer("");
+      setExpanded(true);
     } catch (err) {
       console.error("Failed to start plan chat:", err);
     } finally {
       setCreating(false);
     }
+  };
+
+  // Send the compact composer's text into an already-existing thread: seed it as
+  // the ChatPanel's one-shot initialMessage (remounting via seedKey so it fires)
+  // and expand the transcript so the reply is visible.
+  const sendIntoThread = (prompt: string) => {
+    const text = prompt.trim();
+    if (!text) return;
+    setPendingPrompt(text);
+    setSeedKey((k) => k + 1);
+    setComposer("");
+    setExpanded(true);
   };
 
   // Seed a prompt into the chat from an outside CTA (the Goals "Complete your
@@ -905,6 +980,7 @@ function PlanChat({
     if (thread) {
       setPendingPrompt(seed.prompt);
       setSeedKey((k) => k + 1);
+      setExpanded(true);
     } else {
       startThread(seed.prompt);
     }
@@ -936,14 +1012,24 @@ function PlanChat({
     );
   }
 
-  return (
-    <div ref={chatRef} className="mt-8 scroll-mt-6">
-      {header}
-      {thread ? (
-        // Existing / active thread: expand the transcript inline. Wrap ChatPanel
-        // in a thin --ui-* container so its legacy chrome doesn't clash with the
-        // paper ground.
-        <div className="mt-3 max-h-[440px] overflow-hidden rounded-ui-md border border-line-strong bg-panel shadow-ui-sm">
+  // The transcript slab is mounted only when expanded, so a page view leads with
+  // the report, not a 560px chat. ChatPanel carries its own composer, so the
+  // compact composer below is hidden while expanded.
+  if (thread && expanded) {
+    return (
+      <div ref={chatRef} className="mt-8 scroll-mt-6">
+        <div className="flex items-center justify-between gap-3">
+          {header}
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="shrink-0 inline-flex items-center gap-1 text-[12.5px] font-semibold text-content-muted hover:text-content transition-colors"
+          >
+            Hide conversation
+            <ChevronDown className="h-3.5 w-3.5 rotate-180" aria-hidden />
+          </button>
+        </div>
+        <div className="mt-3 h-[min(70vh,560px)] flex flex-col rounded-ui-md border border-line-strong bg-panel shadow-ui-sm">
           <ChatPanel
             key={`${thread.id}:${seedKey}`}
             threadId={thread.id}
@@ -954,27 +1040,43 @@ function PlanChat({
             hideHeader
           />
         </div>
-      ) : (
-        // Resting state: a quiet composer, not a slab. Same DS focus idiom as the
-        // rest of the app.
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            startThread(composer);
-          }}
-          className="mt-3 flex gap-2"
+      </div>
+    );
+  }
+
+  // Collapsed: a quiet composer entry point. When a thread already has history, a
+  // "View conversation" affordance expands the scrollable transcript inline.
+  return (
+    <div ref={chatRef} className="mt-8 scroll-mt-6">
+      {header}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (thread) sendIntoThread(composer);
+          else startThread(composer);
+        }}
+        className="mt-3 flex gap-2"
+      >
+        <input
+          value={composer}
+          onChange={(e) => setComposer(e.target.value)}
+          placeholder="Am I on track to retire?"
+          disabled={creating}
+          className="flex-1 rounded-ui-md border border-line-strong bg-panel px-4 py-2.5 text-[14px] text-content placeholder:text-content-faint shadow-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-ring)]"
+        />
+        <Button type="submit" disabled={creating || !composer.trim()}>
+          Ask
+        </Button>
+      </form>
+      {thread && messages.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="mt-2.5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-content-muted hover:text-content transition-colors"
         >
-          <input
-            value={composer}
-            onChange={(e) => setComposer(e.target.value)}
-            placeholder="Am I on track to retire?"
-            disabled={creating}
-            className="flex-1 rounded-ui-md border border-line-strong bg-panel px-4 py-2.5 text-[14px] text-content placeholder:text-content-faint shadow-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-ring)]"
-          />
-          <Button type="submit" disabled={creating || !composer.trim()}>
-            Ask
-          </Button>
-        </form>
+          View conversation ({messages.length})
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+        </button>
       )}
     </div>
   );
@@ -1248,10 +1350,14 @@ export function FinancialPlanDetailPage() {
   // conditional Income-sources / What-if sections.
   const hasIncomeSources = Boolean(themeBody(narrative, "income_sources"));
   const hasWhatIf = Boolean(whatIfs && whatIfs.scenarios.length > 0);
+  // When goals are unset, the Goals section is a hollow invitation, so it must
+  // not lead the report or print. In that case it's rendered last on-screen as
+  // an un-numbered CTA and dropped from print, so it never consumes a "01".
+  const emptyGoals = goalsEmpty(goals);
   let sectionCount = 0;
   const nextSection = () => String(++sectionCount).padStart(2, "0");
   // Fixed leading sections, then the conditional ones in render order.
-  const goalsNo = nextSection();
+  const goalsNo = emptyGoals ? "" : nextSection();
   const snapshotNo = nextSection();
   const portfolioNo = nextSection();
   const retirementNo = nextSection();
@@ -1285,7 +1391,7 @@ export function FinancialPlanDetailPage() {
   const exWhatIf = fig.whatIf ? nextExhibit() : 0;
 
   return (
-    <div className="plan-print-root mx-auto max-w-[720px] px-5 sm:px-8 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="plan-print-root mx-auto max-w-[760px] px-6 sm:px-10 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       <button
         onClick={() => navigate("/financial-plans")}
         className="plan-print-hide inline-flex items-center gap-1.5 text-[13px] font-semibold text-content-muted hover:text-content transition-colors"
@@ -1346,7 +1452,7 @@ export function FinancialPlanDetailPage() {
                 it doesn't double with the cover). */}
             <header className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between print:hidden">
               <div className="min-w-0">
-                <div className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-content-muted">
+                <div className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-content-muted">
                   Financial Plan
                 </div>
                 <h1 className="mt-2 font-editorial text-[34px] sm:text-[46px] font-bold leading-[1.03] tracking-[-0.028em] text-content">
@@ -1394,12 +1500,12 @@ export function FinancialPlanDetailPage() {
               report reads exactly as before. */}
           {narrative?.executiveSummary?.trim() && (
             <div className="plan-exec-summary mt-10">
-              <div className="plan-prose max-w-[620px] space-y-4">
+              <div className="plan-prose max-w-[620px] space-y-3.5">
                 {splitParagraphs(narrative.executiveSummary)
                   .map((p, i) => (
                     <p
                       key={i}
-                      className="text-[17px] sm:text-[18px] leading-[1.6] tracking-[-0.005em] text-content"
+                      className="text-[16.5px] leading-[1.55] tracking-[-0.01em] text-content"
                     >
                       {p}
                     </p>
@@ -1409,13 +1515,17 @@ export function FinancialPlanDetailPage() {
           )}
 
           {/* Goals section — the user's stated intent frames the plan, so it
-              leads. Its CTA seeds the plan chat's goals intake above. */}
-          <GoalsSectionView
-            goals={goals}
-            onComplete={() => setGoalsSeed((n) => n + 1)}
-            sectionNo={goalsNo}
-            namedGoalsExhibit={exNamedGoals}
-          />
+              leads when set. When unset it's a hollow invitation, so it's moved
+              after the computed sections (and dropped from print) rather than
+              opening the report on an empty section. */}
+          {!emptyGoals && (
+            <GoalsSectionView
+              goals={goals}
+              onComplete={() => setGoalsSeed((n) => n + 1)}
+              sectionNo={goalsNo}
+              namedGoalsExhibit={exNamedGoals}
+            />
+          )}
 
           {/* Financial Snapshot section */}
           <ReportSection n={snapshotNo} label="Financial snapshot">
@@ -1423,31 +1533,23 @@ export function FinancialPlanDetailPage() {
             <ThemeLede body={themeBody(narrative, "situation")} />
 
             {/* Net worth headline + supporting KPIs as borderless rows. */}
-            <div className="mt-6 grid grid-cols-1 divide-y divide-line min-[640px]:grid-cols-3 min-[640px]:divide-x min-[640px]:divide-y-0">
+            <div className="mt-6 max-w-[720px] grid grid-cols-1 divide-y divide-line min-[640px]:grid-cols-3 min-[640px]:divide-x min-[640px]:divide-y-0">
               <div className="py-4 min-[640px]:py-0 min-[640px]:pr-6">
-                <Stat label="Net worth" value={formatMoney(snapshot.netWorth)} />
+                <Stat label="Net worth" value={formatMoney(snapshot.netWorth, true)} />
               </div>
               <div className="py-4 min-[640px]:py-0 min-[640px]:px-6">
-                <Stat
-                  label="Total assets"
-                  value={formatMoney(snapshot.totalAssets)}
-                  caption="Across your linked accounts"
-                />
+                <Stat label="Total assets" value={formatMoney(snapshot.totalAssets, true)} />
               </div>
               <div className="py-4 min-[640px]:py-0 min-[640px]:pl-6">
-                <Stat
-                  label="Total debt"
-                  value={formatMoney(snapshot.totalDebt)}
-                  caption="Credit and loans"
-                />
+                <Stat label="Total debt" value={formatMoney(snapshot.totalDebt, true)} />
               </div>
             </div>
 
             {/* Monthly spending / income line — quiet prose, not a card. */}
-            <p className="mt-6 max-w-[620px] text-[13.5px] text-content-muted ui-tnum">
-              Monthly spending {formatMoney(snapshot.monthlySpend)} (previous calendar month)
+            <p className="mt-6 max-w-[720px] text-[13.5px] text-content-muted ui-tnum">
+              Monthly spending {formatMoney(snapshot.monthlySpend, true)} (previous calendar month)
               {snapshot.annualIncome != null && (
-                <> · Annual income {formatMoney(snapshot.annualIncome)}</>
+                <> · Annual income {formatMoney(snapshot.annualIncome, true)}</>
               )}
               {snapshot.age != null && <> · Age {snapshot.age}</>}
             </p>
@@ -1474,7 +1576,7 @@ export function FinancialPlanDetailPage() {
                         {label}
                       </span>
                       <span className="ui-tnum text-[13px] font-bold text-content">
-                        {formatMoney(total)}
+                        {formatMoney(total, true)}
                       </span>
                     </div>
                     <div
@@ -1516,7 +1618,7 @@ export function FinancialPlanDetailPage() {
                             </span>
                           </span>
                           <span className="ui-tnum font-bold text-content shrink-0">
-                            {formatMoney(b.value)}
+                            {formatMoney(b.value, true)}
                           </span>
                         </li>
                       ))}
@@ -1525,7 +1627,7 @@ export function FinancialPlanDetailPage() {
                 );
               })()
             ) : (
-              <p className="mt-6 max-w-[620px] text-[15.5px] leading-[1.72] text-content-muted">
+              <p className="mt-6 max-w-[660px] text-[14.5px] leading-[1.56] text-content-muted">
                 No account balances to break down yet. Link accounts to see assets vs debt.
               </p>
             )}
@@ -1616,6 +1718,20 @@ export function FinancialPlanDetailPage() {
               </>
             }
           />
+
+          {/* Goals invitation — only when unset. An un-numbered CTA at the foot
+              of the on-screen report so it never leads; the whole block is
+              print-hidden so the static PDF shows no "ask in chat" copy. */}
+          {emptyGoals && (
+            <div className="plan-print-hide">
+              <GoalsSectionView
+                goals={goals}
+                onComplete={() => setGoalsSeed((n) => n + 1)}
+                sectionNo={goalsNo}
+                namedGoalsExhibit={exNamedGoals}
+              />
+            </div>
+          )}
 
           {/* Legal disclaimer — print only, closes the report. Reuses the
               projections copy so it stays single-sourced with the app. The

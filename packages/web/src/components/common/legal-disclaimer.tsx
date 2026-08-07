@@ -14,18 +14,7 @@ export function LegalDisclaimer({ variant }: { variant: Variant }) {
   if (tenant?.plan !== 'pro') return null;
 
   return (
-    <p
-      style={{
-        fontSize: 11,
-        lineHeight: 1.45,
-        color: 'var(--lf-muted)',
-        fontFamily: "'JetBrains Mono', monospace",
-        margin: 0,
-        padding: '6px 16px',
-        textAlign: 'center',
-        letterSpacing: '0.01em',
-      }}
-    >
+    <p className="px-4 py-1.5 text-[11.5px] leading-[1.45] text-content-faint">
       {DISCLAIMER_COPY[variant]}
     </p>
   );
