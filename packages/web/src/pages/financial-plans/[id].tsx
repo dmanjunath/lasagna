@@ -1010,13 +1010,15 @@ function PrintCover({
   preparedFor,
   dateLabel,
   assumptions,
+  soldProperties,
 }: {
   title: string;
   preparedFor: string | null;
   dateLabel: string;
   assumptions: PlanAssumptions | null;
+  soldProperties: { id: string; name: string; netEquity: number }[];
 }) {
-  const assumptionNote = assumptionLabels(assumptions);
+  const assumptionNote = assumptionLabels(assumptions, soldProperties);
   return (
     <div className="plan-print-only plan-print-cover">
       {/* Masthead lockup */}
@@ -1053,8 +1055,8 @@ function PrintCover({
               Assumptions
             </div>
             <ul className="mt-2 space-y-1">
-              {assumptionNote.map(({ field, label }) => (
-                <li key={field} className="text-[13.5px] font-semibold text-content-secondary ui-tnum">
+              {assumptionNote.map(({ key, label }) => (
+                <li key={key} className="text-[13.5px] font-semibold text-content-secondary ui-tnum">
                   {label}
                 </li>
               ))}
@@ -1073,25 +1075,46 @@ function PrintCover({
 
 // ── Assumptions applied ───────────────────────────────────────────────────────
 
-// The active plan-change assumptions as field/label pairs, single-sourced so the
-// on-screen chips and the print-only cover note read identically. Empty when no
-// assumptions are applied.
+// One applied-assumption chip. `remove` is what the × sends to the assumptions
+// PATCH to clear THIS chip: a scalar field cleared to null, or a specific sold
+// property removed from the soldPropertyAccountIds list. `key` is a stable React
+// key (also the pending-state token). Single-sourced so the on-screen chips and
+// the print-only cover note read identically.
+type AssumptionChip = {
+  key: string;
+  label: string;
+  remove:
+    | { [K in keyof PlanAssumptions]?: PlanAssumptions[K] | null }
+    | { unsellPropertyAccountId: string };
+};
+
+// The active plan-change assumptions as chips. `soldProperties` (name + net
+// equity, resolved server-side and carried on the snapshot) supplies the sold-
+// property labels; assumptions alone only carry account ids.
 function assumptionLabels(
   assumptions: PlanAssumptions | null,
-): { field: keyof PlanAssumptions; label: string }[] {
+  soldProperties: { id: string; name: string; netEquity: number }[] = [],
+): AssumptionChip[] {
   if (!assumptions) return [];
-  const chips: { field: keyof PlanAssumptions; label: string }[] = [];
+  const chips: AssumptionChip[] = [];
   if (assumptions.includeSocialSecurity === false)
-    chips.push({ field: "includeSocialSecurity", label: "Social Security excluded" });
+    chips.push({ key: "includeSocialSecurity", label: "Social Security excluded", remove: { includeSocialSecurity: null } });
   if (assumptions.retirementAge !== undefined)
-    chips.push({ field: "retirementAge", label: `Retirement age ${assumptions.retirementAge}` });
+    chips.push({ key: "retirementAge", label: `Retirement age ${assumptions.retirementAge}`, remove: { retirementAge: null } });
   if (assumptions.expectedReturn !== undefined)
     chips.push({
-      field: "expectedReturn",
+      key: "expectedReturn",
       label: `Assumes ${(assumptions.expectedReturn * 100).toFixed(assumptions.expectedReturn * 100 % 1 === 0 ? 0 : 1)}% returns`,
+      remove: { expectedReturn: null },
     });
   if (assumptions.monthlySpend !== undefined)
-    chips.push({ field: "monthlySpend", label: `Spending ${formatMoney(assumptions.monthlySpend, true)}/mo` });
+    chips.push({ key: "monthlySpend", label: `Spending ${formatMoney(assumptions.monthlySpend, true)}/mo`, remove: { monthlySpend: null } });
+  for (const p of soldProperties)
+    chips.push({
+      key: `sold:${p.id}`,
+      label: `Sold ${p.name} (~${formatMoney(p.netEquity, true)} reinvested)`,
+      remove: { unsellPropertyAccountId: p.id },
+    });
   return chips;
 }
 
@@ -1102,15 +1125,17 @@ function assumptionLabels(
 // own static assumptions note instead (chips are interactive, so they drop).
 function AssumptionsApplied({
   assumptions,
+  soldProperties,
   onRemove,
   pending,
 }: {
   assumptions: PlanAssumptions | null;
-  onRemove: (field: keyof PlanAssumptions) => void;
-  /** The field currently being cleared (its chip shows a busy, disabled state). */
-  pending: keyof PlanAssumptions | null;
+  soldProperties: { id: string; name: string; netEquity: number }[];
+  onRemove: (chip: AssumptionChip) => void;
+  /** The chip key currently being cleared (its chip shows a busy, disabled state). */
+  pending: string | null;
 }) {
-  const chips = assumptionLabels(assumptions);
+  const chips = assumptionLabels(assumptions, soldProperties);
   if (chips.length === 0) return null;
 
   return (
@@ -1119,19 +1144,19 @@ function AssumptionsApplied({
         Assumptions applied
       </span>
       <div className="flex flex-wrap items-center gap-1.5">
-        {chips.map(({ field, label }) => {
-          const busy = pending === field;
+        {chips.map((chip) => {
+          const busy = pending === chip.key;
           return (
             <span
-              key={field}
+              key={chip.key}
               className="inline-flex items-center gap-1 rounded-full border border-line-strong bg-panel py-0.5 pl-2.5 pr-1 text-[12.5px] font-semibold text-content-secondary shadow-ui-sm"
             >
-              <span className="ui-tnum">{label}</span>
+              <span className="ui-tnum">{chip.label}</span>
               <button
                 type="button"
-                onClick={() => onRemove(field)}
+                onClick={() => onRemove(chip)}
                 disabled={busy}
-                aria-label={`Remove: ${label}`}
+                aria-label={`Remove: ${chip.label}`}
                 className="-my-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-content-faint transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-ring)]"
               >
                 <X className="h-3 w-3" strokeWidth={2.5} />
@@ -1156,8 +1181,8 @@ export function FinancialPlanDetailPage() {
   // The Goals "Complete your goals" CTA bumps this counter to seed the plan
   // chat's goals intake; PlanChat reacts to the count change.
   const [goalsSeed, setGoalsSeed] = useState(0);
-  // The assumption field whose chip is being cleared (drives its busy state).
-  const [removingAssumption, setRemovingAssumption] = useState<keyof PlanAssumptions | null>(null);
+  // The assumption chip currently being cleared (drives its busy state).
+  const [removingAssumption, setRemovingAssumption] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -1193,13 +1218,14 @@ export function FinancialPlanDetailPage() {
       });
   };
 
-  // Clear one applied assumption (the chip's × affordance): PATCH null for that
-  // field, which regenerates the plan, then swap in the returned plan state.
-  const removeAssumption = (field: keyof PlanAssumptions) => {
+  // Clear one applied assumption (the chip's × affordance): PATCH the chip's own
+  // remove payload (a scalar field to null, or an unsell), which regenerates the
+  // plan, then swap in the returned plan state.
+  const removeAssumption = (chip: AssumptionChip) => {
     if (!id || removingAssumption) return;
-    setRemovingAssumption(field);
+    setRemovingAssumption(chip.key);
     api
-      .updateFinancialPlanAssumptions(id, { [field]: null })
+      .updateFinancialPlanAssumptions(id, chip.remove)
       .then(() =>
         api.getFinancialPlan(id).then((p) => setPlan(p)),
       )
@@ -1308,6 +1334,7 @@ export function FinancialPlanDetailPage() {
             preparedFor={user?.name ?? null}
             dateLabel={planCoverDate(snapshot.generatedAt)}
             assumptions={plan.assumptions}
+            soldProperties={snapshot.soldProperties ?? []}
           />
 
           {/* ── Masthead + chat: one "cover" zone, closed by a rule ──
@@ -1330,6 +1357,7 @@ export function FinancialPlanDetailPage() {
                 </p>
                 <AssumptionsApplied
                   assumptions={plan.assumptions}
+                  soldProperties={snapshot.soldProperties ?? []}
                   onRemove={removeAssumption}
                   pending={removingAssumption}
                 />

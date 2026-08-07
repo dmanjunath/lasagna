@@ -5,6 +5,7 @@ import { plans, planEdits, financialPlans } from "@lasagna/core";
 import { eq, and, ne } from "@lasagna/core";
 import { uiPayloadSchema } from "../types.js";
 import { resolvePlanGrounding, parseAssumptions } from "../../services/plan-grounding.js";
+import { fetchAccountsWithBalances } from "../../lib/account-balances.js";
 import {
   regeneratePlan,
   type PlanAssumptions,
@@ -127,7 +128,7 @@ export function createFinancialPlanTools(
 
     update_financial_plan_assumptions: tool({
       description:
-        "Apply a plan CHANGE that adjusts an assumption and regenerates THIS plan. Supported changes: exclude/restore Social Security (includeSocialSecurity false/true), override the retirement age, the expected return (a DECIMAL, e.g. 0.06 for 6%), and the monthly retirement spend (dollars). Only pass the fields the user asked to change; any field you omit keeps its current value (a merge, never a clobber). Do NOT use this for anything outside that set (e.g. selling a property, tax bracket); explain what you can and cannot adjust instead. After it returns, confirm in prose what changed.",
+        "Apply a plan CHANGE that adjusts an assumption and regenerates THIS plan. Supported changes: exclude/restore Social Security (includeSocialSecurity false/true), override the retirement age, the expected return (a DECIMAL, e.g. 0.06 for 6%), the monthly retirement spend (dollars), and hypothetically SELLING a property (sellPropertyAccountId = the real-estate account id from get_financial_plan's realEstate.properties). Selling removes that property and its mortgage and reinvests the net equity alongside the existing investments. Reverse a sale with unsellPropertyAccountId. Only pass the fields the user asked to change; any field you omit keeps its current value (a merge, never a clobber). Do NOT use this for anything outside that set (e.g. tax bracket); explain what you can and cannot adjust instead. After it returns, confirm in prose what changed.",
       // Only the assumption fields — the plan id is bound server-side to the
       // thread's plan, so the model never supplies (and can't request) a plan id.
       // No .min/.max on numbers and no string maxLength: those serialize to
@@ -137,6 +138,8 @@ export function createFinancialPlanTools(
         retirementAge: z.number().int().optional(),
         expectedReturn: z.number().optional(),
         monthlySpend: z.number().optional(),
+        sellPropertyAccountId: z.string().optional(),
+        unsellPropertyAccountId: z.string().optional(),
       }),
       // @ts-ignore
       execute: async (input: {
@@ -144,6 +147,8 @@ export function createFinancialPlanTools(
         retirementAge?: number;
         expectedReturn?: number;
         monthlySpend?: number;
+        sellPropertyAccountId?: string;
+        unsellPropertyAccountId?: string;
       }) => {
         // Load the bound plan, scoped to this tenant + user + non-archived, so
         // the agent can never write to another user's (or a deleted) plan.
@@ -180,6 +185,33 @@ export function createFinancialPlanTools(
           ...(input.monthlySpend !== undefined ? { monthlySpend: input.monthlySpend } : {}),
         };
 
+        // ── Sell / unsell a property (adjusts soldPropertyAccountIds) ───────────
+        // A sale must reference a real-estate account owned by THIS tenant. Load
+        // the tenant's properties once, validate the id, and on a bad/ambiguous id
+        // hand the list back so the agent can disambiguate (never guess-persist).
+        if (input.sellPropertyAccountId !== undefined || input.unsellPropertyAccountId !== undefined) {
+          const accts = await fetchAccountsWithBalances(tenantId);
+          const properties = accts.filter((a) => a.type === "real_estate");
+          const sold = new Set(merged.soldPropertyAccountIds ?? []);
+
+          if (input.sellPropertyAccountId !== undefined) {
+            const target = properties.find((p) => p.id === input.sellPropertyAccountId);
+            if (!target) {
+              return {
+                error: "Property not found",
+                properties: properties.map((p) => ({ id: p.id, name: p.name })),
+              };
+            }
+            sold.add(target.id); // dedup via the Set
+          }
+          if (input.unsellPropertyAccountId !== undefined) {
+            sold.delete(input.unsellPropertyAccountId); // reversible; no-op if absent
+          }
+
+          if (sold.size > 0) merged.soldPropertyAccountIds = [...sold];
+          else delete merged.soldPropertyAccountIds;
+        }
+
         let document: { sections?: DocumentSections };
         try {
           document = plan.document ? JSON.parse(plan.document) : {};
@@ -188,13 +220,18 @@ export function createFinancialPlanTools(
         }
         const sections = document.sections ?? {};
 
+        // An empty assumptions set persists as null (e.g. after unselling the
+        // last property), matching the route's convention so chips render nothing.
+        const hasAssumptions = Object.keys(merged).length > 0;
+        const nextAssumptions = hasAssumptions ? merged : null;
+
         // Persist the merged assumptions FIRST so a regen failure still records
         // the user's intent. Then regenerate into a NEW document and swap it in
         // only on success — a regen error leaves the stored document untouched
         // (never corrupts the plan) and reports regenerated:false.
         await db
           .update(financialPlans)
-          .set({ assumptions: JSON.stringify(merged) })
+          .set({ assumptions: hasAssumptions ? JSON.stringify(merged) : null })
           .where(
             and(
               eq(financialPlans.id, financialPlanId),
@@ -210,7 +247,7 @@ export function createFinancialPlanTools(
             tenantId,
             userId,
             { title: plan.title, sections },
-            merged,
+            nextAssumptions,
           );
           await db
             .update(financialPlans)
@@ -231,7 +268,7 @@ export function createFinancialPlanTools(
           );
         }
 
-        return { success: true, assumptions: merged, regenerated };
+        return { success: true, assumptions: nextAssumptions, regenerated };
       },
     }),
   };

@@ -21,8 +21,14 @@
 import { buildRetirementReadiness } from "./retirement-readiness.js";
 import { buildWhatIfSection } from "./what-if-section.js";
 import { buildNarrativeSection, type NarrativeSection } from "./narrative-section.js";
+import { buildFinancialSnapshot } from "./financial-snapshot.js";
 import { toCompactGrounding, resolvePersonContext } from "./plan-grounding.js";
-import { deriveSimOverrides, type PlanAssumptions } from "./plan-assumptions-overrides.js";
+import { fetchAccountsWithBalances } from "../lib/account-balances.js";
+import {
+  deriveSimOverrides,
+  computePropertySaleAdjustment,
+  type PlanAssumptions,
+} from "./plan-assumptions-overrides.js";
 import type { StoredSections } from "./plan-grounding.js";
 import type { WhatIfSection } from "./what-if-section.js";
 import type { SuggestionsSection } from "./suggestions-section.js";
@@ -69,8 +75,27 @@ export async function regeneratePlan(
 ): Promise<{ sections: DocumentSections }> {
   const { overrides, flatReturn } = deriveSimOverrides(assumptions);
 
+  // ── Property-sale reclassification — computed ONCE, threaded everywhere ──────
+  // Net equity from any hypothetically sold property (value − its linked
+  // mortgage) is added to investable; the sold property + mortgage drop from the
+  // asset/debt sums. Compute it here from the accounts snapshot and feed the SAME
+  // numbers to the snapshot, the sim (extraInvestable), and the grounding, so the
+  // three surfaces can't drift: net worth stays unchanged, only reclassified.
+  const soldIds = assumptions?.soldPropertyAccountIds;
+  const hasSale = !!soldIds && soldIds.length > 0;
+  const saleAdjustment = hasSale
+    ? computePropertySaleAdjustment(await fetchAccountsWithBalances(tenantId), soldIds)
+    : null;
+  const extraInvestable = saleAdjustment?.netEquity;
+
   // ── Retirement readiness — the analytical heart, re-run with the overrides ──
-  const retirement = await buildRetirementReadiness(tenantId, userId, overrides, flatReturn);
+  const retirement = await buildRetirementReadiness(
+    tenantId,
+    userId,
+    overrides,
+    flatReturn,
+    extraInvestable,
+  );
 
   // ── What-ifs — the same engine, same overrides as the base projection ───────
   // Only worth running when the base projection was computable, exactly like the
@@ -84,9 +109,27 @@ export async function regeneratePlan(
         retirement.successRate,
         overrides,
         flatReturn,
+        extraInvestable,
       );
     } catch (e) {
       console.error("[plan-assumptions] what-if regeneration failed:", e);
+    }
+  }
+
+  // ── Snapshot — rebuilt when a sale reclassifies balances (or is REVERSED) ────
+  // Scalar assumptions (SS / age / return / spend) don't touch the snapshot, so
+  // the stored one carries through untouched. But a sale moves value between
+  // buckets, and REVERSING one (soldProperties present on the stored snapshot but
+  // no sale now) must restore it — so rebuild whenever either is true. Passing a
+  // null adjustment rebuilds the plain, un-reclassified snapshot.
+  const storedSnapshot = plan.sections.snapshot ?? null;
+  let snapshot = storedSnapshot;
+  const needsSnapshotRebuild = !!saleAdjustment || !!storedSnapshot?.soldProperties?.length;
+  if (needsSnapshotRebuild) {
+    try {
+      snapshot = await buildFinancialSnapshot(tenantId, userId, saleAdjustment ?? undefined);
+    } catch (e) {
+      console.error("[plan-assumptions] snapshot regeneration failed:", e);
     }
   }
 
@@ -100,7 +143,7 @@ export async function regeneratePlan(
     const grounding = toCompactGrounding(
       "pending",
       plan.title,
-      { ...plan.sections, retirement },
+      { ...plan.sections, ...(snapshot ? { snapshot } : {}), retirement },
       person,
       assumptions,
     );
@@ -110,10 +153,12 @@ export async function regeneratePlan(
     console.error("[plan-assumptions] narrative regeneration failed:", e);
   }
 
-  // Reuse snapshot / portfolio / goals / suggestions verbatim — unaffected by the
-  // scalar overrides. Swap in the freshly-built retirement, what-ifs, narrative.
+  // Reuse portfolio / goals / suggestions verbatim — unaffected by these overrides.
+  // Swap in the freshly-built retirement, what-ifs, narrative, and (on a sale) the
+  // reclassified snapshot.
   const sections: DocumentSections = {
     ...plan.sections,
+    ...(snapshot ? { snapshot } : {}),
     retirement,
     ...(whatIfs ? { whatIfs } : {}),
     ...(narrative ? { narrative } : {}),

@@ -45,6 +45,11 @@ export async function resolveSimInputs(
   // as a flat map over EVERY asset class. It must land AFTER the holdings-derived
   // `assetClassReturns` re-attach below, which would otherwise clobber it.
   flatReturn?: number,
+  // Extra investable dollars to fold into the starting balance — e.g. the net
+  // equity from a hypothetically SOLD property, reinvested at the current
+  // allocation. It just grows as part of startingBalance at the blended return
+  // (no allocation change), so the reinvest-at-current-mix assumption holds.
+  extraInvestable?: number,
 ): Promise<SimInputs> {
   // ── Allocation + holdings-derived returns ────────────────────────────────────
   const holdingsInput = await getHoldingsInput(tenantId);
@@ -71,6 +76,10 @@ export async function resolveSimInputs(
     if (!(a.rawBalance > 0)) continue;
     startingBalance += a.rawBalance;
   }
+  // Fold in reinvested property-sale net equity. Real estate was never in the
+  // investment/depository sum above, so this is a clean add — the sim grows it at
+  // the blended return alongside the rest of the portfolio.
+  if (extraInvestable) startingBalance += extraInvestable;
   startingBalance = Math.round(startingBalance);
 
   // ── Personal profile (per-user) ─────────────────────────────────────────────

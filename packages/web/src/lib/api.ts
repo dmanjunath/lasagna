@@ -357,7 +357,9 @@ export const api = {
   // regenerate the plan document. Used by the "Assumptions applied" chip remove.
   updateFinancialPlanAssumptions: (
     id: string,
-    patch: { [K in keyof PlanAssumptions]?: PlanAssumptions[K] | null },
+    patch:
+      | { [K in keyof PlanAssumptions]?: PlanAssumptions[K] | null }
+      | { unsellPropertyAccountId: string },
   ) =>
     request<{
       success: boolean;

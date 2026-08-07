@@ -218,4 +218,34 @@ describe("resolvePersonContext (integration)", () => {
     expect(Array.isArray(ctx.goals)).toBe(true);
     expect(Array.isArray(ctx.guaranteedIncome)).toBe(true);
   });
+
+  it("a sold property drops out of realEstate and surfaces in soldProperties", async () => {
+    if (!dbAvailable || !tenantId || !userId || !propertyId) {
+      console.warn("SKIP: no DB / no seeded tenant with a real-estate account");
+      return;
+    }
+    // Baseline: the patched property (with its linked mortgage + rent) is present.
+    const before = await resolvePersonContext(tenantId, userId);
+    const soldName = before.realEstate!.properties.find((p) => p.id === propertyId)!.name;
+    expect(before.realEstate!.properties.some((p) => p.id === propertyId)).toBe(true);
+    expect(before.guaranteedIncome.some((g) => g.source === "Rental income")).toBe(true);
+
+    // Sell it. Its net equity = value − linked mortgage.
+    const after = await resolvePersonContext(tenantId, userId, {
+      soldPropertyAccountIds: [propertyId],
+    });
+
+    // The sold property is gone from realEstate (never cited again) and its rent
+    // no longer contributes to guaranteed income.
+    const stillListed = after.realEstate?.properties.some((p) => p.id === propertyId) ?? false;
+    expect(stillListed).toBe(false);
+    expect(after.guaranteedIncome.some((g) => g.source === "Rental income")).toBe(false);
+
+    // It surfaces in soldProperties with the net equity that was reclassified.
+    const sold = after.soldProperties.find((p) => p.name === soldName);
+    expect(sold).toBeTruthy();
+    // netEquity = the property's value − its linked mortgage (MORTGAGE_BALANCE).
+    const propVal = before.realEstate!.properties.find((p) => p.id === propertyId)!.value;
+    expect(sold!.netEquity).toBeCloseTo(propVal - MORTGAGE_BALANCE, 0);
+  });
 });

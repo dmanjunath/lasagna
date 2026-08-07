@@ -14,6 +14,7 @@
 import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
 import { computeSpendingTotal, defaultSpendingWindow } from "../lib/spending.js";
 import { readUserPersonalProfile } from "../lib/profile-resolver.js";
+import type { PropertySaleAdjustment } from "./plan-assumptions-overrides.js";
 
 export interface SnapshotBreakdownItem {
   /** "asset" or "debt" — drives the assets-vs-debt visual. */
@@ -34,6 +35,12 @@ export interface FinancialSnapshotSection {
   annualIncome: number | null;
   /** Per-type magnitudes for charts, largest first. */
   breakdown: SnapshotBreakdownItem[];
+  /**
+   * Properties the reader hypothetically sold (name + net equity reclassified
+   * into investable). Present only when a sale assumption is applied; drives the
+   * on-screen chip and the PDF assumptions note. Empty/absent when none sold.
+   */
+  soldProperties?: { id: string; name: string; netEquity: number }[];
   generatedAt: string;
 }
 
@@ -52,8 +59,14 @@ function ageFromDob(dob: Date): number {
 export async function buildFinancialSnapshot(
   tenantId: string,
   userId: string,
+  // A property-sale reclassification (net equity moved into investable, the sold
+  // property + its mortgage excluded from the asset/debt sums). Net worth is
+  // UNCHANGED — a sale reclassifies value, it doesn't create or destroy it. When
+  // omitted, the snapshot is the plan's raw balances.
+  saleAdjustment?: PropertySaleAdjustment,
 ): Promise<FinancialSnapshotSection> {
   const accts = await fetchAccountsWithBalances(tenantId);
+  const excludedIds = new Set(saleAdjustment?.excludedAccountIds ?? []);
 
   // Aggregate assets vs debt per account type. Excluded accounts drop out
   // (matching net-worth conventions); liabilities count toward debt on their
@@ -65,6 +78,9 @@ export async function buildFinancialSnapshot(
 
   for (const a of accts) {
     if (a.excludeFromNetWorth) continue;
+    // Sold property + its linked mortgage drop out; their net equity is added
+    // back below as investable, so net worth stays unchanged (a reclassification).
+    if (excludedIds.has(a.id)) continue;
     if (LIABILITY_TYPES.has(a.type)) {
       const bal = Math.abs(a.effectiveBalance);
       if (bal === 0) continue;
@@ -76,6 +92,16 @@ export async function buildFinancialSnapshot(
       totalAssets += bal;
       assetByType.set(a.type, (assetByType.get(a.type) ?? 0) + bal);
     }
+  }
+
+  // Reclassify the sold properties' net equity into investable. Added to total
+  // assets AND to the investment breakdown bucket so the assets-vs-debt visual
+  // reconciles; net worth is unchanged because the excluded property value and
+  // mortgage that used to net to this same equity were dropped above.
+  const netEquity = saleAdjustment?.netEquity ?? 0;
+  if (netEquity !== 0) {
+    totalAssets += netEquity;
+    assetByType.set("investment", (assetByType.get("investment") ?? 0) + netEquity);
   }
 
   const breakdown: SnapshotBreakdownItem[] = [
@@ -99,6 +125,9 @@ export async function buildFinancialSnapshot(
     age,
     annualIncome,
     breakdown,
+    ...(saleAdjustment && saleAdjustment.soldProperties.length > 0
+      ? { soldProperties: saleAdjustment.soldProperties }
+      : {}),
     generatedAt: new Date().toISOString(),
   };
 }

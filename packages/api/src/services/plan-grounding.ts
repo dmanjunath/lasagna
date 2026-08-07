@@ -31,7 +31,11 @@ import type { FinancialSnapshotSection } from "./financial-snapshot.js";
 import type { PortfolioSection } from "./portfolio-section.js";
 import type { RetirementReadinessSection } from "./retirement-readiness.js";
 import type { GoalsSection } from "./goals-section.js";
-import { deriveSimOverrides, type PlanAssumptions } from "./plan-assumptions-overrides.js";
+import {
+  deriveSimOverrides,
+  computePropertySaleAdjustment,
+  type PlanAssumptions,
+} from "./plan-assumptions-overrides.js";
 
 export interface StoredSections {
   snapshot?: FinancialSnapshotSection;
@@ -54,6 +58,8 @@ export interface StoredSections {
 export interface PersonContext {
   realEstate: {
     properties: {
+      /** The property's account id, so the agent can pass it as sellPropertyAccountId. */
+      id: string;
       name: string;
       /** Property market value (its account balance). */
       value: number;
@@ -125,6 +131,12 @@ export interface PersonContext {
     marketValue: number;
     unrealizedGain: number;
   } | null;
+  /**
+   * Properties the reader hypothetically SOLD (name + net equity), resolved from
+   * the plan's assumptions so both the narrative and the applied-assumptions
+   * summary can cite them from one source. Empty when none sold.
+   */
+  soldProperties: { name: string; netEquity: number }[];
 }
 
 export interface CompactPlanGrounding {
@@ -205,11 +217,26 @@ export interface AppliedAssumptions {
   expectedReturnOverride?: number;
   /** The monthly retirement spend (dollars) the reader assumed. */
   monthlySpendOverride?: number;
+  /**
+   * Properties the reader hypothetically SOLD, with the net equity reinvested at
+   * the current allocation. Present so the narrative frames the sale plainly ("we
+   * assume the primary residence is sold and ~$X is reinvested") instead of citing
+   * an asset the reader has removed. Empty/absent when nothing was sold.
+   */
+  soldProperties?: { name: string; netEquity: number }[];
+  /** Total net equity reinvested from all sold properties (sum of the above). */
+  reinvestedFromSales?: number;
 }
 
-/** Summarize a plan's assumptions into the narrative-facing scenario, or null when none apply. */
+/**
+ * Summarize a plan's assumptions into the narrative-facing scenario, or null when
+ * none apply. `saleSummary` (the sold-property display info the person context
+ * resolved) is threaded in so the narrative can name each sold property and cite
+ * the reinvested equity, without re-deriving the linkage math.
+ */
 function summarizeAppliedAssumptions(
   assumptions: PlanAssumptions | null,
+  saleSummary?: { name: string; netEquity: number }[],
 ): AppliedAssumptions | null {
   if (!assumptions) return null;
   const applied: AppliedAssumptions = {};
@@ -217,6 +244,10 @@ function summarizeAppliedAssumptions(
   if (assumptions.retirementAge !== undefined) applied.retirementAgeOverride = assumptions.retirementAge;
   if (assumptions.expectedReturn !== undefined) applied.expectedReturnOverride = assumptions.expectedReturn;
   if (assumptions.monthlySpend !== undefined) applied.monthlySpendOverride = assumptions.monthlySpend;
+  if (saleSummary && saleSummary.length > 0) {
+    applied.soldProperties = saleSummary;
+    applied.reinvestedFromSales = saleSummary.reduce((s, p) => s + p.netEquity, 0);
+  }
   return Object.keys(applied).length > 0 ? applied : null;
 }
 
@@ -295,7 +326,7 @@ export function toCompactGrounding(
       : null,
     goals: g ?? null,
     person,
-    appliedAssumptions: summarizeAppliedAssumptions(assumptions),
+    appliedAssumptions: summarizeAppliedAssumptions(assumptions, person?.soldProperties),
   };
 }
 
@@ -320,16 +351,25 @@ export async function resolvePersonContext(
 ): Promise<PersonContext> {
   const { overrides, flatReturn } = deriveSimOverrides(assumptions ?? null);
 
+  // The sim needs the property-sale reclassification (reinvested net equity) to
+  // land in its starting balance, but that adjustment needs the accounts we fetch
+  // below. So fetch accounts first, compute the adjustment, THEN resolve the sim
+  // inputs with the extra investable folded in — keeping the person context's
+  // socialSecurity/verdict inputs in lockstep with the snapshot and readiness.
+  const accts = await fetchAccountsWithBalances(tenantId);
+  const saleAdjustment = computePropertySaleAdjustment(accts, assumptions?.soldPropertyAccountIds);
+
   // resolveSimInputs (and getHoldingsInput below) are imported lazily: they pull
   // in portfolio.ts → security-classifier.ts, which reads @lasagna/core exports
   // at module load. A static import would eagerly drag that graph into unrelated
   // test suites that only partially mock @lasagna/core.
   const simInputsP = import("./resolve-sim-inputs.js")
-    .then((m) => m.resolveSimInputs(tenantId, userId, overrides, flatReturn))
+    .then((m) =>
+      m.resolveSimInputs(tenantId, userId, overrides, flatReturn, saleAdjustment.netEquity),
+    )
     .catch(() => null);
 
-  const [accts, profile, simInputs, goalRows, taxDoc] = await Promise.all([
-    fetchAccountsWithBalances(tenantId),
+  const [profile, simInputs, goalRows, taxDoc] = await Promise.all([
     readResolvedProfile(tenantId, userId).catch(() => null),
     simInputsP,
     db.query.goals
@@ -344,18 +384,25 @@ export async function resolvePersonContext(
   ]);
 
   // ── Real estate + linked mortgages (via accounts.propertyAccountId FK) ───────
+  // A hypothetically SOLD property (and its linked mortgage) drops out entirely,
+  // so the narrative never cites an asset the reader removed; its net equity is
+  // already folded into the sim's investable via extraInvestable above.
+  const excludedIds = new Set(saleAdjustment.excludedAccountIds);
+
   // Sum every debt account's balance that points at a given property, so a
-  // property with more than one linked loan still nets correctly.
+  // property with more than one linked loan still nets correctly. Skip debts on
+  // sold properties (their mortgage is gone with the sale).
   const mortgageByProperty = new Map<string, number>();
   for (const a of accts) {
     if (!a.propertyAccountId) continue;
+    if (excludedIds.has(a.id)) continue;
     mortgageByProperty.set(
       a.propertyAccountId,
       (mortgageByProperty.get(a.propertyAccountId) ?? 0) + Math.abs(a.rawBalance),
     );
   }
 
-  const propertyRows = accts.filter((a) => a.type === "real_estate");
+  const propertyRows = accts.filter((a) => a.type === "real_estate" && !excludedIds.has(a.id));
   const properties = propertyRows.map((a) => {
     const meta = parsePropertyMetadata(a.metadata);
     const value = a.rawBalance;
@@ -369,6 +416,7 @@ export async function resolvePersonContext(
     const annualCarryingCosts = (annualInsurance ?? 0) + (annualMaintenance ?? 0);
     const netAnnualRent = annualRent != null ? annualRent - annualCarryingCosts : null;
     return {
+      id: a.id,
       name: a.name,
       value,
       mortgage,
@@ -392,6 +440,9 @@ export async function resolvePersonContext(
     .filter(
       (a) =>
         a.subtype === "mortgage" &&
+        // A sold property's linked mortgage is excluded, not "unlinked" — skip it
+        // so it isn't wrongly netted out of the remaining properties' equity.
+        !excludedIds.has(a.id) &&
         (!a.propertyAccountId || !propertyIds.has(a.propertyAccountId)),
     )
     .reduce((s, a) => s + Math.abs(a.rawBalance), 0);
@@ -479,6 +530,10 @@ export async function resolvePersonContext(
     })),
     taxDocumentSummary: taxDoc?.llmSummary ?? null,
     portfolioBasis,
+    soldProperties: saleAdjustment.soldProperties.map((p) => ({
+      name: p.name,
+      netEquity: p.netEquity,
+    })),
   };
 }
 

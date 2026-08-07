@@ -20,13 +20,16 @@ const createSchema = z.object({
   title: z.string().min(1).max(255).optional(),
 });
 
-// Assumptions PATCH — each supplied field is merged; a null clears that field
-// (the chip's remove affordance sends null). Slice (a) scalar fields only.
+// Assumptions PATCH — each supplied scalar field is merged; a null clears that
+// field (the chip's remove affordance sends null). `unsellPropertyAccountId`
+// removes one property from the sold list (the sold-property chip's × affordance),
+// reversing a sale.
 const assumptionsSchema = z.object({
   includeSocialSecurity: z.boolean().nullable().optional(),
   retirementAge: z.number().int().nullable().optional(),
   expectedReturn: z.number().nullable().optional(),
   monthlySpend: z.number().nullable().optional(),
+  unsellPropertyAccountId: z.string().optional(),
 });
 
 function safeJsonParse<T>(str: string | null, fallback: T): T {
@@ -260,6 +263,15 @@ financialPlansRouter.patch("/:id/assumptions", async (c) => {
     const v = body[key];
     if (v === null) delete merged[key];
     else (merged as Record<string, unknown>)[key] = v;
+  }
+  // Unsell one property (the sold-property chip's × affordance): drop it from the
+  // sold list; clearing the last one removes the field entirely.
+  if (body.unsellPropertyAccountId) {
+    const remaining = (merged.soldPropertyAccountIds ?? []).filter(
+      (id) => id !== body.unsellPropertyAccountId,
+    );
+    if (remaining.length > 0) merged.soldPropertyAccountIds = remaining;
+    else delete merged.soldPropertyAccountIds;
   }
   // An empty assumptions set persists as null (nothing applied → chips render nothing).
   const assumptionsJson = Object.keys(merged).length > 0 ? JSON.stringify(merged) : null;

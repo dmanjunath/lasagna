@@ -66,6 +66,7 @@ const grounding: CompactPlanGrounding = {
     realEstate: {
       properties: [
         {
+          id: "prop-primary-1",
           name: "Primary Residence",
           value: 620000,
           mortgage: 310000,
@@ -100,6 +101,7 @@ const grounding: CompactPlanGrounding = {
     goals: [],
     taxDocumentSummary: null,
     portfolioBasis: null,
+    soldProperties: [],
   },
   appliedAssumptions: null,
 };

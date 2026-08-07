@@ -101,6 +101,19 @@ describe("resolveSimInputs (integration)", () => {
     expect(resolved.currentAge).toBeGreaterThanOrEqual(18);
   });
 
+  it("extraInvestable folds into startingBalance by exactly that amount", async () => {
+    if (!dbAvailable || !tenantId) {
+      console.warn("SKIP: no DB / no seeded tenant with holdings");
+      return;
+    }
+    // A reinvested property-sale net equity is a clean add on top of the raw
+    // investable sum (real estate was never in that sum), so the starting balance
+    // rises by exactly the extra amount.
+    const base = await resolveSimInputs(tenantId, userId!);
+    const withEquity = await resolveSimInputs(tenantId, userId!, undefined, undefined, 250000);
+    expect(withEquity.startingBalance).toBe(base.startingBalance + 250000);
+  });
+
   it("applies overrides on top of resolved data", async () => {
     if (!dbAvailable || !tenantId) {
       console.warn("SKIP: no DB / no seeded tenant with holdings");

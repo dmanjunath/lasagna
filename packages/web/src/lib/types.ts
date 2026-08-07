@@ -464,6 +464,8 @@ export type FinancialSnapshotSection = {
   age: number | null;
   annualIncome: number | null;
   breakdown: FinancialSnapshotBreakdownItem[];
+  /** Properties the reader hypothetically sold (name + net equity reinvested). */
+  soldProperties?: { id: string; name: string; netEquity: number }[];
   generatedAt: string;
 };
 
@@ -653,6 +655,8 @@ export type PlanAssumptions = {
   /** Expected return as a decimal, e.g. 0.06 for 6%. */
   expectedReturn?: number;
   monthlySpend?: number;
+  /** Real-estate account ids the reader hypothetically sold (net equity reinvested). */
+  soldPropertyAccountIds?: string[];
 };
 
 export type FinancialPlan = FinancialPlanSummary & {

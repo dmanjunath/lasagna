@@ -120,6 +120,20 @@ vi.mock("../../services/plan-assumptions.js", () => ({
   regeneratePlan: (...args: Parameters<typeof regeneratePlanMock>) => regeneratePlanMock(...args),
 }));
 
+// The sell/unsell path validates the property id against the tenant's accounts.
+// Return a fixed set (scoped by the tenantId the tool passes) so the tests can
+// exercise a valid sale, a bad-id disambiguation, and cross-tenant scoping.
+const accountsByTenant: Record<string, { id: string; type: string; name: string; rawBalance: number; propertyAccountId: string | null }[]> = {
+  "tenant-1": [
+    { id: "home-1", type: "real_estate", name: "Primary Residence", rawBalance: 600000, propertyAccountId: null },
+    { id: "rental-1", type: "real_estate", name: "Rental Duplex", rawBalance: 300000, propertyAccountId: null },
+    { id: "brokerage-1", type: "investment", name: "Brokerage", rawBalance: 250000, propertyAccountId: null },
+  ],
+};
+vi.mock("../../lib/account-balances.js", () => ({
+  fetchAccountsWithBalances: async (tenantId: string) => accountsByTenant[tenantId] ?? [],
+}));
+
 import { createFinancialPlanTools } from "../tools/plans.js";
 
 // A representative stored document with all three sections plus the large arrays
@@ -418,5 +432,82 @@ describe("update_financial_plan_assumptions tool", () => {
     expect(result.error).toBe("Plan not found");
     expect(lastUpdate).toBeNull();
     expect(regeneratePlanMock).not.toHaveBeenCalled();
+  });
+
+  it("sells a valid property: pushes its id onto soldPropertyAccountIds and regenerates", async () => {
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const res = (await tools.update_financial_plan_assumptions.execute!(
+      { sellPropertyAccountId: "home-1" },
+      { messages: [], toolCallId: "t" },
+    )) as { success?: boolean; regenerated?: boolean; assumptions?: Record<string, unknown> };
+    expect(res.success).toBe(true);
+    expect(res.regenerated).toBe(true);
+    expect(res.assumptions).toEqual({ soldPropertyAccountIds: ["home-1"] });
+    expect(storedAssumptions()).toEqual({ soldPropertyAccountIds: ["home-1"] });
+  });
+
+  it("dedups a repeat sale and merges a second property into the list", async () => {
+    planTable[0].assumptions = JSON.stringify({ soldPropertyAccountIds: ["home-1"] });
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // Selling home-1 again is a no-op (dedup); selling rental-1 appends.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await tools.update_financial_plan_assumptions.execute!(
+      { sellPropertyAccountId: "home-1" },
+      { messages: [], toolCallId: "t" },
+    );
+    expect(storedAssumptions()).toEqual({ soldPropertyAccountIds: ["home-1"] });
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await tools.update_financial_plan_assumptions.execute!(
+      { sellPropertyAccountId: "rental-1" },
+      { messages: [], toolCallId: "t" },
+    );
+    expect((storedAssumptions()!.soldPropertyAccountIds as string[]).sort()).toEqual(["home-1", "rental-1"]);
+  });
+
+  it("unsell removes one property (reversible), clearing the field when empty", async () => {
+    planTable[0].assumptions = JSON.stringify({ soldPropertyAccountIds: ["home-1", "rental-1"] });
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await tools.update_financial_plan_assumptions.execute!(
+      { unsellPropertyAccountId: "home-1" },
+      { messages: [], toolCallId: "t" },
+    );
+    expect(storedAssumptions()).toEqual({ soldPropertyAccountIds: ["rental-1"] });
+    // Unselling the last one removes the field entirely.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await tools.update_financial_plan_assumptions.execute!(
+      { unsellPropertyAccountId: "rental-1" },
+      { messages: [], toolCallId: "t" },
+    );
+    expect(storedAssumptions()).toBeNull();
+  });
+
+  it("returns the property list (no write) for an id that isn't a real-estate account", async () => {
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const res = (await tools.update_financial_plan_assumptions.execute!(
+      { sellPropertyAccountId: "brokerage-1" }, // an investment, not real estate
+      { messages: [], toolCallId: "t" },
+    )) as { error?: string; properties?: { id: string; name: string }[] };
+    expect(res.error).toBe("Property not found");
+    expect(res.properties?.map((p) => p.id).sort()).toEqual(["home-1", "rental-1"]);
+    // Nothing persisted, nothing regenerated.
+    expect(storedAssumptions()).toBeNull();
+    expect(regeneratePlanMock).not.toHaveBeenCalled();
+  });
+
+  it("scopes property validation to the tenant: another tenant's plan sees no properties", async () => {
+    planTable = [
+      { id: PLAN_ID, tenantId: "tenant-2", userId: "user-a", title: "Other tenant", document: JSON.stringify(DOCUMENT), assumptions: null, status: "draft" },
+    ];
+    const tools = createFinancialPlanTools("tenant-2", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const res = (await tools.update_financial_plan_assumptions.execute!(
+      { sellPropertyAccountId: "home-1" }, // belongs to tenant-1, invisible here
+      { messages: [], toolCallId: "t" },
+    )) as { error?: string; properties?: { id: string }[] };
+    expect(res.error).toBe("Property not found");
+    expect(res.properties).toEqual([]);
   });
 });

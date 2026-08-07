@@ -179,8 +179,11 @@ export async function buildRetirementReadiness(
   // the resolved sim inputs so the readiness verdict reconciles with the change.
   overrides?: Partial<SimInputs>,
   flatReturn?: number,
+  // Extra investable dollars (reinvested property-sale net equity) folded into
+  // the sim's starting balance, so the verdict reflects the sale.
+  extraInvestable?: number,
 ): Promise<RetirementReadinessSection> {
-  const inputs = await resolveSimInputs(tenantId, userId, overrides, flatReturn);
+  const inputs = await resolveSimInputs(tenantId, userId, overrides, flatReturn, extraInvestable);
   const accts = await fetchAccountsWithBalances(tenantId);
   const drawdownOrder = buildDrawdownOrder(accts);
   const generatedAt = new Date().toISOString();
