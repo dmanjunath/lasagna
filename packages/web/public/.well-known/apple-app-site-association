@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["ZEMCJ3HX4F.com.lasagnafi.app"],
+        "components": [{ "/": "/billing/success*" }]
+      }
+    ]
+  }
+}

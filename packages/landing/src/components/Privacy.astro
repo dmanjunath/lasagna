@@ -1,0 +1,38 @@
+---
+import { GITHUB_URL } from "../config";
+---
+
+<!-- PRIVACY / OPEN SOURCE (dark band) -->
+<section class="band" id="privacy">
+  <div class="wrap">
+    <div class="priv rv">
+      <div class="in">
+        <div class="priv-copy">
+          <span class="eyebrow on-dark">Private by design</span>
+          <h2 class="display">Hide your identity<br />from the AI.</h2>
+          <p>Before any question reaches ChatGPT or Claude, your identity is stripped and tokenized. The model reasons over balances and ratios, never your name, bank, or account numbers. Connections are read-only.</p>
+          <p class="oss">The core and the scrub layer are <a href={GITHUB_URL}>open source</a>. Host it yourself if you'd rather keep everything on your own server.</p>
+        </div>
+        <div class="scrub">
+          <div class="scol">
+            <div class="h">Your data</div>
+            <div class="f"><span class="k">holder</span><span class="v red">Jane Richter</span></div>
+            <div class="f"><span class="k">bank</span><span class="v red">First National</span></div>
+            <div class="f"><span class="k">acct</span><span class="v red">****9821</span></div>
+            <div class="f"><span class="k">balance</span><span class="v keep">$48,230.14</span></div>
+            <div class="f"><span class="k">savings rate</span><span class="v keep">22.4%</span></div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="scol sent">
+            <div class="h">Sent to the AI</div>
+            <div class="f"><span class="k">holder</span><span class="v tok">user_0xA2</span></div>
+            <div class="f"><span class="k">bank</span><span class="v tok">[redacted]</span></div>
+            <div class="f"><span class="k">acct</span><span class="v tok">acct_01</span></div>
+            <div class="f"><span class="k">balance</span><span class="v keep">$48,230.14</span></div>
+            <div class="f"><span class="k">savings rate</span><span class="v keep">22.4%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

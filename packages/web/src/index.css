@@ -1,0 +1,3123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   LASAGNAFI BRAND TOKENS
+   Warm earthy palette — cream, ink, sauce (terracotta), cheese,
+   basil, noodle. These cascade into the Tailwind color system.
+   ============================================================ */
+
+@layer base {
+  /* ─────────────────────────────────────────────────────────────
+     THEME: MINTY (default)
+     Fresh emerald primary on pure white. Classic clean fintech.
+     ───────────────────────────────────────────────────────────── */
+  :root,
+  :root[data-theme="minty"] {
+    --lf-paper:      #FFFFFF;
+    --lf-surface:    #FFFFFF;
+    --lf-cream:      #F4F7F5;
+    --lf-cream-deep: #E2EDE7;
+    --lf-ink:        #0F172A;
+    --lf-ink-soft:   #334155;
+    --lf-muted:      #64748B;
+    --lf-rule:       #E5E7EB;
+    --lf-rule-soft:  #EEF0F4;
+    --lf-rule-neutral: rgba(15, 23, 42, 0.06);
+    --lf-sauce:      #10B981;   /* brand accent → emerald */
+    --lf-sauce-deep: #059669;
+    --lf-cheese:     #F59E0B;
+    --lf-basil:      #10B981;
+    --lf-noodle:     #94A3B8;
+    --lf-crust:      #475569;
+    --lf-burgundy:   #B91C1C;
+    --lf-pos:        #10B981;
+    --lf-neg:        #EF4444;
+
+    --lf-data-1: #10B981;
+    --lf-data-2: #3B82F6;
+    --lf-data-3: #8B5CF6;
+    --lf-data-4: #F59E0B;
+    --lf-data-5: #EC4899;
+
+    --data-cash:        #10B981;
+    --data-investments: #3B82F6;
+    --data-assets:      #8B5CF6;
+    --data-debt:        #EF4444;
+
+    --color-bg:          255 255 255;
+    --color-bg-elevated: 249 250 251;
+    --color-bg-subtle:   226 237 231;
+
+    --color-surface:       255 255 255;
+    --color-surface-hover: 249 251 250;
+
+    --color-text:           15 23 42;
+    --color-text-secondary: 51 65 85;
+    --color-text-muted:     100 116 139;
+    --color-text-disabled:  203 213 225;
+
+    --color-accent:     16 185 129;
+    --color-accent-dim:  5 150 105;
+
+    --color-gold:       245 158 11;
+
+    --color-success:    16 185 129;
+    --color-warning:    245 158 11;
+    --color-danger:     239 68 68;
+
+    --color-border:        rgba(15, 23, 42, 0.08);
+    --color-border-light:  rgba(15, 23, 42, 0.04);
+    --color-border-strong: rgba(15, 23, 42, 0.14);
+    --color-border-accent: rgba(16, 185, 129, 0.30);
+
+    --color-accent-glow: rgba(16, 185, 129, 0.10);
+    --color-gold-dim:    rgba(245, 158, 11, 0.15);
+    --card-glow:         rgba(15, 23, 42, 0.03);
+
+    --shadow-card:       0 1px 2px rgba(15, 23, 42, 0.03), 0 2px 6px rgba(15, 23, 42, 0.04);
+    --shadow-card-hover: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.07);
+    --shadow-accent-glow: 0 0 16px rgba(16, 185, 129, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(16, 185, 129, 0.28);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     THEME: ROCKET — vibrant green + violet, punchy
+     ───────────────────────────────────────────────────────────── */
+  :root[data-theme="rocket"] {
+    --lf-paper:      #FFFFFF;
+    --lf-surface:    #FFFFFF;
+    --lf-cream:      #F4F2FA;
+    --lf-cream-deep: #E7E2F4;
+    --lf-ink:        #0F0F23;
+    --lf-ink-soft:   #3F3F5C;
+    --lf-muted:      #71717A;
+    --lf-rule:       #E5E1F0;
+    --lf-rule-soft:  #EFEAF6;
+    --lf-rule-neutral: rgba(15, 15, 35, 0.06);
+    --lf-sauce:      #7C3AED;   /* vibrant violet primary */
+    --lf-sauce-deep: #6D28D9;
+    --lf-cheese:     #00C896;   /* cyan-green secondary */
+    --lf-basil:      #22C55E;
+    --lf-noodle:     #A1A1AA;
+    --lf-crust:      #00C896;
+    --lf-burgundy:   #BE123C;
+    --lf-pos:        #22C55E;
+    --lf-neg:        #F43F5E;
+
+    --lf-data-1: #7C3AED;
+    --lf-data-2: #00C896;
+    --lf-data-3: #0EA5E9;
+    --lf-data-4: #F97316;
+    --lf-data-5: #EC4899;
+
+    --data-cash:        #22C55E;
+    --data-investments: #7C3AED;
+    --data-assets:      #0EA5E9;
+    --data-debt:        #F43F5E;
+
+    --color-bg:          255 255 255;
+    --color-bg-elevated: 249 250 251;
+    --color-bg-subtle:   231 226 244;
+
+    --color-surface:       255 255 255;
+    --color-surface-hover: 250 248 255;
+
+    --color-text:           15 15 35;
+    --color-text-secondary: 63 63 92;
+    --color-text-muted:     113 113 122;
+    --color-text-disabled:  212 212 216;
+
+    --color-accent:        124 58 237;
+    --color-accent-dim:    109 40 217;
+
+    --color-gold:        0 200 150;
+
+    --color-success:      34 197 94;
+    --color-warning:     245 158 11;
+    --color-danger:      244 63 94;
+
+    --color-border:        rgba(15, 15, 35, 0.08);
+    --color-border-light:  rgba(15, 15, 35, 0.04);
+    --color-border-strong: rgba(15, 15, 35, 0.14);
+    --color-border-accent: rgba(124, 58, 237, 0.32);
+
+    --color-accent-glow: rgba(124, 58, 237, 0.12);
+    --color-gold-dim:    rgba(0, 200, 150, 0.15);
+    --card-glow:         rgba(15, 15, 35, 0.03);
+
+    --shadow-card:       0 1px 2px rgba(15, 15, 35, 0.03), 0 2px 6px rgba(15, 15, 35, 0.05);
+    --shadow-card-hover: 0 1px 2px rgba(15, 15, 35, 0.04), 0 4px 12px rgba(15, 15, 35, 0.08);
+    --shadow-accent-glow: 0 0 16px rgba(124, 58, 237, 0.22);
+    --shadow-accent-glow-hover: 0 0 20px rgba(124, 58, 237, 0.32);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     THEME: COBALT — confident deep blue primary on white.
+     Brex/Ramp-leaning. No purple, no green chrome — sits alongside
+     Minty and Rocket as a third, clearly differentiated hue.
+     ───────────────────────────────────────────────────────────── */
+  :root[data-theme="cobalt"] {
+    --lf-paper:      #FFFFFF;
+    --lf-surface:    #FFFFFF;
+    --lf-cream:      #F1F5FB;
+    --lf-cream-deep: #DDE6F4;
+    --lf-ink:        #0B1220;
+    --lf-ink-soft:   #1E2A44;
+    --lf-muted:      #5B6478;
+    --lf-rule:       #E2E8F0;
+    --lf-rule-soft:  #EDF1F7;
+    --lf-rule-neutral: rgba(11, 18, 32, 0.06);
+    --lf-sauce:      #2563EB;   /* brand accent → cobalt blue */
+    --lf-sauce-deep: #1D4ED8;
+    --lf-cheese:     #F59E0B;   /* warm amber secondary, balances cool primary */
+    --lf-basil:      #10B981;
+    --lf-noodle:     #94A3B8;
+    --lf-crust:      #475569;
+    --lf-burgundy:   #B91C1C;
+    --lf-pos:        #10B981;
+    --lf-neg:        #EF4444;
+
+    --lf-data-1: #2563EB;
+    --lf-data-2: #0EA5E9;
+    --lf-data-3: #F59E0B;
+    --lf-data-4: #14B8A6;
+    --lf-data-5: #EC4899;
+
+    --data-cash:        #10B981;
+    --data-investments: #0EA5E9;   /* sky — distinct from cobalt primary chrome */
+    --data-assets:      #F59E0B;
+    --data-debt:        #EF4444;
+
+    --color-bg:          255 255 255;
+    --color-bg-elevated: 249 250 251;
+    --color-bg-subtle:   221 230 244;
+
+    --color-surface:       255 255 255;
+    --color-surface-hover: 248 250 253;
+
+    --color-text:           11 18 32;
+    --color-text-secondary: 30 42 68;
+    --color-text-muted:     91 100 120;
+    --color-text-disabled:  198 207 222;
+
+    --color-accent:     37 99 235;
+    --color-accent-dim: 29 78 216;
+
+    --color-gold:       245 158 11;
+
+    --color-success:    16 185 129;
+    --color-warning:    245 158 11;
+    --color-danger:     239 68 68;
+
+    --color-border:        rgba(11, 18, 32, 0.08);
+    --color-border-light:  rgba(11, 18, 32, 0.04);
+    --color-border-strong: rgba(11, 18, 32, 0.14);
+    --color-border-accent: rgba(37, 99, 235, 0.30);
+
+    --color-accent-glow: rgba(37, 99, 235, 0.10);
+    --color-gold-dim:    rgba(245, 158, 11, 0.15);
+    --card-glow:         rgba(11, 18, 32, 0.03);
+
+    --shadow-card:       0 1px 2px rgba(11, 18, 32, 0.03), 0 2px 6px rgba(11, 18, 32, 0.04);
+    --shadow-card-hover: 0 1px 2px rgba(11, 18, 32, 0.04), 0 4px 12px rgba(11, 18, 32, 0.07);
+    --shadow-accent-glow: 0 0 16px rgba(37, 99, 235, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(37, 99, 235, 0.28);
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     Additional preset themes — each only overrides the accent
+     family. Neutrals (text, surface, border) inherit from the
+     default Minty :root block, so all themes share a near-white
+     base with one accent hue varying.
+     ───────────────────────────────────────────────────────────── */
+
+  /* Sidebar background (--color-bg-elevated) is intentionally left to the
+     :root default in every preset below — the sidebar stays an off-white
+     neutral regardless of the chosen accent. Only the hover-state token
+     (--color-bg-subtle), progress tracks, and tinted neutrals (--lf-cream*)
+     pick up the theme. */
+
+  :root[data-theme="rose"] {
+    --lf-sauce:      #EC4899;
+    --lf-sauce-deep: #DB2777;
+    --color-accent:        236 72 153;
+    --color-accent-dim:    219 39 119;
+    --color-border-accent: rgba(236, 72, 153, 0.30);
+    --color-accent-glow:   rgba(236, 72, 153, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(236, 72, 153, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(236, 72, 153, 0.28);
+    --color-bg-subtle:   253 226 240;
+    --lf-cream:      #FCE7F0;
+    --lf-cream-deep: #F9C8DD;
+  }
+
+  :root[data-theme="coral"] {
+    --lf-sauce:      #F97316;
+    --lf-sauce-deep: #EA580C;
+    --color-accent:        249 115 22;
+    --color-accent-dim:    234 88 12;
+    --color-border-accent: rgba(249, 115, 22, 0.30);
+    --color-accent-glow:   rgba(249, 115, 22, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(249, 115, 22, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(249, 115, 22, 0.28);
+    --color-bg-subtle:   254 232 213;
+    --lf-cream:      #FEE9D5;
+    --lf-cream-deep: #FAD0A8;
+  }
+
+  :root[data-theme="honey"] {
+    --lf-sauce:      #D97706;
+    --lf-sauce-deep: #B45309;
+    --color-accent:        217 119 6;
+    --color-accent-dim:    180 83 9;
+    --color-border-accent: rgba(217, 119, 6, 0.30);
+    --color-accent-glow:   rgba(217, 119, 6, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(217, 119, 6, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(217, 119, 6, 0.28);
+    --color-bg-subtle:   251 232 209;
+    --lf-cream:      #FBEDD2;
+    --lf-cream-deep: #F4D49C;
+  }
+
+  :root[data-theme="marina"] {
+    --lf-sauce:      #0D9488;
+    --lf-sauce-deep: #0F766E;
+    --color-accent:        13 148 136;
+    --color-accent-dim:    15 118 110;
+    --color-border-accent: rgba(13, 148, 136, 0.30);
+    --color-accent-glow:   rgba(13, 148, 136, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(13, 148, 136, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(13, 148, 136, 0.28);
+    --color-bg-subtle:   215 240 237;
+    --lf-cream:      #D8F1ED;
+    --lf-cream-deep: #A8DDD6;
+  }
+
+  :root[data-theme="fireside"] {
+    --lf-sauce:      #DC2626;
+    --lf-sauce-deep: #B91C1C;
+    --color-accent:        220 38 38;
+    --color-accent-dim:    185 28 28;
+    --color-border-accent: rgba(220, 38, 38, 0.30);
+    --color-accent-glow:   rgba(220, 38, 38, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(220, 38, 38, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(220, 38, 38, 0.28);
+    --color-bg-subtle:   253 218 218;
+    --lf-cream:      #FDDADA;
+    --lf-cream-deep: #F8B0B0;
+  }
+
+  :root[data-theme="graphite"] {
+    --lf-sauce:      #374151;
+    --lf-sauce-deep: #1F2937;
+    --color-accent:        55 65 81;
+    --color-accent-dim:    31 41 55;
+    --color-border-accent: rgba(55, 65, 81, 0.30);
+    --color-accent-glow:   rgba(55, 65, 81, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(55, 65, 81, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(55, 65, 81, 0.28);
+    --color-bg-subtle:   229 231 235;
+    --lf-cream:      #E5E7EB;
+    --lf-cream-deep: #C5CAD2;
+  }
+
+  :root[data-theme="hot-topic"] {
+    --lf-sauce:      #F54772;
+    --lf-sauce-deep: #DB2160;
+    --color-accent:        245 71 114;
+    --color-accent-dim:    219 33 96;
+    --color-border-accent: rgba(245, 71, 114, 0.30);
+    --color-accent-glow:   rgba(245, 71, 114, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(245, 71, 114, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(245, 71, 114, 0.28);
+    --color-bg-subtle:   254 224 233;
+    --lf-cream:      #FEE3EA;
+    --lf-cream-deep: #FAC2D0;
+  }
+
+  :root[data-theme="sapphire"] {
+    --lf-sauce:      #1E3A8A;
+    --lf-sauce-deep: #1E40AF;
+    --color-accent:        30 58 138;
+    --color-accent-dim:    30 64 175;
+    --color-border-accent: rgba(30, 58, 138, 0.30);
+    --color-accent-glow:   rgba(30, 58, 138, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(30, 58, 138, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(30, 58, 138, 0.28);
+    --color-bg-subtle:   216 222 240;
+    --lf-cream:      #DAE0F0;
+    --lf-cream-deep: #A8B4D9;
+  }
+
+  :root[data-theme="amethyst"] {
+    --lf-sauce:      #9333EA;
+    --lf-sauce-deep: #7E22CE;
+    --color-accent:        147 51 234;
+    --color-accent-dim:    126 34 206;
+    --color-border-accent: rgba(147, 51, 234, 0.30);
+    --color-accent-glow:   rgba(147, 51, 234, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(147, 51, 234, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(147, 51, 234, 0.28);
+    --color-bg-subtle:   239 224 252;
+    --lf-cream:      #F1E2FC;
+    --lf-cream-deep: #DDB8F7;
+  }
+
+  :root[data-theme="sunshine"] {
+    --lf-sauce:      #EAB308;
+    --lf-sauce-deep: #CA8A04;
+    --color-accent:        234 179 8;
+    --color-accent-dim:    202 138 4;
+    --color-border-accent: rgba(234, 179, 8, 0.30);
+    --color-accent-glow:   rgba(234, 179, 8, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(234, 179, 8, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(234, 179, 8, 0.28);
+    --color-bg-subtle:   253 245 209;
+    --lf-cream:      #FDF6D5;
+    --lf-cream-deep: #F4E59E;
+  }
+
+  :root[data-theme="aqua"] {
+    --lf-sauce:      #06B6D4;
+    --lf-sauce-deep: #0891B2;
+    --color-accent:        6 182 212;
+    --color-accent-dim:    8 145 178;
+    --color-border-accent: rgba(6, 182, 212, 0.30);
+    --color-accent-glow:   rgba(6, 182, 212, 0.10);
+    --shadow-accent-glow:       0 0 16px rgba(6, 182, 212, 0.18);
+    --shadow-accent-glow-hover: 0 0 20px rgba(6, 182, 212, 0.28);
+    --color-bg-subtle:   215 240 248;
+    --lf-cream:      #D7F1F8;
+    --lf-cream-deep: #A8DEEA;
+  }
+
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-bg text-text antialiased;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-weight: 450;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* ============================================================
+   BRAND TYPOGRAPHY HELPERS
+
+   Geist sans is the display face for editorial moments — page H1,
+   the opening lede, the single hero number per page, empty-state
+   titles. Headings use a heavier weight (600) so they read strong
+   at large sizes. The brand wordmark keeps its Fraunces italic "fi".
+   ============================================================ */
+.lf-serif {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.lf-serif--display {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lf-mono {
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  font-feature-settings: "zero", "ss01";
+}
+
+/* Eyebrow: clean sans uppercase, tracked. Reserve mono for code-like data
+   (sync timestamps, account masks) via .lf-mono. */
+.lf-eyebrow {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+}
+.lf-eyebrow--on-dark { color: var(--lf-cheese); }
+
+.lf-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   HEADING SCALE — use these everywhere; do not roll your own.
+   .lf-h1 once per page. .lf-h2 for major sections.
+   .lf-h3 for cards / sub-sections. .lf-eyebrow above any title.
+   ============================================================ */
+.lf-h1 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--lf-ink);
+}
+@media (min-width: 768px) { .lf-h1 { font-size: 36px; } }
+
+.lf-h2 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--lf-ink);
+}
+
+.lf-h3 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  color: var(--lf-ink);
+}
+
+/* ============================================================
+   WORDMARK — "Lasagna" grotesque + italic serif "fi"
+   ============================================================ */
+.lf-wordmark {
+  font-family: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.lf-wordmark .fi {
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: rgb(var(--color-accent));
+}
+
+/* ============================================================
+   LASAGNAFI CARD
+   ============================================================ */
+.lf-card {
+  background: var(--lf-paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: 12px;
+}
+
+.lf-card-dark {
+  background: var(--lf-ink);
+  border: 1px solid var(--lf-ink);
+  border-radius: 12px;
+  color: var(--lf-paper);
+}
+
+/* ============================================================
+   LASAGNAFI BUTTONS
+   ============================================================ */
+.lf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+}
+.lf-btn:hover { transform: translateY(-1px); }
+
+.lf-btn-primary {
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  border-color: var(--lf-ink);
+}
+.lf-btn-primary:hover { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
+
+.lf-btn-ghost {
+  background: transparent;
+  color: var(--lf-ink);
+  border-color: var(--lf-rule);
+}
+.lf-btn-ghost:hover { background: var(--lf-cream); }
+
+/* ============================================================
+   RESPONSE TYPOGRAPHY  (unchanged — used by chat renderer)
+   ============================================================ */
+@layer components {
+  .response-text {
+    @apply text-base leading-[1.7] text-text-secondary;
+  }
+  .response-heading-1 {
+    @apply text-2xl font-semibold leading-[1.3] text-text;
+  }
+  .response-heading-2 {
+    @apply text-lg font-semibold leading-[1.4] text-text;
+  }
+  .response-heading-3 {
+    @apply text-sm font-medium leading-[1.4] text-text;
+  }
+  .response-label {
+    @apply font-mono text-xs font-medium uppercase tracking-wider text-text-muted;
+  }
+  .response-metric {
+    @apply text-[28px] font-semibold leading-[1.2] text-text;
+  }
+  .response-metric-small {
+    @apply text-xl font-semibold leading-[1.2] text-text;
+  }
+}
+
+/* ============================================================
+   SURFACE CLASSES  (adapted to warm theme)
+   ============================================================ */
+@layer components {
+  .surface-card {
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-rule-neutral);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .surface-card-hover {
+    @apply transition-all duration-300;
+  }
+  .surface-card-hover:hover {
+    border-color: var(--color-border-accent);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-1px);
+  }
+
+  /* backward compat alias */
+  .glass-card {
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-rule-neutral);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+  }
+  .glass-card-hover {
+    @apply transition-all duration-300;
+  }
+  .glass-card-hover:hover {
+    border-color: var(--color-border-accent);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-1px);
+  }
+
+  .stat-card {
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-rule-neutral);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .accent-glow { box-shadow: var(--shadow-accent-glow); }
+  .progress-glow { box-shadow: 0 0 12px var(--color-accent-glow); }
+}
+
+/* Prevent iOS Safari from auto-zooming when focusing a small-text input.
+   Safari only zooms if the input's effective font-size is < 16px. We bump
+   form fields to 16px on touch devices without changing the rendered look
+   of nearby text (the input visually still feels "small" because of its
+   padding + leading; only the typed/placeholder size grows by ~2px). */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Coarse-pointer (touch) hit-targets. Fine pointers (desktop) are untouched —
+   these only widen the tap area to the 44px iOS minimum on touch devices, so
+   the rendered desktop size of shared controls is unchanged. */
+@media (hover: none) and (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Inline links: pad the hit area and cancel it with negative margin so the
+     text stays visually where it was. */
+  .touch-target-inline {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}
+
+/* Mobile WIDTH (not only coarse pointer): narrow viewports get the same 44px
+   minimum tap targets regardless of pointer type. Desktop (≥641px, fine
+   pointer) keeps the rendered sizes above — this block never applies there. */
+@media (max-width: 640px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .touch-target-inline {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}
+
+@layer utilities {
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  /* Chat "Lasagna is thinking..." indicator — simple opacity pulse so the
+     label stays visible on every browser (background-clip:text broke in
+     Safari iOS and rendered the bubble empty). */
+  .lf-thinking {
+    animation: lf-thinking-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes lf-thinking-pulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
+
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(139, 126, 111, 0.25);
+    border-radius: 3px;
+  }
+
+  /* Mobile optimizations */
+  .mobile-optimized {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .mobile-touch-target {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-text-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-no-scroll {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Prevent horizontal scroll on mobile */
+  .mobile-overflow-hidden {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* Safe area padding for modern phones */
+  .mobile-safe-top {
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
+
+  .mobile-safe-bottom {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  /* Mobile card styles */
+  .mobile-card {
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--lf-rule);
+  }
+
+  /* Mobile button styles */
+  .mobile-button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .mobile-button:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+
+  /* Mobile input styles */
+  .mobile-input {
+    min-height: 44px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 16px; /* Prevents iOS zoom */
+    border: 1px solid var(--lf-rule);
+    background: var(--lf-paper);
+    color: var(--lf-ink);
+  }
+
+  .mobile-input:focus {
+    outline: none;
+    border-color: var(--lf-sauce);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-sauce) 18%, transparent);
+  }
+
+  /* PWA Splash Screen Support */
+  .pwa-splash {
+    position: fixed;
+    inset: 0;
+    background: var(--lf-paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    transition: opacity 0.3s ease;
+  }
+  
+  .pwa-splash.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  .pwa-splash-logo {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--lf-sauce) 0%, var(--lf-cheese) 100%);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--lf-paper);
+  }
+  
+  /* iOS Standalone Mode Styles.
+     NOTE: no body safe-area padding here — the shell already offsets the fixed
+     header/tab bar by env(safe-area-inset-*); padding the body too double-counts
+     the notch in the installed app (big phantom gap under the header). */
+  @media (display-mode: standalone) {
+    .standalone-only {
+      display: block !important;
+    }
+
+    .browser-only {
+      display: none !important;
+    }
+  }
+  
+  /* Add to Home Screen Prompt Styles */
+  .a2hs-prompt {
+    position: fixed;
+    bottom: 80px;
+    left: 16px;
+    right: 16px;
+    background: var(--lf-ink);
+    color: var(--lf-paper);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .a2hs-prompt.hidden {
+    animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideDown {
+    from {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+  
+  .a2hs-prompt h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+  
+  .a2hs-prompt p {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-bottom: 16px;
+  }
+  
+  .a2hs-prompt button {
+    background: var(--lf-sauce);
+    color: var(--lf-paper);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-right: 8px;
+  }
+  
+  .a2hs-prompt button.secondary {
+    background: transparent;
+    opacity: 0.8;
+  }
+}
+
+/* ============================================================
+   ┌────────────────────────────────────────────────────────────┐
+   │  DESIGN SYSTEM v2 (.ds-*) — editorial fintech              │
+   │  Cream paper. Serif titles. Mono labels. Sans body.        │
+   │  Borders > shadows. Hairlines > glow. Tabular always.      │
+   │  Use these for every new/refactored page.                  │
+   └────────────────────────────────────────────────────────────┘
+   ============================================================ */
+
+/* ── Layout shell ───────────────────────────────────────────── */
+.ds-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 48px) clamp(16px, 4vw, 40px);
+  /* Bottom padding must clear the 56px mobile tab bar (+safe area) plus
+     a comfortable breathing gap; desktop has no bottom nav so a smaller
+     value is fine. Critic flagged content sitting beneath the nav on /. */
+  padding-bottom: 64px;
+}
+@media (max-width: 767px) {
+  /* Iter 6: bumped to 112px so the last row's bottom edge clears the
+     fixed 56px MobileTabBar (+safe-area) with a comfortable visual gap.
+     Iter 5 was 88px; critic measured overlap on /money where the trailing
+     row sat beneath the MONEY pill of the bottom nav. */
+  .ds-page {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+  }
+}
+.ds-page--narrow { max-width: 880px; }
+.ds-page--wide   { max-width: 1400px; }
+
+/* ── Compact page bar — LOCKED PRIMITIVE.
+   Height: 56px desktop, 48px mobile. Single row, no wrap.
+   Slots: title-group (h1 + optional inline caption) on the LEFT, ONE action
+   on the right (button OR icon menu). Tabs/segmented/month-nav/view-toggles
+   move to <PageSubToolbar>; do NOT add a second action button in here.
+   The iter 2 critic measured 49-69px desktop / 43-120px mobile — that's a
+   ribbon, not a primitive. This selector now defines the contract. */
+.ds-page-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 16px;
+  height: 56px;
+  padding: 0;
+  border-bottom: 1px solid var(--lf-rule);
+  margin-bottom: 20px;
+}
+.ds-page-bar__title-group {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 14px;
+  min-width: 0;
+  overflow: hidden;
+}
+.ds-page-bar__title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  /* Iter 6: bumped 18 → 24 so page H1 always reads as MORE prominent than
+     section H2 (22px). Iter 5 critic flagged the typographic inversion. */
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  color: var(--lf-ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.ds-page-bar__caption {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--lf-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+/* Subtitle — same slot as caption on desktop (inline, after the title), but
+   on mobile renders as a separate row BELOW the page-bar so the H1 stays
+   terse ("Goals" not "Goals — $0 of $6,025,..."). Use this when the
+   secondary line carries live monetary data that would truncate at 390px. */
+.ds-page-bar__subtitle {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--lf-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+/* Mobile subtitle slot lives below the page-bar; hidden on desktop so the
+   inline .ds-page-bar__subtitle carries it. */
+.ds-page-bar__subtitle-mobile {
+  display: none;
+}
+/* Actions wrapper — host for the primary action + overflow on small screens. */
+.ds-page-bar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ds-page-bar__overflow {
+  display: none;
+  position: relative;
+}
+.ds-page-bar__overflow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
+  color: var(--lf-ink);
+  cursor: pointer;
+  padding: 0;
+}
+.ds-page-bar__overflow-btn:hover {
+  background: var(--lf-cream);
+}
+.ds-page-bar__overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 200px;
+  background: var(--lf-paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ds-page-bar__overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--lf-ink);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.ds-page-bar__overflow-item:hover {
+  background: var(--lf-cream);
+}
+.ds-page-bar__overflow-item:disabled {
+  color: var(--lf-muted);
+  cursor: not-allowed;
+}
+@media (max-width: 640px) {
+  .ds-page-bar {
+    height: 48px;
+    min-height: 48px;
+    max-height: 48px;
+    padding: 0;
+    margin-bottom: 14px;
+    box-sizing: border-box;
+  }
+  .ds-page-bar__title { font-size: 20px; line-height: 1.15; }
+  .ds-page-bar__caption { font-size: 12px; }
+  /* Mobile collapses the caption — too dense for 48px. Page body re-states
+     the signal anyway (figure label, stat strip, etc.). */
+  .ds-page-bar__caption { display: none; }
+  /* Inline subtitle hidden on mobile — its content reappears in the
+     subtitle-mobile slot rendered below the page-bar. */
+  .ds-page-bar__subtitle { display: none; }
+  .ds-page-bar__subtitle-mobile {
+    display: block;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--lf-muted);
+    line-height: 1.4;
+    margin: -8px 0 14px;
+  }
+}
+/* Mobile overflow rule — 520px breakpoint per iter 8 mandate. When two or
+   more actions are present, the consumer marks all-but-the-first with
+   .ds-page-bar__action--overflow and the overflow button becomes visible. */
+@media (max-width: 520px) {
+  .ds-page-bar__action--overflow { display: none !important; }
+  .ds-page-bar__overflow { display: inline-block; }
+}
+
+/* ── Money grid alignment ──
+   Locks the dollar column to a fixed character width with right alignment
+   and tabular numerics so the stat-strip total, section header total, and
+   every row value below share a single right edge. Iter 3 measured 60px
+   drift; this primitive eliminates it.
+
+   Usage: wrap a row in `.ds-money-grid` and put the $ value in a child with
+   `.ds-money-grid__value`. The label/content fills the remaining 1fr. */
+.ds-money-grid {
+  display: grid;
+  grid-template-columns: 1fr 12ch;
+  column-gap: 16px;
+  align-items: center;
+}
+.ds-money-grid__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-feature-settings: "tnum";
+}
+
+/* ── PageSubToolbar — 40px row below the page-bar hairline.
+   This is where tabs / segmented controls / month nav / sync chip live now
+   so the page-bar stays one row, one action. */
+.ds-page-subtoolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 40px;
+  margin: -16px 0 20px;  /* pull up to sit flush under the page-bar */
+  padding: 0;
+  border-bottom: 1px solid var(--lf-rule-soft);
+}
+.ds-page-subtoolbar__left,
+.ds-page-subtoolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ds-page-subtoolbar__left { flex: 1; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.ds-page-subtoolbar__left::-webkit-scrollbar { display: none; }
+@media (max-width: 640px) {
+  .ds-page-subtoolbar { height: 40px; margin-top: -10px; }
+}
+
+/* ── Figure — chart with internal value label. Sits on a white card surface
+   so it matches the AccountSection card-flush treatment below; the page reads
+   as a coherent stack of elevated data surfaces. Headline number lives in
+   the figure head, not in a section H2 above. */
+.ds-figure {
+  margin: 0 0 28px;
+  padding: 20px 20px 16px;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+.ds-figure__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 12px;
+}
+.ds-figure__lead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-width: 0;
+}
+.ds-figure__label {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+  display: block;
+  width: 100%;
+  margin-bottom: 2px;
+}
+.ds-figure__value {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(36px, 4.6vw, 52px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  color: var(--lf-ink);
+  font-variant-numeric: tabular-nums;
+}
+.ds-figure__delta {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ds-figure__range {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.ds-figure__range-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ── Ask Lasagna composer strip — compact tool, not hero ──── */
+.ds-ask-strip {
+  /* Match the 28px section rhythm — a utility tool shouldn't carry the
+     largest gap on the page. */
+  margin: 0 0 28px;
+}
+.ds-ask-strip__form { margin: 0; }
+.ds-ask-strip__box {
+  display: flex;
+  align-items: stretch;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--shadow-card);
+}
+.ds-ask-strip__box:focus-within {
+  border-color: var(--lf-sauce);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-sauce) 18%, transparent);
+}
+.ds-ask-strip__input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--lf-ink);
+  padding: 14px 16px;
+  min-width: 0;
+  min-height: 52px;
+}
+.ds-ask-strip__input::placeholder { color: var(--lf-muted); }
+.ds-ask-strip__submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  border: 0;
+  padding: 0 18px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-width: 72px;
+  justify-content: center;
+}
+.ds-ask-strip__submit:hover:not(:disabled) { background: var(--lf-sauce-deep); }
+.ds-ask-strip__submit:disabled { opacity: 0.45; cursor: not-allowed; }
+.ds-ask-strip__chips {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ds-ask-strip__chip {
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  color: var(--lf-ink-soft);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+  line-height: 1.3;
+}
+.ds-ask-strip__chip:hover {
+  border-color: var(--lf-ink-soft);
+  color: var(--lf-ink);
+}
+
+/* ── Page header: eyebrow / h1 / lede / actions ─────────────── */
+.ds-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--lf-rule);
+}
+@media (max-width: 640px) {
+  .ds-page-header { margin-bottom: 18px; padding-bottom: 12px; }
+}
+.ds-page-header__title-block { flex: 1 1 auto; min-width: 0; }
+.ds-page-header__actions     { display: flex; gap: 8px; flex-wrap: wrap; }
+.ds-page-header__lede {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--lf-ink-soft);
+  max-width: 60ch;
+  margin: 12px 0 0;
+}
+
+/* ── Hero number — the ONE focal figure per page ─────────────
+   Big tabular value with an eyebrow above and a delta chip beside it.
+   Use once per page (net worth, total saved, current level). */
+/* Net-worth hero — the page's focal figure, seated on an ink panel with a
+   soft amber/emerald glow (echoes the landing io-section background). */
+.ds-hero {
+  position: relative;
+  overflow: hidden;
+  /* 14px below pairs the net-worth hero with the composition ribbon as one
+     "where you stand" unit; the ribbon's 28px section margin then opens the
+     larger gap to the next section (rhythm: more space between than within). */
+  margin: 2px 0 14px;
+  padding: 26px 28px;
+  border-radius: 16px;
+  background: var(--lf-ink);
+  box-shadow: var(--shadow-card);
+}
+.ds-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(680px circle at 88% -20%, color-mix(in oklab, var(--lf-cheese) 24%, transparent), transparent 55%),
+    radial-gradient(520px circle at 4% 130%, color-mix(in oklab, var(--lf-sauce) 20%, transparent), transparent 52%),
+    repeating-linear-gradient(135deg, transparent 0 14px, rgba(255, 255, 255, 0.014) 14px 15px);
+  pointer-events: none;
+}
+.ds-hero__label {
+  position: relative;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--lf-paper) 62%, transparent);
+  display: block;
+  margin-bottom: 8px;
+}
+.ds-hero__row {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.ds-hero__value {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(40px, 6vw, 60px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--lf-paper);
+  font-variant-numeric: tabular-nums;
+}
+/* Delta chips read on the dark panel — brighter tint, light text. */
+.ds-hero .ds-delta-chip--pos {
+  background: color-mix(in srgb, var(--lf-pos) 26%, transparent);
+  color: color-mix(in srgb, var(--lf-pos) 55%, white);
+}
+.ds-hero .ds-delta-chip--neg {
+  background: color-mix(in srgb, var(--lf-neg) 26%, transparent);
+  color: color-mix(in srgb, var(--lf-neg) 55%, white);
+}
+
+/* Delta chip — semantic +/- pill. The clean source of color pop. */
+.ds-delta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ds-delta-chip--pos {
+  background: color-mix(in srgb, var(--lf-pos) 13%, transparent);
+  color: var(--lf-pos);
+}
+.ds-delta-chip--neg {
+  background: color-mix(in srgb, var(--lf-neg) 13%, transparent);
+  color: var(--lf-neg);
+}
+.ds-delta-chip--neutral {
+  background: var(--lf-rule-soft);
+  color: var(--lf-ink-soft);
+}
+
+/* ── Typography scale ───────────────────────────────────────── */
+.ds-display {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(40px, 6vw, 64px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--lf-ink);
+  font-variant-numeric: tabular-nums;
+}
+.ds-h1 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: var(--lf-ink);
+  margin: 0;
+}
+.ds-h2 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: var(--lf-ink);
+  margin: 0;
+}
+.ds-h3 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  color: var(--lf-ink);
+  margin: 0;
+}
+.ds-body {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--lf-ink-soft);
+}
+.ds-body--lg { font-size: 15px; }
+.ds-body--sm { font-size: 13px; }
+
+.ds-caption {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--lf-muted);
+}
+
+.ds-eyebrow {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+  display: inline-block;
+}
+.ds-eyebrow--on-dark { color: var(--lf-cheese); }
+.ds-eyebrow--ink     { color: var(--lf-ink); }
+.ds-eyebrow--sauce   { color: var(--lf-sauce); }
+.ds-eyebrow--basil   { color: var(--lf-basil); }
+
+.ds-num { font-variant-numeric: tabular-nums; }
+
+/* Status colors */
+.ds-pos  { color: var(--lf-pos); }
+.ds-neg  { color: var(--lf-neg); }
+.ds-warn { color: #B8801E; }
+
+/* ── Cards ──────────────────────────────────────────────────── */
+.ds-card {
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+.ds-card--tight   { padding: 14px; }
+.ds-card--flush   { padding: 0; }
+.ds-card--dark {
+  background: var(--lf-ink);
+  border-color: var(--lf-ink);
+  color: var(--lf-paper);
+}
+.ds-card--dark .ds-eyebrow { color: var(--lf-cheese); }
+.ds-card--dark .ds-display,
+.ds-card--dark .ds-h1,
+.ds-card--dark .ds-h2,
+.ds-card--dark .ds-h3 { color: var(--lf-paper); }
+.ds-card--ghost {
+  background: transparent;
+  border: 1px dashed var(--lf-rule);
+}
+.ds-card--cream {
+  background: var(--lf-cream);
+  border-color: var(--lf-rule-soft);
+}
+.ds-card--accent {
+  background: var(--lf-surface);
+  border-color: var(--lf-cheese);
+  border-top-width: 3px;
+}
+.ds-card--linkable {
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.ds-card--linkable:hover {
+  border-color: var(--lf-ink-soft);
+  transform: translateY(-1px);
+}
+
+/* ── Section ────────────────────────────────────────────────── */
+.ds-section { margin-bottom: 28px; }
+/* Trim only the page's final trailing margin. Scoped to direct page children
+   so sections wrapped in a per-section motion.div (e.g. Insights groups) keep
+   the 28px inter-section rhythm instead of every wrapped section matching
+   :last-child and collapsing to 0. */
+.ds-page > .ds-section:last-child { margin-bottom: 0; }
+@media (max-width: 640px) { .ds-section { margin-bottom: 20px; } }
+.ds-section__header {
+  display: flex;
+  /* flex-end (not baseline) so a trailing metric aligns with the H2 title, not
+     the eyebrow above it — baseline would pin it to the eyebrow's first line. */
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.ds-section__title-block { min-width: 0; }
+.ds-section__actions {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+/* ── KPI grid (auto-fit metric tiles) ───────────────────────── */
+.ds-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px;
+  background: var(--lf-rule);
+  border: 1px solid var(--lf-rule);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.ds-kpi-grid--cols-2 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.ds-kpi-grid--cols-4 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.ds-kpi-grid > .ds-kpi { background: var(--lf-paper); }
+.ds-kpi-grid--dark { background: rgba(255,255,255,0.08); border-color: var(--lf-ink); }
+.ds-kpi-grid--dark > .ds-kpi { background: var(--lf-ink); }
+.ds-kpi-grid--dark .ds-kpi__value { color: var(--lf-paper); }
+.ds-kpi-grid--dark .ds-kpi__eyebrow { color: var(--lf-cheese); }
+.ds-kpi-grid--dark .ds-kpi__sub { color: rgba(251,246,236,0.6); }
+
+.ds-kpi { padding: 20px 24px; min-width: 0; }
+.ds-kpi__eyebrow {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+  display: block;
+  margin-bottom: 8px;
+}
+.ds-kpi__value {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(22px, 2.6vw, 28px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--lf-ink);
+  font-variant-numeric: tabular-nums;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-kpi__sub {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--lf-muted);
+  display: block;
+  margin-top: 6px;
+}
+
+/* ── Data table ─────────────────────────────────────────────── */
+/* Wrapper provides horizontal scroll on narrow viewports. The table
+   itself has a min-width so columns don't crunch unreadably; the wrapper
+   gets a right-side fade mask to hint the scrollability. */
+.ds-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+.ds-table-scroll::-webkit-scrollbar { height: 6px; }
+.ds-table-scroll::-webkit-scrollbar-track { background: transparent; }
+.ds-table-scroll::-webkit-scrollbar-thumb { background: rgba(139,126,111,0.25); border-radius: 3px; }
+.ds-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+.ds-table th {
+  text-align: left;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--lf-rule);
+}
+.ds-table th--num { text-align: right; }
+.ds-table td {
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--lf-ink);
+  border-bottom: 1px solid var(--lf-rule-neutral);
+  vertical-align: middle;
+  /* Long cell content (account names, merchant strings) shouldn't blow
+     out the table — let it truncate with ellipsis. Wrap individual cells
+     allow text to fall to a second line if .ds-table-cell--wrap is set. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+.ds-table td.td--wrap { white-space: normal; max-width: none; }
+.ds-table td--num { text-align: right; font-variant-numeric: tabular-nums; }
+.ds-table td--muted { color: var(--lf-muted); }
+.ds-table tr:last-child td { border-bottom: none; }
+.ds-table tr.ds-table__row--hover:hover td { background: rgba(31, 26, 22, 0.03); }
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 11px 18px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+  min-height: 40px;
+}
+.ds-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ds-btn--primary {
+  background: var(--lf-sauce);
+  color: var(--lf-paper);
+  border-color: var(--lf-sauce);
+}
+.ds-btn--primary:hover:not(:disabled) { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
+.ds-btn--ink {
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  border-color: var(--lf-ink);
+}
+.ds-btn--ink:hover:not(:disabled) { background: var(--lf-ink-soft); border-color: var(--lf-ink-soft); }
+.ds-btn--ghost {
+  background: transparent;
+  color: var(--lf-ink);
+  border-color: var(--lf-rule);
+}
+.ds-btn--ghost:hover:not(:disabled) { background: var(--lf-cream); border-color: var(--lf-rule); }
+.ds-btn--ghost-dark {
+  background: rgba(255,255,255,0.06);
+  color: var(--lf-paper);
+  border-color: rgba(255,255,255,0.18);
+}
+.ds-btn--danger {
+  background: var(--lf-sauce);
+  color: var(--lf-paper);
+  border-color: var(--lf-sauce);
+}
+.ds-btn--danger:hover:not(:disabled) { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
+.ds-btn--sm  { padding: 7px 12px; font-size: 12px; min-height: 32px; }
+.ds-btn--lg  { padding: 14px 24px; font-size: 14px; min-height: 48px; }
+/* Inline link button — sauce for the small "→" / "All actions →" accent
+   moments. Primary CTAs stay ink so the page has one decisive register
+   and one warm directional register. */
+.ds-btn--link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--lf-sauce);
+  font-weight: 500;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  min-height: 0;
+}
+.ds-btn--link:hover { color: var(--lf-sauce-deep); }
+/* Touch targets — section action links ("View all steps →", "View all
+   goals →") render ~13px tall, well under the 44px touch minimum. Pad the
+   hit area on coarse/small screens and cancel it with negative margin so the
+   visual position is unchanged. */
+@media (max-width: 640px) {
+  .ds-section__actions .ds-btn--link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 11px 4px;
+    margin: -11px -4px;
+  }
+}
+.ds-btn--icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  justify-content: center;
+  border-color: var(--lf-rule);
+}
+
+/* ── Pills (small status / category labels) ─────────────────── */
+.ds-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.ds-pill--ink    { background: var(--lf-ink); color: var(--lf-paper); }
+.ds-pill--sauce  { background: var(--lf-sauce); color: var(--lf-paper); }
+.ds-pill--cheese { background: var(--lf-cheese); color: var(--lf-ink); }
+.ds-pill--basil  { background: var(--lf-basil); color: var(--lf-paper); }
+.ds-pill--ghost  { background: transparent; color: var(--lf-muted); border-color: var(--lf-rule); }
+.ds-pill--cream  { background: var(--lf-cream); color: var(--lf-ink-soft); }
+
+/* ── Dividers ───────────────────────────────────────────────── */
+.ds-divider { height: 1px; background: var(--lf-rule); border: 0; margin: 32px 0; }
+.ds-divider--dotted { background: none; border-top: 1px dotted var(--lf-rule); }
+.ds-divider--tight  { margin: 16px 0; }
+
+/* Inline rule with eyebrow label centered — editorial section break */
+.ds-rule-label {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 32px 0;
+}
+.ds-rule-label::before,
+.ds-rule-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--lf-rule);
+}
+
+/* ── Empty state ────────────────────────────────────────────── */
+.ds-empty {
+  text-align: center;
+  padding: 56px 24px;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+.ds-empty__icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--lf-sauce) 12%, transparent);
+  color: var(--lf-sauce);
+}
+.ds-empty__title { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 22px; font-weight: 600; color: var(--lf-ink); margin: 0 0 8px; }
+.ds-empty__body  { font-size: 14px; color: var(--lf-muted); margin: 0 auto 24px; max-width: 360px; line-height: 1.55; }
+
+/* Confirm dialog — replaces window.confirm() for destructive actions. */
+.ds-confirm__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(31,26,22,0.45);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  animation: ds-confirm-fade 0.15s ease-out;
+}
+@keyframes ds-confirm-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ds-confirm {
+  background: var(--lf-paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(31,26,22,0.18);
+  animation: ds-confirm-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ds-confirm-pop {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+/* On phones, dock the confirm to the bottom edge as a slide-up tray so it
+   reads as a thumb-reachable sheet rather than a cramped centered box. */
+@media (max-width: 639px) {
+  .ds-confirm__backdrop { place-items: end center; padding: 0; }
+  .ds-confirm {
+    max-width: none;
+    border-radius: 16px 16px 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    animation: ds-confirm-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes ds-confirm-up {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+}
+.ds-confirm__title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--lf-ink);
+  margin: 0 0 12px;
+}
+.ds-confirm__body {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--lf-ink-soft);
+  margin: 0 0 20px;
+}
+.ds-confirm__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ────────────────────────────────────────────────────────────
+   EDITORIAL PRIMITIVES — built specifically for Lasagna.
+   Not lifted from generic dashboards.
+   ──────────────────────────────────────────────────────────── */
+
+/* Stat Strip ── horizontal stat row. Now sits on the unified card surface
+   so every page reads as a coherent stack of elevated panels. Internal
+   hairline rules separate cells; outer border + radius + shadow live on
+   the card surface itself. */
+.ds-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  margin: 0;
+}
+.ds-strip__item {
+  padding: 18px 20px;
+  border-left: 1px solid var(--lf-rule);
+  min-width: 0;
+}
+.ds-strip__item:first-child { border-left: 0; }
+.ds-strip__item:last-child { padding-right: 16px; }
+/* On 2-col mobile fallback, the items that wrap to row 2 still need a top
+   hairline so the grid reads correctly; auto-fit grid + repeat-pattern via
+   nth-child can't know how many columns are active, so we lean on the
+   border-top trick which is harmless if it's never visually crossed. */
+@media (max-width: 540px) {
+  .ds-strip { grid-template-columns: repeat(2, 1fr); }
+  .ds-strip__item { padding: 14px; border-top: 1px solid var(--lf-rule); }
+  .ds-strip__item:nth-child(1),
+  .ds-strip__item:nth-child(2) { border-top: 0; }
+  .ds-strip__item:nth-child(odd) { border-left: 0; }
+}
+.ds-strip__label {
+  display: block;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+  margin-bottom: 6px;
+}
+.ds-strip__value {
+  display: block;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--lf-ink);
+  font-variant-numeric: tabular-nums;
+  /* Wrap (don't silently truncate). Numeric values are short and won't
+     wrap; long text values (e.g. "Married Filing Jointly") flow to a
+     second line, which is readable. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* Iter 5: opt-in $ alignment for money pages. Each strip cell right-aligns
+   its content so values land at the cell's right edge. Combined with the
+   strip's last cell having the same right padding as `.ds-row` (16px), the
+   last stat-strip value shares its right edge with the AccountRow values
+   below — closing one of the iter-4 alignment clusters.
+   Note: middle strip cells are in their own grid columns and cannot share
+   an absolute right edge with the rows by definition; their values just
+   right-align inside their cells for tabular-num consistency. */
+.ds-strip--money .ds-strip__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.ds-strip--money .ds-strip__item:last-child { padding-right: 16px; }
+.ds-strip--money .ds-strip__value {
+  font-variant-numeric: tabular-nums;
+}
+.ds-strip__value--pos { color: var(--lf-basil); }
+.ds-strip__value--neg { color: var(--lf-sauce-deep); }
+.ds-strip__value--warn { color: #B8801E; }
+.ds-strip__sub {
+  display: block;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--lf-muted);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Composition Ribbon ── single proportional horizontal bar.
+   You SEE the makeup of your finances as one visual instead
+   of reading four KPI cards. Sits on the unified card surface so the page
+   reads as a coherent stack of elevated panels (matches .ds-card, .ds-strip,
+   .ds-figure, .ds-focus). */
+.ds-ribbon {
+  display: block;
+  /* iter 8 P1: prevent any segment, legend item, or long label from forcing
+     horizontal scroll on mobile. The ribbon must always live inside its
+     container width. */
+  min-width: 0;
+  max-width: 100%;
+  /* Horizontal: clip to container width so long labels can't force scroll.
+     Vertical: visible so the segment hover tooltip can pop above the bar
+     without being clipped by the card boundary. `overflow: clip` is the
+     modern value that allows axis-independent clipping (Chrome 90+ /
+     Firefox 81+ / Safari 16+), whereas `overflow: hidden` would force
+     both axes to compute to a scrolling context and trap the tooltip. */
+  overflow-x: clip;
+  overflow-y: visible;
+  background: var(--lf-surface);
+  border: 1px solid var(--lf-rule-neutral);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+.ds-ribbon__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.ds-ribbon__lead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ds-ribbon__lead-label {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--lf-muted);
+}
+.ds-ribbon__lead-value {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(28px, 3.5vw, 38px);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: var(--lf-ink);
+  font-variant-numeric: tabular-nums;
+}
+.ds-ribbon__lead-delta {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--lf-muted);
+}
+.ds-ribbon__bar {
+  display: flex;
+  height: 36px;
+  background: var(--lf-cream-deep);
+  border: 1px solid var(--lf-rule);
+  border-radius: 4px;
+  /* Allow the tooltip to pop above the bar without being clipped. */
+  position: relative;
+  overflow: visible;
+}
+/* Inner clip so segments respect the rounded corners without cutting the tooltip. */
+.ds-ribbon__bar > .ds-ribbon__seg:first-of-type { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
+.ds-ribbon__bar > .ds-ribbon__seg:last-of-type  { border-top-right-radius: 3px; border-bottom-right-radius: 3px; }
+.ds-ribbon__seg {
+  height: 100%;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.15s, transform 0.15s;
+  min-width: 2px;
+  position: relative;
+  cursor: pointer;
+  /* Prevents iOS from interpreting the touch as a scroll while scrubbing. */
+  touch-action: none;
+}
+.ds-ribbon__seg + .ds-ribbon__seg { border-left: 1px solid rgba(31,26,22,0.15); }
+.ds-ribbon__seg:hover,
+.ds-ribbon__seg--active {
+  filter: brightness(1.08) saturate(1.05);
+}
+
+/* Tooltip — floats above the hovered segment with label + value + %. */
+.ds-ribbon__tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  box-shadow: 0 6px 18px rgba(31, 26, 22, 0.22);
+  z-index: 3;
+  animation: ds-ribbon-tip-in 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ds-ribbon__tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--lf-ink);
+}
+@keyframes ds-ribbon-tip-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.ds-ribbon__tooltip-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lf-cheese);
+  font-weight: 600;
+}
+.ds-ribbon__tooltip-value {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.ds-ribbon__tooltip-pct {
+  font-size: 11px;
+  color: rgba(251, 246, 236, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+.ds-ribbon__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin-top: 14px;
+}
+.ds-ribbon__legend-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--lf-ink-soft);
+}
+.ds-ribbon__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  position: relative;
+  top: 1px;
+}
+.ds-ribbon__legend-label {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lf-muted);
+  font-weight: 600;
+}
+.ds-ribbon__legend-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--lf-ink);
+}
+.ds-ribbon__legend-sub {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--lf-muted);
+  font-variant-numeric: tabular-nums;
+  padding-left: 18px;
+}
+
+/* Editorial Lede ── large serif paragraph with inline tabular numbers.
+   Used as the page's opening voice — addresses the user directly. */
+.ds-lede {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 400;
+  font-size: clamp(20px, 2.4vw, 28px);
+  line-height: 1.4;
+  color: var(--lf-ink-soft);
+  letter-spacing: -0.005em;
+  max-width: 56ch;
+  margin: 0;
+}
+.ds-lede .ds-lede__num {
+  color: var(--lf-ink);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ds-lede .ds-lede__num--pos { color: var(--lf-basil); }
+.ds-lede .ds-lede__num--neg { color: var(--lf-sauce-deep); }
+.ds-lede .ds-lede__hi {
+  background: linear-gradient(180deg, transparent 60%, rgba(230,184,92,0.45) 60%);
+  padding: 0 2px;
+  color: var(--lf-ink);
+  font-weight: 500;
+  /* When the highlighted phrase wraps to a new line, clone the background box on
+     each line so the highlight covers the whole span (e.g. "52+ years"), not
+     just the fragment after the break. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* ── Trend chip (number with up/down indicator) ─────────────── */
+.ds-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ds-trend--pos { color: var(--lf-basil); }
+.ds-trend--neg { color: var(--lf-sauce-deep); }
+.ds-trend--neutral { color: var(--lf-muted); }
+
+/* ============================================================
+   LOADING ANIMATIONS
+   Staggered scale + fade for the lasagna-bar loading indicator.
+   ============================================================ */
+@keyframes loader-reveal {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-loader-reveal {
+  opacity: 0;
+  animation: loader-reveal 0.3s ease-out 0.5s forwards;
+}
+
+@keyframes loader-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.animate-loader-fade-out {
+  animation: loader-fade-out 0.3s ease-in forwards;
+}
+
+@keyframes loading-bar {
+  0%, 100% { transform: scaleX(0.35); opacity: 0.3; }
+  50%      { transform: scaleX(1);    opacity: 1;   }
+}
+
+.animate-loading-bar-1 {
+  animation: loading-bar 1.2s ease-in-out infinite;
+  transform-origin: left center;
+}
+.animate-loading-bar-2 {
+  animation: loading-bar 1.2s ease-in-out 0.15s infinite;
+  transform-origin: left center;
+}
+.animate-loading-bar-3 {
+  animation: loading-bar 1.2s ease-in-out 0.3s infinite;
+  transform-origin: left center;
+}
+
+/* ============================================================
+   .ds-row — SHARED ROW PRIMITIVE
+   Used by AccountRow / TransactionRow. Single contract for:
+   - Always-visible $ value (mobile rule: never drop the money)
+   - Truncated name with title attr (no 6-line wraps)
+   - Neutral grayscale favicon fallback (no shouting monograms)
+   - No decorative vertical accent stripes
+   ============================================================ */
+.ds-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 60px;
+  min-height: 60px;
+  box-sizing: border-box;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+}
+/* TransactionRow is denser (48px desktop, no delta line under the amount) */
+.ds-row--tx {
+  height: 48px;
+  min-height: 48px;
+}
+/* Account rows get a touch more room to breathe under the name. */
+.ds-row--account {
+  height: 68px;
+  min-height: 68px;
+}
+.ds-row + .ds-row { border-top: 1px solid var(--lf-rule-soft); }
+.ds-row--clickable { cursor: pointer; transition: background 0.12s; }
+.ds-row--clickable:hover { background: rgba(31, 26, 22, 0.025); }
+
+/* Frozen / de-emphasized account rows. We deliberately do NOT blanket the row in
+   opacity (that dimmed real five- and six-figure balances). Instead we recede the
+   identity — grayed favicon, softened name — while the balance stays full ink so
+   the money is always legible. The lock + "Frozen" status (right) and the grayed
+   logo carry the "inactive" read. */
+.ds-row--muted .ds-row__favicon,
+.ds-row--muted .ds-row__monogram {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+.ds-row--muted .ds-row__primary { color: var(--lf-ink-soft); }
+/* Balance stays full ink even when frozen — the money is always legible; only
+   the identity (favicon + name) recedes. */
+.ds-row--muted .ds-row__value { color: var(--lf-ink); }
+
+.ds-row__favicon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.ds-row--tx .ds-row__favicon { width: 24px; height: 24px; border-radius: 4px; }
+
+/* Monogram fallback: iter 5 upgrade — dark-ink chip with paper text reads
+   as a deliberate "brand mark" for non-ticker holdings (Bonds, Cash, Int'l
+   funds, etc.) instead of a "favicon failed" sentinel. Cream-deep was too
+   close to the rule color and made the chip vanish; ink gives the holding
+   a real visual anchor that matches the favicons next to it.
+   Iter 2 critic concern about "shouting louder than value" still holds —
+   ink is intentionally NOT sauce/cheese/teal, so it carries presence
+   without carrying brand color. */
+.ds-row__monogram {
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--lf-ink);
+  color: var(--lf-paper);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  border: 1px solid var(--lf-ink);
+  flex-shrink: 0;
+  letter-spacing: 0.01em;
+}
+.ds-row--tx .ds-row__monogram { border-radius: 4px; }
+
+.ds-row__catglyph {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--lf-cream-deep);
+  color: var(--lf-ink-soft);
+  flex-shrink: 0;
+}
+
+.ds-row__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ds-row__primary {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lf-ink);
+  line-height: 1.3;
+  /* Truncate. Never wrap to a 6-line block. Full name in title attr. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Name + account-number tail on one line. The masked number is the account's
+   IDENTITY, not a value — binding it to the name (muted, tabular) leaves the
+   balance on the right as the single standalone number per row. The name
+   truncates first; the ··6755 tail is pinned and never clipped. */
+.ds-row__primary-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.ds-row__primary-line .ds-row__primary {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.ds-row__acct-no {
+  flex-shrink: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lf-muted);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: 0.01em;
+}
+.ds-row__acct-dots {
+  margin-right: 3px;
+  font-size: 0.8em;
+  letter-spacing: 0.14em;
+  opacity: 0.75;
+  vertical-align: 0.4px;
+}
+/* Frozen rows recede the account-number tail along with the name. */
+.ds-row--muted .ds-row__acct-no { opacity: 0.7; }
+.ds-row__meta {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--lf-muted);
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+}
+.ds-row__meta--tx {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+/* Inline dot separator between account-meta segments — faint, with breathing
+   room, so the segments read as distinct without the dots competing. */
+.ds-row__meta-dot {
+  margin: 0 6px;
+  color: var(--lf-muted);
+  opacity: 0.45;
+}
+.ds-row__cat {
+  color: var(--lf-ink-soft);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+.ds-row__sep { color: var(--lf-rule); }
+.ds-row__extra { display: inline-flex; align-items: center; }
+
+.ds-row__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  flex-shrink: 0;
+  /* Auto-width value column: the right edge is already pinned by the trailing
+     ⋯ menu slot (28px + 10px gap + 16px pad = 54px in from the card edge, which
+     the section header total mirrors via margin-right:54). A fixed 12ch column
+     over-reserved ~57px the widest balance never used and starved the flex name
+     column on mobile. Auto + a small min-width keeps the edge aligned while the
+     name reclaims the slack. */
+  width: auto;
+  min-width: 6ch;
+}
+.ds-row__value {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lf-ink);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+/* Account-row balance is the hero of the row: a touch larger and heavier than
+   the name (which stays 14px/500) so the eye lands on the money first. Scoped
+   to --account so transaction amounts and portfolio holdings are untouched. */
+.ds-row--account .ds-row__value {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ds-row__delta {
+  font-size: 11px;
+  color: var(--lf-muted);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+/* Right-side status sub-line under the value — sync freshness ("7d ago") on
+   active rows, a lock + "Frozen" on frozen ones. Sits in the delta slot. */
+.ds-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--lf-muted);
+}
+.ds-row__status--frozen svg { opacity: 0.8; }
+.ds-row__amount {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lf-ink);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  flex-shrink: 0;
+  white-space: nowrap;
+  /* Fixed-width column locks the right edge of every $ amount so
+     short $373 and long $4,453 share the same right boundary.
+     Iter 3 measured 60px row-to-row drift; this kills it. */
+  display: inline-block;
+  width: 12ch;
+  text-align: right;
+}
+.ds-row__amount--muted { color: var(--lf-muted); font-weight: 500; }
+
+/* Iter 6 — number color consistency across contexts.
+   .ds-pos / .ds-neg are defined earlier (line ~943) but the row classes
+   (.ds-row__delta, .ds-row__amount, .ds-row__value) come LATER and override
+   the status color via plain specificity. The critic measured a basil
+   ds-pos in the stat-strip and an INK ds-pos in row deltas because the
+   row rule won. These specific combinators put the status color back on
+   top of the row rules so a positive/negative delta reads basil/sauce-deep
+   wherever it appears. */
+.ds-row__delta.ds-pos,
+.ds-row__amount.ds-pos,
+.ds-row__value.ds-pos { color: var(--lf-pos); }
+.ds-row__delta.ds-neg,
+.ds-row__amount.ds-neg,
+.ds-row__value.ds-neg { color: var(--lf-neg); }
+
+.ds-row { position: relative; }
+
+/* Meta line — institution/mask/sync text that truncates, plus state chips that
+   never get clipped (they're flex siblings, not inside the truncating span). */
+.ds-row__meta-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ds-row__meta-line .ds-row__meta {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Overflow menu — the `⋯` trigger is pinned at the row's right edge, hugging the
+   value so it's in one predictable place (not floating in the gap). It stays
+   faintly visible at rest so per-account actions are discoverable without
+   hover-hunting, and brightens on hover/focus/open. While syncing it shows a
+   spinner so "Sync now" has feedback after the menu closes. */
+.ds-row__menu {
+  position: relative;
+  width: 28px;
+  flex-shrink: 0;
+  margin-left: -2px;
+  display: flex;
+  justify-content: center;
+}
+.ds-row__menu-trigger {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: none;
+  border: 0;
+  color: var(--lf-muted);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s ease, background 0.12s, color 0.12s;
+}
+.ds-row:hover .ds-row__menu-trigger,
+.ds-acctrow:hover .ds-row__menu-trigger,
+.ds-row__menu-trigger:focus-visible,
+.ds-row__menu--open .ds-row__menu-trigger,
+.ds-row__menu--busy .ds-row__menu-trigger {
+  opacity: 1;
+}
+.ds-row__menu-trigger:hover,
+.ds-row__menu--open .ds-row__menu-trigger {
+  background: var(--lf-cream);
+  color: var(--lf-ink);
+}
+.ds-row__menu-trigger:focus-visible {
+  outline: 2px solid var(--lf-sauce);
+  outline-offset: 1px;
+}
+.ds-row__menu-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  min-width: 184px;
+  padding: 6px;
+  background: var(--lf-paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(31, 26, 22, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: ds-confirm-pop 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Flip above the trigger when there isn't room below (last rows on the page). */
+.ds-row__menu-pop--up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.ds-row__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--lf-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.ds-row__menu-item:hover:not(:disabled) { background: var(--lf-cream); }
+.ds-row__menu-item:focus-visible {
+  outline: none;
+  background: var(--lf-cream);
+  box-shadow: inset 0 0 0 2px var(--lf-sauce);
+}
+.ds-row__menu-item:disabled { cursor: not-allowed; opacity: 0.5; }
+.ds-row__menu-item svg { color: var(--lf-muted); flex-shrink: 0; }
+.ds-row__menu-item--danger { color: var(--lf-neg); }
+.ds-row__menu-item--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--lf-neg) 10%, transparent);
+}
+.ds-row__menu-item--danger svg { color: var(--lf-neg); }
+
+/* State chips in the meta line — quiet and neutral, never louder than the value. */
+.ds-row__badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--lf-cream-deep);
+  border: 1px solid var(--lf-rule-soft);
+  color: var(--lf-ink-soft);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}
+
+/* Touch: no hover to reveal the trigger, so keep it fully visible, and give it
+   a ≥44px hit area (the icon stays 28px, the tap target grows via padding). */
+@media (hover: none) and (pointer: coarse) {
+  .ds-row__menu { width: 44px; }
+  .ds-row__menu-trigger { width: 44px; height: 44px; opacity: 1; }
+  .ds-row__menu-item { padding: 12px 10px; }
+}
+
+/* Mobile: 64px account rows / 60px tx rows. Padding is fixed (not flex)
+   so heights don't drift with longer copy. */
+@media (max-width: 640px) {
+  .ds-row {
+    height: 64px;
+    min-height: 64px;
+    padding: 0 14px;
+  }
+  .ds-row--tx {
+    height: 60px;
+    min-height: 60px;
+  }
+  .ds-row--tx .ds-row__amount { font-size: 14px; }
+  .ds-row__cat { max-width: 96px; }
+  /* Mobile: drop the •••• dot-leader so the mask tail collapses to just the 4
+     digits ("4219"). Keeps the account-identity read while handing the narrow
+     primary line back to the name, so "Household Savings" / "Emergency Fund" render
+     in full instead of truncating to "Househ…". */
+  .ds-row__acct-dots { display: none; }
+}
+
+/* ============================================================
+   .ds-skeleton — iter 7 D
+   CSS-only shimmer that the page can render at first paint while
+   the data query is in flight. Two-stop linear gradient slid via
+   `background-position` keyframe — no JS, no extra DOM, costs
+   essentially nothing to mount.
+
+   Tints are neutral grayscale (NOT cream or sauce) so the shimmer
+   reads as "loading" rather than as a styled element.
+   ============================================================ */
+@keyframes ds-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.ds-skeleton {
+  background-color: rgba(31, 26, 22, 0.04);
+  background-image: linear-gradient(
+    90deg,
+    rgba(31, 26, 22, 0.0)  0%,
+    rgba(31, 26, 22, 0.06) 50%,
+    rgba(31, 26, 22, 0.0)  100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: ds-skeleton-shimmer 1.4s linear infinite;
+}
+/* Row-skeleton: matches the 52px (mobile 56px) standard row height so
+   when real rows swap in, vertical position doesn't jolt. */
+.ds-row--skeleton {
+  background: none;
+  cursor: default;
+}
+.ds-row--skeleton .ds-row__main,
+.ds-row--skeleton .ds-row__right {
+  display: flex;
+  flex-direction: column;
+}
+.ds-row--skeleton .ds-row__right { align-items: flex-end; }
+/* Chart-skeleton: subtle baseline tint behind the shimmer so the area
+   reads as "axis + fan" rather than "empty rectangle". */
+.ds-skeleton--chart {
+  background-color: rgba(31, 26, 22, 0.025);
+}
+
+/* prefers-reduced-motion — drop the keyframe but keep the tinted
+   surface so the skeleton still reserves space without movement. */
+@media (prefers-reduced-motion: reduce) {
+  .ds-skeleton { animation: none; }
+}
+
+/* ============================================================
+   Goal account/preset chips — shared by the goals list create
+   form and the savings-goal detail "Manage accounts" editor.
+   Global so they render correctly on both routes (the detail
+   page does not mount the list page's inline <style>).
+   ============================================================ */
+.goals-presets {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.goals-preset {
+  padding: 6px 14px; border-radius: 20px;
+  border: 1px solid var(--lf-rule);
+  background: transparent; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 500;
+  color: var(--lf-muted);
+  transition: all 0.15s;
+}
+.goals-preset:hover { color: var(--lf-ink); }
+.goals-preset:focus-visible {
+  outline: 2px solid var(--lf-rule);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .goals-preset {
+    min-height: 44px;
+    padding-top: 0; padding-bottom: 0;
+  }
+}
+
+/* ── Pull-to-refresh — the brand waves bob while the page reloads. ── */
+@keyframes p2r-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(5px) scale(0.92); }
+}
+.animate-p2r-bob {
+  animation: p2r-bob 700ms ease-in-out infinite;
+}
+
+/* ── Home net-worth hero — container-query layout ──
+   The app sidebar makes viewport breakpoints lie about how much room the
+   home page actually has, so the page and the hero card measure their own
+   width instead. .cq-inline marks the measuring containers. */
+.cq-inline { container-type: inline-size; }
+
+/* Top grid: the aside (chart / ask / goals) sits beside the hero only when
+   the left 2/3 column can still hold the one-line "Assets − Debt = Net
+   worth" equation; below that the aside wraps underneath instead. */
+.home-hero-grid { display: grid; grid-template-columns: 1fr; }
+@container (min-width: 1024px) {
+  .home-hero-grid { grid-template-columns: 2fr 1fr; }
+}
+
+/* Hero card: the one-line equation everywhere except true phone widths
+   (<400px of card content), where the stacked statement rows take over.
+   Statement is the default so browsers without container queries still get
+   a working layout. */
+.nw-equation { display: none; }
+.nw-chip { display: contents; }
+@container (min-width: 400px) {
+  .nw-statement { display: none; }
+  .nw-equation { display: flex; }
+}
+/* The equation NEVER wraps: a measuring effect sets --nws (0..1) so the type
+   scales down until "Assets − Debt = Net worth" fits on one line — up to
+   9-digit values on desktop, open chat panel included. When space is tight
+   the inline delta chip is dropped first (.nw-eq--tight — the 30-day delta
+   still shows in the chart card) before the type shrinks. */
+.nw-equation {
+  flex-wrap: nowrap;
+  column-gap: max(calc(14px * var(--nws, 1)), 10px);
+}
+.nw-equation .nw-opgroup { column-gap: max(calc(14px * var(--nws, 1)), 10px); }
+.nw-equation .nw-label { font-size: calc(11px * max(var(--nws, 1), 0.86)); }
+.nw-equation .nw-num { font-size: calc(30px * var(--nws, 1)); }
+.nw-equation .nw-num--total { font-size: calc(34px * var(--nws, 1)); }
+.nw-equation .nw-op { font-size: calc(26px * var(--nws, 1)); }
+.nw-eq--tight .nw-chip { display: none; }
+
+/* Report-scoped KPI size. The financial-plan report packs the shared uikit Stat
+   (28px value) next to the plan's own GoalStat (21px). Two KPI sizes clash with
+   the report's denser editorial scale, so shrink the Stat value to ~22px on THIS
+   page only (scoped to `.plan-print-root`, not the shared Stat.tsx) so net worth
+   / total assets / total debt read at one size with the goals KPIs. Print has its
+   own 23px override inside @media print below. */
+.plan-print-root .ui-tnum.text-\[28px\] {
+  font-size: 22px;
+}
+
+/* ============================================================================
+   PRINT — financial-plan "Download PDF" report
+   ----------------------------------------------------------------------------
+   The plan detail page renders `.plan-print-root` around the whole document.
+   In print we strip app chrome, force the light palette (the click handler also
+   removes `.dark`, this is the safety net), and add page-break hints so figures
+   and charts don't split mid-exhibit. The cover header + legal footer live in
+   the page as `.plan-print-only` (hidden on screen, shown in print).
+   ============================================================================ */
+.plan-print-only { display: none; }
+
+/* A4 with a comfortable consulting-report margin. The running footer is drawn
+   in the @page margin boxes below.
+   PAGE FOOTER + NUMBERS: verified empirically that Chromium's page.pdf() (and
+   the interactive window.print() path that ships) DO render @page margin-box
+   `content`, including the live `counter(page)` page number. So the footer and
+   page numbers are done natively in CSS here — a thin identity line at
+   bottom-left and "Page N" at bottom-right, repeated on every page. Margin-box
+   `content` can only be static strings + counters (no dynamic date, no flex),
+   so the identity line is static text and the generated date lives on the cover.
+   Note: the interactive browser print dialog may also add its OWN default
+   header/footer (URL, date, page count) on top of these; that is user-toggleable
+   and outside our control. */
+@page {
+  size: A4;
+  margin: 20mm 18mm 22mm;
+
+  @bottom-left {
+    content: "LasagnaFi  ·  Financial Plan";
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-size: 8pt;
+    letter-spacing: 0.1em;
+    color: #86939f; /* --ui-content-faint (light), literal: margin boxes can't read var() reliably */
+  }
+  @bottom-right {
+    content: "Page " counter(page);
+    font-size: 8pt;
+    letter-spacing: 0.04em;
+    color: #86939f;
+  }
+}
+
+/* No running footer on the cover (page 1): it carries its own foot line. */
+@page :first {
+  @bottom-left { content: ""; }
+  @bottom-right { content: ""; }
+}
+
+@media print {
+  /* White paper, light palette — never bleed dark mode into the PDF. */
+  html, body {
+    background: #fff !important;
+    color-scheme: light;
+  }
+
+  /* CSS safety net: force the LIGHT palette even when `.dark` is on <html>.
+     The Download-PDF button strips `.dark` before printing, but a plain
+     Cmd+P / browser-menu print would otherwise resolve the `.dark`-scoped
+     --ui-* tokens and ink a near-black page. Re-declare the tokens the plan
+     document uses to their :root (light) values, scoped to print + .dark so
+     on-screen dark mode is untouched. */
+  html.dark, .dark {
+    /* Override `.dark { color-scheme: dark }` (theme.css) which — at higher
+       specificity than the `html, body` rule above — otherwise makes the
+       browser ink the page backdrop black on a raw Cmd+P from dark mode. */
+    color-scheme: light;
+
+    --ui-canvas:          247 249 252;
+    --ui-canvas-sunken:   238 242 247;
+    --ui-panel:           255 255 255;
+    --ui-panel-raised:    255 255 255;
+
+    --ui-content:           16 24 38;
+    --ui-content-secondary: 56 70 90;
+    --ui-content-muted:     92 107 128;
+    --ui-content-faint:     134 147 166;
+
+    --ui-hairline:     rgba(16, 24, 38, 0.07);
+    --ui-line:         rgba(16, 24, 38, 0.12);
+    --ui-line-strong:  rgba(16, 24, 38, 0.20);
+
+    --ui-brand:        5 178 121;
+    --ui-brand-hover:  4 158 107;
+    --ui-brand-active: 3 138 93;
+    --ui-brand-ink:    4 122 84;
+    --ui-brand-fg:     255 255 255;
+    --ui-brand-soft:   rgba(5, 178, 121, 0.12);
+    --ui-brand-softer: rgba(5, 178, 121, 0.06);
+    --ui-brand-ring:   rgba(5, 178, 121, 0.42);
+
+    --ui-accent:       99 102 241;
+    --ui-accent-ink:   79 70 229;
+    --ui-accent-soft:  rgba(99, 102, 241, 0.12);
+    --ui-accent-softer: rgba(99, 102, 241, 0.06);
+
+    --ui-positive:       13 110 103;
+    --ui-positive-soft:  rgba(13, 148, 136, 0.13);
+    --ui-negative:       190 20 62;
+    --ui-negative-soft:  rgba(244, 73, 110, 0.14);
+    --ui-danger-solid:   201 24 68;
+    --ui-danger-on:      255 255 255;
+    --ui-caution:        140 86 0;
+    --ui-caution-soft:   rgba(245, 158, 11, 0.16);
+    --ui-info:           79 70 229;
+    --ui-info-soft:      rgba(99, 102, 241, 0.13);
+
+    --ui-viz-1: #14B8A6;
+    --ui-viz-2: #6366F1;
+    --ui-viz-3: #F59E0B;
+    --ui-viz-4: #F4496E;
+    --ui-viz-5: #0EA5E9;
+    --ui-viz-6: #84CC16;
+    --ui-viz-7: #64748B;
+  }
+
+  /* Pure-white paper: kill the ambient canvas wash (tint + indigo/amber
+     radial-gradients) so the report prints on clean white, not rgb(247,249,252). */
+  .app-wash {
+    background: #fff !important;
+    background-image: none !important;
+  }
+
+  /* App chrome has no place in the report. Sidebars (nav + chat), the mobile
+     header/tab bar (nav), and anything explicitly marked print-hidden are
+     removed. Buttons inside the document (Download PDF, the Goals "Complete
+     your goals" CTA, the back link) are interactive-only, so they drop too. */
+  aside,
+  header,
+  nav,
+  .plan-print-hide,
+  .plan-print-root button {
+    display: none !important;
+  }
+
+  /* Show the print-only cover + legal footer. */
+  .plan-print-only { display: block !important; }
+
+  /* Let the document own the full page. The app shell is a stack of
+     height-constrained, overflow-hidden flex containers (h-dvh, overflow-hidden,
+     overflow-y-auto) — left as-is they clip the report to a single viewport
+     instead of paginating. Neutralize height/overflow ONLY on the plan root and
+     its ancestors (`:has`), so the content flows and paginates across A4 pages
+     without clobbering the fixed heights of the document's own bars/dots. */
+  html, body,
+  html:has(.plan-print-root) *:has(.plan-print-root) {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .plan-print-root {
+    display: block !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Decouple the on-screen layout toggle from print. In the "wide" layout the
+     report arranges prose beside exhibits on grids (`.plan-wide-grid`) and
+     lists in two columns (`.plan-wide-2col`). The printed report is ALWAYS the
+     single-column A4 document, so those grids collapse to a plain block here
+     regardless of the toggle — the PDF is identical in both toggle states. */
+  .plan-print-root .plan-wide-grid,
+  .plan-print-root .plan-wide-2col {
+    display: block !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+  }
+  /* The portfolio breakdown moves its inter-group rhythm from `space-y` to the
+     Wide grid's `gap-y`. When the grid collapses for print, restore that
+     spacing so groups don't butt together (the numbered suggestions keep their
+     own per-item top margin, so only this `div` variant needs it). */
+  .plan-print-root div.plan-wide-2col > * + * {
+    margin-top: 1.5rem !important;
+  }
+
+  /* Pagination: fill columns instead of crater. We DON'T blanket
+     break-inside-avoid whole sections or figures — that pushes every exhibit to
+     the next page and leaves 50%+ blank at the foot of the prior one. Instead we
+     keep whole only the SHORT units that would read badly split (list rows) and
+     the SVG chart (never split mid-figure). Tall figures and sections are free to
+     break, so prose and short exhibits pack the page above a chart. */
+  .plan-print-root li,
+  .plan-print-root svg {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* The projected-balance chart figure must not split mid-SVG — the SVG rule
+     above already keeps the chart whole, but the exhibit's label + legend +
+     caption should travel with it too, so this one figure stays intact. It's
+     short enough (<⅔ page) that keeping it whole doesn't crater the page above. */
+  .plan-print-root .plan-figure:has(.plan-chart-well) {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Editorial prose (exec summary + per-theme ledes): let a long paragraph split
+     across a page rather than jumping whole to the next (which craters the foot),
+     but never leave 1-2 dangling lines stranded at a page edge. */
+  .plan-print-root .plan-prose p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* A figure's label/caption must stay with the start of its content — never
+     orphan an "Exhibit N  Title" head alone at a page foot. */
+  .plan-print-root .plan-figure figcaption {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .plan-print-root h1,
+  .plan-print-root h3,
+  .plan-print-root .plan-prose {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* The executive summary opens the report body: let it lead cleanly after the
+     cover without inheriting the section break-inside-avoid (its prose is long
+     enough to paginate on its own). */
+  .plan-exec-summary {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  /* The on-screen "wide" layout widens the exec-summary measure (760px) to lead
+     full-width. Print is ALWAYS the single-column document, so pin the printed
+     measure to the document width (620px) regardless of the toggle — otherwise
+     the lead wraps differently and shifts the whole PDF's pagination. */
+  .plan-print-root .plan-exec-summary .plan-prose {
+    max-width: 620px !important;
+  }
+
+  /* ── Cover: a designed title page that owns A4 page 1 by itself ──────────
+     A three-zone flex column (masthead / centered title block / foot) sized to
+     the full printable page height, so the composition sits on the page like a
+     consulting report cover rather than a top-left header. The page break after
+     forces the first section onto page 2 (no giant blank gap: the break, not a
+     margin, does it). 247mm ≈ A4 height (297mm) minus the 20mm+22mm @page
+     margins, so the column fills the paper without overflowing to a blank p2. */
+  .plan-print-cover {
+    display: flex !important;
+    flex-direction: column;
+    min-height: 247mm;
+    break-after: page;
+    page-break-after: always;
+  }
+  /* Center the title block vertically; masthead and foot bookend it. */
+  .plan-print-cover .plan-cover-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .plan-print-cover .plan-cover-foot {
+    flex: 0 0 auto;
+  }
+  /* The brand accent rule under the title: a short thick brand-green bar, not a
+     full-width hairline — the signature mark of the cover. */
+  .plan-print-cover .plan-cover-rule {
+    width: 56px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgb(var(--ui-brand));
+  }
+
+  /* The BrandMark strokes draw themselves in via a dash-offset animation; in a
+     static print snapshot that animation may be captured mid-draw (or not run),
+     leaving the mark invisible. Force the three wave strokes fully drawn so the
+     brand glyph always inks on the cover. */
+  .plan-print-cover .brand-wave-path {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+    animation: none !important;
+  }
+
+  /* ── Exhibits: lightly framed figures ───────────────────────────────────
+     On paper each exhibit reads as a discrete framed panel — a hairline border,
+     a rounded corner, inset padding, and a whisper-tinted ground — so charts and
+     tables sit in their own bordered plate instead of floating between rules.
+     The screen keeps the borderless editorial treatment; this is print-only.
+     The label + caption stay inside the frame. */
+  .plan-print-root .plan-figure {
+    /* The `border` shorthand replaces the on-screen top-only rule with a full
+       hairline frame on all four sides. */
+    border: 1px solid var(--ui-line);
+    border-radius: 10px;
+    padding: 16px 18px 18px;
+    background: rgb(var(--ui-panel));
+    margin-top: 20px;
+  }
+
+  /* The projected-balance chart sits in a gray inner tray on screen. In print the
+     figure already IS a bordered plate, so the tray is a panel-in-a-panel — flatten
+     it so the chart sits directly on the figure ground like every other exhibit. */
+  .plan-print-root .plan-chart-well {
+    background: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Section head: never orphan the numeral + label from the body that follows
+     it at a page foot. `.plan-section` is the numbered section wrapper; its head
+     is `.plan-section-head`. */
+  .plan-print-root .plan-section-head {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Large snapshot / goals KPIs (e.g. TOTAL DEBT) can crowd the divider in the
+     A4 3-up row — trim the Stat value type a touch so big numbers keep their
+     gutter. Targets the uikit Stat value span (`ui-tnum text-[28px]`).
+     Print-only; on-screen sizing is untouched. */
+  .plan-print-root .ui-tnum.text-\[28px\] {
+    font-size: 23px !important;
+  }
+
+  /* Tinted card/verdict backgrounds must actually ink on the page. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

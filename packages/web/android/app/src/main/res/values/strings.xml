@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LasagnaFi</string>
+    <string name="title_activity_main">LasagnaFi</string>
+    <string name="package_name">com.lasagnafi.app</string>
+    <string name="custom_url_scheme">com.lasagnafi.app</string>
+</resources>

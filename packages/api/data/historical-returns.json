@@ -1,0 +1,889 @@
+{
+  "source": "NYU Stern Damodaran, MSCI, NAREIT",
+  "url": "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html",
+  "updatedAt": "2026-03-29",
+  "startYear": 1928,
+  "endYear": 2024,
+  "assetClasses": [
+    "usStocks",
+    "bonds",
+    "cash",
+    "intlStocks",
+    "reits"
+  ],
+  "data": [
+    {
+      "year": 1928,
+      "usStocks": 0.4381,
+      "bonds": 0.0084,
+      "cash": 0.0308,
+      "inflation": -0.0116,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1929,
+      "usStocks": -0.083,
+      "bonds": 0.042,
+      "cash": 0.0316,
+      "inflation": 0.0058,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1930,
+      "usStocks": -0.2512,
+      "bonds": 0.0454,
+      "cash": 0.0455,
+      "inflation": -0.064,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1931,
+      "usStocks": -0.4384,
+      "bonds": -0.0256,
+      "cash": 0.0231,
+      "inflation": -0.0932,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1932,
+      "usStocks": -0.0864,
+      "bonds": 0.0879,
+      "cash": 0.0107,
+      "inflation": -0.1027,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1933,
+      "usStocks": 0.4998,
+      "bonds": 0.0194,
+      "cash": 0.0096,
+      "inflation": 0.0076,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1934,
+      "usStocks": -0.0119,
+      "bonds": 0.0759,
+      "cash": 0.0032,
+      "inflation": 0.0151,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1935,
+      "usStocks": 0.4674,
+      "bonds": 0.0471,
+      "cash": 0.0017,
+      "inflation": 0.0299,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1936,
+      "usStocks": 0.3194,
+      "bonds": 0.0551,
+      "cash": 0.0018,
+      "inflation": 0.0121,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1937,
+      "usStocks": -0.3534,
+      "bonds": 0.018,
+      "cash": 0.0026,
+      "inflation": 0.0241,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1938,
+      "usStocks": 0.2928,
+      "bonds": 0.0621,
+      "cash": 0.0006,
+      "inflation": -0.0202,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1939,
+      "usStocks": 0.0118,
+      "bonds": 0.044,
+      "cash": 0.0004,
+      "inflation": 0,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1940,
+      "usStocks": -0.0978,
+      "bonds": 0.0575,
+      "cash": 0.0003,
+      "inflation": 0.0096,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1941,
+      "usStocks": -0.1177,
+      "bonds": -0.0202,
+      "cash": 0.0008,
+      "inflation": 0.0972,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1942,
+      "usStocks": 0.1917,
+      "bonds": 0.0229,
+      "cash": 0.0034,
+      "inflation": 0.0929,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1943,
+      "usStocks": 0.2534,
+      "bonds": 0.0249,
+      "cash": 0.0038,
+      "inflation": 0.0316,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1944,
+      "usStocks": 0.1936,
+      "bonds": 0.0258,
+      "cash": 0.0038,
+      "inflation": 0.0211,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1945,
+      "usStocks": 0.3582,
+      "bonds": 0.038,
+      "cash": 0.0038,
+      "inflation": 0.0225,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1946,
+      "usStocks": -0.0843,
+      "bonds": 0.0313,
+      "cash": 0.0038,
+      "inflation": 0.1802,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1947,
+      "usStocks": 0.052,
+      "bonds": 0.0092,
+      "cash": 0.0062,
+      "inflation": 0.0888,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1948,
+      "usStocks": 0.057,
+      "bonds": 0.0195,
+      "cash": 0.0106,
+      "inflation": 0.0271,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1949,
+      "usStocks": 0.183,
+      "bonds": 0.0445,
+      "cash": 0.0116,
+      "inflation": -0.018,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1950,
+      "usStocks": 0.3081,
+      "bonds": -0.0096,
+      "cash": 0.0132,
+      "inflation": 0.0579,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1951,
+      "usStocks": 0.2368,
+      "bonds": -0.0194,
+      "cash": 0.0176,
+      "inflation": 0.0587,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1952,
+      "usStocks": 0.1815,
+      "bonds": 0.0166,
+      "cash": 0.0182,
+      "inflation": 0.0088,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1953,
+      "usStocks": -0.0121,
+      "bonds": 0.0363,
+      "cash": 0.0211,
+      "inflation": 0.0062,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1954,
+      "usStocks": 0.5256,
+      "bonds": 0.0329,
+      "cash": 0.01,
+      "inflation": -0.005,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1955,
+      "usStocks": 0.326,
+      "bonds": -0.0134,
+      "cash": 0.018,
+      "inflation": 0.0037,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1956,
+      "usStocks": 0.0744,
+      "bonds": -0.0226,
+      "cash": 0.0295,
+      "inflation": 0.0286,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1957,
+      "usStocks": -0.1046,
+      "bonds": 0.0645,
+      "cash": 0.0346,
+      "inflation": 0.0302,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1958,
+      "usStocks": 0.4372,
+      "bonds": -0.0078,
+      "cash": 0.0177,
+      "inflation": 0.0176,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1959,
+      "usStocks": 0.1206,
+      "bonds": -0.0226,
+      "cash": 0.034,
+      "inflation": 0.015,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1960,
+      "usStocks": 0.0034,
+      "bonds": 0.1121,
+      "cash": 0.0305,
+      "inflation": 0.0148,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1961,
+      "usStocks": 0.2664,
+      "bonds": 0.0206,
+      "cash": 0.0252,
+      "inflation": 0.0067,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1962,
+      "usStocks": -0.0881,
+      "bonds": 0.0569,
+      "cash": 0.0282,
+      "inflation": 0.0122,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1963,
+      "usStocks": 0.2261,
+      "bonds": 0.0183,
+      "cash": 0.0319,
+      "inflation": 0.0165,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1964,
+      "usStocks": 0.1642,
+      "bonds": 0.0351,
+      "cash": 0.0362,
+      "inflation": 0.0119,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1965,
+      "usStocks": 0.124,
+      "bonds": 0.0071,
+      "cash": 0.0399,
+      "inflation": 0.0192,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1966,
+      "usStocks": -0.0994,
+      "bonds": 0.022,
+      "cash": 0.0476,
+      "inflation": 0.0335,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1967,
+      "usStocks": 0.238,
+      "bonds": -0.0137,
+      "cash": 0.0421,
+      "inflation": 0.0304,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1968,
+      "usStocks": 0.1081,
+      "bonds": 0.0326,
+      "cash": 0.0541,
+      "inflation": 0.0472,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1969,
+      "usStocks": -0.0824,
+      "bonds": -0.0501,
+      "cash": 0.0658,
+      "inflation": 0.0611,
+      "intlStocks": null,
+      "reits": null
+    },
+    {
+      "year": 1970,
+      "usStocks": 0.04,
+      "bonds": 0.1675,
+      "cash": 0.0652,
+      "inflation": 0.0549,
+      "intlStocks": 0.02,
+      "reits": null
+    },
+    {
+      "year": 1971,
+      "usStocks": 0.1431,
+      "bonds": 0.0979,
+      "cash": 0.0439,
+      "inflation": 0.0336,
+      "intlStocks": 0.29,
+      "reits": null
+    },
+    {
+      "year": 1972,
+      "usStocks": 0.1898,
+      "bonds": 0.0268,
+      "cash": 0.0435,
+      "inflation": 0.0341,
+      "intlStocks": 0.37,
+      "reits": 0.081
+    },
+    {
+      "year": 1973,
+      "usStocks": -0.1466,
+      "bonds": 0.0411,
+      "cash": 0.0729,
+      "inflation": 0.088,
+      "intlStocks": -0.14,
+      "reits": -0.156
+    },
+    {
+      "year": 1974,
+      "usStocks": -0.2647,
+      "bonds": 0.02,
+      "cash": 0.0799,
+      "inflation": 0.122,
+      "intlStocks": -0.22,
+      "reits": -0.212
+    },
+    {
+      "year": 1975,
+      "usStocks": 0.372,
+      "bonds": 0.0361,
+      "cash": 0.0597,
+      "inflation": 0.0701,
+      "intlStocks": 0.37,
+      "reits": 0.194
+    },
+    {
+      "year": 1976,
+      "usStocks": 0.2384,
+      "bonds": 0.1598,
+      "cash": 0.0507,
+      "inflation": 0.0481,
+      "intlStocks": 0.03,
+      "reits": 0.475
+    },
+    {
+      "year": 1977,
+      "usStocks": -0.0698,
+      "bonds": 0.014,
+      "cash": 0.0545,
+      "inflation": 0.0677,
+      "intlStocks": 0.19,
+      "reits": 0.223
+    },
+    {
+      "year": 1978,
+      "usStocks": 0.0651,
+      "bonds": -0.0078,
+      "cash": 0.0764,
+      "inflation": 0.0903,
+      "intlStocks": 0.34,
+      "reits": 0.1
+    },
+    {
+      "year": 1979,
+      "usStocks": 0.1852,
+      "bonds": 0.0167,
+      "cash": 0.1056,
+      "inflation": 0.1331,
+      "intlStocks": 0.06,
+      "reits": 0.247
+    },
+    {
+      "year": 1980,
+      "usStocks": 0.3174,
+      "bonds": -0.0295,
+      "cash": 0.121,
+      "inflation": 0.124,
+      "intlStocks": 0.24,
+      "reits": 0.241
+    },
+    {
+      "year": 1981,
+      "usStocks": -0.0491,
+      "bonds": 0.082,
+      "cash": 0.1471,
+      "inflation": 0.0894,
+      "intlStocks": -0.01,
+      "reits": 0.061
+    },
+    {
+      "year": 1982,
+      "usStocks": 0.2141,
+      "bonds": 0.3291,
+      "cash": 0.1065,
+      "inflation": 0.0387,
+      "intlStocks": -0.01,
+      "reits": 0.216
+    },
+    {
+      "year": 1983,
+      "usStocks": 0.2251,
+      "bonds": 0.0368,
+      "cash": 0.089,
+      "inflation": 0.038,
+      "intlStocks": 0.24,
+      "reits": 0.305
+    },
+    {
+      "year": 1984,
+      "usStocks": 0.0627,
+      "bonds": 0.1373,
+      "cash": 0.0985,
+      "inflation": 0.0395,
+      "intlStocks": 0.08,
+      "reits": 0.204
+    },
+    {
+      "year": 1985,
+      "usStocks": 0.3124,
+      "bonds": 0.2571,
+      "cash": 0.0772,
+      "inflation": 0.0377,
+      "intlStocks": 0.57,
+      "reits": 0.193
+    },
+    {
+      "year": 1986,
+      "usStocks": 0.1862,
+      "bonds": 0.2428,
+      "cash": 0.0616,
+      "inflation": 0.0113,
+      "intlStocks": 0.69,
+      "reits": 0.192
+    },
+    {
+      "year": 1987,
+      "usStocks": 0.0522,
+      "bonds": -0.0496,
+      "cash": 0.0583,
+      "inflation": 0.0441,
+      "intlStocks": 0.25,
+      "reits": -0.037
+    },
+    {
+      "year": 1988,
+      "usStocks": 0.1681,
+      "bonds": 0.0822,
+      "cash": 0.0681,
+      "inflation": 0.0442,
+      "intlStocks": 0.29,
+      "reits": 0.136
+    },
+    {
+      "year": 1989,
+      "usStocks": 0.3149,
+      "bonds": 0.1769,
+      "cash": 0.0837,
+      "inflation": 0.0465,
+      "intlStocks": 0.11,
+      "reits": 0.088
+    },
+    {
+      "year": 1990,
+      "usStocks": -0.0306,
+      "bonds": 0.0624,
+      "cash": 0.0762,
+      "inflation": 0.0611,
+      "intlStocks": -0.23,
+      "reits": -0.153
+    },
+    {
+      "year": 1991,
+      "usStocks": 0.3023,
+      "bonds": 0.153,
+      "cash": 0.056,
+      "inflation": 0.0306,
+      "intlStocks": 0.12,
+      "reits": 0.357
+    },
+    {
+      "year": 1992,
+      "usStocks": 0.0762,
+      "bonds": 0.0941,
+      "cash": 0.0351,
+      "inflation": 0.029,
+      "intlStocks": -0.12,
+      "reits": 0.144
+    },
+    {
+      "year": 1993,
+      "usStocks": 0.0999,
+      "bonds": 0.1424,
+      "cash": 0.029,
+      "inflation": 0.0275,
+      "intlStocks": 0.33,
+      "reits": 0.194
+    },
+    {
+      "year": 1994,
+      "usStocks": 0.0132,
+      "bonds": -0.0803,
+      "cash": 0.0439,
+      "inflation": 0.0267,
+      "intlStocks": 0.08,
+      "reits": 0.031
+    },
+    {
+      "year": 1995,
+      "usStocks": 0.372,
+      "bonds": 0.2349,
+      "cash": 0.056,
+      "inflation": 0.0254,
+      "intlStocks": 0.11,
+      "reits": 0.153
+    },
+    {
+      "year": 1996,
+      "usStocks": 0.2296,
+      "bonds": 0.0143,
+      "cash": 0.0521,
+      "inflation": 0.0332,
+      "intlStocks": 0.06,
+      "reits": 0.356
+    },
+    {
+      "year": 1997,
+      "usStocks": 0.3336,
+      "bonds": 0.0993,
+      "cash": 0.0526,
+      "inflation": 0.017,
+      "intlStocks": 0.02,
+      "reits": 0.203
+    },
+    {
+      "year": 1998,
+      "usStocks": 0.2858,
+      "bonds": 0.1492,
+      "cash": 0.0486,
+      "inflation": 0.0161,
+      "intlStocks": 0.2,
+      "reits": -0.177
+    },
+    {
+      "year": 1999,
+      "usStocks": 0.2104,
+      "bonds": -0.0825,
+      "cash": 0.048,
+      "inflation": 0.0268,
+      "intlStocks": 0.27,
+      "reits": -0.046
+    },
+    {
+      "year": 2000,
+      "usStocks": -0.091,
+      "bonds": 0.1666,
+      "cash": 0.0576,
+      "inflation": 0.0339,
+      "intlStocks": -0.14,
+      "reits": 0.266
+    },
+    {
+      "year": 2001,
+      "usStocks": -0.1189,
+      "bonds": 0.0535,
+      "cash": 0.0339,
+      "inflation": 0.0155,
+      "intlStocks": -0.21,
+      "reits": 0.135
+    },
+    {
+      "year": 2002,
+      "usStocks": -0.221,
+      "bonds": 0.1526,
+      "cash": 0.0165,
+      "inflation": 0.0238,
+      "intlStocks": -0.16,
+      "reits": 0.036
+    },
+    {
+      "year": 2003,
+      "usStocks": 0.2838,
+      "bonds": 0.0038,
+      "cash": 0.0094,
+      "inflation": 0.0188,
+      "intlStocks": 0.39,
+      "reits": 0.372
+    },
+    {
+      "year": 2004,
+      "usStocks": 0.1074,
+      "bonds": 0.0449,
+      "cash": 0.0137,
+      "inflation": 0.0326,
+      "intlStocks": 0.21,
+      "reits": 0.313
+    },
+    {
+      "year": 2005,
+      "usStocks": 0.0491,
+      "bonds": 0.0287,
+      "cash": 0.0315,
+      "inflation": 0.0342,
+      "intlStocks": 0.14,
+      "reits": 0.121
+    },
+    {
+      "year": 2006,
+      "usStocks": 0.1561,
+      "bonds": 0.0196,
+      "cash": 0.048,
+      "inflation": 0.0254,
+      "intlStocks": 0.27,
+      "reits": 0.353
+    },
+    {
+      "year": 2007,
+      "usStocks": 0.0549,
+      "bonds": 0.1021,
+      "cash": 0.0466,
+      "inflation": 0.0408,
+      "intlStocks": 0.12,
+      "reits": -0.158
+    },
+    {
+      "year": 2008,
+      "usStocks": -0.37,
+      "bonds": 0.2025,
+      "cash": 0.016,
+      "inflation": 0.0009,
+      "intlStocks": -0.43,
+      "reits": -0.376
+    },
+    {
+      "year": 2009,
+      "usStocks": 0.2645,
+      "bonds": -0.1126,
+      "cash": 0.0014,
+      "inflation": 0.0272,
+      "intlStocks": 0.32,
+      "reits": 0.279
+    },
+    {
+      "year": 2010,
+      "usStocks": 0.1506,
+      "bonds": 0.0808,
+      "cash": 0.0013,
+      "inflation": 0.015,
+      "intlStocks": 0.08,
+      "reits": 0.278
+    },
+    {
+      "year": 2011,
+      "usStocks": 0.0211,
+      "bonds": 0.1604,
+      "cash": 0.0003,
+      "inflation": 0.0296,
+      "intlStocks": -0.12,
+      "reits": 0.083
+    },
+    {
+      "year": 2012,
+      "usStocks": 0.16,
+      "bonds": 0.0297,
+      "cash": 0.0005,
+      "inflation": 0.0174,
+      "intlStocks": 0.17,
+      "reits": 0.1975
+    },
+    {
+      "year": 2013,
+      "usStocks": 0.3239,
+      "bonds": -0.0791,
+      "cash": 0.0007,
+      "inflation": 0.015,
+      "intlStocks": 0.23,
+      "reits": 0.0247
+    },
+    {
+      "year": 2014,
+      "usStocks": 0.1369,
+      "bonds": 0.1075,
+      "cash": 0.0003,
+      "inflation": 0.0076,
+      "intlStocks": -0.05,
+      "reits": 0.2797
+    },
+    {
+      "year": 2015,
+      "usStocks": 0.0138,
+      "bonds": 0.0128,
+      "cash": 0.0005,
+      "inflation": 0.0073,
+      "intlStocks": -0.01,
+      "reits": 0.0253
+    },
+    {
+      "year": 2016,
+      "usStocks": 0.1196,
+      "bonds": 0.0069,
+      "cash": 0.0027,
+      "inflation": 0.0207,
+      "intlStocks": 0.01,
+      "reits": 0.085
+    },
+    {
+      "year": 2017,
+      "usStocks": 0.2183,
+      "bonds": 0.0214,
+      "cash": 0.0093,
+      "inflation": 0.0211,
+      "intlStocks": 0.25,
+      "reits": 0.0527
+    },
+    {
+      "year": 2018,
+      "usStocks": -0.0438,
+      "bonds": -0.0002,
+      "cash": 0.0194,
+      "inflation": 0.0191,
+      "intlStocks": -0.14,
+      "reits": -0.0406
+    },
+    {
+      "year": 2019,
+      "usStocks": 0.3149,
+      "bonds": 0.097,
+      "cash": 0.0212,
+      "inflation": 0.0231,
+      "intlStocks": 0.22,
+      "reits": 0.2561
+    },
+    {
+      "year": 2020,
+      "usStocks": 0.184,
+      "bonds": 0.1122,
+      "cash": 0.0031,
+      "inflation": 0.0123,
+      "intlStocks": 0.078,
+      "reits": -0.0847
+    },
+    {
+      "year": 2021,
+      "usStocks": 0.2871,
+      "bonds": -0.0426,
+      "cash": 0.0005,
+      "inflation": 0.07,
+      "intlStocks": 0.11,
+      "reits": 0.409
+    },
+    {
+      "year": 2022,
+      "usStocks": -0.1821,
+      "bonds": -0.1761,
+      "cash": 0.0202,
+      "inflation": 0.065,
+      "intlStocks": -0.145,
+      "reits": -0.2493
+    },
+    {
+      "year": 2023,
+      "usStocks": 0.261,
+      "bonds": 0.0395,
+      "cash": 0.052,
+      "inflation": 0.034,
+      "intlStocks": 0.18,
+      "reits": 0.1205
+    },
+    {
+      "year": 2024,
+      "usStocks": 0.25,
+      "bonds": 0.01,
+      "cash": 0.053,
+      "inflation": 0.029,
+      "intlStocks": 0.04,
+      "reits": 0.05
+    }
+  ]
+}

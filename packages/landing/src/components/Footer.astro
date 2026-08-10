@@ -1,0 +1,17 @@
+---
+import { GITHUB_URL } from "../config";
+import WaveMark from "./WaveMark.astro";
+---
+
+<footer>
+  <div class="wrap foot-in">
+    <span class="brand" style="font-size:16px"><WaveMark size={18} /><span>Lasagna<span class="fi">Fi</span></span></span>
+    <div class="links">
+      <a href="/#how">How it works</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href={GITHUB_URL}>GitHub</a>
+    </div>
+  </div>
+</footer>

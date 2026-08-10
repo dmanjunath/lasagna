@@ -1,0 +1,369 @@
+import { tool } from "ai";
+import { z } from "zod";
+import { db } from "../../lib/db.js";
+import { plans, planEdits, financialPlans } from "@lasagna/core";
+import { eq, and, ne } from "@lasagna/core";
+import { uiPayloadSchema } from "../types.js";
+import { resolvePlanGrounding, parseAssumptions } from "../../services/plan-grounding.js";
+import { fetchAccountsWithBalances } from "../../lib/account-balances.js";
+import {
+  regeneratePlan,
+  type PlanAssumptions,
+  type DocumentSections,
+} from "../../services/plan-assumptions.js";
+import type { GoalsSection, NamedGoal } from "../../services/goals-section.js";
+
+// Read-only tool for the NEW Financial Plans (financial_plans table). Grounds
+// the agent in a plan's already-computed sections so its answers reconcile with
+// the plan's Retirement Readiness section. Scoped by tenantId + userId (a plan
+// is per-user), so a caller can never read another user's plan. Separate from
+// createPlanTools, which serves the LEGACY `plans` table.
+export function createFinancialPlanTools(
+  tenantId: string,
+  userId: string,
+  financialPlanId: string,
+) {
+  return {
+    get_financial_plan: tool({
+      description:
+        "Returns THIS plan's stored figures (success rate, verdict, retirement age, drawdown, allocation, net worth). Call this FIRST for any question about the plan and use ONLY these numbers — never recompute or invent.",
+      // No-arg tool: the plan id is bound server-side to the thread's plan, so
+      // the model never supplies (and can't request) a plan id. AI SDK v6 still
+      // requires an inputSchema; an empty object is valid.
+      inputSchema: z.object({}),
+      // @ts-ignore
+      execute: async () => {
+        const grounding = await resolvePlanGrounding(tenantId, userId, financialPlanId);
+        if (!grounding) return { error: "Plan not found" };
+        return grounding;
+      },
+    }),
+
+    update_financial_plan_goals: tool({
+      description:
+        "Save the user's stated plan GOALS onto THIS plan. Call this as the user answers, once per field or in batches — you only need to pass the fields you learned, and any field you omit keeps its current value (a merge, never a clobber). Use it for: retirement age, plan-end age (the age money should last through), desired ANNUAL pre-tax retirement income, and named goals (e.g. kids' college, travel, charity). Named goals REPLACE the existing named-goals list, so include every named goal you want kept.",
+      // Only the goal fields — the plan id is bound server-side to the thread's
+      // plan, so the model never supplies (and can't request) a plan id.
+      inputSchema: z.object({
+        retirementAge: z.number().int().min(30).max(100).optional(),
+        planEndAge: z.number().int().min(50).max(120).optional(),
+        retirementIncome: z.number().min(0).optional(),
+        namedGoals: z
+          .array(
+            z.object({
+              label: z.string().min(1).max(80),
+              targetAmount: z.number().min(0).optional(),
+              targetYear: z.number().int().min(1900).max(2200).optional(),
+              note: z.string().max(500).optional(),
+            }),
+          )
+          .optional(),
+      }),
+      // @ts-ignore
+      execute: async (input: {
+        retirementAge?: number;
+        planEndAge?: number;
+        retirementIncome?: number;
+        namedGoals?: NamedGoal[];
+      }) => {
+        // Load the bound plan, scoped to this tenant + user + non-archived, so
+        // the agent can never write to another user's (or a deleted) plan.
+        const [plan] = await db
+          .select({ id: financialPlans.id, document: financialPlans.document })
+          .from(financialPlans)
+          .where(
+            and(
+              eq(financialPlans.id, financialPlanId),
+              eq(financialPlans.tenantId, tenantId),
+              eq(financialPlans.userId, userId),
+              ne(financialPlans.status, "archived"),
+            ),
+          );
+
+        if (!plan) return { error: "Plan not found" };
+
+        let document: { sections?: Record<string, unknown> };
+        try {
+          document = plan.document ? JSON.parse(plan.document) : {};
+        } catch {
+          document = {};
+        }
+        const sections = document.sections ?? {};
+        const existing = (sections.goals as GoalsSection | undefined) ?? {
+          section: "goals" as const,
+        };
+
+        // Merge: only overwrite a field the model actually supplied. namedGoals
+        // is treated as a full replacement (the tool description tells the model
+        // to send the complete list).
+        const merged: GoalsSection = {
+          ...existing,
+          section: "goals",
+          ...(input.retirementAge !== undefined ? { retirementAge: input.retirementAge } : {}),
+          ...(input.planEndAge !== undefined ? { planEndAge: input.planEndAge } : {}),
+          ...(input.retirementIncome !== undefined
+            ? { retirementIncome: input.retirementIncome }
+            : {}),
+          ...(input.namedGoals !== undefined ? { namedGoals: input.namedGoals } : {}),
+          generatedAt: new Date().toISOString(),
+        };
+
+        const nextDocument = { ...document, sections: { ...sections, goals: merged } };
+
+        await db
+          .update(financialPlans)
+          .set({ document: JSON.stringify(nextDocument) })
+          .where(
+            and(
+              eq(financialPlans.id, financialPlanId),
+              eq(financialPlans.tenantId, tenantId),
+              eq(financialPlans.userId, userId),
+              ne(financialPlans.status, "archived"),
+            ),
+          );
+
+        return { success: true, goals: merged };
+      },
+    }),
+
+    update_financial_plan_assumptions: tool({
+      description:
+        "Apply a plan CHANGE that adjusts an assumption and regenerates THIS plan. Supported changes: exclude/restore Social Security (includeSocialSecurity false/true), override the retirement age, the expected return (a DECIMAL, e.g. 0.06 for 6%), the monthly retirement spend (dollars), and hypothetically SELLING a property (sellPropertyAccountId = the real-estate account id from get_financial_plan's realEstate.properties). Selling removes that property and its mortgage and reinvests the net equity alongside the existing investments. Reverse a sale with unsellPropertyAccountId. Only pass the fields the user asked to change; any field you omit keeps its current value (a merge, never a clobber). Do NOT use this for anything outside that set (e.g. tax bracket); explain what you can and cannot adjust instead. After it returns, confirm in prose what changed.",
+      // Only the assumption fields — the plan id is bound server-side to the
+      // thread's plan, so the model never supplies (and can't request) a plan id.
+      // No .min/.max on numbers and no string maxLength: those serialize to
+      // JSON-Schema keywords the OpenRouter -> Bedrock route rejects.
+      inputSchema: z.object({
+        includeSocialSecurity: z.boolean().optional(),
+        retirementAge: z.number().int().optional(),
+        expectedReturn: z.number().optional(),
+        monthlySpend: z.number().optional(),
+        sellPropertyAccountId: z.string().optional(),
+        unsellPropertyAccountId: z.string().optional(),
+      }),
+      // @ts-ignore
+      execute: async (input: {
+        includeSocialSecurity?: boolean;
+        retirementAge?: number;
+        expectedReturn?: number;
+        monthlySpend?: number;
+        sellPropertyAccountId?: string;
+        unsellPropertyAccountId?: string;
+      }) => {
+        // Load the bound plan, scoped to this tenant + user + non-archived, so
+        // the agent can never write to another user's (or a deleted) plan.
+        const [plan] = await db
+          .select({
+            id: financialPlans.id,
+            title: financialPlans.title,
+            document: financialPlans.document,
+            assumptions: financialPlans.assumptions,
+          })
+          .from(financialPlans)
+          .where(
+            and(
+              eq(financialPlans.id, financialPlanId),
+              eq(financialPlans.tenantId, tenantId),
+              eq(financialPlans.userId, userId),
+              ne(financialPlans.status, "archived"),
+            ),
+          );
+
+        if (!plan) return { error: "Plan not found" };
+
+        // Merge: only overwrite an assumption the model actually supplied, so a
+        // change to one field leaves the others intact (and a reversal like
+        // includeSocialSecurity:true simply flips that one field back).
+        const existing = parseAssumptions(plan.assumptions) ?? {};
+        const merged: PlanAssumptions = {
+          ...existing,
+          ...(input.includeSocialSecurity !== undefined
+            ? { includeSocialSecurity: input.includeSocialSecurity }
+            : {}),
+          ...(input.retirementAge !== undefined ? { retirementAge: input.retirementAge } : {}),
+          ...(input.expectedReturn !== undefined ? { expectedReturn: input.expectedReturn } : {}),
+          ...(input.monthlySpend !== undefined ? { monthlySpend: input.monthlySpend } : {}),
+        };
+
+        // ── Sell / unsell a property (adjusts soldPropertyAccountIds) ───────────
+        // A sale must reference a real-estate account owned by THIS tenant. Load
+        // the tenant's properties once, validate the id, and on a bad/ambiguous id
+        // hand the list back so the agent can disambiguate (never guess-persist).
+        if (input.sellPropertyAccountId !== undefined || input.unsellPropertyAccountId !== undefined) {
+          const accts = await fetchAccountsWithBalances(tenantId);
+          const properties = accts.filter((a) => a.type === "real_estate");
+          const sold = new Set(merged.soldPropertyAccountIds ?? []);
+
+          if (input.sellPropertyAccountId !== undefined) {
+            const target = properties.find((p) => p.id === input.sellPropertyAccountId);
+            if (!target) {
+              return {
+                error: "Property not found",
+                properties: properties.map((p) => ({ id: p.id, name: p.name })),
+              };
+            }
+            sold.add(target.id); // dedup via the Set
+          }
+          if (input.unsellPropertyAccountId !== undefined) {
+            sold.delete(input.unsellPropertyAccountId); // reversible; no-op if absent
+          }
+
+          if (sold.size > 0) merged.soldPropertyAccountIds = [...sold];
+          else delete merged.soldPropertyAccountIds;
+        }
+
+        let document: { sections?: DocumentSections };
+        try {
+          document = plan.document ? JSON.parse(plan.document) : {};
+        } catch {
+          document = {};
+        }
+        const sections = document.sections ?? {};
+
+        // An empty assumptions set persists as null (e.g. after unselling the
+        // last property), matching the route's convention so chips render nothing.
+        const hasAssumptions = Object.keys(merged).length > 0;
+        const nextAssumptions = hasAssumptions ? merged : null;
+
+        // Persist the merged assumptions FIRST so a regen failure still records
+        // the user's intent. Then regenerate into a NEW document and swap it in
+        // only on success — a regen error leaves the stored document untouched
+        // (never corrupts the plan) and reports regenerated:false.
+        await db
+          .update(financialPlans)
+          .set({ assumptions: hasAssumptions ? JSON.stringify(merged) : null })
+          .where(
+            and(
+              eq(financialPlans.id, financialPlanId),
+              eq(financialPlans.tenantId, tenantId),
+              eq(financialPlans.userId, userId),
+              ne(financialPlans.status, "archived"),
+            ),
+          );
+
+        let regenerated = false;
+        try {
+          const next = await regeneratePlan(
+            tenantId,
+            userId,
+            { title: plan.title, sections },
+            nextAssumptions,
+          );
+          await db
+            .update(financialPlans)
+            .set({ document: JSON.stringify({ ...document, sections: next.sections }) })
+            .where(
+              and(
+                eq(financialPlans.id, financialPlanId),
+                eq(financialPlans.tenantId, tenantId),
+                eq(financialPlans.userId, userId),
+                ne(financialPlans.status, "archived"),
+              ),
+            );
+          regenerated = true;
+        } catch (e) {
+          console.error(
+            `[update_financial_plan_assumptions] regeneration failed for plan ${financialPlanId}:`,
+            e,
+          );
+        }
+
+        return { success: true, assumptions: nextAssumptions, regenerated };
+      },
+    }),
+  };
+}
+
+export function createPlanTools(tenantId: string) {
+  return {
+    get_plan: tool({
+      description: "Get a plan's current content",
+      parameters: z.object({
+        planId: z.string().uuid(),
+      }),
+      // @ts-ignore
+      execute: async ({ planId }) => {
+        const [plan] = await db
+          .select()
+          .from(plans)
+          .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
+
+        if (!plan) {
+          return { error: "Plan not found" };
+        }
+
+        return {
+          id: plan.id,
+          type: plan.type,
+          title: plan.title,
+          status: plan.status,
+          content: plan.content ? JSON.parse(plan.content) : null,
+          inputs: plan.inputs ? JSON.parse(plan.inputs) : null,
+        };
+      },
+    }),
+
+    update_plan_content: tool({
+      description:
+        "Update a plan's content with new UI blocks. Creates edit history.",
+      parameters: z.object({
+        planId: z.string().uuid(),
+        content: uiPayloadSchema,
+        changeDescription: z.string().optional(),
+      }),
+      // @ts-ignore
+      execute: async ({ planId, content, changeDescription }) => {
+        // Get current plan
+        const [plan] = await db
+          .select()
+          .from(plans)
+          .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
+
+        if (!plan) {
+          return { error: "Plan not found" };
+        }
+
+        // Save edit history
+        if (plan.content) {
+          await db.insert(planEdits).values({
+            planId,
+            tenantId,
+            editedBy: "agent",
+            previousContent: plan.content,
+            changeDescription,
+          });
+        }
+
+        // Update plan (include tenant scope for defense-in-depth)
+        await db
+          .update(plans)
+          .set({ content: JSON.stringify(content) })
+          .where(and(eq(plans.id, planId), eq(plans.tenantId, tenantId)));
+
+        return { success: true, planId };
+      },
+    }),
+
+    create_plan: tool({
+      description: "Create a new plan",
+      parameters: z.object({
+        type: z.enum(["net_worth", "retirement", "debt_payoff", "custom"]),
+        title: z.string(),
+      }),
+      // @ts-ignore
+      execute: async ({ type, title }) => {
+        const [newPlan] = await db
+          .insert(plans)
+          .values({
+            tenantId,
+            type,
+            title,
+            status: "draft",
+          })
+          .returning({ id: plans.id });
+
+        return { planId: newPlan.id };
+      },
+    }),
+  };
+}

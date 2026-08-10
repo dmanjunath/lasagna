@@ -1,0 +1,1 @@
+ALTER TABLE "financial_plans" ADD COLUMN "assumptions" text;

@@ -1,0 +1,63 @@
+---
+import { APP_URL } from "../config";
+---
+
+<a id="top"></a>
+<section class="hero wrap">
+  <div class="hero-copy rv">
+    <h1 class="display">Don't know where to start<br /><span class="hl">with your finances?</span></h1>
+    <p class="hero-sub">
+      Not just a budgeting app, LasagnaFi guides you along your financial journey.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href={APP_URL}>Get started for free</a>
+    </div>
+  </div>
+
+  <div class="hero-art rv" style="animation-delay:.14s">
+    <div class="wealth card">
+      <div class="c-head">
+        <span class="eyebrow accent">Where your wealth stands</span>
+        <span class="live"><span class="pulse"></span>updated today</span>
+      </div>
+
+      <div class="equation">
+        <div class="eq-term">
+          <span class="lbl">Assets</span>
+          <span class="val tnum" data-count-to="246900" data-count-prefix="$">$0</span>
+        </div>
+        <span class="eq-op">−</span>
+        <div class="eq-term">
+          <span class="lbl">Debt</span>
+          <span class="val neg tnum" data-count-to="64470" data-count-prefix="$">$0</span>
+        </div>
+        <span class="eq-op">=</span>
+        <div class="eq-term net">
+          <span class="lbl">Net worth</span>
+          <span class="val tnum" data-count-to="182430" data-count-prefix="$">$0</span>
+        </div>
+      </div>
+
+      <div class="wealth-delta">
+        <span class="chip pos">▲ $4,120</span> this month
+        <span class="sep">·</span> <span class="tnum">+2.3%</span>
+      </div>
+
+      <div class="compbar" aria-hidden="true">
+        <span class="seg cash" style="--w:14%"></span>
+        <span class="seg invest" style="--w:58%"></span>
+        <span class="seg prop" style="--w:28%"></span>
+      </div>
+      <div class="complegend">
+        <span><i class="d cash"></i>Cash 14%</span>
+        <span><i class="d invest"></i>Investments 58%</span>
+        <span><i class="d prop"></i>Property 28%</span>
+      </div>
+
+      <div class="wealth-foot">
+        <span class="foot-move"><span class="rank">1</span>Next move · <b>Kill the $6,240 card @ 23.9%</b></span>
+        <span class="foot-impact tnum">+$1,490/yr</span>
+      </div>
+    </div>
+  </div>
+</section>

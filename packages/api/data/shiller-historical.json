@@ -1,0 +1,761 @@
+{
+  "source": "Robert Shiller, Yale University",
+  "url": "http://www.econ.yale.edu/~shiller/data/ie_data.xls",
+  "updatedAt": "2026-03-23T23:18:34.108Z",
+  "startYear": 1930,
+  "endYear": 2023,
+  "data": [
+    {
+      "year": 1930,
+      "realPrice": 21.71,
+      "realDividend": 0.9708,
+      "realEarnings": 1.557,
+      "cpi": 17.1,
+      "realTotalReturn": 0
+    },
+    {
+      "year": 1931,
+      "realPrice": 15.98,
+      "realDividend": 0.9667,
+      "realEarnings": 0.94,
+      "cpi": 15.9,
+      "realTotalReturn": -0.2194058037770613
+    },
+    {
+      "year": 1932,
+      "realPrice": 8.3,
+      "realDividend": 0.7933,
+      "realEarnings": 0.5933,
+      "cpi": 14.3,
+      "realTotalReturn": -0.4309574468085106
+    },
+    {
+      "year": 1933,
+      "realPrice": 7.09,
+      "realDividend": 0.495,
+      "realEarnings": 0.4125,
+      "cpi": 12.9,
+      "realTotalReturn": -0.0861445783132531
+    },
+    {
+      "year": 1934,
+      "realPrice": 10.54,
+      "realDividend": 0.4408,
+      "realEarnings": 0.4442,
+      "cpi": 13.2,
+      "realTotalReturn": 0.5487729196050775
+    },
+    {
+      "year": 1935,
+      "realPrice": 9.26,
+      "realDividend": 0.45,
+      "realEarnings": 0.57,
+      "cpi": 13.6,
+      "realTotalReturn": -0.0787476280834914
+    },
+    {
+      "year": 1936,
+      "realPrice": 13.76,
+      "realDividend": 0.48,
+      "realEarnings": 0.77,
+      "cpi": 13.8,
+      "realTotalReturn": 0.5377969762419007
+    },
+    {
+      "year": 1937,
+      "realPrice": 17.59,
+      "realDividend": 0.73,
+      "realEarnings": 1.05,
+      "cpi": 14.1,
+      "realTotalReturn": 0.3313953488372093
+    },
+    {
+      "year": 1938,
+      "realPrice": 11.31,
+      "realDividend": 0.793333,
+      "realEarnings": 1.07667,
+      "cpi": 14.2,
+      "realTotalReturn": -0.31191967026719725
+    },
+    {
+      "year": 1939,
+      "realPrice": 12.5,
+      "realDividend": 0.513333,
+      "realEarnings": 0.663333,
+      "cpi": 14,
+      "realTotalReturn": 0.15060415561450038
+    },
+    {
+      "year": 1940,
+      "realPrice": 12.3,
+      "realDividend": 0.623333,
+      "realEarnings": 0.93,
+      "cpi": 13.9,
+      "realTotalReturn": 0.03386664000000006
+    },
+    {
+      "year": 1941,
+      "realPrice": 10.55,
+      "realDividend": 0.673333,
+      "realEarnings": 1.05333,
+      "cpi": 14.1,
+      "realTotalReturn": -0.0875339024390244
+    },
+    {
+      "year": 1942,
+      "realPrice": 8.93,
+      "realDividend": 0.703333,
+      "realEarnings": 1.12,
+      "cpi": 15.7,
+      "realTotalReturn": -0.0868878672985783
+    },
+    {
+      "year": 1943,
+      "realPrice": 10.09,
+      "realDividend": 0.59,
+      "realEarnings": 1.04333,
+      "cpi": 16.9,
+      "realTotalReturn": 0.19596864501679734
+    },
+    {
+      "year": 1944,
+      "realPrice": 11.85,
+      "realDividend": 0.613333,
+      "realEarnings": 0.936667,
+      "cpi": 17.4,
+      "realTotalReturn": 0.23521635282457876
+    },
+    {
+      "year": 1945,
+      "realPrice": 13.49,
+      "realDividend": 0.643333,
+      "realEarnings": 0.94,
+      "cpi": 17.8,
+      "realTotalReturn": 0.1926863291139241
+    },
+    {
+      "year": 1946,
+      "realPrice": 18.02,
+      "realDividend": 0.666667,
+      "realEarnings": 0.94,
+      "cpi": 18.2,
+      "realTotalReturn": 0.3852236471460341
+    },
+    {
+      "year": 1947,
+      "realPrice": 15.21,
+      "realDividend": 0.713333,
+      "realEarnings": 1.13,
+      "cpi": 21.5,
+      "realTotalReturn": -0.1163522197558268
+    },
+    {
+      "year": 1948,
+      "realPrice": 14.83,
+      "realDividend": 0.843333,
+      "realEarnings": 1.64333,
+      "cpi": 23.7,
+      "realTotalReturn": 0.03046239316239311
+    },
+    {
+      "year": 1949,
+      "realPrice": 15.36,
+      "realDividend": 0.946667,
+      "realEarnings": 2.32,
+      "cpi": 24,
+      "realTotalReturn": 0.09957296021577879
+    },
+    {
+      "year": 1950,
+      "realPrice": 16.88,
+      "realDividend": 1.15,
+      "realEarnings": 2.33667,
+      "cpi": 23.5,
+      "realTotalReturn": 0.17382812499999997
+    },
+    {
+      "year": 1951,
+      "realPrice": 21.21,
+      "realDividend": 1.48667,
+      "realEarnings": 2.83667,
+      "cpi": 25.4,
+      "realTotalReturn": 0.34458945497630344
+    },
+    {
+      "year": 1952,
+      "realPrice": 24.19,
+      "realDividend": 1.41333,
+      "realEarnings": 2.42667,
+      "cpi": 26.5,
+      "realTotalReturn": 0.20713484205563415
+    },
+    {
+      "year": 1953,
+      "realPrice": 26.18,
+      "realDividend": 1.41,
+      "realEarnings": 2.41,
+      "cpi": 26.6,
+      "realTotalReturn": 0.1405539479123604
+    },
+    {
+      "year": 1954,
+      "realPrice": 25.46,
+      "realDividend": 1.45667,
+      "realEarnings": 2.52333,
+      "cpi": 26.9,
+      "realTotalReturn": 0.028138655462184914
+    },
+    {
+      "year": 1955,
+      "realPrice": 35.6,
+      "realDividend": 1.54667,
+      "realEarnings": 2.83333,
+      "cpi": 26.7,
+      "realTotalReturn": 0.4590208169677926
+    },
+    {
+      "year": 1956,
+      "realPrice": 44.15,
+      "realDividend": 1.67,
+      "realEarnings": 3.64333,
+      "cpi": 26.8,
+      "realTotalReturn": 0.28707865168539315
+    },
+    {
+      "year": 1957,
+      "realPrice": 45.43,
+      "realDividend": 1.73667,
+      "realEarnings": 3.40667,
+      "cpi": 27.6,
+      "realTotalReturn": 0.06832774631936583
+    },
+    {
+      "year": 1958,
+      "realPrice": 41.12,
+      "realDividend": 1.78333,
+      "realEarnings": 3.29333,
+      "cpi": 28.6,
+      "realTotalReturn": -0.05561677305745107
+    },
+    {
+      "year": 1959,
+      "realPrice": 55.62,
+      "realDividend": 1.75667,
+      "realEarnings": 2.96333,
+      "cpi": 29,
+      "realTotalReturn": 0.39534703307393
+    },
+    {
+      "year": 1960,
+      "realPrice": 58.03,
+      "realDividend": 1.86667,
+      "realEarnings": 3.39,
+      "cpi": 29.3,
+      "realTotalReturn": 0.07689086659475017
+    },
+    {
+      "year": 1961,
+      "realPrice": 59.72,
+      "realDividend": 1.94667,
+      "realEarnings": 3.21,
+      "cpi": 29.8,
+      "realTotalReturn": 0.06266879200413575
+    },
+    {
+      "year": 1962,
+      "realPrice": 69.07,
+      "realDividend": 2.02667,
+      "realEarnings": 3.25,
+      "cpi": 30,
+      "realTotalReturn": 0.190500167448091
+    },
+    {
+      "year": 1963,
+      "realPrice": 65.06,
+      "realDividend": 2.13667,
+      "realEarnings": 3.68333,
+      "cpi": 30.4,
+      "realTotalReturn": -0.0271221948747646
+    },
+    {
+      "year": 1964,
+      "realPrice": 76.45,
+      "realDividend": 2.29667,
+      "realEarnings": 4.07333,
+      "cpi": 30.9,
+      "realTotalReturn": 0.21036996618505996
+    },
+    {
+      "year": 1965,
+      "realPrice": 86.12,
+      "realDividend": 2.51667,
+      "realEarnings": 4.59333,
+      "cpi": 31.2,
+      "realTotalReturn": 0.15940706344015698
+    },
+    {
+      "year": 1966,
+      "realPrice": 93.32,
+      "realDividend": 2.74,
+      "realEarnings": 5.24,
+      "cpi": 31.8,
+      "realTotalReturn": 0.11542034370645597
+    },
+    {
+      "year": 1967,
+      "realPrice": 84.45,
+      "realDividend": 2.88,
+      "realEarnings": 5.51667,
+      "cpi": 32.9,
+      "realTotalReturn": -0.06418774110587216
+    },
+    {
+      "year": 1968,
+      "realPrice": 95.04,
+      "realDividend": 2.93,
+      "realEarnings": 5.36667,
+      "cpi": 34.1,
+      "realTotalReturn": 0.16009473060982832
+    },
+    {
+      "year": 1969,
+      "realPrice": 102,
+      "realDividend": 3.08,
+      "realEarnings": 5.78,
+      "cpi": 35.6,
+      "realTotalReturn": 0.10563973063973056
+    },
+    {
+      "year": 1970,
+      "realPrice": 90.31,
+      "realDividend": 3.16333,
+      "realEarnings": 5.73,
+      "cpi": 37.8,
+      "realTotalReturn": -0.0835948039215686
+    },
+    {
+      "year": 1971,
+      "realPrice": 93.49,
+      "realDividend": 3.13,
+      "realEarnings": 5.16,
+      "cpi": 39.8,
+      "realTotalReturn": 0.0698704462407263
+    },
+    {
+      "year": 1972,
+      "realPrice": 103.3,
+      "realDividend": 3.07,
+      "realEarnings": 5.73667,
+      "cpi": 41.1,
+      "realTotalReturn": 0.13776874532035516
+    },
+    {
+      "year": 1973,
+      "realPrice": 118.4,
+      "realDividend": 3.15667,
+      "realEarnings": 6.54667,
+      "cpi": 42.6,
+      "realTotalReturn": 0.17673446272991294
+    },
+    {
+      "year": 1974,
+      "realPrice": 96.11,
+      "realDividend": 3.4,
+      "realEarnings": 8.22667,
+      "cpi": 46.6,
+      "realTotalReturn": -0.15954391891891895
+    },
+    {
+      "year": 1975,
+      "realPrice": 72.56,
+      "realDividend": 3.62333,
+      "realEarnings": 8.74333,
+      "cpi": 52.1,
+      "realTotalReturn": -0.2073319113515763
+    },
+    {
+      "year": 1976,
+      "realPrice": 96.86,
+      "realDividend": 3.68333,
+      "realEarnings": 8.19333,
+      "cpi": 55.6,
+      "realTotalReturn": 0.3856578004410143
+    },
+    {
+      "year": 1977,
+      "realPrice": 103.8,
+      "realDividend": 4.09667,
+      "realEarnings": 9.96667,
+      "cpi": 58.5,
+      "realTotalReturn": 0.11394455915754695
+    },
+    {
+      "year": 1978,
+      "realPrice": 90.25,
+      "realDividend": 4.71333,
+      "realEarnings": 10.9,
+      "cpi": 62.5,
+      "realTotalReturn": -0.08513169556840074
+    },
+    {
+      "year": 1979,
+      "realPrice": 99.71,
+      "realDividend": 5.11333,
+      "realEarnings": 12.6533,
+      "cpi": 68.3,
+      "realTotalReturn": 0.16147734072022155
+    },
+    {
+      "year": 1980,
+      "realPrice": 110.9,
+      "realDividend": 5.7,
+      "realEarnings": 15.0033,
+      "cpi": 77.8,
+      "realTotalReturn": 0.16939123458028293
+    },
+    {
+      "year": 1981,
+      "realPrice": 133,
+      "realDividend": 6.2,
+      "realEarnings": 14.74,
+      "cpi": 87,
+      "realTotalReturn": 0.2551848512173128
+    },
+    {
+      "year": 1982,
+      "realPrice": 117.3,
+      "realDividend": 6.66,
+      "realEarnings": 15.1767,
+      "cpi": 94.3,
+      "realTotalReturn": -0.0679699248120301
+    },
+    {
+      "year": 1983,
+      "realPrice": 144.3,
+      "realDividend": 6.88333,
+      "realEarnings": 12.5667,
+      "cpi": 97.8,
+      "realTotalReturn": 0.288860443307758
+    },
+    {
+      "year": 1984,
+      "realPrice": 166.4,
+      "realDividend": 7.12,
+      "realEarnings": 14.44,
+      "cpi": 101.9,
+      "realTotalReturn": 0.20249480249480245
+    },
+    {
+      "year": 1985,
+      "realPrice": 171.6,
+      "realDividend": 7.57333,
+      "realEarnings": 16.5567,
+      "cpi": 105.5,
+      "realTotalReturn": 0.07676280048076917
+    },
+    {
+      "year": 1986,
+      "realPrice": 208.2,
+      "realDividend": 7.94,
+      "realEarnings": 14.58,
+      "cpi": 109.6,
+      "realTotalReturn": 0.25955710955710953
+    },
+    {
+      "year": 1987,
+      "realPrice": 264.5,
+      "realDividend": 8.3,
+      "realEarnings": 14.6867,
+      "cpi": 111.2,
+      "realTotalReturn": 0.31027857829010574
+    },
+    {
+      "year": 1988,
+      "realPrice": 250.5,
+      "realDividend": 8.85667,
+      "realEarnings": 17.8633,
+      "cpi": 115.7,
+      "realTotalReturn": -0.0194454820415879
+    },
+    {
+      "year": 1989,
+      "realPrice": 285.4,
+      "realDividend": 9.81333,
+      "realEarnings": 24.16,
+      "cpi": 121.1,
+      "realTotalReturn": 0.1784963273453093
+    },
+    {
+      "year": 1990,
+      "realPrice": 339.97,
+      "realDividend": 11.14,
+      "realEarnings": 22.49,
+      "cpi": 127.4,
+      "realTotalReturn": 0.23023826208829734
+    },
+    {
+      "year": 1991,
+      "realPrice": 325.49,
+      "realDividend": 12.1067,
+      "realEarnings": 21.1833,
+      "cpi": 134.6,
+      "realTotalReturn": -0.006980910080301252
+    },
+    {
+      "year": 1992,
+      "realPrice": 416.08,
+      "realDividend": 12.24,
+      "realEarnings": 16.0467,
+      "cpi": 138.1,
+      "realTotalReturn": 0.315923684291376
+    },
+    {
+      "year": 1993,
+      "realPrice": 435.23,
+      "realDividend": 12.4133,
+      "realEarnings": 19.34,
+      "cpi": 142.6,
+      "realTotalReturn": 0.07585872909055959
+    },
+    {
+      "year": 1994,
+      "realPrice": 472.99,
+      "realDividend": 12.6233,
+      "realEarnings": 22.1567,
+      "cpi": 146.2,
+      "realTotalReturn": 0.11576247041793991
+    },
+    {
+      "year": 1995,
+      "realPrice": 465.25,
+      "realDividend": 13.18,
+      "realEarnings": 31.25,
+      "cpi": 150.3,
+      "realTotalReturn": 0.011501300238905665
+    },
+    {
+      "year": 1996,
+      "realPrice": 614.42,
+      "realDividend": 13.8933,
+      "realEarnings": 33.9867,
+      "cpi": 154.4,
+      "realTotalReturn": 0.35048533046749053
+    },
+    {
+      "year": 1997,
+      "realPrice": 766.22,
+      "realDividend": 14.9533,
+      "realEarnings": 39.2333,
+      "cpi": 159.1,
+      "realTotalReturn": 0.27139953126525845
+    },
+    {
+      "year": 1998,
+      "realPrice": 963.36,
+      "realDividend": 15.55,
+      "realEarnings": 39.66,
+      "cpi": 161.6,
+      "realTotalReturn": 0.2775834616689723
+    },
+    {
+      "year": 1999,
+      "realPrice": 1248.77,
+      "realDividend": 16.28333333,
+      "realEarnings": 37.93333333,
+      "cpi": 164.3,
+      "realTotalReturn": 0.31316780157988705
+    },
+    {
+      "year": 2000,
+      "realPrice": 1425.59,
+      "realDividend": 16.713333333333335,
+      "realEarnings": 49.09666666666667,
+      "cpi": 168.8,
+      "realTotalReturn": 0.15497916616617413
+    },
+    {
+      "year": 2001,
+      "realPrice": 1335.63,
+      "realDividend": 16.169999999999998,
+      "realEarnings": 48.48,
+      "cpi": 175.1,
+      "realTotalReturn": -0.051761025259716896
+    },
+    {
+      "year": 2002,
+      "realPrice": 1140.21,
+      "realDividend": 15.736666666666668,
+      "realEarnings": 24.69333333333333,
+      "cpi": 177.1,
+      "realTotalReturn": -0.13453077074738767
+    },
+    {
+      "year": 2003,
+      "realPrice": 895.84,
+      "realDividend": 16.119999999999997,
+      "realEarnings": 28.5,
+      "cpi": 181.7,
+      "realTotalReturn": -0.20018242253619947
+    },
+    {
+      "year": 2004,
+      "realPrice": 1132.52,
+      "realDividend": 17.6,
+      "realEarnings": 49.826666666666675,
+      "cpi": 185.2,
+      "realTotalReturn": 0.283845329523129
+    },
+    {
+      "year": 2005,
+      "realPrice": 1181.41,
+      "realDividend": 19.703333333333333,
+      "realEarnings": 59.10666666666666,
+      "cpi": 190.7,
+      "realTotalReturn": 0.06056699513768714
+    },
+    {
+      "year": 2006,
+      "realPrice": 1278.73,
+      "realDividend": 22.406666666666666,
+      "realEarnings": 70.77666666666666,
+      "cpi": 198.3,
+      "realTotalReturn": 0.1013421815175651
+    },
+    {
+      "year": 2007,
+      "realPrice": 1424.16,
+      "realDividend": 25.083333333333332,
+      "realEarnings": 82.05666666666667,
+      "cpi": 202.416,
+      "realTotalReturn": 0.1333458457479948
+    },
+    {
+      "year": 2008,
+      "realPrice": 1378.76,
+      "realDividend": 27.92,
+      "realEarnings": 64.25,
+      "cpi": 211.08,
+      "realTotalReturn": -0.012273901808785594
+    },
+    {
+      "year": 2009,
+      "realPrice": 865.58,
+      "realDividend": 28.013333333333335,
+      "realEarnings": 12.206666666666667,
+      "cpi": 211.143,
+      "realTotalReturn": -0.35188623594147395
+    },
+    {
+      "year": 2010,
+      "realPrice": 1123.58,
+      "realDividend": 22.24,
+      "realEarnings": 54.28999999999999,
+      "cpi": 216.687,
+      "realTotalReturn": 0.32375979112271525
+    },
+    {
+      "year": 2011,
+      "realPrice": 1282.62,
+      "realDividend": 22.963333333333335,
+      "realEarnings": 78.67,
+      "cpi": 220.223,
+      "realTotalReturn": 0.1619852020624551
+    },
+    {
+      "year": 2012,
+      "realPrice": 1300.58,
+      "realDividend": 26.736666666666668,
+      "realEarnings": 87.48,
+      "cpi": 226.665,
+      "realTotalReturn": 0.03484794145317141
+    },
+    {
+      "year": 2013,
+      "realPrice": 1480.4,
+      "realDividend": 31.536666666666665,
+      "realEarnings": 86.90666666666667,
+      "cpi": 230.28,
+      "realTotalReturn": 0.16250954702261056
+    },
+    {
+      "year": 2014,
+      "realPrice": 1822.36,
+      "realDividend": 35.403333333333336,
+      "realEarnings": 100.41666666666666,
+      "cpi": 233.916,
+      "realTotalReturn": 0.254906331622084
+    },
+    {
+      "year": 2015,
+      "realPrice": 2028.18,
+      "realDividend": 39.89666666666667,
+      "realEarnings": 101.28999999999999,
+      "cpi": 233.707,
+      "realTotalReturn": 0.13483431740526947
+    },
+    {
+      "year": 2016,
+      "realPrice": 1918.6,
+      "realDividend": 43.553333333333335,
+      "realEarnings": 86.5,
+      "cpi": 236.916,
+      "realTotalReturn": -0.032554638477189805
+    },
+    {
+      "year": 2017,
+      "realPrice": 2275.12,
+      "realDividend": 45.92666666666667,
+      "realEarnings": 96.46333333333334,
+      "cpi": 242.839,
+      "realTotalReturn": 0.20976058931860037
+    },
+    {
+      "year": 2018,
+      "realPrice": 2789.8,
+      "realDividend": 49.28666666666666,
+      "realEarnings": 111.73333333333332,
+      "cpi": 247.867,
+      "realTotalReturn": 0.24788436067841124
+    },
+    {
+      "year": 2019,
+      "realPrice": 2607.39,
+      "realDividend": 54.14666666666667,
+      "realEarnings": 133.05666666666664,
+      "cpi": 251.712,
+      "realTotalReturn": -0.045975816665471944
+    },
+    {
+      "year": 2020,
+      "realPrice": 3278.2028571428577,
+      "realDividend": 58.686867862126704,
+      "realEarnings": 131.75666666666666,
+      "cpi": 257.971,
+      "realTotalReturn": 0.2797815919386761
+    },
+    {
+      "year": 2021,
+      "realPrice": 3793.748421052632,
+      "realDividend": 58.06369311230766,
+      "realEarnings": 105.48666666666665,
+      "cpi": 261.582,
+      "realTotalReturn": 0.17497674244662675
+    },
+    {
+      "year": 2022,
+      "realPrice": 4573.8155,
+      "realDividend": 60.921402962953294,
+      "realEarnings": 197.88333333333333,
+      "cpi": 281.148,
+      "realTotalReturn": 0.22167745157887314
+    },
+    {
+      "year": 2023,
+      "realPrice": 3960.6565,
+      "realDividend": 67.35,
+      "realEarnings": 173.55666666666667,
+      "cpi": 299.17,
+      "realTotalReturn": -0.11933340992875634
+    }
+  ]
+}

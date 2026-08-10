@@ -1,0 +1,17 @@
+---
+import { APP_URL, GITHUB_URL } from "../config";
+import WaveMark from "./WaveMark.astro";
+---
+
+<!-- FINAL CTA -->
+<section class="wrap">
+  <div class="final rv">
+    <WaveMark size={60} style="display:block;margin:0 auto 22px" />
+    <h2 class="display">You've been guessing.<br /><span class="hl">You don't have to.</span></h2>
+    <p>Connect your accounts and see your next move in about five minutes. Free to start, open source.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href={APP_URL}>Get started for free</a>
+      <a class="btn btn-ghost" href={GITHUB_URL}>View the source</a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,157 @@
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { resolveCorsOrigin } from "./lib/cors.js";
+import type { MiddlewareHandler } from "hono";
+import { requireAuth, AuthEnv } from "./middleware/auth.js";
+import { authRoutes } from "./routes/auth.js";
+import { webauthnRoutes } from "./routes/webauthn.js";
+import { plaidRoutes } from "./routes/plaid.js";
+import { accountRoutes } from "./routes/accounts.js";
+import { holdingsRoutes } from "./routes/holdings.js";
+import { syncRoutes } from "./routes/sync.js";
+import { plansRouter } from "./routes/plans.js";
+import { financialPlansRouter } from "./routes/financial-plans.js";
+import { threadsRouter } from "./routes/threads.js";
+import { chatRouter } from "./routes/chat.js";
+import { taxDocumentsRouter } from "./routes/tax-documents.js";
+import { simulationsRouter } from "./routes/simulations.js";
+import { settingsRoutes } from "./routes/settings.js";
+import { portfolioRoutes } from "./routes/portfolio.js";
+import { insightsRoutes } from "./routes/insights.js";
+import { transactionRoutes } from "./routes/transactions.js";
+import { goalRoutes } from "./routes/goals.js";
+import { priorityRoutes } from "./routes/priorities.js";
+import { manualAccountRoutes } from "./routes/manual-accounts.js";
+import { recurringRoutes } from "./routes/recurring.js";
+import { quickImportRoutes } from "./routes/quick-import.js";
+import { billingRoutes } from "./routes/billing.js";
+import { accountRouter } from "./routes/account.js";
+import { adminRoutes } from "./routes/admin.js";
+import { householdRoutes } from "./routes/household.js";
+import { rulesRoutes } from "./routes/rules.js";
+import { categoryRoutes } from "./routes/categories.js";
+import { placesRoutes } from "./routes/places.js";
+import { retirementSimRouter } from "./routes/retirement-sim.js";
+
+export const app = new Hono<AuthEnv>();
+
+// Plain-text request logger (no ANSI colors/arrows)
+const requestLogger: MiddlewareHandler = async (c, next) => {
+  const method = c.req.method;
+  const path = c.req.path;
+  const start = Date.now();
+  console.log(`[${method}] ${path}`);
+  await next();
+  const ms = Date.now() - start;
+  console.log(`[${method}] ${path} ${c.res.status} ${ms}ms`);
+};
+app.use("*", requestLogger);
+
+const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+// localhost:* and *.trycloudflare.com are reflected only outside production —
+// see resolveCorsOrigin. In prod they'd be an attacker-registerable credentialed
+// origin.
+const corsIsDev = process.env.NODE_ENV !== "production";
+
+app.use(
+  "*",
+  cors({
+    origin: (origin) => resolveCorsOrigin(origin, allowedOrigins, corsIsDev),
+    credentials: true,
+    allowHeaders: ["Content-Type", "Authorization", "x-lasagna-client"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  })
+);
+
+app.get("/api/health", (c) => {
+  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// ── Global auth: exempt public routes, require auth everywhere else ──
+app.use("/api/*", async (ctx, next) => {
+  const exempt = [
+    "/api/auth/login",
+    "/api/auth/login/start",
+    "/api/auth/login/send-code",
+    "/api/auth/login/code",
+    "/api/auth/webauthn/login/options",
+    "/api/auth/webauthn/login/verify",
+    "/api/auth/logout",
+    "/api/auth/signup",
+    "/api/auth/me",
+    "/api/auth/verify-email",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
+    "/api/auth/google/start",
+    "/api/auth/google/callback",
+    "/api/health",
+    "/api/billing/webhook",
+  ];
+  if (exempt.includes(ctx.req.path)) return next();
+  // Public invite-summary endpoint (/api/household/invite/:token) — the
+  // logged-out /accept-invite page calls it, and the per-request token means
+  // the resolved path can never be an exact-match exempt entry. All other
+  // /api/household/* actions stay guarded.
+  if (ctx.req.path.startsWith("/api/household/invite/")) return next();
+  return requireAuth(ctx, next);
+});
+
+// ── Demo guard: block mutations for isDemo users ──
+app.use("/api/*", async (ctx, next) => {
+  const session = ctx.get("session");
+  if (!session?.isDemo || ctx.req.method === "GET") return next();
+
+  const path = ctx.req.path;
+
+  // Intercept without DB write — return success so UI doesn't break
+  if (path.match(/^\/api\/insights\/[^/]+\/(dismiss|acted)$/)) {
+    return ctx.json({ ok: true });
+  }
+  if (path === "/api/insights/generate") {
+    return ctx.json({ ok: true, generated: 0 });
+  }
+
+  // Allow read-only computation and chat routes through
+  const allowed = ["/api/chat", "/api/simulations", "/api/threads", "/api/retirement"];
+  if (allowed.some((p) => path === p || path.startsWith(p + "/"))) {
+    return next();
+  }
+
+  return ctx.json(
+    { error: "Demo mode — sign up to make changes at app.lasagnafi.com" },
+    403
+  );
+});
+
+app.route("/api/auth/webauthn", webauthnRoutes);
+app.route("/api/auth", authRoutes);
+app.route("/api/plaid", plaidRoutes);
+app.route("/api/accounts", accountRoutes);
+app.route("/api/holdings", holdingsRoutes);
+app.route("/api/sync", syncRoutes);
+app.route("/api/plans", plansRouter);
+app.route("/api/financial-plans", financialPlansRouter);
+app.route("/api/threads", threadsRouter);
+app.route("/api/chat", chatRouter);
+app.route("/api/tax/documents", taxDocumentsRouter);
+app.route("/api/simulations", simulationsRouter);
+app.route("/api/settings", settingsRoutes);
+app.route("/api/portfolio", portfolioRoutes);
+app.route("/api/insights", insightsRoutes);
+app.route("/api/transactions", transactionRoutes);
+app.route("/api/goals", goalRoutes);
+app.route("/api/priorities", priorityRoutes);
+app.route("/api/manual-accounts", manualAccountRoutes);
+app.route("/api/recurring", recurringRoutes);
+app.route("/api/quick-import", quickImportRoutes);
+app.route("/api/billing", billingRoutes);
+app.route("/api/account", accountRouter);
+app.route("/api/admin", adminRoutes);
+app.route("/api/household", householdRoutes);
+app.route("/api/rules", rulesRoutes);
+app.route("/api/categories", categoryRoutes);
+app.route("/api/places", placesRoutes);
+app.route("/api/retirement", retirementSimRouter);
