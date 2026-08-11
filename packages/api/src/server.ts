@@ -121,7 +121,7 @@ app.use("/api/*", async (ctx, next) => {
   }
 
   return ctx.json(
-    { error: "Demo mode — sign up to make changes at app.lasagnafi.com" },
+    { error: "Demo mode. Sign up to make changes at app.lasagnafi.com." },
     403
   );
 });

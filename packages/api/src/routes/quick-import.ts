@@ -330,7 +330,7 @@ quickImportRoutes.post("/parse", async (c) => {
     return c.json({ error: "Please describe your situation in a sentence or two." }, 400);
   }
   if (text.length > 8000) {
-    return c.json({ error: "Description too long — please keep it under 8000 characters." }, 400);
+    return c.json({ error: "Description too long. Please keep it under 8000 characters." }, 400);
   }
 
   let parseResult: ParseResult;
@@ -384,7 +384,7 @@ quickImportRoutes.post("/parse", async (c) => {
     return c.json(
       {
         error:
-          "Couldn't parse that description — try rephrasing with clearer amounts and account types.",
+          "Couldn't parse that description. Try rephrasing with clearer amounts and account types.",
       },
       422,
     );

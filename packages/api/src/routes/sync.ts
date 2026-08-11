@@ -30,7 +30,7 @@ async function manualSyncGate(
   });
   const lastMs = items.reduce((max, i) => Math.max(max, i.lastSyncedAt?.getTime() ?? 0), 0);
   if (lastMs && Date.now() - lastMs < PRO_MANUAL_SYNC_COOLDOWN_MS) {
-    return { status: 429, error: "Synced recently — try again in a few minutes", code: "rate_limited" };
+    return { status: 429, error: "Synced recently. Try again in a few minutes.", code: "rate_limited" };
   }
   return null;
 }

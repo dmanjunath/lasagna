@@ -76,7 +76,7 @@ Rules:
 - Prefer concrete, well-known planning moves when the data supports them: portfolio rebalancing toward a target allocation, Roth conversions in low-income years, Rule 72(t) / SEPP for penalty-free early withdrawals, NUA on employer stock, and early-retirement healthcare (ACA subsidies / MAGI) gotchas.
 - If a move does not apply to this person's data, do not suggest it. Do not pad to hit a count.
 - Do not restate the plan back to the user; give ACTIONS. Keep it specific and free of jargon the rationale does not explain.
-- Do not use em dashes or en dashes.`;
+- Do not use em dashes, en dashes, middots, or semicolons. Write complete sentences and write ranges as "X to Y".`;
 
 /**
  * Generate the suggestions section from a plan's compact grounding via one

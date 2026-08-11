@@ -111,7 +111,7 @@ webauthnRoutes.post("/register/verify", requireAuth, async (c) => {
   const stored = token ? await verifyChallenge(token) : null;
   deleteCookie(c, CHALLENGE_COOKIE, { path: "/", ...cookieFlagsFor(c) });
   if (!stored || stored.userId !== session.userId)
-    return c.json({ error: "Registration expired — try again" }, 400);
+    return c.json({ error: "Registration expired. Try again." }, 400);
 
   let verification;
   try {
@@ -169,7 +169,7 @@ webauthnRoutes.post("/login/verify", async (c) => {
   const token = getCookie(c, CHALLENGE_COOKIE);
   const stored = token ? await verifyChallenge(token) : null;
   deleteCookie(c, CHALLENGE_COOKIE, { path: "/", ...cookieFlagsFor(c) });
-  if (!stored) return c.json({ error: "Sign-in expired — try again" }, 400);
+  if (!stored) return c.json({ error: "Sign-in expired. Try again." }, 400);
 
   const credId: string | undefined = response?.id;
   if (!credId) return c.json({ error: "Invalid passkey response" }, 400);

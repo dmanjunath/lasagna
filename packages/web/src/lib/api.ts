@@ -1003,15 +1003,11 @@ export const api = {
       body: JSON.stringify({ stepId, skipped }),
     }),
 
-  completePriorityStep: async (stepId: string, completed: boolean, note?: string) => {
-    const res = await fetch(`${API_BASE}/api/priorities/complete`, {
+  completePriorityStep: (stepId: string, completed: boolean, note?: string) =>
+    request<{ ok: boolean }>('/priorities/complete', {
       method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stepId, completed, note: note ?? '' }),
-    });
-    if (!res.ok) throw new Error('Failed to update completion');
-  },
+    }),
 
   // Manual Accounts
   createManualAccount: (data: { name: string; type: string; subtype?: string; balance?: number; metadata?: Record<string, unknown>; valueSource?: 'market' | 'own'; linkedAccountId?: string }) =>

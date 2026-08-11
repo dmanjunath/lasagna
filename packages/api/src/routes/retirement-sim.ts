@@ -78,7 +78,7 @@ async function parseOverrides(
     if (Math.abs(sum - 1) > 0.01) {
       return {
         ok: false,
-        error: `allocation fields must sum to 1.0 (got ${sum.toFixed(4)}); adjust values so usStocks + intlStocks + bonds + reits + cash ≈ 1`,
+        error: `allocation fields must sum to 1.0 (got ${sum.toFixed(4)}). Adjust values so usStocks + intlStocks + bonds + reits + cash ≈ 1.`,
         status: 400,
       };
     }

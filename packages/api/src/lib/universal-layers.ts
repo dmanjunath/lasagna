@@ -25,9 +25,9 @@ export const UNIVERSAL_LAYERS: UniversalLayer[] = [
     id: 'employer-match',
     order: 2,
     name: 'Employer match',
-    subtitle: 'Capture the full 401(k) or ESPP match — guaranteed 50–100% return',
+    subtitle: 'Capture the full 401(k) or ESPP match, a guaranteed 50 to 100% return',
     description:
-      'Every paycheck without employer match capture is a permanent loss. A 100% match on 3% of salary is an instant double on those dollars — no investment comes close. Contribute at least enough to get the full match before any other investing.',
+      'Every paycheck without employer match capture is a permanent loss. A 100% match on 3% of salary is an instant double on those dollars. No investment comes close. Contribute at least enough to get the full match before any other investing.',
     icon: 'gift',
   },
   {
@@ -36,16 +36,16 @@ export const UNIVERSAL_LAYERS: UniversalLayer[] = [
     name: 'High-rate debt',
     subtitle: 'Eliminate all debt above 15% APR',
     description:
-      'Credit card debt at 22%, payday loans at 400%, personal loans above 15% — these guaranteed losses exceed any expected investment return. Attack highest APR first (avalanche) or smallest balance first (snowball). Either beats minimums.',
+      'Credit card debt at 22%, payday loans at 400%, personal loans above 15%: these guaranteed losses exceed any expected investment return. Attack highest APR first (avalanche) or smallest balance first (snowball). Either beats minimums.',
     icon: 'flame',
   },
   {
     id: 'emergency-fund',
     order: 4,
     name: 'Emergency fund',
-    subtitle: '3–6 months essential expenses liquid (6–12 if self-employed)',
+    subtitle: '3 to 6 months of essential expenses liquid (6 to 12 if self-employed)',
     description:
-      'A fully funded emergency fund prevents job loss, medical bills, or major repairs from pushing you back into high-rate debt. Keep it in a high-yield savings account — accessible within 24 hours but not in your checking account.',
+      'A fully funded emergency fund prevents job loss, medical bills, or major repairs from pushing you back into high-rate debt. Keep it in a high-yield savings account, accessible within 24 hours but not in your checking account.',
     icon: 'piggy-bank',
   },
   {
@@ -54,25 +54,25 @@ export const UNIVERSAL_LAYERS: UniversalLayer[] = [
     name: 'Insurance and will',
     subtitle: 'Term life, disability, will, beneficiary designations confirmed',
     description:
-      'One uninsured event can reset your entire financial journey to layer 1. Term life costs $30–60/month and replaces your income for dependents. Disability insurance is even more likely to be needed — 1 in 4 workers are disabled before retirement. A will ensures your assets go where you intend.',
+      'One uninsured event can reset your entire financial journey to layer 1. Term life costs $30 to $60/month and replaces your income for dependents. Disability insurance is even more likely to be needed: 1 in 4 workers are disabled before retirement. A will ensures your assets go where you intend.',
     icon: 'shield',
   },
   {
     id: 'tax-advantaged',
     order: 6,
     name: 'Tax-advantaged investing',
-    subtitle: 'HSA, Roth IRA, 401(k) beyond match — active and growing',
+    subtitle: 'HSA, Roth IRA, 401(k) beyond match: active and growing',
     description:
-      'Tax-advantaged account limits are annual and irrecoverable — miss a year and that space is gone forever. $7k in a Roth IRA at age 25 becomes ~$105k at 65 tax-free. HSA offers triple tax benefits. Start contributing before optimizing.',
+      'Tax-advantaged account limits are annual and irrecoverable: miss a year and that space is gone forever. $7k in a Roth IRA at age 25 becomes ~$105k at 65 tax-free. HSA offers triple tax benefits. Start contributing before optimizing.',
     icon: 'sprout',
   },
   {
     id: 'mid-rate-debt',
     order: 7,
     name: 'Medium-rate debt',
-    subtitle: 'Address all debt 8–15% APR',
+    subtitle: 'Address all debt at 8 to 15% APR',
     description:
-      'Debt in the 8–15% range is roughly break-even with expected market returns, but tax-advantaged contribution limits are use-it-or-lose-it while debt can be paid anytime. That asymmetry is why investing comes first. Now attack these balances.',
+      'Debt in the 8 to 15% range is roughly break-even with expected market returns, but tax-advantaged contribution limits are use-it-or-lose-it while debt can be paid anytime. That asymmetry is why investing comes first. Now attack these balances.',
     icon: 'credit-card',
   },
   {
@@ -90,23 +90,23 @@ export const UNIVERSAL_LAYERS: UniversalLayer[] = [
     name: 'Tax optimization',
     subtitle: 'Tax-loss harvesting, asset location, Roth conversions',
     description:
-      'With accounts funded, optimize how assets are held across account types. Asset location (tax-inefficient holdings in tax-advantaged accounts) adds 0.2–0.5% annually. Tax-loss harvesting offsets gains. Roth conversions in low-income years lock in lower rates.',
+      'With accounts funded, optimize how assets are held across account types. Asset location (tax-inefficient holdings in tax-advantaged accounts) adds 0.2 to 0.5% annually. Tax-loss harvesting offsets gains. Roth conversions in low-income years lock in lower rates.',
     icon: 'layers',
   },
   {
     id: 'low-interest-debt',
     order: 10,
     name: 'Low-interest debt',
-    subtitle: 'Pay off remaining debt ≤7% APR — mortgage, student loans, auto',
+    subtitle: 'Pay off remaining debt at or below 7% APR (mortgage, student loans, auto)',
     description:
-      'Math says invest instead of accelerating these — expected market returns of 7–10% typically beat guaranteed 3–5% savings. The case for paying them off is behavioral: simplicity, security, and the psychological weight of carrying debt. Your call.',
+      'Math says invest instead of accelerating these: expected market returns of 7 to 10% typically beat guaranteed 3 to 5% savings. The case for paying them off is behavioral: simplicity, security, and the psychological weight of carrying debt. Your call.',
     icon: 'credit-card',
   },
   {
     id: 'financial-independence',
     order: 11,
     name: 'Financial independence',
-    subtitle: 'Portfolio sustains your lifestyle — work is optional',
+    subtitle: 'Portfolio sustains your lifestyle, so work is optional',
     description:
       'Financial independence means your investment portfolio generates enough to cover living expenses indefinitely, typically via the 4% rule (25x annual spending). At this point, work becomes a choice rather than a requirement.',
     icon: 'rocket',
@@ -169,7 +169,7 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
           progress: 100,
           current: null,
           target: null,
-          action: 'No employer match available — N/A.',
+          action: 'No employer match available.',
         };
       }
       if (ctx.trad401kBalance > 0) {
@@ -289,7 +289,7 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
         progress: 0,
         current,
         target: 0,
-        action: `Pay off $${current.toLocaleString()} in medium-rate debt (8–15% APR).`,
+        action: `Pay off $${current.toLocaleString()} in medium-rate debt (8 to 15% APR).`,
       };
     }
 
@@ -317,7 +317,7 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
         progress,
         current: combined,
         target: combinedTarget,
-        action: `Max out contributions — target $${combinedTarget.toLocaleString()} across all tax-advantaged accounts.`,
+        action: `Max out contributions: target $${combinedTarget.toLocaleString()} across all tax-advantaged accounts.`,
       };
     }
 
@@ -340,7 +340,7 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
         progress: 0,
         current,
         target: 0,
-        action: `$${current.toLocaleString()} in low-interest debt remaining — pay off or invest instead based on your preference.`,
+        action: `$${current.toLocaleString()} in low-interest debt remaining. Pay it off or invest instead, based on your preference.`,
       };
     }
 

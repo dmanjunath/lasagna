@@ -78,7 +78,7 @@ HTML RULES:
 - Return ONLY the HTML document: start with <!DOCTYPE html>, end with </html>. No markdown, no commentary outside the HTML.
 - Entirely self-contained: inline CSS in a <style> block, no external fonts/images/scripts, NO JavaScript.
 - Charts and figures: draw them yourself as inline SVG from the real numbers. Compute every SVG coordinate carefully: widths, heights, and radii must be non-negative and within the viewBox. Label axes and values so each chart stands alone.
-- Every dollar figure, percentage, and age must trace to tool data. Label estimates as estimates. Do not use em dashes.`;
+- Every dollar figure, percentage, and age must trace to tool data. Label estimates as estimates. In prose text, do not use em dashes, en dashes, middots, or semicolons (CSS may use semicolons). Write complete sentences and write ranges as "X to Y".`;
 
 // Deterministic brand backstop: banned positioning vocabulary is replaced even
 // if the model slips (a 10-minute regeneration is too expensive to retry for a

@@ -188,7 +188,7 @@ adminRoutes.patch("/users/:userId", async (c) => {
     // WorkOS-linked identities are matched by email as a fallback — changing
     // the local email would fork a duplicate user on their next login.
     if (user.workosUserId && email !== user.email) {
-      return c.json({ error: "This user signs in via WorkOS/Google — change their email there, not here" }, 400);
+      return c.json({ error: "This user signs in via WorkOS/Google. Change their email there, not here." }, 400);
     }
     if (email !== user.email) {
       const taken = await db.query.users.findFirst({ where: eq(users.email, email), columns: { id: true } });
@@ -252,7 +252,7 @@ adminRoutes.post("/users/:userId/move-tenant", async (c) => {
       .where(and(eq(users.tenantId, user.tenantId), ne(users.id, userId)));
     if (others.length > 0 && !others.some((u) => u.role === "owner")) {
       return c.json(
-        { error: "This user is the only owner of a household with other members — reassign ownership before moving them." },
+        { error: "This user is the only owner of a household with other members. Reassign ownership before moving them." },
         400,
       );
     }
@@ -319,13 +319,13 @@ adminRoutes.post("/users/:userId/role", async (c) => {
     .where(and(eq(users.tenantId, user.tenantId), eq(users.role, "owner")));
   if (role === "owner" && owners.some((o) => o.id !== userId)) {
     return c.json(
-      { error: "This household already has an owner — demote them first, or move this user instead." },
+      { error: "This household already has an owner. Demote them first, or move this user instead." },
       409,
     );
   }
   if (role !== "owner" && user.role === "owner" && owners.length <= 1) {
     return c.json(
-      { error: "This is the household's only owner — promote another member to owner first." },
+      { error: "This is the household's only owner. Promote another member to owner first." },
       409,
     );
   }
@@ -348,7 +348,7 @@ adminRoutes.delete("/users/:userId", async (c) => {
 
   // Mirror the tenant-delete guard: never remove an operator by accident.
   if (user.isAdmin) {
-    return c.json({ error: "Cannot remove an admin user — clear the admin flag first" }, 400);
+    return c.json({ error: "Cannot remove an admin user. Clear the admin flag first." }, 400);
   }
 
   const [{ count }] = await db
@@ -356,7 +356,7 @@ adminRoutes.delete("/users/:userId", async (c) => {
     .from(users)
     .where(eq(users.tenantId, user.tenantId));
   if (count <= 1) {
-    return c.json({ error: "Tenant would have no users — delete the tenant instead" }, 400);
+    return c.json({ error: "Tenant would have no users. Delete the tenant instead." }, 400);
   }
 
   // Same login + WorkOS-identity teardown the household leave/remove flow uses.
@@ -375,7 +375,7 @@ adminRoutes.post("/users/:userId/password-reset", async (c) => {
     return c.json({ error: "Password reset requires WorkOS auth mode, which is not configured on this server" }, 400);
   }
   if (!user.workosUserId) {
-    return c.json({ error: "This user is not WorkOS-linked — no reset email can be sent" }, 400);
+    return c.json({ error: "This user is not WorkOS-linked, so no reset email can be sent." }, 400);
   }
   try {
     await workos.sendPasswordReset({ email: user.email });
@@ -583,7 +583,7 @@ adminRoutes.delete("/tenants/:tenantId", async (c) => {
     columns: { id: true },
   });
   if (adminUser) {
-    return c.json({ error: "Tenant has an admin user — cannot delete" }, 400);
+    return c.json({ error: "Tenant has an admin user and cannot be deleted." }, 400);
   }
 
   // Cascades users/accounts/etc. activity_events keep their rows (tenant_id

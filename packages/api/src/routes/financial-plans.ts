@@ -242,7 +242,7 @@ financialPlansRouter.post("/", async (c) => {
       (a) => (a.type === "investment" || a.type === "depository") && a.rawBalance > 0,
     );
     if (!hasInvestable) {
-      return c.json({ error: "Link an account first — the report needs real balances." }, 400);
+      return c.json({ error: "Link an account first. The report needs real balances." }, 400);
     }
     const freeform: FreeformReport = {
       status: "generating",
@@ -601,7 +601,7 @@ financialPlansRouter.patch("/:id/assumptions", async (c) => {
   );
   if (document.freeform) {
     return c.json(
-      { error: "Assumptions don't apply to Financial Insights reports — use feedback instead" },
+      { error: "Assumptions don't apply to Financial Insights reports. Use feedback instead." },
       400,
     );
   }

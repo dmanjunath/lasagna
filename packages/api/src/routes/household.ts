@@ -152,7 +152,7 @@ householdRoutes.delete("/members/:userId", async (c) => {
   });
   if (!target) return c.json({ error: "Member not found" }, 404);
   if (target.role === "owner") {
-    return c.json({ error: "The owner can't be removed — delete the household instead." }, 400);
+    return c.json({ error: "The owner can't be removed. Delete the household instead." }, 400);
   }
   await removeUserRow(session.tenantId, target);
   return c.json({ ok: true });
@@ -162,7 +162,7 @@ householdRoutes.delete("/members/:userId", async (c) => {
 householdRoutes.post("/leave", async (c) => {
   const session = c.get("session");
   if (session.role === "owner") {
-    return c.json({ error: "The owner can't leave — delete the household instead." }, 400);
+    return c.json({ error: "The owner can't leave. Delete the household instead." }, 400);
   }
   const self = await db.query.users.findFirst({
     where: and(eq(users.id, session.userId), eq(users.tenantId, session.tenantId)),

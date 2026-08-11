@@ -94,7 +94,7 @@ Rules:
 - Interpret, do not just restate: explain what each number means for this client and why it matters.
 - Write in clear, professional prose. No bullet lists inside a body; use full sentences and paragraphs.
 - Formatting: break the prose into short paragraphs, each of 2 to 4 sentences, separated by a blank line (\n\n between paragraphs). The executive summary must be 2 to 3 short paragraphs; each theme body must be 2 to 4 short paragraphs. Never return a single unbroken block.
-- Do not use em dashes or en dashes anywhere in your output.`;
+- Do not use em dashes, en dashes, middots, or semicolons anywhere in your output. Write complete sentences and write ranges as "X to Y".`;
 
 /**
  * Generate the narrative section from a plan's compact grounding via one bounded

@@ -696,9 +696,10 @@ CRITICAL RULES:
 7. When calculating opportunity costs, use a single consistent spread percentage throughout the insight.
 8. NEVER report a goal as "behind" if currentAmount >= targetAmount — that goal is MET. If projectedCompletionDate is "completed", the goal is achieved.
 9. NEVER produce timelines more than 30 years out. If a projection would be absurd (e.g., "complete in 2120"), instead calculate what monthly savings increase would be needed to hit the deadline.
-10. AVOID generic boilerplate advice like "max out your 401(k)" or "contribute to your Roth IRA" unless you can tie it to a SPECIFIC number from the data (e.g., "You're contributing $15k to your 401(k) — increasing to $23,500 saves $2,040 in taxes at your 24% bracket"). If you can't calculate a specific savings amount, don't generate the insight.
+10. AVOID generic boilerplate advice like "max out your 401(k)" or "contribute to your Roth IRA" unless you can tie it to a SPECIFIC number from the data (e.g., "You're contributing $15k to your 401(k). Increasing to $23,500 saves $2,040 in taxes at your 24% bracket."). If you can't calculate a specific savings amount, don't generate the insight.
 11. When taxDocuments are present, PRIORITIZE document-specific insights (Lens 5) over generic optimization advice (Lens 3). The user uploaded documents to get specific analysis, not boilerplate.
 12. AT MOST ONE insight may primarily flag missing/incomplete data (phrases like "no holdings data", "with no payment tracking", "unknown interest rate", "no income tracked", "$0 monthly expenses"). The user knows their data is incomplete — repeating it across 3-4 insights is noise. If multiple data gaps exist, pick the single highest-impact gap and combine the rest into one "complete your profile" suggestion. Every OTHER insight must derive a concrete recommendation from data that IS present (account balances, balances by type, ages, account names, debt/asset ratios, etc.) — even partial data supports useful advice.
+13. STYLE: never use em dashes, en dashes, middots, or semicolons in any output field. Write complete sentences. Write ranges as "X to Y".
 
 Analyze through these 4 lenses and generate insights from each lens WHERE THE DATA SUPPORTS IT:
 
@@ -744,8 +745,8 @@ SKIP THIS ENTIRE LENS if taxDocuments array is empty.
 This lens is the HIGHEST PRIORITY when tax documents are present. Analyze the actual numbers from the user's uploaded tax documents to generate specific, personalized insights — NOT generic advice.
 
 For each tax document, cross-reference its extracted fields with the user's current financial data:
-- **Withholding vs liability**: If a W-2 shows federal_tax_withheld and you can estimate their tax liability from income + filing status, calculate whether they're over- or under-withheld. Show the specific dollar gap. "Your W-2 shows $18,400 withheld on $120k income — estimated liability is ~$16,200, so you're over-withholding ~$2,200/yr. Adjust W-4 to keep that money working for you."
-- **Year-over-year changes**: If documents span multiple tax years, compare key figures (wages, deductions, tax owed) and flag significant changes. "Your wages grew 12% from $107k to $120k but your effective tax rate jumped from 14.2% to 16.8% — you may have crossed into the 24% bracket."
+- **Withholding vs liability**: If a W-2 shows federal_tax_withheld and you can estimate their tax liability from income + filing status, calculate whether they're over- or under-withheld. Show the specific dollar gap. "Your W-2 shows $18,400 withheld on $120k income. Estimated liability is ~$16,200, so you're over-withholding ~$2,200/yr. Adjust W-4 to keep that money working for you."
+- **Year-over-year changes**: If documents span multiple tax years, compare key figures (wages, deductions, tax owed) and flag significant changes. "Your wages grew 12% from $107k to $120k but your effective tax rate jumped from 14.2% to 16.8%. You may have crossed into the 24% bracket."
 - **Deduction analysis**: If a 1040 shows standard vs itemized deduction, calculate whether switching would save money. If they itemized, check if their total exceeds the standard deduction threshold meaningfully. If not, they may be doing extra work for little benefit.
 - **1099 income patterns**: If 1099s show freelance/investment income, calculate estimated quarterly tax payments needed. Flag if no estimated payments appear to be made (risk of underpayment penalty).
 - **K-1 / S-Corp**: If K-1 or 1120S docs exist, look for pass-through income that may not have withholding — these often cause surprise tax bills.
@@ -807,6 +808,20 @@ Also check these portfolio rules:
 - **Bond allocation vs age**: Rule of thumb is hold (age)% in bonds. If significantly under or over, mention it.
 
 Output at most 10 insights, ordered from most urgent/actionable to least. Skip a lens entirely if its data is weak — there is no minimum count, and padding with generic observations is a failure mode.`;
+
+// Deterministic punctuation backstop for STYLE rule 13: the model is told to
+// avoid em dashes, en dashes, and middots but still slips on roughly a third
+// of generations, and regenerating over punctuation is not worth it — banned
+// characters are normalized after parsing instead (same idiom as sanitizeBrand
+// in services/freeform-report.ts). Hyphen-minus is never touched, so negative
+// numbers, compound words, currency, and URLs are safe.
+export function normalizePunctuation(text: string): string {
+  return text
+    .replace(/\s+[—–]\s+/g, ", ") // spaced dash = clause break
+    .replace(/(\d)\s*[—–]\s*(\d)/g, "$1 to $2") // dash between digits = range
+    .replace(/[—–]/g, ", ") // any dash still left = clause break
+    .replace(/\s*·\s*/g, ", ");
+}
 
 export async function generateInsights(tenantId: string): Promise<number> {
   // Admin pause: disabled tenants get no actions generated (route + cron both
@@ -931,13 +946,13 @@ export async function generateInsights(tenantId: string): Promise<number> {
       tenantId,
       category,
       urgency,
-      title: descrub(ins.title || "Financial insight", aliasMap),
-      description: descrub(ins.description || "", aliasMap),
-      impact: ins.impact ? descrub(ins.impact, aliasMap) : null,
+      title: descrub(normalizePunctuation(ins.title || "Financial insight"), aliasMap),
+      description: descrub(normalizePunctuation(ins.description || ""), aliasMap),
+      impact: ins.impact ? descrub(normalizePunctuation(ins.impact), aliasMap) : null,
       impactColor: validColors.includes(ins.impactColor)
         ? ins.impactColor
         : null,
-      chatPrompt: ins.chatPrompt ? descrub(ins.chatPrompt, aliasMap) : null,
+      chatPrompt: ins.chatPrompt ? descrub(normalizePunctuation(ins.chatPrompt), aliasMap) : null,
       generatedBy: "ai",
       insightType: ins.type || "general",
       sourceData: dataJson,

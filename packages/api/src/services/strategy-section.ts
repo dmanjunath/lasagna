@@ -105,7 +105,7 @@ RULES:
 - A TIMEPOINT REFERENCE with exact today vs at-retirement values is appended to the data; whenever you cite a balance or equity figure "today" or "at retirement/at age N", use the value from that reference or the row for that age.
 - Never write "as the schedule shows" about a figure the report does not display.
 - Be specific and free of jargon you do not explain. Short paragraphs, full sentences, no bullet lists inside a field.
-- Do not use em dashes or en dashes.`;
+- Do not use em dashes, en dashes, middots, or semicolons. Write complete sentences and write ranges as "X to Y".`;
 
 // ---------------------------------------------------------------------------
 // Grounded-figure validation — the RECONCILIATION gate for prose.

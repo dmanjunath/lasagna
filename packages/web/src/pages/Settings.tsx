@@ -214,7 +214,7 @@ export function Settings() {
       setEditSection(null);
     } catch (err) {
       console.error("Failed to save profile:", err);
-      setSaveError("Couldn't save your changes. Try again.");
+      setSaveError(err instanceof Error && err.message ? err.message : "Couldn't save your changes. Try again.");
     } finally {
       setSaving(false);
     }

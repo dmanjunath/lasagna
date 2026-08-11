@@ -9,7 +9,7 @@ import {
 import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import type { LucideIcon } from 'lucide-react';
-import { Button, EmptyState, Skeleton, Textarea } from '../components/uikit';
+import { Button, EmptyState, Skeleton, Textarea, useToast } from '../components/uikit';
 
 // ── constants ────────────────────────────────────────────────────────────────
 
@@ -490,6 +490,7 @@ export function FinancialLevel() {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const focusRef = useRef<HTMLDivElement>(null);
   const { openChat } = useChatStore();
+  const toast = useToast();
 
   // Below the side-panel breakpoint (1080px) the detail expands inline beneath
   // the tapped row (accordion); at/above it, the detail lives in a sticky side
@@ -524,12 +525,13 @@ export function FinancialLevel() {
     });
     try {
       await api.skipPriorityStep(stepId, !isCurrentlySkipped);
-    } catch {
+    } catch (err) {
       setSkippedStepIds(prev => {
         const next = new Set(prev);
         if (isCurrentlySkipped) { next.add(stepId); } else { next.delete(stepId); }
         return next;
       });
+      toast({ tone: 'negative', title: err instanceof Error && err.message ? err.message : "Couldn't update this step. Try again." });
     }
   };
 
@@ -538,8 +540,8 @@ export function FinancialLevel() {
       await api.completePriorityStep(stepId, true, note);
       const d = await api.getPriorities();
       setData(d);
-    } catch {
-      // ignore
+    } catch (err) {
+      toast({ tone: 'negative', title: err instanceof Error && err.message ? err.message : "Couldn't update this step. Try again." });
     }
   };
 
@@ -548,8 +550,8 @@ export function FinancialLevel() {
       await api.completePriorityStep(stepId, false, '');
       const d = await api.getPriorities();
       setData(d);
-    } catch {
-      // ignore
+    } catch (err) {
+      toast({ tone: 'negative', title: err instanceof Error && err.message ? err.message : "Couldn't update this step. Try again." });
     }
   };
 

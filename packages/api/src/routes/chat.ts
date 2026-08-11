@@ -270,7 +270,7 @@ chatRouter.post("/", async (c) => {
       threadTitle: null,
       response: {
         chat: isCredit
-          ? "I can't respond right now — the AI provider (OpenRouter) is out of credits or over its limit. Add credits or raise the key's monthly limit, then try again."
+          ? "I can't respond right now. The AI provider (OpenRouter) is out of credits or over its limit. Add credits or raise the key's monthly limit, then try again."
           : "I ran into an error generating a response. Please try again in a moment.",
       },
       toolResults: [],
