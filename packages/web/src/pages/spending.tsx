@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
@@ -63,15 +64,22 @@ function colorForIndex(i: number): string {
   return DATA_PALETTE[i % DATA_PALETTE.length];
 }
 
+// Touch browsers emulate mouseenter on tap but never fire mouseleave, which
+// strands the donut⇄ledger hover linkage (stuck dim + pill). Only wire the
+// hover handlers when the primary pointer can actually hover.
+const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface SpendingCategory {
-  id: string;
+  // Uncategorized transactions come back with a null id (name "Other") and a
+  // null groupId; those rows render but are inert (no filter to apply).
+  id: string | null;
   name: string;
   systemKey: string | null;
-  groupId: string;
+  groupId: string | null;
   groupName: string;
   groupType: 'income' | 'expense' | 'transfer';
   total: number;
@@ -93,7 +101,7 @@ function DonutMini({
   centerValue,
   onSelect,
 }: {
-  cats: Array<{ name: string; amount: number; color: string; label?: string }>;
+  cats: Array<{ name: string | null; amount: number; color: string; label?: string }>;
   total: number;
   onHoverChange?: (i: number | null) => void;
   hovered?: number | null;
@@ -101,7 +109,7 @@ function DonutMini({
   centerLabel?: string;
   centerValue?: string;
   /** Click a slice → filter by its key (parity with the ledger rows). */
-  onSelect?: (name: string) => void;
+  onSelect?: (name: string | null) => void;
 }) {
   const [hoveredLocal, setHoveredLocal] = useState<number | null>(null);
   const hovered = hoveredProp !== undefined ? hoveredProp : hoveredLocal;
@@ -121,7 +129,7 @@ function DonutMini({
     const x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
     const d = `M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 ${large} 0 ${x3} ${y3} Z`;
     a0 = a1;
-    return { d, color: c.color, name: c.name, label: c.label ?? c.name, amount: c.amount, pct: Math.round(frac * 100), idx };
+    return { d, color: c.color, name: c.name, label: c.label ?? c.name ?? '', amount: c.amount, pct: Math.round(frac * 100), idx };
   });
   const hp = hovered !== null && hovered >= 0 && hovered < paths.length ? paths[hovered] : null;
   return (
@@ -136,16 +144,15 @@ function DonutMini({
           <path key={p.idx} d={p.d} fill={p.color}
             opacity={hovered === null ? 1 : hovered === p.idx ? 1 : 0.32}
             style={{ transition: 'opacity 0.15s' }}
-            onMouseEnter={() => setHovered(p.idx)}
-            onMouseLeave={() => setHovered(null)}
-            onTouchStart={() => setHovered(hovered === p.idx ? null : p.idx)}
+            onMouseEnter={CAN_HOVER ? () => setHovered(p.idx) : undefined}
+            onMouseLeave={CAN_HOVER ? () => setHovered(null) : undefined}
             onClick={onSelect ? () => onSelect(p.name) : undefined}
             data-slice-idx={p.idx}
           />
         ))}
         {hp ? (
           <>
-            <text x="60" y="57" textAnchor="middle" fontWeight="700" fontSize="4.6" letterSpacing="0.08em" fill="rgb(var(--ui-content-muted))" style={{ textTransform: 'uppercase' }}>{hp.label.slice(0, 16)}</text>
+            <text x="60" y="57" textAnchor="middle" fontWeight="700" fontSize="4.6" letterSpacing="0.08em" fill="rgb(var(--ui-content-muted))" style={{ textTransform: 'uppercase' }}>{hp.label.length > 16 ? `${hp.label.slice(0, 15)}…` : hp.label}</text>
             <text x="60" y="70" textAnchor="middle" fontWeight="800" fontSize="11" fill="rgb(var(--ui-content))" style={{ fontVariantNumeric: 'tabular-nums' }}>{hp.pct}%</text>
           </>
         ) : (
@@ -379,86 +386,71 @@ export function Spending() {
     [categories],
   );
 
-  // Normalized rows for the donut/ledger. Category mode: one row per category
-  // (key = category id, label = tenant name). Group mode: reduced by groupId.
-  const rollupRows = useMemo(() => {
+  // Ledger rows, sorted largest first; EVERY row renders (no inline tail
+  // summary). Category mode: one row per category (key = category id, null for
+  // uncategorized). Group mode: reduced by groupId, carrying the child
+  // categories for the expandable rows.
+  const sortedRows = useMemo(() => {
     if (rollup === 'category') {
-      return spendingCategories.map((c) => ({
-        key: c.id,
-        label: c.name,
-        total: c.total,
-      }));
+      return spendingCategories
+        .map((c) => ({
+          key: c.id,
+          label: c.name,
+          total: Math.abs(c.total),
+          children: [] as Array<{ key: string | null; label: string; total: number }>,
+        }))
+        .sort((a, b) => b.total - a.total);
     }
-    const byGroup = new Map<string, { key: string; label: string; total: number }>();
+    const byGroup = new Map<string | null, { key: string | null; label: string; total: number; children: Array<{ key: string | null; label: string; total: number }> }>();
     for (const c of spendingCategories) {
-      const key = c.groupId;
-      const existing = byGroup.get(key);
-      if (existing) existing.total += c.total;
-      else byGroup.set(key, { key, label: c.groupName || 'Other', total: c.total });
+      const child = { key: c.id, label: c.name, total: Math.abs(c.total) };
+      const existing = byGroup.get(c.groupId);
+      if (existing) {
+        existing.total += child.total;
+        existing.children.push(child);
+      } else {
+        byGroup.set(c.groupId, { key: c.groupId, label: c.groupName || 'Other', total: child.total, children: [child] });
+      }
     }
-    return [...byGroup.values()];
+    const rows = [...byGroup.values()];
+    for (const r of rows) r.children.sort((a, b) => b.total - a.total);
+    return rows.sort((a, b) => b.total - a.total);
   }, [spendingCategories, rollup]);
 
   // DonutMini data — viz palette, color assigned by SORTED position so the
-  // largest slice always gets the same hue across renders. Sub-5% categories
-  // roll into a single "Smaller categories" bin (preserving 100% of the total)
-  // so the donut stays scannable instead of drawing unreadable slivers.
-  const donutCats = useMemo(() => {
-    const sorted = [...rollupRows].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
-    const total = sorted.reduce((s, c) => s + Math.abs(c.total), 0);
-    if (total <= 0) {
-      return sorted.map((c, i) => ({
-        // 'name' carries the rollup KEY (category id / group id) — used as the filter value on click.
-        name: c.key,
-        label: c.label,
-        amount: Math.abs(c.total),
-        color: colorForIndex(i),
-        children: [] as Array<{ name: string; label: string; amount: number }>,
-      }));
-    }
-    const SMALL_THRESHOLD = 0.05; // 5% of total
-    const big: typeof sorted = [];
-    const small: typeof sorted = [];
-    for (const c of sorted) {
-      if (Math.abs(c.total) / total >= SMALL_THRESHOLD) big.push(c);
-      else small.push(c);
-    }
-    const bigSlices = big.map((c, i) => ({
-      // 'name' carries the rollup KEY (category id / group id) — used as the filter value on click.
+  // largest slice always gets the same hue across renders. Sub-5% rows roll
+  // into a single "Smaller" bin (preserving 100% of the total) so the donut
+  // stays scannable instead of drawing unreadable slivers. Because rows are
+  // sorted, the bin is a suffix: ledger row i maps to slice i below tailStart
+  // and to the tail slice at or above it.
+  const donut = useMemo(() => {
+    // 'name' carries the rollup KEY (category id / group id), used as the filter value on click.
+    const toSlice = (c: (typeof sortedRows)[number], i: number) => ({
       name: c.key,
       label: c.label,
-      amount: Math.abs(c.total),
+      amount: c.total,
       color: colorForIndex(i),
-      children: [] as Array<{ name: string; label: string; amount: number }>,
-    }));
-    if (small.length >= 2) {
-      const otherTotal = small.reduce((s, c) => s + Math.abs(c.total), 0);
-      bigSlices.push({
-        name: '__tailbin__',
-        label: rollup === 'group' ? 'Smaller groups' : 'Smaller categories',
-        amount: otherTotal,
-        color: TAIL_COLOR,
-        children: small.map((c) => ({
-          name: c.key,
-          label: c.label,
-          amount: Math.abs(c.total),
-        })),
-      });
-    } else if (small.length === 1) {
-      bigSlices.push({
-        // 'name' carries the rollup KEY (category id / group id) — used as the filter value on click.
-        name: small[0].key,
-        label: small[0].label,
-        amount: Math.abs(small[0].total),
-        color: colorForIndex(bigSlices.length),
-        children: [],
-      });
+    });
+    const total = sortedRows.reduce((s, c) => s + c.total, 0);
+    const SMALL_THRESHOLD = 0.05; // 5% of total
+    const bigCount = total > 0
+      ? sortedRows.filter((c) => c.total / total >= SMALL_THRESHOLD).length
+      : sortedRows.length;
+    if (sortedRows.length - bigCount < 2) {
+      return { slices: sortedRows.map(toSlice), tailStart: sortedRows.length };
     }
-    return bigSlices;
-  }, [rollupRows, rollup]);
+    const slices = sortedRows.slice(0, bigCount).map(toSlice);
+    slices.push({
+      name: '__tailbin__',
+      label: rollup === 'group' ? 'Smaller groups' : 'Smaller categories',
+      amount: sortedRows.slice(bigCount).reduce((s, c) => s + c.total, 0),
+      color: TAIL_COLOR,
+    });
+    return { slices, tailStart: bigCount };
+  }, [sortedRows, rollup]);
   const donutTotal = useMemo(
-    () => donutCats.reduce((s, c) => s + c.amount, 0),
-    [donutCats],
+    () => donut.slices.reduce((s, c) => s + c.amount, 0),
+    [donut],
   );
 
   // Top category (for lede) — category semantics regardless of the rollup toggle.
@@ -473,6 +465,21 @@ export function Spending() {
     setRollup(r);
     setSelectedCategory(null);
     setDonutHover(null);
+  }, []);
+
+  // Group-mode expansion (group id → open). All collapsed by default; resets
+  // on rollup toggle and on period change.
+  const [openGroups, setOpenGroups] = useState<Set<string | null>>(() => new Set());
+  useEffect(() => {
+    setOpenGroups(new Set());
+  }, [selectedPeriod, rollup]);
+  const toggleGroup = useCallback((key: string | null) => {
+    setOpenGroups((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }, []);
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
@@ -737,8 +744,11 @@ export function Spending() {
       </section>
 
       {/* ════════ WHERE IT WENT — donut (labeled, long-tail binned) paired with
-           a portfolio-grade two-column category ledger that fills the width.
-           Rows filter the transactions below; hover links donut ⇄ ledger. ═══ */}
+           a full ledger of every row, largest first. Category mode: two columns,
+           rows filter the transactions below. Group mode: one column, rows
+           expand to their child categories (which filter). Hover links
+           donut ⇄ ledger via the row → slice mapping (tail rows share the
+           tail slice). ═══ */}
       {hasLoadedSummary && spendingCategories.length > 0 && (
         <section className="mt-10">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-4">
@@ -766,79 +776,133 @@ export function Spending() {
                   {periodDisplayLabel}
                 </div>
                 <DonutMini
-                  cats={donutCats}
+                  cats={donut.slices}
                   total={donutTotal}
                   hovered={donutHover}
                   onHoverChange={setDonutHover}
                   fmtAmount={formatCurrency}
                   centerLabel={rollup === 'group'
-                    ? (rollupRows.length === 1 ? 'Group' : 'Groups')
-                    : (rollupRows.length === 1 ? 'Category' : 'Categories')}
-                  centerValue={String(rollupRows.length)}
+                    ? (sortedRows.length === 1 ? 'Group' : 'Groups')
+                    : (sortedRows.length === 1 ? 'Category' : 'Categories')}
+                  centerValue={String(sortedRows.length)}
                   onSelect={rollup === 'category'
                     ? (name) => {
-                        if (name === '__tailbin__') return;
+                        // Null = the uncategorized slice; nothing to filter by.
+                        if (name === '__tailbin__' || name === null) return;
                         setSelectedCategory((cur) => (cur === name ? null : name));
                       }
                     : undefined}
                 />
-                <div className="mt-3 text-center text-[12px] font-medium text-content-muted">
-                  {rollup === 'category' ? 'Tap a slice to filter the transactions below' : 'Tap a slice to isolate it'}
-                </div>
+                {rollup === 'category' && (
+                  <div className="mt-3 text-center text-[12px] font-medium text-content-muted">
+                    Select a slice to filter the transactions below
+                  </div>
+                )}
               </div>
 
-              {/* Two-column ledger */}
-              <div className="min-w-0 grid grid-cols-1 gap-x-8 gap-y-0.5 sm:grid-cols-2">
-                {donutCats.map((cat, idx) => {
-                  const pct = donutTotal > 0 ? (cat.amount / donutTotal) * 100 : 0;
-                  const isOther = cat.name === '__tailbin__';
-                  // Group rows aren't click-to-filter in v1 — the group→child
-                  // expansion lives on /transactions.
-                  const selectable = !isOther && rollup === 'category';
-                  const isSelected = selectable && selectedCategory === cat.name;
-                  const dimmed = donutHover !== null && donutHover !== idx;
+              {/* Ledger: every row, largest first. Category mode: two columns.
+                   Group mode: one column so expansion never leaves dead cells. */}
+              <div className={cn(
+                'min-w-0 grid grid-cols-1 gap-y-0.5',
+                rollup === 'category' && 'gap-x-8 sm:grid-cols-2',
+              )}>
+                {sortedRows.map((row, idx) => {
+                  const sliceIdx = idx < donut.tailStart ? idx : donut.slices.length - 1;
+                  const swatchColor = donut.slices[sliceIdx].color;
+                  const pct = donutTotal > 0 ? (row.total / donutTotal) * 100 : 0;
+                  const dimmed = donutHover !== null && donutHover !== sliceIdx;
+                  // Null key = uncategorized ("Other"); inert, nothing to filter by.
+                  const selectable = rollup === 'category' && row.key !== null;
+                  const isSelected = selectable && selectedCategory === row.key;
+                  // The null-key "Other" group has no real children; render it
+                  // flat instead of a chevron that expands to a clone of itself.
+                  const expandable = rollup === 'group' && row.key !== null;
+                  const isOpen = expandable && openGroups.has(row.key);
+                  // Tail rows all share the bin slice; hovering one would make
+                  // the donut announce the bin's totals, contradicting the row
+                  // under the cursor. They get the hover bg only.
+                  const linksToDonut = CAN_HOVER && idx < donut.tailStart;
                   return (
                     <div
-                      key={cat.name}
-                      className={cn(
-                        'flex flex-col transition-opacity',
-                        isOther && 'sm:col-span-2',
-                      )}
+                      key={row.key ?? 'uncategorized'}
+                      className="flex flex-col transition-opacity"
                       style={{ opacity: dimmed ? 0.4 : 1 }}
-                      onMouseEnter={() => setDonutHover(idx)}
-                      onMouseLeave={() => setDonutHover(null)}
+                      onMouseEnter={linksToDonut ? () => setDonutHover(sliceIdx) : undefined}
+                      onMouseLeave={linksToDonut ? () => setDonutHover(null) : undefined}
                     >
                       <button
                         type="button"
-                        onClick={selectable ? () => setSelectedCategory(isSelected ? null : cat.name) : undefined}
+                        onClick={expandable
+                          ? () => toggleGroup(row.key)
+                          : selectable ? () => setSelectedCategory(isSelected ? null : row.key) : undefined}
+                        aria-expanded={expandable ? isOpen : undefined}
+                        aria-pressed={selectable ? isSelected : undefined}
                         className={cn(
                           'ui-focus flex min-h-touch min-w-0 items-center gap-3 rounded-ui-sm px-2.5 py-2 text-left transition-colors',
-                          selectable ? 'cursor-pointer' : 'cursor-default',
-                          isSelected ? 'bg-brand-soft' : selectable && 'hover:bg-brand-softer',
+                          expandable || selectable ? 'cursor-pointer' : 'cursor-default',
+                          isSelected ? 'bg-brand-soft' : (expandable || selectable) && 'hover:bg-brand-softer',
                         )}
                       >
-                        <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: cat.color }} aria-hidden />
+                        <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: swatchColor }} aria-hidden />
                         <span className={cn(
                           'min-w-0 flex-1 truncate text-[13.5px] font-semibold',
                           isSelected ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-content',
                         )}>
-                          {cat.label}
+                          {row.label}
                         </span>
                         <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
                           <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content">
-                            {formatCurrency(cat.amount)}
+                            {formatCurrency(row.total)}
                           </span>
-                          <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{pct.toFixed(0)}%</span>
+                          <span className="ml-2 inline-block w-8 text-right text-[12.5px] font-semibold text-content-muted">
+                            {pct > 0 && pct < 1 ? '<1%' : `${pct.toFixed(0)}%`}
+                          </span>
                         </span>
+                        {rollup === 'group' && (expandable ? (
+                          <ChevronDown
+                            size={16}
+                            className={cn('shrink-0 text-content-muted transition-transform', isOpen && 'rotate-180')}
+                            aria-hidden
+                          />
+                        ) : (
+                          // Chevron-width spacer keeps the flat "Other" row's
+                          // amount on the same axis as its expandable siblings.
+                          <span className="w-4 shrink-0" aria-hidden />
+                        ))}
                       </button>
-                      {isOther && cat.children.length > 0 && (
-                        <div className="px-2.5 pb-2 text-[11.5px] leading-relaxed text-content-muted">
-                          {cat.children.map((c, j) => (
-                            <span key={c.name}>
-                              {c.label} <span className="ui-tnum">{formatCurrency(c.amount)}</span>
-                              {j < cat.children.length - 1 ? ', ' : ''}
-                            </span>
-                          ))}
+                      {isOpen && (
+                        <div className="rounded-ui-sm bg-canvas-sunken/40 pl-6">
+                          {row.children.map((child) => {
+                            const childSelectable = child.key !== null;
+                            const childSelected = childSelectable && selectedCategory === child.key;
+                            return (
+                              <button
+                                key={child.key ?? 'uncategorized'}
+                                type="button"
+                                onClick={childSelectable ? () => setSelectedCategory(childSelected ? null : child.key) : undefined}
+                                aria-pressed={childSelectable ? childSelected : undefined}
+                                className={cn(
+                                  'ui-focus flex w-full min-h-touch min-w-0 items-center gap-3 rounded-ui-sm px-2.5 py-2 text-left transition-colors',
+                                  childSelectable ? 'cursor-pointer' : 'cursor-default',
+                                  childSelected ? 'bg-brand-soft' : childSelectable && 'hover:bg-brand-softer',
+                                )}
+                              >
+                                <span className={cn(
+                                  'min-w-0 flex-1 truncate text-[13px] font-semibold',
+                                  childSelected ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-content',
+                                )}>
+                                  {child.label}
+                                </span>
+                                <span className="ui-tnum shrink-0 whitespace-nowrap text-[13px] font-semibold text-content-secondary">
+                                  {formatCurrency(child.total)}
+                                  {/* Mirrors the parent's pct block so the child
+                                       amount sits on the parent amount axis. */}
+                                  <span className="ml-2 inline-block w-8" aria-hidden />
+                                </span>
+                                <span className="w-4 shrink-0" aria-hidden />
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
