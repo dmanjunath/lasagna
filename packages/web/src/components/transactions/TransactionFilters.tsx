@@ -347,7 +347,7 @@ export function TransactionFilters({
   }
   if (filters.amountMin || filters.amountMax) {
     const label = filters.amountMin && filters.amountMax
-      ? `$${filters.amountMin}–$${filters.amountMax}`
+      ? `$${filters.amountMin} to $${filters.amountMax}`
       : filters.amountMin
         ? `≥$${filters.amountMin}`
         : `≤$${filters.amountMax}`;

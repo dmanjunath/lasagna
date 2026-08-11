@@ -432,7 +432,7 @@ export function CategoryManager() {
                 ))}
               </Select>
             </Field>
-            <Field label="Emoji" hint="Optional — shows next to the name in pickers">
+            <Field label="Emoji" hint="Optional. Shows next to the name in pickers.">
               <Input
                 value={newCat.emoji}
                 onChange={(e) => setNewCat({ ...newCat, emoji: e.target.value })}
@@ -489,7 +489,7 @@ export function CategoryManager() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         title={deleting ? `Delete “${deleting.cat.name}”?` : undefined}
-        description="Its transactions and rules move to the category you pick — history stays intact."
+        description="Its transactions and rules move to the category you pick. History stays intact."
         footer={
           <>
             <Button variant="secondary" size="sm" onClick={() => setDeleting(null)} disabled={modalBusy}>Cancel</Button>

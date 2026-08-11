@@ -199,7 +199,7 @@ export function BacktestTable({
                   className="cursor-pointer hover:bg-bg-secondary/50 transition-colors"
                 >
                   <td className="text-sm tabular-nums px-3 py-2">
-                    {period.startYear}–{period.startYear + period.yearsLasted}
+                    {period.startYear} to {period.startYear + period.yearsLasted}
                   </td>
                   <td className="text-sm tabular-nums px-3 py-2">
                     {period.yearsLasted}

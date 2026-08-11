@@ -47,7 +47,7 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
             Ask anything about your finances
           </h2>
           <p className="text-[14px] font-medium text-content-muted mt-3 max-w-md leading-relaxed">
-            I can analyze your accounts, spending, and plans — and walk you through what to do next.
+            I can analyze your accounts, spending, and plans, then walk you through what to do next.
           </p>
         </div>
 

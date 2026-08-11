@@ -39,7 +39,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
 
   const resetBlocked =
     authMode !== 'workos' ? 'Requires WorkOS auth mode (not configured on this server)'
-    : !u.hasWorkosIdentity ? 'Not WorkOS-linked — no reset email can be sent'
+    : !u.hasWorkosIdentity ? 'Not WorkOS-linked, so no reset email can be sent'
     : '';
   const adminBlocked = isSelf ? "You can't change your own admin status" : u.isDemo ? 'Demo users cannot be admins' : '';
 
@@ -138,7 +138,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
           <Field label="Name">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="No name" />
           </Field>
-          <Field label="Email" hint={u.hasWorkosIdentity ? 'Managed by WorkOS/Google — change it there' : undefined}>
+          <Field label="Email" hint={u.hasWorkosIdentity ? 'Managed by WorkOS/Google. Change it there.' : undefined}>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} disabled={u.hasWorkosIdentity} />
           </Field>
         </div>
@@ -177,7 +177,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
       <div className={actionRow}>
         <div className="min-w-0">
           <div className="text-[13px] font-semibold text-content">Administrator</div>
-          <p className="text-[11.5px] text-content-muted">{adminBlocked || 'Full operator access — takes effect immediately.'}</p>
+          <p className="text-[11.5px] text-content-muted">{adminBlocked || 'Full operator access. Takes effect immediately.'}</p>
         </div>
         <Button variant="secondary" size="sm" disabled={!!adminBlocked || busy} title={adminBlocked || undefined} onClick={() => openConfirm('admin')}>
           {u.isAdmin ? 'Revoke admin' : 'Make admin'}
@@ -234,7 +234,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
           {confirm === 'reset' && <>Email <b className="text-content">{u.email}</b> a WorkOS password-reset link?</>}
           {confirm === 'signout' && <>
             Immediately invalidate every signed-in session for <b className="text-content">{u.email}</b>? They stay signed out until they log in again.
-            {isSelf && <> <b className="text-content">This is you</b> — you will be signed out of this session too.</>}
+            {isSelf && <> <b className="text-content">This is you</b>. You will be signed out of this session too.</>}
           </>}
           {confirm === 'admin' && (u.isAdmin
             ? <>Remove admin access from <b className="text-content">{u.email}</b>? Takes effect on their very next request.</>

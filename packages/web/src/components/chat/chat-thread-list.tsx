@@ -111,7 +111,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
             <Sparkles className="w-6 h-6 text-[rgb(var(--ui-accent-ink))]" />
           </div>
           <h2 className="font-editorial font-bold text-[28px] text-content leading-[1.05] tracking-[-0.025em]">Ask anything about your finances</h2>
-          <p className="text-[14px] font-medium text-content-muted mt-2.5 leading-relaxed">I can analyze your accounts, spending, and plans — and walk you through what to do next.</p>
+          <p className="text-[14px] font-medium text-content-muted mt-2.5 leading-relaxed">I can analyze your accounts, spending, and plans, then walk you through what to do next.</p>
         </div>
 
         {composer}

@@ -31,19 +31,19 @@ export const THEMES: ThemeDef[] = [
   { id: 'rocket',    label: 'Rocket',        description: 'Bright and punchy. Violet with cyan-green.',     swatches: ['#7C3AED', '#00C896', '#0EA5E9'] },
   { id: 'cobalt',    label: 'Cobalt',        description: 'Confident deep blue. Brex-leaning.',             swatches: ['#2563EB', '#0EA5E9', '#F59E0B'] },
   { id: 'rose',      label: 'Rose Quartz',   description: 'Warm rose pink primary on white.',               swatches: ['#EC4899', '#F472B6', '#1F2937'] },
-  { id: 'coral',     label: 'Tropical Heat', description: 'Coral orange — warm and energetic.',             swatches: ['#F97316', '#FB923C', '#1F2937'] },
+  { id: 'coral',     label: 'Tropical Heat', description: 'Coral orange. Warm and energetic.',              swatches: ['#F97316', '#FB923C', '#1F2937'] },
   // Row 2
   { id: 'honey',     label: 'Honey Opal',    description: 'Honey amber primary on cream-white.',            swatches: ['#D97706', '#F59E0B', '#1F2937'] },
-  { id: 'marina',    label: 'Marina',        description: 'Deep marine teal — cool and clean.',             swatches: ['#0D9488', '#06B6D4', '#0F172A'] },
-  { id: 'fireside',  label: 'Fireside',      description: 'Fire red — confident and bold.',                 swatches: ['#DC2626', '#F87171', '#1F2937'] },
-  { id: 'graphite',  label: 'Graphite',      description: 'Minimal slate ink — Linear-leaning.',            swatches: ['#374151', '#6B7280', '#0F172A'] },
-  { id: 'hot-topic', label: 'Hot Topic',     description: 'Hot magenta-pink — vibrant and bold.',           swatches: ['#F54772', '#FB7299', '#1F2937'] },
+  { id: 'marina',    label: 'Marina',        description: 'Deep marine teal. Cool and clean.',              swatches: ['#0D9488', '#06B6D4', '#0F172A'] },
+  { id: 'fireside',  label: 'Fireside',      description: 'Fire red. Confident and bold.',                  swatches: ['#DC2626', '#F87171', '#1F2937'] },
+  { id: 'graphite',  label: 'Graphite',      description: 'Minimal slate ink. Linear-leaning.',             swatches: ['#374151', '#6B7280', '#0F172A'] },
+  { id: 'hot-topic', label: 'Hot Topic',     description: 'Hot magenta-pink. Vibrant and bold.',            swatches: ['#F54772', '#FB7299', '#1F2937'] },
   // Row 3
-  { id: 'sapphire',  label: 'Sapphire',      description: 'Deep sapphire navy — rich and premium.',         swatches: ['#1E3A8A', '#3B82F6', '#0F172A'] },
-  { id: 'amethyst',  label: 'Amethyst',      description: 'Saturated amethyst purple — jewel-tone.',        swatches: ['#9333EA', '#A855F7', '#0F172A'] },
-  { id: 'sunshine',  label: 'Sunshine',      description: 'Bright sunshine yellow — cheerful.',             swatches: ['#EAB308', '#FACC15', '#1F2937'] },
-  { id: 'aqua',      label: 'Aqua',          description: 'Bright cyan aqua — fresh and breezy.',           swatches: ['#06B6D4', '#22D3EE', '#0F172A'] },
-  { id: 'custom',    label: 'Custom',        description: 'Pick any accent — Lasagna derives the rest.',    swatches: ['#EC4899', '#EC4899', '#EC4899'] },
+  { id: 'sapphire',  label: 'Sapphire',      description: 'Deep sapphire navy. Rich and premium.',          swatches: ['#1E3A8A', '#3B82F6', '#0F172A'] },
+  { id: 'amethyst',  label: 'Amethyst',      description: 'Saturated jewel-tone amethyst purple.',          swatches: ['#9333EA', '#A855F7', '#0F172A'] },
+  { id: 'sunshine',  label: 'Sunshine',      description: 'Bright, cheerful sunshine yellow.',              swatches: ['#EAB308', '#FACC15', '#1F2937'] },
+  { id: 'aqua',      label: 'Aqua',          description: 'Bright cyan aqua. Fresh and breezy.',            swatches: ['#06B6D4', '#22D3EE', '#0F172A'] },
+  { id: 'custom',    label: 'Custom',        description: 'Pick any accent. Lasagna derives the rest.',     swatches: ['#EC4899', '#EC4899', '#EC4899'] },
 ];
 
 const STORAGE_KEY = 'lasagna-theme';

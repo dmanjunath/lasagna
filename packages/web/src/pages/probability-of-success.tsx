@@ -424,6 +424,7 @@ function HistogramChart({ data, height = 250 }: { data: HistogramBucket[]; heigh
             <Tooltip
               contentStyle={tooltipStyle}
               cursor={{ fill: "var(--ui-brand-softer)" }}
+              separator=""
               formatter={(value: any, _n: any, props: any) => {
                 const v = typeof value === "number" ? value : 0;
                 const pct = total > 0 ? ((v / total) * 100).toFixed(1) : "0.0";

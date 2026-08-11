@@ -125,7 +125,7 @@ export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
   const displayData = buckets.map((d) => {
     const bucketVal = typeof d.bucket === 'string' ? parseFloat(d.bucket) : d.bucket;
     const label = step > 0
-      ? `${formatValue(bucketVal)}\u2013${formatValue(bucketVal + step)}`
+      ? `${formatValue(bucketVal)} to ${formatValue(bucketVal + step)}`
       : formatValue(bucketVal);
     return { ...d, label };
   });
@@ -161,11 +161,12 @@ export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
             labelStyle={{ color: colors.text.muted }}
             wrapperStyle={{ outline: 'none' }}
             cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+            separator=""
             formatter={(value: any, _name: any, props: any) => {
               const pct = totalSimulations > 0
                 ? ((value as number) / totalSimulations * 100).toFixed(1)
                 : '0.0';
-              return [`${props.payload.label}  —  ${value} simulations (${pct}%)`, ''];
+              return [`${props.payload.label}: ${value} simulations (${pct}%)`, ''];
             }}
             labelFormatter={() => ''}
           />

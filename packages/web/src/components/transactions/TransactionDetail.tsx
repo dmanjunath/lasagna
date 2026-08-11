@@ -136,7 +136,7 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
               <div className="mt-2 flex items-center gap-2">
                 <InstIcon institution={acct.institution} isManual={acct.isManual} size="sm" />
                 <span className="min-w-0 truncate text-[13px] text-content-muted">
-                  {acct.institution} — {acct.name}{acct.mask ? ` ••${acct.mask}` : ''}
+                  {acct.institution}, {acct.name}{acct.mask ? ` ••${acct.mask}` : ''}
                 </span>
               </div>
             )}

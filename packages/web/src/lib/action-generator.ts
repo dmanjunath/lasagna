@@ -54,7 +54,7 @@ export function generateActionItems(state: FinancialState): ActionItemData[] {
       title: `Call ${creditor} to negotiate rate`,
       tag: 'DEBT',
       description: `Your highest interest rate is ${state.highestApr.toFixed(1)}%. A single phone call can often reduce it by 2-5 points, saving you hundreds per year.`,
-      impact: `${state.highestApr.toFixed(1)}% APR — negotiate down`,
+      impact: `Negotiate down from ${state.highestApr.toFixed(1)}% APR`,
       impactColor: 'red',
       chatPrompt: `How do I negotiate a lower interest rate on my ${creditor} debt at ${state.highestApr.toFixed(1)}% APR?`,
     });

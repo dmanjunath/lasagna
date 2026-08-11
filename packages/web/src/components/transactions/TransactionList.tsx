@@ -300,7 +300,7 @@ export function TransactionList({
           } catch (err) {
             console.error(err);
             setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: prevCatId } : t));
-            setEditError("Couldn't update the category — the change was undone. Try again.");
+            setEditError("Couldn't update the category, so the change was undone. Try again.");
           }
         }}
       />
@@ -504,7 +504,7 @@ export function TransactionList({
         {showPagination && total > pageSize && (
           <div className="flex items-center justify-between border-t border-line px-4 py-3.5 sm:px-5">
             <span className="ui-tnum text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
-              {(page - 1) * pageSize + 1}&ndash;{Math.min(page * pageSize, total)} of {total}
+              {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total}
             </span>
             <div className="flex items-center gap-1.5">
               <button

@@ -255,7 +255,7 @@ export function RulesPanel({
     <div>
       {savedNote && (
         <p className="mb-4 rounded-ui-md bg-brand-softer px-3.5 py-2.5 text-[13px] font-medium text-[rgb(var(--ui-brand-ink))]">
-          Saved — will apply to new transactions.
+          Saved. It will apply to new transactions.
         </p>
       )}
       {error && <p className="mb-4 text-[12.5px] font-medium text-negative">{error}</p>}
@@ -266,8 +266,8 @@ export function RulesPanel({
       ) : rules.length === 0 ? (
         <div className="py-2 text-center">
           <p className="text-[13.5px] text-content-muted">
-            No rules yet. Create one to always file a merchant the way you want — e.g.
-            anything containing &ldquo;AMZN&rdquo; as Shopping.
+            No rules yet. Create one to always file a merchant the way you want.
+            For example, file anything containing &ldquo;AMZN&rdquo; as Shopping.
           </p>
           <Button variant="secondary" size="sm" className="mt-4" leadingIcon={<Plus size={14} />} onClick={() => openForm(null)}>
             New rule
@@ -430,13 +430,13 @@ export function RulesPanel({
       title="Category rules"
       description={view.mode === 'form'
         ? (view.rule ? 'Edit this rule.' : 'Transactions matching every condition get the new category.')
-        : 'Rules re-categorize matching transactions automatically — new ones as they arrive.'}
+        : 'Rules re-categorize matching transactions automatically, including new ones as they arrive.'}
       footer={footer}
     >
       {view.mode === 'form' ? formBody : view.mode === 'confirm' ? (
         <div className="space-y-3">
           <p className="text-[13.5px] leading-relaxed text-content-secondary">
-            Rule saved. It will apply to new transactions automatically — you can also apply it to
+            Rule saved. It will apply to new transactions automatically. You can also apply it to
             matching transactions you already have.
           </p>
           {error && <p className="text-[12.5px] font-medium text-negative">{error}</p>}

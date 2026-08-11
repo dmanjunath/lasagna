@@ -42,7 +42,7 @@ export function SequenceRiskChartRenderer({ block }: { block: SequenceRiskChartB
         </ResponsiveContainer>
       </div>
       <p className="text-xs text-text-secondary mt-3 text-center">
-        Same average returns, different order — the first 5 years matter most
+        Same average returns, different order. The first 5 years matter most.
       </p>
     </div>
   );

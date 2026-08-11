@@ -7,7 +7,7 @@ export function PlanChip({ planSource, compedUntil }: { planSource: 'paid' | 'co
     return <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11.5px] font-bold bg-brand-soft text-[rgb(var(--ui-brand-ink))]">Paid</span>;
   if (planSource === 'comped')
     return (
-      <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11.5px] font-bold ui-tnum bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
+      <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11.5px] font-bold ui-tnum whitespace-nowrap bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
         Comped until {fmtDate(compedUntil)}
       </span>
     );
