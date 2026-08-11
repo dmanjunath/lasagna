@@ -411,7 +411,7 @@ export function CashflowBars({
             {periodLabel(hovered.period, granularity)}
           </span>
           <span className="text-[10.5px] leading-tight text-content-muted">
-            Income {formatShortMoney(hovered.income)} · Spent {formatShortMoney(hovered.expenses)} · Net {hovered.net < 0 ? '−' : '+'}{formatShortMoney(Math.abs(hovered.net))}
+            Income {formatShortMoney(hovered.income)}, spent {formatShortMoney(hovered.expenses)}, net {hovered.net < 0 ? '−' : '+'}{formatShortMoney(Math.abs(hovered.net))}
           </span>
         </div>
       )}

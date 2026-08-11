@@ -99,7 +99,6 @@ export function TransactionRow({
         <div className="ds-row__primary" title={merchant}>{merchant}</div>
         <div className="ds-row__meta ds-row__meta--tx">
           {category && <span className="ds-row__cat">{category}</span>}
-          {category && <span className="ds-row__sep" aria-hidden="true">·</span>}
           <span className="ds-num">{shortDate(date)}</span>
           {extra && <span className="ds-row__extra">{extra}</span>}
         </div>

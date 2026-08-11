@@ -25,9 +25,13 @@ No "coming soon" roadmaps, feature-gap lists, or internal model caveats in the p
 
 Name things plainly and accurately. Avoid marketing or cutesy phrasing ("Show the work", "Hide the work", "Supercharge your plan") and say what the thing is ("Year by year projection"). Accuracy comes first: a catchy label that is wrong (e.g. calling a deterministic projection a "backtest") is worse than a plain one, and it erodes trust. If you cannot name something accurately in a few words, that is a signal the thing itself is unclear.
 
-## No em-dashes or en-dashes
+## No em-dashes, en-dashes, middots, or semicolons
 
-Do not use em-dashes (—) or en-dashes (–) in copy. Use a comma, period, colon, or parentheses instead. (A lone dash standing in for an empty value in a table is a glyph, not punctuation, and is fine.)
+Do not use em-dashes (—), en-dashes (–), middots (·), or semicolons in copy. Write proper sentences: use a comma, period, colon, or parentheses instead. Compound-word hyphens and minus signs on numbers are fine. (A lone dash standing in for an empty value in a table is a glyph, not punctuation, and is also fine.)
+
+## No eyebrow text
+
+No small uppercase tracked kicker labels above titles. Delete decorative kickers. If a kicker carries real information, restyle it as a normal heading or label instead.
 
 ## Equivalent things look and behave the same
 

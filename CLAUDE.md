@@ -103,6 +103,10 @@ These paths are git-ignored. Never write to `docs/superpowers/`.
 
 Anything a user sees — labels, hints, captions, empty states, layout — must follow the guidelines in **[UX.md](UX.md)**. In short: every element earns its place (cut zero-information text), delete an element when its reason is gone (don't substitute), say each thing once (no duplicate legends/labels), keep equivalent controls consistent, and judge the rendered result, not the diff. Read UX.md before building or changing UI.
 
+**No eyebrow text in the app.** No small uppercase tracked kicker labels above titles. Delete decorative kickers; if a kicker carries real information, restyle it as a normal heading or label.
+
+**No em dashes, en dashes, middots (·), or semicolons in user-facing copy.** Write proper sentences using commas, periods, colons, or parentheses. Compound-word hyphens, minus signs on numbers, and a lone dash standing in for an empty table value are fine.
+
 **Match the design system, always.** Every new or changed UI element must match both the surrounding page and the design system — the tokens in `packages/web/src/styles/theme.css` (`--ui-*`, with a `.dark` variant) and the primitives in `packages/web/src/components/uikit` (`Select`, `Button`, `Field`, …). Reuse the uikit primitive, or if the context needs a compact/one-off variant, copy its exact visual idiom and tokens (e.g. `appearance-none` + a custom chevron, `bg-panel`/`border-line-strong`/`rounded-ui-md`/`shadow-ui-sm`, the `--ui-brand-ring` focus ring). **Never ship a raw/unstyled native control** (a bare `<select>`/`<input>` with default browser chrome) or a foreign color/radius that isn't a token. Verify the rendered result in **both light and dark**.
 
 **UI definition of done — the `ui-reviewer` agent gates it, not the user.** UI work is not "done" when it typechecks and the resting state renders. Before claiming any UI change done:

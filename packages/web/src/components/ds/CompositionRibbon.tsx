@@ -177,13 +177,13 @@ export function CompositionRibbon({
             aria-live="polite"
           >
             <span className="ds-ribbon__tooltip-label">
-              {hovered.negative ? 'Debt · ' : ''}{hovered.label}
+              {hovered.negative ? 'Debt: ' : ''}{hovered.label}
             </span>
             <span className="ds-ribbon__tooltip-value">
               {hovered.negative ? '−' : ''}{fmtUsd(Math.abs(hovered.value))}
             </span>
             <span className="ds-ribbon__tooltip-pct">
-              {hoveredPct.toFixed(1)}% of assets{hovered.negative ? ' · deduction' : ''}
+              {hoveredPct.toFixed(1)}% of assets{hovered.negative ? ', deducted' : ''}
             </span>
           </div>
         )}
@@ -207,7 +207,7 @@ export function CompositionRibbon({
                   {small.map((s, j) => (
                     <span key={`${s.label}-${j}`}>
                       {s.label} {fmtUsd(Math.abs(s.value))}
-                      {j < small.length - 1 ? ' · ' : ''}
+                      {j < small.length - 1 ? ', ' : ''}
                     </span>
                   ))}
                 </span>

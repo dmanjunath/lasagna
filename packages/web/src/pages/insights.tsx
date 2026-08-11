@@ -19,7 +19,7 @@ import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
 import { formatRelativeTime } from '../lib/utils';
-import { Button, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
+import { Badge, Button, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 
 // ---------------------------------------------------------------------------
 // Urgency → display group mapping (faithful to the API's urgency field)
@@ -471,25 +471,15 @@ export function Insights() {
             Actions
           </h1>
           {!isLoading && totalActive > 0 && (
-            <p className="mt-2 flex items-center gap-2.5 flex-wrap text-[14px] font-semibold text-content-secondary">
-              <span>
-                <b className="font-extrabold text-content ui-tnum">{statusCounts.now}</b> worth doing now
-              </span>
+            <p className="mt-2 flex items-center gap-2 flex-wrap">
+              {statusCounts.now > 0 && (
+                <Badge tone="brand">{statusCounts.now} worth doing now</Badge>
+              )}
               {statusCounts.week > 0 && (
-                <>
-                  <span className="w-1 h-1 rounded-full bg-content-faint" aria-hidden />
-                  <span>
-                    <b className="font-extrabold text-content ui-tnum">{statusCounts.week}</b> this week
-                  </span>
-                </>
+                <Badge tone="neutral">{statusCounts.week} this week</Badge>
               )}
               {statusCounts.watch > 0 && (
-                <>
-                  <span className="w-1 h-1 rounded-full bg-content-faint" aria-hidden />
-                  <span>
-                    <b className="font-extrabold text-content ui-tnum">{statusCounts.watch}</b> to keep an eye on
-                  </span>
-                </>
+                <Badge tone="neutral">{statusCounts.watch} to keep an eye on</Badge>
               )}
             </p>
           )}

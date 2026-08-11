@@ -2408,7 +2408,7 @@
 .ds-row__meta--tx {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
   flex-wrap: nowrap;
 }
 /* Inline dot separator between account-meta segments — faint, with breathing
@@ -2426,7 +2426,6 @@
   text-overflow: ellipsis;
   max-width: 140px;
 }
-.ds-row__sep { color: var(--lf-rule); }
 .ds-row__extra { display: inline-flex; align-items: center; }
 
 .ds-row__right {
