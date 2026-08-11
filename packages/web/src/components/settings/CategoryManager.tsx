@@ -231,7 +231,7 @@ export function CategoryManager() {
           <div className="min-w-0">
             <h3 className="font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">Categories</h3>
             <p className="ui-tnum mt-0.5 text-[12.5px] font-medium text-content-muted">
-              {groups.length} groups · {totalCategories} categories
+              {groups.length} groups, {totalCategories} categories
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -406,7 +406,7 @@ function FanChartV2({ bands, currentAge, retireAge, clipLabel = 'best 5%', perce
             <g>
               <rect x={ttX} y={PT + 4} width={TT_W} height={104} rx={8} fill="rgb(var(--ui-content))" opacity={0.94} />
               <text x={ttX + 10} y={PT + 21} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fontWeight={700} fill="rgb(var(--ui-panel))">
-                Age {currentAge + hi} · {year0 + hi}
+                Age {currentAge + hi}, {year0 + hi}
               </text>
               {ttRows.map((r, i) => (
                 <g key={r.label} opacity={r.median ? 1 : 0.8}>
@@ -543,13 +543,13 @@ function BlendedChartV2({ values, currentAge, retireAge, runsShortAge }: {
             <g>
               <rect x={ttX} y={PT + 4} width={TT_W} height={60} rx={8} fill="rgb(var(--ui-content))" opacity={0.94} />
               <text x={ttX + 10} y={PT + 21} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fontWeight={700} fill="rgb(var(--ui-panel))">
-                Age {currentAge + hi} · {year0 + hi}
+                Age {currentAge + hi}, {year0 + hi}
               </text>
               <text x={ttX + 10} y={PT + 37} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-panel))">
                 balance {values[hi] <= 0 ? '$0 — depleted' : fmtShort(values[hi])}
               </text>
               <text x={ttX + 10} y={PT + 53} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} opacity={0.75} fill="rgb(var(--ui-panel))">
-                today's dollars · deterministic
+                today's dollars, deterministic
               </text>
             </g>
           </g>
@@ -875,7 +875,7 @@ function DrawdownChart({ units, rows, currentAge, hidden, onToggleSeries }: {
             borderRadius: 8, padding: '8px 10px', fontSize: 10.5, fontVariantNumeric: 'tabular-nums', lineHeight: 1.45,
           }}
         >
-          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 3 }}>Age {rows[hi].age} · total {fmtShort(totals[hi])}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 3 }}>Age {rows[hi].age}, total {fmtShort(totals[hi])}</div>
           {units.map((u, si) => vis[si] && (
             <div key={u.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: vizVar(si + 1), flexShrink: 0 }} />
@@ -1010,7 +1010,7 @@ function DrawdownBarsChart({ units, rows, currentAge, hidden, onToggleSeries }: 
             borderRadius: 8, padding: '8px 10px', fontSize: 10.5, fontVariantNumeric: 'tabular-nums', lineHeight: 1.45,
           }}
         >
-          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 3 }}>Age {rows[hi].age} · spending {fmtShort(totals[hi])}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 3 }}>Age {rows[hi].age}, spending {fmtShort(totals[hi])}</div>
           {hasSS && ssVis && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: SS_COLOR, flexShrink: 0 }} />
@@ -1102,7 +1102,7 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
       </span>
       <div className="rv2-field__help">
         {caption}
-        {max !== undefined && <>{caption && ' · '}<span className="rv2-field__range">{hint(min)}–{hint(max)}</span></>}
+        {max !== undefined && <>{caption && ', '}<span className="rv2-field__range">{hint(min)}–{hint(max)}</span></>}
       </div>
     </div>
   );
@@ -2013,7 +2013,7 @@ export function RetirementV2() {
           <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">
             {formatMoney(portfolioValue, true)} in liquid savings
             {portfolioValue > 0 && (
-              <> · {formatMoney(buckets.taxable, true)} taxable · {formatMoney(buckets.deferred, true)} tax-deferred · {formatMoney(buckets.roth, true)} Roth{buckets.hsa > 0 && <> · {formatMoney(buckets.hsa, true)} HSA</>}</>
+              <> ({formatMoney(buckets.taxable, true)} taxable, {formatMoney(buckets.deferred, true)} tax-deferred, {formatMoney(buckets.roth, true)} Roth{buckets.hsa > 0 && <>, {formatMoney(buckets.hsa, true)} HSA</>})</>
             )}
           </p>
         </div>
@@ -2202,12 +2202,12 @@ export function RetirementV2() {
                 <span className="flex flex-wrap gap-1.5" data-testid="rv2-inputs-chips">
                   <Chip>{expReturn.toFixed(1)}% return</Chip>
                   <Chip>retire at {retireAge}</Chip>
-                  <Chip>{equityPct}% stocks · {100 - equityPct}% bonds</Chip>
+                  <Chip>{equityPct}% stocks, {100 - equityPct}% bonds</Chip>
                   <Chip>
                     {strategy === 'percent_portfolio'
                       ? `${pctRate}%/yr withdrawal`
                       : strategy === 'guardrails'
-                        ? `guardrails · ${gkInitialRate}% start`
+                        ? `guardrails, ${gkInitialRate}% start`
                         : `${formatMoney(monthlySpend, true)}/mo spending`}
                   </Chip>
                 </span>
@@ -2452,12 +2452,12 @@ export function RetirementV2() {
                 <div data-testid="rv2-composition-bar">
                   <div className="flex h-3 overflow-hidden rounded-full bg-canvas-sunken" style={{ gap: 1 }}>
                     {segs.map((s, i) => (
-                      <div key={s.key} style={{ width: `${s.pct}%`, background: s.color, minWidth: 2 }} title={`${s.label} · ${disp[i]}%`} />
+                      <div key={s.key} style={{ width: `${s.pct}%`, background: s.color, minWidth: 2 }} title={`${s.label}, ${disp[i]}%`} />
                     ))}
                   </div>
                   <p className="mt-2.5 text-[12px] text-content-muted leading-[1.5] ui-tnum">
                     your actual holdings
-                    {derivedEquity !== null && <> · {derivedEquity}% in stocks &amp; REITs</>}
+                    {derivedEquity !== null && <>, {derivedEquity}% in stocks &amp; REITs</>}
                   </p>
                 </div>
               );
@@ -2497,7 +2497,7 @@ export function RetirementV2() {
                 </div>
                 <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12.5px] text-content-secondary">
                   <span className="ui-tnum" data-testid="rv2-comp-derived">
-                    Blended return <strong>{customReturn.toFixed(1)}%</strong> · {customEquityPct}% stocks &amp; REITs
+                    Blended return <strong>{customReturn.toFixed(1)}%</strong>, {customEquityPct}% stocks &amp; REITs
                     {holdingsBlendedReturn !== null && <span className="text-content-muted"> (your actual portfolio: {holdingsBlendedReturn.toFixed(1)}%)</span>}
                   </span>
                   {Math.abs(customTotal - 100) > 1 && (
@@ -2537,7 +2537,7 @@ export function RetirementV2() {
                   ))}
                 </div>
                 <div className="mt-2.5 border-t border-line pt-2.5 text-[12px] text-content-secondary ui-tnum">
-                  Blended <strong>{expReturn.toFixed(1)}%</strong> expected return · ~{blendedVol.toFixed(1)}% volatility
+                  Blended <strong>{expReturn.toFixed(1)}%</strong> expected return, ~{blendedVol.toFixed(1)}% volatility
                   <span className="text-content-muted"> — drives the Monte Carlo</span>
                 </div>
               </div>
@@ -2557,7 +2557,7 @@ export function RetirementV2() {
                 min={3} max={11} value={baseReturn}
                 onChange={v => { setBaseReturn(Math.round(v * 10) / 10); setReturnTouched(true); }}
                 caption={returnTouched ? (
-                  <>adjusted · <button type="button" className="rv2-reset" onClick={() => { setBaseReturn(6.5); setReturnTouched(false); }}>reset to 6.5%</button></>
+                  <>adjusted, <button type="button" className="rv2-reset" onClick={() => { setBaseReturn(6.5); setReturnTouched(false); }}>reset to 6.5%</button></>
                 ) : (
                   'no holdings linked yet — set your assumed annual return, or pick a preset mix above'
                 )}
@@ -2615,7 +2615,7 @@ export function RetirementV2() {
                   <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />25th–75th</span>
                   <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median cohort</span>
                   <span style={{ marginLeft: 'auto' }}>
-                    {btResult.startYearCount} retirements 1928 on · median at {lifeExp}: <strong>{fmtShort(histBands.p50[histBands.p50.length - 1] || 0)}</strong>
+                    {btResult.startYearCount} retirements 1928 on, median at {lifeExp}: <strong>{fmtShort(histBands.p50[histBands.p50.length - 1] || 0)}</strong>
                   </span>
                 </div>
               </div>
@@ -2793,7 +2793,7 @@ export function RetirementV2() {
             >
               <span className="text-[13.5px] font-semibold text-content">
                 Year by year projection
-                <span className="ml-2.5 text-[12px] font-medium text-content-muted ui-tnum">deterministic at {expReturn.toFixed(1)}%/yr · nominal $</span>
+                <span className="ml-2.5 text-[12px] font-medium text-content-muted ui-tnum">deterministic at {expReturn.toFixed(1)}%/yr, nominal $</span>
               </span>
               <ChevronDown size={16} className={cn('text-content-muted transition-transform', tableOpen && 'rotate-180')} />
             </button>
@@ -2859,8 +2859,16 @@ export function RetirementV2() {
               <span className="ret-pin__pct font-editorial ui-tnum">{formatMoney(sustainableDraw, true)}<span className="text-[12px] font-bold text-content-muted">/mo</span></span>
             </span>
           </div>
-          <div className="ret-pin__tier2 ui-tnum">
-            Retiring at {effRetireAge} · {formatMoney(monthlySpendEff, true)}/mo spending · {Math.max(0, lifeExp - effRetireAge)} year retirement · {formatMoney(portfolioValue, true)} portfolio · {formatMoney(monthlySavings, true)}/mo saved · {expReturn.toFixed(1)}% return · {equityPct}% stocks · {strategyLabel} withdrawal strategy · SS {formatMoney(ssMonthly, true)}/mo
+          <div className="ret-pin__tier2 ui-tnum flex flex-wrap gap-x-3 gap-y-1">
+            <span>Retiring at {effRetireAge}</span>
+            <span>{formatMoney(monthlySpendEff, true)}/mo spending</span>
+            <span>{Math.max(0, lifeExp - effRetireAge)} year retirement</span>
+            <span>{formatMoney(portfolioValue, true)} portfolio</span>
+            <span>{formatMoney(monthlySavings, true)}/mo saved</span>
+            <span>{expReturn.toFixed(1)}% return</span>
+            <span>{equityPct}% stocks</span>
+            <span>{strategyLabel} withdrawal strategy</span>
+            <span>SS {formatMoney(ssMonthly, true)}/mo</span>
           </div>
         </div>
       </div>

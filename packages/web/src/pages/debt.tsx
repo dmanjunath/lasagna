@@ -290,7 +290,7 @@ function DebtRibbon({ debts }: { debts: DebtAccount[] }) {
     .sort((a, b) => b.balance - a.balance)
     .slice(0, 6)
     .map((d, i) => ({
-      label: `${d.name}${d.mask ? ` ··${d.mask}` : ''}`.replace(/\bMORTGAGE\b/gi, 'MTG'),
+      label: `${d.name}${d.mask ? ` ••${d.mask}` : ''}`.replace(/\bMORTGAGE\b/gi, 'MTG'),
       value: Math.abs(d.balance),
       color: debtColor(i),
     }));
@@ -319,11 +319,11 @@ function DebtRibbon({ debts }: { debts: DebtAccount[] }) {
                 'linear-gradient(170deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 52%, rgba(0,0,0,0.12))',
               borderRadius: i === 0 ? '11px 4px 4px 11px' : i === segs.length - 1 ? '4px 11px 11px 4px' : '4px',
             }}
-            title={`${s.label} · ${pct.toFixed(1)}% · ${formatCurrency(s.value)}`}
+            title={`${s.label}, ${pct.toFixed(1)}%, ${formatCurrency(s.value)}`}
           >
             {wide && (
               <span className="truncate text-[12.5px] font-extrabold text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.32)' }}>
-                {s.label} · {pct.toFixed(0)}%
+                {s.label}, {pct.toFixed(0)}%
               </span>
             )}
           </div>
@@ -340,7 +340,7 @@ function DebtBreakdown({ debts }: { debts: DebtAccount[] }) {
     .sort((a, b) => b.balance - a.balance)
     .slice(0, 6)
     .map((d, i) => ({
-      label: `${d.name}${d.mask ? ` ··${d.mask}` : ''}`.replace(/\bMORTGAGE\b/gi, 'MTG'),
+      label: `${d.name}${d.mask ? ` ••${d.mask}` : ''}`.replace(/\bMORTGAGE\b/gi, 'MTG'),
       value: Math.abs(d.balance),
       color: debtColor(i),
     }));
@@ -406,9 +406,8 @@ function StrategyOption({
           <span className="font-editorial text-[16px] font-bold tracking-[-0.015em] text-content">{title}</span>
           <span className="text-[11.5px] font-semibold text-content-muted">{sub}</span>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-[12.5px] text-content-muted ui-tnum">
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 text-[12.5px] text-content-muted ui-tnum">
           <span><span className="font-bold text-content">{interest}</span> interest</span>
-          <span className="text-content-faint">·</span>
           <span
             className={cn(
               'font-bold',
@@ -459,7 +458,7 @@ function AttackList({ debts, strategy }: { debts: DebtAccount[]; strategy: 'aval
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate text-[14px] font-semibold text-content">
-                  {d.name}{d.mask ? ` ··${d.mask}` : ''}
+                  {d.name}{d.mask ? ` ••${d.mask}` : ''}
                 </span>
                 <span
                   className={cn(
@@ -521,7 +520,7 @@ function AccountCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold text-content">
-            {d.name}{d.mask ? ` ··${d.mask}` : ''}
+            {d.name}{d.mask ? ` ••${d.mask}` : ''}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge tone="neutral" size="sm">{debtTypeLabel(d)}</Badge>
@@ -625,13 +624,10 @@ function HasDebtView({
           <h1 className="mt-2 font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
             How fast can you be debt-free?
           </h1>
-          <p className="mt-1.5 inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[14px] font-medium text-content-muted">
-            <span><b className="font-extrabold text-content ui-tnum">{debts.length}</b> account{debts.length === 1 ? '' : 's'}</span>
+          <p className="mt-1.5 flex flex-wrap items-center gap-2">
+            <Badge tone="neutral">{debts.length} account{debts.length === 1 ? '' : 's'}</Badge>
             {highRateCount > 0 && (
-              <>
-                <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-                <span><b className="font-extrabold text-negative ui-tnum">{highRateCount}</b> at a punishing rate</span>
-              </>
+              <Badge tone="negative">{highRateCount} at a punishing rate</Badge>
             )}
           </p>
         </div>
@@ -755,7 +751,7 @@ function HasDebtView({
               <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Pay in this order</span>
               {focusTarget && (
                 <span className="text-[12px] font-semibold text-content-muted">
-                  Start with <b className="text-content">{focusTarget.name}{focusTarget.mask ? ` ··${focusTarget.mask}` : ''}</b>
+                  Start with <b className="text-content">{focusTarget.name}{focusTarget.mask ? ` ••${focusTarget.mask}` : ''}</b>
                 </span>
               )}
             </div>

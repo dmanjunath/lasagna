@@ -54,7 +54,7 @@ function rgbToHex(rgb: string): string {
   if (!m) return rgb;
   const [r, g, b, a] = m.map(Number);
   const hex = (n: number) => Math.round(n).toString(16).padStart(2, '0').toUpperCase();
-  if (a !== undefined && a < 1) return `${hex(r)}${hex(g)}${hex(b)} · ${Math.round(a * 100)}%`;
+  if (a !== undefined && a < 1) return `${hex(r)}${hex(g)}${hex(b)} at ${Math.round(a * 100)}%`;
   return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
@@ -150,7 +150,7 @@ function Colors() {
           </div>
         </Block>
 
-        <Block title="Data-viz palette" note="cash · investments · property · debt · other (+2)">
+        <Block title="Data-viz palette" note="cash, investments, property, debt, other (+2)">
           <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-7">
             {[
               ['Cash', '--ui-viz-1'],
@@ -192,7 +192,7 @@ function Typography() {
           </div>
           <div className="space-y-3">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-muted">Hero number · tabular</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-muted">Hero number, tabular</div>
               <div className="ui-tnum text-[52px] font-semibold leading-none tracking-tight text-content">
                 {formatMoney(1284530.5, true)}
               </div>
@@ -220,7 +220,7 @@ function SpacingRadiusShadow() {
     ['sm', 'shadow-ui-sm'], ['md', 'shadow-ui-md'], ['lg', 'shadow-ui-lg'], ['xl', 'shadow-ui-xl'],
   ];
   return (
-    <Section title="Spacing · Radius · Elevation" description="A consistent 4px-based rhythm, a friendly rounded-corner scale, and soft warm-tinted shadows.">
+    <Section title="Spacing, Radius, Elevation" description="A consistent 4px-based rhythm, a friendly rounded-corner scale, and soft warm-tinted shadows.">
       <div className="grid gap-6 lg:grid-cols-3">
         <Surface pad="lg">
           <Block title="Spacing">
@@ -266,7 +266,7 @@ function SpacingRadiusShadow() {
 
 function Buttons() {
   return (
-    <Section title="Buttons" description="Primary / secondary / ghost / destructive · sizes · loading & disabled. 44px touch targets at md+.">
+    <Section title="Buttons" description="Primary / secondary / ghost / destructive, sizes, loading & disabled. 44px touch targets at md+.">
       <Surface pad="lg" className="space-y-6">
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary">Primary</Button>
@@ -538,7 +538,7 @@ function StyleguideBody() {
         <EmptyAndLoading />
 
         <footer className="border-t border-line pt-8 text-center text-[12px] text-content-muted">
-          LasagnaFi Design System v3 · {new Date().getFullYear()} · built as running code
+          LasagnaFi Design System v3, {new Date().getFullYear()}, built as running code
         </footer>
       </main>
     </div>

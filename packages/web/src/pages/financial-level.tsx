@@ -368,7 +368,7 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
           <div className="flex items-baseline justify-between gap-3 mb-2">
             <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Progress</span>
             <span className="text-[12.5px] font-bold text-[rgb(var(--ui-brand-ink))] ui-tnum">
-              {fill}%{progressDetail ? ` · ${progressDetail}` : ''}
+              {fill}%{progressDetail ? ` (${progressDetail})` : ''}
             </span>
           </div>
           <div className="h-[9px] rounded-full bg-canvas-sunken overflow-hidden">
@@ -705,7 +705,7 @@ export function FinancialLevel() {
               ) : (
                 <>Working on <strong className="font-bold text-content">{currentStep.title}</strong></>
               )}
-              {summary.retirementAge ? <span className="text-content-muted"> · FI target age {summary.retirementAge}</span> : null}
+              {summary.retirementAge ? <span className="text-content-muted"> (FI target age {summary.retirementAge})</span> : null}
             </p>
 
             {/* overall progress through the stack */}
@@ -724,7 +724,7 @@ export function FinancialLevel() {
                 <span className="text-[12.5px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum">
                   {completeCount} {completeCount === 1 ? 'level' : 'levels'} cleared
                 </span>
-                <span className="text-[12px] font-semibold text-content-muted ui-tnum">· {clearedPct}%</span>
+                <span className="text-[12px] font-semibold text-content-muted ui-tnum">{clearedPct}%</span>
               </div>
             </div>
           </div>

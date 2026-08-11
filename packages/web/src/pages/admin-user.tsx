@@ -109,9 +109,11 @@ export function AdminUser() {
                     Paused since {fmtDate(detail.tenant.disabledAt)}
                   </span>
                 )}
-                {/* One span so a wrap can't strand the "·" at the start of a line. */}
                 <span className="text-[12.5px] text-content-muted ui-tnum">
-                  member since {fmtDate(detail.tenant.createdAt)} · {fmtUsd(Number(detail.spend30d.llmCost) + Number(detail.spend30d.plaidCost))} spend in 30d
+                  member since {fmtDate(detail.tenant.createdAt)}
+                </span>
+                <span className="text-[12.5px] text-content-muted ui-tnum">
+                  {fmtUsd(Number(detail.spend30d.llmCost) + Number(detail.spend30d.plaidCost))} spend in 30d
                 </span>
               </div>
             </div>
@@ -201,7 +203,7 @@ export function AdminUser() {
           <div className="mt-5 grid lg:grid-cols-2 gap-5">
             <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5">
               <div className="flex items-center justify-between gap-3">
-                <div className={sectionTitle}>Spend · last 30 days</div>
+                <div className={sectionTitle}>Spend (last 30 days)</div>
                 <Link href="/admin/spend" className="ui-focus rounded-ui-xs text-[12px] font-semibold text-content-secondary hover:text-content transition-colors">
                   All spend →
                 </Link>
@@ -223,7 +225,7 @@ export function AdminUser() {
                 {detail.plaidItems.length === 0 && <p className="text-[13px] text-content-muted">None connected.</p>}
                 {detail.plaidItems.map((i) => (
                   <div key={i.id} className="flex items-center justify-between gap-3 text-[13px]">
-                    <span className="truncate" title={i.institutionName || 'Unknown institution'}>{i.institutionName || 'Unknown institution'} · {i.status}</span>
+                    <span className="truncate" title={i.institutionName || 'Unknown institution'}>{i.institutionName || 'Unknown institution'}<span className="text-content-muted">, {i.status}</span></span>
                     <span className="text-content-muted ui-tnum shrink-0">synced {fmtDate(i.lastSyncedAt)}</span>
                   </div>
                 ))}
@@ -237,7 +239,7 @@ export function AdminUser() {
                 {detail.accounts.map((a) => (
                   <div key={a.id} className="flex items-center justify-between gap-3 text-[13px]">
                     <span className="truncate" title={a.name}>
-                      {a.name} <span className="text-content-muted">· {a.subtype || a.type}</span>
+                      {a.name}<span className="text-content-muted">, {a.subtype || a.type}</span>
                       {a.frozen && <span className="ml-1.5 text-[10.5px] font-bold uppercase text-caution">frozen</span>}
                     </span>
                     <span className={cn('ui-tnum shrink-0', a.balance == null && 'text-content-faint')}>{fmtBal(a.balance)}</span>
@@ -251,10 +253,10 @@ export function AdminUser() {
                 {detail.recentActivity.map((ev, i) => (
                   <div key={i} className="flex items-center justify-between gap-3 text-[12.5px]">
                     <span className="truncate text-content-secondary">
-                      {ev.source}{ev.model ? ` · ${ev.model.split('/').pop()}` : ''}
+                      {ev.source}{ev.model ? `, ${ev.model.split('/').pop()}` : ''}
                     </span>
                     <span className="text-content-muted ui-tnum shrink-0">
-                      {fmtUsd(ev.costUsd)} · {new Date(ev.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtUsd(ev.costUsd)}, {new Date(ev.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                 ))}

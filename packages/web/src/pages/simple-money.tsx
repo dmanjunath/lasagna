@@ -187,7 +187,7 @@ export function SimpleMoney() {
               />
             )}
             {hasMoney
-              ? `${totalAccountCount} account${totalAccountCount === 1 ? '' : 's'}${lastSynced ? ` · last synced ${relativeTime(lastSynced)}` : ''}`
+              ? `${totalAccountCount} account${totalAccountCount === 1 ? '' : 's'}${lastSynced ? `, last synced ${relativeTime(lastSynced)}` : ''}`
               : formatDateLong(new Date())}
           </p>
         </div>
@@ -292,7 +292,7 @@ export function SimpleMoney() {
                         : periodStart
                           ? `since ${new Date(periodStart.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
                           : 'past 30 days'}
-                      {periodPct !== null ? ` · ${periodPct < 0 ? '−' : '+'}${Math.abs(periodPct).toFixed(1)}%` : ''}
+                      {periodPct !== null ? ` (${periodPct < 0 ? '−' : '+'}${Math.abs(periodPct).toFixed(1)}%)` : ''}
                     </span>
                   </>
                 ) : null}
@@ -370,21 +370,21 @@ export function SimpleMoney() {
           {cashAccounts.length > 0 && (
             <GroupSection
               title="Cash" viz={1} count={cashAccounts.length}
-              caption={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets · ready to deploy` : 'ready to deploy'}
+              caption={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets, ready to deploy` : 'ready to deploy'}
               total={cashTotal} items={items} filterType="depository"
             />
           )}
           {investAccounts.length > 0 && (
             <GroupSection
               title="Investments" viz={2} count={investAccounts.length}
-              caption={grossAssets > 0 ? `${Math.round((investTotal / grossAssets) * 100)}% of assets · long-term growth` : 'long-term growth'}
+              caption={grossAssets > 0 ? `${Math.round((investTotal / grossAssets) * 100)}% of assets, long-term growth` : 'long-term growth'}
               total={investTotal} items={items} filterType="investment"
             />
           )}
           {realEstateAccounts.length > 0 && (
             <GroupSection
               title="Property" viz={5} count={realEstateAccounts.length}
-              caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets · real estate` : 'real estate'}
+              caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets, real estate` : 'real estate'}
               total={realEstateTotal} items={items} filterType="real_estate"
               onEstimateResolved={reloadItems}
             />
@@ -392,7 +392,7 @@ export function SimpleMoney() {
           {altAccounts.length > 0 && (
             <GroupSection
               title="Other assets" viz={5} count={altAccounts.length} unit="item"
-              caption={grossAssets > 0 ? `${Math.round((altTotal / grossAssets) * 100)}% of assets · alternative holdings` : 'alternative holdings'}
+              caption={grossAssets > 0 ? `${Math.round((altTotal / grossAssets) * 100)}% of assets, alternative holdings` : 'alternative holdings'}
               total={altTotal} items={items} filterType="alternative"
             />
           )}
@@ -799,9 +799,8 @@ function InstitutionSection({
           <div className="truncate font-editorial text-[16.5px] font-bold leading-tight tracking-[-0.01em]" title={institution}>
             {institution}
           </div>
-          <div className="mt-0.5 text-[12.5px] text-content-muted">
+          <div className="mt-0.5 flex items-center gap-3 text-[12.5px] text-content-muted">
             <span className={cn('font-medium', isError && 'text-caution')}>{statusLabel}</span>
-            <span className="mx-1 text-content-faint">·</span>
             <span>{item.accounts.length} account{item.accounts.length === 1 ? '' : 's'}</span>
           </div>
         </div>
@@ -949,19 +948,9 @@ function AcctRow({
             </span>
           )}
         </div>
-        <div className="mt-0.5 truncate text-[12.5px] text-content-muted">
-          {metaSegs.map((seg, i) => (
-            <span key={i}>
-              {i > 0 && <span className="mx-1 text-content-faint">·</span>}
-              {seg}
-            </span>
-          ))}
-          {mask && (
-            <>
-              <span className="mx-1 text-content-faint">·</span>
-              <span className="ui-tnum">····{mask}</span>
-            </>
-          )}
+        <div className="mt-0.5 flex min-w-0 items-baseline gap-2 text-[12.5px] text-content-muted">
+          <span className="truncate">{metaSegs.join(', ')}</span>
+          {mask && <span className="shrink-0 ui-tnum">••{mask}</span>}
         </div>
       </div>
 
@@ -1031,9 +1020,8 @@ function TxnRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
-        <div className="mt-0.5 text-[12.5px] text-content-muted">
+        <div className="mt-0.5 flex items-center gap-3 text-[12.5px] text-content-muted">
           <span>{category}</span>
-          <span className="mx-1 text-content-faint">·</span>
           <span className="ui-tnum">{shortDate(date)}</span>
         </div>
       </div>

@@ -65,10 +65,10 @@ function typeLabel(type: string): string {
 }
 
 // The byline under the masthead + on the print cover, single-sourced so screen
-// and PDF read identically. Middot separator per UX.md (not a dash).
+// and PDF read identically. Comma separator per UX.md (no middots or dashes).
 function planByline(userName: string | null, generatedAt: string): string {
   const date = new Date(generatedAt).toLocaleDateString();
-  return userName ? `Prepared for ${userName} · Generated ${date}` : `Generated ${date}`;
+  return userName ? `Prepared for ${userName}, generated ${date}` : `Generated ${date}`;
 }
 
 // The cover's generated date, set apart as its own line (the cover composes
@@ -355,7 +355,7 @@ function GrowthChart({ section }: { section: RetirementReadinessSection }) {
           <circle cx={xf(retireIdx)} cy={yf(atRetire)} r={3} fill="rgb(var(--ui-brand))" />
           {frac > 0.14 && (
             <text x={xf(retireIdx) + 6} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontWeight={600} fontSize={11} fill="rgb(var(--ui-brand-ink))">
-              retire {section.retirementAge} · {fmtShortMoney(atRetire)}
+              retire {section.retirementAge}, {fmtShortMoney(atRetire)}
             </text>
           )}
         </>
@@ -1109,7 +1109,7 @@ function FreeformReportView({
         )}
         {(report.history?.length ?? 0) > 0 && (
           <p className="mt-2 text-[12px] text-content-faint">
-            {report.history!.length} revision{report.history!.length === 1 ? "" : "s"} applied ·
+            {report.history!.length} revision{report.history!.length === 1 ? "" : "s"} applied,
             last updated {new Date(report.generatedAt).toLocaleString()}
           </p>
         )}
@@ -1398,7 +1398,7 @@ function ScheduleTableView({
                                 </span>
                                 <span className="shrink-0 text-[10.5px] uppercase tracking-[0.05em] text-content-faint">
                                   {f.earmarked
-                                    ? "earmarked · not drawn"
+                                    ? "earmarked, not drawn"
                                     : f.bucket === "deferred"
                                       ? "Tax-deferred"
                                       : f.bucket}
@@ -2315,9 +2315,9 @@ export function FinancialPlanDetailPage() {
             <p className="mt-6 max-w-[720px] text-[13.5px] text-content-muted ui-tnum">
               Monthly spending {formatMoney(snapshot.monthlySpend, true)} (previous calendar month)
               {snapshot.annualIncome != null && (
-                <> · Annual income {formatMoney(snapshot.annualIncome, true)}</>
+                <>, annual income {formatMoney(snapshot.annualIncome, true)}</>
               )}
-              {snapshot.age != null && <> · Age {snapshot.age}</>}
+              {snapshot.age != null && <>, age {snapshot.age}</>}
             </p>
             </div>
 

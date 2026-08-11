@@ -165,7 +165,7 @@ function DonutMini({
             {fmtAmount ? fmtAmount(hp.amount) : hp.amount.toLocaleString()}
           </span>
           <span className="text-[10.5px] leading-tight text-content-muted">
-            {hp.label} · {hp.pct}%
+            {hp.label}, {hp.pct}%
           </span>
         </div>
       )}
@@ -619,7 +619,7 @@ export function Spending() {
           <div className="relative flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
             <div className="flex flex-col gap-1">
               <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-                Spent · {heroCaption}
+                Spent in {heroCaption}
               </div>
               {/* Keyed by period so switching months slides the new figure in;
                    hover swaps stay instant (same key, no re-animation). */}
@@ -836,7 +836,7 @@ export function Spending() {
                           {cat.children.map((c, j) => (
                             <span key={c.name}>
                               {c.label} <span className="ui-tnum">{formatCurrency(c.amount)}</span>
-                              {j < cat.children.length - 1 ? ' · ' : ''}
+                              {j < cat.children.length - 1 ? ', ' : ''}
                             </span>
                           ))}
                         </div>

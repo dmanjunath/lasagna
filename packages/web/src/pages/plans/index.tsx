@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
-import { Button, Skeleton } from "../../components/uikit";
+import { Badge, Button, Skeleton } from "../../components/uikit";
 import type { Plan, PlanType } from "../../lib/types.js";
 
 // ---------------------------------------------------------------------------
@@ -121,16 +121,9 @@ export function PlansPage() {
   const areasTracked = new Set(plans.map((p) => p.type)).size;
 
   const summaryLine = !loading && plans.length > 0 && (
-    <span className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
-      <span>
-        <b className="font-extrabold text-content ui-tnum">{plans.length}</b>{" "}
-        plan{plans.length === 1 ? "" : "s"}
-      </span>
-      <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-      <span>
-        <b className="font-extrabold text-content ui-tnum">{areasTracked}</b>{" "}
-        area{areasTracked === 1 ? "" : "s"} tracked
-      </span>
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <Badge tone="brand">{plans.length} plan{plans.length === 1 ? "" : "s"}</Badge>
+      <Badge tone="neutral">{areasTracked} area{areasTracked === 1 ? "" : "s"} tracked</Badge>
     </span>
   );
 
@@ -153,7 +146,7 @@ export function PlansPage() {
             Plans
           </h1>
           {summaryLine ? (
-            <p className="mt-2 text-[14.5px] font-semibold text-content-muted">{summaryLine}</p>
+            <p className="mt-2">{summaryLine}</p>
           ) : (
             !loading && (
               <p className="mt-2 max-w-[52ch] text-[14.5px] font-semibold text-content-muted">

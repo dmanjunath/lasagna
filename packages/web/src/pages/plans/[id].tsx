@@ -283,7 +283,6 @@ export function PlanDetailPage() {
                   <span className="inline-flex items-center rounded-full bg-canvas-sunken px-2 py-0.5 text-[11px] font-bold capitalize text-content-secondary">
                     {plan.status}
                   </span>
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
                   <span className="ui-tnum">
                     Updated {new Date(plan.updatedAt).toLocaleDateString()}
                   </span>

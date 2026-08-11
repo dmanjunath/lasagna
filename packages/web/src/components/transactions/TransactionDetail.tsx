@@ -128,20 +128,15 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
               </span>
               {tx.pending === 1 && <Badge tone="neutral">Pending</Badge>}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-1 text-[13px] text-content-muted">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 text-[13px] text-content-muted">
               <span className="ui-tnum">{longDate(tx.date)}</span>
-              {!acct && tx.accountName && (
-                <>
-                  <span className="text-content-faint">·</span>
-                  <span>{tx.accountName}</span>
-                </>
-              )}
+              {!acct && tx.accountName && <span>{tx.accountName}</span>}
             </div>
             {acct && (
               <div className="mt-2 flex items-center gap-2">
                 <InstIcon institution={acct.institution} isManual={acct.isManual} size="sm" />
                 <span className="min-w-0 truncate text-[13px] text-content-muted">
-                  {acct.institution} — {acct.name}{acct.mask ? ` ···${acct.mask}` : ''}
+                  {acct.institution} — {acct.name}{acct.mask ? ` ••${acct.mask}` : ''}
                 </span>
               </div>
             )}

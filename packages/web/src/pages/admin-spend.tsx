@@ -48,7 +48,7 @@ function SpendChart({ series, bucket }: { series: Spend['series']; bucket: 'day'
             <div
               key={d.day}
               className="flex-1 min-w-[3px] max-w-[42px] flex flex-col justify-end h-full transition-opacity hover:opacity-75"
-              title={`${bucket === 'week' ? 'Week of ' : ''}${fmtDay(d.day, true)} — LLM ${usd(llm, 4)} · Plaid ${usd(plaid, 4)} · ${d.events} events`}
+              title={`${bucket === 'week' ? 'Week of ' : ''}${fmtDay(d.day, true)} — LLM ${usd(llm, 4)}, Plaid ${usd(plaid, 4)}, ${d.events} events`}
             >
               <div className="w-full rounded-t-[3px] bg-viz-2" style={{ height: `${(llm / max) * 100}%`, minHeight: llm > 0 ? 2 : 0 }} />
               <div className={cn('w-full bg-viz-1', llm === 0 && 'rounded-t-[3px]')} style={{ height: `${(plaid / max) * 100}%`, minHeight: plaid > 0 ? 2 : 0 }} />

@@ -158,7 +158,7 @@ function DeltaChip({ delta, suffix }: { delta: number; suffix?: string }) {
       <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
       </svg>
-      {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}{suffix ? ` · ${suffix}` : ''}
+      {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}{suffix ? ` (${suffix})` : ''}
     </span>
   );
 }
@@ -419,7 +419,7 @@ export function SimpleHome() {
           {greeting}, {firstName} <span className="inline-block origin-[70%_70%]">👋</span>
         </h1>
         <p className="mt-1.5 text-[14px] font-medium text-content-muted">
-          {formatDateLong(new Date())} · here's what's worth a look
+          {formatDateLong(new Date())}. Here's what's worth a look.
         </p>
       </header>
 
@@ -597,7 +597,7 @@ function CompositionColumn({
               key={s.key}
               className="h-full"
               style={{ flexGrow: s.value, minWidth: 4, background: s.color }}
-              title={`${s.label} · ${pct}%`}
+              title={`${s.label}, ${pct}%`}
             />
           );
         })}
@@ -611,7 +611,7 @@ function CompositionColumn({
               <span className="w-[9px] h-[9px] rounded-[3px] shrink-0" style={{ background: s.color }} />
               <span className="font-bold">{s.label}</span>
               <span className="font-editorial font-extrabold tracking-[-0.01em]">{fmtUsd(s.value)}</span>
-              <span className="text-[12px] font-semibold text-content-muted">{pct}% · {s.count} acct{s.count === 1 ? '' : 's'}</span>
+              <span className="text-[12px] font-semibold text-content-muted">{pct}%, {s.count} acct{s.count === 1 ? '' : 's'}</span>
             </span>
           );
         })}
@@ -1030,7 +1030,7 @@ function MovesQueue({
                       try { await onStepUnskip(); setJustSkipped(false); } finally { setStepBusy(false); }
                     }}
                   >
-                    Skipped · Undo
+                    Undo skip
                   </button>
                 )}
               </>
@@ -1192,7 +1192,7 @@ function NetWorthChart({
     <Card className="p-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="font-editorial text-[16px] font-bold tracking-[-0.012em]">Net worth · last 30 days</div>
+          <div className="font-editorial text-[16px] font-bold tracking-[-0.012em]">Net worth, last 30 days</div>
           <div className="mt-0.5 text-[12px] font-semibold text-content-muted">
             {monthDelta != null
               ? `${monthDelta < 0 ? 'Down' : 'Up'} ${fmtUsd(Math.abs(monthDelta))} this month`
@@ -1493,7 +1493,7 @@ function SpendingPulse({ flow }: { flow: MonthFlow }) {
   return (
     <Card className="p-[22px]">
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Spending · this month</div>
+        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Spending this month</div>
         <Link href="/spending" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
       </div>
       <div className="mt-3 flex items-end gap-x-2.5 gap-y-1 flex-wrap">
@@ -1537,7 +1537,7 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
   return (
     <Card className="p-[22px]">
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Cash flow · this month</div>
+        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Cash flow this month</div>
         <Link href="/spending" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">Details</Link>
       </div>
       {hasFlow ? (
@@ -1598,7 +1598,7 @@ function RecentActivity({ txns }: { txns: RecentTxn[] }) {
                   <div className="text-[13.5px] font-bold truncate">{t.name}</div>
                   <div className="mt-0.5 text-[11.5px] font-semibold text-content-muted">
                     {formatDateShort(new Date(`${t.date.slice(0, 10)}T00:00:00`))}
-                    {t.pending ? ' · Pending' : ''}
+                    {t.pending ? ', pending' : ''}
                   </div>
                 </div>
                 <span
@@ -1625,7 +1625,7 @@ function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: st
     <Card className="mt-7 px-3.5 py-4 sm:p-6 max-w-[760px]">
       <div className="flex items-center gap-2 text-[15px] font-bold">
         <ChevronRight className="h-4 w-4 text-content-faint" />
-        {bill.name} · <span className="ui-tnum">{fmtUsd(bill.amount)}</span>
+        {bill.name} <span className="ui-tnum">{fmtUsd(bill.amount)}</span>
       </div>
       <p className="mt-1.5 text-[13px] leading-relaxed text-content-muted">
         Due {when}

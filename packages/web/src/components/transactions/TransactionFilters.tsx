@@ -283,14 +283,14 @@ export function TransactionFilters({
     [pickerGroups],
   );
   // Account options carry the institution identity so several accounts named
-  // e.g. "CREDIT CARD" stay distinguishable (logo + "Chase ···1234").
+  // e.g. "CREDIT CARD" stay distinguishable (logo + "Chase ••1234").
   const accountOptions = accounts.map((a) => ({
     value: a.id,
     label: a.name,
     icon: <InstIcon institution={a.institution} isManual={a.isManual} size="sm" />,
-    sublabel: `${a.institution}${a.mask ? ` ···${a.mask}` : ''}`,
+    sublabel: `${a.institution}${a.mask ? ` ••${a.mask}` : ''}`,
   }));
-  // Names shared by 2+ accounts — their chips get a ···mask suffix.
+  // Names shared by 2+ accounts — their chips get a ••mask suffix.
   const nameCounts = new Map<string, number>();
   for (const a of accounts) nameCounts.set(a.name, (nameCounts.get(a.name) ?? 0) + 1);
 
@@ -323,7 +323,7 @@ export function TransactionFilters({
     const acc = accounts.find((a) => a.id === accId);
     const ambiguous = acc && (nameCounts.get(acc.name) ?? 0) > 1;
     const label = acc
-      ? ambiguous && acc.mask ? `${acc.name} ···${acc.mask}` : acc.name
+      ? ambiguous && acc.mask ? `${acc.name} ••${acc.mask}` : acc.name
       : accId;
     chips.push({
       key: `acc-${accId}`,

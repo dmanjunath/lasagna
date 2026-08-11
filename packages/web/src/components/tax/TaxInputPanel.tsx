@@ -156,7 +156,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                   <div className="text-[14px] font-semibold text-content">
                     {isDragging ? "Drop to upload" : "Drop files or click to browse"}
                   </div>
-                  <div className="mt-1 text-[12.5px] text-content-muted">PDF · PNG · JPG · up to 20 MB each · multiple files OK</div>
+                  <div className="mt-1 text-[12.5px] text-content-muted">PDF, PNG, or JPG, up to 20 MB each. Multiple files OK.</div>
                 </div>
               </div>
 
@@ -164,7 +164,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               {files.length > 0 && (
                 <div className="flex flex-col gap-2">
                   <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
-                    Ready to upload · {files.length}
+                    Ready to upload ({files.length})
                   </div>
                   {files.map((f, i) => (
                     <div key={`${f.name}-${i}`} className="flex items-center gap-2.5 rounded-ui-md border border-line bg-canvas-sunken px-3 py-2">

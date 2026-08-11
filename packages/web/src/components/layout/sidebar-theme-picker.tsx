@@ -61,7 +61,7 @@ export function SidebarThemePicker() {
                 type="button"
                 className={`ds-side-theme__swatch is-custom ${active ? 'is-active' : ''}`}
                 onClick={() => setCustomOpen((v) => !v)}
-                aria-label={`Custom theme · current ${customAccent}`}
+                aria-label={`Custom theme, current ${customAccent}`}
                 title="Custom"
                 style={{ background: customAccent }}
               >

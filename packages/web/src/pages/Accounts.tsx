@@ -844,7 +844,7 @@ export function Accounts() {
               {loading
                 ? "Loading your connections…"
                 : captionParts.length > 0
-                ? captionParts.join(" · ")
+                ? captionParts.join(", ")
                 : "Connect an account to start tracking your money"}
             </span>
           </p>
@@ -882,7 +882,7 @@ export function Accounts() {
         <div className="mt-5 rounded-ui-lg border border-line bg-panel shadow-ui-sm px-4 py-3.5 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <span className="text-[11.5px] font-bold uppercase tracking-[0.11em] text-content-muted">
-              Free plan · account limit
+              Free plan account limit
             </span>
             <span className="text-[13.5px] font-bold ui-tnum">
               {overLimit ? (
@@ -1671,12 +1671,11 @@ function InstitutionArticle({
           <div className="truncate font-editorial text-[17px] font-bold leading-tight tracking-[-0.01em]" title={institutionName}>
             {institutionName}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-content-muted">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-content-muted">
             <span className={cn("inline-flex items-center gap-1 font-semibold", isError && "text-caution")}>
               {isError && <AlertTriangle size={11} strokeWidth={2.4} aria-hidden="true" />}
               {statusLabel}
             </span>
-            <span className="text-content-faint">·</span>
             <span>{item.accounts.length} account{item.accounts.length === 1 ? "" : "s"}</span>
           </div>
         </div>
@@ -1817,18 +1816,13 @@ function AccountRow({ account, overLimit, linkedAccountName, onEstimateResolved 
           </span>
           {account.mask && (
             <span className="shrink-0 text-[12px] text-content-muted ui-tnum" aria-label={`account ending ${account.mask}`}>
-              ····{account.mask}
+              ••{account.mask}
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] text-content-muted">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-content-muted">
           <span>{getAccountTypeLabel(account.type, account.subtype)}</span>
-          {linkedAccountName && (
-            <>
-              <span className="text-content-faint">·</span>
-              <span>linked to {linkedAccountName}</span>
-            </>
-          )}
+          {linkedAccountName && <span>linked to {linkedAccountName}</span>}
         </div>
       </div>
 

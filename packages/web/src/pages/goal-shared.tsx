@@ -241,7 +241,7 @@ export function AccountPicker({ accounts, selected, onToggle }: AccountPickerPro
                   {PICKER_TYPE_LABELS[acct.type] ?? acct.type}
                   {acct.mask && (
                     <>
-                      {' '}· <span className="ui-tnum">••{acct.mask}</span>
+                      {' '}<span className="ui-tnum">••{acct.mask}</span>
                     </>
                   )}
                 </span>

@@ -160,17 +160,11 @@ export function TxnRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
-        <div className={cn('mt-0.5 flex items-center text-[12.5px] text-content-muted', excluded && 'opacity-50')}>
+        <div className={cn('mt-0.5 flex items-center gap-3 text-[12.5px] text-content-muted', excluded && 'opacity-50')}>
           {categoryNode}
-          {excluded && <Badge tone="neutral" className="ml-1.5 shrink-0">Excluded</Badge>}
-          <span className="mx-1 text-content-faint">·</span>
+          {excluded && <Badge tone="neutral" className="shrink-0">Excluded</Badge>}
           <span className="ui-tnum whitespace-nowrap">{shortDate(date)}</span>
-          {accountName && (
-            <>
-              <span className="mx-1 text-content-faint">·</span>
-              <span className="truncate">{accountName}</span>
-            </>
-          )}
+          {accountName && <span className="truncate">{accountName}</span>}
         </div>
       </div>
       <span className={cn('shrink-0 font-editorial text-[14.5px] font-extrabold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive', excluded && 'opacity-50')}>

@@ -672,7 +672,7 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
                   <div className="min-w-0">
                     <p className="truncate text-[14px] font-semibold text-content">{inv.email}</p>
                     <p className="mt-0.5 text-[12px] font-medium text-content-muted">
-                      Pending · expires {new Date(inv.expiresAt).toLocaleDateString()}
+                      Pending, expires {new Date(inv.expiresAt).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -899,7 +899,7 @@ function PasskeysCard() {
                 </p>
                 <p className="mt-0.5 text-[12.5px] font-medium text-content-muted">
                   Added {new Date(cr.createdAt).toLocaleDateString()}
-                  {cr.lastUsedAt ? ` · Last used ${new Date(cr.lastUsedAt).toLocaleDateString()}` : ""}
+                  {cr.lastUsedAt ? `, last used ${new Date(cr.lastUsedAt).toLocaleDateString()}` : ""}
                 </p>
               </div>
               <Button
@@ -1387,7 +1387,7 @@ function PlanCard() {
   const summary = isPro
     ? cancelScheduled
       ? (periodLabel ?? "Cancels at period end")
-      : `${(status?.subscriptionStatus ?? "active").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}${periodLabel ? ` · ${periodLabel}` : ""}`
+      : `${(status?.subscriptionStatus ?? "active").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}${periodLabel ? `, ${periodLabel.charAt(0).toLowerCase()}${periodLabel.slice(1)}` : ""}`
     : "Upgrade any time";
 
   return (

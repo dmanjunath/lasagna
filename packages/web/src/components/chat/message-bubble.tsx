@@ -136,7 +136,6 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
               <div className="mt-1 px-3 py-2 rounded-ui-sm bg-canvas-sunken border border-line text-[11px] space-y-1">
                 {uniqueTools.map((name, i) => (
                   <div key={i} className="flex items-center gap-2 text-content-secondary">
-                    <span className="w-1 h-1 rounded-full bg-[rgb(var(--ui-accent)/0.5)] flex-shrink-0" />
                     <span>{formatToolName(name)}</span>
                   </div>
                 ))}

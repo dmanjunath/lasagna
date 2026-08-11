@@ -706,7 +706,7 @@ export function SavingsGoal() {
             />
             <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Linked accounts</h2>
             {linkedAccounts.length > 0 && (
-              <span className="text-[12.5px] font-semibold text-content-muted">· {linkedAccounts.length} linked</span>
+              <span className="text-[12.5px] font-semibold text-content-muted">({linkedAccounts.length})</span>
             )}
           </div>
           {!editingAccounts && (
@@ -757,10 +757,9 @@ export function SavingsGoal() {
                     {row.name}
                     {row.mask && <span className="font-medium text-content-muted ui-tnum"> ••{row.mask}</span>}
                   </div>
-                  <div className="mt-0.5 text-[12.5px] text-content-muted">
-                    {humanizeType(row.type)}
-                    <span className="mx-1 text-content-faint">·</span>
-                    updated {shortDate(row.asOf)}
+                  <div className="mt-0.5 flex items-center gap-3 text-[12.5px] text-content-muted">
+                    <span>{humanizeType(row.type)}</span>
+                    <span>updated {shortDate(row.asOf)}</span>
                   </div>
                 </div>
                 <span className="shrink-0 font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">

@@ -1010,7 +1010,7 @@ export function ProbabilityOfSuccess() {
             Probability of success
           </h1>
           <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">
-            {projectionYears}-year projection · Monte Carlo + historical backtest
+            {projectionYears}-year projection, Monte Carlo + historical backtest
           </p>
         </div>
       </header>

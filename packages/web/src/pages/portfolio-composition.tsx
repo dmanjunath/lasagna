@@ -179,8 +179,8 @@ function AllocationBar({
         const display = s.label ?? s.name;
         const drillable = !!onSliceClick && !isOther;
         const tip = isOther && s.children?.length
-          ? `Other · ${pct.toFixed(1)}% · ${formatMoney(s.value, true)} — ${s.children.map((c) => c.name).join(', ')}`
-          : `${display} · ${pct.toFixed(1)}% · ${formatMoney(s.value, true)}`;
+          ? `Other, ${pct.toFixed(1)}%, ${formatMoney(s.value, true)} (${s.children.map((c) => c.name).join(', ')})`
+          : `${display}, ${pct.toFixed(1)}%, ${formatMoney(s.value, true)}`;
         return (
           <button
             key={`${s.name}-${i}`}
@@ -207,7 +207,7 @@ function AllocationBar({
                 className="hidden truncate text-[12.5px] font-extrabold text-white sm:block"
                 style={{ textShadow: '0 1px 2px rgba(0,0,0,0.30)' }}
               >
-                {display} · {pct.toFixed(0)}%
+                {display}, {pct.toFixed(0)}%
               </span>
             )}
           </button>
@@ -282,7 +282,7 @@ function AllocationBreakdown({
                   {s.children.map((c, j) => (
                     <span key={`${c.name}-${j}`}>
                       {c.name} <span className="ui-tnum">{fmtPct(c.pct)}</span>
-                      {j < s.children!.length - 1 ? ' · ' : ''}
+                      {j < s.children!.length - 1 ? ', ' : ''}
                     </span>
                   ))}
                 </div>
@@ -349,7 +349,7 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
   const isOther = /^other$/i.test(h.assetClass.trim());
   const classLabel = isOther && h.category ? h.category : h.assetClass;
   const account = cleanAccountLabel(h.accountLabel);
-  const meta = `${classLabel}${account ? ` · ${account}` : ''}`;
+  const meta = `${classLabel}${account ? `, ${account}` : ''}`;
 
   return (
     <div className="overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm transition-[box-shadow] hover:shadow-ui-md">
@@ -368,15 +368,12 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
           <div className="font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
             {formatMoney(h.totalValue, true)}
           </div>
-          <div className="mt-0.5 text-[12px] font-medium text-content-muted ui-tnum">
-            {h.percentage.toFixed(1)}%
+          <div className="mt-0.5 flex justify-end gap-2 text-[12px] font-medium text-content-muted ui-tnum">
+            <span>{h.percentage.toFixed(1)}%</span>
             {h.historicalReturn !== null && (
-              <>
-                {'  ·  '}
-                <span className={cn('font-semibold', h.historicalReturn >= 0 ? 'text-positive' : 'text-negative')}>
-                  {h.historicalReturn >= 0 ? '+' : '−'}{Math.abs(h.historicalReturn).toFixed(1)}%
-                </span>
-              </>
+              <span className={cn('font-semibold', h.historicalReturn >= 0 ? 'text-positive' : 'text-negative')}>
+                {h.historicalReturn >= 0 ? '+' : '−'}{Math.abs(h.historicalReturn).toFixed(1)}%
+              </span>
             )}
           </div>
         </div>
@@ -982,7 +979,7 @@ export default function PortfolioComposition() {
     return (
       <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
         <PageHead
-          subtitle={`${formatMoney(accountTotal, true)} · ${accountAllocation.length} account${accountAllocation.length === 1 ? '' : 's'} · no holdings yet`}
+          subtitle={`${formatMoney(accountTotal, true)} across ${accountAllocation.length} account${accountAllocation.length === 1 ? '' : 's'}, no holdings yet`}
         />
 
         <section className="mt-6">
@@ -1105,15 +1102,11 @@ export default function PortfolioComposition() {
                     </span>
                   )}
                 </div>
-                <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-medium text-content-muted ui-tnum">
+                <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium text-content-muted ui-tnum">
                   <span><span className="font-bold text-content">{positionCount}</span> position{positionCount === 1 ? '' : 's'}</span>
-                  <span className="text-content-faint">·</span>
                   <span><span className="font-bold text-content">{accountCount}</span> account{accountCount === 1 ? '' : 's'}</span>
                   {biggestHolding && (
-                    <>
-                      <span className="text-content-faint">·</span>
-                      <span>Largest <span className="font-bold text-content">{biggestHolding.ticker}</span> {biggestHolding.percentage.toFixed(1)}%</span>
-                    </>
+                    <span>Largest <span className="font-bold text-content">{biggestHolding.ticker}</span> {biggestHolding.percentage.toFixed(1)}%</span>
                   )}
                 </div>
               </div>

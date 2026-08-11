@@ -194,8 +194,9 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
           {isDemo && (
             <div className="mb-5 rounded-ui-md border border-brand-soft bg-brand-softer p-3.5 text-sm">
               <p className="font-semibold text-brand mb-1">Demo account</p>
-              <p className="text-content-secondary ui-tnum">
-                demo@lasagnafi.com &nbsp;·&nbsp; lasagna123
+              <p className="flex flex-wrap gap-x-4 text-content-secondary ui-tnum">
+                <span>demo@lasagnafi.com</span>
+                <span>lasagna123</span>
               </p>
               <button
                 type="button"
@@ -256,7 +257,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
             )}
 
             {passwordVisible && (
-              <Field label="Password" hint={isSignup ? "Optional · at least 10 characters" : undefined}>
+              <Field label="Password" hint={isSignup ? "Optional, at least 10 characters" : undefined}>
                 <Input
                   type="password"
                   placeholder="••••••••"

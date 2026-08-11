@@ -157,7 +157,7 @@ export function DebtCascade({ debts, extraPayment = 0, primaryColor = 'var(--lf-
             }}
           >
             <div style={{ fontSize: 13, color: 'var(--lf-muted)' }}>
-              {cascade.length} debts · {totalMonths < 999 ? `${totalMonths} months` : 'never at minimum'}
+              {cascade.length} debts, {totalMonths < 999 ? `${totalMonths} months` : 'never at minimum'}
             </div>
             <div style={{ display: 'flex', gap: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
               <span style={{ color: 'var(--lf-muted)' }}>
@@ -240,7 +240,10 @@ function CascadeRow({
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--lf-ink)' }}>{debt.name}</span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)' }}>
-            {debt.apr}% APR · {fmt(debt.balance)}
+            {debt.apr}% APR
+          </span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-muted)' }}>
+            {fmt(debt.balance)}
           </span>
         </div>
 

@@ -235,22 +235,11 @@ export function Goals() {
   const inProgressCount = activeGoals.length - fundedCount;
 
   const summaryLine = !loading && activeGoals.length > 0 && (
-    <span className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
-      <span><b className="font-extrabold text-content">{inProgressCount}</b> active</span>
-      {fundedCount > 0 && (
-        <>
-          <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-          <span><b className="font-extrabold text-content">{fundedCount}</b> funded</span>
-        </>
-      )}
-      <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-      <span><b className="font-extrabold text-content">{activeGoals.length}</b> goal{activeGoals.length === 1 ? '' : 's'} tracked</span>
-      {completedGoals.length > 0 && (
-        <>
-          <span className="h-1 w-1 shrink-0 rounded-full bg-content-faint" aria-hidden />
-          <span><b className="font-extrabold text-content">{completedGoals.length}</b> complete</span>
-        </>
-      )}
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <Badge tone="brand">{inProgressCount} active</Badge>
+      {fundedCount > 0 && <Badge tone="neutral">{fundedCount} funded</Badge>}
+      {fundedCount > 0 && <Badge tone="neutral">{activeGoals.length} goal{activeGoals.length === 1 ? '' : 's'} tracked</Badge>}
+      {completedGoals.length > 0 && <Badge tone="neutral">{completedGoals.length} complete</Badge>}
     </span>
   );
 
@@ -276,7 +265,7 @@ export function Goals() {
             Goals
           </h1>
           {summaryLine && (
-            <p className="mt-2 text-[14.5px] font-semibold text-content-muted">{summaryLine}</p>
+            <p className="mt-2">{summaryLine}</p>
           )}
         </div>
         {!isDemo && (
@@ -512,7 +501,7 @@ export function Goals() {
                   key={preset.category}
                   type="button"
                   onClick={() => { selectPreset(preset); setShowCreate(true); }}
-                  aria-label={`Add ${preset.name} goal · suggested target ${formatCurrency(preset.suggestedTarget)}`}
+                  aria-label={`Add ${preset.name} goal, suggested target ${formatCurrency(preset.suggestedTarget)}`}
                   className="group flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-3.5 text-left transition-[box-shadow,border-color] hover:shadow-ui-md hover:border-line-strong min-h-touch"
                 >
                   <span
@@ -570,7 +559,7 @@ export function Goals() {
                       <span className="block truncate text-[14px] font-semibold text-content-muted">{goal.name}</span>
                       <span className="text-[11.5px] font-semibold text-content-muted">
                         {reached ? 'reached' : `completed at ${closedPct}%`}
-                        {goal.category && <> · {goal.category.replace(/_/g, ' ')}</>}
+                        {goal.category && <>, {goal.category.replace(/_/g, ' ')}</>}
                       </span>
                     </span>
                     <span className="text-[13px] font-bold text-content-muted ui-tnum">
@@ -756,7 +745,7 @@ function GoalCard({
             title={linkedNames ? `Tracked from: ${linkedNames}` : `${goal.accountIds.length} linked account${goal.accountIds.length === 1 ? '' : 's'}`}
             className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-bold text-[rgb(var(--ui-brand-ink))]"
           >
-            Auto · {goal.accountIds.length} acct{goal.accountIds.length === 1 ? '' : 's'}
+            Auto ({goal.accountIds.length} acct{goal.accountIds.length === 1 ? '' : 's'})
           </span>
         )}
       </div>

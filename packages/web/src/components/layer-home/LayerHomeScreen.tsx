@@ -460,7 +460,7 @@ export function LayerHomeScreen({
 
   const nwChangeSign = netWorthChange !== null && netWorthChange !== undefined ? (netWorthChange >= 0 ? '+' : '') : '';
   const nwChangePct = (netWorthChange !== null && netWorthChange !== undefined && netWorth != null && netWorth !== 0)
-    ? ` · ${nwChangeSign}${((netWorthChange / Math.abs(netWorth - netWorthChange)) * 100).toFixed(1)}% MoM`
+    ? ` (${nwChangeSign}${((netWorthChange / Math.abs(netWorth - netWorthChange)) * 100).toFixed(1)}% MoM)`
     : '';
 
   return (
@@ -566,7 +566,7 @@ export function LayerHomeScreen({
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-cheese)' }}>
-                Level {primaryLayer.order} · Current focus
+                Level {primaryLayer.order}, current focus
               </div>
               <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 'clamp(20px, 3vw, 26px)', lineHeight: 1.2, letterSpacing: '-0.015em', color: 'var(--lf-paper)', marginTop: 2 }}>
                 {primaryLayer.title}
@@ -585,8 +585,9 @@ export function LayerHomeScreen({
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
                 Progress
               </span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: color }}>
-                {primaryLayer.progress}% · {fmt(primaryLayer.current)} of {fmt(primaryLayer.target)}
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: color, display: 'inline-flex', gap: 12 }}>
+                <span>{primaryLayer.progress}%</span>
+                <span>{fmt(primaryLayer.current)} of {fmt(primaryLayer.target)}</span>
               </span>
             </div>
             <div style={{ height: 6, background: 'rgba(251,246,236,0.12)', borderRadius: 3, overflow: 'hidden' }}>
@@ -607,7 +608,7 @@ export function LayerHomeScreen({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Zap size={14} color="var(--lf-cheese)" />
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-cheese)' }}>
-                  {debtFreeMonths} {debtFreeMonths === 1 ? 'month' : 'months'} to debt-free · {debtFreeDate}
+                  {debtFreeMonths} {debtFreeMonths === 1 ? 'month' : 'months'} to debt-free ({debtFreeDate})
                 </span>
               </div>
             )}
@@ -622,7 +623,7 @@ export function LayerHomeScreen({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Rocket size={14} color="var(--lf-basil)" />
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--lf-basil)' }}>
-                    {fiProgress}% to FI · {fmt(fiNumber)}
+                    {fiProgress}% to FI ({fmt(fiNumber)})
                   </span>
                 </div>
               </>
@@ -784,7 +785,7 @@ export function LayerHomeScreen({
             {/* LEFT: Net worth headline */}
             <div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--lf-muted)', marginBottom: 10 }}>
-                {displayNetWorthDate ? displayNetWorthDate : 'Net Worth · live'}
+                {displayNetWorthDate ? displayNetWorthDate : 'Net Worth'}
               </div>
               <div style={{ fontFamily: "'Geist', system-ui, sans-serif", fontWeight: 600, fontSize: 'clamp(40px, 8vw, 72px)', lineHeight: 0.95, letterSpacing: '-0.03em', color: 'var(--lf-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {displayNetWorth != null ? fmt(displayNetWorth) : '—'}

@@ -53,10 +53,10 @@ type Mode = 'date' | 'category' | 'group' | 'merchant';
 type SortKey = 'newest' | 'oldest' | 'largest' | 'smallest';
 
 const SORT_LABELS: Record<SortKey, string> = {
-  newest: 'Date · newest',
-  oldest: 'Date · oldest',
-  largest: 'Amount · largest',
-  smallest: 'Amount · smallest',
+  newest: 'Newest first',
+  oldest: 'Oldest first',
+  largest: 'Largest amount',
+  smallest: 'Smallest amount',
 };
 
 const SORTS: Record<SortKey, { field: 'date' | 'amount'; dir: 'asc' | 'desc' }> = {
@@ -508,10 +508,10 @@ export function Transactions() {
               aria-label="Sort transactions"
               className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
             >
-              <option value="newest">Date · newest first</option>
-              <option value="oldest">Date · oldest first</option>
-              <option value="largest">Amount · largest first</option>
-              <option value="smallest">Amount · smallest first</option>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="largest">Largest amount</option>
+              <option value="smallest">Smallest amount</option>
             </select>
           </div>
         )}

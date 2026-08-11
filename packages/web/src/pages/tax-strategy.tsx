@@ -352,7 +352,7 @@ export function TaxStrategy() {
   const subBits: string[] = [`${FILING_YEAR} filing year`];
   if (documents.length > 0) subBits.push(`${documents.length} doc${documents.length === 1 ? "" : "s"}`);
   if (insights.length > 0) subBits.push(`${insights.length} strateg${insights.length === 1 ? "y" : "ies"}`);
-  const subtitleText = subBits.join(" · ");
+  const subtitleText = subBits.join(", ");
 
   const hasDocs = documents.length > 0;
   const strategyCount = insights.length;
@@ -583,7 +583,7 @@ export function TaxStrategy() {
           sub={
             filingLabel
               ? profile?.stateOfResidence
-                ? `${filingLabel} · ${profile.stateOfResidence}`
+                ? `${filingLabel}, ${profile.stateOfResidence}`
                 : filingLabel
               : profile?.stateOfResidence ?? "not set"
           }

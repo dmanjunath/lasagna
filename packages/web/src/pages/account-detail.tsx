@@ -623,7 +623,7 @@ export function AccountDetail() {
     excludeFromNetWorth && 'Not counted',
     excludeTransactions && 'Tx hidden',
     invertBalance && 'Inverted',
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean).join(', ');
 
   const hoveredPoint = hasHistory && chartHoverIdx !== null ? chartPoints[chartHoverIdx] : null;
   const heroPts = chartPoints.length > 0 ? chartPoints : allPoints;
@@ -660,12 +660,7 @@ export function AccountDetail() {
                 avoid repeating it three times (title + pill + Type row). */}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13.5px] font-medium text-content-muted">
               <span>{institution}</span>
-              {acct.mask && (
-                <>
-                  <span className="text-content-faint">·</span>
-                  <span className="ui-tnum">••{acct.mask}</span>
-                </>
-              )}
+              {acct.mask && <span className="ui-tnum">••{acct.mask}</span>}
               {acct.frozen && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
                   <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
