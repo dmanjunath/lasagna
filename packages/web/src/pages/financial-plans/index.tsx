@@ -149,7 +149,7 @@ export function FinancialPlansList() {
         <EmptyState
           icon={<FileText className="h-5 w-5" />}
           title="No reports yet"
-          description="Create your first Financial Insights report — a complete written analysis built from your real accounts."
+          description="Create your first Financial Insights report, a complete written analysis built from your real accounts."
           action={
             <Button
               leadingIcon={<Plus className="h-4 w-4" />}
@@ -282,7 +282,7 @@ export function FinancialPlansList() {
           if (!creating) setNameOpen(false);
         }}
         title="New report"
-        description="A Financial Insights report written from your live accounts. Takes about ten minutes — browse the app meanwhile and we'll notify you."
+        description="A Financial Insights report written from your live accounts. Takes about ten minutes. Browse the app meanwhile and we'll notify you."
         footer={
           <Button onClick={create} disabled={creating || !nameDraft.trim()}>
             {creating ? "Starting…" : "Create report"}

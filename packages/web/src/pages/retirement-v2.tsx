@@ -546,7 +546,7 @@ function BlendedChartV2({ values, currentAge, retireAge, runsShortAge }: {
                 Age {currentAge + hi}, {year0 + hi}
               </text>
               <text x={ttX + 10} y={PT + 37} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-panel))">
-                balance {values[hi] <= 0 ? '$0 — depleted' : fmtShort(values[hi])}
+                balance {values[hi] <= 0 ? '$0 (depleted)' : fmtShort(values[hi])}
               </text>
               <text x={ttX + 10} y={PT + 53} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} opacity={0.75} fill="rgb(var(--ui-panel))">
                 today's dollars, deterministic
@@ -1102,7 +1102,7 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
       </span>
       <div className="rv2-field__help">
         {caption}
-        {max !== undefined && <>{caption && ', '}<span className="rv2-field__range">{hint(min)}–{hint(max)}</span></>}
+        {max !== undefined && <>{caption && ' '}<span className="rv2-field__range">({hint(min)} to {hint(max)})</span></>}
       </div>
     </div>
   );
@@ -1742,8 +1742,8 @@ export function RetirementV2() {
   // (same mechanism as the /retirement hero button) so the conversation starts
   // from what the user is looking at.
   const askLasagnaPrompt = isBlend
-    ? `I want to assess my retirement plan. On one projected path at my ${expReturn.toFixed(1)}% expected return — retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved, spending ${formatMoney(monthlySpendEff, true)}/mo — the dashboard says "${verdict}": ${detOnTrack ? `the money lasts through age ${lifeExp}` : `the money runs out at age ${detRanShortAge}`}. Can you walk me through what's driving that?`
-    : `I want to assess my retirement plan. The dashboard says "${verdict}" — a ${prob}% chance my money lasts through age ${method === 'hist' ? lifeExp : horizonEndAge}, retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved and spending ${formatMoney(monthlySpendEff, true)}/mo. Can you walk me through what's driving that?`;
+    ? `I want to assess my retirement plan. On one projected path at my ${expReturn.toFixed(1)}% expected return (retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved, spending ${formatMoney(monthlySpendEff, true)}/mo), the dashboard says "${verdict}": ${detOnTrack ? `the money lasts through age ${lifeExp}` : `the money runs out at age ${detRanShortAge}`}. Can you walk me through what's driving that?`
+    : `I want to assess my retirement plan. The dashboard says "${verdict}": a ${prob}% chance my money lasts through age ${method === 'hist' ? lifeExp : horizonEndAge}, retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved and spending ${formatMoney(monthlySpendEff, true)}/mo. Can you walk me through what's driving that?`;
 
   // The pencil on the Monthly spending KPI: open the inputs panel (on the "You"
   // tab, where the spending control lives), scroll the spending field to the
@@ -2247,7 +2247,7 @@ export function RetirementV2() {
                 <Lever
                   label="Plan through age" testId="rv2-adv-lifeexp"
                   min={Math.max(effRetireAge + 5, 80)} max={105} value={lifeExp} onChange={setLifeExp}
-                  caption="Life expectancy — how long the money needs to last."
+                  caption="Life expectancy: how long the money needs to last."
                 />
                 <Lever
                   label="Monthly savings until retirement" testId="rv2-lever-save" prefix="$" suffix="/mo"
@@ -2276,7 +2276,7 @@ export function RetirementV2() {
                 </div>
                 <div className="rv2-field__help">
                   {strategy === 'constant_dollar' && 'Same inflation-adjusted amount every year.'}
-                  {strategy === 'percent_portfolio' && `Withdraw ${pctRate}% of the portfolio's current value each year — flexible but variable.`}
+                  {strategy === 'percent_portfolio' && `Withdraw ${pctRate}% of the portfolio's current value each year. Flexible, but the amount varies.`}
                   {strategy === 'guardrails' && `Guyton-Klinger: spending flexes ±${gkAdjust}% when the withdrawal rate drifts ±${gkBand}% past your initial rate, so the portfolio lasts.`}
                 </div>
               </div>
@@ -2315,12 +2315,12 @@ export function RetirementV2() {
                     <Lever
                       label="Spending floor" testId="rv2-gk-floor" prefix="$" suffix="/mo"
                       min={0} max={20000} value={gkFloorMonthly} onChange={setGkFloorMonthly}
-                      caption="Never cut below this — $0 = no floor. Today's dollars."
+                      caption="Never cut below this ($0 = no floor). Today's dollars."
                     />
                     <Lever
                       label="Spending ceiling" testId="rv2-gk-ceiling" prefix="$" suffix="/mo"
                       min={0} max={40000} value={gkCeilingMonthly} onChange={setGkCeilingMonthly}
-                      caption="Never raise above this — $0 = no ceiling. Today's dollars."
+                      caption="Never raise above this ($0 = no ceiling). Today's dollars."
                     />
                   </>
                 )}
@@ -2340,7 +2340,7 @@ export function RetirementV2() {
                 <Lever
                   label="Claim age" testId="rv2-lever-claim"
                   min={62} max={70} value={ssClaimAge} onChange={setSsClaimAge}
-                  caption="When your benefit starts — the estimate updates as you change this."
+                  caption="When your benefit starts. The estimate updates as you change this."
                 />
                 <Lever
                   label="Monthly benefit" testId="rv2-ss" prefix="$" suffix="/mo"
@@ -2353,7 +2353,7 @@ export function RetirementV2() {
                     ) : annualIncome > 0 ? (
                       <>Estimated benefit if you claim at {ssClaimAge}, from your {formatMoney(annualIncome, true)} income. Edit it, or check ssa.gov.</>
                     ) : (
-                      <>No income on file — enter your estimated benefit from ssa.gov.</>
+                      <>No income on file. Enter your estimated benefit from ssa.gov.</>
                     )
                   }
                 />
@@ -2367,7 +2367,7 @@ export function RetirementV2() {
                   label="Monthly amount" testId="rv2-other-income" prefix="$" suffix="/mo"
                   ariaLabel="Other guaranteed monthly income"
                   min={0} max={20000} value={otherMonthly} onChange={setOtherMonthly}
-                  caption="Pension, annuity or rental income — on top of Social Security."
+                  caption="Pension, annuity or rental income, on top of Social Security."
                 />
                 <Lever
                   label="Starts at age" testId="rv2-other-age"
@@ -2395,7 +2395,7 @@ export function RetirementV2() {
                   ))}
                 </div>
                 <p className="mt-2 text-[12px] text-content-muted leading-[1.5]">
-                  Liquid, investable balances from your linked accounts — the drawdown view below draws on the same accounts.
+                  Liquid, investable balances from your linked accounts. The drawdown view below draws on the same accounts.
                 </p>
               </>
             ) : (
@@ -2406,7 +2406,7 @@ export function RetirementV2() {
                   min={0} max={50000000} money prefix="$" width="10ch"
                   testId="rv2-bucket-taxable" aria-label="Starting savings"
                 />
-                <span className="text-[12px] text-content-muted">no linked accounts yet — enter your investable savings</span>
+                <span className="text-[12px] text-content-muted">No linked accounts yet. Enter your investable savings.</span>
               </div>
             )}
             </div>
@@ -2442,7 +2442,7 @@ export function RetirementV2() {
               if (!allocation || total <= 0) {
                 return (
                   <p className="text-[12.5px] text-content-muted leading-[1.55]">
-                    No holdings data yet — assuming {equityPct}% stocks / {100 - equityPct}% bonds. Adjust below, or pick a preset mix above.
+                    No holdings data yet, so we assume {equityPct}% stocks / {100 - equityPct}% bonds. Adjust below, or pick a preset mix above.
                   </p>
                 );
               }
@@ -2506,7 +2506,7 @@ export function RetirementV2() {
                 </div>
                 <p className="mt-2 text-[12px] text-content-muted leading-[1.5]">
                   This mix drives the simulation's expected return and stock fraction (allocation-weighted historical
-                  averages) while active — switch back to "My portfolio" to use your real holdings.
+                  averages) while active. Switch back to "My portfolio" to use your real holdings.
                 </p>
               </div>
             )}
@@ -2538,7 +2538,7 @@ export function RetirementV2() {
                 </div>
                 <div className="mt-2.5 border-t border-line pt-2.5 text-[12px] text-content-secondary ui-tnum">
                   Blended <strong>{expReturn.toFixed(1)}%</strong> expected return, ~{blendedVol.toFixed(1)}% volatility
-                  <span className="text-content-muted"> — drives the Monte Carlo</span>
+                  <span className="text-content-muted"> (drives the Monte Carlo)</span>
                 </div>
               </div>
             )}
@@ -2559,7 +2559,7 @@ export function RetirementV2() {
                 caption={returnTouched ? (
                   <>adjusted, <button type="button" className="rv2-reset" onClick={() => { setBaseReturn(6.5); setReturnTouched(false); }}>reset to 6.5%</button></>
                 ) : (
-                  'no holdings linked yet — set your assumed annual return, or pick a preset mix above'
+                  'no holdings linked yet, so set your assumed annual return or pick a preset mix above'
                 )}
               />
             </div>
@@ -2611,8 +2611,8 @@ export function RetirementV2() {
               <div style={{ opacity: btLoading ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
                 <FanChartV2 bands={histBands} currentAge={currentAge} retireAge={effRetireAge} clipLabel="best cohorts" percentileLabels={['10th', '25th', 'Median', '75th', '90th']} />
                 <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-hist">
-                  <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />10th–90th cohort range</span>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />25th–75th</span>
+                  <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />10th to 90th cohort range</span>
+                  <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />25th to 75th</span>
                   <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median cohort</span>
                   <span style={{ marginLeft: 'auto' }}>
                     {btResult.startYearCount} retirements 1928 on, median at {lifeExp}: <strong>{fmtShort(histBands.p50[histBands.p50.length - 1] || 0)}</strong>
@@ -2620,13 +2620,13 @@ export function RetirementV2() {
                 </div>
               </div>
             ) : (
-              <p className="text-[13px] text-content-muted">Not enough market history for this horizon — switch method or shorten the plan.</p>
+              <p className="text-[13px] text-content-muted">Not enough market history for this horizon. Switch method or shorten the plan.</p>
             )
           ) : isBlend ? (
             <>
               <BlendedChartV2 values={blendSeries} currentAge={currentAge} retireAge={effRetireAge} runsShortAge={detRanShortAge} />
               <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-blend">
-                <span><span style={{ display: 'inline-block', width: 12, height: 2, background: 'var(--ui-viz-2)', marginRight: 6, verticalAlign: 'middle', borderRadius: 1 }} />one projected path at {expReturn.toFixed(1)}%/yr — no market randomness</span>
+                <span><span style={{ display: 'inline-block', width: 12, height: 2, background: 'var(--ui-viz-2)', marginRight: 6, verticalAlign: 'middle', borderRadius: 1 }} />one projected path at {expReturn.toFixed(1)}%/yr, no market randomness</span>
                 <span style={{ marginLeft: 'auto' }}>
                   {detRanShortAge !== null
                     ? <>runs out at age <strong>{detRanShortAge}</strong></>
@@ -2640,8 +2640,8 @@ export function RetirementV2() {
             <div style={{ opacity: mcLoading ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
               <FanChartV2 bands={realBands} currentAge={currentAge} retireAge={effRetireAge} />
               <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-mc">
-                <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />p5–p95 range</span>
-                <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />p25–p75 likely</span>
+                <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />p5 to p95 range</span>
+                <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />p25 to p75 likely</span>
                 <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median</span>
                 <span style={{ marginLeft: 'auto' }}>
                   median at {currentAge + realBands.p50.length - 1}: <strong>{fmtShort(realBands.p50[realBands.p50.length - 1] || 0)}</strong>
@@ -2654,7 +2654,7 @@ export function RetirementV2() {
             tab — the method toggle itself now lives in the hero). */}
         <p className="mt-3 text-[12px] text-content-muted leading-[1.55]">
           Inflation is fixed at 3%/yr in the Monte Carlo and blended-return models (the historical backtest uses actual CPI).
-          The Monte Carlo always runs to age {horizonEndAge}; "plan through age" (under You) drives the historical backtest, the blended-return path, drawdown view and table.
+          The Monte Carlo always runs to age {horizonEndAge}. "Plan through age" (under You) drives the historical backtest, the blended-return path, drawdown view and table.
         </p>
       </Section>
 
@@ -2673,7 +2673,7 @@ export function RetirementV2() {
                 ]}
                 aria-label="Withdrawal order granularity"
               />
-              <span className="text-[12px] font-medium text-content-muted">drag to reorder — withdrawals come from the top of the list first</span>
+              <span className="text-[12px] font-medium text-content-muted">Drag to reorder. Withdrawals come from the top of the list first.</span>
             </div>
             {drawUnits.length > 0 && (
               <div className="mt-3.5 flex flex-col gap-1.5" data-testid="rv2-draw-order">
@@ -2746,7 +2746,7 @@ export function RetirementV2() {
               </div>
             )}
             {drawUnits.length === 1 && (
-              <p className="mt-2 text-[12px] text-content-muted">Only one source of savings — nothing to reorder yet.</p>
+              <p className="mt-2 text-[12px] text-content-muted">Only one source of savings, so nothing to reorder yet.</p>
             )}
             {drawdown && drawUnits.length > 0 ? (
               <div className="mt-4">
@@ -2762,7 +2762,7 @@ export function RetirementV2() {
                     aria-label="Drawdown chart view"
                   />
                   <span className="text-[12px] font-medium text-content-muted">
-                    {drawView === 'spend' ? 'how each year’s spending is funded — guaranteed income + account withdrawals' : 'what each account is still worth'}
+                    {drawView === 'spend' ? 'how each year’s spending is funded: guaranteed income + account withdrawals' : 'what each account is still worth'}
                   </span>
                 </div>
                 {drawView === 'spend'
@@ -2771,12 +2771,12 @@ export function RetirementV2() {
               </div>
             ) : (
               <p className="mt-4 text-[13px] text-content-muted">
-                Nothing to draw down yet — link accounts or enter savings under Inputs & assumptions above.
+                Nothing to draw down yet. Link accounts or enter savings under Inputs & assumptions above.
               </p>
             )}
             <p className="mt-3 text-[12px] text-content-muted leading-[1.55]" data-testid="rv2-draw-note">
-              The order changes which accounts run out when — not your chance of success. There's no tax model yet, so
-              sequencing has no tax impact here; this is the median path at your {expReturn.toFixed(1)}% expected return,
+              The order changes which accounts run out when, not your chance of success. There's no tax model yet, so
+              sequencing has no tax impact here. This is the median path at your {expReturn.toFixed(1)}% expected return,
               with each year's net need (spending − guaranteed income) drawn top-down.
             </p>
           </div>

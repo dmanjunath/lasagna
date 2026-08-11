@@ -88,7 +88,7 @@ export function AcceptInvite() {
                 {invitationHeadline(validation)}
               </h1>
               <p className="mt-2 text-[14px] leading-relaxed text-content-secondary">
-                You'll share the same accounts, balances, and plans — each with your own private login and chat.
+                You'll share the same accounts, balances, and plans, each with your own private login and chat.
               </p>
             </div>
           </div>

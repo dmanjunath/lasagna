@@ -245,7 +245,7 @@ export function Transactions() {
     } catch (err) {
       console.error(err);
       patchTx(tx.id, { categoryId: prevCatId });
-      setError("Couldn't update the category — the change was undone. Try again.");
+      setError("Couldn't update the category, so the change was undone. Try again.");
     }
   }
 
@@ -256,8 +256,8 @@ export function Transactions() {
     if ((mode === 'group' || mode === 'category') && taxonomyGroups.length === 0) {
       setError(
         taxonomyLoading
-          ? 'Categories are still loading — try again.'
-          : 'Categories failed to load — try again.',
+          ? 'Categories are still loading. Try again.'
+          : 'Categories failed to load. Try again.',
       );
       return;
     }
@@ -310,7 +310,7 @@ export function Transactions() {
           else next.delete(key);
           return next;
         });
-        setError("Couldn't load transactions for this group — try again.");
+        setError("Couldn't load transactions for this group. Try again.");
       });
   }
 

@@ -696,7 +696,7 @@ export function AccountDetail() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 rounded-ui-md border border-info/30 bg-info-soft px-4 py-3">
           <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-info">
             <Lock size={13} strokeWidth={2.2} aria-hidden="true" />
-            Frozen — over the Free plan's account limit, so it isn't syncing.
+            Frozen: over the Free plan's account limit, so it isn't syncing.
           </span>
           <button
             type="button"
@@ -711,7 +711,7 @@ export function AccountDetail() {
       {needsAttention && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 rounded-ui-md border border-caution/30 bg-caution-soft px-4 py-3">
           <span className="text-[13.5px] font-semibold text-caution">
-            {status === 'item_login_required' ? 'Login expired — reconnect to resume syncing.' : 'This account needs attention — try reconnecting.'}
+            {status === 'item_login_required' ? 'Login expired. Reconnect to resume syncing.' : 'This account needs attention. Try reconnecting.'}
           </span>
           <button
             type="button"
@@ -876,7 +876,7 @@ export function AccountDetail() {
                   />
                   {addressRejected && (
                     <p className="mt-2 text-[12px] leading-relaxed text-negative">
-                      Commercial properties aren't supported — enter a home address.
+                      Commercial properties aren't supported. Enter a home address.
                     </p>
                   )}
                 </Field>
@@ -931,7 +931,7 @@ export function AccountDetail() {
                 </Select>
                 {crossesBucket && (
                   <p className="mt-2 text-[12px] leading-relaxed text-negative">
-                    This moves the account {willBeLiability ? 'into debt' : 'into assets'} — it will change your net worth.
+                    This moves the account {willBeLiability ? 'into debt' : 'into assets'}. It will change your net worth.
                   </p>
                 )}
               </Field>
@@ -1021,7 +1021,7 @@ export function AccountDetail() {
                     onAdd={() => setLocation(`/accounts?add=real_estate&link=${id}`)}
                   />
                   <p className="mt-2 text-[12px] leading-relaxed text-content-muted">
-                    Tie this loan to the property it's secured by — its page will show your equity.
+                    Tie this loan to the property it's secured by. Its page will show your equity.
                   </p>
                 </Field>
               </SettingsGroup>
@@ -1070,7 +1070,7 @@ export function AccountDetail() {
                       </Button>
                     </div>
                     <p className="mt-2 text-[12px] leading-relaxed text-content-muted">
-                      Tie the loan that's secured by this property — we'll show your equity here.
+                      Tie the loan that's secured by this property. We'll show your equity here.
                     </p>
                   </Field>
                 )}
@@ -1208,9 +1208,9 @@ function PropertyEstimateStatus({
     state === 'pending'
       ? { title: 'Estimating value…', body: 'We’re looking up an estimate for this address. This usually takes about a minute.' }
       : state === 'timeout'
-        ? { title: 'Taking longer than expected', body: 'We’re still working on it — refresh to check for the value.' }
+        ? { title: 'Taking longer than expected', body: 'We’re still working on it. Refresh to check for the value.' }
         : state === 'no-home'
-          ? { title: "Couldn’t find a home value for this address", body: 'It may be commercial or unlisted — switch to “My own value” below to enter it yourself.' }
+          ? { title: "Couldn’t find a home value for this address", body: 'It may be commercial or unlisted. Switch to “My own value” below to enter it yourself.' }
           : { title: 'Couldn’t estimate this address', body: 'Enter a value manually in Settings below.' };
 
   return (

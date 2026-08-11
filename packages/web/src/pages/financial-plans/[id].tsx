@@ -1024,7 +1024,7 @@ function FreeformReportView({
                 Writing your Financial Insights report
               </p>
               <p className="mt-0.5 text-[13px] text-content-secondary">
-                Usually about ten minutes. Feel free to browse the rest of the app — a
+                Usually about ten minutes. Feel free to browse the rest of the app. A
                 notification will let you know the moment it&apos;s ready.
               </p>
             </div>
@@ -1075,7 +1075,7 @@ function FreeformReportView({
           size="sm"
           onClick={retry}
           disabled={sending || busy}
-          title="Rebuild this report from your current accounts and data — use after linking a new account"
+          title="Rebuild this report from your current accounts and data. Use after linking a new account."
           leadingIcon={<RefreshCw className="h-3.5 w-3.5" />}
         >
           Refresh from accounts
@@ -1218,7 +1218,7 @@ function ScheduleTableView({
     chips.push({
       label: "First required withdrawal",
       value: formatMoney(flags.rmd.firstAmount, true),
-      hint: `est. IRS minimum from tax-deferred at ${flags.rmd.firstAge} (RMD) — not forced in this schedule`,
+      hint: `est. IRS minimum from tax-deferred at ${flags.rmd.firstAge} (RMD), not forced in this schedule`,
     });
   }
   if (flags.depleted && flags.firstShortfallAge != null) {
@@ -1333,7 +1333,7 @@ function ScheduleTableView({
                           toggleAge(row.age);
                         }}
                         aria-expanded={isExpanded}
-                        aria-label={`Age ${row.age} — show which accounts fund this year`}
+                        aria-label={`Age ${row.age}: show which accounts fund this year`}
                         className="inline-flex items-center gap-1 rounded-ui-sm focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--ui-brand-ring)]"
                       >
                         <svg
@@ -2377,7 +2377,7 @@ export function FinancialPlanDetailPage() {
                 );
 
                 return (
-                  <Figure n={exAssetsDebt} title="Assets vs debt" wide={wide} caption="Both bars share one dollar scale; the gap reads as net worth.">
+                  <Figure n={exAssetsDebt} title="Assets vs debt" wide={wide} caption="Both bars share one dollar scale, so the gap reads as net worth.">
                     <div className="space-y-3">
                       {bar("Assets", snapshot.totalAssets, assets)}
                       {bar("Debt", snapshot.totalDebt, debts)}

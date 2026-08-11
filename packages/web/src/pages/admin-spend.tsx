@@ -48,7 +48,7 @@ function SpendChart({ series, bucket }: { series: Spend['series']; bucket: 'day'
             <div
               key={d.day}
               className="flex-1 min-w-[3px] max-w-[42px] flex flex-col justify-end h-full transition-opacity hover:opacity-75"
-              title={`${bucket === 'week' ? 'Week of ' : ''}${fmtDay(d.day, true)} — LLM ${usd(llm, 4)}, Plaid ${usd(plaid, 4)}, ${d.events} events`}
+              title={`${bucket === 'week' ? 'Week of ' : ''}${fmtDay(d.day, true)}: LLM ${usd(llm, 4)}, Plaid ${usd(plaid, 4)}, ${d.events} events`}
             >
               <div className="w-full rounded-t-[3px] bg-viz-2" style={{ height: `${(llm / max) * 100}%`, minHeight: llm > 0 ? 2 : 0 }} />
               <div className={cn('w-full bg-viz-1', llm === 0 && 'rounded-t-[3px]')} style={{ height: `${(plaid / max) * 100}%`, minHeight: plaid > 0 ? 2 : 0 }} />
@@ -150,7 +150,7 @@ export function AdminSpend() {
 
       {error ? (
         <div className="mt-6 rounded-ui-md border border-negative/25 bg-negative-soft px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[13.5px] font-medium text-negative">Could not load spend — {error}</p>
+          <p className="text-[13.5px] font-medium text-negative">Could not load spend: {error}</p>
           <Button variant="secondary" size="sm" onClick={() => load(days)}>Retry</Button>
         </div>
       ) : loading || !data ? (

@@ -187,7 +187,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               </h1>
             </div>
             <p className="mt-1 text-[13.5px] sm:text-[14px] text-content-secondary">
-              {isSignup ? "Create your account — personal finance, layered." : "Welcome back — let's check on your money."}
+              {isSignup ? "Create your account. Personal finance, layered." : "Welcome back. Let's check on your money."}
             </p>
           </div>
 

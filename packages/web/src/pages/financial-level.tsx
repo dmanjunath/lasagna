@@ -199,13 +199,13 @@ function WhyThisOrderPopover() {
             <h3 className="text-[15px] font-semibold text-content">Why this order</h3>
             <p className="mt-2.5 mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
               It's a priority order, not a rigid ladder. Chase a lower-priority move first and you can undo
-              your own progress — investing while 22% APR credit cards compound against you, or saving while
+              your own progress: investing while 22% APR credit cards compound against you, or saving while
               overdraft fees eat your checking account.
             </p>
             <p className="mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
               The order follows one rule: <strong className="font-bold text-content">do the thing with the
               highest guaranteed return first.</strong> Employer match (100% instant return) beats emergency
-              fund beats investing. Paying off 22% debt is a guaranteed 22% return — no stock market year
+              fund beats investing. Paying off 22% debt is a guaranteed 22% return. No stock market year
               consistently beats that.
             </p>
             <p className="text-[13.5px] leading-relaxed text-content-secondary">
@@ -434,7 +434,7 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
             autoFocus
             value={noteText}
             onChange={e => setNoteText(e.target.value)}
-            placeholder="Add a note (optional) — e.g. 'Got Geico quote, saved $340/year'"
+            placeholder="Add a note (optional), e.g. 'Got Geico quote, saved $340/year'"
             rows={2}
             className="ui-tnum"
           />
@@ -674,8 +674,8 @@ export function FinancialLevel() {
         </h1>
         <p className="mt-2 text-[14px] font-semibold text-content-muted">
           {allComplete
-            ? 'Every level cleared — time to fine-tune your plan.'
-            : <>{steps.length} money milestones, ordered by impact — we spotlight your highest-impact next move.</>}
+            ? 'Every level cleared. Time to fine-tune your plan.'
+            : <>{steps.length} money milestones, ordered by impact. We spotlight your highest-impact next move.</>}
         </p>
       </header>
 
@@ -786,7 +786,7 @@ export function FinancialLevel() {
           <EmptyState
             icon={<Rocket className="h-8 w-8" />}
             title="All levels complete"
-            description="You've worked through every layer of the financial level stack. Time to fine-tune your plan — ask Lasagna what's next."
+            description="You've worked through every layer of the financial level stack. Time to fine-tune your plan. Ask Lasagna what's next."
             action={
               <Button
                 onClick={() => openChat("I've completed all 12 financial levels. What should I focus on next?")}
@@ -806,7 +806,7 @@ export function FinancialLevel() {
             <WhyThisOrderPopover />
           </div>
           <p className="mt-2 text-[13.5px] font-medium text-content-muted">
-            Ordered by impact — earlier levels usually pay off most, but you can work them in any order.
+            Ordered by impact: earlier levels usually pay off most, but you can work them in any order.
           </p>
 
           <div className="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6 items-start">

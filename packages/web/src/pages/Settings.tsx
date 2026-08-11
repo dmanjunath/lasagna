@@ -660,7 +660,7 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
 
         {error && <p role="alert" className="mt-2 text-[12.5px] font-medium text-negative">{error}</p>}
         {sent && !error && (
-          <p className="mt-2 text-[12.5px] font-medium text-positive">Invite sent — they'll get a link by email.</p>
+          <p className="mt-2 text-[12.5px] font-medium text-positive">Invite sent. They'll get a link by email.</p>
         )}
 
         {invites.length > 0 && (
@@ -732,7 +732,7 @@ function PasswordSecurityCard() {
             <p className="mt-0.5 text-[13px] font-medium text-content-muted">
               {hasPassword
                 ? "A password is set for your account."
-                : "No password — you sign in with an emailed code."}
+                : "No password. You sign in with an emailed code."}
             </p>
             <p className="mt-0.5 text-[12.5px] font-medium text-content-muted">
               Last signed in: {lastLogin}
@@ -916,7 +916,7 @@ function PasskeysCard() {
       ) : (
         supported && (
           <p className="mt-4 text-[13px] font-medium text-content-muted">
-            No passkeys yet — add one to sign in with Face ID on this device.
+            No passkeys yet. Add one to sign in with Face ID on this device.
           </p>
         )
       )}
@@ -1421,8 +1421,8 @@ function PlanCard() {
             <FeatureList features={PRO_FEATURES} />
             {cancelScheduled && periodDate && (
               <p className="text-[13px] leading-relaxed text-content-muted">
-                Your subscription is set to cancel on {periodDate}. You'll keep Pro until then —
-                reactivate any time from Manage subscription.
+                Your subscription is set to cancel on {periodDate}. You'll keep Pro until then, and
+                you can reactivate any time from Manage subscription.
               </p>
             )}
             <Button variant="secondary" onClick={handleManage} disabled={managing} loading={managing}>

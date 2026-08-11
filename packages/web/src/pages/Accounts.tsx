@@ -166,7 +166,7 @@ const ADD_OPTIONS: AddOption[] = [
   },
   {
     label: "Real Estate",
-    hint: "Home or rental — we'll estimate its value",
+    hint: "Home or rental. We'll estimate its value",
     emoji: "🏡",
     route: "realEstate",
     def: { label: "Real Estate", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false, plaidEligible: false },
@@ -346,7 +346,7 @@ export function Accounts() {
     // Plaid's web SDK doesn't support embedded WebViews (bank OAuth breaks) —
     // the native shell needs the native Plaid Link SDK before this can work.
     if (isNativeApp()) {
-      setError("Bank connections aren't available in the app yet — connect from the web and your accounts will sync here.");
+      setError("Bank connections aren't available in the app yet. Connect from the web and your accounts will sync here.");
       return;
     }
     setLinking(true);
@@ -444,7 +444,7 @@ export function Accounts() {
   // relinking from scratch would create a second item duplicating every account.
   const handleAddAccounts = async (item: PlaidItem) => {
     if (isNativeApp()) {
-      setError("Bank connections aren't available in the app yet — connect from the web and your accounts will sync here.");
+      setError("Bank connections aren't available in the app yet. Connect from the web and your accounts will sync here.");
       return;
     }
     setLinking(true);
@@ -975,8 +975,8 @@ export function Accounts() {
                   </div>
                   <p className="mt-0.5 text-[12.5px] text-content-muted">
                     {item.status === "item_login_required"
-                      ? "Login expired — reconnect to resume syncing"
-                      : "Sync error — try reconnecting"}
+                      ? "Login expired. Reconnect to resume syncing."
+                      : "Sync error. Try reconnecting."}
                   </p>
                 </div>
               </div>
@@ -1142,7 +1142,7 @@ export function Accounts() {
                 <RefreshCw size={22} className="animate-spin text-brand" />
                 <div className="text-[14px] font-semibold text-content">Estimating value…</div>
                 <p className="max-w-[19rem] text-[13px] text-content-secondary">
-                  We’re looking up an estimate for this address. This usually takes about a minute — you can keep using the app while we finish.
+                  We’re looking up an estimate for this address. This usually takes about a minute, and you can keep using the app while we finish.
                 </p>
               </>
             ) : estimating.status === "ready" ? (
@@ -1159,7 +1159,7 @@ export function Accounts() {
                   Taking longer than expected
                 </div>
                 <p className="max-w-[19rem] text-[13px] text-content-secondary">
-                  We’re still working on it — refresh the account to check for the value.
+                  We’re still working on it. Refresh the account to check for the value.
                 </p>
               </>
             ) : (
@@ -1220,7 +1220,7 @@ export function Accounts() {
                 />
                 {acctAddressRejected ? (
                   <p className="mt-2 text-[12px] leading-relaxed text-negative">
-                    Commercial properties aren't supported — enter a home address.
+                    Commercial properties aren't supported. Enter a home address.
                   </p>
                 ) : (
                   <p className="mt-2 text-[12px] leading-relaxed text-content-muted">
@@ -1269,8 +1269,8 @@ export function Accounts() {
                     </span>
                     <span className="min-w-0 flex-1 truncate font-semibold">
                       {activeType.type === "real_estate"
-                        ? "New mortgage — we'll set it up next"
-                        : "New property — we'll set it up next"}
+                        ? "New mortgage (we'll set it up next)"
+                        : "New property (we'll set it up next)"}
                     </span>
                     <button
                       type="button"
@@ -1408,7 +1408,7 @@ export function Accounts() {
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-bold text-content">Enter manually</span>
                 <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
-                  Add a balance yourself — a snapshot you can update anytime.
+                  Add a balance yourself: a snapshot you can update anytime.
                 </span>
               </span>
               <span className="mt-1 text-content-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
@@ -1459,7 +1459,7 @@ export function Accounts() {
                   </span>
                 </span>
                 <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
-                  Type your accounts in plain English — we'll add them for you.
+                  Type your accounts in plain English. We'll add them for you
                 </span>
               </span>
               <span className="text-brand transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
@@ -1483,7 +1483,7 @@ function FirstConnectEmptyState({
 }) {
   const reassurances = [
     { icon: <ShieldCheck size={15} />, text: "Bank-level encryption" },
-    { icon: <Lock size={15} />, text: "Read-only — we can't move money" },
+    { icon: <Lock size={15} />, text: "Read-only. We can't move money." },
     { icon: <Zap size={15} />, text: "Balances update automatically" },
   ];
   return (

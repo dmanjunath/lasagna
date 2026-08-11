@@ -651,7 +651,7 @@ function GroupSection({
           <div>
             <div className="text-[14px] font-semibold text-caution">{item.institutionName || 'Institution'} needs attention</div>
             <p className="mt-0.5 text-[12.5px] text-content-muted">
-              {item.status === 'item_login_required' ? 'Login expired — reconnect to resume syncing' : 'Sync error — try reconnecting'}
+              {item.status === 'item_login_required' ? 'Login expired. Reconnect to resume syncing.' : 'Sync error. Try reconnecting.'}
             </p>
           </div>
           <Link href="/accounts" className="ui-focus shrink-0 rounded-ui-sm text-[13px] font-semibold text-brand hover:underline">Reconnect →</Link>

@@ -67,7 +67,7 @@ const PLAN_META: Record<PlanType, PlanMeta> = {
     ink: "rgb(var(--ui-accent-ink))",
     description: "Any financial goal with AI assistance",
     tooltip:
-      "Create a custom plan for any financial goal — saving for a house, college fund, vacation, etc.",
+      "Create a custom plan for any financial goal: saving for a house, college fund, vacation, etc.",
   },
 };
 
@@ -196,7 +196,7 @@ export function PlansPage() {
                 Create your first plan
               </h2>
               <p className="mt-2 max-w-[54ch] text-[14.5px] font-semibold text-content-muted">
-                Pick a type below and Lasagna drafts a plan from your real accounts — then
+                Pick a type below and Lasagna drafts a plan from your real accounts. Then
                 refine it in chat.
               </p>
 

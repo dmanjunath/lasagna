@@ -50,7 +50,7 @@ export function AdminUser() {
   const deleteBlocked = !detail
     ? ''
     : detail.isSelf
-      ? "This is your own account — it can't be deleted from here."
+      ? "This is your own account. It can't be deleted from here."
       : detail.users.some((u) => u.isAdmin)
         ? 'This user is an administrator. Remove their admin role before deleting.'
         : '';
@@ -72,7 +72,7 @@ export function AdminUser() {
   const sectionTitle = 'text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted';
 
   return (
-    <AdminShell subtitle="User detail — plan, connections, activity, and controls.">
+    <AdminShell subtitle="User detail: plan, connections, activity, and controls.">
       <div className="mt-7">
         <button
           onClick={() => navigate('/admin')}
@@ -152,7 +152,7 @@ export function AdminUser() {
               <div className="min-w-0">
                 <div className="text-[13px] font-semibold text-content">Stripe</div>
                 <p className="text-[11.5px] text-content-muted">
-                  {detail.stripe ? `Customer ${detail.stripe.customerId}` : 'No Stripe customer — this tenant has never started checkout.'}
+                  {detail.stripe ? `Customer ${detail.stripe.customerId}` : 'No Stripe customer. This tenant has never started checkout.'}
                 </p>
               </div>
               {detail.stripe && (
@@ -181,7 +181,7 @@ export function AdminUser() {
                 <div className="text-[13px] font-semibold text-content">{disabled ? 'Paused' : 'Pause account'}</div>
                 <p className="text-[11.5px] text-content-muted max-w-[52ch]">
                   {detail.isSelf && !disabled
-                    ? 'This is your own account — pausing is disabled.'
+                    ? 'This is your own account, so pausing is disabled.'
                     : disabled
                       ? 'Syncing and action generation are stopped. Login and read access still work.'
                       : 'Stops syncing and action generation without blocking their login or data access.'}

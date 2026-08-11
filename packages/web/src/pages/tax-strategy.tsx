@@ -66,29 +66,29 @@ function parseDollarAmount(s: string): number {
 
 /** Friendly labels for common tax form types */
 const FORM_LABELS: Record<string, string> = {
-  "1040": "Form 1040 — Individual Tax Return",
-  "1040-sr": "Form 1040-SR — Senior Tax Return",
-  "w-2": "W-2 — Wage & Tax Statement",
-  "w2": "W-2 — Wage & Tax Statement",
-  "1099-misc": "1099-MISC — Miscellaneous Income",
-  "1099-nec": "1099-NEC — Non-Employee Compensation",
-  "1099-int": "1099-INT — Interest Income",
-  "1099-div": "1099-DIV — Dividend Income",
-  "1099-b": "1099-B — Proceeds from Broker",
-  "1099-r": "1099-R — Retirement Distributions",
-  "1099-g": "1099-G — Government Payments",
-  "1099-k": "1099-K — Payment Card Transactions",
-  "1099-sa": "1099-SA — HSA Distributions",
-  "1098": "1098 — Mortgage Interest",
-  "1098-t": "1098-T — Tuition Statement",
-  "1098-e": "1098-E — Student Loan Interest",
-  "1120": "Form 1120 — Corporate Tax Return",
-  "1120s": "Form 1120S — S-Corp Tax Return",
-  "1120-s": "Form 1120S — S-Corp Tax Return",
-  "1065": "Form 1065 — Partnership Return",
-  "k-1": "Schedule K-1 — Partner/Shareholder Income",
-  "schedule k-1": "Schedule K-1 — Partner/Shareholder Income",
-  "5498": "5498 — IRA Contribution Info",
+  "1040": "Form 1040: Individual Tax Return",
+  "1040-sr": "Form 1040-SR: Senior Tax Return",
+  "w-2": "W-2: Wage & Tax Statement",
+  "w2": "W-2: Wage & Tax Statement",
+  "1099-misc": "1099-MISC: Miscellaneous Income",
+  "1099-nec": "1099-NEC: Non-Employee Compensation",
+  "1099-int": "1099-INT: Interest Income",
+  "1099-div": "1099-DIV: Dividend Income",
+  "1099-b": "1099-B: Proceeds from Broker",
+  "1099-r": "1099-R: Retirement Distributions",
+  "1099-g": "1099-G: Government Payments",
+  "1099-k": "1099-K: Payment Card Transactions",
+  "1099-sa": "1099-SA: HSA Distributions",
+  "1098": "1098: Mortgage Interest",
+  "1098-t": "1098-T: Tuition Statement",
+  "1098-e": "1098-E: Student Loan Interest",
+  "1120": "Form 1120: Corporate Tax Return",
+  "1120s": "Form 1120S: S-Corp Tax Return",
+  "1120-s": "Form 1120S: S-Corp Tax Return",
+  "1065": "Form 1065: Partnership Return",
+  "k-1": "Schedule K-1: Partner/Shareholder Income",
+  "schedule k-1": "Schedule K-1: Partner/Shareholder Income",
+  "5498": "5498: IRA Contribution Info",
 };
 
 function extractFormType(fields: Record<string, unknown>): string | null {
@@ -455,7 +455,7 @@ export function TaxStrategy() {
                     </>
                   ) : (
                     <>Your documents are in and extracted. Strategies to lower your {FILING_YEAR} taxes will
-                    appear here as we analyze them — or refresh below.</>
+                    appear here as we analyze them, or refresh below.</>
                   )}
                 </p>
 
@@ -714,9 +714,9 @@ export function TaxStrategy() {
                         </div>
                         <div className="flex flex-col gap-2">
                           {[
-                            "Open-weight models with zero data retention — documents never used for training.",
+                            "Open-weight models with zero data retention. Documents are never used for training.",
                             "Documents sent over HTTPS, used only for field extraction.",
-                            "Only extracted tax fields are stored — not the original file.",
+                            "Only extracted tax fields are stored, not the original file.",
                             "Prefer not to upload? Use the text option to describe your situation.",
                           ].map((item) => (
                             <div key={item} className="flex gap-2 text-[12.5px] leading-relaxed text-content-secondary">

@@ -511,7 +511,7 @@ export function Spending() {
           {hasLoadedSummary && (
             <p className="mt-1.5 hidden text-[14px] font-medium text-content-muted sm:block">
               {topCategoryLabel ? (
-                <>Where your money went — most on <b className="font-bold text-content">{topCategoryLabel}</b>.</>
+                <>Where your money went. Most went to <b className="font-bold text-content">{topCategoryLabel}</b>.</>
               ) : (
                 <>Where your money went in {periodDisplayLabel}.</>
               )}

@@ -112,7 +112,7 @@ export function Admin() {
     return (
       <AdminShell subtitle="Users, activity, and complimentary Pro grants. Billing itself lives in Stripe.">
         <div className="mt-7 rounded-ui-md border border-negative/25 bg-negative-soft px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[13.5px] font-medium text-negative">Could not load users — {error}</p>
+          <p className="text-[13.5px] font-medium text-negative">Could not load users: {error}</p>
           <Button variant="secondary" size="sm" onClick={() => { setLoading(true); void load(); }}>Retry</Button>
         </div>
       </AdminShell>
@@ -240,7 +240,7 @@ export function Admin() {
                           disabled: u.tenantId === myTenant?.id || adminTenants.has(u.tenantId),
                           disabledReason: u.tenantId === myTenant?.id
                             ? "You can't delete your own account"
-                            : 'Tenant has an admin user — remove their admin role first',
+                            : 'Tenant has an admin user. Remove their admin role first.',
                         },
                       ]}
                     />

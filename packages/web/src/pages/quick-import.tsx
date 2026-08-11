@@ -415,7 +415,7 @@ function PreviewStage({
 
       {nothingFound && (
         <div className="p-4 rounded-ui-lg border border-dashed border-line-strong bg-canvas-sunken/40 text-sm text-content-secondary">
-          We couldn&rsquo;t find anything to import. Try being more specific — include
+          We couldn&rsquo;t find anything to import. Try being more specific: include
           balances and account types.
         </div>
       )}
@@ -563,7 +563,7 @@ function ProfileCard({
                   <div className="text-[11px] text-caution mt-1">
                     Currently set to{' '}
                     <span className="line-through">{formatProfileValue(field, existing)}</span>
-                    {' '}— will overwrite
+                    {' '}(will be overwritten)
                   </div>
                 )}
               </div>

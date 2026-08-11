@@ -230,7 +230,7 @@ export function Onboarding() {
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="h-4 w-4 text-brand" aria-hidden />
                 <span className="text-sm font-semibold text-brand">
-                  Quick Import — describe yourself instead
+                  Quick Import: describe yourself instead
                 </span>
               </div>
               <div className="text-[13px] text-content-muted">
@@ -258,7 +258,7 @@ export function Onboarding() {
               </Field>
 
               <Field label="State of residence"
-                hint="Some states have no income tax — this affects your take-home pay and retirement planning.">
+                hint="Some states have no income tax. This affects your take-home pay and retirement planning.">
                 <Select value={stateOfResidence} onChange={(e) => setStateOfResidence(e.target.value)}>
                   <option value="">Select...</option>
                   {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -302,7 +302,7 @@ export function Onboarding() {
                       <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-content-muted text-sm">%</span>
                     </div>
                     <p className="mt-1.5 text-[12px] text-content-muted">
-                      Not maxing your employer match is leaving free money on the table — we&apos;ll flag this.
+                      Not maxing your employer match is leaving free money on the table. We&apos;ll flag this.
                     </p>
                   </>
                 )}
@@ -369,7 +369,7 @@ export function Onboarding() {
                   })}
                 </div>
                 <p className="mt-1.5 text-[12px] text-content-muted">
-                  Determines which retirement accounts apply — 401(k), solo 401(k), SEP IRA, etc.
+                  Determines which retirement accounts apply: 401(k), solo 401(k), SEP IRA, etc.
                 </p>
               </div>
 
@@ -401,7 +401,7 @@ export function Onboarding() {
                   className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]" />
                 <div>
                   <p className="text-sm text-content">Enrolled in a high-deductible health plan (HDHP)</p>
-                  <p className="text-[12px] text-content-muted">Enables HSA contributions — the only account with triple tax advantages.</p>
+                  <p className="text-[12px] text-content-muted">Enables HSA contributions, the only account with triple tax advantages.</p>
                 </div>
               </label>
 
@@ -411,7 +411,7 @@ export function Onboarding() {
                   className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]" />
                 <div>
                   <p className="text-sm text-content">Work in public service (government or non-profit)</p>
-                  <p className="text-[12px] text-content-muted">May qualify for PSLF — changes your student loan strategy significantly.</p>
+                  <p className="text-[12px] text-content-muted">May qualify for PSLF, which changes your student loan strategy significantly.</p>
                 </div>
               </label>
             </div>
@@ -606,7 +606,7 @@ function InvitePartnerCard() {
         <h3 className="text-[15px] font-semibold text-content">Invite a partner (optional)</h3>
       </div>
       <p className="text-[13px] leading-relaxed text-content-secondary">
-        Share these accounts with a spouse or partner — they'll get their own login and private chat.
+        Share these accounts with a spouse or partner. They'll get their own login and private chat.
       </p>
       <div className="flex flex-col gap-2">
         <Input
@@ -624,7 +624,7 @@ function InvitePartnerCard() {
       </div>
       {error && <p role="alert" className="text-[12.5px] font-medium text-negative">{error}</p>}
       {sent && !error && (
-        <p className="text-[12.5px] font-medium text-positive">Invite sent — they'll get a link by email.</p>
+        <p className="text-[12.5px] font-medium text-positive">Invite sent. They'll get a link by email.</p>
       )}
     </Surface>
   );

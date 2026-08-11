@@ -49,7 +49,7 @@ const GROUP_META: Record<
 > = {
   do_now: {
     label: 'Do now',
-    note: 'High urgency — biggest impact first',
+    note: 'High urgency, biggest impact first',
     flag: 'rgb(var(--ui-negative))',
   },
   this_week: {
@@ -59,7 +59,7 @@ const GROUP_META: Record<
   },
   watch: {
     label: 'Keep an eye on',
-    note: 'No rush — just on the radar',
+    note: 'No rush, just on the radar',
     flag: 'rgb(var(--ui-content-faint))',
   },
 };

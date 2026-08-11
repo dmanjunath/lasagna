@@ -436,7 +436,7 @@ function AttackList({ debts, strategy }: { debts: DebtAccount[]; strategy: 'aval
         const extra = Math.max(0, d.suggestedPayment - d.minPayment);
         const role = focus
           ? extra > 0
-            ? `Focus here — put ${formatCurrency(extra)}/mo extra on this`
+            ? `Focus here, with ${formatCurrency(extra)}/mo extra on this`
             : 'Focus here first, then roll the freed-up payment down'
           : `Pay the ${formatCurrency(d.minPayment)}/mo minimum for now`;
         return (
@@ -653,7 +653,7 @@ function HasDebtView({
             {noNeverDate ? (
               <>
                 On your <strong className="font-bold text-content">{strategy}</strong> plan you&apos;re debt-free by{' '}
-                <strong className="font-bold text-content">{debtFreeDate}</strong> — and it costs about{' '}
+                <strong className="font-bold text-content">{debtFreeDate}</strong>, and it costs about{' '}
                 <strong className="font-bold text-negative">{formatCurrency(Math.round(activeInterest))}</strong> in interest along the way.
               </>
             ) : (
@@ -968,7 +968,7 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
       <DebtHeader
-        subtitle={<span className="text-[rgb(var(--ui-brand-ink))] font-extrabold ui-tnum">$0 — debt-free</span>}
+        subtitle={<span className="text-[rgb(var(--ui-brand-ink))] font-extrabold ui-tnum">$0, debt-free</span>}
       />
 
       <section className="mt-8">

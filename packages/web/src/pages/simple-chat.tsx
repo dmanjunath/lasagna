@@ -78,7 +78,7 @@ export function SimpleChat() {
       if (cash > 0 && investments > 0) {
         const nw = cash + investments - debts;
         if (nw > 0 && cash / nw > 0.3)
-          prompts.push(`I have ${Math.round(cash / nw * 100)}% in cash — should I invest more?`);
+          prompts.push(`I have ${Math.round(cash / nw * 100)}% in cash. Should I invest more?`);
       }
       if (prompts.length < 3) prompts.push(...FALLBACK_STARTERS);
       setStarters(prompts.slice(0, 4));
@@ -518,7 +518,7 @@ function ChatStartHero({
         What do you want to know?
       </h2>
       <p className="ds-chat-hero__lede">
-        Lasagna can see your accounts, goals, and history. Ask anything —
+        Lasagna can see your accounts, goals, and history. Ask anything,
         from "how am I doing?" to "should I refinance this loan?"
       </p>
 
@@ -661,7 +661,7 @@ function HistoryListView({
       <EmptyState
         icon={<MessageSquare size={28} />}
         title="No conversations yet"
-        body="Start a new chat — your history will show up here."
+        body="Start a new chat. Your history will show up here."
         cta={<Button variant="primary" onClick={onNew}>Start chatting</Button>}
       />
     );

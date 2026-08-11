@@ -466,7 +466,7 @@ export function SimpleHome() {
                     {moveCount > 1 ? `${moveCount} moves to make today` : 'Your next move'}
                   </h2>
                   <p className="mt-1 text-[13.5px] font-medium text-content-muted">
-                    Lined up biggest-impact first — quick wins for your wealth.
+                    Lined up biggest-impact first: quick wins for your wealth.
                   </p>
                 </div>
                 <Link href="/insights" className="shrink-0 text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
@@ -691,7 +691,7 @@ function NetWorthBreakdown({
         <div>
           <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Where your wealth stands</h2>
           <p className="mt-1 text-[13.5px] font-medium text-content-muted max-w-[52ch]">
-            What you own, minus what you owe — across {assetAccounts + breakdown.debtsCount} connected account{assetAccounts + breakdown.debtsCount === 1 ? '' : 's'}.
+            What you own, minus what you owe, across {assetAccounts + breakdown.debtsCount} connected account{assetAccounts + breakdown.debtsCount === 1 ? '' : 's'}.
           </p>
         </div>
         <button
@@ -1312,7 +1312,7 @@ function NetWorthChart({
         </div>
       ) : (
         <div className="mt-4 h-[150px] grid place-items-center text-[13px] text-content-muted">
-          Not enough history yet — check back in a few days.
+          Not enough history yet. Check back in a few days.
         </div>
       )}
     </Card>
@@ -1465,9 +1465,9 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
                 </div>
                 <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">
                   {reached
-                    ? 'Fully funded — surplus ready to reallocate 🎉'
+                    ? 'Fully funded. Surplus ready to reallocate 🎉'
                     : notStarted
-                      ? 'Not started yet — kick it off anytime'
+                      ? 'Not started yet. Kick it off anytime.'
                       : <>{formatCurrency(current)} of {formatCurrency(target)}</>}
                 </div>
               </Link>
@@ -1633,7 +1633,7 @@ function MarginaliaBill({ bill, account }: { bill: BillCard; account: { name: st
           <>
             {' '}from {account.name}.{' '}
             {covered ? (
-              <>You're covered — balance <span className="ui-tnum">{fmtUsd(account.balance)}</span>.</>
+              <>You're covered. The balance is <span className="ui-tnum">{fmtUsd(account.balance)}</span>.</>
             ) : (
               <span style={{ color: 'rgb(var(--ui-negative))' }}>
                 Balance <span className="ui-tnum">{fmtUsd(account.balance)}</span> may not cover.

@@ -172,7 +172,7 @@ function Colors() {
 
 function Typography() {
   return (
-    <Section title="Typography" description="Fraunces (warm humanist serif) for editorial display; Geist for UI & body; tabular lining numerals for money.">
+    <Section title="Typography" description="Fraunces (warm humanist serif) for editorial display, Geist for UI & body, and tabular lining numerals for money.">
       <Surface pad="lg" className="space-y-6">
         <div className="space-y-1">
           <p className="font-editorial text-[44px] font-medium leading-[1.02] tracking-[-0.01em] text-content">
@@ -181,14 +181,14 @@ function Typography() {
         </div>
         <div className="grid gap-5 border-t border-line pt-6 sm:grid-cols-2">
           <div>
-            <h1 className="font-editorial text-[30px] font-medium leading-tight text-content">Page title — 30/38</h1>
-            <h2 className="mt-3 text-[18px] font-semibold text-content">Section heading — 18 semibold</h2>
-            <h3 className="mt-3 text-[15px] font-semibold text-content">Card heading — 15 semibold</h3>
+            <h1 className="font-editorial text-[30px] font-medium leading-tight text-content">Page title (30/38)</h1>
+            <h2 className="mt-3 text-[18px] font-semibold text-content">Section heading (18 semibold)</h2>
+            <h3 className="mt-3 text-[15px] font-semibold text-content">Card heading (15 semibold)</h3>
             <p className="mt-3 text-[15px] leading-relaxed text-content-secondary">
               Body copy at 15px with relaxed line-height for comfortable reading. Friendly,
-              plain language — never assume financial fluency.
+              plain language. Never assume financial fluency.
             </p>
-            <p className="mt-2 text-[13px] text-content-muted">Caption / metadata — 13px muted.</p>
+            <p className="mt-2 text-[13px] text-content-muted">Caption / metadata (13px muted).</p>
           </div>
           <div className="space-y-3">
             <div>
@@ -294,7 +294,7 @@ function Buttons() {
 function FormsRow() {
   const [invalid, setInvalid] = useState('not-an-email');
   return (
-    <Section title="Inputs, fields & selects" description="Labelled fields with hint and error states; native select styled to match.">
+    <Section title="Inputs, fields & selects" description="Labelled fields with hint and error states, and a native select styled to match.">
       <Surface pad="lg" className="grid gap-5 sm:grid-cols-2">
         <Field label="Full name" hint="As it appears on your statements.">
           <Input placeholder="Ada Lovelace" />
@@ -413,7 +413,7 @@ function Feedback() {
   const [modal, setModal] = useState(false);
   const [sheet, setSheet] = useState(false);
   return (
-    <Section title="Feedback — alerts, toasts, tooltip, modal & sheet" description="Calm, reassuring messaging. Icons back every color.">
+    <Section title="Feedback: alerts, toasts, tooltip, modal & sheet" description="Calm, reassuring messaging. Icons back every color.">
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-3">
           <Alert tone="info" title="Heads up">Your December statement is ready to review.</Alert>
@@ -524,7 +524,7 @@ function StyleguideBody() {
       <main className="mx-auto max-w-6xl space-y-16 px-5 py-12 sm:px-8 sm:py-16">
         <PageHeader
           title="A calm, warm language for money."
-          lede="One terracotta accent, paper-warm neutrals, a first-class warm dark mode, and tabular numerals everywhere money lives. This page is the living source of truth — flip the mode in the corner to review both."
+          lede="One terracotta accent, paper-warm neutrals, a first-class warm dark mode, and tabular numerals everywhere money lives. This page is the living source of truth. Flip the mode in the corner to review both."
           actions={<Button leadingIcon={<Download className="h-4 w-4" />} variant="secondary">Export tokens</Button>}
         />
         <Colors />

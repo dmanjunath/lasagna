@@ -312,11 +312,11 @@ function FanLegend() {
     <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[12px] text-content-secondary">
       <span className="inline-flex items-center gap-1.5">
         <span className="h-3 w-4 rounded-[3px]" style={{ background: VIZ, opacity: 0.5 }} />
-        Middle 50% (25th–75th)
+        Middle 50% (25th to 75th)
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span className="h-3 w-4 rounded-[3px]" style={{ background: VIZ, opacity: 0.22 }} />
-        90% range (5th–95th)
+        90% range (5th to 95th)
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span className="h-[3px] w-4 rounded-full" style={{ background: VIZ }} />
@@ -411,7 +411,7 @@ function HistogramChart({ data, height = 250 }: { data: HistogramBucket[]; heigh
   const total = buckets.reduce((s, d) => s + d.count, 0);
   const displayData = buckets.map((d) => {
     const v = typeof d.bucket === "string" ? parseFloat(d.bucket) : d.bucket;
-    const label = step > 0 ? `${fmtShort(v)}–${fmtShort(v + step)}` : fmtShort(v);
+    const label = step > 0 ? `${fmtShort(v)} to ${fmtShort(v + step)}` : fmtShort(v);
     return { ...d, label };
   });
   return (
@@ -427,7 +427,7 @@ function HistogramChart({ data, height = 250 }: { data: HistogramBucket[]; heigh
               formatter={(value: any, _n: any, props: any) => {
                 const v = typeof value === "number" ? value : 0;
                 const pct = total > 0 ? ((v / total) * 100).toFixed(1) : "0.0";
-                return [`${props?.payload?.label ?? ""}  —  ${v} runs (${pct}%)`, ""];
+                return [`${props?.payload?.label ?? ""}: ${v} runs (${pct}%)`, ""];
               }}
               labelFormatter={() => ""}
             />
@@ -707,7 +707,7 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
                   onClick={() => setExpandedRow((prev) => (prev === period.startYear ? null : period.startYear))}
                   className="cursor-pointer border-t border-line transition-colors hover:bg-brand-softer"
                 >
-                  <td className="px-3 py-2.5 text-[13px] font-semibold text-content">{period.startYear}–{period.startYear + period.yearsLasted}</td>
+                  <td className="px-3 py-2.5 text-[13px] font-semibold text-content">{period.startYear} to {period.startYear + period.yearsLasted}</td>
                   <td className="px-3 py-2.5 text-[13px] text-content-secondary">{period.yearsLasted}</td>
                   <td className="px-3 py-2.5 text-[13px] text-content">
                     {formatMoney(useRealDollars && period.yearByYear.length > 0 ? period.yearByYear[period.yearByYear.length - 1].portfolioValueReal : period.endBalance)}
@@ -1198,7 +1198,7 @@ export function ProbabilityOfSuccess() {
               </span>
             </div>
             {!allocValid && (
-              <p className="text-[12px] font-semibold text-caution ui-tnum">Allocation totals {allocTotal}% — adjust to equal 100%</p>
+              <p className="text-[12px] font-semibold text-caution ui-tnum">Allocation totals {allocTotal}%. Adjust to equal 100%.</p>
             )}
           </div>
 

@@ -201,7 +201,7 @@ export function Goals() {
       `My "${goal.name}" goal is fully funded. ${freed} ` +
       `Look at my monthly spending, my other goals and their progress and planned contributions, ` +
       `and the rest of my financial picture (debts, recurring bills, net worth), ` +
-      `then recommend how to best reallocate that monthly amount — and why.`,
+      `then recommend how to best reallocate that monthly amount, and why.`,
     );
   };
 
@@ -872,7 +872,7 @@ function AddGoalTile({ onClick, index }: { onClick: () => void; index: number })
       </span>
       <span className="font-editorial text-[16px] font-bold tracking-[-0.01em] text-content">Set up another goal</span>
       <span className="max-w-[24ch] text-[13px] font-semibold text-content-muted">
-        Pick a preset — emergency, home, travel — or start from scratch.
+        Pick a preset (emergency, home, travel) or start from scratch.
       </span>
     </button>
   );

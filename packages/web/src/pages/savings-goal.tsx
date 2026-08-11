@@ -224,7 +224,7 @@ export function SavingsGoal() {
         <EmptyState
           icon={<Sparkles className="h-6 w-6" />}
           title="Couldn't load this goal"
-          description="Something went wrong fetching it — your goal is still here. Check your connection and try again."
+          description="Something went wrong fetching it. Your goal is still here. Check your connection and try again."
           action={
             <Button onClick={() => { setLoading(true); setLoadError(false); load(); }}>
               Try again
@@ -287,10 +287,10 @@ export function SavingsGoal() {
       const etaMonth = eta.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
       if (goal.deadline && deadlineDaysLeft !== null && deadlineDaysLeft > 0) {
         paceLine = eta.getTime() <= new Date(goal.deadline).getTime()
-          ? `${formatCurrency(monthlyPlan)}/mo planned — on track for ${deadlineMonth}`
-          : `${formatCurrency(monthlyPlan)}/mo planned — on pace for ${etaMonth}, behind your ${deadlineMonth} target`;
+          ? `${formatCurrency(monthlyPlan)}/mo planned, on track for ${deadlineMonth}`
+          : `${formatCurrency(monthlyPlan)}/mo planned, on pace for ${etaMonth} (behind your ${deadlineMonth} target)`;
       } else {
-        paceLine = `${formatCurrency(monthlyPlan)}/mo planned — on pace for ${etaMonth}`;
+        paceLine = `${formatCurrency(monthlyPlan)}/mo planned, on pace for ${etaMonth}`;
       }
     } else if (deadlineDaysLeft !== null && deadlineDaysLeft > 0) {
       const monthsLeft = Math.max(1, Math.round(deadlineDaysLeft / 30.44));
@@ -599,17 +599,17 @@ export function SavingsGoal() {
             <div className="mt-3.5 text-[13.5px] font-semibold text-content-secondary ui-tnum">
               {isArchived && !complete ? (
                 <span>
-                  Marked complete{goal.completedAt ? ` on ${new Date(goal.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''} —{' '}
+                  Marked complete{goal.completedAt ? ` on ${new Date(goal.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''} with{' '}
                   <span className="font-bold text-content">{formatCurrency(current)}</span> saved
                 </span>
               ) : complete ? (
                 <span className="inline-flex items-center gap-1.5 font-bold text-content">
                   <Sparkles className="h-4 w-4 text-brand" />
-                  {surplus >= 1 ? `${formatCurrency(surplus)} over target — nicely done` : 'Fully funded — nicely done'}
+                  {surplus >= 1 ? `${formatCurrency(surplus)} over target. Nicely done.` : 'Fully funded. Nicely done.'}
                 </span>
               ) : notStarted ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <Sparkles className="h-4 w-4 text-content-faint" /> Not started yet — link an account or edit the amount to get going
+                  <Sparkles className="h-4 w-4 text-content-faint" /> Not started yet. Link an account or edit the amount to get going.
                 </span>
               ) : paceLine ? (
                 <span>{paceLine}</span>
