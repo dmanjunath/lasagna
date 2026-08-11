@@ -4,7 +4,8 @@ import { Link } from 'wouter';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
 import { Badge, EmptyState, Skeleton } from '../uikit';
-import { categoryOptionLabel, useCategoryDisplay, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
+import { categoryOptionLabel, useCategoryDisplay, usePickerGroups } from '../../lib/taxonomy';
+import { CategoryPicker } from '../common/CategoryPicker';
 import { TransactionDetail } from './TransactionDetail';
 
 // ---------------------------------------------------------------------------
@@ -42,52 +43,6 @@ interface Transaction {
   pending: number;
   notes: string | null;
   excludedAt: string | null;
-}
-
-// ---------------------------------------------------------------------------
-// CategoryEditorSelect — exported so the /transactions page can reuse the
-// select UI. The optimistic-update/revert logic stays in the caller.
-// ---------------------------------------------------------------------------
-
-export function CategoryEditorSelect({
-  value,
-  onChange,
-  onBlur,
-  currentLabel,
-}: {
-  /** Category id (uuid) of the row's current category, '' when unknown. */
-  value: string;
-  onChange: (categoryId: string) => void;
-  onBlur: () => void;
-  /** Display label for a current value the picker can't offer (disabled/legacy). */
-  currentLabel?: string;
-}) {
-  const pickerGroups = usePickerGroups();
-  const { byId } = useTaxonomy();
-  const current = value ? byId.get(value) : undefined;
-  const selectable = !!current && !current.disabled;
-  return (
-    <select
-      autoFocus
-      value={value}
-      onBlur={onBlur}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label="Category"
-      className="h-7 rounded-ui-sm border border-line-strong bg-panel px-1.5 text-[12px] font-medium text-content"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {!selectable && (
-        <option value={value} disabled>{currentLabel ?? current?.name ?? 'Uncategorized'}</option>
-      )}
-      {pickerGroups.map(({ group, categories }) => (
-        <optgroup key={group.id} label={group.name}>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +178,6 @@ export function TransactionList({
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [internalCategory, setInternalCategory] = useState<string | null>(null);
-  const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
@@ -281,16 +235,16 @@ export function TransactionList({
 
   function categoryEditorFor(tx: Transaction) {
     return (
-      <CategoryEditorSelect
+      <CategoryPicker
+        variant="inline"
         value={tx.categoryId ?? ''}
         currentLabel={displayOf(tx).label}
-        onBlur={() => setEditingTxId(null)}
+        onOpen={() => setCreateRulePrompt(null)}
         onChange={async (newCatId) => {
           const prevCatId = tx.categoryId;
           const merchantText = tx.merchantName || tx.name;
           setEditError(null);
           setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: newCatId } : t));
-          setEditingTxId(null);
           try {
             await api.updateTransactionCategory(tx.id, newCatId);
             if (onCreateRule) {
@@ -442,18 +396,7 @@ export function TransactionList({
               const amount = parseFloat(tx.amount);
               const isIncome = amount < 0;
               const display = displayOf(tx);
-              const categoryNode = editingTxId === tx.id ? (
-                categoryEditorFor(tx)
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setEditingTxId(tx.id); setCreateRulePrompt(null); }}
-                  title="Click to recategorize"
-                  className="touch-target-inline rounded-ui-xs text-content-muted transition-colors hover:text-content hover:underline"
-                >
-                  {display.label}
-                </button>
-              );
+              const categoryNode = categoryEditorFor(tx);
               return (
                 <React.Fragment key={tx.id}>
                   {/* Clickable wrapper (row only — the CreateRuleBar sibling stays

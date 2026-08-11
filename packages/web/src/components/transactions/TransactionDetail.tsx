@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAccountsIndex } from '../../lib/use-accounts-index';
 import { cn } from '../../lib/utils';
-import { Badge, Button, Field, Input, Modal, Select, Textarea } from '../uikit';
+import { Badge, Button, Field, Input, Modal, Textarea } from '../uikit';
 import { InstIcon } from '../common/InstIcon';
-import { categoryOptionLabel, useCategoryDisplay, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
+import { CategoryPicker } from '../common/CategoryPicker';
+import { useCategoryDisplay } from '../../lib/taxonomy';
 
 // ---------------------------------------------------------------------------
 // TransactionDetail — modal opened by clicking a transaction row. Merchant,
@@ -55,8 +56,6 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const pickerGroups = usePickerGroups();
-  const { byId } = useTaxonomy();
   const displayOf = useCategoryDisplay();
   // Account identity (institution + name + mask) for the read-only meta row.
   const { byId: accountsById } = useAccountsIndex();
@@ -155,20 +154,12 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
             />
           </Field>
           <Field label="Category">
-            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {!(category && byId.get(category) && !byId.get(category)!.disabled) && (
-                <option value={category} disabled>
-                  {category ? byId.get(category)?.name ?? displayOf(tx).label : displayOf(tx).label}
-                </option>
-              )}
-              {pickerGroups.map(({ group, categories }) => (
-                <optgroup key={group.id} label={group.name}>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </Select>
+            <CategoryPicker
+              variant="field"
+              value={category}
+              currentLabel={displayOf(tx).label}
+              onChange={setCategory}
+            />
           </Field>
           <Field label="Notes">
             <Textarea

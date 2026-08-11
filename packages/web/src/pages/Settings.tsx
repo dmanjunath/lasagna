@@ -123,6 +123,13 @@ export function Settings() {
     }
   }, []);
 
+  // Deep link from the category picker's "Manage categories" action.
+  useEffect(() => {
+    if (window.location.hash === "#categories") {
+      document.getElementById("categories")?.scrollIntoView();
+    }
+  }, []);
+
   // Edit form state
   const [formData, setFormData] = useState({
     dateOfBirth: "",
@@ -392,7 +399,9 @@ export function Settings() {
       </section>
 
       {/* ════════ Categories ════════ */}
-      <section className="mt-10">
+      {/* scroll-mt clears the fixed mobile header (safe-area + 48px bar + 1px border)
+          plus the same 16px breathing room desktop gets from scroll-mt-4. */}
+      <section id="categories" className="mt-10 scroll-mt-[calc(env(safe-area-inset-top)+65px)] md:scroll-mt-4">
         <GroupHeader title="Categories" hint="Rename, disable, and organize how transactions are categorized" />
         <div className="mt-4 space-y-4">
           <CategoryManager />

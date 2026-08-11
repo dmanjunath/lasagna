@@ -10,9 +10,9 @@ import { getCategoryDisplay } from '../lib/categories';
 import { taxonomyIcon, useCategoryDisplay, useTaxonomy } from '../lib/taxonomy';
 import {
   TxnRow,
-  CategoryEditorSelect,
   CreateRuleBar,
 } from '../components/transactions/TransactionList';
+import { CategoryPicker } from '../components/common/CategoryPicker';
 import { TransactionDetail } from '../components/transactions/TransactionDetail';
 import {
   TransactionFilters,
@@ -101,7 +101,6 @@ export function Transactions() {
   const [error, setError] = useState<string | null>(null);
 
   // Inline edit + rules
-  const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [createRulePrompt, setCreateRulePrompt] = useState<{ txId: string; merchantText: string; category: string } | null>(null);
   const [rulesPanel, setRulesPanel] = useState<{ open: boolean; seed: { merchantText: string; category: string } | null }>({ open: false, seed: null });
   const [detailTx, setDetailTx] = useState<TxnQueryRow | null>(null);
@@ -130,7 +129,6 @@ export function Transactions() {
     const seq = ++requestSeqRef.current;
     setLoadingInitial(true);
     setError(null);
-    setEditingTxId(null);
     setCreateRulePrompt(null);
     setExpanded(new Map());
     setOpenKeys(new Set());
@@ -232,13 +230,11 @@ export function Transactions() {
   // success, revert on failure. `newCatId` is a category id (uuid).
   async function handleCategoryEdit(tx: TxnQueryRow, newCatId: string) {
     if (newCatId === tx.categoryId) {
-      setEditingTxId(null);
       return;
     }
     const prevCatId = tx.categoryId;
     const merchantText = tx.merchantName || tx.name;
     patchTx(tx.id, { categoryId: newCatId });
-    setEditingTxId(null);
     try {
       await api.updateTransactionCategory(tx.id, newCatId);
       setCreateRulePrompt({ txId: tx.id, merchantText, category: newCatId });
@@ -329,22 +325,14 @@ export function Transactions() {
     const amount = parseFloat(tx.amount);
     const isIncome = amount < 0;
     const display = displayOf(tx);
-    const categoryNode = editingTxId === tx.id ? (
-      <CategoryEditorSelect
+    const categoryNode = (
+      <CategoryPicker
+        variant="inline"
         value={tx.categoryId ?? ''}
         currentLabel={display.label}
-        onBlur={() => setEditingTxId(null)}
+        onOpen={() => setCreateRulePrompt(null)}
         onChange={(newCatId) => handleCategoryEdit(tx, newCatId)}
       />
-    ) : (
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setEditingTxId(tx.id); setCreateRulePrompt(null); }}
-        title="Click to recategorize"
-        className="touch-target-inline rounded-ui-xs text-content-muted transition-colors hover:text-content hover:underline"
-      >
-        {display.label}
-      </button>
     );
     return (
       <React.Fragment key={tx.id}>
