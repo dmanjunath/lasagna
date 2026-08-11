@@ -96,6 +96,7 @@ export const api = {
         role: string;
         onboardingStage: string | null;
         isAdmin: boolean;
+        isDemo: boolean;
         hasAcceptedTerms: boolean;
         hasPassword: boolean;
         lastLoginAt: string | null;
@@ -115,6 +116,7 @@ export const api = {
         role: string;
         onboardingStage: string | null;
         isAdmin: boolean;
+        isDemo: boolean;
         hasAcceptedTerms: boolean;
         hasPassword: boolean;
         lastLoginAt: string | null;

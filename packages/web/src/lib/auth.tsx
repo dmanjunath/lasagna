@@ -17,6 +17,7 @@ interface User {
   role: string;
   onboardingStage: string | null;
   isAdmin: boolean;
+  isDemo: boolean;
   hasAcceptedTerms: boolean;
   hasPassword: boolean;
   lastLoginAt: string | null;

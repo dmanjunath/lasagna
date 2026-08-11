@@ -63,7 +63,7 @@ export function nativeTokenField(c: Context, token: string): { token?: string } 
   return c.req.header("x-lasagna-client") === "native" ? { token } : {};
 }
 function userPayload(u: any) {
-  return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, isAdmin: u.isAdmin, hasAcceptedTerms: u.acceptedTermsAt != null, hasPassword: u.hasPassword, lastLoginAt: u.lastLoginAt };
+  return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, isAdmin: u.isAdmin, isDemo: u.isDemo ?? false, hasAcceptedTerms: u.acceptedTermsAt != null, hasPassword: u.hasPassword, lastLoginAt: u.lastLoginAt };
 }
 
 // Sign up — creates a new tenant + user (owner)
@@ -203,6 +203,7 @@ authRoutes.get("/me", requireAuth, async (c) => {
       role: user.role,
       onboardingStage: user.onboardingStage,
       isAdmin: user.isAdmin,
+      isDemo: user.isDemo,
       hasAcceptedTerms: user.acceptedTermsAt != null,
       hasPassword: user.hasPassword,
       lastLoginAt: user.lastLoginAt,
@@ -243,6 +244,7 @@ authRoutes.patch("/me", requireAuth, async (c) => {
         role: existing.role,
         onboardingStage: existing.onboardingStage,
         isAdmin: existing.isAdmin,
+        isDemo: existing.isDemo,
         hasAcceptedTerms: existing.acceptedTermsAt != null,
         hasPassword: existing.hasPassword,
         lastLoginAt: existing.lastLoginAt,
@@ -267,6 +269,7 @@ authRoutes.patch("/me", requireAuth, async (c) => {
       role: updated.role,
       onboardingStage: updated.onboardingStage,
       isAdmin: updated.isAdmin,
+      isDemo: updated.isDemo,
       hasAcceptedTerms: updated.acceptedTermsAt != null,
       hasPassword: updated.hasPassword,
       lastLoginAt: updated.lastLoginAt,

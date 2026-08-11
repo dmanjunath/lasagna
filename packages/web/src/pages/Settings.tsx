@@ -4,7 +4,7 @@ import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { useBilling, startUpgrade, openPortal } from "../lib/billing";
 import { formatMoney, cn } from "../lib/utils";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   User,
   Users,
@@ -1161,6 +1161,13 @@ function DeleteAccountCard() {
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Mobile: the panel expands behind the fixed tab bar — bring it into view
+  // (again when an error alert grows it).
+  useEffect(() => {
+    if (open) panelRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [open, error]);
 
   const start = async () => {
     setSending(true);
@@ -1171,6 +1178,19 @@ function DeleteAccountCard() {
       setConfirmText("");
       hapticWarning(); // warn as the destructive panel opens (ConfirmDialog precedent)
       setOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send a verification code.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // "Delete…" is hidden while the panel is open, so `sending` is free to reuse.
+  const resend = async () => {
+    setSending(true);
+    setError("");
+    try {
+      await api.requestDeletionCode();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send a verification code.");
     } finally {
@@ -1196,7 +1216,7 @@ function DeleteAccountCard() {
   const canConfirm = code.trim().length > 0 && confirmText === "DELETE";
 
   // The API rejects demo/admin sessions anyway — don't show them a dead end.
-  if (isDemo || !user || user.isAdmin) return null;
+  if (isDemo || !user || user.isDemo || user.isAdmin || user.role !== "owner") return null;
 
   return (
     <Surface className="p-5">
@@ -1226,10 +1246,16 @@ function DeleteAccountCard() {
       )}
 
       {open && (
-        <div className="mt-4 space-y-3">
-          <p className="text-[13px] font-medium text-content-muted">
-            We emailed you a verification code.
-          </p>
+        <div ref={panelRef} className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+            <p className="text-[13px] font-medium text-content-muted">
+              We sent a code to {user.email}.
+            </p>
+            {/* -ml-3.5 cancels the ghost padding so the label aligns with the copy when wrapped */}
+            <Button variant="ghost" size="sm" className="-ml-3.5" onClick={resend} loading={sending} disabled={sending}>
+              Resend code
+            </Button>
+          </div>
           <Field label="Verification code">
             <Input
               inputMode="numeric"
@@ -1245,7 +1271,6 @@ function DeleteAccountCard() {
               autoComplete="off"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              placeholder="DELETE"
             />
           </Field>
           {error && <Alert tone="negative">{error}</Alert>}
