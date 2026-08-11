@@ -13,7 +13,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
-import { Button, Surface, Field, Input, Label, Select, Eyebrow } from '../components/uikit';
+import { Button, Surface, Field, Input, Label, Select } from '../components/uikit';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
@@ -440,7 +440,6 @@ export function Onboarding() {
             </div>
 
             <Surface tone="sunken" className="w-full max-w-[360px] flex flex-col gap-2.5">
-              <Eyebrow>Summary</Eyebrow>
               {name && <SummaryRow label="Name" value={name} />}
               {annualIncome && <SummaryRow label="Income" value={formatMoney(parseFloat(annualIncome), true)} mono />}
               {employmentType && <SummaryRow label="Employment" value={employmentType.replace(/_/g, ' ')} capitalize />}
@@ -513,7 +512,7 @@ export function Onboarding() {
         </div>
         <div className="flex items-center gap-4">
           {step < totalSteps - 1 && (
-            <Eyebrow className="text-content-muted">Step {step + 1} of {totalSteps - 1}</Eyebrow>
+            <span className="text-[13px] font-medium text-content-muted">Step {step + 1} of {totalSteps - 1}</span>
           )}
           <button
             type="button"
@@ -604,7 +603,7 @@ function InvitePartnerCard() {
     <Surface tone="sunken" className="w-full max-w-[360px] flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <UserPlus className="h-4 w-4 text-brand" aria-hidden />
-        <Eyebrow>Invite a partner (optional)</Eyebrow>
+        <h3 className="text-[15px] font-semibold text-content">Invite a partner (optional)</h3>
       </div>
       <p className="text-[13px] leading-relaxed text-content-secondary">
         Share these accounts with a spouse or partner — they'll get their own login and private chat.

@@ -26,13 +26,13 @@ interface RuleLabelProps {
 }
 
 /**
- * Editorial section break — full-width hairline with a centered eyebrow label.
+ * Editorial section break — full-width hairline with a centered label.
  * E.g. <RuleLabel>Recent activity</RuleLabel>
  */
 export function RuleLabel({ children, className }: RuleLabelProps) {
   return (
     <div className={cn('ds-rule-label', className)}>
-      <span className="ds-eyebrow">{children}</span>
+      <span className="ds-rule-label__text">{children}</span>
     </div>
   );
 }

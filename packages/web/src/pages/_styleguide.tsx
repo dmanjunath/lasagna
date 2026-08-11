@@ -19,7 +19,6 @@ import {
   CellStack,
   Delta,
   EmptyState,
-  Eyebrow,
   Field,
   Input,
   Label,
@@ -176,7 +175,6 @@ function Typography() {
     <Section title="Typography" description="Fraunces (warm humanist serif) for editorial display; Geist for UI & body; tabular lining numerals for money.">
       <Surface pad="lg" className="space-y-6">
         <div className="space-y-1">
-          <Eyebrow>Display · Fraunces</Eyebrow>
           <p className="font-editorial text-[44px] font-medium leading-[1.02] tracking-[-0.01em] text-content">
             Calm, warm, effortless.
           </p>
@@ -525,7 +523,6 @@ function StyleguideBody() {
 
       <main className="mx-auto max-w-6xl space-y-16 px-5 py-12 sm:px-8 sm:py-16">
         <PageHeader
-          eyebrow={<Eyebrow>v3 · warm · calm · airy</Eyebrow>}
           title="A calm, warm language for money."
           lede="One terracotta accent, paper-warm neutrals, a first-class warm dark mode, and tabular numerals everywhere money lives. This page is the living source of truth — flip the mode in the corner to review both."
           actions={<Button leadingIcon={<Download className="h-4 w-4" />} variant="secondary">Export tokens</Button>}

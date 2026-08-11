@@ -432,18 +432,6 @@
   font-feature-settings: "zero", "ss01";
 }
 
-/* Eyebrow: clean sans uppercase, tracked. Reserve mono for code-like data
-   (sync timestamps, account masks) via .lf-mono. */
-.lf-eyebrow {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: var(--lf-muted);
-}
-.lf-eyebrow--on-dark { color: var(--lf-cheese); }
-
 .lf-tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -451,7 +439,7 @@
 /* ============================================================
    HEADING SCALE — use these everywhere; do not roll your own.
    .lf-h1 once per page. .lf-h2 for major sections.
-   .lf-h3 for cards / sub-sections. .lf-eyebrow above any title.
+   .lf-h3 for cards / sub-sections.
    ============================================================ */
 .lf-h1 {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -1295,7 +1283,7 @@
   color: var(--lf-ink);
 }
 
-/* ── Page header: eyebrow / h1 / lede / actions ─────────────── */
+/* ── Page header: h1 / lede / actions ───────────────────────── */
 .ds-page-header {
   display: flex;
   align-items: flex-end;
@@ -1464,20 +1452,6 @@
   color: var(--lf-muted);
 }
 
-.ds-eyebrow {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: var(--lf-muted);
-  display: inline-block;
-}
-.ds-eyebrow--on-dark { color: var(--lf-cheese); }
-.ds-eyebrow--ink     { color: var(--lf-ink); }
-.ds-eyebrow--sauce   { color: var(--lf-sauce); }
-.ds-eyebrow--basil   { color: var(--lf-basil); }
-
 .ds-num { font-variant-numeric: tabular-nums; }
 
 /* Status colors */
@@ -1500,7 +1474,6 @@
   border-color: var(--lf-ink);
   color: var(--lf-paper);
 }
-.ds-card--dark .ds-eyebrow { color: var(--lf-cheese); }
 .ds-card--dark .ds-display,
 .ds-card--dark .ds-h1,
 .ds-card--dark .ds-h2,
@@ -1537,8 +1510,7 @@
 @media (max-width: 640px) { .ds-section { margin-bottom: 20px; } }
 .ds-section__header {
   display: flex;
-  /* flex-end (not baseline) so a trailing metric aligns with the H2 title, not
-     the eyebrow above it — baseline would pin it to the eyebrow's first line. */
+  /* flex-end (not baseline) so a trailing metric aligns with the H2 title. */
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
@@ -1569,11 +1541,11 @@
 .ds-kpi-grid--dark { background: rgba(255,255,255,0.08); border-color: var(--lf-ink); }
 .ds-kpi-grid--dark > .ds-kpi { background: var(--lf-ink); }
 .ds-kpi-grid--dark .ds-kpi__value { color: var(--lf-paper); }
-.ds-kpi-grid--dark .ds-kpi__eyebrow { color: var(--lf-cheese); }
+.ds-kpi-grid--dark .ds-kpi__label { color: var(--lf-cheese); }
 .ds-kpi-grid--dark .ds-kpi__sub { color: rgba(251,246,236,0.6); }
 
 .ds-kpi { padding: 20px 24px; min-width: 0; }
-.ds-kpi__eyebrow {
+.ds-kpi__label {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 12px;
   letter-spacing: 0.1em;
@@ -1771,12 +1743,18 @@
 .ds-divider--dotted { background: none; border-top: 1px dotted var(--lf-rule); }
 .ds-divider--tight  { margin: 16px 0; }
 
-/* Inline rule with eyebrow label centered — editorial section break */
+/* Inline rule with a centered label — editorial section break */
 .ds-rule-label {
   display: flex;
   align-items: center;
   gap: 16px;
   margin: 32px 0;
+}
+.ds-rule-label__text {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lf-muted);
 }
 .ds-rule-label::before,
 .ds-rule-label::after {

@@ -110,7 +110,6 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
           <div className="w-14 h-14 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
             <Sparkles className="w-6 h-6 text-[rgb(var(--ui-accent-ink))]" />
           </div>
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))] mb-2">AI Assistant</span>
           <h2 className="font-editorial font-bold text-[28px] text-content leading-[1.05] tracking-[-0.025em]">Ask anything about your finances</h2>
           <p className="text-[14px] font-medium text-content-muted mt-2.5 leading-relaxed">I can analyze your accounts, spending, and plans — and walk you through what to do next.</p>
         </div>
@@ -144,7 +143,6 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
               <div className="w-12 h-12 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
                 <Sparkles className="w-[22px] h-[22px] text-[rgb(var(--ui-accent-ink))]" />
               </div>
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))] mb-2">AI Assistant</span>
               <h2 className="font-editorial font-bold text-[26px] text-content leading-[1.05] tracking-[-0.025em]">Ask anything about your finances</h2>
               <p className="text-[14px] font-medium text-content-muted mt-2.5">I can analyze your accounts, spending, and plans.</p>
             </div>

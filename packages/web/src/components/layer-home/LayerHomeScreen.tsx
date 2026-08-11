@@ -31,12 +31,12 @@ const S = {
     color: 'var(--lf-paper)',
     borderRadius: 14,
   } as React.CSSProperties,
-  eyebrow: {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 13,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase' as const,
-    color: 'var(--lf-muted)',
+  cardTitle: {
+    fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+    fontSize: 15,
+    fontWeight: 600,
+    letterSpacing: '-0.005em',
+    color: 'var(--lf-ink)',
   } as React.CSSProperties,
   serif: {
     fontFamily: "'Geist', system-ui, sans-serif",
@@ -505,8 +505,8 @@ export function LayerHomeScreen({
           <h1 className="lf-h1" style={{ margin: 0 }}>
             Your Focus
           </h1>
-          <div className="lf-eyebrow" style={{ marginTop: 6 }}>
-            {greeting} · {displayInsights.length} action{displayInsights.length !== 1 ? 's' : ''}
+          <div style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: 14, color: 'var(--lf-muted)', marginTop: 6 }}>
+            {greeting}. {displayInsights.length} action{displayInsights.length !== 1 ? 's' : ''}.
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -854,7 +854,7 @@ export function LayerHomeScreen({
               {/* Insights card (shown here when no debt cascade) */}
               <div style={{ ...S.card, padding: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-                  <div style={S.eyebrow}>Level-relevant actions</div>
+                  <div style={S.cardTitle}>Level-relevant actions</div>
                   <button onClick={() => handleNav('/insights')} style={{ fontSize: 12, color: 'var(--lf-sauce)', background: 'none', border: 0, cursor: 'pointer', padding: 0 }}>
                     all →
                   </button>
@@ -884,7 +884,7 @@ export function LayerHomeScreen({
                     onClick={() => setSecondaryExpanded(!secondaryExpanded)}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 0, cursor: 'pointer', padding: 0 }}
                   >
-                    <div style={S.eyebrow}>Also working on · {secondaryLayers.length} level{secondaryLayers.length !== 1 ? 's' : ''}</div>
+                    <div style={S.cardTitle}>Also working on {secondaryLayers.length} level{secondaryLayers.length !== 1 ? 's' : ''}</div>
                     {secondaryExpanded ? <ChevronUp size={16} color="var(--lf-muted)" /> : <ChevronDown size={16} color="var(--lf-muted)" />}
                   </button>
                   <AnimatePresence>
@@ -944,7 +944,7 @@ export function LayerHomeScreen({
         {/* RIGHT: Monthly Spend */}
         <div style={{ ...S.card, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 18 }}>
-            <div style={S.eyebrow}>Monthly Spend</div>
+            <div style={S.cardTitle}>Monthly spend</div>
             <button onClick={() => handleNav('/spending')} style={{ fontSize: 12, color: 'var(--lf-sauce)', background: 'none', border: 0, cursor: 'pointer', padding: 0 }}>
               details →
             </button>

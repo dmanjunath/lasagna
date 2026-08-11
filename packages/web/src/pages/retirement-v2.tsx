@@ -65,11 +65,11 @@ function Card({ children, className, style }: { children: React.ReactNode; class
   );
 }
 
-function Section({ title, eyebrow, right, children, className }: { title?: React.ReactNode; eyebrow?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode; className?: string }) {
+function Section({ title, description, right, children, className }: { title?: React.ReactNode; description?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={cn('mt-8', className)}>
-      {(title || eyebrow || right) && (
-        <div className="mb-4 flex items-center gap-3">
+      {(title || right) && (
+        <div className={cn('flex items-center gap-3', description ? 'mb-1.5' : 'mb-4')}>
           {title && (
             <>
               <span
@@ -80,11 +80,11 @@ function Section({ title, eyebrow, right, children, className }: { title?: React
               <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h2>
             </>
           )}
-          {eyebrow && <span className="hidden sm:block text-[12px] font-semibold text-content-muted ui-tnum">{eyebrow}</span>}
           <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
           {right && <div className="shrink-0">{right}</div>}
         </div>
       )}
+      {description && <p className="mb-4 pl-[19px] text-[12.5px] text-content-muted ui-tnum">{description}</p>}
       {children}
     </section>
   );
@@ -2062,11 +2062,11 @@ export function RetirementV2() {
           }}
         />
         <div className="relative">
-          {/* hero header — eyebrow on the left; Ask Lasagna on the right (desktop
+          {/* hero header — heading on the left; Ask Lasagna on the right (desktop
               only). The method toggle now lives in the Method KPI below, and on
               mobile Ask Lasagna drops in just above the KPI grid. */}
           <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Retirement outlook</div>
+            <h2 className="text-[15px] font-semibold text-content">Retirement outlook</h2>
             <div className="hidden sm:flex flex-wrap items-center gap-2.5" data-testid="rv2-hero-controls">
               {renderAskLasagna('rv2-ask-lasagna')}
             </div>
@@ -2187,7 +2187,7 @@ export function RetirementV2() {
 
       {/* ── 2 · Inputs & assumptions (You / Portfolio) ─────────────────────── */}
       <div ref={inputsRef} className="scroll-mt-4">
-      <Section title="Inputs & assumptions" eyebrow="every edit re-runs the simulation live">
+      <Section title="Inputs & assumptions" description="Every edit re-runs the simulation live.">
         <Card style={{ padding: 0 }}>
           <button
             type="button"
@@ -2577,12 +2577,12 @@ export function RetirementV2() {
       {/* ── 3 · Portfolio growth (re-renders per selected method) ──────────── */}
       <Section
         title="Portfolio growth"
-        eyebrow={
+        description={
           method === 'hist'
-            ? `today's dollars · Historical · ${btResult?.startYearCount ?? 0} cohorts (from ${btResult?.firstStartYear ?? 1928}) · age ${currentAge} → ${lifeExp}`
+            ? `In today's dollars. Historical backtest of ${btResult?.startYearCount ?? 0} cohorts (from ${btResult?.firstStartYear ?? 1928}), age ${currentAge} to ${lifeExp}.`
             : isBlend
-              ? `today's dollars · Blended return · deterministic · age ${currentAge} → ${lifeExp}`
-              : `today's dollars · Monte Carlo, 1,000 paths · age ${currentAge} → ${bands.p50.length ? currentAge + bands.p50.length - 1 : lifeExp}`
+              ? `In today's dollars. One deterministic blended-return path, age ${currentAge} to ${lifeExp}.`
+              : `In today's dollars. Monte Carlo with 1,000 paths, age ${currentAge} to ${bands.p50.length ? currentAge + bands.p50.length - 1 : lifeExp}.`
         }
         right={
           <div className="flex items-center gap-2">
@@ -2659,7 +2659,7 @@ export function RetirementV2() {
       </Section>
 
       {/* ── 4 · Portfolio drawdown by account ──────────────────────────────── */}
-      <Section title="Portfolio drawdown by account" eyebrow={`deterministic at ${expReturn.toFixed(1)}%/yr · today's dollars`}>
+      <Section title="Portfolio drawdown by account" description={`Deterministic at ${expReturn.toFixed(1)}%/yr in today's dollars.`}>
         <Card>
           <div data-testid="rv2-draw">
             <div className="flex flex-wrap items-center justify-between gap-3">

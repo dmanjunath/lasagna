@@ -9,7 +9,7 @@ import {
 import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import type { LucideIcon } from 'lucide-react';
-import { Button, Eyebrow, EmptyState, Skeleton, Textarea } from '../components/uikit';
+import { Button, EmptyState, Skeleton, Textarea } from '../components/uikit';
 
 // ── constants ────────────────────────────────────────────────────────────────
 
@@ -196,7 +196,7 @@ function WhyThisOrderPopover() {
         <>
           <div onClick={() => setOpen(false)} className="fixed inset-0 z-[49]" />
           <div className="absolute top-full right-0 mt-2 z-[50] w-[min(360px,calc(100vw-36px))] rounded-ui-xl border border-line bg-panel-raised shadow-ui-lg p-5">
-            <Eyebrow>Why this order</Eyebrow>
+            <h3 className="text-[15px] font-semibold text-content">Why this order</h3>
             <p className="mt-2.5 mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
               It's a priority order, not a rigid ladder. Chase a lower-priority move first and you can undo
               your own progress — investing while 22% APR credit cards compound against you, or saving while
@@ -270,8 +270,8 @@ function LevelRow({ step, state, isSelected, onSelect }: {
         </span>
 
         <span className="flex-1 min-w-0 flex flex-col gap-1.5">
-          <span className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-content-muted">
-            Level {String(step.order).padStart(2, '0')}
+          <span className="text-[12px] font-semibold text-content-muted">
+            Level {step.order}
           </span>
           <span
             className={`font-editorial text-[15.5px] font-bold leading-[1.2] tracking-[-0.012em] line-clamp-2 transition-colors group-hover:text-brand ${
@@ -346,8 +346,8 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
           >
             <Icon className="h-5 w-5" />
           </span>
-          <span className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-content-muted">
-            Level {String(step.order).padStart(2, '0')}
+          <span className="text-[13px] font-semibold text-content-muted">
+            Level {step.order}
           </span>
           <span className="ml-auto"><StatePill state={state} /></span>
         </div>
@@ -669,10 +669,6 @@ export function FinancialLevel() {
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="animate-fade-in">
-        <span className="inline-flex items-center gap-2.5 mb-3">
-          <span className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]" style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }} />
-          <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Your climb</span>
-        </span>
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
           Financial Level
         </h1>
@@ -805,10 +801,7 @@ export function FinancialLevel() {
         <>
           {/* section header */}
           <div className="mt-10 flex items-center gap-3 flex-wrap">
-            <span className="inline-flex items-center gap-2.5">
-              <span className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]" style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }} />
-              <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">The {steps.length} levels</span>
-            </span>
+            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">The {steps.length} levels</h2>
             <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
             <WhyThisOrderPopover />
           </div>
@@ -855,7 +848,7 @@ export function FinancialLevel() {
             {/* Desktop: sticky side panel. */}
             {!isStacked && selectedStep && (
               <div className="sticky top-6" ref={focusRef}>
-                <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted mb-3">Current focus</div>
+                <h3 className="text-[15px] font-semibold text-content mb-3">Current focus</h3>
                 <motion.div
                   key={selectedStep.id}
                   initial={{ opacity: 0, y: 8 }}

@@ -5,7 +5,7 @@ import { Plus, Check, Target, ArrowRight, ChevronRight, Clock, Sparkles, RotateC
 import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
-import { Button, EmptyState, Eyebrow, Field, Input, Skeleton } from '../components/uikit';
+import { Badge, Button, EmptyState, Field, Input, Label, Skeleton } from '../components/uikit';
 import { formatCurrency, iconFor, toggleId, AccountPicker, IconKey } from './goal-shared';
 
 // ---------------------------------------------------------------------------
@@ -307,8 +307,7 @@ export function Goals() {
                 }
               }}
             >
-              <Eyebrow>New goal</Eyebrow>
-              <h3 className="mt-1.5 mb-5 font-editorial text-[20px] font-bold tracking-[-0.018em]">
+              <h3 className="mb-5 font-editorial text-[20px] font-bold tracking-[-0.018em]">
                 What are you saving for?
               </h3>
 
@@ -357,7 +356,7 @@ export function Goals() {
 
               {/* Category chips — optional quick-start */}
               <div className="mb-5">
-                <Eyebrow className="text-content-muted">Category (optional)</Eyebrow>
+                <Label>Category (optional)</Label>
                 <div className="goals-presets" style={{ marginTop: 8 }}>
                   {GOAL_PRESETS.map((preset) => {
                     const active = newCategory === preset.category;
@@ -384,7 +383,7 @@ export function Goals() {
               {/* Accounts — linking ≥1 makes the goal auto-track its balance */}
               {accounts.length > 0 && (
                 <div className="mb-5">
-                  <Eyebrow className="text-content-muted">Accounts (optional)</Eyebrow>
+                  <Label>Accounts (optional)</Label>
                   <p className="mt-1 mb-2 text-[12px] text-content-muted">
                     Linked accounts auto-track this goal's progress.
                   </p>
@@ -682,6 +681,9 @@ function GoalCard({
     .filter(Boolean)
     .join(', ');
 
+  const rawCategory = goal.category ? goal.category.replace(/_/g, ' ') : 'savings goal';
+  const categoryLabel = rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1);
+
   return (
     <article
       className="g-rise group relative flex cursor-pointer flex-col overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm p-6 sm:p-[22px_24px] transition-[box-shadow,border-color] hover:shadow-ui-md"
@@ -715,8 +717,8 @@ function GoalCard({
           {iconFor(goal.icon, 23)}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[10.5px] font-extrabold uppercase tracking-[0.09em] text-content-muted">
-            {goal.category ? goal.category.replace(/_/g, ' ') : 'Savings goal'}
+          <div>
+            <Badge tone="neutral" size="sm">{categoryLabel}</Badge>
           </div>
           <div className="mt-1 flex items-center gap-1.5 font-editorial text-[18.5px] font-bold leading-[1.2] tracking-[-0.018em]">
             {complete && (

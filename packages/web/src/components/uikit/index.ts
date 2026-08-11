@@ -11,7 +11,7 @@ export { Badge } from './Badge';
 export type { BadgeProps } from './Badge';
 export { Stat, Delta } from './Stat';
 export type { DeltaDirection } from './Stat';
-export { PageHeader, Section, Eyebrow } from './Section';
+export { PageHeader, Section } from './Section';
 export { SegmentedControl } from './SegmentedControl';
 export type { SegmentOption } from './SegmentedControl';
 export { Slider } from './Slider';

@@ -12,12 +12,12 @@ const S = {
     border: '1px solid var(--lf-rule)',
     borderRadius: 14,
   } as React.CSSProperties,
-  eyebrow: {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 13,
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase' as const,
-    color: 'var(--lf-muted)',
+  cardTitle: {
+    fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+    fontSize: 15,
+    fontWeight: 600,
+    letterSpacing: '-0.005em',
+    color: 'var(--lf-ink)',
   } as React.CSSProperties,
   serif: {
     fontFamily: "'Geist', system-ui, sans-serif",
@@ -70,7 +70,7 @@ export function DebtCascade({ debts, extraPayment = 0, primaryColor = 'var(--lf-
         onClick={() => setExpanded(!expanded)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ ...S.eyebrow, margin: 0 }}>Debt Cascade · {strategy}</div>
+          <div style={{ ...S.cardTitle, margin: 0 }}>Debt cascade ({strategy})</div>
           <span
             style={{
               fontFamily: "'JetBrains Mono', monospace",

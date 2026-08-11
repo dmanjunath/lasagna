@@ -458,15 +458,6 @@ export function Insights() {
       {/* ════════ Header ════════ */}
       <header className="flex items-start justify-between gap-6 flex-wrap animate-fade-in">
         <div>
-          <span className="inline-flex items-center gap-2.5 mb-3">
-            <span
-              className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-            />
-            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              Your queue
-            </span>
-          </span>
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.03em] text-content">
             Actions
           </h1>

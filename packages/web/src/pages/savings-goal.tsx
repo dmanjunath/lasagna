@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, type ReactElement } from 'rea
 import { useRoute, useLocation } from 'wouter';
 import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { Button, Eyebrow, EmptyState, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
+import { Badge, Button, EmptyState, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
 import { hapticSuccess } from '../lib/haptics';
@@ -257,7 +257,8 @@ export function SavingsGoal() {
   const surplus = current - target;
   const notStarted = current <= 0;
   const accent = complete ? 'rgb(var(--ui-brand))' : goalColor(goal.category, goal.name);
-  const categoryLabel = goal.category ? goal.category.replace(/_/g, ' ') : 'savings';
+  const rawCategory = goal.category ? goal.category.replace(/_/g, ' ') : 'savings';
+  const categoryLabel = rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1);
 
   const isArchived = goal.status === 'completed';
 
@@ -493,15 +494,15 @@ export function SavingsGoal() {
             {iconFor(goal.icon, 27)}
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">
-              <span className="truncate">{categoryLabel}</span>
+            <div className="flex items-center gap-2">
+              <Badge tone="neutral" size="sm">{categoryLabel}</Badge>
               {goal.status === 'completed' && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[10px] text-[rgb(var(--ui-brand-ink))]">
+                <Badge tone="brand" size="sm">
                   <Check className="h-2.5 w-2.5" strokeWidth={3} /> Completed
-                </span>
+                </Badge>
               )}
             </div>
-            <h1 className="mt-0.5 font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.05] tracking-[-0.024em] text-content">
+            <h1 className="mt-1.5 font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.05] tracking-[-0.024em] text-content">
               {goal.name}
             </h1>
           </div>
@@ -715,8 +716,7 @@ export function SavingsGoal() {
 
         {editingAccounts ? (
           <div ref={accountsPanelRef} className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
-            <Eyebrow>Linked accounts</Eyebrow>
-            <p className="mt-1.5 mb-4 text-[12.5px] text-content-muted">
+            <p className="mb-4 text-[12.5px] text-content-muted">
               Linked accounts auto-track this goal from their live balances. Remove all to track it manually.
             </p>
             {fundableAccounts.length > 0 ? (

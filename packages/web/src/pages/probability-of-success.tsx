@@ -153,14 +153,6 @@ function getExpectedReturn(allocation: Allocation): number {
 // Shared bits
 // ─────────────────────────────────────────────────────────────────────────
 
-function Eyebrow({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn("text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted", className)}>
-      {children}
-    </div>
-  );
-}
-
 function Card({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
     <div className={cn("rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6", className)} style={style}>

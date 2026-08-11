@@ -26,14 +26,14 @@ export function KPIGrid({ children, variant = 'light', cols = 'default', classNa
 }
 
 interface KPIProps {
-  eyebrow: ReactNode;
+  label: ReactNode;
   value: ReactNode;
   sub?: ReactNode;
   /** Color tint for the value (e.g. trend) */
   tone?: 'default' | 'pos' | 'neg' | 'warn';
 }
 
-export function KPI({ eyebrow, value, sub, tone = 'default' }: KPIProps) {
+export function KPI({ label, value, sub, tone = 'default' }: KPIProps) {
   const valueClass =
     tone === 'pos' ? 'ds-kpi__value ds-pos' :
     tone === 'neg' ? 'ds-kpi__value ds-neg' :
@@ -41,7 +41,7 @@ export function KPI({ eyebrow, value, sub, tone = 'default' }: KPIProps) {
     'ds-kpi__value';
   return (
     <div className="ds-kpi">
-      <span className="ds-kpi__eyebrow">{eyebrow}</span>
+      <span className="ds-kpi__label">{label}</span>
       <span className={valueClass}>{value}</span>
       {sub && <span className="ds-kpi__sub">{sub}</span>}
     </div>

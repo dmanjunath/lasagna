@@ -35,7 +35,6 @@ import { RulesPanel } from "../components/rules/RulesPanel";
 import {
   Button,
   Surface,
-  Eyebrow,
   Field,
   Input,
   Select,
@@ -278,8 +277,7 @@ export function Settings() {
             {initials}
           </span>
           <div className="min-w-0">
-            <Eyebrow>Your profile</Eyebrow>
-            <h1 className="mt-1 truncate font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.04] tracking-[-0.026em] text-content">
+            <h1 className="truncate font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.04] tracking-[-0.026em] text-content">
               {displayName}
             </h1>
             {email && (
@@ -306,11 +304,11 @@ export function Settings() {
 
       {/* ════════ Accounts ════════ */}
       <section className="mt-10">
-        <GroupHeader eyebrow="Accounts" hint="Add, reconnect, or remove the accounts you track" />
+        <GroupHeader title="Accounts" hint="Add, reconnect, or remove the accounts you track" />
         <div className="mt-4">
           <NavCard
             icon={<Building2 className="h-5 w-5" />}
-            label="Accounts"
+            label="Connected accounts"
             sub="Banks, brokerages, manual balances"
             onClick={() => navigate("/accounts")}
           />
@@ -319,7 +317,7 @@ export function Settings() {
 
       {/* ════════ Financial profile ════════ */}
       <section className="mt-10">
-        <GroupHeader eyebrow="Financial profile" hint="Powers your tax, retirement, and cash-flow insights" />
+        <GroupHeader title="Financial profile" hint="Powers your tax, retirement, and cash-flow insights" />
         <div className="mt-4 space-y-4">
           <DetailCard
             icon={<User className="h-5 w-5" />}
@@ -368,7 +366,7 @@ export function Settings() {
       {/* ════════ Household ════════ */}
       {!isDemoMode && (
         <section className="mt-10">
-          <GroupHeader eyebrow="Household" hint="Share your accounts and financial picture with a partner — each with their own login and private chat" />
+          <GroupHeader title="Household" hint="Share your accounts and financial picture with a partner. Each gets their own login and private chat." />
           <div className="mt-4">
             <HouseholdSection />
           </div>
@@ -377,7 +375,7 @@ export function Settings() {
 
       {/* ════════ Plan & billing ════════ */}
       <section className="mt-10">
-        <GroupHeader eyebrow="Plan & billing" hint="Your subscription and what's included" />
+        <GroupHeader title="Plan & billing" hint="Your subscription and what's included" />
         <div className="mt-4">
           <PlanCard />
         </div>
@@ -385,7 +383,7 @@ export function Settings() {
 
       {/* ════════ Security ════════ */}
       <section className="mt-10">
-        <GroupHeader eyebrow="Security" hint="Your password, sign-in history, and device passkeys" />
+        <GroupHeader title="Security" hint="Your password, sign-in history, and device passkeys" />
         <div className="mt-4 space-y-4">
           <PasswordSecurityCard />
           <PasskeysCard />
@@ -395,7 +393,7 @@ export function Settings() {
 
       {/* ════════ Categories ════════ */}
       <section className="mt-10">
-        <GroupHeader eyebrow="Categories" hint="Rename, disable, and organize how transactions are categorized" />
+        <GroupHeader title="Categories" hint="Rename, disable, and organize how transactions are categorized" />
         <div className="mt-4 space-y-4">
           <CategoryManager />
           <NavCard
@@ -1016,12 +1014,12 @@ function FaceIdLockCard() {
   );
 }
 
-// ─── Group header — a periwinkle eyebrow over a band of cards ─────────────────
+// ─── Group header — a section heading over a band of cards ───────────────────
 
-function GroupHeader({ eyebrow, hint }: { eyebrow: string; hint?: string }) {
+function GroupHeader({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="px-1">
-      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="text-[18px] font-semibold leading-snug text-content">{title}</h2>
       {hint && <p className="mt-1 text-[13px] font-medium text-content-muted">{hint}</p>}
     </div>
   );

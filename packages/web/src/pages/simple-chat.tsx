@@ -8,7 +8,6 @@ import type { ChatThread, Message } from '../lib/types';
 import {
   Page,
   Button,
-  Eyebrow,
   EmptyState,
   useConfirm,
 } from '../components/ds';
@@ -515,7 +514,6 @@ function ChatStartHero({
 }: { starters: string[]; busy: boolean; onPick: (q: string) => void }) {
   return (
     <section className="ds-chat-hero" aria-labelledby="ds-chat-hero-title">
-      <Eyebrow>Ask Lasagna</Eyebrow>
       <h2 id="ds-chat-hero-title" className="ds-chat-hero__title">
         What do you want to know?
       </h2>
@@ -554,7 +552,7 @@ function ChatStartHero({
           line-height: 1.05;
           letter-spacing: -0.015em;
           color: var(--lf-ink);
-          margin: 12px 0 16px;
+          margin: 0 0 16px;
         }
         .ds-chat-hero__lede {
           font-family: 'Geist', system-ui, sans-serif;
@@ -679,7 +677,7 @@ function HistoryListView({
             month: 'short',
             day: 'numeric',
             year: new Date(t.updatedAt).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
-          }).toUpperCase();
+          });
           return (
             <li key={t.id} className={isActive ? 'is-active' : undefined}>
               <button
@@ -688,7 +686,7 @@ function HistoryListView({
                 className="ds-chat-history__link"
               >
                 <div className="ds-chat-history__body">
-                  <div className="ds-chat-history__eyebrow">{when}{isActive ? ' · OPEN' : ''}</div>
+                  <div className="ds-chat-history__meta">{when}{isActive ? ' (open)' : ''}</div>
                   <div className="ds-chat-history__title">{title}</div>
                   {preview && preview !== title && (
                     <p className="ds-chat-history__preview">{preview}</p>
@@ -745,11 +743,9 @@ function HistoryListView({
           color: inherit;
         }
         .ds-chat-history__body { min-width: 0; }
-        .ds-chat-history__eyebrow {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 10px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
+        .ds-chat-history__meta {
+          font-family: 'Geist', system-ui, sans-serif;
+          font-size: 12px;
           color: var(--lf-muted);
           margin-bottom: 6px;
         }

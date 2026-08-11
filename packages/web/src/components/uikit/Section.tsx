@@ -1,33 +1,17 @@
 import type { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 
-/** Eyebrow — small tracked uppercase label that sits above a title. */
-export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <span
-      className={cn(
-        'text-[11px] font-semibold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]',
-        className,
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
 /**
- * PageHeader — the top of a screen. Eyebrow / title / lede on the left, one
+ * PageHeader — the top of a screen. Title / lede on the left, one
  * cluster of actions on the right. The title uses the editorial serif for a
  * warm, confident voice.
  */
 export function PageHeader({
-  eyebrow,
   title,
   lede,
   actions,
   className,
 }: {
-  eyebrow?: ReactNode;
   title: ReactNode;
   lede?: ReactNode;
   actions?: ReactNode;
@@ -41,7 +25,6 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0">
-        {eyebrow && <div className="mb-2">{eyebrow}</div>}
         <h1 className="font-editorial text-[30px] font-medium leading-[1.05] tracking-[-0.01em] text-content sm:text-[38px]">
           {title}
         </h1>

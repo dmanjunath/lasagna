@@ -14,7 +14,7 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../lib/auth';
 import { usePageContext } from '../lib/page-context';
 import { PageActions } from '../components/common/page-actions';
-import { Button, EmptyState, Eyebrow, SegmentedControl, Skeleton } from '../components/uikit';
+import { Badge, Button, EmptyState, SegmentedControl, Skeleton } from '../components/uikit';
 import { CashflowBars, periodLabel, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { RulesPanel } from '../components/rules/RulesPanel';
@@ -699,7 +699,7 @@ export function Spending() {
       {/* ════════ Estimated (linked but no transactions) ════════ */}
       {!loadingSummary && noData && hasLinkedAccounts && (
         <section className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
-          <Eyebrow>Estimated</Eyebrow>
+          <Badge tone="caution">Estimated</Badge>
           <h3 className="mt-1.5 font-editorial text-[19px] font-bold tracking-[-0.018em]">Transaction sync coming soon</h3>
           <p className="mt-2 text-[14px] leading-relaxed text-content-muted">
             For now, your monthly expenses are estimated from your credit card balances.
