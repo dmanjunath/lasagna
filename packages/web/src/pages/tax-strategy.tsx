@@ -424,12 +424,9 @@ export function TaxStrategy() {
                     {insightsLoading ? "…" : estimatedSavings ? formatMoney(estimatedSavings) : "—"}
                   </span>
                   {!insightsLoading && strategyCount > 0 && (
-                    <span
-                      className="mb-1.5 inline-flex items-center h-7 px-3 rounded-full text-[12.5px] font-bold"
-                      style={{ background: "var(--ui-brand-soft)", color: "rgb(var(--ui-brand-ink))" }}
-                    >
+                    <Badge tone="brand" size="md" className="mb-1.5 ui-tnum">
                       {strategyCount} strateg{strategyCount === 1 ? "y" : "ies"}
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 <p className="mt-4 text-[15px] leading-[1.55] text-content-secondary max-w-[52ch]">
@@ -452,22 +449,17 @@ export function TaxStrategy() {
                 {/* filing context chips */}
                 <div className="mt-5 flex flex-wrap items-center gap-2">
                   {filingAbbr && (
-                    <span
-                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[12px] font-bold border border-line bg-canvas-sunken/60 text-content-secondary"
-                      title={filingLabel ?? undefined}
-                    >
+                    <Badge tone="neutral" size="md" title={filingLabel ?? undefined}>
                       <Receipt className="h-3 w-3 text-content-muted" />
                       {filingAbbr}
-                    </span>
+                    </Badge>
                   )}
                   {profile?.stateOfResidence && (
-                    <span className="inline-flex items-center h-7 px-3 rounded-full text-[12px] font-bold border border-line bg-canvas-sunken/60 text-content-secondary">
-                      {profile.stateOfResidence}
-                    </span>
+                    <Badge tone="neutral" size="md">{profile.stateOfResidence}</Badge>
                   )}
-                  <span className="inline-flex items-center h-7 px-3 rounded-full text-[12px] font-bold border border-line bg-canvas-sunken/60 text-content-secondary ui-tnum">
+                  <Badge tone="neutral" size="md" className="ui-tnum">
                     {FILING_YEAR} filing year
-                  </span>
+                  </Badge>
                 </div>
               </>
             ) : (
@@ -668,15 +660,15 @@ export function TaxStrategy() {
                 </div>
                 <div className="flex items-center gap-2">
                   {insightStatus === "generating" && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-caution-soft px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-caution">
+                    <Badge tone="caution" size="sm" className="font-bold uppercase tracking-[0.06em]">
                       <RefreshCw size={11} className="animate-spin" />
                       Updating
-                    </span>
+                    </Badge>
                   )}
                   {insightStatus === "done" && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-positive-soft px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-positive">
+                    <Badge tone="positive" size="sm" className="font-bold uppercase tracking-[0.06em]">
                       Updated
-                    </span>
+                    </Badge>
                   )}
                   <div className="relative" ref={safetyRef}>
                     <button

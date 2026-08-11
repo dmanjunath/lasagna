@@ -7,13 +7,13 @@ import { useChatStore } from '../lib/chat-store';
 import { cn, formatMoney } from '../lib/utils';
 import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
-import { Button, SegmentedControl, Skeleton } from '../components/uikit';
+import { Badge, Button, SegmentedControl, Skeleton } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
 import {
   computeWithdrawal,
   type WithdrawalStrategy, type StrategyParams,
 } from '../lib/retirement-engine';
-import { sustainableDrawRate } from '../lib/retirement-kpi';
+import { sustainableDrawRate, toneForSuccessRate, toneForPassCount, successLabel } from '../lib/retirement-kpi';
 
 // ── Model constants ──────────────────────────────────────────────────────────
 const INFLATION = 0.03;           // matches the engine's hardcoded MC inflation
@@ -1720,8 +1720,9 @@ export function RetirementV2() {
   const passCount = [mcPass, histPass, blendPass].filter(Boolean).length;
   const resultsPending = mcResult === null || btResult === null;  // any method still loading
   const composite = passCount >= 2 ? 'On track' : passCount === 1 ? 'Needs attention' : 'At risk';
-  const compositeColor = passCount >= 2 ? 'rgb(var(--ui-brand-ink))' : passCount === 1 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
-  const compositeBg = passCount >= 2 ? 'var(--ui-brand-soft)' : passCount === 1 ? 'var(--ui-caution-soft)' : 'var(--ui-negative-soft)';
+  // Same tone tokens as the composite pass badge (toneForPassCount) so the
+  // verdict word and the badge render one consistent green in the healthy state.
+  const compositeColor = passCount >= 2 ? 'rgb(var(--ui-positive))' : passCount === 1 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
 
   // Age-based sustainable draw: rule-of-thumb withdrawal rate × projected
   // retirement balance / 12. Same in all modes (MC, Hist, Blended).
@@ -2069,14 +2070,20 @@ export function RetirementV2() {
               {resultsPending ? 'Estimating…' : composite}
             </span>
             {resultsPending ? (
-              <span className="inline-flex items-center h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: 'var(--ui-canvas-sunken)', color: 'rgb(var(--ui-content-muted))' }} data-testid="rv2-outlook-badge">
+              <Badge tone="neutral" size="md" className="ui-tnum" data-testid="rv2-outlook-badge">
                 <span
                   aria-label="running simulation"
                   className="inline-block h-3 w-3 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
                 />
-              </span>
+              </Badge>
             ) : (
-              <span className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum" style={{ background: compositeBg, color: compositeColor, transition: 'opacity 150ms ease', opacity: (mcRecomputing || histRecomputing) ? 0.55 : 1 }} data-testid="rv2-outlook-badge">
+              <Badge
+                tone={toneForPassCount(passCount)}
+                size="md"
+                className="ui-tnum transition-opacity"
+                style={{ opacity: (mcRecomputing || histRecomputing) ? 0.55 : 1 }}
+                data-testid="rv2-outlook-badge"
+              >
                 {passCount} of 3 methods on track
                 {(mcRecomputing || histRecomputing) && (
                   <span
@@ -2084,7 +2091,7 @@ export function RetirementV2() {
                     className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
                   />
                 )}
-              </span>
+              </Badge>
             )}
           </div>
           <p className="mt-3 text-[13.5px] leading-[1.55] text-content-secondary max-w-[62ch]" data-testid="rv2-outlook-explain">
@@ -2138,31 +2145,48 @@ export function RetirementV2() {
           <div className="rv2-kpi-grid2 mt-6 pt-5 border-t border-line">
             <div className="min-w-0" data-testid="rv2-kpi-mc">
               <div className="inline-flex items-center gap-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Monte Carlo</span>
+                <Badge tone="neutral" size="sm">Monte Carlo</Badge>
                 <InfoPopover label="What is Monte Carlo?">
                   Runs 1,000 randomized market scenarios and reports how often your money lasts to age {lifeExp}. It reflects good and bad luck, including a bad run of early returns.
                 </InfoPopover>
               </div>
-              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
-                {mcResult ? `${Math.round(mcResult.successRate * 100)}%` : '…'}
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                  {mcResult ? `${Math.round(mcResult.successRate * 100)}%` : '…'}
+                </span>
+                {mcResult && (() => {
+                  // Tone from the same rounded integer shown, so the word and
+                  // the number agree at every boundary (a shown 60 reads Okay).
+                  const tone = toneForSuccessRate(Math.round(mcResult.successRate * 100));
+                  return (
+                    <Badge tone={tone} size="sm">{successLabel(tone)}</Badge>
+                  );
+                })()}
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted">chance your money lasts</div>
             </div>
             <div className="min-w-0" data-testid="rv2-kpi-hist">
               <div className="inline-flex items-center gap-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Historical backtest</span>
+                <Badge tone="neutral" size="sm">Historical backtest</Badge>
                 <InfoPopover label="What is Historical backtest?">
                   Replays every real market start year since 1928 and reports the share of those actual histories your plan would have survived.
                 </InfoPopover>
               </div>
-              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
-                {histRate !== null ? `${histRate}%` : '…'}
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                  {histRate !== null ? `${histRate}%` : '…'}
+                </span>
+                {histRate !== null && (
+                  <Badge tone={toneForSuccessRate(histRate)} size="sm">
+                    {successLabel(toneForSuccessRate(histRate))}
+                  </Badge>
+                )}
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">{btResult ? `${btResult.startYearCount} start-years since 1928` : ''}</div>
             </div>
             <div className="min-w-0" data-testid="rv2-kpi-draw">
               <div className="inline-flex items-center gap-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Sustainable draw</span>
+                <Badge tone="neutral" size="sm">Sustainable draw</Badge>
                 <InfoPopover label="What is Sustainable draw?">
                   A rule-of-thumb safe monthly spend, {Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement (set by your retirement age). It is a guideline, not one of the simulations above.
                 </InfoPopover>
