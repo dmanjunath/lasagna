@@ -38,14 +38,14 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: 'Financial Insights',
+    label: 'Financial insights',
     items: [
       { id: 'actions',         label: 'Actions',         icon: Zap,    path: '/insights' },
       { id: 'financial-level', label: 'Financial Level', icon: Layers, path: '/financial-level' },
     ],
   },
   {
-    label: 'Income & Expenses',
+    label: 'Income & expenses',
     items: [
       { id: 'spending',     label: 'Spending',     icon: CreditCard,     path: '/spending' },
       { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, path: '/transactions' },
@@ -159,7 +159,7 @@ export function Sidebar({ className }: SidebarProps) {
                 aria-expanded={open}
                 className="w-full flex items-center justify-between gap-2 px-3 pt-3 pb-1 cursor-pointer"
               >
-                <span className="text-[11px] font-semibold tracking-[0.12em] uppercase text-content-muted">
+                <span className="text-[12px] font-semibold text-content-muted">
                   {label}
                 </span>
                 <ChevronDown

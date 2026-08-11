@@ -376,16 +376,6 @@ export function TaxStrategy() {
       {/* ── Header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <span className="inline-flex items-center gap-2.5 mb-2.5">
-            <span
-              className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-              style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
-              aria-hidden
-            />
-            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              Tax workspace
-            </span>
-          </span>
           <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
             How do I lower my taxes?
           </h1>
@@ -521,7 +511,7 @@ export function TaxStrategy() {
               </div>
             ) : savingsBreakdown.length > 0 ? (
               <div className="rounded-ui-lg border border-line bg-panel/70 p-4 sm:p-5 shadow-ui-sm">
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
+                <div className="flex items-center gap-2 text-[15px] font-semibold text-content">
                   <TrendingUp className="h-3.5 w-3.5 text-[rgb(var(--ui-brand-ink))]" />
                   Where it comes from
                 </div>
@@ -539,7 +529,7 @@ export function TaxStrategy() {
               </div>
             ) : strategyCount > 0 ? (
               <div className="rounded-ui-lg border border-line bg-panel/70 p-4 sm:p-5">
-                <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
+                <div className="text-[15px] font-semibold text-content">
                   What we found
                 </div>
                 <div className="mt-3.5 flex flex-col gap-2.5">
@@ -616,12 +606,12 @@ export function TaxStrategy() {
         <section className="mt-10 sm:mt-12">
           <div className="flex items-end justify-between gap-4 px-1 pb-3.5">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]">
-                {estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} to review`}
-              </span>
-              <h2 className="mt-1 font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
+              <h2 className="font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
                 Ways to lower your taxes
               </h2>
+              <p className="mt-1 text-[13px] font-semibold text-[rgb(var(--ui-accent-ink))]">
+                {estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} to review`}
+              </p>
             </div>
             <Button
               variant="ghost"
@@ -656,10 +646,7 @@ export function TaxStrategy() {
       <section id="tax-documents-section" className="mt-10 sm:mt-14 scroll-mt-6">
         <div className="flex items-end justify-between gap-3 px-1 pb-3.5">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]">
-              On file
-            </span>
-            <h2 className="mt-1 font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
+            <h2 className="font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
               Your documents
             </h2>
           </div>
@@ -1125,7 +1112,7 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
             </Badge>
           )}
           {taxYear && <Badge tone="neutral" size="sm">Tax Year {String(taxYear)}</Badge>}
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+          <span className="text-[13px] font-semibold text-content-muted">
             Extracted fields
           </span>
         </div>
@@ -1168,7 +1155,7 @@ function DocumentDetail({ doc, onClose }: { doc: TaxDocument; onClose: () => voi
         if (!entries.length) return null;
         return (
           <div key={key} className="mt-3.5">
-            <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+            <div className="mb-1.5 text-[13px] font-semibold text-content-muted">
               {formatFieldKey(key)}
             </div>
             <FieldGrid entries={entries} />

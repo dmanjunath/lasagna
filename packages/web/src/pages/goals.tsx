@@ -456,14 +456,7 @@ export function Goals() {
           </div>
         ) : activeGoals.length > 0 ? (
           <>
-            <div className="mt-9 flex items-center gap-2.5">
-              <span
-                className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-                aria-hidden
-              />
-              <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Your goals</span>
-            </div>
+            <h2 className="mt-9 text-[18px] font-semibold text-content">Your goals</h2>
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
               {activeGoals.map((goal, i) => (
                 <GoalCard
@@ -542,6 +535,10 @@ export function Goals() {
                 const tgt = parseFloat(goal.targetAmount);
                 const reached = tgt > 0 && saved >= tgt;
                 const closedPct = tgt > 0 ? Math.round((saved / tgt) * 100) : 0;
+                // Skip the category when it just repeats the goal's name
+                // ("Emergency fund / Reached. Emergency fund").
+                const category = goal.category ? goal.category.replace(/_/g, ' ') : null;
+                const showCategory = category && category.toLowerCase() !== goal.name.trim().toLowerCase();
                 return (
                   <li
                     key={goal.id}
@@ -558,8 +555,8 @@ export function Goals() {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[14px] font-semibold text-content-muted">{goal.name}</span>
                       <span className="text-[11.5px] font-semibold text-content-muted">
-                        {reached ? 'reached' : `completed at ${closedPct}%`}
-                        {goal.category && <>, {goal.category.replace(/_/g, ' ')}</>}
+                        {reached ? 'Reached' : `Completed at ${closedPct}%`}
+                        {showCategory && <>. {category.replace(/^./, (c) => c.toUpperCase())}</>}
                       </span>
                     </span>
                     <span className="text-[13px] font-bold text-content-muted ui-tnum">

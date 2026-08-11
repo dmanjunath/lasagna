@@ -1668,7 +1668,7 @@ function PlanChat({
 
   const header = (
     <div>
-      <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-content-muted">
+      <span className="text-[15px] font-semibold text-content">
         Ask about this plan
       </span>
       <p className="mt-1 text-[13.5px] text-content-muted">
@@ -1919,7 +1919,7 @@ function AssumptionsApplied({
 
   return (
     <div className="plan-print-hide mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="text-[11px] font-bold uppercase tracking-[0.13em] text-content-faint">
+      <span className="text-[12.5px] font-semibold text-content-muted">
         Assumptions applied
       </span>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -2171,10 +2171,7 @@ export function FinancialPlanDetailPage() {
                 it doesn't double with the cover). */}
             <header className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between print:hidden">
               <div className="min-w-0">
-                <div className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-content-muted">
-                  Financial Plan
-                </div>
-                <h1 className="mt-2 font-editorial text-[34px] sm:text-[46px] font-bold leading-[1.03] tracking-[-0.028em] text-content">
+                <h1 className="font-editorial text-[34px] sm:text-[46px] font-bold leading-[1.03] tracking-[-0.028em] text-content">
                   {plan.title}
                 </h1>
                 <p className="mt-3 text-[14px] font-semibold text-content-muted ui-tnum">

@@ -380,14 +380,9 @@ export function PlanDetailPage() {
               className="bg-panel-raised border border-line rounded-ui-xl shadow-ui-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-line">
-                <div>
-                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
-                    Version history
-                  </span>
-                  <h2 className="font-editorial text-[20px] font-bold tracking-[-0.018em] text-content">
-                    Plan history
-                  </h2>
-                </div>
+                <h2 className="font-editorial text-[20px] font-bold tracking-[-0.018em] text-content">
+                  Plan history
+                </h2>
                 <Button variant="ghost" size="icon" onClick={() => setShowHistory(false)} aria-label="Close">
                   <X className="h-[18px] w-[18px]" />
                 </Button>

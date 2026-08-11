@@ -386,7 +386,7 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
 
       {open && (
         <div className="border-t border-line bg-canvas-sunken/40 px-4 py-2.5 sm:px-5">
-          <div className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+          <div className="mb-1.5 text-[13px] font-semibold text-content-muted">
             Held in {h.holdings.length} account{h.holdings.length === 1 ? '' : 's'}
           </div>
           {loadingAccounts && accounts === null ? (

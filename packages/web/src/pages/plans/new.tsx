@@ -94,17 +94,7 @@ export function NewPlanPage() {
           <ArrowLeft className="h-4 w-4" />
           Plans
         </Link>
-        <div className="mt-4 mb-3 flex items-center gap-2.5">
-          <span
-            className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-            style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
-            aria-hidden
-          />
-          <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-            New plan
-          </span>
-        </div>
-        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+        <h1 className="mt-4 font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
           What are you planning for?
         </h1>
         <p className="mt-2 max-w-[54ch] text-[14.5px] font-semibold text-content-muted">

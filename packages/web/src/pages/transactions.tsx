@@ -495,7 +495,7 @@ export function Transactions() {
              native select on top opens the OS picker (field + order in one). */}
         {mode === 'date' && rows.length > 0 && (
           <div className="relative flex items-center justify-between border-b border-line px-4 py-2.5 sm:hidden">
-            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">
+            <span className="text-[13px] font-semibold text-content-muted">
               Sorted by
             </span>
             <span className="flex items-center gap-1 text-[13px] font-semibold text-content">
@@ -551,7 +551,7 @@ export function Transactions() {
               return (
                 <React.Fragment key={tx.id}>
                   {needsHeader && (
-                    <div className="sticky top-0 z-[1] bg-canvas px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted first:rounded-t-ui-xl">
+                    <div className="sticky top-0 z-[1] bg-canvas px-4 py-1.5 text-[13px] font-semibold text-content-muted first:rounded-t-ui-xl">
                       {dayLabel(tx.date)}
                     </div>
                   )}

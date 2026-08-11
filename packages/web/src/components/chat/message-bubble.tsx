@@ -169,16 +169,13 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
                 </blockquote>
               ),
               ul: ({ children }) => (
-                <ul className="space-y-1.5 my-2">{children}</ul>
+                <ul className="space-y-1.5 my-2 list-disc list-outside pl-5 marker:text-[rgb(var(--ui-accent-ink))]">{children}</ul>
               ),
               ol: ({ children }) => (
-                <ol className="space-y-1.5 my-2 list-decimal list-inside">{children}</ol>
+                <ol className="space-y-1.5 my-2 list-decimal list-outside pl-5">{children}</ol>
               ),
               li: ({ children }) => (
-                <li className="flex gap-2 text-content-secondary">
-                  <span className="text-[rgb(var(--ui-accent-ink))] mt-1.5 text-[6px] flex-shrink-0">●</span>
-                  <span className="min-w-0 flex-1 break-words">{children}</span>
-                </li>
+                <li className="text-content-secondary break-words [&>p]:my-0">{children}</li>
               ),
               hr: () => <hr className="border-line my-4" />,
               table: ({ children }) => (

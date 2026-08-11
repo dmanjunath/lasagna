@@ -1229,13 +1229,13 @@ function PropertyEstimateStatus({
 }
 
 // ---------------------------------------------------------------------------
-// Settings sub-section — an eyebrow label over grouped controls.
+// Settings sub-section - a heading over grouped controls.
 // ---------------------------------------------------------------------------
 
 function SettingsGroup({ title, className, children }: { title: string; className?: string; children: ReactNode }) {
   return (
     <div className={className}>
-      <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{title}</p>
+      <h3 className="mb-3 text-[15px] font-semibold text-content">{title}</h3>
       {children}
     </div>
   );

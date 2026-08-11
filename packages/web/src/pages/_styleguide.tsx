@@ -103,7 +103,7 @@ function Block({ title, children, note }: { title: string; children: ReactNode; 
   return (
     <div className="space-y-3">
       <div className="flex items-baseline gap-3">
-        <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-content-secondary">
+        <h3 className="text-[15px] font-semibold text-content">
           {title}
         </h3>
         {note && <span className="text-[12px] text-content-muted">{note}</span>}

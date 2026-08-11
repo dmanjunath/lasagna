@@ -659,14 +659,7 @@ export function SavingsGoal() {
       {history.length >= 2 && (
         <section className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <span
-                className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-                aria-hidden
-              />
-              <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Progress</h2>
-            </div>
+            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Progress</h2>
             <SegmentedControl
               size="sm"
               stretch={false}
@@ -699,11 +692,6 @@ export function SavingsGoal() {
       <section className="mt-8">
         <div className="flex items-end justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <span
-              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-              aria-hidden
-            />
             <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Linked accounts</h2>
             {linkedAccounts.length > 0 && (
               <span className="text-[12.5px] font-semibold text-content-muted">({linkedAccounts.length})</span>
@@ -786,14 +774,7 @@ export function SavingsGoal() {
       {/* ── Edit goal ── */}
       {editing && (
         <section ref={editPanelRef} className="mt-8">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-              aria-hidden
-            />
-            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Edit goal</h2>
-          </div>
+          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Edit goal</h2>
           <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
             <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
               <Field label="Goal name">

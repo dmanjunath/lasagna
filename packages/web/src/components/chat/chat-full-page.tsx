@@ -84,7 +84,7 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
 
         {suggestions.length > 0 && (
           <div className="mt-5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted text-center mb-3">
+            <p className="text-[13px] font-semibold text-content-muted text-center mb-3">
               Try asking
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
@@ -192,7 +192,7 @@ export function ChatFullPage() {
             <p className="px-4 py-6 text-xs text-content-muted">No conversations yet.</p>
           ) : (
             <div className="px-2 py-2">
-              <p className="px-2.5 pt-2 pb-2 text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">
+              <p className="px-2.5 pt-2 pb-2 text-[13px] font-semibold text-content-muted">
                 Conversations
               </p>
               <div className="flex flex-col">

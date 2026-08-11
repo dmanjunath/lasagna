@@ -27,17 +27,9 @@ export function PageActions({ types, viewAllHref }: PageActionsProps) {
 
   return (
     <div className="mb-8">
-      {/* Section header — periwinkle eyebrow + quiet controls (matches redesigned pages) */}
+      {/* Section header - heading + quiet controls (matches redesigned pages) */}
       <div className="flex items-center justify-between gap-4 mb-4">
-        <span className="inline-flex items-center gap-2.5">
-          <span
-            className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-            style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-          />
-          <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-            Actions
-          </span>
-        </span>
+        <h2 className="text-[18px] font-semibold text-content">Actions</h2>
 
         <div className="flex items-center gap-3">
           {viewAllHref && (

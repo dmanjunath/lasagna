@@ -178,14 +178,7 @@ export function SimpleMoney() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
             Money
           </h1>
-          <p className="mt-1.5 flex items-center gap-2 text-[14px] font-medium text-content-muted">
-            {hasMoney && (
-              <span
-                className="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
-                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-                aria-hidden="true"
-              />
-            )}
+          <p className="mt-1.5 text-[14px] font-medium text-content-muted">
             {hasMoney
               ? `${totalAccountCount} account${totalAccountCount === 1 ? '' : 's'}${lastSynced ? `, last synced ${relativeTime(lastSynced)}` : ''}`
               : formatDateLong(new Date())}

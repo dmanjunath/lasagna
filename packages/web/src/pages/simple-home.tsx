@@ -581,7 +581,7 @@ function CompositionColumn({
   return (
     <div>
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">{title}</span>
+        <span className="text-[13px] font-semibold text-content-muted">{title}</span>
         <span className="text-[12px] font-semibold text-content-muted">{accountCount} account{accountCount === 1 ? '' : 's'}</span>
       </div>
       <div
@@ -1345,7 +1345,7 @@ function AskComposer({
       />
       <div className="relative mb-3 flex items-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5 shrink-0 text-[rgb(var(--ui-accent-ink))]" aria-hidden />
-        <span className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Ask Lasagna</span>
+        <span className="text-[15px] font-semibold text-content">Ask Lasagna</span>
       </div>
       <form onSubmit={onSubmit} className="relative">
         <label className="flex items-center gap-2 h-[52px] pl-4 pr-1.5 rounded-[14px] bg-canvas-sunken border-[1.5px] border-transparent focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft transition-[background,border-color,box-shadow]">
@@ -1394,7 +1394,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
   if (loading) {
     return (
       <Card className="p-[22px]">
-        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted mb-2">Goals</div>
+        <div className="text-[15px] font-semibold text-content mb-2">Goals</div>
         {[0, 1, 2].map((i) => (
           <div key={i} className="mt-4">
             <Skeleton className="h-3.5 w-40" />
@@ -1409,7 +1409,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
   if (active.length === 0) {
     return (
       <Card className="p-[22px]">
-        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted mb-2.5">Goals</div>
+        <div className="text-[15px] font-semibold text-content mb-2.5">Goals</div>
         <p className="text-[14px] text-content-muted">
           No active goals yet.{' '}
           <Link href="/goals" className="font-semibold text-brand hover:underline">Set a savings goal →</Link>
@@ -1423,7 +1423,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
   return (
     <Card className="p-[22px]">
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Goals</div>
+        <div className="text-[15px] font-semibold text-content">Goals</div>
         <Link href="/goals" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
       </div>
       <ul>
@@ -1493,7 +1493,7 @@ function SpendingPulse({ flow }: { flow: MonthFlow }) {
   return (
     <Card className="p-[22px]">
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Spending this month</div>
+        <div className="text-[15px] font-semibold text-content">Spending this month</div>
         <Link href="/spending" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
       </div>
       <div className="mt-3 flex items-end gap-x-2.5 gap-y-1 flex-wrap">
@@ -1537,7 +1537,7 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
   return (
     <Card className="p-[22px]">
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Cash flow this month</div>
+        <div className="text-[15px] font-semibold text-content">Cash flow this month</div>
         <Link href="/spending" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">Details</Link>
       </div>
       {hasFlow ? (
@@ -1583,7 +1583,7 @@ function RecentActivity({ txns }: { txns: RecentTxn[] }) {
   return (
     <Card className="p-[22px]">
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">Recent activity</div>
+        <div className="text-[15px] font-semibold text-content">Recent activity</div>
         <Link href="/transactions" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
       </div>
       {txns.length === 0 ? (

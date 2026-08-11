@@ -71,20 +71,13 @@ function Section({ title, description, right, children, className }: { title?: R
       {(title || right) && (
         <div className={cn('flex items-center gap-3', description ? 'mb-1.5' : 'mb-4')}>
           {title && (
-            <>
-              <span
-                className="w-[7px] h-[7px] rounded-full bg-[rgb(var(--ui-accent))] shrink-0"
-                style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-                aria-hidden
-              />
-              <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h2>
-            </>
+            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h2>
           )}
           <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
           {right && <div className="shrink-0">{right}</div>}
         </div>
       )}
-      {description && <p className="mb-4 pl-[19px] text-[12.5px] text-content-muted ui-tnum">{description}</p>}
+      {description && <p className="mb-4 text-[12.5px] text-content-muted ui-tnum">{description}</p>}
       {children}
     </section>
   );
@@ -1813,8 +1806,8 @@ export function RetirementV2() {
           .rv2-grid2 { grid-template-columns: 1fr; }
         }
         .rv2-subhead {
-          font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
-          color: rgb(var(--ui-content-muted)); margin-bottom: 14px;
+          font-size: 15px; font-weight: 600;
+          color: rgb(var(--ui-content)); margin-bottom: 14px;
         }
         /* One consistent field unit: label, a generous number input, helper.
            The helper row is always present (min-height) so paired cells stay
@@ -2520,7 +2513,7 @@ export function RetirementV2() {
                     flex-1 title, held/return/vol) so all three numbers align. */}
                 <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-content-muted">
                   <span className="h-2.5 w-2.5 shrink-0" aria-hidden />
-                  <span className="min-w-0 flex-1 uppercase tracking-[0.06em]">Return &amp; volatility assumptions</span>
+                  <span className="min-w-0 flex-1 font-semibold">Return &amp; volatility assumptions</span>
                   <span className="w-9 text-right">held</span>
                   <span className="w-12 text-right">return</span>
                   <span className="w-12 text-right">vol</span>

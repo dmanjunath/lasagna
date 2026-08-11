@@ -21,10 +21,10 @@ interface CardDirectiveProps {
 export function CardDirective({ variant, content }: CardDirectiveProps) {
   return (
     <div className={cn('my-6 p-5 rounded-ui-lg border', variantStyles[variant])}>
-      <div className={cn('text-[11px] font-bold uppercase tracking-[0.12em] mb-2', labelStyles[variant])}>
-        {variant === 'warning' ? '⚠ Warning' : variant === 'highlight' ? '★ Key Insight' : '◆ Note'}
+      <div className={cn('text-[13px] font-semibold mb-2', labelStyles[variant])}>
+        {variant === 'warning' ? 'Warning' : variant === 'highlight' ? 'Key insight' : 'Note'}
       </div>
-      <div className="prose prose-sm max-w-none prose-p:text-content-secondary prose-strong:text-content prose-li:text-content-secondary marker:text-content-faint">
+      <div className="max-w-none text-sm [&_p]:text-content-secondary [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:text-content [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_ul]:my-2 [&_ol]:my-2 [&_li]:text-content-secondary [&_li]:mb-1 [&_li>p]:my-0 marker:text-content-faint">
         <ReactMarkdown>{content}</ReactMarkdown>
       </div>
     </div>

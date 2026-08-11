@@ -25,7 +25,7 @@ function SpendChart({ series, bucket }: { series: Spend['series']; bucket: 'day'
   return (
     <div>
       <div className="mb-2.5 flex items-baseline justify-between gap-3">
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+        <span className="text-[13px] font-semibold text-content">
           {bucket === 'week' ? 'Weekly spend' : 'Daily spend'}
         </span>
         {hasData && (

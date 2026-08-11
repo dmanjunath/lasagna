@@ -44,7 +44,7 @@ export function ChartDirective({ config, toolResults }: ChartDirectiveProps) {
   return (
     <div className="my-6 p-4 sm:p-5 bg-canvas-sunken rounded-ui-lg border border-line">
       {config.title && (
-        <h4 className="text-[13px] font-bold uppercase tracking-[0.06em] text-content-muted mb-4">{config.title}</h4>
+        <h4 className="text-[14px] font-semibold text-content mb-4">{config.title}</h4>
       )}
       <ResponsiveContainer width="100%" height={250}>
         {config.type === 'pie' ? (

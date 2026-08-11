@@ -613,15 +613,7 @@ function HasDebtView({
       {/* ── Purpose-led header: the page's job stated up top ── */}
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-              style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-              aria-hidden
-            />
-            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Debt</span>
-          </div>
-          <h1 className="mt-2 font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
+          <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
             How fast can you be debt-free?
           </h1>
           <p className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -688,11 +680,6 @@ function HasDebtView({
       {/* ── YOUR PAYOFF PLAN — pick a method, see the concrete order to attack ── */}
       <section className="mt-11">
         <div className="flex items-center gap-2.5 pb-4">
-          <span
-            className="h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
-            style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-            aria-hidden
-          />
           <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Your payoff plan</h2>
           <span className="ml-auto text-[10.5px] font-bold uppercase tracking-[0.14em] text-content-muted" aria-live="polite">
             {strategy}
@@ -748,7 +735,7 @@ function HasDebtView({
           {/* right: the concrete order — the actionable "fastest way out" */}
           <div>
             <div className="mb-2.5 flex items-baseline justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Pay in this order</span>
+              <h3 className="text-[15px] font-semibold text-content">Pay in this order</h3>
               {focusTarget && (
                 <span className="text-[12px] font-semibold text-content-muted">
                   Start with <b className="text-content">{focusTarget.name}{focusTarget.mask ? ` ••${focusTarget.mask}` : ''}</b>
@@ -763,11 +750,6 @@ function HasDebtView({
       {/* ── ACCOUNTS — the ledger, two-column cards; every field visible ── */}
       <section className="mt-11">
         <div className="flex items-center gap-2.5 pb-3">
-          <span
-            className="h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
-            style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-            aria-hidden
-          />
           <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Accounts</h2>
           <span className="ml-auto text-[10.5px] font-bold uppercase tracking-[0.14em] text-content-muted">
             {orderedDebts.length} total
@@ -972,16 +954,9 @@ function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
       />
 
       <section className="mt-8">
-        <div className="mb-2 flex items-center gap-2.5">
-          <span
-            className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-            style={{ boxShadow: '0 0 0 4px var(--ui-accent-soft)' }}
-            aria-hidden
-          />
-          <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-            Now that you're debt-free
-          </span>
-        </div>
+        <h2 className="mb-2 font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">
+          Now that you're debt-free
+        </h2>
         <Surface pad="lg" className="relative overflow-hidden">
           <div
             aria-hidden

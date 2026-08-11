@@ -69,7 +69,7 @@ export function AdminUser() {
     }
   };
 
-  const sectionTitle = 'text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted';
+  const sectionTitle = 'text-[15px] font-semibold text-content';
 
   return (
     <AdminShell subtitle="User detail: plan, connections, activity, and controls.">
@@ -266,7 +266,7 @@ export function AdminUser() {
 
           {/* Danger zone */}
           <div className="mt-5 rounded-ui-xl border border-negative/25 bg-negative-soft px-5 py-4">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-negative">Danger zone</div>
+            <div className="text-[15px] font-semibold text-negative">Danger zone</div>
             <p className="mt-1.5 text-[12.5px] text-content-secondary leading-[1.5] max-w-[68ch]">
               {userCount > 1
                 ? `Deletes all ${userCount} users in this tenant and every account, transaction, and thread. `

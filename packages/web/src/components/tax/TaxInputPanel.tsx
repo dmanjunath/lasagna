@@ -163,7 +163,7 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               {/* Selected files list — side on desktop, below on mobile */}
               {files.length > 0 && (
                 <div className="flex flex-col gap-2">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
+                  <div className="text-[13px] font-semibold text-content-muted">
                     Ready to upload ({files.length})
                   </div>
                   {files.map((f, i) => (

@@ -1,5 +1,4 @@
 import { Redirect, useLocation } from 'wouter';
-import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { cn } from '../../lib/utils';
 
@@ -22,10 +21,7 @@ export function AdminShell({ subtitle, children }: { subtitle: string; children:
   return (
     <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
       <header>
-        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]">
-          <ShieldCheck size={14} aria-hidden /> Admin
-        </div>
-        <h1 className="mt-1.5 font-editorial text-[30px] sm:text-[34px] font-bold tracking-[-0.02em]">Operator dashboard</h1>
+        <h1 className="font-editorial text-[30px] sm:text-[34px] font-bold tracking-[-0.02em]">Operator dashboard</h1>
         <p className="mt-1 text-[14px] font-medium text-content-muted">{subtitle}</p>
       </header>
 

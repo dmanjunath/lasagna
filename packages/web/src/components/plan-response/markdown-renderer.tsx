@@ -32,26 +32,29 @@ export function MarkdownRenderer({ content, toolResults }: MarkdownRendererProps
               <div key={i} className="response-text">
                 <div
                   className={cn(
-                    'prose max-w-none',
+                    'max-w-none',
                     // Paragraphs - editorial quality, on-skin secondary text
-                    'prose-p:text-content-secondary prose-p:text-[15px] prose-p:leading-[1.85] prose-p:mb-4',
+                    '[&_p]:text-content-secondary [&_p]:text-[15px] [&_p]:leading-[1.85] [&_p]:mb-4',
                     // H2 - Section headers with periwinkle accent underline
-                    'prose-h2:text-[22px] prose-h2:font-bold prose-h2:text-content prose-h2:mt-8 prose-h2:mb-4 prose-h2:tracking-tight',
+                    '[&_h2]:text-[22px] [&_h2]:font-bold [&_h2]:text-content [&_h2]:mt-8 [&_h2]:mb-4 [&_h2]:tracking-tight',
                     '[&_h2]:after:content-[""] [&_h2]:after:block [&_h2]:after:w-10 [&_h2]:after:h-[3px] [&_h2]:after:bg-[rgb(var(--ui-accent))] [&_h2]:after:mt-3 [&_h2]:after:rounded-sm',
                     // H3 - Subsection headers
-                    'prose-h3:text-[16px] prose-h3:font-semibold prose-h3:text-[rgb(var(--ui-accent-ink))] prose-h3:mt-6 prose-h3:mb-3',
+                    '[&_h3]:text-[16px] [&_h3]:font-semibold [&_h3]:text-[rgb(var(--ui-accent-ink))] [&_h3]:mt-6 [&_h3]:mb-3',
                     // Strong text - emphasis
-                    'prose-strong:text-content prose-strong:font-bold',
+                    '[&_strong]:text-content [&_strong]:font-bold',
                     // Lists - proper spacing
-                    'prose-ul:my-4 prose-ul:space-y-2 prose-ol:my-4 prose-ol:space-y-2',
-                    'prose-li:text-content-secondary prose-li:leading-relaxed prose-li:mb-1',
+                    '[&_ul]:my-4 [&_ul]:space-y-2 [&_ol]:my-4 [&_ol]:space-y-2',
+                    '[&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5',
+                    '[&_li]:text-content-secondary [&_li]:leading-relaxed [&_li]:mb-1 [&_li>p]:my-0',
                     'marker:text-content-faint',
                     // Links
-                    'prose-a:text-[rgb(var(--ui-accent-ink))] prose-a:no-underline hover:prose-a:underline',
+                    '[&_a]:text-[rgb(var(--ui-accent-ink))] [&_a]:no-underline [&_a:hover]:underline',
                     // Code
-                    'prose-code:text-content prose-code:bg-canvas-sunken prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-semibold',
+                    '[&_code]:text-content [&_code]:bg-canvas-sunken [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-semibold',
                     // HR - subtle divider
-                    'prose-hr:border-line prose-hr:my-6'
+                    '[&_hr]:border-line [&_hr]:my-6',
+                    // Trim segment edges (the plugin's own first/last-child trimming)
+                    '[&>:first-child]:mt-0 [&>:last-child]:mb-0'
                   )}
                 >
                   <ReactMarkdown>{segment.content}</ReactMarkdown>

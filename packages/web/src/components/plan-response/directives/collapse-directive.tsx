@@ -24,7 +24,7 @@ export function CollapseDirective({ title, content }: CollapseDirectiveProps) {
       </button>
       {isOpen && (
         <div className="p-4 border-t border-line">
-          <div className="prose prose-sm max-w-none prose-p:text-content-secondary prose-strong:text-content prose-li:text-content-secondary marker:text-content-faint">
+          <div className="max-w-none text-sm [&_p]:text-content-secondary [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:text-content [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_ul]:my-2 [&_ol]:my-2 [&_li]:text-content-secondary [&_li]:mb-1 [&_li>p]:my-0 marker:text-content-faint">
             <ReactMarkdown>{content}</ReactMarkdown>
           </div>
         </div>

@@ -117,7 +117,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
         {composer}
 
         <div className="mt-5 space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted px-1">Try asking</p>
+          <p className="text-[13px] font-semibold text-content-muted px-1">Try asking</p>
           {starters.map((prompt) => (
             <button
               key={prompt}
@@ -147,7 +147,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
               <p className="text-[14px] font-medium text-content-muted mt-2.5">I can analyze your accounts, spending, and plans.</p>
             </div>
             <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted px-1">Try asking</p>
+              <p className="text-[13px] font-semibold text-content-muted px-1">Try asking</p>
               {DEFAULT_PROMPTS.map((prompt) => (
                 <button
                   key={prompt}
@@ -162,7 +162,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
           </div>
         ) : (
           <div className="px-2 py-2">
-            <p className="px-2.5 pt-2 pb-2 text-[11px] font-bold uppercase tracking-[0.11em] text-content-muted">
+            <p className="px-2.5 pt-2 pb-2 text-[13px] font-semibold text-content-muted">
               Conversations
             </p>
             <div className="flex flex-col">

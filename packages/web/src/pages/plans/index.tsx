@@ -132,16 +132,6 @@ export function PlansPage() {
       {/* ════════ Header ════════ */}
       <header className="flex flex-wrap items-end justify-between gap-4 animate-fade-in">
         <div className="min-w-0">
-          <span className="mb-3 inline-flex items-center gap-2.5">
-            <span
-              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-              style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
-              aria-hidden
-            />
-            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              AI financial plans
-            </span>
-          </span>
           <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Plans
           </h1>
@@ -222,16 +212,7 @@ export function PlansPage() {
       {/* ════════ Plans grid ════════ */}
       {!loading && plans.length > 0 && (
         <>
-          <div className="mt-9 flex items-center gap-2.5">
-            <span
-              className="h-[7px] w-[7px] rounded-full bg-[rgb(var(--ui-accent))]"
-              style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
-              aria-hidden
-            />
-            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              Your plans
-            </span>
-          </div>
+          <h2 className="mt-9 text-[18px] font-semibold text-content">Your plans</h2>
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
             {plans.map((plan, i) => (
               <PlanCard

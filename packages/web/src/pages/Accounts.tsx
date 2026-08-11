@@ -832,14 +832,7 @@ export function Accounts() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
             Accounts
           </h1>
-          <p className="mt-1.5 flex items-center gap-2 text-[14px] font-medium text-content-muted">
-            {!loading && totalAccounts > 0 && (
-              <span
-                className="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
-                style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
-                aria-hidden="true"
-              />
-            )}
+          <p className="mt-1.5 text-[14px] font-medium text-content-muted">
             <span className="min-w-0">
               {loading
                 ? "Loading your connections…"
@@ -881,7 +874,7 @@ export function Accounts() {
       {billing && isFree && (
         <div className="mt-5 rounded-ui-lg border border-line bg-panel shadow-ui-sm px-4 py-3.5 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <span className="text-[11.5px] font-bold uppercase tracking-[0.11em] text-content-muted">
+            <span className="text-[13px] font-semibold text-content-muted">
               Free plan account limit
             </span>
             <span className="text-[13.5px] font-bold ui-tnum">
@@ -1537,20 +1530,13 @@ function FirstConnectEmptyState({
 }
 
 // ---------------------------------------------------------------------------
-// Section header — accent dot + tracked label + right-aligned count
+// Section header - heading + right-aligned count
 // ---------------------------------------------------------------------------
 
 function SectionHeader({ title, meta }: { title: string; meta: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2.5">
-        <span
-          className="h-[7px] w-[7px] shrink-0 rounded-full bg-[rgb(var(--ui-accent))]"
-          style={{ boxShadow: "0 0 0 4px var(--ui-accent-soft)" }}
-          aria-hidden
-        />
-        <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{title}</span>
-      </div>
+    <div className="flex items-baseline justify-between gap-3">
+      <h2 className="text-[18px] font-semibold text-content">{title}</h2>
       <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">{meta}</span>
     </div>
   );

@@ -37,14 +37,14 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    section: 'Financial Insights',
+    section: 'Financial insights',
     items: [
       { label: 'Actions',         icon: Zap,    path: '/insights' },
       { label: 'Financial Level', icon: Layers, path: '/financial-level' },
     ],
   },
   {
-    section: 'Income & Expenses',
+    section: 'Income & expenses',
     items: [
       { label: 'Spending',     icon: CreditCard,     path: '/spending' },
       { label: 'Transactions', icon: ArrowLeftRight, path: '/transactions' },
@@ -156,7 +156,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
               {NAV_SECTIONS.map(({ section, items }, sectionIndex) => (
                 <div key={section}>
                   {sectionIndex > 0 && <div className="h-px bg-line mx-3 mt-2.5" />}
-                  <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-content-faint px-3 pt-3 pb-1">
+                  <div className="text-[12px] font-semibold text-content-muted px-3 pt-3 pb-1">
                     {section}
                   </div>
                   <div className="ml-4 pl-2 border-l border-line">

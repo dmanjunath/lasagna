@@ -186,10 +186,8 @@ export function SidebarThemePicker() {
         }
         .ds-side-theme__pop-title {
           font-family: 'Geist', system-ui, sans-serif;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 600;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
           color: var(--lf-muted);
           margin-bottom: 8px;
         }

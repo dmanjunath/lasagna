@@ -387,14 +387,14 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
           just show generic filler, so hide it for them. */}
       {state === 'current' && step.action && (
         <div className="mt-5 rounded-ui-lg border border-line bg-canvas-sunken/50 p-3.5">
-          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted mb-1.5">Next step</div>
+          <div className="text-[13px] font-semibold text-content-muted mb-1.5">Next step</div>
           <p className="text-[14px] leading-[1.5] font-semibold text-content">{step.action}</p>
         </div>
       )}
 
       {isComplete && step.note && (
         <div className="mt-5">
-          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted mb-1">Your note</div>
+          <div className="text-[13px] font-semibold text-content-muted mb-1">Your note</div>
           <p className="text-[14px] italic text-content-secondary">"{step.note}"</p>
         </div>
       )}

@@ -957,7 +957,7 @@ function DoneStage({
       <div className="space-y-3">
         {summary.accounts.length > 0 && (
           <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm p-4">
-            <div className="text-[11px] text-content-muted uppercase tracking-[0.12em] font-semibold mb-2">
+            <div className="text-[13px] font-semibold text-content mb-2">
               Accounts created ({summary.accounts.length})
             </div>
             <ul className="text-sm space-y-1 text-content">
@@ -972,7 +972,7 @@ function DoneStage({
         )}
         {summary.goals.length > 0 && (
           <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm p-4">
-            <div className="text-[11px] text-content-muted uppercase tracking-[0.12em] font-semibold mb-2">
+            <div className="text-[13px] font-semibold text-content mb-2">
               Goals created ({summary.goals.length})
             </div>
             <ul className="text-sm space-y-1 text-content">
@@ -1014,7 +1014,7 @@ function DoneStage({
 function SectionHeader({ title, count }: { title: string; count: number }) {
   return (
     <div className="flex items-baseline justify-between px-1">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[rgb(var(--ui-accent-ink))]">{title}</h2>
+      <h2 className="text-[15px] font-semibold text-content">{title}</h2>
       <span className="text-xs text-content-muted ui-tnum">{count}</span>
     </div>
   );
@@ -1135,7 +1135,7 @@ function SuggestionChips({ text }: { text: string }) {
 
   return (
     <div className="mt-3">
-      <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-content-muted mb-1.5">
+      <div className="text-[13px] font-semibold text-content-muted mb-1.5">
         Things to mention
       </div>
       <div className="flex flex-wrap gap-1.5">
