@@ -111,6 +111,7 @@ export async function runBenchmark(
       const toolResults: Array<{ toolCallId: string; toolName: string; result: string }> = [];
 
       for (const toolCall of stepResult.toolCalls) {
+        if (!toolCall) continue;
         toolCallCount++;
         toolNames.push(toolCall.toolName);
 
