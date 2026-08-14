@@ -258,6 +258,10 @@ export const plaidItems = pgTable("plaid_items", {
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
   accessToken: text("access_token").notNull(), // encrypted at rest
+  // Plaid's own item_id. Webhooks are keyed by it, so it's the only way to map
+  // an inbound webhook back to a row. Null for manual items and for links made
+  // before this column existed (backfilled via /item/get).
+  plaidItemId: varchar("plaid_item_id", { length: 255 }).unique(),
   institutionId: varchar("institution_id", { length: 255 }),
   institutionName: varchar("institution_name", { length: 255 }),
   status: varchar("status", { length: 50 }).notNull().default("active"),

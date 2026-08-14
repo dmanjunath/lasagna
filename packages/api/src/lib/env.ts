@@ -47,6 +47,13 @@ export const env = {
   get PLAID_ENV() {
     return optional("PLAID_ENV", "sandbox") as "sandbox" | "development" | "production";
   },
+  // Public HTTPS URL Plaid POSTs item updates to, e.g.
+  // https://api.example.com/api/plaid/webhook. Empty in local dev (Plaid can't
+  // reach localhost), which simply means no webhook is registered and the cron
+  // remains the only sync trigger.
+  get PLAID_WEBHOOK_URL() {
+    return optional("PLAID_WEBHOOK_URL", "");
+  },
   get PORT() {
     return parseInt(optional("PORT", "3000"), 10);
   },

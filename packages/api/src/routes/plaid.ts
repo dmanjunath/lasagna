@@ -7,6 +7,7 @@ import { env } from "../lib/env.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { syncItem } from "../lib/sync.js";
 import { logPlaidEvent } from "../lib/activity.js";
+import { verifyPlaidWebhook } from "../lib/plaid-webhook.js";
 import { resolveTenantPlan } from "../lib/billing.js";
 import { recomputeFrozenAccounts } from "../lib/account-limits.js";
 
@@ -23,6 +24,10 @@ plaidRoutes.post("/link-token", async (c) => {
     optional_products: [Products.Investments, Products.Liabilities],
     country_codes: [CountryCode.Us],
     language: "en",
+    // Plaid POSTs here when it pulls new data for the item, so we sync on its
+    // schedule (1-4x/day) instead of waiting for the next cron run. Omitted in
+    // local dev, where Plaid can't reach the API.
+    ...(env.PLAID_WEBHOOK_URL ? { webhook: env.PLAID_WEBHOOK_URL } : {}),
   });
 
   return c.json({ linkToken: response.data.link_token });
@@ -85,6 +90,8 @@ plaidRoutes.post("/exchange-token", async (c) => {
     .values({
       tenantId: session.tenantId,
       accessToken: encryptedToken,
+      // Webhooks are keyed by Plaid's item_id, so store it at link time.
+      plaidItemId: response.data.item_id,
       institutionId: institutionId ?? null,
       institutionName: institutionName ?? null,
     })
@@ -97,6 +104,75 @@ plaidRoutes.post("/exchange-token", async (c) => {
   syncItem(item.id).catch(console.error);
 
   return c.json({ itemId: item.id });
+});
+
+// ── Plaid webhook ──────────────────────────────────────────────────────────
+// Unauthenticated (exempted in server.ts) and verified by JWT signature.
+// Plaid calls this when it finishes its own pull of an item, which is how we
+// get fresh data without polling. Everything it triggers is free: /accounts/get
+// is unbilled and /transactions/sync is covered by the item's subscription.
+//
+// A burst of webhooks for one item (transactions + holdings + liabilities land
+// seconds apart) would otherwise run three full syncs, so collapse them.
+const WEBHOOK_SYNC_DEBOUNCE_MS = 5 * 60 * 1000;
+const lastWebhookSync = new Map<string, number>();
+
+plaidRoutes.post("/webhook", async (c) => {
+  const raw = await c.req.text(); // RAW body — the signature pins its bytes
+  const ok = await verifyPlaidWebhook(c.req.header("plaid-verification"), raw);
+  if (!ok) {
+    console.error("[Plaid] webhook verification failed");
+    return c.json({ error: "Invalid signature" }, 401);
+  }
+
+  const body = JSON.parse(raw) as {
+    webhook_type?: string;
+    webhook_code?: string;
+    item_id?: string;
+    error?: { error_code?: string };
+  };
+  const { webhook_type: type, webhook_code: code, item_id: plaidItemId } = body;
+  if (!plaidItemId) return c.json({ ok: true });
+
+  const item = await db.query.plaidItems.findFirst({
+    where: eq(plaidItems.plaidItemId, plaidItemId),
+    columns: { id: true },
+  });
+  if (!item) {
+    // Not ours (or predates the plaid_item_id backfill). 200 so Plaid stops
+    // retrying — a retry can't make the row appear.
+    console.warn(`[Plaid] webhook ${type}/${code} for unknown item ${plaidItemId}`);
+    return c.json({ ok: true });
+  }
+
+  // New data is ready for this item.
+  const isUpdate =
+    (type === "TRANSACTIONS" && (code === "SYNC_UPDATES_AVAILABLE" || code === "DEFAULT_UPDATE")) ||
+    (type === "HOLDINGS" && code === "DEFAULT_UPDATE") ||
+    (type === "LIABILITIES" && code === "DEFAULT_UPDATE");
+
+  if (isUpdate) {
+    const last = lastWebhookSync.get(item.id) ?? 0;
+    if (Date.now() - last < WEBHOOK_SYNC_DEBOUNCE_MS) {
+      console.log(`[Plaid] webhook ${type}/${code} debounced for item ${item.id}`);
+      return c.json({ ok: true });
+    }
+    lastWebhookSync.set(item.id, Date.now());
+    console.log(`[Plaid] webhook ${type}/${code} — syncing item ${item.id}`);
+    // Background: Plaid retries on a slow or non-2xx response.
+    syncItem(item.id).catch(console.error);
+  } else if (type === "ITEM" && (code === "ERROR" || code === "USER_PERMISSION_REVOKED")) {
+    // Surfaces the existing re-auth path in the UI.
+    console.warn(`[Plaid] item ${item.id} needs attention: ${body.error?.error_code ?? code}`);
+    await db
+      .update(plaidItems)
+      .set({ status: "error" })
+      .where(eq(plaidItems.id, item.id));
+  } else {
+    console.log(`[Plaid] webhook ${type}/${code} ignored for item ${item.id}`);
+  }
+
+  return c.json({ ok: true });
 });
 
 // List linked Plaid items with accounts and balances

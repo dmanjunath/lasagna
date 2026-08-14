@@ -21,9 +21,15 @@ const LLM_PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
 const DEFAULT_LLM_PRICE = { in: 1.0, out: 3.0 };
 
 // ── Plaid pricing ────────────────────────────────────────────────────────────
-// Per-event USD estimates. Plaid really bills per item-month (~$0.30 for
-// transactions); a daily sync cadence amortizes to ~$0.01/sync. Link events
-// approximate the one-time connection cost. EDITABLE ESTIMATES.
+// Per-event USD estimates. Plaid really bills per item-month (~$0.30
+// transactions + ~$0.18 investments + ~$0.20 liabilities); a daily sync cadence
+// amortizes to ~$0.01/sync. Link events approximate the one-time connection
+// cost. EDITABLE ESTIMATES.
+//
+// This only holds because sync calls no per-request billed endpoint: it uses
+// /accounts/get (free), not /accounts/balance/get ($0.10/call). Caveat: the
+// per-sync model over-reports once webhooks raise the sync count, since the
+// real cost is fixed per item-month regardless of how often we sync.
 const PLAID_EVENT_COST: Record<string, number> = {
   sync: 0.01,
   link: 1.5,

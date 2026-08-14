@@ -53,8 +53,14 @@ export async function syncItem(itemId: string): Promise<void> {
   try {
     const accessToken = await decrypt(item.accessToken, env.ENCRYPTION_KEY);
 
-    // Sync accounts and balances
-    const balResp = await plaidClient.accountsBalanceGet({
+    // Sync accounts and balances.
+    // Deliberately /accounts/get, NOT /accounts/balance/get: Balance is billed
+    // per request (~$0.10/call), while /accounts/get is free and returns the
+    // identical AccountsGetResponse shape. Its balances are Plaid's cached
+    // values, refreshed 1-4x/day by Plaid itself for Transactions-enabled
+    // items — which is fresher than this sync's cadence anyway. Do not swap
+    // this back without a real-time requirement; it costs ~$45/month.
+    const balResp = await plaidClient.accountsGet({
       access_token: accessToken,
     });
 

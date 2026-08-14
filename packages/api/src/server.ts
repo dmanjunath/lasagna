@@ -89,6 +89,7 @@ app.use("/api/*", async (ctx, next) => {
     "/api/auth/google/callback",
     "/api/health",
     "/api/billing/webhook",
+    "/api/plaid/webhook",
   ];
   if (exempt.includes(ctx.req.path)) return next();
   // Public invite-summary endpoint (/api/household/invite/:token) — the
