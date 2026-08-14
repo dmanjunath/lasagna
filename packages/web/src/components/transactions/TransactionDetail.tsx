@@ -63,7 +63,9 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
 
   useEffect(() => {
     if (!open || !tx) return;
-    setMerchant(tx.merchantName || tx.name);
+    // Seed only the cleaned merchant, never the raw bank description — the raw
+    // string shows as a placeholder hint instead of a pre-filled edit value.
+    setMerchant(tx.merchantName ?? '');
     setCategory(tx.categoryId ?? '');
     setNotes(tx.notes ?? '');
     setExcluded(tx.excludedAt != null);
@@ -74,7 +76,13 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
   const handleSave = async () => {
     if (!tx) return;
     const body: { merchantName?: string; category?: string; notes?: string; excluded?: boolean } = {};
-    if (merchant.trim() !== (tx.merchantName || tx.name)) body.merchantName = merchant.trim();
+    // The field seeds to the cleaned merchant only (tx.merchantName ?? ''), with
+    // tx.name shown as a placeholder hint. Send a merchant edit only when the
+    // trimmed value is non-empty AND differs from that seed — comparing against
+    // the seed (not tx.name) avoids a spurious empty-string PATCH (which the API
+    // 400s) when merchantName is null and the user didn't touch the field.
+    const trimmedMerchant = merchant.trim();
+    if (trimmedMerchant && trimmedMerchant !== (tx.merchantName ?? '')) body.merchantName = trimmedMerchant;
     if (category !== (tx.categoryId ?? '')) body.category = category;
     if (notes !== (tx.notes ?? '')) body.notes = notes;
     if (excluded !== (tx.excludedAt != null)) body.excluded = excluded;
@@ -149,8 +157,8 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
             <Input
               value={merchant}
               onChange={(e) => setMerchant(e.target.value)}
+              placeholder={tx?.name ?? 'Merchant name'}
               maxLength={255}
-              placeholder="Merchant name"
             />
           </Field>
           <Field label="Category">

@@ -95,7 +95,7 @@ export function CashflowBars({
   const innerW = chartW - CHART_M.left - CHART_M.right;
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
   const colW = innerW / Math.max(1, visN);
-  const barW = Math.min(colW * 0.62, 44);
+  const barW = Math.min(colW * 0.66, 76);
 
   // Live drag offset (viewBox px from column 0) — null when not dragging.
   // While set, the carousel layer follows the pointer 1:1 with no transition.

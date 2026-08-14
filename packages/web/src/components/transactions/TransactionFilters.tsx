@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, Layers, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { TxnQueryBody } from '../../lib/api';
 import type { AccountIndexEntry } from '../../lib/use-accounts-index';
 import { Badge } from '../uikit';
+import { cn } from '../../lib/utils';
 import { InstIcon } from '../common/InstIcon';
 import { getCategoryDisplay } from '../../lib/categories';
 import { categoryOptionLabel, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
@@ -100,6 +101,7 @@ function MultiSelectDropdown({
   options,
   selected,
   onChange,
+  groupChildren,
 }: {
   label: string;
   pluralLabel: string;
@@ -108,6 +110,10 @@ function MultiSelectDropdown({
   options: Array<{ value: string; label: string; heading?: boolean; icon?: React.ReactNode; sublabel?: string }>;
   selected: string[];
   onChange: (selected: string[]) => void;
+  /** Maps a heading value → its child option values. When present for a heading,
+      it renders as a select-all checkbox (with an indeterminate partial state)
+      that toggles every child at once. */
+  groupChildren?: Map<string, string[]>;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -132,12 +138,30 @@ function MultiSelectDropdown({
     };
   }, [open]);
 
-  const triggerLabel =
-    selected.length === 0
-      ? label
-      : selected.length === 1
+  // Trigger label — collapse fully-selected groups so it agrees with the chips
+  // and badge (a whole group counts as one, shown by name).
+  const triggerLabel = (() => {
+    if (selected.length === 0) return label;
+    if (!groupChildren) {
+      return selected.length === 1
         ? (options.find((o) => !o.heading && o.value === selected[0])?.label ?? label)
         : `${selected.length} ${pluralLabel}`;
+    }
+    const consumed = new Set<string>();
+    const groupNames: string[] = [];
+    for (const [gid, kids] of groupChildren) {
+      if (kids.length > 0 && kids.every((v) => selected.includes(v))) {
+        kids.forEach((v) => consumed.add(v));
+        groupNames.push(options.find((o) => o.heading && o.value === gid)?.label ?? '');
+      }
+    }
+    const loose = selected.filter((v) => !consumed.has(v));
+    const total = groupNames.length + loose.length;
+    if (total === 1) {
+      return groupNames[0] || (options.find((o) => !o.heading && o.value === loose[0])?.label ?? label);
+    }
+    return `${total} ${pluralLabel}`;
+  })();
 
   return (
     <div className="relative" ref={ref}>
@@ -147,29 +171,64 @@ function MultiSelectDropdown({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
-        className="ui-focus touch-target relative h-10 w-full appearance-none truncate rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-medium text-content shadow-ui-sm"
+        className="ui-focus touch-target relative h-11 min-h-touch w-full appearance-none truncate rounded-ui-md border border-line-strong bg-panel pl-3 pr-9 text-left text-[13px] font-medium text-content shadow-ui-sm"
       >
         {triggerLabel}
-        <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-content-muted" />
+        <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted" />
       </button>
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 max-h-[320px] w-full min-w-[200px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised shadow-ui-lg">
           {options.map((opt) => {
             if (opt.heading) {
+              const children = groupChildren?.get(opt.value);
+              if (!children || children.length === 0) {
+                return (
+                  <div
+                    key={`h-${opt.value}`}
+                    className="px-3 pb-1 pt-2.5 text-[11px] font-semibold text-content-muted"
+                  >
+                    {opt.label}
+                  </div>
+                );
+              }
+              // Selectable group header: a shaded "select all in group" row that
+              // reads as a section — a Layers glyph + bold dark label mark it as
+              // the parent; children render indented beneath. Checked when every
+              // child is selected, indeterminate when only some are.
+              const allSelected = children.every((v) => selected.includes(v));
+              const someSelected = children.some((v) => selected.includes(v));
               return (
-                <div
+                <label
                   key={`h-${opt.value}`}
-                  className="px-3 pb-1 pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted"
+                  className="flex min-h-touch cursor-pointer items-center gap-2.5 border-y border-line bg-canvas-sunken px-3 py-2 first:border-t-0 hover:bg-line/70"
                 >
-                  {opt.label}
-                </div>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                    onChange={() => {
+                      onChange(
+                        allSelected
+                          ? selected.filter((v) => !children.includes(v))
+                          : Array.from(new Set([...selected, ...children])),
+                      );
+                    }}
+                    className="h-4 w-4 rounded border-line accent-[rgb(var(--ui-brand))]"
+                  />
+                  <Layers size={13} className="shrink-0 text-content-muted" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-content">{opt.label}</span>
+                </label>
               );
             }
             const checked = selected.includes(opt.value);
             return (
               <label
                 key={opt.value}
-                className="flex cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-canvas-sunken"
+                className={cn(
+                  'flex min-h-touch cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-canvas-sunken',
+                  // Indent category rows so they nest under their group header.
+                  groupChildren && 'pl-9',
+                )}
               >
                 <input
                   type="checkbox"
@@ -200,24 +259,20 @@ function MultiSelectDropdown({
 
 // ---------------------------------------------------------------------------
 // TransactionFilters — one toolbar row: [search] [Filters button → popover
-// panel with View / Category / Account / Date / Amount], plus the
-// active-filter chips row beneath. Debounce ONLY the search input; all other
-// controls call onChange immediately.
+// panel with Category / Account / Date / Amount], plus the active-filter chips
+// row beneath. Debounce ONLY the search input; all other controls call
+// onChange immediately.
 // ---------------------------------------------------------------------------
 
 export function TransactionFilters({
   filters,
   onChange,
   accounts,
-  viewSection,
   trailing,
 }: {
   filters: TxnFilters;
   onChange: (f: TxnFilters) => void;
   accounts: AccountIndexEntry[];
-  /** View (group-by) control rendered as the top section of the Filters panel.
-      It's a view choice, not a filter — it never counts toward the badge. */
-  viewSection?: React.ReactNode;
   /** Rendered at the end of the toolbar row (e.g. the desktop sort select). */
   trailing?: React.ReactNode;
 }) {
@@ -282,6 +337,27 @@ export function TransactionFilters({
       ]),
     [pickerGroups],
   );
+  // Group id → its child category ids, so a group header can select all at once
+  // and a fully-selected group collapses into a single chip.
+  const categoryGroupChildren = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const { group, categories } of pickerGroups) m.set(group.id, categories.map((c) => c.id));
+    return m;
+  }, [pickerGroups]);
+  // Fully-selected groups collapse to one unit, so the trigger label, the
+  // Filters badge, and the chips all agree on how a group selection is counted.
+  const { selectedGroups, looseCatIds } = useMemo(() => {
+    const consumed = new Set<string>();
+    const selectedGroups: Array<{ id: string; name: string; childIds: string[] }> = [];
+    for (const { group, categories } of pickerGroups) {
+      const childIds = categories.map((c) => c.id);
+      if (childIds.length > 0 && childIds.every((id) => filters.categories.includes(id))) {
+        childIds.forEach((id) => consumed.add(id));
+        selectedGroups.push({ id: group.id, name: group.name, childIds });
+      }
+    }
+    return { selectedGroups, looseCatIds: filters.categories.filter((c) => !consumed.has(c)) };
+  }, [pickerGroups, filters.categories]);
   // Account options carry the institution identity so several accounts named
   // e.g. "CREDIT CARD" stay distinguishable (logo + "Chase ••1234").
   const accountOptions = accounts.map((a) => ({
@@ -295,14 +371,15 @@ export function TransactionFilters({
   for (const a of accounts) nameCounts.set(a.name, (nameCounts.get(a.name) ?? 0) + 1);
 
   // Active-filter count for the Filters button badge (search lives outside).
+  // A whole selected group counts as one, matching the collapsed chips.
   const activeCount =
-    filters.categories.length +
+    selectedGroups.length + looseCatIds.length +
     filters.accountIds.length +
     (filters.datePreset !== 'all' ? 1 : 0) +
     (filters.amountMin || filters.amountMax ? 1 : 0);
 
   // Build active chips.
-  type Chip = { key: string; label: string; clear: () => void };
+  type Chip = { key: string; label: string; clear: () => void; tone?: 'brand' | 'neutral' };
   const chips: Chip[] = [];
 
   if (filters.search) {
@@ -312,10 +389,22 @@ export function TransactionFilters({
       clear: () => { setSearchInput(''); onChange({ ...filters, search: '' }); },
     });
   }
-  for (const cat of filters.categories) {
+  // A fully-selected group is one chip; leftover loose categories get their own.
+  // Brand-tone both so a drill-in from Spending reads as "you're scoped here",
+  // distinct from search/account chips.
+  for (const g of selectedGroups) {
+    chips.push({
+      key: `grp-${g.id}`,
+      label: g.name,
+      tone: 'brand',
+      clear: () => onChange({ ...filters, categories: filters.categories.filter((c) => !g.childIds.includes(c)) }),
+    });
+  }
+  for (const cat of looseCatIds) {
     chips.push({
       key: `cat-${cat}`,
       label: byId.get(cat)?.name ?? getCategoryDisplay(cat).label,
+      tone: 'brand',
       clear: () => onChange({ ...filters, categories: filters.categories.filter((c) => c !== cat) }),
     });
   }
@@ -358,7 +447,7 @@ export function TransactionFilters({
     });
   }
 
-  const sectionLabel = 'mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted';
+  const sectionLabel = 'mb-1.5 text-[12px] font-semibold text-content-secondary';
 
   return (
     <div className="space-y-2">
@@ -406,19 +495,12 @@ export function TransactionFilters({
           {trailing}
         </div>
 
-        {/* Filters panel — View on top, then the four filter sections. */}
+        {/* Filters panel — Category / Account / Date / Amount. */}
         {panelOpen && (
           <div
             ref={panelRef}
             className="absolute left-0 right-0 top-full z-50 mt-2 space-y-4 rounded-ui-md border border-line-strong bg-panel-raised p-4 shadow-ui-lg sm:right-auto sm:w-[380px]"
           >
-            {viewSection && (
-              <div>
-                <div className={sectionLabel}>View</div>
-                {viewSection}
-              </div>
-            )}
-
             <div>
               <div className={sectionLabel}>Category</div>
               <MultiSelectDropdown
@@ -427,6 +509,7 @@ export function TransactionFilters({
                 options={categoryOptions}
                 selected={filters.categories}
                 onChange={(cats) => onChange({ ...filters, categories: cats })}
+                groupChildren={categoryGroupChildren}
               />
             </div>
 
@@ -456,7 +539,7 @@ export function TransactionFilters({
                       customEnd: '',
                     })
                   }
-                  className="ui-focus touch-target h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
+                  className="ui-focus touch-target h-11 min-h-touch w-full appearance-none rounded-ui-md border border-line-strong bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
                 >
                   <option value="all">All time</option>
                   <option value="this-month">This month</option>
@@ -465,7 +548,7 @@ export function TransactionFilters({
                   <option value="ytd">Year to date</option>
                   <option value="custom">Custom…</option>
                 </select>
-                <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-content-muted" />
+                <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted" />
               </div>
               {filters.datePreset === 'custom' && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -509,6 +592,9 @@ export function TransactionFilters({
                   className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel px-3 text-[13px] text-content shadow-ui-sm"
                 />
               </div>
+              {filters.amountMin !== '' && filters.amountMax !== '' && Number(filters.amountMin) > Number(filters.amountMax) && (
+                <p className="mt-1.5 text-[12px] font-medium text-negative">Min is more than max.</p>
+              )}
             </div>
           </div>
         )}
@@ -518,7 +604,7 @@ export function TransactionFilters({
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {chips.map((chip) => (
-            <Badge key={chip.key} tone="neutral" className="pr-1.5">
+            <Badge key={chip.key} tone={chip.tone ?? 'neutral'} className="pr-1.5">
               {chip.label}
               <button
                 type="button"

@@ -1202,7 +1202,18 @@ export interface TxnQueryRow {
   pending: number; notes: string | null;
   excludedAt: string | null;
 }
-export interface TxnQuerySummary { count: number; totalSpent: number; totalIncome: number }
+export interface TxnQuerySummary {
+  count: number;
+  totalSpent: number;
+  totalIncome: number;
+  /** Raw money out (sum of positive amounts) over the full filtered match. */
+  totalDebits: number;
+  /** Raw money in (sum of |negative amounts|) over the full filtered match. */
+  totalCredits: number;
+  /** Date span of the match; null when nothing matches. ISO timestamp strings. */
+  earliest: string | null;
+  latest: string | null;
+}
 export interface TxnQueryListResponse { mode: 'list'; transactions: TxnQueryRow[]; nextCursor: string | null; summary: TxnQuerySummary }
 export interface TxnQueryGroupsResponse { mode: 'groups'; groups: Array<{ key: string; label: string; count: number; total: number }>; summary: TxnQuerySummary }
 

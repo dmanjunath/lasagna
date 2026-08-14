@@ -214,7 +214,10 @@ export function CategoryPicker({
           else openPicker();
         }}
         className={cn(
-          'ui-focus touch-target-inline rounded-ui-xs text-content-muted transition-colors hover:text-content hover:underline',
+          // A persistent dotted underline + darker ink so the category reads as
+          // an editable control at rest, not static metadata. Truncates so a long
+          // name never wraps the row's meta line.
+          'ui-focus touch-target-inline min-w-0 max-w-full truncate rounded-ui-xs text-content-secondary underline decoration-dotted underline-offset-2 transition-colors hover:text-content',
           className,
         )}
       >

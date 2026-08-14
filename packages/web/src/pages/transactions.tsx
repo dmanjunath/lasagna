@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Banknote, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Layers, Receipt, Search, Store } from 'lucide-react';
-import { api, type TxnQueryRow } from '../lib/api';
+import { Banknote, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Receipt, Search } from 'lucide-react';
+import { api, type TxnQueryRow, type TxnQuerySummary } from '../lib/api';
 import { useAccountsIndex } from '../lib/use-accounts-index';
 import { cn } from '../lib/utils';
 import { usePageContext } from '../lib/page-context';
-import { Alert, Button, EmptyState, SegmentedControl, Skeleton } from '../components/uikit';
-import { getCategoryDisplay } from '../lib/categories';
-import { taxonomyIcon, useCategoryDisplay, useTaxonomy } from '../lib/taxonomy';
+import { Alert, Button, EmptyState, Skeleton, useToast } from '../components/uikit';
+import { useCategoryDisplay } from '../lib/taxonomy';
 import {
   TxnRow,
   CreateRuleBar,
@@ -49,7 +48,6 @@ function dayLabel(iso: string, now: Date = new Date()): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-type Mode = 'date' | 'category' | 'group' | 'merchant';
 type SortKey = 'newest' | 'oldest' | 'largest' | 'smallest';
 
 const SORT_LABELS: Record<SortKey, string> = {
@@ -67,34 +65,113 @@ const SORTS: Record<SortKey, { field: 'date' | 'amount'; dir: 'asc' | 'desc' }> 
 };
 
 const PAGE_SIZE = 50;
-const GROUP_PAGE_SIZE = 20;
 
-interface Group { key: string; label: string; count: number; total: number }
-interface GroupCache { rows: TxnQueryRow[]; nextCursor: string | null; loading: boolean }
+function formatCompactCount(n: number): string {
+  return new Intl.NumberFormat('en-US').format(n);
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// "Aug 11, 2026" for a single day, else "Jan 3 to Aug 11, 2026" — the year
+// shows once when the span stays inside one calendar year.
+function dateRangeLabel(earliest: string | null, latest: string | null): string {
+  if (!earliest || !latest) return '';
+  const da = new Date(earliest);
+  const db = new Date(latest);
+  const a = shortDate(earliest);
+  const b = shortDate(latest);
+  if (a === b) return a;
+  if (!Number.isNaN(da.getTime()) && !Number.isNaN(db.getTime()) && da.getFullYear() === db.getFullYear()) {
+    const aNoYear = da.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${aNoYear} to ${b}`;
+  }
+  return `${a} to ${b}`;
+}
 
 // ---------------------------------------------------------------------------
-// Transactions page — browse everything: search, filters, Date/Category/
-// Merchant grouping, infinite scroll, inline category editing.
+// KPI strip — money in / out, net, and the count over the CURRENT filter set
+// (server-summed across the whole match, not just the loaded page). Mirrors the
+// spending page's StatCell idiom so the two pages read as siblings.
+// ---------------------------------------------------------------------------
+
+function KpiCell({ label, value, sub, tone }: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: 'pos' | 'neg';
+}) {
+  return (
+    <div className="px-4 py-3 sm:px-5 sm:py-3.5">
+      <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{label}</div>
+      <div className={cn(
+        'mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
+        tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
+        tone === 'neg' && 'text-negative',
+      )}>{value}</div>
+      {sub && <div className="mt-1.5 truncate text-[11.5px] font-semibold text-content-muted">{sub}</div>}
+    </div>
+  );
+}
+
+// Guarded money formatter — an older API (or a web/API deploy skew) can send a
+// summary without the money fields; render a dash rather than "NaN".
+function money(n: number): string {
+  return Number.isFinite(n) ? formatCurrencyExact(n) : '—';
+}
+
+function KpiStrip({ summary }: { summary: TxnQuerySummary }) {
+  const { totalCredits: credits, totalDebits: debits } = summary;
+  const netKnown = Number.isFinite(credits) && Number.isFinite(debits);
+  const net = credits - debits;
+  const range = dateRangeLabel(summary.earliest, summary.latest);
+  return (
+    <div className="mt-4 grid grid-cols-2 divide-x divide-y divide-line overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm sm:grid-cols-4 sm:divide-y-0">
+      <KpiCell
+        label="Transactions"
+        value={Number.isFinite(summary.count) ? formatCompactCount(summary.count) : '—'}
+        sub={range || undefined}
+      />
+      <KpiCell label="Money in" value={money(credits)} tone="pos" />
+      <KpiCell label="Money out" value={money(debits)} />
+      <KpiCell
+        label="Net"
+        value={netKnown ? `${net < 0 ? '−' : ''}${formatCurrencyExact(Math.abs(net))}` : '—'}
+        tone={netKnown ? (net < 0 ? 'neg' : net > 0 ? 'pos' : undefined) : undefined}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Transactions page — browse everything: search, filters, sort, infinite
+// scroll, inline category editing, and a filter-scoped KPI strip.
 // ---------------------------------------------------------------------------
 
 export function Transactions() {
   const { setPageContext } = usePageContext();
   const [, setLocation] = useLocation();
-  const { groups: taxonomyGroups, loading: taxonomyLoading, byId, bySystemKey } = useTaxonomy();
   const displayOf = useCategoryDisplay();
+  const toast = useToast();
 
-  const [filters, setFilters] = useState<TxnFilters>(EMPTY_FILTERS);
-  const [mode, setMode] = useState<Mode>('date');
+  // Hydrate the category filter from the URL so a drill from the Spending
+  // breakdown (`/transactions?categories=<id>,<id>`) lands pre-filtered.
+  const [filters, setFilters] = useState<TxnFilters>(() => {
+    const cats = new URLSearchParams(window.location.search).get('categories');
+    return cats
+      ? { ...EMPTY_FILTERS, categories: cats.split(',').filter(Boolean) }
+      : EMPTY_FILTERS;
+  });
   const [sortKey, setSortKey] = useState<SortKey>('newest');
 
-  // Date-mode accumulation
+  // Paginated list accumulation
   const [rows, setRows] = useState<TxnQueryRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-
-  // Grouped modes
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [expanded, setExpanded] = useState<Map<string, GroupCache>>(new Map());
-  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  // Server-summed money in/out, count, and date span over the full filter match.
+  const [summary, setSummary] = useState<TxnQuerySummary | null>(null);
 
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -109,8 +186,8 @@ export function Transactions() {
   const { list: accounts } = useAccountsIndex();
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Latest-wins: every filters/sort/mode change bumps the seq; responses tagged
-  // with an older seq are dropped so a slow page-1 can't clobber newer state.
+  // Latest-wins: every filters/sort change bumps the seq; responses tagged with
+  // an older seq are dropped so a slow page-1 can't clobber newer state.
   const requestSeqRef = useRef(0);
   // Prevents two simultaneous loadMore fetches when the IntersectionObserver
   // fires twice before the first response resolves.
@@ -120,55 +197,39 @@ export function Transactions() {
     setPageContext({
       pageId: 'transactions',
       pageTitle: 'Transactions',
-      description: 'All transactions across accounts with search, filters, and grouping.',
+      description: 'All transactions across accounts with search, filters, and sort.',
     });
   }, [setPageContext]);
 
-  // One fetch pipeline: page 1 of the current mode. Resets accumulation.
+  // One fetch pipeline: page 1 for the current filters/sort. Resets accumulation
+  // and refreshes the filter-scoped summary.
   useEffect(() => {
     const seq = ++requestSeqRef.current;
     setLoadingInitial(true);
     setError(null);
     setCreateRulePrompt(null);
-    setExpanded(new Map());
-    setOpenKeys(new Set());
     const qf = filtersToQuery(filters);
 
-    if (mode === 'date') {
-      api.queryTransactions({ filters: qf, sort: SORTS[sortKey], limit: PAGE_SIZE })
-        .then((res) => {
-          if (seq !== requestSeqRef.current || res.mode !== 'list') return;
-          setRows(res.transactions);
-          setNextCursor(res.nextCursor);
-        })
-        .catch((err: Error) => {
-          if (seq !== requestSeqRef.current) return;
-          setError(err.message || 'Failed to load transactions');
-        })
-        .finally(() => {
-          if (seq === requestSeqRef.current) setLoadingInitial(false);
-        });
-    } else {
-      api.queryTransactions({ filters: qf, groupBy: mode })
-        .then((res) => {
-          if (seq !== requestSeqRef.current || res.mode !== 'groups') return;
-          setGroups(res.groups);
-        })
-        .catch((err: Error) => {
-          if (seq !== requestSeqRef.current) return;
-          setError(err.message || 'Failed to load transactions');
-        })
-        .finally(() => {
-          if (seq === requestSeqRef.current) setLoadingInitial(false);
-        });
-    }
-  }, [filters, sortKey, mode, refreshKey]);
+    api.queryTransactions({ filters: qf, sort: SORTS[sortKey], limit: PAGE_SIZE })
+      .then((res) => {
+        if (seq !== requestSeqRef.current || res.mode !== 'list') return;
+        setRows(res.transactions);
+        setNextCursor(res.nextCursor);
+        setSummary(res.summary);
+      })
+      .catch((err: Error) => {
+        if (seq !== requestSeqRef.current) return;
+        setError(err.message || 'Failed to load transactions');
+      })
+      .finally(() => {
+        if (seq === requestSeqRef.current) setLoadingInitial(false);
+      });
+  }, [filters, sortKey, refreshKey]);
 
-  // Infinite scroll (date mode). Kept in a ref so the observer always calls
-  // the latest closure.
+  // Infinite scroll. Kept in a ref so the observer always calls the latest closure.
   const loadMoreRef = useRef<() => void>(() => {});
   loadMoreRef.current = () => {
-    if (mode !== 'date' || !nextCursor || loadingMore || loadingInitial || inFlightRef.current) return;
+    if (!nextCursor || loadingMore || loadingInitial || inFlightRef.current) return;
     inFlightRef.current = true;
     const seq = requestSeqRef.current;
     setLoadingMore(true);
@@ -206,23 +267,11 @@ export function Transactions() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [mode, loadingInitial, nextCursor]);
+  }, [loadingInitial, nextCursor]);
 
-  // Patch a transaction's fields wherever it's rendered (date list + any
-  // expanded group caches — ids are unique so patching both is safe).
+  // Patch a transaction's fields in the list.
   function patchTx(txId: string, patch: Partial<Pick<TxnQueryRow, 'merchantName' | 'categoryId' | 'notes' | 'excludedAt'>>) {
     setRows((prev) => prev.map((t) => (t.id === txId ? { ...t, ...patch } : t)));
-    setExpanded((prev) => {
-      let changed = false;
-      const next = new Map(prev);
-      for (const [key, entry] of next) {
-        if (entry.rows.some((r) => r.id === txId)) {
-          next.set(key, { ...entry, rows: entry.rows.map((r) => (r.id === txId ? { ...r, ...patch } : r)) });
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
   }
 
   // Page-local optimistic category edit (same shape as TransactionList's
@@ -238,6 +287,31 @@ export function Transactions() {
     try {
       await api.updateTransactionCategory(tx.id, newCatId);
       setCreateRulePrompt({ txId: tx.id, merchantText, category: newCatId });
+      const undo = async () => {
+        patchTx(tx.id, { categoryId: prevCatId });
+        setCreateRulePrompt(null);
+        try {
+          await api.updateTransactionCategory(tx.id, prevCatId as string);
+          toast({ tone: 'info', title: 'Change undone' });
+        } catch {
+          patchTx(tx.id, { categoryId: newCatId });
+          setError("Couldn't undo. Try again.");
+        }
+      };
+      toast({
+        tone: 'positive',
+        title: `Moved to ${displayOf({ categoryId: newCatId }).label}`,
+        duration: 6000,
+        description: prevCatId ? (
+          <button
+            type="button"
+            onClick={undo}
+            className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+          >
+            Undo
+          </button>
+        ) : undefined,
+      });
     } catch (err) {
       console.error(err);
       patchTx(tx.id, { categoryId: prevCatId });
@@ -245,82 +319,8 @@ export function Transactions() {
     }
   }
 
-  // Grouped-mode expansion: fetch (or append to) one group's transaction list.
-  function loadGroupRows(key: string, cursor: string | null) {
-    // Category/group keys are systemKeys for system rows; the API accepts only
-    // category ids, so the taxonomy must be loaded to resolve them.
-    if ((mode === 'group' || mode === 'category') && taxonomyGroups.length === 0) {
-      setError(
-        taxonomyLoading
-          ? 'Categories are still loading. Try again.'
-          : 'Categories failed to load. Try again.',
-      );
-      return;
-    }
-    const seq = requestSeqRef.current;
-    setExpanded((prev) => {
-      const next = new Map(prev);
-      const entry = next.get(key) ?? { rows: [], nextCursor: null, loading: false };
-      next.set(key, { ...entry, loading: true });
-      return next;
-    });
-    // Group mode has no server-side group filter: expand a group by sending its
-    // child category ids (all children, incl. disabled — history lives there).
-    const groupChildIds = (groupKey: string): string[] => {
-      const group = taxonomyGroups.find((g) => (g.systemKey ?? g.id) === groupKey);
-      const ids = group?.categories.map((c) => c.id) ?? [];
-      return ids.length > 0 ? ids : [groupKey];
-    };
-    // Category keys are systemKey ?? id (decision 4); the API filters on ids only.
-    const categoryIdForKey = (catKey: string): string =>
-      (bySystemKey.get(catKey) ?? byId.get(catKey))?.id ?? catKey;
-    const merged = {
-      ...filtersToQuery(filters),
-      ...(mode === 'category'
-        ? { categories: [categoryIdForKey(key)] }
-        : mode === 'group'
-          ? { categories: groupChildIds(key) }
-          : { merchant: key }),
-    };
-    api.queryTransactions({ filters: merged, limit: GROUP_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
-      .then((res) => {
-        if (seq !== requestSeqRef.current || res.mode !== 'list') return;
-        setExpanded((prev) => {
-          const next = new Map(prev);
-          const entry = next.get(key) ?? { rows: [], nextCursor: null, loading: false };
-          next.set(key, {
-            rows: cursor ? [...entry.rows, ...res.transactions] : res.transactions,
-            nextCursor: res.nextCursor,
-            loading: false,
-          });
-          return next;
-        });
-      })
-      .catch(() => {
-        if (seq !== requestSeqRef.current) return;
-        setExpanded((prev) => {
-          const next = new Map(prev);
-          const entry = next.get(key);
-          // Remove the loading entry; preserve any previously-cached rows.
-          if (entry) next.set(key, { ...entry, loading: false });
-          else next.delete(key);
-          return next;
-        });
-        setError("Couldn't load transactions for this group. Try again.");
-      });
-  }
-
-  function toggleGroup(key: string) {
-    const isOpen = openKeys.has(key);
-    const next = new Set(openKeys);
-    if (isOpen) next.delete(key);
-    else next.add(key);
-    setOpenKeys(next);
-    if (!isOpen && !expanded.has(key)) loadGroupRows(key, null);
-  }
-
-  // One transaction row (+ create-rule bar) — shared by the date list and
-  // expanded groups so inline editing behaves identically everywhere.
+  // One transaction row (+ create-rule bar) — shared everywhere so inline
+  // editing behaves identically.
   function renderTxRow(tx: TxnQueryRow) {
     const amount = parseFloat(tx.amount);
     const isIncome = amount < 0;
@@ -339,22 +339,17 @@ export function Transactions() {
         {/* Clickable wrapper (row only — the CreateRuleBar sibling stays
              outside). TxnRow is always the wrapper's first child so its own
              border-t is suppressed; the wrapper carries it instead. */}
+        {/* Mouse: click anywhere on the row opens details. Keyboard/AT: the
+             merchant is the "open details" button (see onOpenDetail), so the row
+             div is NOT role=button and doesn't nest the inner category picker. */}
         <div
-          role="button"
-          tabIndex={0}
           onClick={() => setDetailTx(tx)}
-          onKeyDown={(e) => {
-            if (e.target !== e.currentTarget) return;
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              setDetailTx(tx);
-            }
-          }}
-          className="ui-focus cursor-pointer border-t border-line transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-canvas-sunken/60"
+          className="cursor-pointer border-t border-line transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-canvas-sunken/60"
         >
           <TxnRow
             merchant={tx.merchantName || tx.name}
-            icon={isIncome ? <DollarSign size={15} /> : (display.icon ?? <Banknote size={15} />)}
+            onOpenDetail={() => setDetailTx(tx)}
+            icon={display.icon ?? (isIncome ? <DollarSign size={15} /> : <Banknote size={15} />)}
             isIncome={isIncome}
             categoryNode={categoryNode}
             date={tx.date}
@@ -389,7 +384,7 @@ export function Transactions() {
   // Day headers only make sense on date-ordered lists.
   const showDayHeaders = sortKey === 'newest' || sortKey === 'oldest';
 
-  const isEmpty = !loadingInitial && (mode === 'date' ? rows.length === 0 : groups.length === 0);
+  const isEmpty = !loadingInitial && rows.length === 0;
 
   const skeletonRows = (
     <div>
@@ -406,7 +401,7 @@ export function Transactions() {
     </div>
   );
 
-  // Date-mode list, chunked into consecutive-day sections when date-sorted.
+  // Date-ordered list, chunked into consecutive-day sections when date-sorted.
   let lastDayKey: string | null = null;
 
   return (
@@ -429,27 +424,14 @@ export function Transactions() {
         </div>
       </header>
 
-      {/* ════════ Toolbar — search + Filters popover (View + filters inside);
-           active-filter chips render beneath. ════════ */}
+      {/* ════════ Toolbar — search + Filters popover; the desktop sort select
+           trails the row. Active-filter chips render beneath. ════════ */}
       <div className="mt-5">
         <TransactionFilters
           filters={filters}
           onChange={setFilters}
           accounts={accounts}
-          viewSection={
-            <SegmentedControl
-              aria-label="View"
-              value={mode}
-              onChange={(m: Mode) => setMode(m)}
-              options={[
-                { value: 'date', label: 'Date' },
-                { value: 'category', label: 'Category' },
-                { value: 'group', label: 'Group' },
-                { value: 'merchant', label: 'Merchant' },
-              ]}
-            />
-          }
-          trailing={mode === 'date' ? (
+          trailing={
             // Desktop sort — inline with search + Filters. Mobile sorts via the
             // tappable list header instead.
             <div className="relative hidden shrink-0 sm:block">
@@ -457,18 +439,22 @@ export function Transactions() {
                 value={sortKey}
                 onChange={(e) => setSortKey(e.target.value as SortKey)}
                 aria-label="Sort"
-                className="ui-focus touch-target h-10 appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
+                className="ui-focus touch-target h-11 min-h-touch appearance-none rounded-ui-md border border-line-strong bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
               >
                 <option value="newest">Newest</option>
                 <option value="oldest">Oldest</option>
                 <option value="largest">Largest</option>
                 <option value="smallest">Smallest</option>
               </select>
-              <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-content-muted" />
+              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted" />
             </div>
-          ) : undefined}
+          }
         />
       </div>
+
+      {/* ════════ Filter-scoped KPI strip — money in/out, net, and count over
+           the whole match (not just the loaded page). ════════ */}
+      {summary && summary.count > 0 && <KpiStrip summary={summary} />}
 
       {/* ════════ Error strip (stale rows stay visible below) ════════ */}
       {error && (
@@ -481,7 +467,7 @@ export function Transactions() {
       <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
         {/* Mobile sort header — a tappable row on the list itself; the invisible
              native select on top opens the OS picker (field + order in one). */}
-        {mode === 'date' && rows.length > 0 && (
+        {rows.length > 0 && (
           <div className="relative flex items-center justify-between border-b border-line px-4 py-2.5 sm:hidden">
             <span className="text-[13px] font-semibold text-content-muted">
               Sorted by
@@ -503,10 +489,10 @@ export function Transactions() {
             </select>
           </div>
         )}
-        {/* Skeleton only before the FIRST rows for the current mode arrive;
-             later refetches (sort/filter/view changes) keep the stale content
-             mounted, dimmed, so the list doesn't flash to skeletons. */}
-        {loadingInitial && (mode === 'date' ? rows.length === 0 : groups.length === 0) ? (
+        {/* Skeleton only before the FIRST rows arrive; later refetches
+             (sort/filter changes) keep the stale content mounted, dimmed, so
+             the list doesn't flash to skeletons. */}
+        {loadingInitial && rows.length === 0 ? (
           skeletonRows
         ) : isEmpty ? (
           <div className="p-3">
@@ -515,6 +501,7 @@ export function Transactions() {
                 icon={<Search size={22} />}
                 title="No transactions match"
                 description="Adjust or clear your filters to see more."
+                action={<Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</Button>}
               />
             ) : (
               <EmptyState
@@ -529,7 +516,7 @@ export function Transactions() {
               />
             )}
           </div>
-        ) : mode === 'date' ? (
+        ) : (
           <div className={cn('transition-opacity duration-200', loadingInitial && 'opacity-50')}>
             {rows.map((tx) => {
               const d = new Date(tx.date);
@@ -558,83 +545,11 @@ export function Transactions() {
               </div>
             )}
           </div>
-        ) : (
-          <div className={cn('transition-opacity duration-200', loadingInitial && 'opacity-50')}>
-            {groups.map((g) => {
-              const isOpen = openKeys.has(g.key);
-              const entry = expanded.get(g.key);
-              const isRefund = g.total < 0;
-              // Category mode: resolve the tenant category (key = systemKey ?? id)
-              // for glyph/emoji; label falls back to the server-provided name.
-              const catEntry = mode === 'category' ? (bySystemKey.get(g.key) ?? byId.get(g.key)) : undefined;
-              const icon = mode === 'category'
-                ? (catEntry ? taxonomyIcon(catEntry) : getCategoryDisplay(g.key).icon)
-                : mode === 'group'
-                  ? <Layers size={15} />
-                  : <Store size={15} />;
-              const label = mode === 'category' ? (catEntry?.name ?? g.label) : g.label;
-              return (
-                <React.Fragment key={g.key}>
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(g.key)}
-                    aria-expanded={isOpen}
-                    className="ui-focus flex w-full items-center gap-3.5 border-t border-line px-4 py-3 text-left transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-canvas-sunken/50 sm:px-5"
-                  >
-                    <span className={cn(
-                      'grid h-9 w-9 shrink-0 place-items-center rounded-ui-md',
-                      isRefund ? 'bg-positive-soft text-positive' : 'bg-canvas-sunken text-content-secondary',
-                    )}>
-                      {icon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[14px] font-bold leading-tight" title={label}>{label}</div>
-                      <div className="ui-tnum mt-0.5 text-[12.5px] text-content-muted">
-                        {g.count} transaction{g.count === 1 ? '' : 's'}
-                      </div>
-                    </div>
-                    <span className={cn('shrink-0 font-editorial text-[14.5px] font-extrabold tracking-[-0.01em] ui-tnum', isRefund && 'text-positive')}>
-                      {isRefund ? '+' : ''}{formatCurrencyExact(Math.abs(g.total))}
-                    </span>
-                    <ChevronDown
-                      size={16}
-                      className={cn('shrink-0 text-content-muted transition-transform', isOpen && 'rotate-180')}
-                      aria-hidden
-                    />
-                  </button>
-                  {isOpen && (
-                    <div className="bg-canvas-sunken/40 pl-4 last:rounded-b-ui-xl last:overflow-hidden sm:pl-6">
-                      {entry && entry.rows.length > 0 && entry.rows.map((tx) => renderTxRow(tx))}
-                      {entry?.loading && (
-                        <div className="flex items-center gap-3.5 border-t border-line px-4 py-3 sm:px-5">
-                          <Skeleton className="h-9 w-9 rounded-ui-md" />
-                          <div className="flex-1">
-                            <Skeleton className="h-3.5 w-32" />
-                            <Skeleton className="mt-2 h-3 w-44" />
-                          </div>
-                          <Skeleton className="h-4 w-20" />
-                        </div>
-                      )}
-                      {entry && !entry.loading && entry.nextCursor && (
-                        <button
-                          type="button"
-                          onClick={() => loadGroupRows(g.key, entry.nextCursor)}
-                          className="ui-focus w-full border-t border-line px-4 py-2.5 text-left text-[12.5px] font-semibold text-content-muted transition-colors hover:text-content sm:px-5"
-                        >
-                          Load more
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
         )}
       </div>
 
       {/* Infinite-scroll sentinel */}
-      {mode === 'date' && <div ref={sentinelRef} className="h-1" aria-hidden />}
+      <div ref={sentinelRef} className="h-1" aria-hidden />
 
       <RulesPanel
         open={rulesPanel.open}
@@ -655,7 +570,6 @@ export function Transactions() {
             ...(patch.notes !== undefined ? { notes: patch.notes.trim() === '' ? null : patch.notes } : {}),
             ...(patch.excluded !== undefined ? { excludedAt: patch.excluded ? new Date().toISOString() : null } : {}),
           });
-          if (patch.merchantName !== undefined && mode === 'merchant') setRefreshKey((k) => k + 1);
         }}
       />
     </div>

@@ -123,6 +123,13 @@ transactionRoutes.post("/query", async (c) => {
     count: sql<number>`count(*)::int`,
     spent: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} > 0 and coalesce(${categoryGroups.type}::text, 'expense') not in ('income', 'transfer') and ${transactions.excludedAt} is null), 0)`,
     income: sql<string>`coalesce(sum(abs(${transactions.amount})) filter (where coalesce(${categoryGroups.type}::text, 'expense') = 'income' and ${transactions.excludedAt} is null), 0)`,
+    // Raw sign-based money flow (money out vs money in) for the browser's KPI
+    // strip — excluded rows stay out of the sums, mirroring spent/income.
+    debits: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} > 0 and ${transactions.excludedAt} is null), 0)`,
+    credits: sql<string>`coalesce(sum(abs(${transactions.amount})) filter (where ${transactions.amount} < 0 and ${transactions.excludedAt} is null), 0)`,
+    // Date span of the match (all rows, incl. excluded — mirrors the list).
+    earliest: sql<string | null>`min(${transactions.date})`,
+    latest: sql<string | null>`max(${transactions.date})`,
   }).from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
@@ -131,6 +138,10 @@ transactionRoutes.post("/query", async (c) => {
     count: agg?.count ?? 0,
     totalSpent: Math.round(parseFloat(agg?.spent ?? "0") * 100) / 100,
     totalIncome: Math.round(parseFloat(agg?.income ?? "0") * 100) / 100,
+    totalDebits: Math.round(parseFloat(agg?.debits ?? "0") * 100) / 100,
+    totalCredits: Math.round(parseFloat(agg?.credits ?? "0") * 100) / 100,
+    earliest: agg?.earliest ?? null,
+    latest: agg?.latest ?? null,
   };
 
   if (groupBy) {

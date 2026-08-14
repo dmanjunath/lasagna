@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Search, X, DollarSign, Banknote } from 'luci
 import { Link } from 'wouter';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
-import { Badge, EmptyState, Skeleton } from '../uikit';
+import { Badge, EmptyState, Skeleton, useToast } from '../uikit';
 import { categoryOptionLabel, useCategoryDisplay, usePickerGroups } from '../../lib/taxonomy';
 import { CategoryPicker } from '../common/CategoryPicker';
 import { TransactionDetail } from './TransactionDetail';
@@ -66,7 +66,7 @@ export function CreateRuleBar({
     <div className="flex items-center gap-3 bg-[rgb(var(--ui-brand-softer))] px-4 py-2.5 text-[12.5px] sm:px-5">
       <span className="flex-1 text-content-muted">
         Always categorize &ldquo;{merchantText}&rdquo; as{' '}
-        <b className="font-semibold text-content">{displayOf({ categoryId: category }).label}</b>?
+        <b className="font-semibold text-content">{displayOf({ categoryId: category }).label}</b>? Applies to matching transactions, past and future.
       </span>
       <button
         type="button"
@@ -94,7 +94,7 @@ export function CreateRuleBar({
 // ---------------------------------------------------------------------------
 
 export function TxnRow({
-  merchant, icon, isIncome, categoryNode, date, amount, accountName, excluded,
+  merchant, icon, isIncome, categoryNode, date, amount, accountName, excluded, onOpenDetail,
 }: {
   merchant: string;
   icon: React.ReactNode;
@@ -104,6 +104,10 @@ export function TxnRow({
   amount: number;
   accountName?: string;
   excluded?: boolean;
+  // When set, the merchant becomes the keyboard-accessible "open details"
+  // control, so the row wrapper doesn't need role=button (which would nest an
+  // ARIA button around the inner category picker).
+  onOpenDetail?: () => void;
 }) {
   return (
     <div className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
@@ -114,15 +118,26 @@ export function TxnRow({
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
-        <div className={cn('mt-0.5 flex items-center gap-3 text-[12.5px] text-content-muted', excluded && 'opacity-50')}>
+        {onOpenDetail ? (
+          <button
+            type="button"
+            onClick={onOpenDetail}
+            className="ui-focus block max-w-full truncate rounded-ui-xs text-left text-[14px] font-bold leading-tight"
+            title={merchant}
+          >
+            {merchant}
+          </button>
+        ) : (
+          <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
+        )}
+        <div className={cn('mt-0.5 flex min-w-0 items-center gap-2.5 text-[12.5px] text-content-muted sm:gap-3', excluded && 'opacity-50')}>
           {categoryNode}
           {excluded && <Badge tone="neutral" className="shrink-0">Excluded</Badge>}
-          <span className="ui-tnum whitespace-nowrap">{shortDate(date)}</span>
-          {accountName && <span className="truncate">{accountName}</span>}
+          <span className="ui-tnum shrink-0 whitespace-nowrap">{shortDate(date)}</span>
+          {accountName && <span className="hidden truncate sm:inline">{accountName}</span>}
         </div>
       </div>
-      <span className={cn('shrink-0 font-editorial text-[14.5px] font-extrabold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive', excluded && 'opacity-50')}>
+      <span className={cn('shrink-0 text-[14.5px] font-bold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive', excluded && 'opacity-50')}>
         {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
       </span>
     </div>
@@ -173,6 +188,7 @@ export function TransactionList({
 
   const pickerGroups = usePickerGroups();
   const displayOf = useCategoryDisplay();
+  const toast = useToast();
 
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
@@ -251,6 +267,34 @@ export function TransactionList({
               setCreateRulePrompt({ txId: tx.id, merchantText, category: newCatId });
             }
             onDataChanged?.();
+            // Confirm the move, with a one-click undo (only when there was a
+            // previous category to restore).
+            const undo = async () => {
+              setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: prevCatId } : t));
+              setCreateRulePrompt(null);
+              try {
+                await api.updateTransactionCategory(tx.id, prevCatId as string);
+                onDataChanged?.();
+                toast({ tone: 'info', title: 'Change undone' });
+              } catch {
+                setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: newCatId } : t));
+                setEditError("Couldn't undo. Try again.");
+              }
+            };
+            toast({
+              tone: 'positive',
+              title: `Moved to ${displayOf({ categoryId: newCatId }).label}`,
+              duration: 6000,
+              description: prevCatId ? (
+                <button
+                  type="button"
+                  onClick={undo}
+                  className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+                >
+                  Undo
+                </button>
+              ) : undefined,
+            });
           } catch (err) {
             console.error(err);
             setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, categoryId: prevCatId } : t));
@@ -403,21 +447,13 @@ export function TransactionList({
                        outside). TxnRow is always the wrapper's first child so its
                        own border-t is suppressed; the wrapper carries it instead. */}
                   <div
-                    role="button"
-                    tabIndex={0}
                     onClick={() => setDetailTx(tx)}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget) return;
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setDetailTx(tx);
-                      }
-                    }}
-                    className="ui-focus cursor-pointer border-t border-line transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-canvas-sunken/60"
+                    className="cursor-pointer border-t border-line transition-colors first:border-t-0 last:rounded-b-ui-xl hover:bg-canvas-sunken/60"
                   >
                     <TxnRow
                       merchant={tx.merchantName || tx.name}
-                      icon={isIncome ? <DollarSign size={15} /> : (display.icon ?? <Banknote size={15} />)}
+                      onOpenDetail={() => setDetailTx(tx)}
+                      icon={display.icon ?? (isIncome ? <DollarSign size={15} /> : <Banknote size={15} />)}
                       isIncome={isIncome}
                       categoryNode={categoryNode}
                       date={tx.date}

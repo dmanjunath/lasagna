@@ -65,7 +65,7 @@ export function CategoryManager() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   // Modals
-  const [newCat, setNewCat] = useState<{ name: string; groupId: string; emoji: string } | null>(null);
+  const [newCat, setNewCat] = useState<{ name: string; groupId: string } | null>(null);
   const [newGroup, setNewGroup] = useState<{ name: string; type: GroupType } | null>(null);
   const [deleting, setDeleting] = useState<{ cat: TaxonomyCategory; reassignTo: string } | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -130,7 +130,7 @@ export function CategoryManager() {
     setModalBusy(true);
     setModalError(null);
     try {
-      await api.createCategory({ name, groupId: newCat.groupId, emoji: newCat.emoji.trim() || null });
+      await api.createCategory({ name, groupId: newCat.groupId });
       await refresh();
       setOpenGroups((prev) => new Set(prev).add(newCat.groupId));
       setNewCat(null);
@@ -239,7 +239,7 @@ export function CategoryManager() {
               variant="secondary"
               size="sm"
               leadingIcon={<Plus size={14} />}
-              onClick={() => { setModalError(null); setNewCat({ name: '', groupId: '', emoji: '' }); }}
+              onClick={() => { setModalError(null); setNewCat({ name: '', groupId: '' }); }}
             >
               New category
             </Button>
@@ -431,15 +431,6 @@ export function CategoryManager() {
                   <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
               </Select>
-            </Field>
-            <Field label="Emoji" hint="Optional. Shows next to the name in pickers.">
-              <Input
-                value={newCat.emoji}
-                onChange={(e) => setNewCat({ ...newCat, emoji: e.target.value })}
-                maxLength={8}
-                placeholder="🐶"
-                className="w-24"
-              />
             </Field>
             {modalError && <p className="text-[12.5px] font-medium text-negative">{modalError}</p>}
           </div>

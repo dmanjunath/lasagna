@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
+  ArrowRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   RefreshCw,
   TrendingDown,
   TrendingUp,
   Receipt,
 } from 'lucide-react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
@@ -46,23 +49,9 @@ function endOfMonth(d: Date): string {
   return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}T23:59:59`;
 }
 
-// Warm-harmonious viz rotation for spending categories. Coral (viz-4) and slate
-// (viz-7) sit at the tail so a single category never reads as an alert, and the
-// long-tail "Smaller categories" bin always lands on neutral slate.
-const DATA_PALETTE = [
-  'var(--ui-viz-2)',
-  'var(--ui-viz-3)',
-  'var(--ui-viz-5)',
-  'var(--ui-viz-1)',
-  'var(--ui-viz-6)',
-  'var(--ui-viz-4)',
-  'var(--ui-viz-7)',
-];
-const TAIL_COLOR = 'var(--ui-viz-7)';
-
-function colorForIndex(i: number): string {
-  return DATA_PALETTE[i % DATA_PALETTE.length];
-}
+// Single hue for the ranked breakdown bars. A neutral data color (not brand
+// green, which would read as "good") that stays legible in light and dark.
+const BAR_FILL = 'var(--ui-viz-2)';
 
 interface RollupRow {
   key: string | null;
@@ -98,11 +87,6 @@ function buildRollupRows(cats: SpendingCategory[], rollup: 'category' | 'group')
   return rows.sort((a, b) => b.total - a.total);
 }
 
-// Touch browsers emulate mouseenter on tap but never fire mouseleave, which
-// strands the donut slice hover (stuck dim + pill). Only wire the hover
-// handlers when the primary pointer can actually hover.
-const CAN_HOVER = typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches;
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -119,86 +103,6 @@ interface SpendingCategory {
   total: number;
   count: number;
   percentage: number;
-}
-
-// ---------------------------------------------------------------------------
-// DonutMini — inline SVG on the --ui-viz palette, dark-legible center readout.
-// ---------------------------------------------------------------------------
-
-function DonutMini({
-  cats,
-  total,
-  onHoverChange,
-  hovered: hoveredProp,
-  fmtAmount,
-  centerLabel = 'Total',
-  centerValue,
-}: {
-  cats: Array<{ name: string | null; amount: number; color: string; label?: string }>;
-  total: number;
-  onHoverChange?: (i: number | null) => void;
-  hovered?: number | null;
-  fmtAmount?: (n: number) => string;
-  centerLabel?: string;
-  centerValue?: string;
-}) {
-  const [hoveredLocal, setHoveredLocal] = useState<number | null>(null);
-  const hovered = hoveredProp !== undefined ? hoveredProp : hoveredLocal;
-  const setHovered = (i: number | null) => {
-    setHoveredLocal(i);
-    onHoverChange?.(i);
-  };
-  const r = 36, R = 54, cx = 60, cy = 60;
-  let a0 = -Math.PI / 2;
-  const paths = cats.map((c, idx) => {
-    const frac = total > 0 ? c.amount / total : 0;
-    const a1 = a0 + frac * 2 * Math.PI;
-    const large = frac > 0.5 ? 1 : 0;
-    const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
-    const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
-    const x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1);
-    const x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0);
-    const d = `M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 ${large} 0 ${x3} ${y3} Z`;
-    a0 = a1;
-    return { d, color: c.color, name: c.name, label: c.label ?? c.name ?? '', amount: c.amount, pct: Math.round(frac * 100), idx };
-  });
-  const hp = hovered !== null && hovered >= 0 && hovered < paths.length ? paths[hovered] : null;
-  return (
-    <div className="relative w-full" data-testid="spending-donut-wrap">
-      <svg
-        viewBox="0 0 120 120"
-        preserveAspectRatio="xMidYMid meet"
-        className="block w-full"
-        data-testid="spending-donut"
-      >
-        {paths.map((p) => (
-          <path key={p.idx} d={p.d} fill={p.color}
-            opacity={hovered === null ? 1 : hovered === p.idx ? 1 : 0.32}
-            style={{ transition: 'opacity 0.15s' }}
-            onMouseEnter={CAN_HOVER ? () => setHovered(p.idx) : undefined}
-            onMouseLeave={CAN_HOVER ? () => setHovered(null) : undefined}
-            data-slice-idx={p.idx}
-          />
-        ))}
-        <text x="60" y="57" textAnchor="middle" fontWeight="700" fontSize="4.6" letterSpacing="0.08em" fill="rgb(var(--ui-content-muted))" style={{ textTransform: 'uppercase' }}>{centerLabel}</text>
-        <text x="60" y="70" textAnchor="middle" fontWeight="800" fontSize={centerValue ? '13' : '9.5'} fill="rgb(var(--ui-content))" style={{ fontVariantNumeric: 'tabular-nums' }}>{centerValue ?? (fmtAmount ? fmtAmount(total) : total.toLocaleString())}</text>
-      </svg>
-      {hp && (
-        <div
-          data-chart-hover="pill"
-          className="ui-tnum pointer-events-none absolute left-1/2 top-[-6px] z-10 flex -translate-x-1/2 -translate-y-full flex-col gap-0.5 whitespace-nowrap rounded-ui-sm bg-[rgb(var(--ui-panel-raised))] px-2.5 py-1.5 shadow-ui-lg"
-          style={{ border: '1px solid var(--ui-line)' }}
-        >
-          <span className="text-[13px] font-bold leading-tight tracking-[-0.01em] text-content">
-            {fmtAmount ? fmtAmount(hp.amount) : hp.amount.toLocaleString()}
-          </span>
-          <span className="text-[10.5px] leading-tight text-content-muted">
-            {hp.label}, {hp.pct}%
-          </span>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -226,11 +130,34 @@ function StatCell({ label, value, sub, tone }: { label: string; value: string; s
 // (group rows expand to their children), and a per-section total row at 100%.
 // ---------------------------------------------------------------------------
 
-function pctLabel(part: number, whole: number): string {
-  if (whole <= 0) return '0%';
-  const pct = (part / whole) * 100;
-  if (pct > 0 && pct < 1) return '<1%';
-  return `${Math.round(pct)}%`;
+// A sortable column header. Clicking toggles the sort key/direction; the active
+// column shows the direction arrow, inactive columns show a faint up/down hint.
+function SortHead({ label, sortKey, sort, onSort, numeric }: {
+  label: string;
+  sortKey: 'label' | 'amount';
+  sort: { key: 'label' | 'amount'; dir: 'asc' | 'desc' };
+  onSort: (k: 'label' | 'amount') => void;
+  numeric?: boolean;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <TH numeric={numeric}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`Sort by ${label}`}
+        className={cn(
+          'ui-focus -mx-1 inline-flex items-center gap-1 rounded-ui-sm px-1 py-0.5 uppercase tracking-[0.08em] transition-colors hover:text-content',
+          active ? 'text-content' : 'text-content-muted',
+        )}
+      >
+        {label}
+        {active
+          ? (sort.dir === 'asc' ? <ChevronUp size={13} aria-hidden /> : <ChevronDown size={13} aria-hidden />)
+          : <ChevronsUpDown size={13} className="text-content-faint" aria-hidden />}
+      </button>
+    </TH>
+  );
 }
 
 function BreakdownSection({
@@ -238,129 +165,143 @@ function BreakdownSection({
   rows,
   totalLabel,
   colHead,
-  pctHead,
   rollup,
   openGroups,
   toggleGroup,
-  selectedCategory,
-  onSelectCategory,
+  onDrill,
+  sort,
+  onSort,
 }: {
   title: string;
   rows: RollupRow[];
   totalLabel: string;
   colHead: string;
-  pctHead: string;
   rollup: 'category' | 'group';
   openGroups: Set<string | null>;
   toggleGroup: (key: string | null) => void;
-  selectedCategory: string | null;
-  onSelectCategory: (key: string) => void;
+  // Navigate to the transactions behind a row, filtered to these category ids.
+  onDrill: (categoryIds: string[]) => void;
+  sort: { key: 'label' | 'amount'; dir: 'asc' | 'desc' };
+  onSort: (k: 'label' | 'amount') => void;
 }) {
-  // Denominator = the section's own row sum, so its percentages always total
-  // 100%.
-  const denominator = rows.reduce((s, r) => s + r.total, 0);
-  // A section with a single category row already IS the whole section at 100%,
-  // so the separate "Total" row would just repeat it. Skip it in that case.
+  // Denominator = the section's own row sum. The ranked bar encodes each row's
+  // SHARE of that total, so the bar replaces a separate "%" column.
+  const denominator = rows.reduce((s, r) => s + r.total, 0) || 1;
+  // A section with a single row already IS the whole section at 100%, so the
+  // separate "Total" row would just repeat it. Skip it in that case.
   const showSectionTotal = rows.length > 1;
+  // The category ids a row filters transactions by: the group's children in
+  // group mode, the category itself in category mode. Uncategorized has none.
+  const idsFor = (row: RollupRow): string[] =>
+    rollup === 'group'
+      ? row.children.map((c) => c.key).filter((k): k is string => k !== null)
+      : row.key !== null ? [row.key] : [];
+  const sorted = [...rows].sort((a, b) => {
+    const cmp = sort.key === 'label' ? a.label.localeCompare(b.label) : a.total - b.total;
+    return sort.dir === 'asc' ? cmp : -cmp;
+  });
   return (
     <TBody>
       <tr>
         <th
-          colSpan={3}
-          className="border-b border-line bg-canvas-sunken/50 px-4 pt-4 pb-2 text-left text-[12px] font-bold uppercase tracking-[0.1em] text-content"
+          colSpan={2}
+          className="border-b border-line bg-canvas-sunken/50 px-4 pt-4 pb-2 text-left text-[13px] font-bold text-content"
         >
           {title}
         </th>
       </tr>
-      <TR>
-        <TH>{colHead}</TH>
-        <TH numeric>Amount</TH>
-        <TH numeric>{pctHead}</TH>
-      </TR>
-      {rows.map((row) => {
-          // Null key = uncategorized ("Other"): inert, never a filter or a group
-          // to expand. A group with a single child equal to the group total has
-          // nothing new to reveal, so it doesn't expand either.
+      {/* Column headers + sort only earn their space when there's more than one
+           row to compare. */}
+      {rows.length > 1 && (
+        <TR>
+          <SortHead label={colHead} sortKey="label" sort={sort} onSort={onSort} />
+          <SortHead label="Amount" sortKey="amount" sort={sort} onSort={onSort} numeric />
+        </TR>
+      )}
+      {sorted.map((row) => {
+          // Null key = uncategorized ("Other"): inert, no transactions to filter.
           const expandable = rollup === 'group' && row.key !== null && row.children.length > 1;
           const isOpen = expandable && openGroups.has(row.key);
-          const selectable = rollup === 'category' && row.key !== null;
-          const isSelected = selectable && selectedCategory === row.key;
-          const clickable = expandable || selectable;
+          const ids = idsFor(row);
+          const drillable = ids.length > 0;
+          // Bar = share of the section total (truthful: a tiny category reads
+          // as a tiny bar).
+          const barPct = (row.total / denominator) * 100;
           return (
             <React.Fragment key={row.key ?? `uncategorized-${title}`}>
+              {/* Expandable group rows act as an accordion header: clicking the
+                   row body toggles open/closed (mouse; the chevron is the
+                   keyboard toggle). A dedicated trailing arrow is the ONE thing
+                   that opens the transactions behind the row — so there's no
+                   hidden "the text is a link" ambiguity. The row is not itself a
+                   button, so the chevron + arrow stay the real controls (no
+                   nested ARIA buttons). Names wrap on mobile, truncate desktop. */}
               <TR
-                interactive={clickable}
-                aria-expanded={expandable ? isOpen : undefined}
-                aria-pressed={selectable ? isSelected : undefined}
-                onClick={clickable
-                  ? () => (expandable ? toggleGroup(row.key) : onSelectCategory(row.key as string))
-                  : undefined}
-                className={cn(
-                  'ui-focus',
-                  isSelected && 'bg-brand-soft hover:bg-brand-soft',
-                  !clickable && 'cursor-default',
-                )}
-                tabIndex={clickable ? 0 : undefined}
-                role={clickable ? 'button' : undefined}
-                onKeyDown={clickable
-                  ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        if (expandable) toggleGroup(row.key);
-                        else onSelectCategory(row.key as string);
-                      }
-                    }
-                  : undefined}
+                interactive={expandable}
+                onClick={expandable ? () => toggleGroup(row.key) : undefined}
               >
-                <TD className={cn('max-w-0', isSelected && 'text-[rgb(var(--ui-brand-ink))]')}>
-                  <span className="flex items-center gap-2">
-                    {expandable && (
-                      <ChevronDown
-                        size={15}
-                        className={cn('shrink-0 text-content-muted transition-transform', isOpen && 'rotate-180')}
-                        aria-hidden
-                      />
-                    )}
-                    <span className={cn('truncate font-medium', isSelected ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-content')}>
-                      {row.label}
-                    </span>
-                  </span>
+                <TD>
+                  <div className="flex items-center gap-2">
+                    {expandable ? (
+                      <button
+                        type="button"
+                        aria-label={isOpen ? 'Collapse group' : 'Expand group'}
+                        aria-expanded={isOpen}
+                        onClick={(e) => { e.stopPropagation(); toggleGroup(row.key); }}
+                        className="ui-focus -ml-1 grid h-6 w-6 shrink-0 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
+                      >
+                        <ChevronDown size={15} className={cn('transition-transform', isOpen && 'rotate-180')} aria-hidden />
+                      </button>
+                    ) : rollup === 'group' ? (
+                      <span className="w-6 shrink-0" aria-hidden />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="min-w-0 flex-1 line-clamp-2 font-medium text-content" title={row.label}>{row.label}</span>
+                        {drillable && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onDrill(ids); }}
+                            aria-label={`View ${row.label} transactions`}
+                            className="ui-focus inline-flex shrink-0 items-center gap-1 rounded-ui-sm py-1 text-[12px] font-semibold text-content-muted transition-colors hover:text-[rgb(var(--ui-brand-ink))] hover:underline"
+                          >
+                            View Transactions
+                            <ArrowRight size={13} aria-hidden />
+                          </button>
+                        )}
+                      </div>
+                      <span className="mt-1.5 block h-2 w-full overflow-hidden rounded-full bg-canvas-sunken" aria-hidden>
+                        <span className="block h-full rounded-full" style={{ width: `${barPct}%`, background: BAR_FILL }} />
+                      </span>
+                    </div>
+                  </div>
                 </TD>
-                <TD numeric className="font-semibold">{formatCurrency(row.total)}</TD>
-                <TD numeric>{pctLabel(row.total, denominator)}</TD>
+                <TD numeric className="align-top font-semibold">{formatCurrency(row.total)}</TD>
               </TR>
               {isOpen && row.children.map((child) => {
-                const childSelectable = child.key !== null;
-                const childSelected = childSelectable && selectedCategory === child.key;
+                const childDrillable = child.key !== null;
+                // Disambiguate a child that shares its parent group's name (the
+                // group's own direct category) so it doesn't read as a dup row.
+                const childLabel = child.label === row.label ? `${child.label} (general)` : child.label;
                 return (
-                  <TR
-                    key={child.key ?? `uncategorized-${title}`}
-                    interactive={childSelectable}
-                    aria-pressed={childSelectable ? childSelected : undefined}
-                    onClick={childSelectable ? () => onSelectCategory(child.key as string) : undefined}
-                    className={cn(
-                      'ui-focus bg-canvas-sunken/40',
-                      childSelected && 'bg-brand-soft hover:bg-brand-soft',
-                      !childSelectable && 'cursor-default',
-                    )}
-                    tabIndex={childSelectable ? 0 : undefined}
-                    role={childSelectable ? 'button' : undefined}
-                    onKeyDown={childSelectable
-                      ? (e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            onSelectCategory(child.key as string);
-                          }
-                        }
-                      : undefined}
-                  >
-                    <TD className={cn('max-w-0 pl-10', childSelected && 'text-[rgb(var(--ui-brand-ink))]')}>
-                      <span className={cn('block truncate font-medium', childSelected ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-content')}>
-                        {child.label}
-                      </span>
+                  <TR key={child.key ?? `uncategorized-${title}`} className="bg-canvas-sunken/40">
+                    <TD className="pl-16">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="min-w-0 flex-1 line-clamp-2 font-medium text-content" title={childLabel}>{childLabel}</span>
+                        {childDrillable && (
+                          <button
+                            type="button"
+                            onClick={() => onDrill([child.key as string])}
+                            aria-label={`View ${childLabel} transactions`}
+                            className="ui-focus inline-flex shrink-0 items-center gap-1 rounded-ui-sm py-1 text-[12px] font-semibold text-content-muted transition-colors hover:text-[rgb(var(--ui-brand-ink))] hover:underline"
+                          >
+                            View Transactions
+                            <ArrowRight size={13} aria-hidden />
+                          </button>
+                        )}
+                      </div>
                     </TD>
-                    <TD numeric>{formatCurrency(child.total)}</TD>
-                    <TD numeric>{pctLabel(child.total, denominator)}</TD>
+                    <TD numeric className="align-top">{formatCurrency(child.total)}</TD>
                   </TR>
                 );
               })}
@@ -371,7 +312,6 @@ function BreakdownSection({
         <TR className="border-t border-line-strong">
           <TD className="font-bold text-content">{totalLabel}</TD>
           <TD numeric className="font-bold text-content">{formatCurrency(denominator)}</TD>
-          <TD numeric className="font-bold text-content">100%</TD>
         </TR>
       )}
     </TBody>
@@ -385,6 +325,7 @@ function BreakdownSection({
 export function Spending() {
   const { setPageContext } = usePageContext();
   const { user } = useAuth();
+  const [, navigate] = useLocation();
 
   // Period navigation
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -401,16 +342,10 @@ export function Spending() {
   const [netCashFlow, setNetCashFlow] = useState(0);
   const [periods, setPeriods] = useState<CashflowPeriod[]>([]);
 
-  // Filters — selectedCategory holds a category ID (uuid); TransactionList
-  // forwards it to the API, which dual-accepts ids.
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-
   // Linked account detection
   const [hasLinkedAccounts, setHasLinkedAccounts] = useState(false);
   const [creditCardTotal, setCreditCardTotal] = useState(0);
 
-  // Donut hover index (drives slice dim + the pill / center swap).
-  const [donutHover, setDonutHover] = useState<number | null>(null);
 
   // Trend-chart hover index (bubbles up to swap the hero value).
   const [chartHover, setChartHover] = useState<number | null>(null);
@@ -423,6 +358,9 @@ export function Spending() {
 
   // Loading
   const [loadingSummary, setLoadingSummary] = useState(true);
+  // The summary fetch failed — show a Retry card instead of the "connect an
+  // account" empty state, so a network blip doesn't look like no data.
+  const [summaryError, setSummaryError] = useState(false);
   // First-load gate: the big skeleton renders only before the FIRST summary
   // resolves. Later period switches keep stale content mounted (dimmed) so the
   // page doesn't flash to skeletons on every bar click.
@@ -464,6 +402,7 @@ export function Spending() {
     api.getSpendingSummary({ startDate: periodStart, endDate: periodEnd })
       .then((data) => {
         if (!active) return;
+        setSummaryError(false);
         setCategories(data.categories);
         setTotalSpending(data.totalSpending);
         setTotalIncome(data.totalIncome);
@@ -471,6 +410,7 @@ export function Spending() {
       })
       .catch(() => {
         if (!active) return;
+        setSummaryError(true);
         setCategories([]);
         setTotalSpending(0);
         setTotalIncome(0);
@@ -513,10 +453,26 @@ export function Spending() {
   // excluded transactions).
   const selPeriodData = periods.find((p) => p.period === selectedPeriod) ?? null;
   const instant = loadingSummary && selPeriodData !== null;
-  const displaySpending = instant ? selPeriodData.expenses : totalSpending;
-  const displayIncome = instant ? selPeriodData.income : totalIncome;
-  const displayNet = instant ? selPeriodData.net : netCashFlow;
+  // While hovering a trend bar, the WHOLE hero (spent + income/net/savings)
+  // reflects the hovered period, so the KPIs can never contradict the big
+  // number. Off-hover, it's the selected period's totals.
+  const hoveredPeriod = chartHover !== null ? periods[chartHover] ?? null : null;
+  const baseSpending = instant ? selPeriodData.expenses : totalSpending;
+  const baseIncome = instant ? selPeriodData.income : totalIncome;
+  const baseNet = instant ? selPeriodData.net : netCashFlow;
+  const displaySpending = hoveredPeriod ? hoveredPeriod.expenses : baseSpending;
+  const displayIncome = hoveredPeriod ? hoveredPeriod.income : baseIncome;
+  const displayNet = hoveredPeriod ? hoveredPeriod.net : baseNet;
   const savingsRate = displayIncome > 0 ? ((displayIncome - displaySpending) / displayIncome) * 100 : null;
+  // The insights strip describes recent activity (the default landing period).
+  // Hide it when browsing history so its month-specific copy never contradicts
+  // the period in view.
+  const defaultMonthPeriod = useMemo(() => {
+    const d = new Date();
+    const m = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+  const onDefaultPeriod = granularity === 'month' && selectedPeriod === defaultMonthPeriod;
 
   const prevMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
@@ -567,52 +523,6 @@ export function Spending() {
     [categories],
   );
 
-  // Donut rows - expense GROUPS, always. The donut is a fixed group-level
-  // visual (no toggle); the labeled category breakdown lives in the table below.
-  const donutGroupRows = useMemo(
-    () => buildRollupRows(spendingCategories, 'group'),
-    [spendingCategories],
-  );
-
-  // DonutMini slices - viz palette, color assigned by SORTED position so the
-  // largest slice always gets the same hue across renders. With a handful of
-  // groups every slice renders; only when there are genuinely too many groups
-  // to read do sub-5% rows roll into a single "Smaller groups" bin (preserving
-  // 100% of the total).
-  const donutSlices = useMemo(() => {
-    const toSlice = (c: (typeof donutGroupRows)[number], i: number) => ({
-      name: c.key,
-      label: c.label,
-      amount: c.total,
-      color: colorForIndex(i),
-    });
-    // Below this count, render every group as its own slice.
-    const MAX_SLICES = 10;
-    if (donutGroupRows.length <= MAX_SLICES) {
-      return donutGroupRows.map(toSlice);
-    }
-    const total = donutGroupRows.reduce((s, c) => s + c.total, 0);
-    const SMALL_THRESHOLD = 0.05; // 5% of total
-    const bigCount = total > 0
-      ? donutGroupRows.filter((c) => c.total / total >= SMALL_THRESHOLD).length
-      : donutGroupRows.length;
-    if (donutGroupRows.length - bigCount < 2) {
-      return donutGroupRows.map(toSlice);
-    }
-    const slices = donutGroupRows.slice(0, bigCount).map(toSlice);
-    slices.push({
-      name: '__tailbin__',
-      label: 'Smaller groups',
-      amount: donutGroupRows.slice(bigCount).reduce((s, c) => s + c.total, 0),
-      color: TAIL_COLOR,
-    });
-    return slices;
-  }, [donutGroupRows]);
-  const donutTotal = useMemo(
-    () => donutSlices.reduce((s, c) => s + c.amount, 0),
-    [donutSlices],
-  );
-
   // Top category (for lede).
   const topCategoryLabel = useMemo(() => {
     if (spendingCategories.length === 0) return null;
@@ -620,8 +530,10 @@ export function Spending() {
     return top ? top.name : null;
   }, [spendingCategories]);
 
-  // Breakdown table - its own Category/Group toggle (the one the user asked for).
+  // Breakdown table - its own Category/Group toggle, plus a sort shared by both
+  // the income and expense sections (default: largest amount first).
   const [tableRollup, setTableRollup] = useState<'category' | 'group'>('category');
+  const [sort, setSort] = useState<{ key: 'label' | 'amount'; dir: 'asc' | 'desc' }>({ key: 'amount', dir: 'desc' });
   const incomeRows = useMemo(
     () => buildRollupRows(incomeCategories, tableRollup),
     [incomeCategories, tableRollup],
@@ -647,28 +559,33 @@ export function Spending() {
   }, []);
   const handleTableRollupChange = useCallback((r: 'category' | 'group') => {
     setTableRollup(r);
-    setSelectedCategory(null);
   }, []);
-  // Toggle a table row's category filter (click again to clear).
-  const selectCategory = useCallback((key: string) => {
-    setSelectedCategory((cur) => (cur === key ? null : key));
+  const handleSort = useCallback((key: 'label' | 'amount') => {
+    setSort((cur) => cur.key === key
+      ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: key === 'label' ? 'asc' : 'desc' });
   }, []);
+  // Drill from a breakdown row to the transactions behind it, filtered to the
+  // given category ids. The Transactions page hydrates its filter from the URL.
+  const drillToTransactions = useCallback((categoryIds: string[]) => {
+    if (categoryIds.length === 0) return;
+    navigate(`/transactions?categories=${categoryIds.join(',')}`);
+  }, [navigate]);
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
   const priorPeriodDelta = useMemo(() => {
-    if (periods.length < 2 || displaySpending === 0) return null;
+    if (periods.length < 2 || baseSpending === 0) return null;
     const idx = periods.findIndex((p) => p.period === selectedPeriod);
     if (idx < 1) return null;
     const prior = periods[idx - 1];
     if (!prior || prior.expenses === 0) return null;
-    const pct = ((displaySpending - prior.expenses) / prior.expenses) * 100;
+    const pct = ((baseSpending - prior.expenses) / prior.expenses) * 100;
     return Math.round(pct);
-  }, [periods, displaySpending, selectedPeriod]);
+  }, [periods, baseSpending, selectedPeriod]);
 
   const hasChart = periods.length > 0;
 
-  const hoveredPeriod = chartHover !== null ? periods[chartHover] : null;
-  const heroValue = hoveredPeriod ? hoveredPeriod.expenses : displaySpending;
+  const heroValue = displaySpending;
   const heroCaption = hoveredPeriod
     ? periodLabel(hoveredPeriod.period, granularity)
     : periodDisplayLabel;
@@ -698,8 +615,9 @@ export function Spending() {
           )}
         </div>
 
-        {/* Granularity toggle + month stepper (+ sync when admin) */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Granularity toggle + month stepper (+ sync when admin). Wraps so the
+             admin Sync control can appear on mobile without overflowing. */}
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
           <SegmentedControl
             aria-label="Granularity"
             value={granularity}
@@ -720,7 +638,7 @@ export function Spending() {
               >
                 <ChevronLeft size={18} />
               </button>
-              <span className="ui-tnum min-w-[76px] px-1 text-center font-editorial text-[13.5px] font-bold tracking-[-0.01em] text-content sm:min-w-[92px]">
+              <span className="ui-tnum min-w-[76px] px-1 text-center text-[13.5px] font-bold tracking-[-0.01em] text-content sm:min-w-[92px]">
                 {currentMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
               </span>
               <button
@@ -746,10 +664,8 @@ export function Spending() {
               }}
               leadingIcon={<RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />}
               aria-label={syncing ? 'Syncing' : 'Sync'}
-              // Desktop-only: another control overflows the one-row header at
-              // 390px for admins. Admins sync from desktop.
-              className="hidden sm:inline-flex"
             >
+              {/* Icon-only on mobile to save header width; labeled on desktop. */}
               <span className="hidden sm:inline">{syncing ? 'Syncing…' : 'Sync'}</span>
             </Button>
           )}
@@ -875,8 +791,20 @@ export function Spending() {
         </section>
       )}
 
+      {/* ════════ Load error — offer Retry, don't masquerade as an empty month ═══ */}
+      {!loadingSummary && summaryError && (
+        <div className="mt-7">
+          <EmptyState
+            icon={<RefreshCw size={22} />}
+            title="Couldn't load your spending"
+            description="Something went wrong fetching this period. Check your connection and try again."
+            action={<Button variant="primary" onClick={loadData}>Retry</Button>}
+          />
+        </div>
+      )}
+
       {/* ════════ Estimated (linked but no transactions) ════════ */}
-      {!loadingSummary && noData && hasLinkedAccounts && (
+      {!loadingSummary && noData && !summaryError && hasLinkedAccounts && (
         <section className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
           <Badge tone="caution">Estimated</Badge>
           <h3 className="mt-1.5 font-editorial text-[19px] font-bold tracking-[-0.018em]">Transaction sync coming soon</h3>
@@ -895,7 +823,7 @@ export function Spending() {
       )}
 
       {/* ════════ Empty — no transactions and nothing linked ════════ */}
-      {!loadingSummary && noData && !hasLinkedAccounts && (
+      {!loadingSummary && noData && !summaryError && !hasLinkedAccounts && (
         <div className="mt-7">
           <EmptyState
             icon={<Receipt size={24} />}
@@ -911,49 +839,25 @@ export function Spending() {
       )}
 
       {/* ════════ Behavioral / spending insights ════════ */}
-      <section className="mt-10">
-        <PageActions types={['spending', 'behavioral']} />
-      </section>
-
-      {/* ════════ WHERE IT WENT - a fixed group-level spending donut: total-spend
-           center, slice hover shows the group's dollar amount and %. A pure
-           visual (no toggle, no click-to-filter). The labeled category breakdown
-           and all transaction filtering live in the table below. ═══ */}
-      {hasLoadedSummary && spendingCategories.length > 0 && (
+      {onDefaultPeriod && (
         <section className="mt-10">
-          <h2 className="pb-4 font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Where it went</h2>
-          <div className={cn(
-            'mx-auto w-full max-w-[420px] rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-6 sm:p-7 transition-opacity duration-200',
-            loadingSummary && 'opacity-50',
-          )}>
-            <div className="mx-auto w-full max-w-[280px]">
-              <DonutMini
-                cats={donutSlices}
-                total={donutTotal}
-                hovered={donutHover}
-                onHoverChange={setDonutHover}
-                fmtAmount={formatCurrency}
-                centerLabel="Total spend"
-                centerValue={formatCurrency(donutTotal)}
-              />
-            </div>
-          </div>
+          <PageActions types={['spending', 'behavioral']} />
         </section>
       )}
 
-      {/* ════════ INCOME AND EXPENSES - full breakdown table, income and
-           expenses each with their own % denominator. Its own Category/Group
-           toggle (independent of the donut). Group mode expands to child
-           categories. Expense and income category rows filter the transactions
-           below. ═══ */}
+      {/* ════════ SPENDING BREAKDOWN - one card: a sortable income/expense ledger
+           where each row is a ranked bar (self-labeled, so no separate legend).
+           The Category/Group toggle drives both sections; a row click opens the
+           transactions behind it, filtered. Income is its own section. ═══ */}
       {hasLoadedSummary && !noData && (totalIncome > 0 || spendingCategories.length > 0) && (
         <section className="mt-10">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-4">
-            <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Income and expenses</h2>
+            <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Spending breakdown</h2>
             <SegmentedControl
               aria-label="Break down by"
               value={tableRollup}
               onChange={handleTableRollupChange}
+              stretch={false}
               options={[
                 { value: 'category', label: 'Category' },
                 { value: 'group', label: 'Group' },
@@ -965,32 +869,34 @@ export function Spending() {
             loadingSummary && 'opacity-50',
           )}>
             <Table>
-              {totalIncome > 0 && incomeRows.length > 0 && (
-                <BreakdownSection
-                  title="Income"
-                  rows={incomeRows}
-                  totalLabel="Total income"
-                  colHead={tableRollup === 'group' ? 'Group' : 'Category'}
-                  pctHead="% of income"
-                  rollup={tableRollup}
-                  openGroups={openGroups}
-                  toggleGroup={toggleGroup}
-                  selectedCategory={selectedCategory}
-                  onSelectCategory={selectCategory}
-                />
-              )}
               {spendingCategories.length > 0 && (
                 <BreakdownSection
                   title="Expenses"
                   rows={expenseRows}
                   totalLabel="Total expenses"
                   colHead={tableRollup === 'group' ? 'Group' : 'Category'}
-                  pctHead="% of expenses"
                   rollup={tableRollup}
                   openGroups={openGroups}
                   toggleGroup={toggleGroup}
-                  selectedCategory={selectedCategory}
-                  onSelectCategory={selectCategory}
+                  onDrill={drillToTransactions}
+                  sort={sort}
+                  onSort={handleSort}
+                />
+              )}
+              {/* Income breakdown only when it spans multiple sources — a single
+                   income row just restates the hero's Income KPI. */}
+              {incomeRows.length > 1 && (
+                <BreakdownSection
+                  title="Income"
+                  rows={incomeRows}
+                  totalLabel="Total income"
+                  colHead={tableRollup === 'group' ? 'Group' : 'Category'}
+                  rollup={tableRollup}
+                  openGroups={openGroups}
+                  toggleGroup={toggleGroup}
+                  onDrill={drillToTransactions}
+                  sort={sort}
+                  onSort={handleSort}
                 />
               )}
             </Table>
@@ -1003,9 +909,6 @@ export function Spending() {
         <TransactionList
           startDate={periodStart}
           endDate={periodEnd}
-          category={selectedCategory}
-          onCategoryChange={(c) => setSelectedCategory(c)}
-          onClearCategory={() => setSelectedCategory(null)}
           refreshKey={refreshKey}
           onDataChanged={loadData}
           onCreateRule={(seed) => setRulesPanel({ open: true, seed })}
