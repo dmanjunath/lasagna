@@ -12,10 +12,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { PlanType } from "../../lib/types.js";
+import type { PlanType, PlanStatus } from "../../lib/types.js";
 import { api, API_BASE } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
-import { Button } from "../../components/uikit";
+import { Badge, Button, type BadgeProps } from "../../components/uikit";
 import { EditableTitle } from "../../components/ui/editable-title.js";
 import { PromptTransition, type TransitionState } from "../../components/plan/prompt-transition.js";
 import { PlanResponse } from "../../components/plan-response/index.js";
@@ -29,6 +29,9 @@ const PLAN_META: Record<PlanType, { label: string; icon: typeof Target; accent: 
   debt_payoff: { label: "Debt Payoff", icon: CreditCard, accent: "var(--ui-viz-4)" },
   custom: { label: "Custom", icon: Sparkles, accent: "var(--ui-viz-5)" },
 };
+
+const statusTone = (status: PlanStatus): BadgeProps["tone"] =>
+  status === "active" ? "brand" : "neutral";
 
 export function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -279,13 +282,13 @@ export function PlanDetailPage() {
                   )}
                 </div>
 
-                <p className="mt-2 inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-semibold text-content-muted">
-                  <span className="inline-flex items-center rounded-full bg-canvas-sunken px-2 py-0.5 text-[11px] font-bold capitalize text-content-secondary">
+                <p className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge tone={statusTone(plan.status)} className="capitalize">
                     {plan.status}
-                  </span>
-                  <span className="ui-tnum">
+                  </Badge>
+                  <Badge tone="neutral">
                     Updated {new Date(plan.updatedAt).toLocaleDateString()}
-                  </span>
+                  </Badge>
                 </p>
               </div>
 

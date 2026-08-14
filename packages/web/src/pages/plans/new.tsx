@@ -97,10 +97,6 @@ export function NewPlanPage() {
         <h1 className="mt-4 font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
           What are you planning for?
         </h1>
-        <p className="mt-2 max-w-[54ch] text-[14.5px] font-semibold text-content-muted">
-          Choose a type and Lasagna drafts a plan from your real accounts. You can refine
-          everything afterward in chat.
-        </p>
       </header>
 
       {/* ════════ Type chooser ════════ */}

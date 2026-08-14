@@ -135,15 +135,7 @@ export function PlansPage() {
           <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Plans
           </h1>
-          {summaryLine ? (
-            <p className="mt-2">{summaryLine}</p>
-          ) : (
-            !loading && (
-              <p className="mt-2 max-w-[52ch] text-[14.5px] font-semibold text-content-muted">
-                Build and follow AI-guided plans for retirement, net worth, debt payoff, and more.
-              </p>
-            )
-          )}
+          {summaryLine && <p className="mt-2">{summaryLine}</p>}
         </div>
         {!isDemo && plans.length > 0 && (
           <Link href="/plans/new">

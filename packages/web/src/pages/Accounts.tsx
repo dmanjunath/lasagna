@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import {
@@ -21,7 +21,7 @@ import { useAuth } from "../lib/auth";
 import { isNativeApp } from "../lib/native";
 import { useBilling, startUpgrade } from "../lib/billing";
 import { cn, stripAccountMask } from "../lib/utils";
-import { Button, Field, Input, Modal, Skeleton } from "../components/uikit";
+import { Badge, Button, Field, Input, Modal, Skeleton } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
 import { AccountLinkPicker, type AccountPickerOption } from "../components/common/AccountLinkPicker";
@@ -814,11 +814,23 @@ export function Accounts() {
     .filter((v): v is string => !!v)
     .sort()
     .pop();
-  const captionParts: string[] = [];
-  if (totalAccounts > 0) captionParts.push(`${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`);
-  if (items.length > 0) captionParts.push(`${items.length} institution${items.length !== 1 ? "s" : ""}`);
-  if (totalTracked > 0) captionParts.push(`${formatTotal(totalTracked)} tracked`);
-  if (lastSync) captionParts.push(`synced ${formatRelativeTime(lastSync)}`);
+  const headerTags: ReactNode[] = [];
+  if (totalAccounts > 0)
+    headerTags.push(
+      <Badge key="accounts" tone="neutral">{`${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`}</Badge>,
+    );
+  if (items.length > 0)
+    headerTags.push(
+      <Badge key="institutions" tone="neutral">{`${items.length} institution${items.length !== 1 ? "s" : ""}`}</Badge>,
+    );
+  if (totalTracked > 0)
+    headerTags.push(
+      <Badge key="tracked" tone="neutral">{`${formatTotal(totalTracked)} tracked`}</Badge>,
+    );
+  if (lastSync)
+    headerTags.push(
+      <Badge key="synced" tone="neutral">{`synced ${formatRelativeTime(lastSync)}`}</Badge>,
+    );
 
   const usedPct = billing
     ? Math.max(0, Math.min(100, (billing.usage.accounts / Math.max(1, billing.usage.maxAccounts)) * 100))
@@ -832,15 +844,9 @@ export function Accounts() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
             Accounts
           </h1>
-          <p className="mt-1.5 text-[14px] font-medium text-content-muted">
-            <span className="min-w-0">
-              {loading
-                ? "Loading your connections…"
-                : captionParts.length > 0
-                ? captionParts.join(", ")
-                : "Connect an account to start tracking your money"}
-            </span>
-          </p>
+          {!loading && headerTags.length > 0 && (
+            <p className="mt-1.5 flex flex-wrap items-center gap-2">{headerTags}</p>
+          )}
         </div>
         {!isDemoMode && items.length > 0 && (
           <div className="flex flex-wrap items-center gap-2.5">

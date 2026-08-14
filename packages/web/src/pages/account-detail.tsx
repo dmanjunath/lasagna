@@ -4,7 +4,7 @@ import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp, Lock }
 import { api } from '../lib/api';
 import { startUpgrade } from '../lib/billing';
 import { cn, stripAccountMask } from '../lib/utils';
-import { Button, Field, Input, Select, SegmentedControl, Skeleton } from '../components/uikit';
+import { Badge, Button, Field, Input, Select, SegmentedControl, Skeleton } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
 import { InstIcon } from '../components/common/InstIcon';
@@ -662,9 +662,9 @@ export function AccountDetail() {
               <span>{institution}</span>
               {acct.mask && <span className="ui-tnum">••{acct.mask}</span>}
               {acct.frozen && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
+                <Badge tone="info" size="sm">
                   <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
-                </span>
+                </Badge>
               )}
             </div>
           </div>

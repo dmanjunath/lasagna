@@ -2004,11 +2004,8 @@ export function RetirementV2() {
           <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
             Retirement
           </h1>
-          <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">
-            {formatMoney(portfolioValue, true)} in liquid savings
-            {portfolioValue > 0 && (
-              <> ({formatMoney(buckets.taxable, true)} taxable, {formatMoney(buckets.deferred, true)} tax-deferred, {formatMoney(buckets.roth, true)} Roth{buckets.hsa > 0 && <>, {formatMoney(buckets.hsa, true)} HSA</>})</>
-            )}
+          <p className="mt-1.5 flex flex-wrap items-center gap-2">
+            <Badge tone="neutral">{formatMoney(portfolioValue, true)} in liquid savings</Badge>
           </p>
         </div>
         <SegmentedControl

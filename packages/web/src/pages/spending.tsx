@@ -523,13 +523,6 @@ export function Spending() {
     [categories],
   );
 
-  // Top category (for lede).
-  const topCategoryLabel = useMemo(() => {
-    if (spendingCategories.length === 0) return null;
-    const top = [...spendingCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total))[0];
-    return top ? top.name : null;
-  }, [spendingCategories]);
-
   // Breakdown table - its own Category/Group toggle, plus a sort shared by both
   // the income and expense sections (default: largest amount first).
   const [tableRollup, setTableRollup] = useState<'category' | 'group'>('category');
@@ -604,15 +597,6 @@ export function Spending() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Spending
           </h1>
-          {hasLoadedSummary && (
-            <p className="mt-1.5 hidden text-[14px] font-medium text-content-muted sm:block">
-              {topCategoryLabel ? (
-                <>Where your money went. Most went to <b className="font-bold text-content">{topCategoryLabel}</b>.</>
-              ) : (
-                <>Where your money went in {periodDisplayLabel}.</>
-              )}
-            </p>
-          )}
         </div>
 
         {/* Granularity toggle + month stepper (+ sync when admin). Wraps so the

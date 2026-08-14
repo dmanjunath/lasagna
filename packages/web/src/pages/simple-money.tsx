@@ -8,7 +8,7 @@ import {
 import { api } from '../lib/api';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask } from '../lib/utils';
-import { Button, SegmentedControl, EmptyState, Skeleton, useToast } from '../components/uikit';
+import { Badge, Button, SegmentedControl, EmptyState, Skeleton, useToast } from '../components/uikit';
 import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
 import { CategoryPicker } from '../components/common/CategoryPicker';
 import { TxnRow } from '../components/transactions/TransactionList';
@@ -54,9 +54,6 @@ const fmtUsd = (n: number, frac = 0) =>
 // feeds a total or a row value so the UI matches the server's net-worth math.
 const effectiveBalance = (a: { balance: string | null; invertBalance?: boolean }) =>
   (a.invertBalance ? -1 : 1) * parseFloat(a.balance ?? '0');
-
-const formatDateLong = (d: Date) =>
-  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
 export function SimpleMoney() {
   const displayOf = useCategoryDisplay();
@@ -222,11 +219,14 @@ export function SimpleMoney() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
             Money
           </h1>
-          <p className="mt-1.5 text-[14px] font-medium text-content-muted">
-            {hasMoney
-              ? `${totalAccountCount} account${totalAccountCount === 1 ? '' : 's'}${lastSynced ? `, last synced ${relativeTime(lastSynced)}` : ''}`
-              : formatDateLong(new Date())}
-          </p>
+          {hasMoney && (
+            <p className="mt-1.5 flex flex-wrap items-center gap-2">
+              <Badge tone="neutral">
+                {totalAccountCount} account{totalAccountCount === 1 ? '' : 's'}
+              </Badge>
+              {lastSynced && <Badge tone="neutral">synced {relativeTime(lastSynced)}</Badge>}
+            </p>
+          )}
         </div>
         {hasMoney && (
           <div className="flex w-full gap-2.5 sm:w-auto">

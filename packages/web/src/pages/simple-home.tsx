@@ -113,9 +113,6 @@ function formatMoneyShort(n: number): string {
   return `${sign}$${Math.round(abs)}`;
 }
 
-const formatDateLong = (d: Date) =>
-  d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
 const formatDateShort = (d: Date) =>
   d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
@@ -418,9 +415,6 @@ export function SimpleHome() {
         <h1 className="font-editorial text-[26px] sm:text-[33px] font-bold leading-[1.05] tracking-[-0.025em] text-content">
           {greeting}, {firstName} <span className="inline-block origin-[70%_70%]">👋</span>
         </h1>
-        <p className="mt-1.5 text-[14px] font-medium text-content-muted">
-          {formatDateLong(new Date())}. Here's what's worth a look.
-        </p>
       </header>
 
       {/* First-paint skeleton — reserves the hero + grid footprint. */}

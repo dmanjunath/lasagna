@@ -348,12 +348,6 @@ export function TaxStrategy() {
     document.getElementById("tax-documents-section")?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Subtitle bits — filing year + live document/action counts.
-  const subBits: string[] = [`${FILING_YEAR} filing year`];
-  if (documents.length > 0) subBits.push(`${documents.length} doc${documents.length === 1 ? "" : "s"}`);
-  if (insights.length > 0) subBits.push(`${insights.length} strateg${insights.length === 1 ? "y" : "ies"}`);
-  const subtitleText = subBits.join(", ");
-
   const hasDocs = documents.length > 0;
   const strategyCount = insights.length;
   const topAmount = savingsBreakdown[0]?.amount ?? 0;
@@ -379,7 +373,6 @@ export function TaxStrategy() {
           <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
             How do I lower my taxes?
           </h1>
-          <p className="mt-1.5 text-[14px] font-medium text-content-muted">{subtitleText}</p>
         </div>
         {showUpload && (
           <Button

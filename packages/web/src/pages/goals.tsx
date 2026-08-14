@@ -237,9 +237,9 @@ export function Goals() {
   const summaryLine = !loading && activeGoals.length > 0 && (
     <span className="inline-flex flex-wrap items-center gap-2">
       <Badge tone="brand">{inProgressCount} active</Badge>
-      {fundedCount > 0 && <Badge tone="neutral">{fundedCount} funded</Badge>}
+      {fundedCount > 0 && <Badge tone="positive">{fundedCount} funded</Badge>}
       {fundedCount > 0 && <Badge tone="neutral">{activeGoals.length} goal{activeGoals.length === 1 ? '' : 's'} tracked</Badge>}
-      {completedGoals.length > 0 && <Badge tone="neutral">{completedGoals.length} complete</Badge>}
+      {completedGoals.length > 0 && <Badge tone="positive">{completedGoals.length} complete</Badge>}
     </span>
   );
 

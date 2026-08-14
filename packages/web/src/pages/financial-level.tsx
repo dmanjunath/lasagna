@@ -674,11 +674,6 @@ export function FinancialLevel() {
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
           Financial Level
         </h1>
-        <p className="mt-2 text-[14px] font-semibold text-content-muted">
-          {allComplete
-            ? 'Every level cleared. Time to fine-tune your plan.'
-            : <>{steps.length} money milestones, ordered by impact. We spotlight your highest-impact next move.</>}
-        </p>
       </header>
 
       {/* ════════ Hero — the climb ════════ */}

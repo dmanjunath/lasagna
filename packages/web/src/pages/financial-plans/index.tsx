@@ -316,9 +316,6 @@ export function FinancialPlansPage() {
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
           Financial Reports
         </h1>
-        <p className="mt-2 max-w-[52ch] text-[14.5px] font-semibold text-content-muted">
-          Financial Insights reports written from your real accounts.
-        </p>
       </header>
       <div className="mt-8">
         <FinancialPlansList />

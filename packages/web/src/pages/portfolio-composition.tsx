@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useLocation } from 'wouter';
 import { PageActions } from '../components/common/page-actions';
-import { Button, Surface, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
+import { Badge, Button, Surface, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
 import { faviconUrl, tickerToIssuer } from '../components/ds/institutions';
 
 // ---------------------------------------------------------------------------
@@ -979,7 +979,14 @@ export default function PortfolioComposition() {
     return (
       <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
         <PageHead
-          subtitle={`${formatMoney(accountTotal, true)} across ${accountAllocation.length} account${accountAllocation.length === 1 ? '' : 's'}, no holdings yet`}
+          tags={
+            <>
+              <Badge tone="neutral">{formatMoney(accountTotal, true)}</Badge>
+              <Badge tone="neutral">
+                {accountAllocation.length} account{accountAllocation.length === 1 ? '' : 's'}
+              </Badge>
+            </>
+          }
         />
 
         <section className="mt-6">
@@ -1033,7 +1040,7 @@ export default function PortfolioComposition() {
   if (assetClasses.length === 0) {
     return (
       <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
-        <PageHead subtitle="No accounts linked" />
+        <PageHead />
         <div className="mt-8">
           <EmptyState
             icon={<Building2 size={24} />}
@@ -1065,7 +1072,7 @@ export default function PortfolioComposition() {
       className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content"
       onMouseLeave={() => setHoveredSlice(null)}
     >
-      <PageHead subtitle="What you're invested in, and how it's allocated." />
+      <PageHead />
 
       {/* ════════ ALLOCATION HERO — one full-width chart + a legible breakdown ════════ */}
       <section className="mt-6">
@@ -1226,13 +1233,13 @@ export default function PortfolioComposition() {
 // Small presentational helpers
 // ---------------------------------------------------------------------------
 
-function PageHead({ subtitle }: { subtitle: React.ReactNode }) {
+function PageHead({ tags }: { tags?: React.ReactNode }) {
   return (
     <header className="animate-fade-in">
       <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
         Portfolio
       </h1>
-      <p className="mt-1.5 text-[14px] font-medium text-content-muted ui-tnum">{subtitle}</p>
+      {tags && <p className="mt-1.5 flex flex-wrap items-center gap-2">{tags}</p>}
     </header>
   );
 }

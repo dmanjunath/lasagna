@@ -227,16 +227,14 @@ export function Debt() {
 
 // ── Page header ───────────────────────────────────────────────────────────────
 
-function DebtHeader({ subtitle }: { subtitle?: React.ReactNode }) {
+function DebtHeader({ tags }: { tags?: React.ReactNode }) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
           Debt
         </h1>
-        {subtitle && (
-          <p className="mt-2 text-[14.5px] font-semibold text-content-muted">{subtitle}</p>
-        )}
+        {tags && <p className="mt-1.5 flex flex-wrap items-center gap-2">{tags}</p>}
       </div>
     </header>
   );
@@ -247,7 +245,7 @@ function DebtHeader({ subtitle }: { subtitle?: React.ReactNode }) {
 function NoAccountsView() {
   return (
     <>
-      <DebtHeader subtitle="No accounts linked" />
+      <DebtHeader />
       <div className="mt-8">
         <EmptyState
           icon={<CreditCard size={24} />}
@@ -949,9 +947,7 @@ function LoanDetailsModal({
 function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
-      <DebtHeader
-        subtitle={<span className="text-[rgb(var(--ui-brand-ink))] font-extrabold ui-tnum">$0, debt-free</span>}
-      />
+      <DebtHeader tags={<Badge tone="positive">$0, debt-free</Badge>} />
 
       <section className="mt-8">
         <h2 className="mb-2 font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">
