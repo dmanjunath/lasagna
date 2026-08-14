@@ -3,12 +3,15 @@ import { Link, useLocation } from 'wouter';
 import {
   Wallet, TrendingUp, RefreshCw, Plus,
   Lock, ChevronDown, ChevronRight, Settings2, Pencil,
+  DollarSign, Banknote,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask } from '../lib/utils';
-import { Button, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
+import { Button, SegmentedControl, EmptyState, Skeleton, useToast } from '../components/uikit';
 import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
+import { CategoryPicker } from '../components/common/CategoryPicker';
+import { TxnRow } from '../components/transactions/TransactionList';
 import { filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../components/ds/TrendChart';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
@@ -38,7 +41,7 @@ interface Item {
 }
 interface Transaction {
   id: string; date: string; name: string; merchantName: string | null;
-  amount: string; categoryId: string;
+  amount: string; categoryId: string; excludedAt: string | null;
 }
 
 type GroupBy = 'category' | 'institution';
@@ -46,8 +49,6 @@ const GROUP_BY_KEY = 'lasagna-money-group-by';
 
 const fmtUsd = (n: number, frac = 0) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
-const fmtUsdCents = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Balance with the user's invert override applied — used everywhere a balance
 // feeds a total or a row value so the UI matches the server's net-worth math.
@@ -59,12 +60,14 @@ const formatDateLong = (d: Date) =>
 
 export function SimpleMoney() {
   const displayOf = useCategoryDisplay();
+  const toast = useToast();
   const [items, setItems] = useState<Item[]>([]);
   const [history, setHistory] = useState<TrendPoint[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [range, setRange] = useState<Range>('6M');
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   // How the account lists are grouped: by asset category (default) or by the
   // institution they're connected through. Persisted so the choice survives.
   const [groupBy, setGroupBy] = useState<GroupBy>(() => {
@@ -114,6 +117,47 @@ export function SimpleMoney() {
   const reloadItems = () => {
     api.getItems().then((d) => setItems(d.items)).catch(() => {});
   };
+
+  // Page-local optimistic category edit (same shape as the transactions and
+  // spending surfaces): capture prev → optimistic patch → PATCH → success toast
+  // with undo, revert on failure. `newCatId` is a category id (uuid).
+  async function handleCategoryEdit(tx: Transaction, newCatId: string) {
+    if (newCatId === tx.categoryId) return;
+    const prevCatId = tx.categoryId;
+    setEditError(null);
+    setTransactions((prev) => prev.map((t) => (t.id === tx.id ? { ...t, categoryId: newCatId } : t)));
+    try {
+      await api.updateTransactionCategory(tx.id, newCatId);
+      const undo = async () => {
+        setTransactions((prev) => prev.map((t) => (t.id === tx.id ? { ...t, categoryId: prevCatId } : t)));
+        try {
+          await api.updateTransactionCategory(tx.id, prevCatId);
+          toast({ tone: 'info', title: 'Change undone' });
+        } catch {
+          setTransactions((prev) => prev.map((t) => (t.id === tx.id ? { ...t, categoryId: newCatId } : t)));
+          setEditError("Couldn't undo. Try again.");
+        }
+      };
+      toast({
+        tone: 'positive',
+        title: `Moved to ${displayOf({ categoryId: newCatId }).label}`,
+        duration: 6000,
+        description: prevCatId ? (
+          <button
+            type="button"
+            onClick={undo}
+            className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+          >
+            Undo
+          </button>
+        ) : undefined,
+      });
+    } catch (err) {
+      console.error(err);
+      setTransactions((prev) => prev.map((t) => (t.id === tx.id ? { ...t, categoryId: prevCatId } : t)));
+      setEditError("Couldn't update the category, so the change was undone. Try again.");
+    }
+  }
 
   // ── Totals from items ──
   // Account types: depository, investment, real_estate, alternative, credit, loan.
@@ -417,17 +461,34 @@ export function SimpleMoney() {
               View spending →
             </Link>
           </div>
+          {editError && (
+            <p role="alert" className="mb-3 px-1 text-[12.5px] font-medium text-negative">{editError}</p>
+          )}
           <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-            {transactions.map((t) => (
-              <TxnRow
-                key={t.id}
-                merchant={t.merchantName || t.name}
-                category={displayOf({ categoryId: t.categoryId }).label}
-                date={t.date}
-                amount={parseFloat(t.amount)}
-                fallbackIcon={displayOf({ categoryId: t.categoryId }).icon}
-              />
-            ))}
+            {transactions.map((t) => {
+              const amount = parseFloat(t.amount);
+              const isIncome = amount < 0;
+              const display = displayOf({ categoryId: t.categoryId });
+              return (
+                <TxnRow
+                  key={t.id}
+                  merchant={t.merchantName || t.name}
+                  icon={display.icon ?? (isIncome ? <DollarSign size={15} /> : <Banknote size={15} />)}
+                  isIncome={isIncome}
+                  categoryNode={
+                    <CategoryPicker
+                      variant="inline"
+                      value={t.categoryId ?? ''}
+                      currentLabel={display.label}
+                      onChange={(newCatId) => handleCategoryEdit(t, newCatId)}
+                    />
+                  }
+                  date={t.date}
+                  amount={amount}
+                  excluded={t.excludedAt != null}
+                />
+              );
+            })}
           </div>
         </section>
       )}
@@ -989,43 +1050,6 @@ function InstIcon({ institution, isManual }: { institution: string; isManual?: b
 
 
 // ─────────────────────────────────────────────────────────────────────────
-// Transaction row — favicon/category glyph · merchant · category·date · amount
-// Income (amount < 0) renders positive green with a leading '+'.
-// ─────────────────────────────────────────────────────────────────────────
-
-function TxnRow({
-  merchant, category, date, amount, fallbackIcon,
-}: {
-  merchant: string;
-  category: string;
-  date: string;
-  amount: number;
-  fallbackIcon: React.ReactNode;
-}) {
-  const isIncome = amount < 0;
-  return (
-    <div className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
-      <span className={cn(
-        'grid h-9 w-9 shrink-0 place-items-center rounded-ui-md',
-        isIncome ? 'bg-positive-soft text-positive' : 'bg-canvas-sunken text-content-secondary',
-      )}>
-        {fallbackIcon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
-        <div className="mt-0.5 flex items-center gap-3 text-[12.5px] text-content-muted">
-          <span>{category}</span>
-          <span className="ui-tnum">{shortDate(date)}</span>
-        </div>
-      </div>
-      <span className={cn('shrink-0 font-editorial text-[14.5px] font-extrabold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive')}>
-        {isIncome ? '+' : ''}{fmtUsdCents(Math.abs(amount))}
-      </span>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -1046,17 +1070,6 @@ function relativeTime(iso: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
-}
-
-function shortDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const today = new Date();
-  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (sameDay(d, today)) return 'Today';
-  if (sameDay(d, yesterday)) return 'Yesterday';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function titleCase(raw: string): string {
