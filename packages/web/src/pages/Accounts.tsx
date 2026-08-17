@@ -515,7 +515,15 @@ export function Accounts() {
       destructive: true,
     });
     if (!ok) return;
-    await api.deleteItem(id);
+    setError("");
+    try {
+      await api.deleteItem(id);
+    } catch {
+      // The item is still connected at Plaid, so it stays in the list. Saying
+      // nothing would look like the disconnect worked.
+      setError(`Could not disconnect ${institutionName}. Please try again.`);
+      return;
+    }
     loadItems();
   };
 

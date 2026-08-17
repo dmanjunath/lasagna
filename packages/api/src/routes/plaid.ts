@@ -273,16 +273,44 @@ plaidRoutes.delete("/items/:id", async (c) => {
   const session = c.get("session");
   const itemId = c.req.param("id");
 
-  // Scope the delete to the caller's tenant — matching on id alone would let a
+  // Scope the lookup to the caller's tenant — matching on id alone would let a
   // user delete another tenant's item (its accounts/transactions cascade off it).
-  const [deleted] = await db
-    .delete(plaidItems)
-    .where(and(eq(plaidItems.id, itemId), eq(plaidItems.tenantId, session.tenantId)))
-    .returning();
+  const item = await db.query.plaidItems.findFirst({
+    where: and(eq(plaidItems.id, itemId), eq(plaidItems.tenantId, session.tenantId)),
+    columns: { id: true, accessToken: true },
+  });
+  if (!item) return c.json({ error: "Item not found" }, 404);
 
-  if (!deleted) {
-    return c.json({ error: "Item not found" }, 404);
+  // Tell Plaid to drop the Item BEFORE deleting our row. Plaid bills a monthly
+  // subscription per Item "as long as a valid access_token exists", and
+  // /item/remove is the only way to end it. Deleting our row first would
+  // destroy the only copy of the access token, stranding the Item as a charge
+  // we can neither see nor cancel — permanently.
+  if (!item.accessToken.startsWith("manual-")) {
+    try {
+      const accessToken = await decrypt(item.accessToken, env.ENCRYPTION_KEY);
+      await plaidClient.itemRemove({ access_token: accessToken });
+    } catch (e) {
+      const code =
+        e && typeof e === "object" && "response" in e
+          ? (e as { response?: { data?: { error_code?: string } } }).response?.data?.error_code
+          : undefined;
+      // Already gone on Plaid's side — nothing left to bill, so proceed.
+      if (code !== "ITEM_NOT_FOUND") {
+        console.error(`[Plaid] itemRemove failed for item ${item.id}:`, code ?? e);
+        // Keep the row so the disconnect can be retried. Deleting now is what
+        // creates the un-cancellable charge.
+        return c.json(
+          { error: "Could not disconnect from Plaid. Please try again.", code: "plaid_remove_failed" },
+          502,
+        );
+      }
+    }
   }
+
+  await db
+    .delete(plaidItems)
+    .where(and(eq(plaidItems.id, itemId), eq(plaidItems.tenantId, session.tenantId)));
 
   return c.json({ ok: true });
 });
