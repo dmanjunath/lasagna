@@ -4,6 +4,7 @@ import { db } from "../lib/db.js";
 import { taxDocuments, eq, and, desc } from "@lasagna/core";
 import { type AuthEnv } from "../middleware/auth.js";
 import { extractFromVision } from "../lib/tax-vision-extraction.js";
+import { visionProvider } from "../lib/vision/index.js";
 
 export const taxDocumentsRouter = new Hono<AuthEnv>();
 
@@ -13,9 +14,6 @@ taxDocumentsRouter.post("/", async (c) => {
   const body = await c.req.parseBody();
   const file = body.file;
   const text = body.text;
-  const providerUrl = body.providerUrl;
-  const apiKey = body.apiKey;
-  const model = body.model;
 
   // Check for file or text input
   if (!file && !text) {
@@ -24,8 +22,22 @@ taxDocumentsRouter.post("/", async (c) => {
 
   // File path
   if (file && file instanceof File) {
-    if (!providerUrl) {
-      return c.json({ error: "providerUrl is required for file uploads" }, 400);
+    // Resolving the provider fails for deploy reasons (bad VISION_PROVIDER, no
+    // credentials), not because of this document. Keep it out of the extraction
+    // catch so the user isn't told their file is bad, and don't return the
+    // internal message, which names IAM roles and env vars.
+    let provider, target;
+    try {
+      provider = visionProvider();
+      target = await provider.resolve();
+    } catch (error) {
+      console.error("Vision provider misconfigured:", error);
+      return c.json({ error: "Document extraction is unavailable right now." }, 500);
+    }
+    if (provider.sendsDocumentsOffProject) {
+      console.warn(
+        `[Vision Extraction] provider "${provider.name}" sends tax documents off-project`
+      );
     }
 
     try {
@@ -33,12 +45,8 @@ taxDocumentsRouter.post("/", async (c) => {
       const extraction = await extractFromVision(
         Buffer.from(fileBuffer),
         file.type,
-        typeof providerUrl === "string" ? providerUrl : "",
-        {
-          apiKey: apiKey && typeof apiKey === "string" && apiKey.trim() ? apiKey : undefined,
-          model: model && typeof model === "string" && model.trim() ? model : undefined,
-          tenantId,
-        }
+        target.url,
+        { apiKey: target.apiKey, model: target.model, tenantId }
       );
 
       const docs = await db
@@ -68,7 +76,7 @@ taxDocumentsRouter.post("/", async (c) => {
       }
       console.error("Vision extraction failed:", error);
       return c.json(
-        { error: "Extraction failed", raw: message },
+        { error: "We couldn't read that document. Try a clearer scan or photo." },
         422
       );
     }
