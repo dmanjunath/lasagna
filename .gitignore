@@ -34,3 +34,6 @@ _shots*/
 
 # Personal Claude Code config + skills (local only, never commit)
 .claude/
+
+# Local-only compose overrides (see docker-compose.override.yml.example)
+docker-compose.override.yml

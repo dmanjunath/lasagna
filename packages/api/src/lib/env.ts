@@ -33,7 +33,8 @@ export const env = {
   get VISION_PROVIDER() {
     return optional("VISION_PROVIDER", "vertex");
   },
-  // Only for VISION_PROVIDER=openai-compatible.
+  // Only for VISION_PROVIDER=openai-compatible. The default (vertex) needs no
+  // configuration at all: credentials and project both come from ADC.
   get VISION_API_URL() {
     return optional("VISION_API_URL", "");
   },
@@ -42,19 +43,6 @@ export const env = {
   },
   get VISION_MODEL() {
     return optional("VISION_MODEL", "");
-  },
-  // Vertex AI runs tax document vision extraction, so the document never leaves
-  // the GCP project. gemini-3.1-pro-preview is served from the global endpoint
-  // only — set VERTEX_LOCATION to a region only with a model available there.
-  // VERTEX_PROJECT is an override; when unset the project comes from ADC.
-  get VERTEX_PROJECT() {
-    return optional("VERTEX_PROJECT", "");
-  },
-  get VERTEX_LOCATION() {
-    return optional("VERTEX_LOCATION", "global");
-  },
-  get VERTEX_VISION_MODEL() {
-    return optional("VERTEX_VISION_MODEL", "google/gemini-3.1-pro-preview");
   },
   // Enable OpenRouter's server-side web search on the chat agent. On by default;
   // set to "false" to turn off (it adds per-request search cost and latency).
