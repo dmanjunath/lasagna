@@ -20,8 +20,15 @@ plaidRoutes.post("/link-token", async (c) => {
   const response = await plaidClient.linkTokenCreate({
     user: { client_user_id: session.userId },
     client_name: "Lasagna",
+    // Transactions is the anchor: `products` must hold at least one entry, and
+    // it is billed at Item creation whatever the user turns out to own.
     products: [Products.Transactions],
-    optional_products: [Products.Investments, Products.Liabilities],
+    // NOT `optional_products`. That bills at Item creation for every Item whose
+    // INSTITUTION supports the product, regardless of whether the user holds a
+    // matching account — the exemption there covers only Auth, Identity, Signal
+    // and Plaid Check. Consenting instead defers billing to the first call, so
+    // syncItem's account-type check decides whether we ever pay.
+    additional_consented_products: [Products.Investments, Products.Liabilities],
     country_codes: [CountryCode.Us],
     language: "en",
     // Plaid POSTs here when it pulls new data for the item, so we sync on its
