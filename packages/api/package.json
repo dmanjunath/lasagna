@@ -24,6 +24,7 @@
     "@simplewebauthn/server": "^13.3.2",
     "@workos-inc/node": "^10.7.0",
     "ai": "^6.0.134",
+    "google-auth-library": "^11.0.2",
     "hono": "^4.12.8",
     "node-cron": "^4.2.1",
     "plaid": "^41.4.0",

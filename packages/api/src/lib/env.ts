@@ -27,6 +27,23 @@ export const env = {
   get INFERENCE_PROVIDER() {
     return optional("INFERENCE_PROVIDER", "openrouter") as "openrouter" | "sail";
   },
+  // Which backend runs tax document vision extraction: "vertex" (default, keeps
+  // the document inside our GCP project) or "openai-compatible" (sends it to a
+  // third party — see lib/vision/openai-compatible.ts).
+  get VISION_PROVIDER() {
+    return optional("VISION_PROVIDER", "vertex");
+  },
+  // Only for VISION_PROVIDER=openai-compatible. The default (vertex) needs no
+  // configuration at all: credentials and project both come from ADC.
+  get VISION_API_URL() {
+    return optional("VISION_API_URL", "");
+  },
+  get VISION_API_KEY() {
+    return optional("VISION_API_KEY", "");
+  },
+  get VISION_MODEL() {
+    return optional("VISION_MODEL", "");
+  },
   // Enable OpenRouter's server-side web search on the chat agent. On by default;
   // set to "false" to turn off (it adds per-request search cost and latency).
   get WEB_SEARCH_ENABLED() {

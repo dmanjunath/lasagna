@@ -1,16 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Upload, FileText, Settings2, ChevronDown, X, PenLine, AlertCircle } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { Upload, FileText, X, PenLine, AlertCircle } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 import { api } from "../../lib/api.js";
 import type { TaxInputResult } from "../../lib/types.js";
 import { Button } from "../uikit";
-
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "google/gemma-4-26b-a4b-it";
-
-const LS_KEY_PROVIDER = "lasagna_tax_llm_endpoint";
-const LS_KEY_MODEL = "lasagna_tax_llm_model";
-const LS_KEY_API_KEY = "lasagna_tax_llm_api_key";
 
 const ACCEPTED_MIME = ["application/pdf", "image/jpeg", "image/png"];
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -22,20 +15,11 @@ interface TaxInputPanelProps {
 export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [text, setText] = useState("");
-  const [providerUrl, setProviderUrl] = useState(() => localStorage.getItem(LS_KEY_PROVIDER) || OPENROUTER_URL);
-  const [model, setModel] = useState(() => localStorage.getItem(LS_KEY_MODEL) || DEFAULT_MODEL);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(LS_KEY_API_KEY) || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [inputMode, setInputMode] = useState<"file" | "text">("file");
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Persist LLM settings to localStorage
-  useEffect(() => { localStorage.setItem(LS_KEY_PROVIDER, providerUrl); }, [providerUrl]);
-  useEffect(() => { localStorage.setItem(LS_KEY_MODEL, model); }, [model]);
-  useEffect(() => { localStorage.setItem(LS_KEY_API_KEY, apiKey); }, [apiKey]);
 
   const hasFiles = files.length > 0;
   const hasText = text.trim().length > 0;
@@ -88,20 +72,12 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
       if (hasFiles) {
         // Process each file sequentially
         for (const f of files) {
-          const docs = await api.submitTaxInput({
-            file: f,
-            providerUrl,
-            apiKey: apiKey || undefined,
-            model: model || undefined,
-          });
+          const docs = await api.submitTaxInput({ file: f });
           for (const doc of docs) onSuccess(doc);
         }
       } else {
         const docs = await api.submitTaxInput({
           text: hasText ? text : undefined,
-          providerUrl,
-          apiKey: apiKey || undefined,
-          model: model || undefined,
         });
         for (const doc of docs) onSuccess(doc);
       }
@@ -243,64 +219,6 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
             </div>
           </>
         )}
-
-        {/* Extraction settings */}
-        <div className="overflow-hidden rounded-ui-md border border-line">
-          <button
-            type="button"
-            onClick={() => setShowSettings((p) => !p)}
-            className="touch-target ui-focus flex w-full items-center justify-between bg-canvas-sunken px-4 py-2.5 text-left transition-colors hover:bg-canvas-sunken/70"
-          >
-            <div className="flex items-center gap-2">
-              <Settings2 className="h-3.5 w-3.5 text-content-muted" />
-              <span className="text-[12.5px] font-semibold text-content-secondary">Extraction settings</span>
-              {providerUrl !== OPENROUTER_URL && (
-                <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold text-brand">custom</span>
-              )}
-            </div>
-            <ChevronDown className={cn(
-              "h-3.5 w-3.5 text-content-muted transition-transform duration-150",
-              showSettings && "rotate-180"
-            )} />
-          </button>
-
-          {showSettings && (
-            <div className="space-y-3 border-t border-line bg-panel px-4 py-4">
-              <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-content-secondary">LLM endpoint</label>
-                <input
-                  type="url"
-                  className="w-full rounded-ui-sm border border-line-strong bg-panel px-3 py-2 font-mono text-[12px] text-content transition-[border-color,box-shadow] focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] focus:outline-none"
-                  value={providerUrl}
-                  onChange={(e) => setProviderUrl(e.target.value)}
-                  placeholder="https://openrouter.ai/api/v1/chat/completions"
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-[12px] font-medium text-content-secondary">Model</label>
-                  <input
-                    type="text"
-                    className="w-full rounded-ui-sm border border-line-strong bg-panel px-3 py-2 font-mono text-[12px] text-content transition-[border-color,box-shadow] focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] focus:outline-none"
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="google/gemma-4-26b-a4b-it"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-[12px] font-medium text-content-secondary">API key <span className="opacity-60">(optional)</span></label>
-                  <input
-                    type="password"
-                    className="w-full rounded-ui-sm border border-line-strong bg-panel px-3 py-2 font-mono text-[12px] text-content transition-[border-color,box-shadow] focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] focus:outline-none"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="sk-or-…"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Error */}
         {error && (

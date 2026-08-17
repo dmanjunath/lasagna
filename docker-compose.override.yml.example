@@ -1,0 +1,19 @@
+# Optional local-only overrides. Docker Compose merges docker-compose.override.yml
+# automatically when it exists, so copy this file to that name if you need it:
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# You only need this to work on tax document extraction, which calls Vertex AI.
+# Vertex authenticates with Application Default Credentials. On Cloud Run those
+# come from the metadata server with no configuration. Locally they come from
+# `gcloud auth application-default login`, and the container cannot see them
+# unless you mount them.
+#
+# Replace the host path below with your own. On macOS and Linux it is
+# ~/.config/gcloud/application_default_credentials.json.
+services:
+  api:
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /app/adc.json
+    volumes:
+      - /absolute/path/to/application_default_credentials.json:/app/adc.json:ro

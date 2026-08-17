@@ -39,12 +39,14 @@ const PROVIDER_URL_ALLOWLIST = new Set([
   // An image cannot be aliased before it is read; the user explicitly
   // uploads it for extraction.
   "lib/tax-vision-extraction.ts",
+  // Base URL construction for the vision providers, not payload-carrying calls.
+  "lib/vision/vertex.ts",
 ]);
 
 const MODEL_CALL_IMPORT_RE =
   /import\s*(?:type\s*)?\{[^}]*\b(generateText|generateObject|streamText)\b[^}]*\}\s*from\s*["']ai["']/;
 const PROVIDER_URL_RE =
-  /openrouter\.ai|api\.anthropic\.com|api\.openai\.com|generativelanguage\.googleapis|api\.sailresearch\.com/;
+  /openrouter\.ai|api\.anthropic\.com|api\.openai\.com|generativelanguage\.googleapis|aiplatform\.googleapis|api\.sailresearch\.com/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

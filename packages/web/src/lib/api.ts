@@ -466,16 +466,10 @@ export const api = {
   submitTaxInput: async (params: {
     file?: File;
     text?: string;
-    providerUrl: string;
-    apiKey?: string;
-    model?: string;
   }): Promise<TaxInputResult[]> => {
     const formData = new FormData();
     if (params.file) formData.append("file", params.file);
     if (params.text) formData.append("text", params.text);
-    formData.append("providerUrl", params.providerUrl);
-    if (params.apiKey) formData.append("apiKey", params.apiKey);
-    if (params.model) formData.append("model", params.model);
 
     const res = await fetch(`${API_BASE}/api/tax/documents`, {
       method: "POST",
