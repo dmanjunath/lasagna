@@ -219,6 +219,10 @@ function DenseRowInner({
   const { openChat } = useChatStore();
   const cat = catForTag(tag);
   const Icon = cat.icon;
+  // Accordion rows expand for detail, so on phones we let the title wrap to two
+  // lines (no mid-sentence cut) and move the per-row icons into the opened body,
+  // leaving just the chevron. Plain dense rows keep their inline icons.
+  const hideOnMobile = expandable ? 'max-sm:hidden' : '';
 
   return (
     <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
@@ -230,7 +234,7 @@ function DenseRowInner({
         <Icon className="h-3.5 w-3.5" />
       </span>
 
-      <h3 className="flex-1 min-w-0 truncate text-[14px] font-semibold leading-tight text-content">
+      <h3 className={`flex-1 min-w-0 text-[14px] font-semibold leading-tight text-content ${expandable ? 'line-clamp-2 sm:line-clamp-1' : 'truncate'}`}>
         {title}
       </h3>
 
@@ -256,7 +260,7 @@ function DenseRowInner({
                 `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
               );
             }}
-            className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-brand hover:bg-brand-softer transition-colors"
+            className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-brand hover:bg-brand-softer transition-colors ${hideOnMobile}`}
           >
             <Sparkles className="h-4 w-4" />
           </button>
@@ -266,7 +270,7 @@ function DenseRowInner({
               type="button"
               aria-label="See in context"
               onClick={(e) => { e.stopPropagation(); onContextClick(); }}
-              className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-muted hover:bg-canvas-sunken hover:text-content transition-colors"
+              className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-muted hover:bg-canvas-sunken hover:text-content transition-colors ${hideOnMobile}`}
             >
               <ArrowRight className="h-4 w-4" />
             </button>
@@ -277,7 +281,7 @@ function DenseRowInner({
               type="button"
               aria-label="Dismiss"
               onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-              className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-faint hover:bg-canvas-sunken hover:text-content transition-colors"
+              className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-faint hover:bg-canvas-sunken hover:text-content transition-colors ${hideOnMobile}`}
             >
               <X className="h-4 w-4" />
             </button>

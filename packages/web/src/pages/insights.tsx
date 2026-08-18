@@ -243,6 +243,10 @@ function InsightsDenseRow({
   expandable?: boolean;
   expanded?: boolean;
 }) {
+  // Accordion rows expand for detail, so on phones the title wraps to two lines
+  // and the per-row icons drop out (they live in the opened body), leaving the
+  // chevron. Plain dense rows keep their inline icons.
+  const hideOnMobile = expandable ? 'max-sm:hidden' : '';
   return (
     <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
       <span className="grid place-items-center h-6 w-6 shrink-0 rounded-ui-sm bg-canvas-sunken text-content-muted" aria-hidden>
@@ -254,7 +258,7 @@ function InsightsDenseRow({
         onClick={onTitle}
         className="flex-1 min-w-0 flex items-center gap-1.5 text-left group/title"
       >
-        <span className="truncate text-[14px] font-semibold leading-tight text-content">{title}</span>
+        <span className={`min-w-0 text-[14px] font-semibold leading-tight text-content ${expandable ? 'line-clamp-2 sm:line-clamp-1' : 'truncate'}`}>{title}</span>
         {/* Dense navigates (→); Accordion toggles, so it shows no title arrow. */}
         {!expandable && (
           <ArrowRight className="h-3.5 w-3.5 shrink-0 text-content-faint transition-transform group-hover/title:translate-x-0.5" />
@@ -277,7 +281,7 @@ function InsightsDenseRow({
             type="button"
             aria-label="Ask Lasagna about this"
             onClick={onAsk}
-            className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-brand hover:bg-brand-softer transition-colors"
+            className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-brand hover:bg-brand-softer transition-colors ${hideOnMobile}`}
           >
             <Sparkles className="h-4 w-4" />
           </button>
@@ -286,7 +290,7 @@ function InsightsDenseRow({
             type="button"
             aria-label="Skip"
             onClick={onSkip}
-            className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-faint hover:bg-canvas-sunken hover:text-content transition-colors"
+            className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-faint hover:bg-canvas-sunken hover:text-content transition-colors ${hideOnMobile}`}
           >
             <X className="h-4 w-4" />
           </button>
