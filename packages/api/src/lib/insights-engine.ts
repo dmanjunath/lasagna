@@ -692,7 +692,7 @@ CRITICAL RULES:
 3. Every insight MUST end with a concrete next step — "review", "consider", "look into", or "adjust accordingly" are NOT concrete. A concrete step is: "increase X by $Y", "move $X from A to B", "open an account at...", "set up automatic transfer of $X/mo"
 4. NEVER generate an insight from a lens if that lens has no data (e.g., skip spending insights if spending arrays are empty)
 5. NEVER make factually incorrect statements — double-check all tax bracket thresholds against the user's actual income
-6. The dollar amount in the insight title MUST match the dollar amount in the impact field. Do not use different numbers in different fields for the same thing.
+6. Keep dollar amounts consistent: if the title states a benefit amount (money saved or earned), it MUST match the impact field. The title MAY instead name the amount to act on (a balance, a monthly contribution) while the impact field carries the benefit. Never state the same figure two different ways.
 7. When calculating opportunity costs, use a single consistent spread percentage throughout the insight.
 8. NEVER report a goal as "behind" if currentAmount >= targetAmount — that goal is MET. If projectedCompletionDate is "completed", the goal is achieved.
 9. NEVER produce timelines more than 30 years out. If a projection would be absurd (e.g., "complete in 2120"), instead calculate what monthly savings increase would be needed to hit the deadline.
@@ -700,6 +700,8 @@ CRITICAL RULES:
 11. When taxDocuments are present, PRIORITIZE document-specific insights (Lens 5) over generic optimization advice (Lens 3). The user uploaded documents to get specific analysis, not boilerplate.
 12. AT MOST ONE insight may primarily flag missing/incomplete data (phrases like "no holdings data", "with no payment tracking", "unknown interest rate", "no income tracked", "$0 monthly expenses"). The user knows their data is incomplete — repeating it across 3-4 insights is noise. If multiple data gaps exist, pick the single highest-impact gap and combine the rest into one "complete your profile" suggestion. Every OTHER insight must derive a concrete recommendation from data that IS present (account balances, balances by type, ages, account names, debt/asset ratios, etc.) — even partial data supports useful advice.
 13. STYLE: never use em dashes, en dashes, middots, or semicolons in any output field. Write complete sentences. Write ranges as "X to Y".
+14. TITLES ARE ACTIONS, NOT DIAGNOSES. Start every title with an imperative verb naming the move (Pay, Open, Move, Raise, Trim, Cancel, Add, Switch, Rebalance, Invest, Set). The title says what to DO; the description says why. Bad: "Credit card at 24.99% APR costs $736/yr". Good: "Pay down your $3,076 card to stop $736/yr in interest". Bad: "Missing $3,400/yr in free employer match". Good: "Raise your 401(k) to 4% to claim $3,400/yr in free match".
+15. If an insight is a positive trend, a healthy metric, or an on-track status with no move to make (a spending category dropped, a ratio is healthy, a goal is on pace), either give it a concrete next move (e.g. "Redirect the $158 grocery drop into savings") or do NOT emit it. The Actions list is for actions, not congratulations or observations.
 
 Analyze through these 4 lenses and generate insights from each lens WHERE THE DATA SUPPORTS IT:
 
@@ -778,13 +780,22 @@ Respond with ONLY a JSON array, no markdown:
     "category": "portfolio" | "debt" | "tax" | "savings" | "general",
     "urgency": "critical" | "high" | "medium" | "low",
     "type": "spending" | "behavioral" | "debt" | "tax" | "portfolio" | "savings" | "retirement" | "general",
-    "title": "Specific title with a real number from the data",
-    "description": "2-3 sentences with exact numbers. Include one comparison. End with one concrete next step.",
+    "title": "The action to take: start with an imperative verb (Pay, Open, Move, Raise, Trim, Cancel, Add, Invest, Rebalance), name the specific move and a real number. Not a diagnosis or a bare metric.",
+    "description": "2-3 sentences explaining WHY, with exact numbers and one comparison. The title already states the action, so use the description for the reasoning and specifics (amounts, timeline, tradeoffs).",
     "impact": "Short label: 'Save $2,400/yr' or 'Earn $3,400 free money' etc.",
     "impactColor": "green" | "amber" | "red",
     "chatPrompt": "Natural question the user would ask"
   }
 ]
+
+## Title examples (write the move, not the diagnosis)
+- Instead of "Credit card at 24.99% APR costs $736/yr in interest", write "Pay down your $3,076 card to stop $736/yr in interest".
+- Instead of "Missing $3,400/yr in free employer match", write "Raise your 401(k) to 4% to claim $3,400/yr in free match".
+- Instead of "No HSA means missing $1,290/yr tax-free savings", write "Open an HSA to save $1,290/yr in taxes".
+- Instead of "100% US equity allocation misses international diversification", write "Move about 30% into international funds to diversify".
+- Instead of "32% of brokerage in Procter & Gamble creates concentration risk", write "Trim Procter & Gamble from 32% to under 10% to cut single-stock risk".
+- Instead of "$33,290 excess cash earning 5% instead of 8%", write "Invest $33,290 of idle cash to earn about $998/yr more".
+- Instead of "Dining jumped 129% to $89 vs $39 last month", write "Cap dining near $39 after it jumped 129% to $89".
 
 ## Urgency:
 - critical: losing money now (employer match uncaptured, negative cash flow, high-APR debt compounding)
