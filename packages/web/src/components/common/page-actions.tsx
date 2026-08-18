@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useInsights } from '../../hooks/useInsights';
+import { useDensity } from '../../lib/density';
 import { ActionItem } from './action-item';
 
 interface PageActionsProps {
@@ -12,6 +13,7 @@ interface PageActionsProps {
 
 export function PageActions({ types, viewAllHref }: PageActionsProps) {
   const { insights, isLoading, dismiss, refresh } = useInsights(types);
+  const density = useDensity();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -56,7 +58,7 @@ export function PageActions({ types, viewAllHref }: PageActionsProps) {
       </div>
 
       {/* Action cards — stacked, on-skin, matching /insights */}
-      <div className="flex flex-col gap-3.5">
+      <div className={`flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
         {insights.map((insight) => (
           <ActionItem
             key={insight.id}

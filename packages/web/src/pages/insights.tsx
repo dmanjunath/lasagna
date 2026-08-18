@@ -14,9 +14,11 @@ import {
   PiggyBank,
   CreditCard,
   Target,
+  X,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
+import { useDensity } from '../lib/density';
 import { useChatStore } from '../lib/chat-store';
 import { formatRelativeTime } from '../lib/utils';
 import { Badge, Button, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
@@ -204,6 +206,104 @@ interface ActionCardProps {
   onSkip: () => void;
 }
 
+// Shared skin for the Dense + Accordion (collapsed) row so the two are
+// pixel-identical.
+function denseArticleCls(calm: boolean): string {
+  return `relative overflow-hidden rounded-ui-md transition-[box-shadow,border-color] ${
+    calm
+      ? 'border border-dashed border-line bg-transparent hover:bg-panel hover:border-solid hover:shadow-ui-sm'
+      : 'border border-line bg-panel shadow-ui-sm hover:border-line-strong hover:shadow-ui-md'
+  }`;
+}
+
+// Shared dense row. `onTitle` is the row's primary click: Open (Dense) or
+// toggle (Accordion). The chat + skip buttons behave the same in both.
+function InsightsDenseRow({
+  cat,
+  Icon,
+  title,
+  impact,
+  impactColor,
+  onTitle,
+  onAsk,
+  onSkip,
+  hideActions,
+  expandable,
+  expanded,
+}: {
+  cat: CatStyle;
+  Icon: typeof Receipt;
+  title: string;
+  impact: string | null;
+  impactColor: string | null;
+  onTitle: () => void;
+  onAsk: () => void;
+  onSkip: () => void;
+  hideActions?: boolean;
+  expandable?: boolean;
+  expanded?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
+      <span className="grid place-items-center h-6 w-6 shrink-0 rounded-ui-sm bg-canvas-sunken text-content-muted" aria-hidden>
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+
+      <button
+        type="button"
+        onClick={onTitle}
+        className="flex-1 min-w-0 flex items-center gap-1.5 text-left group/title"
+      >
+        <span className="truncate text-[14px] font-semibold leading-tight text-content">{title}</span>
+        {/* Dense navigates (→); Accordion toggles, so it shows no title arrow. */}
+        {!expandable && (
+          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-content-faint transition-transform group-hover/title:translate-x-0.5" />
+        )}
+      </button>
+
+      {impact && (
+        <span
+          className="hidden sm:inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum whitespace-nowrap"
+          style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
+        >
+          {impact}
+        </span>
+      )}
+
+      {/* Collapsed only — when open these move to dedicated labeled buttons. */}
+      {!hideActions && (
+        <>
+          <button
+            type="button"
+            aria-label="Ask Lasagna about this"
+            onClick={onAsk}
+            className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-brand hover:bg-brand-softer transition-colors"
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            aria-label="Skip"
+            onClick={onSkip}
+            className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-faint hover:bg-canvas-sunken hover:text-content transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </>
+      )}
+
+      {/* Accordion affordance — points down to expand, flips up when open. */}
+      {expandable && (
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-content-faint transition-transform ${expanded ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      )}
+    </div>
+  );
+}
+
 function ActionCard({
   index,
   type,
@@ -219,10 +319,107 @@ function ActionCard({
   onSkip,
 }: ActionCardProps) {
   void chatPrompt;
+  const density = useDensity();
   const cat = catFor(type, category);
   const Icon = cat.icon;
   // Mobile-only accordion — same behavior as common/action-item.tsx.
   const [expanded, setExpanded] = useState(false);
+
+  // ── Dense form — one scannable list row per action ──
+  if (density === 'dense') {
+    return (
+      <motion.article
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
+        title={description}
+        className={denseArticleCls(calm)}
+      >
+        <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
+        <InsightsDenseRow
+          cat={cat}
+          Icon={Icon}
+          title={title}
+          impact={impact}
+          impactColor={impactColor}
+          onTitle={onPrimary}
+          onAsk={onAsk}
+          onSkip={onSkip}
+        />
+      </motion.article>
+    );
+  }
+
+  // ── Accordion form — collapsed is identical to Dense (same row, same height,
+  // same chat button); the title toggles the details underneath. ──
+  if (density === 'accordion') {
+    return (
+      <motion.article
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
+        className={denseArticleCls(calm)}
+      >
+        <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
+        <InsightsDenseRow
+          cat={cat}
+          Icon={Icon}
+          title={title}
+          impact={impact}
+          impactColor={impactColor}
+          onTitle={() => setExpanded((v) => !v)}
+          onAsk={onAsk}
+          onSkip={onSkip}
+          hideActions={expanded}
+          expandable
+          expanded={expanded}
+        />
+
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              key="body"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              style={{ overflow: 'hidden' }}
+            >
+              <div className="px-4 pb-3">
+                <p className="text-[13px] leading-[1.5] text-content-secondary">
+                  {description}
+                </p>
+                <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                  <Button size="sm" onClick={onPrimary} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                    Open {cat.label}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={onAsk}
+                    className="touch-target inline-flex items-center gap-1.5 h-8 px-2.5 rounded-ui-md text-[12.5px] font-semibold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors group"
+                  >
+                    <Sparkles className="h-[14px] w-[14px]" />
+                    Ask Lasagna about this
+                    <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSkip}
+                    className="touch-target h-8 px-3 rounded-ui-md text-[12.5px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.article>
+    );
+  }
+
+  // ── Card form — comfortable (default) and compact (same anatomy, tightened) ──
+  const compact = density === 'compact';
 
   return (
     <motion.article
@@ -230,7 +427,9 @@ function ActionCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
       onClick={() => { if (!expanded) setExpanded(true); }}
-      className={`relative overflow-hidden rounded-ui-lg p-[20px_18px] sm:p-[22px_24px] transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 ${
+      className={`relative overflow-hidden rounded-ui-lg transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 ${
+        compact ? 'p-[13px_15px] sm:p-[15px_18px]' : 'p-[20px_18px] sm:p-[22px_24px]'
+      } ${
         calm
           ? 'border border-dashed border-line bg-transparent hover:bg-panel hover:border-solid hover:shadow-ui-sm'
           : 'border border-line bg-panel shadow-ui-sm hover:shadow-ui-md'
@@ -249,16 +448,22 @@ function ActionCard({
         <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
-      <div className="flex items-start sm:items-center gap-5 flex-wrap sm:flex-nowrap">
+      <div className={`flex items-start sm:items-center flex-wrap sm:flex-nowrap ${compact ? 'gap-3.5' : 'gap-5'}`}>
         <div className="flex-1 min-w-0 max-sm:pr-8">
-          <span className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-[0.05em] mb-3 bg-canvas-sunken text-content-muted">
-            <Icon className="h-3 w-3" />
+          <span className={`inline-flex items-center gap-1.5 rounded-full font-extrabold uppercase tracking-[0.05em] bg-canvas-sunken text-content-muted ${
+            compact ? 'h-[22px] px-2 text-[10px] mb-1.5' : 'h-[26px] px-2.5 text-[11px] mb-3'
+          }`}>
+            <Icon className={compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
             {cat.label}
           </span>
-          <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em] text-content">
+          <h3 className={`font-editorial font-bold leading-[1.2] tracking-[-0.018em] text-content ${
+            compact ? 'text-[15px] sm:text-[16px]' : 'text-[18px] sm:text-[20px]'
+          }`}>
             {title}
           </h3>
-          <p className={`mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-2 max-w-[52ch] ${expanded ? '' : 'max-sm:hidden'}`}>
+          <p className={`text-content-secondary max-w-[52ch] ${
+            compact ? 'mt-1 text-[13px] leading-[1.45] line-clamp-1' : 'mt-2 text-[14px] leading-[1.5] line-clamp-2'
+          } ${expanded ? '' : 'max-sm:hidden'}`}>
             {description}
           </p>
         </div>
@@ -266,9 +471,13 @@ function ActionCard({
         {/* right-aligned impact — vertically centered, auto-width, tinted by impactColor.
             On mobile it reflows below a hairline. (Matches home's impact placement.) */}
         {impact && (
-          <div className={`w-full sm:w-auto mt-3.5 sm:mt-0 pt-3.5 sm:pt-0 border-t sm:border-t-0 border-line shrink-0 ${expanded ? '' : 'max-sm:hidden'}`}>
+          <div className={`w-full sm:w-auto sm:mt-0 sm:pt-0 border-t sm:border-t-0 border-line shrink-0 ${
+            compact ? 'mt-2.5 pt-2.5' : 'mt-3.5 pt-3.5'
+          } ${expanded ? '' : 'max-sm:hidden'}`}>
             <span
-              className="inline-flex items-center gap-1.5 rounded-ui-md px-2.5 py-1.5 font-editorial text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap"
+              className={`inline-flex items-center gap-1.5 rounded-ui-md font-editorial font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap ${
+                compact ? 'px-2 py-1 text-[13px]' : 'px-2.5 py-1.5 text-[14.5px]'
+              }`}
               style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
             >
               {impact}
@@ -277,7 +486,7 @@ function ActionCard({
         )}
       </div>
 
-      <div className={`flex items-center gap-2 mt-5 flex-wrap ${expanded ? '' : 'max-sm:hidden'}`}>
+      <div className={`flex items-center gap-2 flex-wrap ${compact ? 'mt-2.5' : 'mt-5'} ${expanded ? '' : 'max-sm:hidden'}`}>
         <Button size="sm" onClick={onPrimary} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
           Open {cat.label}
         </Button>
@@ -285,9 +494,11 @@ function ActionCard({
         <button
           type="button"
           onClick={onAsk}
-          className="touch-target inline-flex items-center gap-1.5 h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors group"
+          className={`touch-target inline-flex items-center gap-1.5 rounded-ui-md font-semibold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors group ${
+            compact ? 'h-8 px-2.5 text-[12.5px]' : 'h-9 px-3 text-[13px]'
+          }`}
         >
-          <Sparkles className="h-[15px] w-[15px]" />
+          <Sparkles className={compact ? 'h-[14px] w-[14px]' : 'h-[15px] w-[15px]'} />
           Ask Lasagna about this
           <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
         </button>
@@ -295,7 +506,9 @@ function ActionCard({
         <button
           type="button"
           onClick={onSkip}
-          className="touch-target h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+          className={`touch-target rounded-ui-md font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors ${
+            compact ? 'h-8 px-3 text-[12.5px]' : 'h-9 px-3.5 text-[13px]'
+          }`}
         >
           Skip
         </button>
@@ -323,6 +536,7 @@ export function Insights() {
   const pendingUndoRef = useRef<string | null>(null);
 
   const { insights, lastActionsGeneratedAt, isLoading, refresh } = useInsights();
+  const density = useDensity();
 
   const UNDO_WINDOW_MS = 6000;
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -633,7 +847,7 @@ export function Insights() {
                 <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
               </div>
 
-              <div className="mt-4 flex flex-col gap-3.5">
+              <div className={`mt-4 flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
                 {items.map((insight, idx) => {
                   const cat = catFor(insight.type, insight.category);
                   return (

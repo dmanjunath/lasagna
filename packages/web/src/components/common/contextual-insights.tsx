@@ -1,4 +1,5 @@
 import { useInsights } from '../../hooks/useInsights';
+import { useDensity } from '../../lib/density';
 import { ActionItem } from './action-item';
 
 interface ContextualInsightsProps {
@@ -16,6 +17,7 @@ export function ContextualInsights({
   maxItems = 3,
 }: ContextualInsightsProps) {
   const { insights, isLoading, dismiss } = useInsights(types);
+  const density = useDensity();
 
   const filtered = urgencyFilter
     ? insights.filter((i) => i.urgency === urgencyFilter)
@@ -33,7 +35,7 @@ export function ContextualInsights({
         </span>
         <span className="text-xs text-text-muted">({shown.length})</span>
       </div>
-      <div className="flex flex-col gap-3.5">
+      <div className={`flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
         {shown.map((insight) => (
           <ActionItem
             key={insight.id}

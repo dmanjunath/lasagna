@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowRight,
   ChevronDown,
@@ -9,8 +10,10 @@ import {
   PiggyBank,
   CreditCard,
   Target,
+  X,
 } from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
+import { useDensity } from '../../lib/density';
 
 interface ActionItemProps {
   title: string;
@@ -63,7 +66,15 @@ function impactSoftVar(color: 'green' | 'amber' | 'red'): string {
   return 'var(--ui-positive-soft)';
 }
 
-export function ActionItem({
+export function ActionItem(props: ActionItemProps) {
+  const density = useDensity();
+  if (density === 'dense') return <DenseActionRow {...props} />;
+  if (density === 'accordion') return <AccordionActionItem {...props} />;
+  return <ActionCardItem {...props} compact={density === 'compact'} />;
+}
+
+// ── Card form — comfortable (default) and compact (same anatomy, tightened) ──
+function ActionCardItem({
   title,
   tag,
   description,
@@ -73,7 +84,8 @@ export function ActionItem({
   defaultOpen,
   onDismiss,
   onContextClick,
-}: ActionItemProps) {
+  compact,
+}: ActionItemProps & { compact: boolean }) {
   // Mobile-only accordion: collapsed to tag+title on phones (stacked full cards
   // made pages 5-8 screens tall); desktop stays always-expanded.
   const [expanded, setExpanded] = useState(defaultOpen ?? false);
@@ -84,7 +96,9 @@ export function ActionItem({
   return (
     <article
       onClick={() => { if (!expanded) setExpanded(true); }}
-      className={`relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[20px_18px] sm:p-[22px_24px] transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md ${expanded ? '' : 'max-sm:cursor-pointer'}`}
+      className={`relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md ${
+        compact ? 'p-[13px_15px] sm:p-[15px_18px]' : 'p-[20px_18px] sm:p-[22px_24px]'
+      } ${expanded ? '' : 'max-sm:cursor-pointer'}`}
     >
       {/* left accent bar — tone by category */}
       <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
@@ -99,28 +113,38 @@ export function ActionItem({
         <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
-      <div className="flex items-start sm:items-center gap-5 flex-wrap sm:flex-nowrap">
+      <div className={`flex items-start sm:items-center flex-wrap sm:flex-nowrap ${compact ? 'gap-3.5' : 'gap-5'}`}>
         <div className="flex-1 min-w-0 max-sm:pr-8">
           <span
-            className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-[0.05em] mb-3"
+            className={`inline-flex items-center gap-1.5 rounded-full font-extrabold uppercase tracking-[0.05em] ${
+              compact ? 'h-[22px] px-2 text-[10px] mb-1.5' : 'h-[26px] px-2.5 text-[11px] mb-3'
+            }`}
             style={{ background: cat.tagBg, color: cat.tagFg }}
           >
-            <Icon className="h-3 w-3" />
+            <Icon className={compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
             {cat.label}
           </span>
-          <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em] text-content">
+          <h3 className={`font-editorial font-bold leading-[1.2] tracking-[-0.018em] text-content ${
+            compact ? 'text-[15px] sm:text-[16px]' : 'text-[18px] sm:text-[20px]'
+          }`}>
             {title}
           </h3>
-          <p className={`mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-2 max-w-[52ch] ${expanded ? '' : 'max-sm:hidden'}`}>
+          <p className={`text-content-secondary max-w-[52ch] ${
+            compact ? 'mt-1 text-[13px] leading-[1.45] line-clamp-1' : 'mt-2 text-[14px] leading-[1.5] line-clamp-2'
+          } ${expanded ? '' : 'max-sm:hidden'}`}>
             {description}
           </p>
         </div>
 
         {/* right-aligned impact — tinted by impactColor; reflows below a hairline on mobile */}
         {impact && (
-          <div className={`w-full sm:w-auto mt-3.5 sm:mt-0 pt-3.5 sm:pt-0 border-t sm:border-t-0 border-line shrink-0 ${expanded ? '' : 'max-sm:hidden'}`}>
+          <div className={`w-full sm:w-auto sm:mt-0 sm:pt-0 border-t sm:border-t-0 border-line shrink-0 ${
+            compact ? 'mt-2.5 pt-2.5' : 'mt-3.5 pt-3.5'
+          } ${expanded ? '' : 'max-sm:hidden'}`}>
             <span
-              className="inline-flex items-center gap-1.5 rounded-ui-md px-2.5 py-1.5 font-editorial text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap"
+              className={`inline-flex items-center gap-1.5 rounded-ui-md font-editorial font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap ${
+                compact ? 'px-2 py-1 text-[13px]' : 'px-2.5 py-1.5 text-[14.5px]'
+              }`}
               style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
             >
               {impact}
@@ -129,7 +153,7 @@ export function ActionItem({
         )}
       </div>
 
-      <div className={`flex items-center gap-2 mt-5 flex-wrap ${expanded ? '' : 'max-sm:hidden'}`}>
+      <div className={`flex items-center gap-2 flex-wrap ${compact ? 'mt-2.5' : 'mt-5'} ${expanded ? '' : 'max-sm:hidden'}`}>
         {/* primary — Ask Lasagna (soft-pill), preserves the openChat prompt */}
         <button
           type="button"
@@ -138,9 +162,11 @@ export function ActionItem({
               `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
             )
           }
-          className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow] group"
+          className={`touch-target inline-flex items-center gap-1.5 rounded-ui-md font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow] group ${
+            compact ? 'h-8 px-3 text-[12.5px]' : 'h-9 px-3.5 text-[13.5px]'
+          }`}
         >
-          <Sparkles className="h-[15px] w-[15px]" />
+          <Sparkles className={compact ? 'h-[14px] w-[14px]' : 'h-[15px] w-[15px]'} />
           Ask Lasagna about this
           <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
         </button>
@@ -149,7 +175,9 @@ export function ActionItem({
           <button
             type="button"
             onClick={onContextClick}
-            className="touch-target h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+            className={`touch-target rounded-ui-md font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors ${
+              compact ? 'h-8 px-2.5 text-[12.5px]' : 'h-9 px-3 text-[13px]'
+            }`}
           >
             See in context →
           </button>
@@ -159,12 +187,205 @@ export function ActionItem({
           <button
             type="button"
             onClick={onDismiss}
-            className="touch-target h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+            className={`touch-target rounded-ui-md font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors ${
+              compact ? 'h-8 px-3 text-[12.5px]' : 'h-9 px-3.5 text-[13px]'
+            }`}
           >
             Dismiss
           </button>
         )}
       </div>
+    </article>
+  );
+}
+
+// ── Dense form — one scannable list row per action ──
+// Shared inner row so the Accordion's collapsed state is pixel-identical to
+// Dense (same height, same chat button). Buttons stopPropagation so a click on
+// them never toggles the surrounding accordion.
+function DenseRowInner({
+  title,
+  tag,
+  description,
+  impact,
+  impactColor,
+  chatPrompt,
+  onDismiss,
+  onContextClick,
+  hideActions,
+  expandable,
+  expanded,
+}: ActionItemProps & { hideActions?: boolean; expandable?: boolean; expanded?: boolean }) {
+  const { openChat } = useChatStore();
+  const cat = catForTag(tag);
+  const Icon = cat.icon;
+
+  return (
+    <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
+      <span
+        className="grid place-items-center h-6 w-6 shrink-0 rounded-ui-sm"
+        style={{ background: cat.tagBg, color: cat.tagFg }}
+        aria-hidden
+      >
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+
+      <h3 className="flex-1 min-w-0 truncate text-[14px] font-semibold leading-tight text-content">
+        {title}
+      </h3>
+
+      {impact && (
+        <span
+          className="hidden sm:inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum whitespace-nowrap"
+          style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
+        >
+          {impact}
+        </span>
+      )}
+
+      {/* Collapsed only — when the accordion is open these move to dedicated
+          labeled buttons in the body. */}
+      {!hideActions && (
+        <>
+          <button
+            type="button"
+            aria-label="Ask Lasagna about this"
+            onClick={(e) => {
+              e.stopPropagation();
+              openChat(
+                `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
+              );
+            }}
+            className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-brand hover:bg-brand-softer transition-colors"
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
+
+          {onContextClick && (
+            <button
+              type="button"
+              aria-label="See in context"
+              onClick={(e) => { e.stopPropagation(); onContextClick(); }}
+              className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-muted hover:bg-canvas-sunken hover:text-content transition-colors"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
+
+          {onDismiss && (
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+              className="touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-faint hover:bg-canvas-sunken hover:text-content transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Accordion affordance — points down to expand, flips up when open. */}
+      {expandable && (
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-content-faint transition-transform ${expanded ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      )}
+    </div>
+  );
+}
+
+function DenseActionRow(props: ActionItemProps) {
+  const cat = catForTag(props.tag);
+  return (
+    <article
+      title={props.description}
+      className="relative overflow-hidden rounded-ui-md border border-line bg-panel shadow-ui-sm transition-[box-shadow,border-color] hover:border-line-strong hover:shadow-ui-md"
+    >
+      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
+      <DenseRowInner {...props} />
+    </article>
+  );
+}
+
+// ── Accordion form — collapsed is identical to Dense (same row, same height,
+// same chat button); clicking the row reveals the description underneath. ──
+function AccordionActionItem(props: ActionItemProps) {
+  const [open, setOpen] = useState(props.defaultOpen ?? false);
+  const { openChat } = useChatStore();
+  const cat = catForTag(props.tag);
+  const toggle = () => setOpen((v) => !v);
+  const { title, description, impact, chatPrompt, onDismiss, onContextClick } = props;
+
+  return (
+    <article className="relative overflow-hidden rounded-ui-md border border-line bg-panel shadow-ui-sm transition-[box-shadow,border-color] hover:border-line-strong hover:shadow-ui-md">
+      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
+
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={toggle}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
+        className="cursor-pointer"
+      >
+        <DenseRowInner {...props} hideActions={open} expandable expanded={open} />
+      </div>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="px-4 pb-3">
+              <p className="text-[13px] leading-[1.5] text-content-secondary">
+                {description}
+              </p>
+              <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() =>
+                    openChat(
+                      `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
+                    )
+                  }
+                  className="touch-target inline-flex items-center gap-1.5 h-8 px-3 rounded-ui-md text-[12.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow] group"
+                >
+                  <Sparkles className="h-[14px] w-[14px]" />
+                  Ask Lasagna about this
+                  <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
+                </button>
+
+                {onContextClick && (
+                  <button
+                    type="button"
+                    onClick={onContextClick}
+                    className="touch-target h-8 px-2.5 rounded-ui-md text-[12.5px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+                  >
+                    See in context →
+                  </button>
+                )}
+
+                {onDismiss && (
+                  <button
+                    type="button"
+                    onClick={onDismiss}
+                    className="touch-target h-8 px-3 rounded-ui-md text-[12.5px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </article>
   );
 }

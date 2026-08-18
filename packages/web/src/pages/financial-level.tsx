@@ -10,6 +10,7 @@ import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import type { LucideIcon } from 'lucide-react';
 import { Button, EmptyState, Skeleton, Textarea, useToast } from '../components/uikit';
+import { type LevelState, levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 
 // ── constants ────────────────────────────────────────────────────────────────
 
@@ -19,12 +20,8 @@ const iconMap: Record<string, LucideIcon> = {
   'alert-circle': AlertCircle, 'piggy-bank': PiggyBank, landmark: Landmark, layers: Layers,
 };
 
-// State drives the whole palette. Four intentional, token-only states:
-//   done    → brand green (filled) · settled, earned
-//   current → brand green (loud)   · the focal "you are here"
-//   future  → neutral faint        · quiet, ahead of you
-//   skipped → neutral faint, struck
-type LevelState = 'done' | 'current' | 'future' | 'skipped';
+// LevelState + the rail visuals live in components/common/level-rail so the home
+// summary and this page share one source of truth.
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -63,13 +60,6 @@ function isAutoTracked(step: PriorityStep): boolean {
   return step.target !== null;
 }
 
-function levelStateOf(step: PriorityStep, currentStepId: string, skipped: Set<string>): LevelState {
-  if (step.status === 'complete') return 'done';
-  if (skipped.has(step.id)) return 'skipped';
-  if (step.id === currentStepId) return 'current';
-  return 'future';
-}
-
 // Per-state Bright accents. Green stays brand; current is the loudest green,
 // done is the calm brand-soft, future/skipped are quiet neutrals.
 const STATE_ACCENT: Record<LevelState, string> = {
@@ -100,81 +90,6 @@ function StatePill({ state, className = '' }: { state: LevelState; className?: s
   if (state === 'skipped')
     return <span className={`${base} bg-canvas-sunken text-content-muted`}>Skipped</span>;
   return <span className={`${base} bg-canvas-sunken text-content-muted`}>Ahead</span>;
-}
-
-// ── SegmentedRail — the hero's honest progress visual. One equal-height segment
-// per level, colored only by STATE (never index or height, since completion is
-// non-linear): done = brand-green fill, current = green with a ring/halo + a
-// centred marker dot ("you are here"), future = quiet neutral track, skipped =
-// muted dashed outline. No varying heights — order is non-linear, so a staircase
-// would lie. ──
-
-function SegmentedRail({ states }: { states: LevelState[] }) {
-  return (
-    <div className="flex items-stretch gap-[6px] h-10 px-1.5" aria-hidden="true">
-      {states.map((st, i) => {
-        const common = 'relative flex-1 min-w-0 rounded-[6px] transition-colors';
-        if (st === 'done')
-          return <span key={i} className={common} style={{ background: 'rgb(var(--ui-brand))' }} />;
-        if (st === 'current')
-          return (
-            <span
-              key={i}
-              className={`${common} grid place-items-center`}
-              style={{
-                background: 'rgb(var(--ui-brand))',
-                boxShadow: '0 0 0 2px rgb(var(--ui-panel)), 0 0 0 4px var(--ui-brand-ring)',
-              }}
-            >
-              <span className="h-2 w-2 rounded-full" style={{ background: 'rgb(var(--ui-brand-fg))' }} />
-            </span>
-          );
-        if (st === 'skipped')
-          return (
-            <span
-              key={i}
-              className={common}
-              style={{ border: '1.5px dashed color-mix(in srgb, rgb(var(--ui-content-faint)) 60%, transparent)' }}
-            />
-          );
-        return (
-          <span
-            key={i}
-            className={common}
-            style={{ background: 'color-mix(in srgb, rgb(var(--ui-content-faint)) 22%, transparent)' }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-// Small swatch that mirrors a SegmentedRail segment for the legend.
-function LegendSwatch({ state }: { state: LevelState }) {
-  if (state === 'current')
-    return (
-      <span
-        className="grid place-items-center w-[11px] h-[11px] rounded-[3px] shrink-0 bg-brand"
-        style={{ boxShadow: '0 0 0 1.5px var(--ui-brand-ring)' }}
-      >
-        <span className="w-[4px] h-[4px] rounded-full" style={{ background: 'rgb(var(--ui-brand-fg))' }} />
-      </span>
-    );
-  if (state === 'done')
-    return <span className="w-[11px] h-[11px] rounded-[3px] shrink-0 bg-brand" />;
-  if (state === 'skipped')
-    return (
-      <span
-        className="w-[11px] h-[11px] rounded-[3px] shrink-0"
-        style={{ border: '1.5px dashed color-mix(in srgb, rgb(var(--ui-content-faint)) 60%, transparent)' }}
-      />
-    );
-  return (
-    <span
-      className="w-[11px] h-[11px] rounded-[3px] shrink-0"
-      style={{ background: 'color-mix(in srgb, rgb(var(--ui-content-faint)) 22%, transparent)' }}
-    />
-  );
 }
 
 // ── WhyThisOrderPopover — Bright panel ───────────────────────────────────────

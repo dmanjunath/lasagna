@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ArrowRight, Check, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
 import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import { Button, Skeleton } from '../components/uikit';
+import { ActionItem } from '../components/common/action-item';
+import { useDensity } from '../lib/density';
+import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
+
+// Shared style for "go to this page" affordances on the home page, so every page
+// link reads as the same soft-brand button as the hero's Open Money.
+const pageLinkCls =
+  'inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]';
 import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../components/ds/TrendChart';
 import { formatCurrency, goalColor, iconFor } from './goal-shared';
 
@@ -21,13 +29,6 @@ interface Goal {
   icon: string | null;
   category: string;
   status: string;
-}
-
-interface InsightLike {
-  id: string;
-  title: string;
-  description: string;
-  urgency: string;
 }
 
 interface BillCard {
@@ -166,7 +167,8 @@ export function SimpleHome() {
   const { user, tenant } = useAuth();
   const [, setLocation] = useLocation();
   const { openChat } = useChatStore();
-  const { insights, reload: reloadInsights, refresh: refreshInsights } = useInsights();
+  const { insights, refresh: refreshInsights, dismiss, isLoading: insightsLoading } = useInsights();
+  const density = useDensity();
   const [generatingInsights, setGeneratingInsights] = useState(false);
   const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
   const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
@@ -175,6 +177,8 @@ export function SimpleHome() {
   const [upcomingBill, setUpcomingBill] = useState<BillCard | null>(null);
   const [askDraft, setAskDraft] = useState('');
   const [currentStep, setCurrentStep] = useState<LevelStep | null>(null);
+  const [levelSteps, setLevelSteps] = useState<{ id: string; order: number; title: string; status: string; skipped: boolean }[]>([]);
+  const [levelCurrentId, setLevelCurrentId] = useState<string>('');
   const [levelLoading, setLevelLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [monthFlow, setMonthFlow] = useState<MonthFlow | null>(null);
@@ -221,8 +225,10 @@ export function SimpleHome() {
         } else {
           setCurrentStep(null);
         }
+        setLevelSteps(steps.map((s) => ({ id: s.id, order: s.order, title: s.title, status: s.status, skipped: s.skipped })));
+        setLevelCurrentId(currentStepId);
       })
-      .catch(() => setCurrentStep(null));
+      .catch(() => { setCurrentStep(null); setLevelSteps([]); });
   }, []);
 
   useEffect(() => {
@@ -357,8 +363,9 @@ export function SimpleHome() {
   const ranked = [...insights].sort(
     (a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0),
   );
-  // Three moves total: the priority step (when present) takes one slot.
-  const sideActions = currentStep ? ranked.slice(0, 2) : ranked.slice(0, 3);
+  // Three money moves — the top-ranked actions. The level step now lives in its
+  // own section below, so it no longer takes a slot here.
+  const sideActions = ranked.slice(0, 3);
 
   const topGoal = goals.find((g) => g.status === 'active');
 
@@ -406,7 +413,7 @@ export function SimpleHome() {
   const hasComposition =
     breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0);
 
-  const moveCount = (currentStep ? 1 : 0) + sideActions.length;
+  const moveCount = sideActions.length;
 
   return (
     <div className="cq-inline mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -452,9 +459,10 @@ export function SimpleHome() {
               </div>
             )}
 
-            {/* The moves queue, contained in a card like the hero above */}
+            {/* The money moves — regular action cards, consistent with every
+                other page and driven by the density toggle. */}
             <Card className="p-6 sm:p-7">
-              <div className="flex items-baseline justify-between gap-4">
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold leading-[1.1] tracking-[-0.02em]">
                     {moveCount > 1 ? `${moveCount} moves to make today` : 'Your next move'}
@@ -463,50 +471,80 @@ export function SimpleHome() {
                     Lined up biggest-impact first: quick wins for your wealth.
                   </p>
                 </div>
-                <Link href="/insights" className="shrink-0 text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
+                <Link href="/insights" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
               </div>
 
-              <MovesQueue
-                step={currentStep}
-                actions={sideActions}
-                levelLoading={levelLoading}
-                generating={generatingInsights}
-                onOpenInsight={(id) => setLocation(`/insights?id=${id}`)}
-                onGenerateActions={async () => {
-                  setGeneratingInsights(true);
-                  try { await refreshInsights(); } finally { setGeneratingInsights(false); }
-                }}
-                onStepComplete={async () => {
-                  if (!currentStep) return;
-                  try { await api.completePriorityStep(currentStep.id, true); } catch {}
-                  await loadPriorities();
-                }}
-                onStepSkip={async () => {
-                  if (!currentStep) return;
-                  try { await api.skipPriorityStep(currentStep.id, true); } catch {}
-                  await loadPriorities();
-                }}
-                onStepUnskip={async () => {
-                  if (!currentStep) return;
-                  try { await api.skipPriorityStep(currentStep.id, false); } catch {}
-                  await loadPriorities();
-                }}
-                onStepHelp={() => {
-                  if (!currentStep) return;
-                  const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
-                  openChat(prompt);
-                }}
-                onActionDone={async (id) => {
-                  try { await api.actOnInsight(id); } catch {}
-                  await reloadInsights();
-                }}
-                onActionSkip={async (id) => {
-                  try { await api.dismissInsight(id); } catch {}
-                  await reloadInsights();
-                }}
-                onSetupProfile={() => setLocation('/profile')}
-              />
+              {insightsLoading ? (
+                <div className={`mt-6 flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-5">
+                      <Skeleton className="h-[22px] w-24 rounded-full" />
+                      <Skeleton className="mt-3 h-5 w-2/3" />
+                      <Skeleton className="mt-2 h-4 w-full" />
+                    </div>
+                  ))}
+                </div>
+              ) : sideActions.length > 0 ? (
+                <div className={`mt-6 flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
+                  {sideActions.map((a) => (
+                    <ActionItem
+                      key={a.id}
+                      title={a.title}
+                      tag={(a.type ?? a.category ?? 'general').toUpperCase()}
+                      description={a.description}
+                      impact={a.impact ?? ''}
+                      impactColor={(a.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
+                      chatPrompt={a.chatPrompt ?? a.title}
+                      onDismiss={() => dismiss(a.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-6 rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap">
+                  <span className="text-[13.5px] text-content-muted">Get personalized actions based on your finances.</span>
+                  <Button
+                    size="sm"
+                    disabled={generatingInsights}
+                    onClick={async () => {
+                      setGeneratingInsights(true);
+                      try { await refreshInsights(); } finally { setGeneratingInsights(false); }
+                    }}
+                  >
+                    {generatingInsights ? 'Generating…' : 'Generate actions'}
+                  </Button>
+                </div>
+              )}
             </Card>
+
+            {/* Financial level — pulled out of the moves queue into its own section. */}
+            <LevelSection
+              className="mt-7"
+              step={currentStep}
+              steps={levelSteps}
+              currentStepId={levelCurrentId}
+              loading={levelLoading}
+              onHelp={() => {
+                if (!currentStep) return;
+                const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
+                openChat(prompt);
+              }}
+              onDid={async () => {
+                if (!currentStep) return;
+                try { await api.completePriorityStep(currentStep.id, true); } catch {}
+                await loadPriorities();
+              }}
+              onSkip={async () => {
+                if (!currentStep) return;
+                try { await api.skipPriorityStep(currentStep.id, true); } catch {}
+                await loadPriorities();
+              }}
+              onUnskip={async () => {
+                if (!currentStep) return;
+                try { await api.skipPriorityStep(currentStep.id, false); } catch {}
+                await loadPriorities();
+              }}
+              onSetupProfile={() => setLocation('/profile')}
+            />
           </div>
 
           {/* ░░░░ RIGHT COLUMN (1/3) ░░░░ */}
@@ -605,7 +643,7 @@ function CompositionColumn({
               <span className="w-[9px] h-[9px] rounded-[3px] shrink-0" style={{ background: s.color }} />
               <span className="font-bold">{s.label}</span>
               <span className="font-editorial font-extrabold tracking-[-0.01em]">{fmtUsd(s.value)}</span>
-              <span className="text-[12px] font-semibold text-content-muted">{pct}%, {s.count} acct{s.count === 1 ? '' : 's'}</span>
+              <span className="text-[12px] font-semibold text-content-muted">{pct}%, {s.count} account{s.count === 1 ? '' : 's'}</span>
             </span>
           );
         })}
@@ -685,12 +723,12 @@ function NetWorthBreakdown({
         <div>
           <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Where your wealth stands</h2>
           <p className="mt-1 text-[13.5px] font-medium text-content-muted max-w-[52ch]">
-            What you own, minus what you owe, across {assetAccounts + breakdown.debtsCount} connected account{assetAccounts + breakdown.debtsCount === 1 ? '' : 's'}.
+            Your Net Worth across {assetAccounts + breakdown.debtsCount} connected account{assetAccounts + breakdown.debtsCount === 1 ? '' : 's'}.
           </p>
         </div>
         <button
           onClick={onOpenMoney}
-          className="self-start shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+          className={`self-start shrink-0 ${pageLinkCls}`}
         >
           Open Money <ArrowRight className="h-4 w-4" />
         </button>
@@ -796,305 +834,201 @@ function NetWorthBreakdown({
   );
 }
 
-// ─── Three moves queue ──────────────────────────────────────────────────────────
+// ─── Financial level section ────────────────────────────────────────────────────
 
-const ACCENT = {
-  brand: { text: 'rgb(var(--ui-accent-ink))', bar: 'rgb(var(--ui-accent))', soft: 'var(--ui-accent-soft)', border: 'var(--ui-accent-soft)' },
-  negative: { text: 'rgb(var(--ui-negative))', bar: 'var(--ui-viz-4)', soft: 'var(--ui-negative-soft)', border: 'var(--ui-negative-soft)' },
-  caution: { text: 'rgb(var(--ui-caution))', bar: 'var(--ui-viz-3)', soft: 'var(--ui-caution-soft)', border: 'var(--ui-caution-soft)' },
-} as const;
-
-type AccentKey = keyof typeof ACCENT;
-
-function urgencyAccent(urgency: string): { accent: AccentKey; label: string } {
-  if (urgency === 'critical' || urgency === 'high') return { accent: 'negative', label: 'High priority' };
-  if (urgency === 'medium') return { accent: 'caution', label: 'Worth doing' };
-  return { accent: 'brand', label: 'When you can' };
-}
-
-/** One numbered move card with the timeline node. */
-function MoveCard({
-  node, accent, tag, tagIcon, title, subtitle, why, impactVal, impactLab, progress, progressDetail, footer,
-}: {
-  node: React.ReactNode;
-  accent: AccentKey;
-  tag: string;
-  tagIcon?: React.ReactNode;
-  title: string;
-  subtitle?: string;
-  why?: React.ReactNode;
-  impactVal?: string;
-  impactLab?: string;
-  progress?: number;
-  progressDetail?: string | null;
-  footer: React.ReactNode;
-}) {
-  const a = ACCENT[accent];
-  // "Why" text is clamped to 3 lines; offer an expand toggle when it overflows.
-  const whyRef = useRef<HTMLParagraphElement>(null);
-  const [whyExpanded, setWhyExpanded] = useState(false);
-  const [whyClamped, setWhyClamped] = useState(false);
-  useLayoutEffect(() => {
-    const el = whyRef.current;
-    if (!whyExpanded && el) setWhyClamped(el.scrollHeight > el.clientHeight + 1);
-  }, [why, whyExpanded]);
-  return (
-    <article className="relative pl-[50px]">
-      {/* timeline node */}
-      <div
-        className="absolute left-0 top-[22px] w-10 h-10 rounded-[13px] grid place-items-center font-editorial font-extrabold text-[17px] bg-panel shadow-ui-sm z-[2]"
-        style={{ color: a.text, border: `2px solid ${a.border}` }}
-      >
-        {node}
-      </div>
-      <div className="relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[18px_20px] sm:p-[22px_24px] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md">
-        <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: a.bar }} />
-        <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-5">
-          <div className="flex-1 min-w-0">
-            <span
-              className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-[0.05em] mb-3"
-              style={{ background: a.soft, color: a.text }}
-            >
-              {tagIcon}{tag}
-            </span>
-            <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em]">{title}</h3>
-            {subtitle && (
-              <p className="mt-1.5 text-[13px] leading-[1.4] text-content-muted max-w-[50ch]">{subtitle}</p>
-            )}
-            {why && (
-              <>
-                <p
-                  ref={whyRef}
-                  className={`mt-2 text-[14px] leading-[1.5] text-content-secondary max-w-[50ch] ${whyExpanded ? '' : 'line-clamp-3'}`}
-                >
-                  {why}
-                </p>
-                {(whyClamped || whyExpanded) && (
-                  <button
-                    type="button"
-                    onClick={() => setWhyExpanded(!whyExpanded)}
-                    className="mt-1.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-content-muted hover:text-content transition-colors"
-                  >
-                    <span>{whyExpanded ? 'Show less' : 'Show more'}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${whyExpanded ? 'rotate-180' : ''}`} />
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-          {impactVal && (
-            <div className="w-full sm:w-auto flex items-baseline gap-1.5 sm:block border-t border-line pt-2.5 sm:border-t-0 sm:pt-0 text-left sm:text-right shrink-0 sm:pl-2.5 sm:min-w-[88px]">
-              <div className="font-editorial text-[22px] sm:text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum" style={{ color: a.text }}>
-                {impactVal}
-              </div>
-              {impactLab && <div className="text-[12px] font-semibold text-content-muted sm:mt-1.5">{impactLab}</div>}
-            </div>
-          )}
-        </div>
-        {progress != null && progress > 0 && (
-          <div className="mt-3.5">
-            <Track pct={progress} color="rgb(var(--ui-brand))" />
-            {progressDetail && <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">{progressDetail}</div>}
-          </div>
-        )}
-        <div className="flex items-center gap-2 mt-4 flex-wrap">{footer}</div>
-      </div>
-    </article>
-  );
-}
-
-function MovesQueue({
-  step, actions, levelLoading, generating,
-  onOpenInsight, onGenerateActions,
-  onStepComplete, onStepSkip, onStepUnskip, onStepHelp, onActionDone, onActionSkip, onSetupProfile,
+/** The financial-level standing, echoing the /financial-level hero (a level
+ *  ladder), so it reads as its own thing — not another action card. */
+function LevelSection({
+  step, steps, currentStepId, loading, className = '',
+  onHelp, onDid, onSkip, onUnskip, onSetupProfile,
 }: {
   step: LevelStep | null;
-  actions: InsightLike[];
-  levelLoading: boolean;
-  generating: boolean;
-  onOpenInsight: (id: string) => void;
-  onGenerateActions: () => void | Promise<void>;
-  onStepComplete: () => void | Promise<void>;
-  onStepSkip: () => void | Promise<void>;
-  onStepUnskip: () => void | Promise<void>;
-  onStepHelp: () => void;
-  onActionDone: (id: string) => void | Promise<void>;
-  onActionSkip: (id: string) => void | Promise<void>;
+  steps: { id: string; order: number; title: string; status: string; skipped: boolean }[];
+  currentStepId: string;
+  loading: boolean;
+  className?: string;
+  onHelp: () => void;
+  onDid: () => void | Promise<void>;
+  onSkip: () => void | Promise<void>;
+  onUnskip: () => void | Promise<void>;
   onSetupProfile: () => void;
 }) {
-  const [stepBusy, setStepBusy] = useState(false);
-  const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [justSkipped, setJustSkipped] = useState(false);
 
-  if (levelLoading) {
-    return (
-      <div className="mt-6 relative pl-[50px] flex flex-col gap-4">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-6">
-            <Skeleton className="h-5 w-24 rounded-full" />
-            <Skeleton className="mt-3 h-5 w-3/4" />
-            <Skeleton className="mt-2 h-4 w-full" />
-            <Skeleton className="mt-4 h-9 w-32 rounded-ui-md" />
-          </div>
-        ))}
-      </div>
+  const shell = (children: React.ReactNode) => (
+    <section className={`relative rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7 ${className}`}>
+      <div
+        className="pointer-events-none absolute inset-0 rounded-ui-xl"
+        style={{ background: 'radial-gradient(95% 80% at 0% 8%, var(--ui-brand-softer), transparent 60%)' }}
+        aria-hidden
+      />
+      <div className="relative">{children}</div>
+    </section>
+  );
+
+  const heading = (
+    <div className="flex items-center justify-between gap-4">
+      <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold leading-[1.1] tracking-[-0.02em]">
+        Your financial level
+      </h2>
+      <Link href="/financial-level" className={`shrink-0 ${pageLinkCls}`}>
+        View all<ArrowRight className="h-4 w-4" />
+      </Link>
+    </div>
+  );
+
+  if (loading) {
+    return shell(
+      <>
+        <Skeleton className="h-5 w-44" />
+        <Skeleton className="mt-4 h-12 w-28" />
+        <Skeleton className="mt-3 h-4 w-3/4" />
+        <Skeleton className="mt-5 h-10 w-full rounded-ui-md" />
+        <Skeleton className="mt-5 h-9 w-28 rounded-ui-md" />
+      </>
     );
   }
 
-  // Nothing at all → onboarding affordance (the parent card provides the shell).
-  if (!step && actions.length === 0) {
-    return (
-      <div className="mt-6">
-        <h3 className="font-editorial text-[20px] font-bold tracking-[-0.018em]">Set up your financial profile</h3>
-        <p className="mt-2 mb-4 text-[14px] leading-relaxed text-content-secondary">
-          Tell us the basics and we'll show you exactly what to do next.
+  if (!step) {
+    return shell(
+      <>
+        {heading}
+        <p className="mt-2 mb-4 text-[14px] leading-relaxed text-content-secondary max-w-[52ch]">
+          Tell us the basics and we'll map your next level and exactly what to do to reach it.
         </p>
         <Button size="sm" onClick={onSetupProfile} trailingIcon={<ArrowRight className="h-4 w-4" />}>
-          Get started
+          Set up your profile
         </Button>
-      </div>
+      </>
     );
   }
 
-  const isStepComplete = step?.status === 'complete';
-  const stepProgress = step ? Math.max(0, Math.min(100, Math.round(step.progress || 0))) : 0;
-  const stepDetail =
-    step?.current != null && step?.target != null && step.target > 0
+  // Mirror the /financial-level page: skipped state comes from each step's
+  // server `skipped` flag, so the counts and rail match that page exactly.
+  const skipped = new Set(steps.filter((s) => s.skipped).map((s) => s.id));
+  const states = steps.map((s) => levelStateOf(s, currentStepId, skipped));
+  const railLabels = steps.map((s) => `Level ${s.order}: ${s.title}`);
+  const total = steps.length || 1;
+  const doneCount = states.filter((s) => s === 'done').length;
+  const futureCount = states.filter((s) => s === 'future').length;
+  const skippedCount = states.filter((s) => s === 'skipped').length;
+  const allComplete = doneCount === total;
+  const isComplete = step.status === 'complete';
+  const pct = Math.max(0, Math.min(100, Math.round(step.progress || 0)));
+  const detail =
+    step.current != null && step.target != null && step.target > 0
       ? `${formatMoneyShort(step.current)} saved of ${formatMoneyShort(step.target)} target`
       : null;
 
-  return (
-    <div className="mt-6 relative">
-      {/* connecting rail */}
-      <div
-        className="absolute left-[19px] top-[30px] bottom-[28px] w-[2.5px] rounded-full"
-        style={{ background: 'linear-gradient(180deg, var(--ui-line), var(--ui-hairline) 86%, transparent)' }}
-      />
-      <div className="relative flex flex-col gap-4">
-        {step && (
-          <MoveCard
-            node="1"
-            accent="brand"
-            tag={`Level ${step.order}`}
-            tagIcon={<Check className="h-3 w-3" />}
-            title={step.title}
-            subtitle={step.subtitle}
-            why={step.description}
-            impactVal={isStepComplete ? '✓' : `${stepProgress}%`}
-            impactLab={isStepComplete ? 'complete' : 'progress'}
-            progress={isStepComplete ? 0 : stepProgress}
-            progressDetail={stepDetail}
-            footer={
-              <>
-                <Button size="sm" disabled={stepBusy} onClick={onStepHelp} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-                  Start
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={stepBusy}
-                  onClick={async () => {
-                    setStepBusy(true);
-                    try { await onStepComplete(); } finally { setStepBusy(false); }
-                  }}
-                >
-                  {stepBusy ? '…' : 'I did it'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={stepBusy}
-                  onClick={async () => {
-                    setStepBusy(true);
-                    try {
-                      await onStepSkip();
-                      setJustSkipped(true);
-                      setTimeout(() => setJustSkipped(false), 4000);
-                    } finally { setStepBusy(false); }
-                  }}
-                >
-                  Skip
-                </Button>
-                {justSkipped && (
-                  <button
-                    type="button"
-                    className="text-[12px] font-semibold text-content-secondary underline underline-offset-2 hover:text-brand"
-                    onClick={async () => {
-                      setStepBusy(true);
-                      try { await onStepUnskip(); setJustSkipped(false); } finally { setStepBusy(false); }
-                    }}
-                  >
-                    Undo skip
-                  </button>
-                )}
-              </>
-            }
-          />
-        )}
+  return shell(
+    <>
+      {heading}
 
-        {actions.map((a, i) => {
-          const { accent, label } = urgencyAccent(a.urgency);
-          const busy = actionBusy === a.id;
-          return (
-            <MoveCard
-              key={a.id}
-              node={String((step ? 1 : 0) + i + 1)}
-              accent={accent}
-              tag={label}
-              title={a.title}
-              why={a.description}
-              footer={
-                <>
-                  <Button size="sm" onClick={() => onOpenInsight(a.id)} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-                    View details
-                  </Button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={async () => {
-                      setActionBusy(a.id);
-                      try { await onActionDone(a.id); } finally { setActionBusy(null); }
-                    }}
-                    className="h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-secondary hover:bg-brand-softer hover:text-content transition-colors disabled:opacity-60"
-                  >
-                    {busy ? '…' : 'I did it'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={async () => {
-                      setActionBusy(a.id);
-                      try { await onActionSkip(a.id); } finally { setActionBusy(null); }
-                    }}
-                    className="h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors disabled:opacity-60"
-                  >
-                    Skip
-                  </button>
-                </>
-              }
-            />
-          );
-        })}
+      {/* Standing — a big level numeral beside the honest segmented ladder */}
+      <div className="mt-4 grid gap-5 sm:gap-8 sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)] sm:items-center">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2.5">
+            <span className="font-editorial text-[46px] sm:text-[54px] font-extrabold leading-[0.85] tracking-[-0.03em] text-[rgb(var(--ui-brand-ink))] ui-tnum">
+              {allComplete ? total : step.order}
+            </span>
+            <span className="font-editorial text-[16px] font-bold text-content-muted ui-tnum">of {total}</span>
+          </div>
+          <p className="mt-2.5 text-[14px] font-medium leading-[1.5] text-content-secondary max-w-[42ch]">
+            {allComplete ? (
+              <>Every layer of the stack is cleared.</>
+            ) : (
+              <>Working on <strong className="font-bold text-content">{step.title}</strong></>
+            )}
+          </p>
+        </div>
 
-        {/* No insights yet → generate affordance (keeps the queue useful). */}
-        {actions.length === 0 && step && (
-          <div className="relative pl-[50px]">
-            <div
-              className="absolute left-0 top-[18px] w-10 h-10 rounded-[13px] grid place-items-center bg-panel shadow-ui-sm z-[2] text-content-muted"
-              style={{ border: '2px solid var(--ui-hairline)' }}
-            >
-              <Sparkles className="h-[18px] w-[18px]" />
-            </div>
-            <div className="rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap">
-              <span className="text-[13.5px] text-content-muted">Want more? Get personalized actions based on your finances.</span>
-              <Button size="sm" disabled={generating} onClick={onGenerateActions}>
-                {generating ? 'Generating…' : 'Generate actions'}
-              </Button>
+        {steps.length > 0 && (
+          <div className="min-w-0 w-full">
+            <SegmentedRail states={states} labels={railLabels} />
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+              <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                <LegendSwatch state="done" />{doneCount} done
+              </span>
+              {!allComplete && (
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                  <LegendSwatch state="current" />You are here
+                </span>
+              )}
+              {futureCount > 0 && (
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                  <LegendSwatch state="future" />{futureCount} ahead
+                </span>
+              )}
+              {skippedCount > 0 && (
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                  <LegendSwatch state="skipped" />{skippedCount} skipped
+                </span>
+              )}
             </div>
           </div>
         )}
       </div>
-    </div>
+
+      {/* Current level focus — what to do next, kept from the level flow */}
+      {!allComplete && (
+        <div className="mt-6 pt-5 border-t border-line">
+          <h3 className="font-editorial text-[16px] font-bold tracking-[-0.015em]">{step.title}</h3>
+          {step.subtitle && (
+            <p className="mt-1 text-[13px] leading-[1.4] text-content-muted max-w-[60ch]">{step.subtitle}</p>
+          )}
+          {step.description && (
+            <p className="mt-1.5 text-[14px] leading-[1.5] text-content-secondary max-w-[60ch]">{step.description}</p>
+          )}
+          {!isComplete && pct > 0 && (
+            <div className="mt-3.5 max-w-[440px]">
+              <Track pct={pct} color="rgb(var(--ui-brand))" />
+              {detail && <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">{detail}</div>}
+            </div>
+          )}
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <Button size="sm" disabled={busy} onClick={onHelp} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+              Start
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={async () => { setBusy(true); try { await onDid(); } finally { setBusy(false); } }}
+            >
+              {busy ? '…' : 'I did it'}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await onSkip();
+                  setJustSkipped(true);
+                  setTimeout(() => setJustSkipped(false), 4000);
+                } finally { setBusy(false); }
+              }}
+            >
+              Skip
+            </Button>
+            {justSkipped && (
+              <button
+                type="button"
+                className="text-[12px] font-semibold text-content-secondary underline underline-offset-2 hover:text-brand"
+                onClick={async () => {
+                  setBusy(true);
+                  try { await onUnskip(); setJustSkipped(false); } finally { setBusy(false); }
+                }}
+              >
+                Undo skip
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1416,9 +1350,9 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
 
   return (
     <Card className="p-[22px]">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Goals</div>
-        <Link href="/goals" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
+        <Link href="/goals" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
       </div>
       <ul>
         {shown.map((g) => {
@@ -1486,9 +1420,9 @@ function SpendingPulse({ flow }: { flow: MonthFlow }) {
 
   return (
     <Card className="p-[22px]">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Spending this month</div>
-        <Link href="/spending" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
+        <Link href="/spending" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
       </div>
       <div className="mt-3 flex items-end gap-x-2.5 gap-y-1 flex-wrap">
         <span className="font-editorial text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{fmtUsd(flow.spending)}</span>
@@ -1530,9 +1464,9 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
 
   return (
     <Card className="p-[22px]">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Cash flow this month</div>
-        <Link href="/spending" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">Details</Link>
+        <Link href="/spending" className={`shrink-0 ${pageLinkCls}`}>Details<ArrowRight className="h-4 w-4" /></Link>
       </div>
       {hasFlow ? (
         <>
@@ -1576,9 +1510,9 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
 function RecentActivity({ txns }: { txns: RecentTxn[] }) {
   return (
     <Card className="p-[22px]">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Recent activity</div>
-        <Link href="/transactions" className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors">View all</Link>
+        <Link href="/transactions" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
       </div>
       {txns.length === 0 ? (
         <p className="mt-3 text-[13px] text-content-muted">No transactions yet.</p>

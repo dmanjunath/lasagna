@@ -11,7 +11,6 @@ import {
   ArrowRight,
   Sparkles,
   TrendingUp,
-  AlertTriangle,
   Info,
   Receipt,
   PiggyBank,
@@ -22,7 +21,8 @@ import { api } from "../lib/api.js";
 import { cn } from "../lib/utils.js";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
-import { useChatStore } from "../lib/chat-store.js";
+import { useDensity } from "../lib/density.js";
+import { ActionItem } from "../components/common/action-item.js";
 import { Button, Badge, EmptyState, Skeleton } from "../components/uikit";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -163,12 +163,6 @@ function impactSoftVar(color?: string | null): string {
 }
 
 // impactColor → a priority tag (icon + tone + label), meaning never color-only.
-function priorityTag(color?: string | null): { label: string; tone: "negative" | "positive" | "caution"; Icon: typeof Sparkles } {
-  if (color === "red") return { label: "High priority", tone: "negative", Icon: AlertTriangle };
-  if (color === "green") return { label: "Opportunity", tone: "positive", Icon: TrendingUp };
-  return { label: "Worth a look", tone: "caution", Icon: Sparkles };
-}
-
 // ─── types ───────────────────────────────────────────────────────────────────
 
 interface Profile {
@@ -199,7 +193,7 @@ export function TaxStrategy() {
 
   const { insights, isLoading: insightsLoading, reload, refresh, dismiss } = useInsights("tax");
   const { setPageContext } = usePageContext();
-  const { openChat } = useChatStore();
+  const density = useDensity();
 
   // Close safety popover on outside click
   useEffect(() => {
@@ -592,7 +586,7 @@ export function TaxStrategy() {
           <div className="flex items-end justify-between gap-4 px-1 pb-3.5">
             <div>
               <h2 className="font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
-                Ways to lower your taxes
+                Ways to optimize your taxes
               </h2>
               <p className="mt-1 text-[13px] font-semibold text-[rgb(var(--ui-accent-ink))]">
                 {estimatedSavings ? `${formatMoney(estimatedSavings)}/yr potential` : `${insights.length} to review`}
@@ -610,16 +604,16 @@ export function TaxStrategy() {
             </Button>
           </div>
 
-          <div className="flex flex-col gap-3.5">
-            {insights.map((ins, idx) => (
-              <TaxActionCard
+          <div className={`flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
+            {insights.map((ins) => (
+              <ActionItem
                 key={ins.id}
-                index={idx}
                 title={ins.title}
+                tag={(ins.type ?? ins.category ?? 'tax').toUpperCase()}
                 description={ins.description}
-                impact={ins.impact}
-                impactColor={ins.impactColor}
-                onAsk={() => openChat(ins.chatPrompt ?? ins.title)}
+                impact={ins.impact ?? ''}
+                impactColor={(ins.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
+                chatPrompt={ins.chatPrompt ?? ins.title}
                 onDismiss={() => dismiss(ins.id)}
               />
             ))}
@@ -819,90 +813,6 @@ function SavingsLineBar({ line, max }: { line: SavingsLine; max: number }) {
         />
       </div>
     </div>
-  );
-}
-
-// Recommended-action card — home "three moves" anatomy, Bright actions skin.
-function TaxActionCard({
-  index,
-  title,
-  description,
-  impact,
-  impactColor,
-  onAsk,
-  onDismiss,
-}: {
-  index: number;
-  title: string;
-  description: string;
-  impact: string | null;
-  impactColor: string | null;
-  onAsk: () => void;
-  onDismiss: () => void;
-}) {
-  const tag = priorityTag(impactColor);
-  const TagIcon = tag.Icon;
-
-  return (
-    <motion.article
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
-      className="relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-[20px_18px] sm:p-[22px_24px] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md"
-    >
-      <span
-        className="absolute left-0 top-0 bottom-0 w-1"
-        style={{ background: impactColorVar(impactColor) }}
-        aria-hidden
-      />
-
-      <div className="flex items-start sm:items-center gap-5 flex-wrap sm:flex-nowrap">
-        <div className="flex-1 min-w-0">
-          <Badge tone={tag.tone} size="sm" className="mb-3 font-bold uppercase tracking-[0.05em]">
-            <TagIcon className="h-3 w-3" />
-            {tag.label}
-          </Badge>
-          <h3 className="font-editorial text-[18px] sm:text-[20px] font-bold leading-[1.2] tracking-[-0.018em] text-content">
-            {title}
-          </h3>
-          {description && (
-            <p className="mt-2 text-[14px] leading-[1.5] text-content-secondary line-clamp-3 max-w-[52ch]">
-              {description}
-            </p>
-          )}
-        </div>
-
-        {impact && (
-          <div className="w-full sm:w-auto mt-3.5 sm:mt-0 pt-3.5 sm:pt-0 border-t sm:border-t-0 border-line shrink-0">
-            <span
-              className="inline-flex items-center gap-1.5 rounded-ui-md px-2.5 py-1.5 font-editorial text-[14.5px] font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap"
-              style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
-            >
-              {impact}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 mt-5 flex-wrap">
-        <Button
-          size="sm"
-          onClick={onAsk}
-          leadingIcon={<Sparkles className="h-3.5 w-3.5" />}
-          trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}
-        >
-          Ask Lasagna about this
-        </Button>
-        <span className="hidden sm:block flex-1 min-w-[8px]" aria-hidden />
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="touch-target h-9 px-3.5 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
-        >
-          Dismiss
-        </button>
-      </div>
-    </motion.article>
   );
 }
 
