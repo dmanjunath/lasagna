@@ -4,8 +4,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  ChevronsUpDown,
   RefreshCw,
   TrendingDown,
   TrendingUp,
@@ -17,8 +15,9 @@ import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { useAuth } from '../lib/auth';
 import { usePageContext } from '../lib/page-context';
+import { useTaxonomy, taxonomyIcon } from '../lib/taxonomy';
 import { PageActions } from '../components/common/page-actions';
-import { Badge, Button, EmptyState, SegmentedControl, Skeleton, Table, TBody, TR, TH, TD } from '../components/uikit';
+import { Badge, Button, EmptyState, SegmentedControl, Skeleton } from '../components/uikit';
 import { CashflowBars, periodLabel, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { RulesPanel } from '../components/rules/RulesPanel';
@@ -48,10 +47,6 @@ function endOfMonth(d: Date): string {
   const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
   return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}T23:59:59`;
 }
-
-// Single hue for the ranked breakdown bars. A neutral data color (not brand
-// green, which would read as "good") that stays legible in light and dark.
-const BAR_FILL = 'var(--ui-viz-2)';
 
 interface RollupRow {
   key: string | null;
@@ -125,196 +120,220 @@ function StatCell({ label, value, sub, tone }: { label: string; value: string; s
 }
 
 // ---------------------------------------------------------------------------
-// BreakdownSection - one titled section (Income / Expenses) of the breakdown
-// table: a sub-header naming the section, column headers, the rolled-up rows
-// (group rows expand to their children), and a per-section total row at 100%.
+// BreakdownSection — one titled section (Income / Expenses) rendered as a ranked
+// list of proportional bars. Each row IS a bar: its width encodes the row's
+// magnitude relative to the section's largest row (so the top row fills the
+// track and the rest read relative to it), tinted brand-green for income and
+// coral for expenses. An icon + label ride on the bar; the amount is pinned
+// right. Group rows expand to child bars; clicking a row opens the transactions
+// behind it, filtered.
 // ---------------------------------------------------------------------------
-
-// A sortable column header. Clicking toggles the sort key/direction; the active
-// column shows the direction arrow, inactive columns show a faint up/down hint.
-function SortHead({ label, sortKey, sort, onSort, numeric }: {
-  label: string;
-  sortKey: 'label' | 'amount';
-  sort: { key: 'label' | 'amount'; dir: 'asc' | 'desc' };
-  onSort: (k: 'label' | 'amount') => void;
-  numeric?: boolean;
-}) {
-  const active = sort.key === sortKey;
-  return (
-    <TH numeric={numeric}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        aria-label={`Sort by ${label}`}
-        className={cn(
-          'ui-focus -mx-1 inline-flex items-center gap-1 rounded-ui-sm px-1 py-0.5 uppercase tracking-[0.08em] transition-colors hover:text-content',
-          active ? 'text-content' : 'text-content-muted',
-        )}
-      >
-        {label}
-        {active
-          ? (sort.dir === 'asc' ? <ChevronUp size={13} aria-hidden /> : <ChevronDown size={13} aria-hidden />)
-          : <ChevronsUpDown size={13} className="text-content-faint" aria-hidden />}
-      </button>
-    </TH>
-  );
-}
 
 function BreakdownSection({
   title,
   rows,
-  totalLabel,
-  colHead,
   rollup,
+  tone,
   openGroups,
   toggleGroup,
   onDrill,
   sort,
-  onSort,
 }: {
   title: string;
   rows: RollupRow[];
-  totalLabel: string;
-  colHead: string;
   rollup: 'category' | 'group';
+  tone: 'income' | 'expense';
   openGroups: Set<string | null>;
   toggleGroup: (key: string | null) => void;
   // Navigate to the transactions behind a row, filtered to these category ids.
   onDrill: (categoryIds: string[]) => void;
   sort: { key: 'label' | 'amount'; dir: 'asc' | 'desc' };
-  onSort: (k: 'label' | 'amount') => void;
 }) {
-  // Denominator = the section's own row sum. The ranked bar encodes each row's
-  // SHARE of that total, so the bar replaces a separate "%" column.
-  const denominator = rows.reduce((s, r) => s + r.total, 0) || 1;
-  // A section with a single row already IS the whole section at 100%, so the
-  // separate "Total" row would just repeat it. Skip it in that case.
-  const showSectionTotal = rows.length > 1;
+  const { byId } = useTaxonomy();
+  // Bar width normalizes to the section's LARGEST row, so the top row fills the
+  // track and the rest read relative to it (a ranked-bar chart). A tiny nonzero
+  // row still shows a minimum nub so it never vanishes.
+  const maxTotal = rows.reduce((m, r) => Math.max(m, r.total), 0) || 1;
+  const fill = tone === 'income' ? 'var(--ui-brand-soft)' : 'var(--ui-negative-soft)';
+
+  // Resolve a glyph, reusing the app's taxonomy icons. Category rows resolve by
+  // id; group rows have no glyph of their own, so they borrow their largest
+  // child category's icon (children are pre-sorted largest first) rather than
+  // fall back to a generic receipt.
+  const iconFor = (row: RollupRow): React.ReactNode => {
+    const catKey = rollup === 'category' ? row.key : row.children[0]?.key ?? null;
+    const entry = catKey ? byId.get(catKey) : undefined;
+    return entry ? taxonomyIcon(entry) : <Receipt size={15} />;
+  };
+
   // The category ids a row filters transactions by: the group's children in
   // group mode, the category itself in category mode. Uncategorized has none.
   const idsFor = (row: RollupRow): string[] =>
     rollup === 'group'
       ? row.children.map((c) => c.key).filter((k): k is string => k !== null)
       : row.key !== null ? [row.key] : [];
+
   const sorted = [...rows].sort((a, b) => {
     const cmp = sort.key === 'label' ? a.label.localeCompare(b.label) : a.total - b.total;
     return sort.dir === 'asc' ? cmp : -cmp;
   });
+
   return (
-    <TBody>
-      <tr>
-        <th
-          colSpan={2}
-          className="border-b border-line bg-canvas-sunken/50 px-4 pt-4 pb-2 text-left text-[13px] font-bold text-content"
-        >
-          {title}
-        </th>
-      </tr>
-      {/* Column headers + sort only earn their space when there's more than one
-           row to compare. */}
-      {rows.length > 1 && (
-        <TR>
-          <SortHead label={colHead} sortKey="label" sort={sort} onSort={onSort} />
-          <SortHead label="Amount" sortKey="amount" sort={sort} onSort={onSort} numeric />
-        </TR>
-      )}
-      {sorted.map((row) => {
+    <div className="p-3 sm:p-4">
+      <h3 className="px-2 pb-2 text-[13px] font-bold text-content">{title}</h3>
+      <div className="flex flex-col gap-1">
+        {sorted.map((row) => {
           // Null key = uncategorized ("Other"): inert, no transactions to filter.
           const expandable = rollup === 'group' && row.key !== null && row.children.length > 1;
           const isOpen = expandable && openGroups.has(row.key);
           const ids = idsFor(row);
           const drillable = ids.length > 0;
-          // Bar = share of the section total (truthful: a tiny category reads
-          // as a tiny bar).
-          const barPct = (row.total / denominator) * 100;
+          const barPct = (row.total / maxTotal) * 100;
+          // Expandable group rows toggle on row-click (mouse) with a real
+          // chevron button for keyboard/AT — so the row is NOT itself a button
+          // and the trailing drill button never nests inside another control.
+          // Non-expandable drillable rows ARE the single action, so the whole
+          // row is one button that opens the transactions behind it.
+          const rowProps = expandable
+            ? { onClick: () => toggleGroup(row.key) }
+            : drillable
+              ? {
+                  role: 'button' as const,
+                  tabIndex: 0,
+                  onClick: () => onDrill(ids),
+                  onKeyDown: (e: React.KeyboardEvent) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDrill(ids); }
+                  },
+                  'aria-label': `View ${row.label} transactions`,
+                }
+              : {};
           return (
             <React.Fragment key={row.key ?? `uncategorized-${title}`}>
-              {/* Expandable group rows act as an accordion header: clicking the
-                   row body toggles open/closed (mouse; the chevron is the
-                   keyboard toggle). A dedicated trailing arrow is the ONE thing
-                   that opens the transactions behind the row — so there's no
-                   hidden "the text is a link" ambiguity. The row is not itself a
-                   button, so the chevron + arrow stay the real controls (no
-                   nested ARIA buttons). Names wrap on mobile, truncate desktop. */}
-              <TR
-                interactive={expandable}
-                onClick={expandable ? () => toggleGroup(row.key) : undefined}
+              <div
+                {...rowProps}
+                className={cn(
+                  'ui-focus group relative flex h-11 items-center gap-2.5 rounded-ui-md px-3 text-content',
+                  (expandable || drillable) && 'cursor-pointer',
+                )}
               >
-                <TD>
-                  <div className="flex items-center gap-2">
-                    {expandable ? (
-                      <button
-                        type="button"
-                        aria-label={isOpen ? 'Collapse group' : 'Expand group'}
-                        aria-expanded={isOpen}
-                        onClick={(e) => { e.stopPropagation(); toggleGroup(row.key); }}
-                        className="ui-focus -ml-1 grid h-6 w-6 shrink-0 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
-                      >
-                        <ChevronDown size={15} className={cn('transition-transform', isOpen && 'rotate-180')} aria-hidden />
-                      </button>
-                    ) : rollup === 'group' ? (
-                      <span className="w-6 shrink-0" aria-hidden />
-                    ) : null}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="min-w-0 flex-1 line-clamp-2 font-medium text-content" title={row.label}>{row.label}</span>
-                        {drillable && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onDrill(ids); }}
-                            aria-label={`View ${row.label} transactions`}
-                            className="ui-focus inline-flex shrink-0 items-center gap-1 rounded-ui-sm py-1 text-[12px] font-semibold text-content-muted transition-colors hover:text-[rgb(var(--ui-brand-ink))] hover:underline"
-                          >
-                            View Transactions
-                            <ArrowRight size={13} aria-hidden />
-                          </button>
-                        )}
-                      </div>
-                      <span className="mt-1.5 block h-2 w-full overflow-hidden rounded-full bg-canvas-sunken" aria-hidden>
-                        <span className="block h-full rounded-full" style={{ width: `${barPct}%`, background: BAR_FILL }} />
-                      </span>
-                    </div>
-                  </div>
-                </TD>
-                <TD numeric className="align-top font-semibold">{formatCurrency(row.total)}</TD>
-              </TR>
+                {/* Hover wash over the whole row. */}
+                <span aria-hidden className="pointer-events-none absolute inset-y-1 inset-x-0 rounded-ui-md bg-content/[0.03] opacity-0 transition-opacity group-hover:opacity-100" />
+                {/* Icon leads every row on PLAIN background — never inside the
+                     bar — so a small partial fill can't look like it's boxing the
+                     icon. The expand chevron (group mode) sits between it and the
+                     bar so the icon column stays flush left across modes. */}
+                <span className="relative z-[1] grid h-5 w-5 shrink-0 place-items-center text-content-muted [&>svg]:h-[15px] [&>svg]:w-[15px]" aria-hidden>
+                  {iconFor(row)}
+                </span>
+                {expandable ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); toggleGroup(row.key); }}
+                    aria-label={isOpen ? `Collapse ${row.label}` : `Expand ${row.label}`}
+                    aria-expanded={isOpen}
+                    className="ui-focus relative z-[1] grid h-6 w-6 shrink-0 place-items-center rounded-ui-sm text-content-muted transition-colors hover:text-content"
+                  >
+                    <ChevronDown size={15} className={cn('transition-transform', isOpen && 'rotate-180')} aria-hidden />
+                  </button>
+                ) : rollup === 'group' ? (
+                  <span className="w-6 shrink-0" aria-hidden />
+                ) : null}
+                {/* Bar track — the proportional fill starts AFTER the icon and
+                     carries the label + amount on top. A minimum width keeps a
+                     tiny row's bar visible without ever touching the icon. */}
+                <span className="relative z-[1] flex min-w-0 flex-1 items-center self-stretch">
+                  <span
+                    aria-hidden
+                    className="absolute inset-y-1 left-0 rounded-ui-md transition-[width] duration-500 ease-ui"
+                    style={{ width: `${barPct}%`, minWidth: row.total > 0 ? '1.75rem' : 0, background: fill }}
+                  />
+                  <span className="relative z-[1] min-w-0 flex-1 truncate pl-2.5 text-[13.5px] font-semibold" title={row.label}>{row.label}</span>
+                  <span className="relative z-[1] ui-tnum shrink-0 pl-2 text-[13.5px] font-bold tabular-nums">{formatCurrency(row.total)}</span>
+                </span>
+                {expandable && drillable ? (
+                  // Group header: row-click toggles, so the drill needs its own
+                  // real button.
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onDrill(ids); }}
+                    aria-label={`View ${row.label} transactions`}
+                    className="ui-focus touch-target relative z-[1] grid h-6 w-6 shrink-0 place-items-center rounded-ui-sm text-content-muted transition-[color,transform] duration-150 hover:scale-125 hover:text-brand"
+                  >
+                    <ArrowRight size={14} aria-hidden />
+                  </button>
+                ) : drillable ? (
+                  // Whole row IS the drill button (category rows, single-category
+                  // groups), so the arrow is a decorative affordance cue — not a
+                  // nested control — that grows and greens on row hover.
+                  <span
+                    aria-hidden
+                    className="relative z-[1] grid h-6 w-6 shrink-0 place-items-center text-content-muted transition-[color,transform] duration-150 group-hover:scale-125 group-hover:text-brand"
+                  >
+                    <ArrowRight size={14} aria-hidden />
+                  </span>
+                ) : (
+                  // Inert (uncategorized) rows still reserve the slot so amounts
+                  // stay column-aligned with the rows that show an arrow.
+                  <span className="w-6 shrink-0" aria-hidden />
+                )}
+              </div>
               {isOpen && row.children.map((child) => {
                 const childDrillable = child.key !== null;
                 // Disambiguate a child that shares its parent group's name (the
                 // group's own direct category) so it doesn't read as a dup row.
                 const childLabel = child.label === row.label ? `${child.label} (general)` : child.label;
+                const childPct = (child.total / maxTotal) * 100;
                 return (
-                  <TR key={child.key ?? `uncategorized-${title}`} className="bg-canvas-sunken/40">
-                    <TD className="pl-16">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="min-w-0 flex-1 line-clamp-2 font-medium text-content" title={childLabel}>{childLabel}</span>
-                        {childDrillable && (
-                          <button
-                            type="button"
-                            onClick={() => onDrill([child.key as string])}
-                            aria-label={`View ${childLabel} transactions`}
-                            className="ui-focus inline-flex shrink-0 items-center gap-1 rounded-ui-sm py-1 text-[12px] font-semibold text-content-muted transition-colors hover:text-[rgb(var(--ui-brand-ink))] hover:underline"
-                          >
-                            View Transactions
-                            <ArrowRight size={13} aria-hidden />
-                          </button>
-                        )}
-                      </div>
-                    </TD>
-                    <TD numeric className="align-top">{formatCurrency(child.total)}</TD>
-                  </TR>
+                  <div
+                    key={child.key ?? `uncategorized-child-${title}`}
+                    role={childDrillable ? 'button' : undefined}
+                    tabIndex={childDrillable ? 0 : undefined}
+                    onClick={childDrillable ? () => onDrill([child.key as string]) : undefined}
+                    onKeyDown={childDrillable
+                      ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDrill([child.key as string]); } }
+                      : undefined}
+                    aria-label={childDrillable ? `View ${childLabel} transactions` : undefined}
+                    className={cn(
+                      'ui-focus group relative flex h-9 items-center gap-2.5 rounded-ui-md px-3 text-content',
+                      childDrillable && 'cursor-pointer',
+                    )}
+                  >
+                    <span aria-hidden className="pointer-events-none absolute inset-y-1 inset-x-0 rounded-ui-md bg-content/[0.03] opacity-0 transition-opacity group-hover:opacity-100" />
+                    {/* Indent gutter — mirrors the parent's icon + chevron slots so
+                         the child bar starts UNDER the parent bar (nested) and its
+                         amount aligns in the same column. */}
+                    <span className="w-5 shrink-0" aria-hidden />
+                    <span className="w-6 shrink-0" aria-hidden />
+                    <span className="relative z-[1] flex min-w-0 flex-1 items-center self-stretch">
+                      <span
+                        aria-hidden
+                        className="absolute inset-y-1 left-0 rounded-ui-md opacity-70 transition-[width] duration-500 ease-ui"
+                        style={{ width: `${childPct}%`, minWidth: child.total > 0 ? '1.5rem' : 0, background: fill }}
+                      />
+                      <span className="relative z-[1] min-w-0 flex-1 truncate pl-2.5 text-[13px] font-medium text-content-secondary" title={childLabel}>{childLabel}</span>
+                      <span className="relative z-[1] ui-tnum shrink-0 pl-2 text-[13px] font-semibold tabular-nums">{formatCurrency(child.total)}</span>
+                    </span>
+                    {childDrillable ? (
+                      // Whole child row drills, so the arrow is a decorative cue
+                      // (matches the parent rows); it also holds the column so
+                      // child amounts stay aligned with the parent's.
+                      <span
+                        aria-hidden
+                        className="relative z-[1] grid h-6 w-6 shrink-0 place-items-center text-content-muted transition-[color,transform] duration-150 group-hover:scale-125 group-hover:text-brand"
+                      >
+                        <ArrowRight size={14} aria-hidden />
+                      </span>
+                    ) : (
+                      <span className="w-6 shrink-0" aria-hidden />
+                    )}
+                  </div>
                 );
               })}
             </React.Fragment>
           );
         })}
-      {showSectionTotal && (
-        <TR className="border-t border-line-strong">
-          <TD className="font-bold text-content">{totalLabel}</TD>
-          <TD numeric className="font-bold text-content">{formatCurrency(denominator)}</TD>
-        </TR>
-      )}
-    </TBody>
+      </div>
+    </div>
   );
 }
 
@@ -552,11 +571,6 @@ export function Spending() {
   }, []);
   const handleTableRollupChange = useCallback((r: 'category' | 'group') => {
     setTableRollup(r);
-  }, []);
-  const handleSort = useCallback((key: 'label' | 'amount') => {
-    setSort((cur) => cur.key === key
-      ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' }
-      : { key, dir: key === 'label' ? 'asc' : 'desc' });
   }, []);
   // Drill from a breakdown row to the transactions behind it, filtered to the
   // given category ids. The Transactions page hydrates its filter from the URL.
@@ -829,61 +843,75 @@ export function Spending() {
         </section>
       )}
 
-      {/* ════════ SPENDING BREAKDOWN - one card: a sortable income/expense ledger
-           where each row is a ranked bar (self-labeled, so no separate legend).
-           The Category/Group toggle drives both sections; a row click opens the
-           transactions behind it, filtered. Income is its own section. ═══ */}
+      {/* ════════ SPENDING BREAKDOWN - one card: an income/expense ledger where
+           each row is a ranked, proportional bar (self-labeled, so no separate
+           legend). Income bars read green, expenses coral. The Category/Group
+           toggle + sort drive both sections; a row click opens the transactions
+           behind it, filtered. Income is its own section. ═══ */}
       {hasLoadedSummary && !noData && (totalIncome > 0 || spendingCategories.length > 0) && (
         <section className="mt-10">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-4">
             <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Spending breakdown</h2>
-            <SegmentedControl
-              aria-label="Break down by"
-              value={tableRollup}
-              onChange={handleTableRollupChange}
-              stretch={false}
-              options={[
-                { value: 'category', label: 'Category' },
-                { value: 'group', label: 'Group' },
-              ]}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <SegmentedControl
+                aria-label="Break down by"
+                value={tableRollup}
+                onChange={handleTableRollupChange}
+                stretch={false}
+                options={[
+                  { value: 'category', label: 'Category' },
+                  { value: 'group', label: 'Group' },
+                ]}
+              />
+              <div className="relative">
+                <select
+                  aria-label="Sort breakdown"
+                  value={`${sort.key}:${sort.dir}`}
+                  onChange={(e) => {
+                    const [key, dir] = e.target.value.split(':') as ['label' | 'amount', 'asc' | 'desc'];
+                    setSort({ key, dir });
+                  }}
+                  className="ui-focus touch-target h-9 appearance-none rounded-ui-md border border-line-heavy bg-panel pl-3 pr-8 text-[13px] font-medium text-content shadow-ui-sm"
+                >
+                  <option value="amount:desc">Largest</option>
+                  <option value="amount:asc">Smallest</option>
+                  <option value="label:asc">A to Z</option>
+                  <option value="label:desc">Z to A</option>
+                </select>
+                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted" />
+              </div>
+            </div>
           </div>
           <div className={cn(
-            'overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm transition-opacity duration-200',
+            'divide-y divide-line overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm transition-opacity duration-200',
             loadingSummary && 'opacity-50',
           )}>
-            <Table>
-              {spendingCategories.length > 0 && (
-                <BreakdownSection
-                  title="Expenses"
-                  rows={expenseRows}
-                  totalLabel="Total expenses"
-                  colHead={tableRollup === 'group' ? 'Group' : 'Category'}
-                  rollup={tableRollup}
-                  openGroups={openGroups}
-                  toggleGroup={toggleGroup}
-                  onDrill={drillToTransactions}
-                  sort={sort}
-                  onSort={handleSort}
-                />
-              )}
-              {/* Income breakdown only when it spans multiple sources — a single
-                   income row just restates the hero's Income KPI. */}
-              {incomeRows.length > 1 && (
-                <BreakdownSection
-                  title="Income"
-                  rows={incomeRows}
-                  totalLabel="Total income"
-                  colHead={tableRollup === 'group' ? 'Group' : 'Category'}
-                  rollup={tableRollup}
-                  openGroups={openGroups}
-                  toggleGroup={toggleGroup}
-                  onDrill={drillToTransactions}
-                  sort={sort}
-                  onSort={handleSort}
-                />
-              )}
-            </Table>
+            {spendingCategories.length > 0 && (
+              <BreakdownSection
+                title="Expenses"
+                rows={expenseRows}
+                rollup={tableRollup}
+                tone="expense"
+                openGroups={openGroups}
+                toggleGroup={toggleGroup}
+                onDrill={drillToTransactions}
+                sort={sort}
+              />
+            )}
+            {/* Income breakdown only when it spans multiple sources — a single
+                 income row just restates the hero's Income KPI. */}
+            {incomeRows.length > 1 && (
+              <BreakdownSection
+                title="Income"
+                rows={incomeRows}
+                rollup={tableRollup}
+                tone="income"
+                openGroups={openGroups}
+                toggleGroup={toggleGroup}
+                onDrill={drillToTransactions}
+                sort={sort}
+              />
+            )}
           </div>
         </section>
       )}

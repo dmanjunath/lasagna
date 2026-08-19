@@ -439,7 +439,7 @@ export function Transactions() {
                 value={sortKey}
                 onChange={(e) => setSortKey(e.target.value as SortKey)}
                 aria-label="Sort"
-                className="ui-focus touch-target h-11 min-h-touch appearance-none rounded-ui-md border border-line-strong bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
+                className="ui-focus touch-target h-10 appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
               >
                 <option value="newest">Newest</option>
                 <option value="oldest">Oldest</option>

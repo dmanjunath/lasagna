@@ -171,7 +171,7 @@ function MultiSelectDropdown({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
-        className="ui-focus touch-target relative h-11 min-h-touch w-full appearance-none truncate rounded-ui-md border border-line-strong bg-panel pl-3 pr-9 text-left text-[13px] font-medium text-content shadow-ui-sm"
+        className="ui-focus touch-target relative h-10 w-full appearance-none truncate rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-medium text-content shadow-ui-sm"
       >
         {triggerLabel}
         <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted" />
@@ -539,7 +539,7 @@ export function TransactionFilters({
                       customEnd: '',
                     })
                   }
-                  className="ui-focus touch-target h-11 min-h-touch w-full appearance-none rounded-ui-md border border-line-strong bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
+                  className="ui-focus touch-target h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
                 >
                   <option value="all">All time</option>
                   <option value="this-month">This month</option>

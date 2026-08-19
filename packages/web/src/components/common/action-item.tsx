@@ -219,9 +219,9 @@ function DenseRowInner({
   const { openChat } = useChatStore();
   const cat = catForTag(tag);
   const Icon = cat.icon;
-  // Accordion rows expand for detail, so on phones we let the title wrap to two
-  // lines (no mid-sentence cut) and move the per-row icons into the opened body,
-  // leaving just the chevron. Plain dense rows keep their inline icons.
+  // Accordion rows expand for detail, so on phones we move the per-row icons into
+  // the opened body, leaving just the chevron. Plain dense rows keep their inline
+  // icons.
   const hideOnMobile = expandable ? 'max-sm:hidden' : '';
 
   return (
@@ -234,7 +234,11 @@ function DenseRowInner({
         <Icon className="h-3.5 w-3.5" />
       </span>
 
-      <h3 className={`flex-1 min-w-0 text-[14px] font-semibold leading-tight text-content ${expandable ? 'line-clamp-2 sm:line-clamp-1' : 'truncate'}`}>
+      {/* Wrap fully instead of truncating: the inline impact pill squeezes the
+          title, so a one-line (or even two-line) clamp cut long headings even on
+          desktop where there's vertical room. Short titles still stay one line, so
+          the list keeps its dense feel. */}
+      <h3 className="flex-1 min-w-0 text-[14px] font-semibold leading-tight text-content">
         {title}
       </h3>
 
