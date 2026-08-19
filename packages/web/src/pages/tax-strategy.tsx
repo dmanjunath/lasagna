@@ -21,7 +21,6 @@ import { api } from "../lib/api.js";
 import { cn } from "../lib/utils.js";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
-import { useDensity } from "../lib/density.js";
 import { ActionItem } from "../components/common/action-item.js";
 import { Button, Badge, EmptyState, Skeleton } from "../components/uikit";
 
@@ -193,7 +192,6 @@ export function TaxStrategy() {
 
   const { insights, isLoading: insightsLoading, reload, refresh, dismiss } = useInsights("tax");
   const { setPageContext } = usePageContext();
-  const density = useDensity();
 
   // Close safety popover on outside click
   useEffect(() => {
@@ -604,7 +602,7 @@ export function TaxStrategy() {
             </Button>
           </div>
 
-          <div className={`flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
+          <div className="flex flex-col gap-2">
             {insights.map((ins) => (
               <ActionItem
                 key={ins.id}

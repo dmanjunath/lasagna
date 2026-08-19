@@ -13,7 +13,6 @@ import {
   X,
 } from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
-import { useDensity } from '../../lib/density';
 
 interface ActionItemProps {
   title: string;
@@ -66,143 +65,14 @@ function impactSoftVar(color: 'green' | 'amber' | 'red'): string {
   return 'var(--ui-positive-soft)';
 }
 
+// Action cards render as one accordion row per action: a scannable collapsed
+// row that expands to reveal the details.
 export function ActionItem(props: ActionItemProps) {
-  const density = useDensity();
-  if (density === 'dense') return <DenseActionRow {...props} />;
-  if (density === 'accordion') return <AccordionActionItem {...props} />;
-  return <ActionCardItem {...props} compact={density === 'compact'} />;
+  return <AccordionActionItem {...props} />;
 }
 
-// ── Card form — comfortable (default) and compact (same anatomy, tightened) ──
-function ActionCardItem({
-  title,
-  tag,
-  description,
-  impact,
-  impactColor,
-  chatPrompt,
-  defaultOpen,
-  onDismiss,
-  onContextClick,
-  compact,
-}: ActionItemProps & { compact: boolean }) {
-  // Mobile-only accordion: collapsed to tag+title on phones (stacked full cards
-  // made pages 5-8 screens tall); desktop stays always-expanded.
-  const [expanded, setExpanded] = useState(defaultOpen ?? false);
-  const { openChat } = useChatStore();
-  const cat = catForTag(tag);
-  const Icon = cat.icon;
-
-  return (
-    <article
-      onClick={() => { if (!expanded) setExpanded(true); }}
-      className={`relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md ${
-        compact ? 'p-[13px_15px] sm:p-[15px_18px]' : 'p-[20px_18px] sm:p-[22px_24px]'
-      } ${expanded ? '' : 'max-sm:cursor-pointer'}`}
-    >
-      {/* left accent bar — tone by category */}
-      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
-
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-        aria-expanded={expanded}
-        aria-label={expanded ? 'Hide details' : 'Show details'}
-        className="sm:hidden absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-ui-md text-content-faint"
-      >
-        <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
-
-      <div className={`flex items-start sm:items-center flex-wrap sm:flex-nowrap ${compact ? 'gap-3.5' : 'gap-5'}`}>
-        <div className="flex-1 min-w-0 max-sm:pr-8">
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full font-extrabold uppercase tracking-[0.05em] ${
-              compact ? 'h-[22px] px-2 text-[10px] mb-1.5' : 'h-[26px] px-2.5 text-[11px] mb-3'
-            }`}
-            style={{ background: cat.tagBg, color: cat.tagFg }}
-          >
-            <Icon className={compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-            {cat.label}
-          </span>
-          <h3 className={`font-editorial font-bold leading-[1.2] tracking-[-0.018em] text-content ${
-            compact ? 'text-[15px] sm:text-[16px]' : 'text-[18px] sm:text-[20px]'
-          }`}>
-            {title}
-          </h3>
-          <p className={`text-content-secondary max-w-[52ch] ${
-            compact ? 'mt-1 text-[13px] leading-[1.45] line-clamp-1' : 'mt-2 text-[14px] leading-[1.5] line-clamp-2'
-          } ${expanded ? '' : 'max-sm:hidden'}`}>
-            {description}
-          </p>
-        </div>
-
-        {/* right-aligned impact — tinted by impactColor; reflows below a hairline on mobile */}
-        {impact && (
-          <div className={`w-full sm:w-auto sm:mt-0 sm:pt-0 border-t sm:border-t-0 border-line shrink-0 ${
-            compact ? 'mt-2.5 pt-2.5' : 'mt-3.5 pt-3.5'
-          } ${expanded ? '' : 'max-sm:hidden'}`}>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-ui-md font-editorial font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap ${
-                compact ? 'px-2 py-1 text-[13px]' : 'px-2.5 py-1.5 text-[14.5px]'
-              }`}
-              style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
-            >
-              {impact}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className={`flex items-center gap-2 flex-wrap ${compact ? 'mt-2.5' : 'mt-5'} ${expanded ? '' : 'max-sm:hidden'}`}>
-        {/* primary — Ask Lasagna (soft-pill), preserves the openChat prompt */}
-        <button
-          type="button"
-          onClick={() =>
-            openChat(
-              `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
-            )
-          }
-          className={`touch-target inline-flex items-center gap-1.5 rounded-ui-md font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow] group ${
-            compact ? 'h-8 px-3 text-[12.5px]' : 'h-9 px-3.5 text-[13.5px]'
-          }`}
-        >
-          <Sparkles className={compact ? 'h-[14px] w-[14px]' : 'h-[15px] w-[15px]'} />
-          Ask Lasagna about this
-          <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
-        </button>
-
-        {onContextClick && (
-          <button
-            type="button"
-            onClick={onContextClick}
-            className={`touch-target rounded-ui-md font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors ${
-              compact ? 'h-8 px-2.5 text-[12.5px]' : 'h-9 px-3 text-[13px]'
-            }`}
-          >
-            See in context →
-          </button>
-        )}
-
-        {onDismiss && (
-          <button
-            type="button"
-            onClick={onDismiss}
-            className={`touch-target rounded-ui-md font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors ${
-              compact ? 'h-8 px-3 text-[12.5px]' : 'h-9 px-3.5 text-[13px]'
-            }`}
-          >
-            Dismiss
-          </button>
-        )}
-      </div>
-    </article>
-  );
-}
-
-// ── Dense form — one scannable list row per action ──
-// Shared inner row so the Accordion's collapsed state is pixel-identical to
-// Dense (same height, same chat button). Buttons stopPropagation so a click on
-// them never toggles the surrounding accordion.
+// Collapsed accordion row. Buttons stopPropagation so a click on them never
+// toggles the surrounding accordion.
 function DenseRowInner({
   title,
   tag,
@@ -220,8 +90,7 @@ function DenseRowInner({
   const cat = catForTag(tag);
   const Icon = cat.icon;
   // Accordion rows expand for detail, so on phones we move the per-row icons into
-  // the opened body, leaving just the chevron. Plain dense rows keep their inline
-  // icons.
+  // the opened body, leaving just the chevron.
   const hideOnMobile = expandable ? 'max-sm:hidden' : '';
 
   return (
@@ -304,21 +173,7 @@ function DenseRowInner({
   );
 }
 
-function DenseActionRow(props: ActionItemProps) {
-  const cat = catForTag(props.tag);
-  return (
-    <article
-      title={props.description}
-      className="relative overflow-hidden rounded-ui-md border border-line bg-panel shadow-ui-sm transition-[box-shadow,border-color] hover:border-line-strong hover:shadow-ui-md"
-    >
-      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
-      <DenseRowInner {...props} />
-    </article>
-  );
-}
-
-// ── Accordion form — collapsed is identical to Dense (same row, same height,
-// same chat button); clicking the row reveals the description underneath. ──
+// Accordion — a collapsed row that expands to reveal the description + actions.
 function AccordionActionItem(props: ActionItemProps) {
   const [open, setOpen] = useState(props.defaultOpen ?? false);
   const { openChat } = useChatStore();

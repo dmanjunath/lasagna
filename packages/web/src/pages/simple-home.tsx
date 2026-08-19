@@ -7,7 +7,6 @@ import { api } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
 import { Button, Skeleton } from '../components/uikit';
 import { ActionItem } from '../components/common/action-item';
-import { useDensity } from '../lib/density';
 import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 
 // Shared style for "go to this page" affordances on the home page, so every page
@@ -168,7 +167,6 @@ export function SimpleHome() {
   const [, setLocation] = useLocation();
   const { openChat } = useChatStore();
   const { insights, refresh: refreshInsights, dismiss, isLoading: insightsLoading } = useInsights();
-  const density = useDensity();
   const [generatingInsights, setGeneratingInsights] = useState(false);
   const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
   const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
@@ -459,8 +457,8 @@ export function SimpleHome() {
               </div>
             )}
 
-            {/* The money moves — regular action cards, consistent with every
-                other page and driven by the density toggle. */}
+            {/* The money moves — accordion action rows, consistent with every
+                other page. */}
             <Card className="p-6 sm:p-7">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -475,17 +473,17 @@ export function SimpleHome() {
               </div>
 
               {insightsLoading ? (
-                <div className={`mt-6 flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
+                <div className="mt-6 flex flex-col gap-2">
                   {[0, 1, 2].map((i) => (
-                    <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-5">
-                      <Skeleton className="h-[22px] w-24 rounded-full" />
-                      <Skeleton className="mt-3 h-5 w-2/3" />
-                      <Skeleton className="mt-2 h-4 w-full" />
+                    <div key={i} className="flex items-center gap-3 rounded-ui-md border border-line bg-panel shadow-ui-sm pl-4 pr-2 py-2.5">
+                      <Skeleton className="h-6 w-6 shrink-0 rounded-ui-sm" />
+                      <Skeleton className="h-4 flex-1 max-w-[16rem]" />
+                      <Skeleton className="h-5 w-16 rounded-ui-sm" />
                     </div>
                   ))}
                 </div>
               ) : sideActions.length > 0 ? (
-                <div className={`mt-6 flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
+                <div className="mt-6 flex flex-col gap-2">
                   {sideActions.map((a) => (
                     <ActionItem
                       key={a.id}

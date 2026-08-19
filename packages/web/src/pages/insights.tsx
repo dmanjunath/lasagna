@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
-import { useDensity } from '../lib/density';
 import { useChatStore } from '../lib/chat-store';
 import { formatRelativeTime } from '../lib/utils';
 import { Badge, Button, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
@@ -258,7 +257,7 @@ function InsightsDenseRow({
         onClick={onTitle}
         className="flex-1 min-w-0 flex items-center gap-1.5 text-left group/title"
       >
-        <span className={`min-w-0 text-[14px] font-semibold leading-tight text-content ${expandable ? 'line-clamp-2 sm:line-clamp-1' : 'truncate'}`}>{title}</span>
+        <span className="min-w-0 text-[14px] font-semibold leading-tight text-content">{title}</span>
         {/* Dense navigates (→); Accordion toggles, so it shows no title arrow. */}
         {!expandable && (
           <ArrowRight className="h-3.5 w-3.5 shrink-0 text-content-faint transition-transform group-hover/title:translate-x-0.5" />
@@ -323,41 +322,13 @@ function ActionCard({
   onSkip,
 }: ActionCardProps) {
   void chatPrompt;
-  const density = useDensity();
   const cat = catFor(type, category);
   const Icon = cat.icon;
-  // Mobile-only accordion — same behavior as common/action-item.tsx.
   const [expanded, setExpanded] = useState(false);
 
-  // ── Dense form — one scannable list row per action ──
-  if (density === 'dense') {
-    return (
-      <motion.article
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
-        title={description}
-        className={denseArticleCls(calm)}
-      >
-        <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
-        <InsightsDenseRow
-          cat={cat}
-          Icon={Icon}
-          title={title}
-          impact={impact}
-          impactColor={impactColor}
-          onTitle={onPrimary}
-          onAsk={onAsk}
-          onSkip={onSkip}
-        />
-      </motion.article>
-    );
-  }
-
-  // ── Accordion form — collapsed is identical to Dense (same row, same height,
-  // same chat button); the title toggles the details underneath. ──
-  if (density === 'accordion') {
-    return (
+  // One accordion row per action: a collapsed row that toggles the details
+  // underneath.
+  return (
       <motion.article
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -420,105 +391,6 @@ function ActionCard({
         </AnimatePresence>
       </motion.article>
     );
-  }
-
-  // ── Card form — comfortable (default) and compact (same anatomy, tightened) ──
-  const compact = density === 'compact';
-
-  return (
-    <motion.article
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
-      onClick={() => { if (!expanded) setExpanded(true); }}
-      className={`relative overflow-hidden rounded-ui-lg transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 ${
-        compact ? 'p-[13px_15px] sm:p-[15px_18px]' : 'p-[20px_18px] sm:p-[22px_24px]'
-      } ${
-        calm
-          ? 'border border-dashed border-line bg-transparent hover:bg-panel hover:border-solid hover:shadow-ui-sm'
-          : 'border border-line bg-panel shadow-ui-sm hover:shadow-ui-md'
-      } ${expanded ? '' : 'max-sm:cursor-pointer'}`}
-    >
-      {/* left accent bar */}
-      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
-
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-        aria-expanded={expanded}
-        aria-label={expanded ? 'Hide details' : 'Show details'}
-        className="sm:hidden absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-ui-md text-content-faint"
-      >
-        <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
-
-      <div className={`flex items-start sm:items-center flex-wrap sm:flex-nowrap ${compact ? 'gap-3.5' : 'gap-5'}`}>
-        <div className="flex-1 min-w-0 max-sm:pr-8">
-          <span className={`inline-flex items-center gap-1.5 rounded-full font-extrabold uppercase tracking-[0.05em] bg-canvas-sunken text-content-muted ${
-            compact ? 'h-[22px] px-2 text-[10px] mb-1.5' : 'h-[26px] px-2.5 text-[11px] mb-3'
-          }`}>
-            <Icon className={compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-            {cat.label}
-          </span>
-          <h3 className={`font-editorial font-bold leading-[1.2] tracking-[-0.018em] text-content ${
-            compact ? 'text-[15px] sm:text-[16px]' : 'text-[18px] sm:text-[20px]'
-          }`}>
-            {title}
-          </h3>
-          <p className={`text-content-secondary max-w-[52ch] ${
-            compact ? 'mt-1 text-[13px] leading-[1.45] line-clamp-1' : 'mt-2 text-[14px] leading-[1.5] line-clamp-2'
-          } ${expanded ? '' : 'max-sm:hidden'}`}>
-            {description}
-          </p>
-        </div>
-
-        {/* right-aligned impact — vertically centered, auto-width, tinted by impactColor.
-            On mobile it reflows below a hairline. (Matches home's impact placement.) */}
-        {impact && (
-          <div className={`w-full sm:w-auto sm:mt-0 sm:pt-0 border-t sm:border-t-0 border-line shrink-0 ${
-            compact ? 'mt-2.5 pt-2.5' : 'mt-3.5 pt-3.5'
-          } ${expanded ? '' : 'max-sm:hidden'}`}>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-ui-md font-editorial font-extrabold leading-[1.25] tracking-[-0.01em] ui-tnum whitespace-nowrap ${
-                compact ? 'px-2 py-1 text-[13px]' : 'px-2.5 py-1.5 text-[14.5px]'
-              }`}
-              style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
-            >
-              {impact}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className={`flex items-center gap-2 flex-wrap ${compact ? 'mt-2.5' : 'mt-5'} ${expanded ? '' : 'max-sm:hidden'}`}>
-        <Button size="sm" onClick={onPrimary} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-          Open {cat.label}
-        </Button>
-
-        <button
-          type="button"
-          onClick={onAsk}
-          className={`touch-target inline-flex items-center gap-1.5 rounded-ui-md font-semibold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors group ${
-            compact ? 'h-8 px-2.5 text-[12.5px]' : 'h-9 px-3 text-[13px]'
-          }`}
-        >
-          <Sparkles className={compact ? 'h-[14px] w-[14px]' : 'h-[15px] w-[15px]'} />
-          Ask Lasagna about this
-          <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
-        </button>
-
-        <button
-          type="button"
-          onClick={onSkip}
-          className={`touch-target rounded-ui-md font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors ${
-            compact ? 'h-8 px-3 text-[12.5px]' : 'h-9 px-3.5 text-[13px]'
-          }`}
-        >
-          Skip
-        </button>
-      </div>
-    </motion.article>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -540,7 +412,6 @@ export function Insights() {
   const pendingUndoRef = useRef<string | null>(null);
 
   const { insights, lastActionsGeneratedAt, isLoading, refresh } = useInsights();
-  const density = useDensity();
 
   const UNDO_WINDOW_MS = 6000;
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -851,7 +722,7 @@ export function Insights() {
                 <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
               </div>
 
-              <div className={`mt-4 flex flex-col ${density === 'dense' || density === 'accordion' ? 'gap-2' : density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}>
+              <div className="mt-4 flex flex-col gap-2">
                 {items.map((insight, idx) => {
                   const cat = catFor(insight.type, insight.category);
                   return (
