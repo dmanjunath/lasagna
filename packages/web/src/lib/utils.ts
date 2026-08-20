@@ -40,6 +40,24 @@ export function formatPercent(value: number, decimals = 1): string {
   return `${(value * 100).toFixed(decimals)}%`;
 }
 
+/**
+ * Exact local calendar date + clock time for a sync timestamp, e.g.
+ * "Aug 19, 2026, 2:14 PM". Used as the hover tooltip behind a relative
+ * "synced 3h ago" label so the precise moment is one hover away. Uses the
+ * browser's locale (undefined) and returns null for a falsy/invalid ISO so
+ * callers can skip the tooltip entirely.
+ */
+export function exactSyncTime(iso: string): string | null {
+  if (!iso || Number.isNaN(new Date(iso).getTime())) return null;
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 export function formatRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();

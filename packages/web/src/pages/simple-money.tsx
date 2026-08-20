@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useCategoryDisplay } from '../lib/taxonomy';
-import { cn, stripAccountMask } from '../lib/utils';
-import { Badge, Button, SegmentedControl, EmptyState, Skeleton, useToast } from '../components/uikit';
+import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
+import { Badge, Button, SegmentedControl, EmptyState, Skeleton, useToast, Tooltip } from '../components/uikit';
 import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
 import { CategoryPicker } from '../components/common/CategoryPicker';
 import { TxnRow } from '../components/transactions/TransactionList';
@@ -224,7 +224,22 @@ export function SimpleMoney() {
               <Badge tone="neutral">
                 {totalAccountCount} account{totalAccountCount === 1 ? '' : 's'}
               </Badge>
-              {lastSynced && <Badge tone="neutral">synced {relativeTime(lastSynced)}</Badge>}
+              {lastSynced && (
+                exactSyncTime(lastSynced) ? (
+                  <Tooltip content={exactSyncTime(lastSynced)!}>
+                    <Badge
+                      tone="neutral"
+                      tabIndex={0}
+                      aria-label={`Last synced ${exactSyncTime(lastSynced)}`}
+                      className="ui-focus"
+                    >
+                      synced {relativeTime(lastSynced)}
+                    </Badge>
+                  </Tooltip>
+                ) : (
+                  <Badge tone="neutral">synced {relativeTime(lastSynced)}</Badge>
+                )
+              )}
             </p>
           )}
         </div>
@@ -773,6 +788,7 @@ function GroupSection({
                   negative={totalNeg}
                   frozen={frozen}
                   syncTime={synced}
+                  syncIso={acct.item.lastSyncedAt}
                   valueSource={acct.valueSource}
                   metadata={acct.metadata}
                   onEstimateResolved={onEstimateResolved}
@@ -897,6 +913,7 @@ function InstitutionSection({
                 negative={isDebt}
                 frozen={frozen}
                 syncTime={synced}
+                syncIso={item.lastSyncedAt}
                 valueSource={acct.valueSource}
                 metadata={acct.metadata}
                 onEstimateResolved={onEstimateResolved}
@@ -930,7 +947,7 @@ function InstitutionSection({
 // ─────────────────────────────────────────────────────────────────────────
 
 function AcctRow({
-  accountId, institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime,
+  accountId, institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime, syncIso,
   valueSource, metadata, onEstimateResolved, onSettings, hideIcon,
 }: {
   accountId: string;
@@ -943,6 +960,8 @@ function AcctRow({
   negative?: boolean;
   frozen: boolean;
   syncTime: string | null;
+  /** Raw last-sync ISO — feeds the exact date+time hover tooltip. */
+  syncIso?: string | null;
   valueSource?: 'synced' | 'estimated' | 'manual';
   metadata?: Record<string, unknown> | null;
   onEstimateResolved?: () => void;
@@ -1019,10 +1038,26 @@ function AcctRow({
             </span>
           ) : estimating ? null : valueSource ? (
             <span className="mt-1 inline-flex">
-              <ValueSourceBadge source={valueSource} />
+              <ValueSourceBadge source={valueSource} syncedAt={syncIso ?? undefined} onActivate={onSettings} />
             </span>
           ) : syncTime ? (
-            <div className="mt-0.5 hidden text-[12px] text-content-muted ui-tnum sm:block">{syncTime}</div>
+            syncIso && exactSyncTime(syncIso) ? (
+              <Tooltip content={exactSyncTime(syncIso)!}>
+                <div
+                  tabIndex={0}
+                  aria-label={`Last synced ${exactSyncTime(syncIso)}`}
+                  // The tooltip trigger swallows the row's bubbling click, so run
+                  // the row's navigation directly to keep the whole row clickable.
+                  onClick={onSettings}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSettings(); } }}
+                  className="ui-focus mt-0.5 hidden rounded-ui-xs text-[12px] text-content-muted ui-tnum sm:block"
+                >
+                  {syncTime}
+                </div>
+              </Tooltip>
+            ) : (
+              <div className="mt-0.5 hidden text-[12px] text-content-muted ui-tnum sm:block">{syncTime}</div>
+            )
           ) : null}
         </div>
         <ChevronRight size={16} className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" aria-hidden />

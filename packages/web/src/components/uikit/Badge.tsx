@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from 'react';
+import { forwardRef, type HTMLAttributes } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
@@ -43,9 +43,12 @@ const dotColor: Record<string, string> = {
   info: 'bg-info',
 };
 
-export function Badge({ className, tone, size, dot, children, ...props }: BadgeProps) {
+export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
+  { className, tone, size, dot, children, ...props },
+  ref,
+) {
   return (
-    <span className={cn(badge({ tone, size }), className)} {...props}>
+    <span ref={ref} className={cn(badge({ tone, size }), className)} {...props}>
       {dot && (
         <span
           className={cn('h-1.5 w-1.5 rounded-full', dotColor[tone ?? 'neutral'])}
@@ -55,4 +58,4 @@ export function Badge({ className, tone, size, dot, children, ...props }: BadgeP
       {children}
     </span>
   );
-}
+});

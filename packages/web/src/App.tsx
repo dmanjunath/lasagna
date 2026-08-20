@@ -9,7 +9,7 @@ import { ThemeProvider } from './lib/theme';
 import { Login } from './pages/Login';
 import { DemoBanner } from './components/common/DemoBanner';
 import { ConfirmProvider } from './components/ds';
-import { ToastProvider } from './components/uikit';
+import { ToastProvider, TooltipProvider } from './components/uikit';
 import { ReportWatcher } from './lib/report-watcher';
 
 // Shell pulls framer-motion + mobile/desktop chat panels. Lazy so the
@@ -142,6 +142,7 @@ function AppRoutes() {
       </Route>
       <Route>
         {() => (
+          <TooltipProvider delayDuration={200}>
           <ChatStoreProvider>
           <PageContextProvider>
           <TaxonomyProvider>
@@ -209,6 +210,7 @@ function AppRoutes() {
           </TaxonomyProvider>
           </PageContextProvider>
           </ChatStoreProvider>
+          </TooltipProvider>
         )}
       </Route>
     </Switch>

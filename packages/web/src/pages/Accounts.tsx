@@ -1716,6 +1716,7 @@ function InstitutionArticle({
                   key={account.id}
                   account={account}
                   overLimit={overLimit}
+                  lastSyncedAt={item.lastSyncedAt}
                   onEstimateResolved={onEstimateResolved}
                   linkedAccountName={account.propertyAccountId
                     ? allAccounts.find((a) => a.id === account.propertyAccountId)?.name ?? null
@@ -1757,9 +1758,11 @@ function InstitutionArticle({
 // there); no per-row overflow menu.
 // ---------------------------------------------------------------------------
 
-function AccountRow({ account, overLimit, linkedAccountName, onEstimateResolved }: {
+function AccountRow({ account, overLimit, linkedAccountName, lastSyncedAt, onEstimateResolved }: {
   account: Account; overLimit: boolean;
   linkedAccountName: string | null;
+  /** Institution-level last-sync ISO — feeds the "Synced" badge hover tooltip. */
+  lastSyncedAt: string | null;
   onEstimateResolved: () => void;
 }) {
   const balance = account.balance !== null ? parseFloat(account.balance) : null;
@@ -1851,7 +1854,7 @@ function AccountRow({ account, overLimit, linkedAccountName, onEstimateResolved 
             </span>
           ) : account.valueSource ? (
             <span className="mt-1 inline-flex">
-              <ValueSourceBadge source={account.valueSource} />
+              <ValueSourceBadge source={account.valueSource} syncedAt={lastSyncedAt ?? undefined} onActivate={openSettings} />
             </span>
           ) : null}
         </div>

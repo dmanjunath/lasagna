@@ -3,8 +3,8 @@ import { useRoute, useLocation } from 'wouter';
 import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp, Lock } from 'lucide-react';
 import { api } from '../lib/api';
 import { startUpgrade } from '../lib/billing';
-import { cn, stripAccountMask } from '../lib/utils';
-import { Badge, Button, Field, Input, Select, SegmentedControl, Skeleton } from '../components/uikit';
+import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
+import { Badge, Button, Field, Input, Select, SegmentedControl, Skeleton, Tooltip } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
 import { InstIcon } from '../components/common/InstIcon';
@@ -748,7 +748,7 @@ export function AccountDetail() {
           <div>
             <div className="flex items-center gap-2.5">
               <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
-              {valueSource && <ValueSourceBadge source={valueSource} size="md" />}
+              {valueSource && <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />}
             </div>
             <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
               {fmtUsd(heroValue)}
@@ -763,6 +763,16 @@ export function AccountDetail() {
                   <DeltaChip delta={heroChange} />
                   <span className="text-[13px] font-medium text-content-muted">over this period</span>
                 </>
+              ) : !isManual && lastSyncedAt && exactSyncTime(lastSyncedAt) ? (
+                <Tooltip content={exactSyncTime(lastSyncedAt)!}>
+                  <span
+                    tabIndex={0}
+                    aria-label={`Last synced ${exactSyncTime(lastSyncedAt)}`}
+                    className="ui-focus rounded-ui-xs text-[13px] font-medium text-content-muted"
+                  >
+                    {`Synced ${relativeTime(lastSyncedAt)}`}
+                  </span>
+                </Tooltip>
               ) : (
                 <span className="text-[13px] font-medium text-content-muted">
                   {isManual ? 'Manually tracked' : lastSyncedAt ? `Synced ${relativeTime(lastSyncedAt)}` : 'Connected'}

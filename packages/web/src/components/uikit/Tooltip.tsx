@@ -26,8 +26,17 @@ export function Tooltip({
         <RTooltip.Content
           side={side}
           sideOffset={6}
+          collisionPadding={8}
+          // `ui-root` is kept to pull the `--ui-*` token scope + content
+          // color/typography into the portal, but its unlayered
+          // `background-color: rgb(var(--ui-canvas))` rule (theme.css) beats
+          // any Tailwind `bg-*` utility class (they share specificity and the
+          // build flattens @layer, so source order decides and `.ui-root` is
+          // emitted last). An inline style outranks every class, so we set the
+          // raised-panel surface here to match the white Arrow below.
+          style={{ backgroundColor: 'rgb(var(--ui-panel-raised))' }}
           className={cn(
-            'ui-root z-[110] max-w-xs rounded-ui-sm bg-panel-raised px-2.5 py-1.5 text-[12px] font-medium text-content',
+            'ui-root z-[110] max-w-xs rounded-ui-sm px-2.5 py-1.5 text-[12px] font-medium text-content',
             'border border-line shadow-ui-lg',
             'data-[state=delayed-open]:[animation:ui-fade-in_120ms_ease-out]',
             className,
