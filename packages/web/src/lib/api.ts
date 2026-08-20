@@ -649,7 +649,7 @@ export const api = {
   // Admin (operator only — endpoints 403 for non-admin sessions)
   adminGetUsers: () =>
     request<{
-      totals: { users: number; paid: number; comped: number; demo: number; free: number; connectedAccounts: number };
+      totals: { users: number; paid: number; comped: number; demo: number; free: number; connectedAccounts: number; syncableAccountsStaleCount: number; staleActionsTenantCount: number };
       users: Array<{
         userId: string;
         tenantId: string;
@@ -664,6 +664,8 @@ export const api = {
         compedUntil: string | null;
         disabledAt: string | null;
         accountCount: number;
+        lastSyncAt: string | null;
+        lastActionsGeneratedAt: string | null;
         spend30d: string;
       }>;
     }>("/admin/users"),

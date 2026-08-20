@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, ne, sql, desc, inArray, users, tenants, accounts, activityEvents, plaidItems, balanceSnapshots, userProfiles, chatThreads, messages } from "@lasagna/core";
+import { eq, and, ne, sql, desc, inArray, users, tenants, accounts, activityEvents, plaidItems, balanceSnapshots, userProfiles, chatThreads, messages, financialProfiles } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { resolveTenantPlan, classifyPlanSource, type PlanSource } from "../lib/billing.js";
 import { recomputeFrozenAccounts } from "../lib/account-limits.js";
@@ -53,6 +53,8 @@ adminRoutes.get("/users", async (c) => {
       compedUntil: tenants.compedUntil,
       disabledAt: tenants.disabledAt,
       accountCount: sql<number>`(select count(*)::int from ${accounts} a where a.tenant_id = ${users.tenantId})`,
+      lastSyncAt: sql<string | null>`(select max(pi.last_synced_at) from ${plaidItems} pi where pi.tenant_id = ${users.tenantId})`,
+      lastActionsGeneratedAt: sql<string | null>`(select fp.last_actions_generated_at from ${financialProfiles} fp where fp.tenant_id = ${users.tenantId} limit 1)`,
       tenantHasDemoUser: sql<boolean>`exists(select 1 from ${users} u2 where u2.tenant_id = ${users.tenantId} and u2.is_demo)`,
     })
     .from(users)
@@ -90,9 +92,33 @@ adminRoutes.get("/users", async (c) => {
       compedUntil: r.compedUntil,
       disabledAt: r.disabledAt,
       accountCount: r.accountCount,
+      lastSyncAt: r.lastSyncAt,
+      lastActionsGeneratedAt: r.lastActionsGeneratedAt,
       spend30d: spendByTenant.get(r.tenantId) ?? "0",
     };
   });
+
+  // Syncable accounts (real Plaid item, active, not manual, not frozen) whose
+  // item hasn't synced in the last day — the ones a broken sync would strand.
+  const [{ count: syncableAccountsStaleCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(accounts)
+    .innerJoin(plaidItems, eq(accounts.plaidItemId, plaidItems.id))
+    .where(
+      sql`${plaidItems.status} = 'active' and ${plaidItems.institutionId} != 'manual' and ${accounts.frozen} = false
+        and (${plaidItems.lastSyncedAt} < now() - interval '1 day' or ${plaidItems.lastSyncedAt} is null)`,
+    );
+
+  // Tenants with ≥1 account whose actions weren't generated in the last day.
+  // Empty tenants (0 accounts) are excluded — they legitimately generate none.
+  const [{ count: staleActionsTenantCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(tenants)
+    .leftJoin(financialProfiles, eq(financialProfiles.tenantId, tenants.id))
+    .where(
+      sql`exists(select 1 from ${accounts} a where a.tenant_id = ${tenants.id})
+        and (${financialProfiles.lastActionsGeneratedAt} < now() - interval '1 day' or ${financialProfiles.lastActionsGeneratedAt} is null)`,
+    );
 
   // Totals classify each TENANT once (a multi-user tenant shouldn't double
   // its plan or its account count), by the same precedence as the resolver.
@@ -106,6 +132,8 @@ adminRoutes.get("/users", async (c) => {
     demo: tenantRows.filter((r) => r.planSource === "demo").length,
     free: tenantRows.filter((r) => r.planSource === "free").length,
     connectedAccounts: tenantRows.reduce((s, r) => s + r.accountCount, 0),
+    syncableAccountsStaleCount,
+    staleActionsTenantCount,
   };
 
   return c.json({ totals, users: userRows });

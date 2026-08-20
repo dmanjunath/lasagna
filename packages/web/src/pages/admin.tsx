@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Search } from 'lucide-react';
 import { api } from '../lib/api';
-import { Button, Modal, Skeleton } from '../components/uikit';
+import { Badge, Button, Modal, Skeleton } from '../components/uikit';
 import { AdminShell } from '../components/admin/admin-shell';
 import { PlanChip } from '../components/admin/plan-chip';
 import { useAuth } from '../lib/auth';
@@ -11,10 +11,13 @@ import { DeleteTenantModal } from '../components/admin/delete-tenant-modal';
 
 type AdminUser = Awaited<ReturnType<typeof api.adminGetUsers>>['users'][number];
 type Totals = Awaited<ReturnType<typeof api.adminGetUsers>>['totals'];
-type SortKey = 'createdAt' | 'lastLoginAt' | 'accountCount' | 'spend30d';
+type SortKey = 'createdAt' | 'lastLoginAt' | 'accountCount' | 'spend30d' | 'lastSyncAt' | 'lastActionsGeneratedAt';
 
 const fmtDate = (v: string | null) =>
   v ? new Date(v).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+// Stale = never run, or last run more than a day ago (matches the server's 24h totals).
+const DAY_MS = 24 * 60 * 60 * 1000;
+const isStale = (v: string | null) => v === null || Date.now() - new Date(v).getTime() > DAY_MS;
 // Sub-cent amounts are common here — "$0.00" would hide real spend.
 const fmtUsd = (v: string | number) => {
   const n = Number(v);
@@ -94,7 +97,9 @@ export function Admin() {
 
   // Plan buckets count tenants (billing is per tenant), so a multi-user tenant
   // isn't double-counted — hence the "tenants" labels.
-  const stats: Array<{ label: string; value: number }> = totals
+  // `caution` totals tint their value amber when > 0 — matching the in-table
+  // caution Badge — so a non-zero staleness count reads as a problem at a glance.
+  const stats: Array<{ label: string; value: number; caution?: boolean }> = totals
     ? [
         { label: 'Users', value: totals.users },
         { label: 'Paid tenants', value: totals.paid },
@@ -102,6 +107,8 @@ export function Admin() {
         { label: 'Free tenants', value: totals.free },
         { label: 'Demo tenants', value: totals.demo },
         { label: 'Connected accounts', value: totals.connectedAccounts },
+        { label: 'Accounts not synced (24h)', value: totals.syncableAccountsStaleCount, caution: true },
+        { label: 'Users missing actions (24h)', value: totals.staleActionsTenantCount, caution: true },
       ]
     : [];
 
@@ -124,12 +131,12 @@ export function Admin() {
       {/* Totals */}
       <div className="mt-7 grid grid-cols-3 sm:grid-cols-6 gap-x-6 gap-y-5">
         {loading
-          ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-ui-md" />)
+          ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-ui-md" />)
           : stats.map((s) => (
               // flex-col justify-between keeps values on one baseline when a label wraps to two lines.
               <div key={s.label} className="border-l-2 border-line pl-3.5 flex flex-col justify-between">
                 <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">{s.label}</div>
-                <div className="mt-1 font-editorial text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum">{s.value}</div>
+                <div className={`mt-1 font-editorial text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum${s.caution && s.value > 0 ? ' text-caution' : ''}`}>{s.value}</div>
               </div>
             ))}
       </div>
@@ -168,6 +175,16 @@ export function Admin() {
                   Last login{sortMark('lastLoginAt')}
                 </button>
               </th>
+              <th className={thSort}>
+                <button type="button" className={sortBtn} onClick={() => toggleSort('lastSyncAt')}>
+                  Last sync{sortMark('lastSyncAt')}
+                </button>
+              </th>
+              <th className={thSort}>
+                <button type="button" className={sortBtn} onClick={() => toggleSort('lastActionsGeneratedAt')}>
+                  Actions generated{sortMark('lastActionsGeneratedAt')}
+                </button>
+              </th>
               <th className={`${thSort} text-right`}>
                 <button type="button" className={sortBtn} onClick={() => toggleSort('accountCount')}>
                   Accounts{sortMark('accountCount')}
@@ -184,13 +201,13 @@ export function Admin() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8">
+                <td colSpan={9} className="px-4 py-8">
                   <Skeleton className="h-24 rounded-ui-md" />
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-content-muted">
+                <td colSpan={9} className="px-4 py-10 text-center text-content-muted">
                   {search.trim() ? 'No users match your search.' : 'No users yet.'}
                 </td>
               </tr>
@@ -218,6 +235,16 @@ export function Admin() {
                   <td className="px-4 py-3 ui-tnum text-content-secondary">{fmtDate(u.createdAt)}</td>
                   {/* Zero/empty values print faint so rows with real activity pop out of the scan. */}
                   <td className={`px-4 py-3 ui-tnum ${u.lastLoginAt ? 'text-content-secondary' : 'text-content-faint'}`}>{fmtDate(u.lastLoginAt)}</td>
+                  <td className="px-4 py-3 ui-tnum">
+                    {isStale(u.lastSyncAt)
+                      ? <Badge tone="caution" size="sm">{u.lastSyncAt ? fmtDate(u.lastSyncAt) : 'Never'}</Badge>
+                      : <span className="text-content-secondary">{fmtDate(u.lastSyncAt)}</span>}
+                  </td>
+                  <td className="px-4 py-3 ui-tnum">
+                    {isStale(u.lastActionsGeneratedAt)
+                      ? <Badge tone="caution" size="sm">{u.lastActionsGeneratedAt ? fmtDate(u.lastActionsGeneratedAt) : 'Never'}</Badge>
+                      : <span className="text-content-secondary">{fmtDate(u.lastActionsGeneratedAt)}</span>}
+                  </td>
                   <td className={`px-4 py-3 ui-tnum text-right${u.accountCount === 0 ? ' text-content-faint' : ''}`}>{u.accountCount}</td>
                   <td className={`px-4 py-3 ui-tnum text-right${Number(u.spend30d) === 0 ? ' text-content-faint' : ''}`}>{fmtUsd(u.spend30d)}</td>
                   <td className="px-4 py-3 text-right">
