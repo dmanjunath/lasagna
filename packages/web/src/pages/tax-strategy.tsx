@@ -8,7 +8,7 @@ import {
   X,
   ShieldCheck,
   FolderOpen,
-  ArrowRight,
+  ChevronDown,
   Sparkles,
   TrendingUp,
   Info,
@@ -50,11 +50,6 @@ function formatMoney(n: number): string {
 }
 
 const FILING_YEAR = new Date().getFullYear() - 1;
-
-// How many document rows to show before collapsing behind a "show all" toggle —
-// keeps a long library (e.g. a full return's 19 schedules) from becoming an
-// endless scroll on mobile.
-const DOC_PREVIEW_COUNT = 6;
 
 /** Extract dollar amount from impact strings like "Save $2,400/yr" or "Earn $3,400 free money" */
 function parseDollarAmount(s: string): number {
@@ -187,7 +182,7 @@ export function TaxStrategy() {
   const [showSafety, setShowSafety] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [refreshingInsights, setRefreshingInsights] = useState(false);
-  const [showAllDocs, setShowAllDocs] = useState(false);
+  const [collapsedYears, setCollapsedYears] = useState<Record<string, boolean>>({});
   const safetyRef = useRef<HTMLDivElement>(null);
 
   const { insights, isLoading: insightsLoading, reload, refresh, dismiss } = useInsights("tax");
@@ -323,6 +318,25 @@ export function TaxStrategy() {
       .filter((l) => l.amount > 0)
       .sort((a, b) => b.amount - a.amount);
   }, [insights]);
+
+  // Group the flat document list into per-year sections — numeric years newest
+  // first, the undated bucket last. Docs keep the API's desc(createdAt) order.
+  const documentsByYear = useMemo<{ year: number | null; docs: TaxDocumentSummary[] }[]>(() => {
+    const byYear = new Map<number | null, TaxDocumentSummary[]>();
+    for (const doc of documents) {
+      const key = doc.taxYear ?? null;
+      const bucket = byYear.get(key);
+      if (bucket) bucket.push(doc);
+      else byYear.set(key, [doc]);
+    }
+    return [...byYear.entries()]
+      .map(([year, docs]) => ({ year, docs }))
+      .sort((a, b) => {
+        if (a.year === null) return 1;
+        if (b.year === null) return -1;
+        return b.year - a.year;
+      });
+  }, [documents]);
 
   useEffect(() => {
     if (profile) {
@@ -713,57 +727,82 @@ export function TaxStrategy() {
                 }
               />
             ) : (
-              <div className="overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-                {(showAllDocs ? documents : documents.slice(0, DOC_PREVIEW_COUNT)).map((doc) => (
-                  <Fragment key={doc.id}>
-                    <DocRow
-                      doc={doc}
-                      selected={selectedDoc?.id === doc.id}
-                      loading={docLoading === doc.id}
-                      confirming={deleteConfirmId === doc.id}
-                      showDelete={showUpload}
-                      onSelect={() => handleSelectDocument(doc.id)}
-                      onAskDelete={() => setDeleteConfirmId(doc.id)}
-                      onConfirmDelete={() => {
-                        handleDeleteDocument(doc.id);
-                        setDeleteConfirmId(null);
-                      }}
-                      onCancelDelete={() => setDeleteConfirmId(null)}
-                    />
-                    {/* Detail expands inline right under the tapped row — reachable
-                        on every viewport, never buried below the full list. */}
-                    <AnimatePresence initial={false}>
-                      {selectedDoc?.id === doc.id && (
-                        <motion.div
-                          key={`${doc.id}-detail`}
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.22, ease: "easeInOut" }}
-                          className="overflow-hidden border-t border-line bg-canvas-sunken/40"
-                        >
-                          <DocumentDetail doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </Fragment>
-                ))}
+              <div className="space-y-[18px]">
+                {documentsByYear.map((group) => {
+                  const yearKey = group.year === null ? "undated" : String(group.year);
+                  const collapsed = collapsedYears[yearKey] ?? false;
+                  const count = group.docs.length;
+                  return (
+                    <section
+                      key={yearKey}
+                      className="overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCollapsedYears((prev) => ({ ...prev, [yearKey]: !collapsed }))
+                        }
+                        aria-expanded={!collapsed}
+                        className={cn(
+                          "ui-focus flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-brand-softer sm:px-5",
+                          !collapsed && "border-b border-line",
+                        )}
+                      >
+                        <span className="font-editorial text-[16.5px] font-bold leading-tight tracking-[-0.01em] ui-tnum">
+                          {group.year === null ? "Undated" : group.year}
+                        </span>
+                        <Badge tone="neutral" size="sm">
+                          {count} {count === 1 ? "document" : "documents"}
+                        </Badge>
+                        <span className="ml-auto grid h-[26px] w-[26px] shrink-0 place-items-center text-content-faint">
+                          <ChevronDown
+                            size={18}
+                            className={cn("transition-transform duration-200 ease-ui", collapsed && "-rotate-90")}
+                          />
+                        </span>
+                      </button>
 
-                {documents.length > DOC_PREVIEW_COUNT && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllDocs((p) => !p)}
-                    className="touch-target ui-focus flex w-full items-center justify-center gap-1.5 border-t border-line bg-canvas-sunken/40 px-4 py-3 text-[13px] font-bold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-canvas-sunken"
-                  >
-                    {showAllDocs
-                      ? "Show fewer"
-                      : `Show all ${documents.length} documents`}
-                    <ArrowRight
-                      size={14}
-                      className={cn("transition-transform", showAllDocs ? "-rotate-90" : "rotate-90")}
-                    />
-                  </button>
-                )}
+                      {!collapsed && (
+                        <div>
+                          {group.docs.map((doc) => (
+                            <Fragment key={doc.id}>
+                              <DocRow
+                                doc={doc}
+                                selected={selectedDoc?.id === doc.id}
+                                loading={docLoading === doc.id}
+                                confirming={deleteConfirmId === doc.id}
+                                showDelete={showUpload}
+                                onSelect={() => handleSelectDocument(doc.id)}
+                                onAskDelete={() => setDeleteConfirmId(doc.id)}
+                                onConfirmDelete={() => {
+                                  handleDeleteDocument(doc.id);
+                                  setDeleteConfirmId(null);
+                                }}
+                                onCancelDelete={() => setDeleteConfirmId(null)}
+                              />
+                              {/* Detail expands inline right under the tapped row — reachable
+                                  on every viewport, never buried below the full list. */}
+                              <AnimatePresence initial={false}>
+                                {selectedDoc?.id === doc.id && (
+                                  <motion.div
+                                    key={`${doc.id}-detail`}
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.22, ease: "easeInOut" }}
+                                    className="overflow-hidden border-t border-line bg-canvas-sunken/40"
+                                  >
+                                    <DocumentDetail doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </Fragment>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -814,7 +853,7 @@ function SavingsLineBar({ line, max }: { line: SavingsLine; max: number }) {
   );
 }
 
-// Document list row — icon · label/filename · type/year/date · delete.
+// Document list row — icon · label/filename · type/date · delete.
 function DocRow({
   doc,
   selected,
@@ -876,7 +915,6 @@ function DocRow({
 
       <div className="hidden shrink-0 items-center gap-4 sm:flex">
         {formType && <Badge tone="neutral" size="sm">{formType}</Badge>}
-        {doc.taxYear && <span className="text-[13px] font-medium text-content-muted ui-tnum">{doc.taxYear}</span>}
         {doc.createdAt && (
           <span className="text-[13px] font-medium text-content-muted ui-tnum">
             {new Date(doc.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
