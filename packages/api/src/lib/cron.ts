@@ -4,6 +4,7 @@ import { eq, plaidItems, tenants, type Plan } from "@lasagna/core";
 import { syncItem } from "./sync.js";
 import { generateInsights } from "./insights-engine.js";
 import { resolveTenantPlan } from "./billing.js";
+import { runWithRetry } from "./retry-failed.js";
 
 export function startCronJobs() {
   // Plaid sync twice daily: 1pm ET (17:00 UTC) and 7pm ET (23:00 UTC)
@@ -31,10 +32,20 @@ export function startCronJobs() {
       }
 
       console.log(`[Cron] Syncing ${toSync.length}/${items.length} items`);
-      const results = await Promise.allSettled(toSync.map((item) => syncItem(item.id)));
-      const succeeded = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.filter((r) => r.status === "rejected").length;
-      console.log(`[Cron] Sync complete: ${succeeded} succeeded, ${failed} failed`);
+      // One transient failure must self-heal within the run: retry rejected
+      // items exactly once instead of swallowing them for a whole day.
+      const { succeededFirstPass, recoveredOnRetry, stillFailedIds } = await runWithRetry(
+        toSync.map((item) => item.id),
+        (id) => syncItem(id)
+      );
+      const succeeded = succeededFirstPass + recoveredOnRetry;
+      console.log(
+        `[Cron] Sync complete: ${succeeded} succeeded, ${stillFailedIds.length} failed` +
+          (recoveredOnRetry > 0 ? ` (${recoveredOnRetry} recovered on retry)` : "")
+      );
+      if (stillFailedIds.length > 0) {
+        console.error(`[Cron] Sync items still failing after retry: ${stillFailedIds.join(", ")}`);
+      }
     } catch (err) {
       console.error("[Cron] Sync error:", err);
     }
@@ -50,13 +61,20 @@ export function startCronJobs() {
       const allTenants = await db.select({ id: tenants.id }).from(tenants);
       console.log(`[Cron] Generating insights for ${allTenants.length} tenants`);
 
-      const results = await Promise.allSettled(
-        allTenants.map(({ id }) => generateInsights(id))
+      // A transient failure here means a tenant gets no fresh actions for a day.
+      // Retry the rejected tenants exactly once so it self-heals within the run.
+      const { succeededFirstPass, recoveredOnRetry, stillFailedIds } = await runWithRetry(
+        allTenants.map(({ id }) => id),
+        (id) => generateInsights(id)
       );
-
-      const succeeded = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.filter((r) => r.status === "rejected").length;
-      console.log(`[Cron] Insights generation complete: ${succeeded} succeeded, ${failed} failed`);
+      const succeeded = succeededFirstPass + recoveredOnRetry;
+      console.log(
+        `[Cron] Insights generation complete: ${succeeded} succeeded, ${stillFailedIds.length} failed` +
+          (recoveredOnRetry > 0 ? ` (${recoveredOnRetry} recovered on retry)` : "")
+      );
+      if (stillFailedIds.length > 0) {
+        console.error(`[Cron] Insights still failing after retry for tenants: ${stillFailedIds.join(", ")}`);
+      }
     } catch (err) {
       console.error("[Cron] Insights generation error:", err);
     }
