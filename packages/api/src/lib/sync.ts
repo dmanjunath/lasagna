@@ -19,37 +19,11 @@ import { resolveTenantPlan, isTenantDisabled } from "./billing.js";
 import { recomputeFrozenAccounts } from "./account-limits.js";
 import { logPlaidEvent } from "./activity.js";
 import { classifyUnknownSecuritiesForTenant } from "./security-classifier.js";
-
-/**
- * Which paid products this Item's accounts could actually return data for.
- *
- * Investments and Liabilities sit in `additional_consented_products`, so the
- * first successful call to either endpoint enrolls the Item in a monthly
- * subscription that cannot be removed short of /item/remove. Calling on an Item
- * that has no matching account therefore buys a permanent charge for data that
- * can never exist — which is how ~$1.34/month of the bill accrued.
- *
- * Deliberately biased toward calling. Skipping wrongly loses a user's holdings
- * silently, which costs far more than $0.18:
- *  - `brokerage` is Plaid's legacy type for an investment account.
- *  - `other` means Plaid could not classify it, so we must not assume it empty.
- *
- * Transactions is absent on purpose. It is always in `products`, so it is billed
- * at Item creation regardless, and account type does not predict it anyway: a
- * loan-only Item yields mortgage payments, while a brokerage holding a sweep
- * account yields nothing.
- */
-export function productsForAccountTypes(types: Iterable<string>): {
-  investments: boolean;
-  liabilities: boolean;
-} {
-  const t = new Set(types);
-  const unclassified = t.has("other");
-  return {
-    investments: t.has("investment") || t.has("brokerage") || unclassified,
-    liabilities: t.has("credit") || t.has("loan") || unclassified,
-  };
-}
+// Single source of truth for the account-type → product mapping lives in the
+// pure pricing module (also used by the admin spend route); re-exported here for
+// existing callers.
+export { productsForAccountTypes } from "./plaid-pricing.js";
+import { productsForAccountTypes } from "./plaid-pricing.js";
 
 export async function syncItem(itemId: string): Promise<void> {
   const item = await db.query.plaidItems.findFirst({

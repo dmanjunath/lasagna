@@ -13,7 +13,8 @@ import {
   users,
 } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { getModel } from "../agent/agent.js";
+import { getModel, getModelSlug } from "../agent/agent.js";
+import { actualLlmCostUsd, logLlmUsage } from "../lib/activity.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import {
   HOUSEHOLD_FIELDS,
@@ -343,6 +344,17 @@ quickImportRoutes.post("/parse", async (c) => {
       schema: llmResultSchema,
       system: systemPrompt,
       prompt: text,
+    });
+
+    // Meter the call — quick-import calls the SDK directly (boundary exception),
+    // so it never went through lib/llm.ts and would otherwise be invisible spend.
+    logLlmUsage({
+      tenantId: session.tenantId,
+      source: "quick-import",
+      model: getModelSlug("fast-claude"),
+      inputTokens: result.usage?.inputTokens,
+      outputTokens: result.usage?.outputTokens,
+      costUsd: actualLlmCostUsd(result.providerMetadata),
     });
 
     // Convert age → dateOfBirth using the real current date. The LLM doesn't

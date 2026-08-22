@@ -141,11 +141,15 @@ export function getModel(
   });
   // OpenRouter runs web search server-side via the "web" plugin and injects the
   // results plus inline citation links into the response — no client-side tool.
+  // usage.include makes OpenRouter return the actual per-generation cost at
+  // result.providerMetadata.openrouter.usage.cost, which we store as the real
+  // spend (the token-based estimate is now only a fallback).
   const model = webSearch
     ? openrouter(slug, {
         plugins: [{ id: "web", max_results: env.WEB_SEARCH_MAX_RESULTS }],
+        usage: { include: true },
       })
-    : openrouter(slug);
+    : openrouter(slug, { usage: { include: true } });
   _models.set(cacheKey, model);
   console.log(
     `Initialized OpenRouter model: ${slug} (${label})${webSearch ? " [web search]" : ""}`

@@ -98,7 +98,7 @@ vi.mock("../../lib/pii-scrubber.js", () => ({
 }));
 vi.mock("../../lib/billing.js", () => ({ resolveTenantPlan: async () => "free" }));
 vi.mock("../../lib/model-gate.js", () => ({ resolveModelLevel: () => "free" }));
-vi.mock("../../lib/activity.js", () => ({ logLlmUsage: () => {} }));
+vi.mock("../../lib/activity.js", () => ({ logLlmUsage: () => {}, actualLlmCostUsd: () => undefined }));
 vi.mock("ai", () => ({ generateText: vi.fn(async () => ({ text: "", toolCalls: [], finishReason: "stop", usage: {} })) }));
 
 import type { AuthEnv } from "../../middleware/auth.js";

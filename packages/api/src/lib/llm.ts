@@ -26,6 +26,7 @@ import {
   descrubObject,
   type AliasMap,
 } from "./pii-scrubber.js";
+import { actualLlmCostUsd } from "./activity.js";
 
 /** Who the call is for; pass a prebuilt aliasMap to avoid a per-call DB read. */
 export interface LlmAnonContext {
@@ -48,6 +49,8 @@ export interface LlmTextResult {
   toolCalls: Awaited<ReturnType<typeof generateText>>["toolCalls"];
   finishReason: Awaited<ReturnType<typeof generateText>>["finishReason"];
   usage: Awaited<ReturnType<typeof generateText>>["usage"];
+  /** OpenRouter's actual USD cost for the call, when reported. */
+  costUsd?: number;
 }
 
 async function resolveMap(anon: LlmAnonContext): Promise<AliasMap> {
@@ -78,6 +81,7 @@ export async function llmGenerateText(
     toolCalls: result.toolCalls,
     finishReason: result.finishReason,
     usage: result.usage,
+    costUsd: actualLlmCostUsd(result.providerMetadata),
   };
 }
 
@@ -93,11 +97,12 @@ export async function llmGenerateObject<T>(
     temperature?: number;
     maxOutputTokens?: number;
   },
-): Promise<{ object: T; usage?: { inputTokens?: number; outputTokens?: number } }> {
+): Promise<{ object: T; usage?: { inputTokens?: number; outputTokens?: number }; costUsd?: number }> {
   const map = await resolveMap(anon);
   const result = await generateObject(scrubOpts(opts, map) as never);
   return {
     object: descrubObject(result.object, map) as T,
     usage: result.usage as { inputTokens?: number; outputTokens?: number } | undefined,
+    costUsd: actualLlmCostUsd(result.providerMetadata),
   };
 }

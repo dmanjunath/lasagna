@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const generateObject = vi.fn();
 vi.mock("ai", () => ({ generateObject: (...args: unknown[]) => generateObject(...args) }));
 vi.mock("../db.js", () => ({ db: {} }));
-vi.mock("../activity.js", () => ({ logLlmUsage: vi.fn() }));
+vi.mock("../activity.js", () => ({ logLlmUsage: vi.fn(), actualLlmCostUsd: () => undefined }));
 vi.mock("../../agent/index.js", () => ({
   getModel: () => ({}) as never,
   getModelSlug: () => "google/gemini-3.1-flash-lite",

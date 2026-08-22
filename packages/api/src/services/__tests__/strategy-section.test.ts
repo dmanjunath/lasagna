@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // modules so importing doesn't pull a real provider or DB connection.
 const generateObject = vi.fn();
 vi.mock("ai", () => ({ generateObject: (...args: unknown[]) => generateObject(...args) }));
-vi.mock("../../lib/activity.js", () => ({ logLlmUsage: vi.fn() }));
+vi.mock("../../lib/activity.js", () => ({ logLlmUsage: vi.fn(), actualLlmCostUsd: () => undefined }));
 vi.mock("../../agent/index.js", () => ({
   getModel: () => ({}) as never,
   getModelSlug: () => "anthropic/claude-sonnet-4.5",

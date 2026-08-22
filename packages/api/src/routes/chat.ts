@@ -178,7 +178,7 @@ chatRouter.post("/", async (c) => {
 
     const toolCallCount = stepResult.toolCalls?.length || 0;
     console.log(`[Chat] Step ${step + 1}: text=${stepResult.text.length} chars, toolCalls=${toolCallCount}, finishReason=${stepResult.finishReason}`);
-    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: stepResult.usage?.inputTokens, outputTokens: stepResult.usage?.outputTokens });
+    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: stepResult.usage?.inputTokens, outputTokens: stepResult.usage?.outputTokens, costUsd: stepResult.costUsd });
 
     finalText = stepResult.text;
 
@@ -256,7 +256,7 @@ chatRouter.post("/", async (c) => {
       // No tools this turn — the model must answer from the results it gathered.
     });
     finalText = synthResult.text;
-    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: synthResult.usage?.inputTokens, outputTokens: synthResult.usage?.outputTokens });
+    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: synthResult.usage?.inputTokens, outputTokens: synthResult.usage?.outputTokens, costUsd: synthResult.costUsd });
     console.log(`[Chat] Synthesis: text=${finalText.length} chars, finishReason=${synthResult.finishReason}`);
   }
   } catch (err) {
@@ -307,7 +307,7 @@ chatRouter.post("/", async (c) => {
         messages: [{ role: "user", content: `Title for: "${body.message.slice(0, 200)}"` }],
         maxOutputTokens: 32,
       });
-      logLlmUsage({ tenantId, source: "chat-title", model: getModelSlug(titleLevel), inputTokens: titleResult.usage?.inputTokens, outputTokens: titleResult.usage?.outputTokens });
+      logLlmUsage({ tenantId, source: "chat-title", model: getModelSlug(titleLevel), inputTokens: titleResult.usage?.inputTokens, outputTokens: titleResult.usage?.outputTokens, costUsd: titleResult.costUsd });
       generatedThreadTitle = titleResult.text.trim().slice(0, 100);
       if (generatedThreadTitle && generatedThreadTitle.length > 2) {
         await db

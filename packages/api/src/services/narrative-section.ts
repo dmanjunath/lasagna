@@ -115,7 +115,7 @@ export async function buildNarrativeSection(
   // generateObject can't parse for this larger prose payload ("Invalid JSON
   // response"). It's intermittent, so a single retry lands the narrative on the
   // vast majority of creates; on a second failure we still return null cleanly.
-  let result: { object: z.infer<typeof narrativeSchema>; usage?: { inputTokens?: number; outputTokens?: number } } | null = null;
+  let result: { object: z.infer<typeof narrativeSchema>; usage?: { inputTokens?: number; outputTokens?: number }; costUsd?: number } | null = null;
   for (let attempt = 0; attempt < 2 && result === null; attempt++) {
     try {
       result = await llmGenerateObject({ tenantId }, {
@@ -145,6 +145,7 @@ export async function buildNarrativeSection(
     model: getModelSlug(NARRATIVE_LEVEL),
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
+    costUsd: result.costUsd,
   });
 
   const executiveSummary = (result.object.executiveSummary ?? "").trim();

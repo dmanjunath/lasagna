@@ -9,6 +9,7 @@ import { normalizeEmail } from "../lib/normalize-email.js";
 import * as workos from "../lib/auth/workos.js";
 import { authMode } from "../lib/auth/mode.js";
 import { env } from "../lib/env.js";
+import { monthlyPlaidCostForAccountTypes } from "../lib/plaid-pricing.js";
 
 export const adminRoutes = new Hono<AuthEnv>();
 
@@ -34,6 +35,48 @@ adminRoutes.use("*", async (c, next) => {
 
 // Malformed ids would otherwise 500 on the postgres uuid cast.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Cost strings the frontend parses with Number(...); keep the same 6-decimal
+// shape logLlmUsage writes so admin-spend.tsx / admin.tsx need no changes.
+const usd = (n: number): string => n.toFixed(6);
+
+/**
+ * Monthly Plaid cost per tenant, computed from the real per-item/month product
+ * model (see lib/plaid-pricing.ts) rather than from fabricated per-event costs.
+ * Bills each active, non-manual Item once by its accounts' types (frozen
+ * accounts still count — the Item still bills). Optionally scoped to one tenant.
+ */
+async function plaidCostByTenant(tenantId?: string): Promise<Map<string, number>> {
+  const rows = await db
+    .select({
+      tenantId: plaidItems.tenantId,
+      itemId: plaidItems.id,
+      type: accounts.type,
+    })
+    .from(accounts)
+    .innerJoin(plaidItems, eq(accounts.plaidItemId, plaidItems.id))
+    .where(
+      sql`${plaidItems.status} = 'active' and ${plaidItems.institutionId} is distinct from 'manual'
+        ${tenantId ? sql`and ${plaidItems.tenantId} = ${tenantId}` : sql``}`,
+    );
+
+  // Group account types per Item, then price each Item once and sum per tenant.
+  const itemTypes = new Map<string, { tenantId: string; types: Set<string> }>();
+  for (const r of rows) {
+    let entry = itemTypes.get(r.itemId);
+    if (!entry) {
+      entry = { tenantId: r.tenantId, types: new Set() };
+      itemTypes.set(r.itemId, entry);
+    }
+    entry.types.add(r.type);
+  }
+
+  const byTenant = new Map<string, number>();
+  for (const { tenantId: tid, types } of itemTypes.values()) {
+    byTenant.set(tid, (byTenant.get(tid) ?? 0) + monthlyPlaidCostForAccountTypes(types));
+  }
+  return byTenant;
+}
 
 // Operator metrics: every user with signup/last-login, effective plan +
 // source, and connected-account count. Small dataset — computed on demand.
@@ -61,16 +104,24 @@ adminRoutes.get("/users", async (c) => {
     .innerJoin(tenants, eq(users.tenantId, tenants.id))
     .orderBy(desc(users.createdAt));
 
-  // 30d spend per tenant, so cost is visible without opening each detail page.
-  const spendRows = await db
+  // 30d spend per tenant = actual LLM cost over the window + the tenant's
+  // computed monthly Plaid subscription (per item/product, not per event).
+  const llmSpendRows = await db
     .select({
       tenantId: activityEvents.tenantId,
-      cost: sql<string>`coalesce(sum(${activityEvents.costUsd}), 0)`,
+      cost: sql<string>`coalesce(sum(${activityEvents.costUsd}) filter (where ${activityEvents.kind} = 'llm'), 0)`,
     })
     .from(activityEvents)
     .where(sql`${activityEvents.createdAt} >= now() - interval '30 days' and ${activityEvents.tenantId} is not null`)
     .groupBy(activityEvents.tenantId);
-  const spendByTenant = new Map(spendRows.map((r) => [r.tenantId, r.cost]));
+  const llmSpendByTenant = new Map(
+    llmSpendRows.flatMap((r) => (r.tenantId ? [[r.tenantId, Number(r.cost)] as const] : [])),
+  );
+  const plaidCostMap = await plaidCostByTenant();
+  const spendByTenant = new Map<string, string>();
+  for (const tid of new Set([...llmSpendByTenant.keys(), ...plaidCostMap.keys()])) {
+    spendByTenant.set(tid, usd((llmSpendByTenant.get(tid) ?? 0) + (plaidCostMap.get(tid) ?? 0)));
+  }
 
   const userRows = rows.map((r) => {
     const planSource: PlanSource = classifyPlanSource({
@@ -427,16 +478,22 @@ adminRoutes.post("/users/:userId/revoke-sessions", async (c) => {
 
 // ── Spend reporting ──────────────────────────────────────────────────────────
 // Aggregates activity_events over a window: totals, a daily series, and
-// breakdowns by source, model, and tenant. Estimated $ (see lib/activity.ts).
+// breakdowns by source, model, and tenant. LLM $ is OpenRouter's actual
+// per-call cost (see lib/activity.ts); Plaid $ is the computed monthly
+// per-item/product subscription (see lib/plaid-pricing.ts), not per event.
 adminRoutes.get("/spend", async (c) => {
   const days = Math.min(365, Math.max(1, parseInt(c.req.query("days") ?? "30", 10) || 30));
   // ISO string, not a Date: raw sql`` params must be driver-serializable.
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-  const [totalsRow] = await db
+  // Plaid cost is a monthly per-item/product subscription (see lib/plaid-pricing.ts),
+  // not per event — computed here per tenant and merged into the LLM aggregates.
+  const plaidCostMap = await plaidCostByTenant();
+  const totalPlaidCost = [...plaidCostMap.values()].reduce((s, n) => s + n, 0);
+
+  const [totalsAgg] = await db
     .select({
       llmCost: sql<string>`coalesce(sum(${activityEvents.costUsd}) filter (where ${activityEvents.kind} = 'llm'), 0)`,
-      plaidCost: sql<string>`coalesce(sum(${activityEvents.costUsd}) filter (where ${activityEvents.kind} = 'plaid'), 0)`,
       llmCalls: sql<number>`count(*) filter (where ${activityEvents.kind} = 'llm')::int`,
       plaidEvents: sql<number>`count(*) filter (where ${activityEvents.kind} = 'plaid')::int`,
       inputTokens: sql<number>`coalesce(sum(${activityEvents.inputTokens}), 0)::int`,
@@ -444,6 +501,7 @@ adminRoutes.get("/spend", async (c) => {
     })
     .from(activityEvents)
     .where(sql`${activityEvents.createdAt} >= ${since}`);
+  const totalsRow = { ...totalsAgg, plaidCost: usd(totalPlaidCost) };
 
   const series = await db
     .select({
@@ -485,21 +543,53 @@ adminRoutes.get("/spend", async (c) => {
     .orderBy(sql`2 desc`);
 
   // Cost per tenant — the "cost per account" view. Deleted tenants show as null.
-  const byTenant = await db
+  // LLM cost + event count come from activity_events; Plaid cost is the computed
+  // monthly subscription. Ranking is by llm + plaid, so it's sorted in TS (the
+  // Plaid figure isn't in SQL) after merging in tenants that only have Plaid cost.
+  const byTenantAgg = await db
     .select({
       tenantId: activityEvents.tenantId,
       tenantName: sql<string | null>`min(${tenants.name})`,
       email: sql<string | null>`(select min(u.email) from ${users} u where u.tenant_id = ${activityEvents.tenantId})`,
       llmCost: sql<string>`coalesce(sum(${activityEvents.costUsd}) filter (where ${activityEvents.kind} = 'llm'), 0)`,
-      plaidCost: sql<string>`coalesce(sum(${activityEvents.costUsd}) filter (where ${activityEvents.kind} = 'plaid'), 0)`,
       events: sql<number>`count(*)::int`,
     })
     .from(activityEvents)
     .leftJoin(tenants, eq(activityEvents.tenantId, tenants.id))
     .where(sql`${activityEvents.createdAt} >= ${since}`)
-    .groupBy(activityEvents.tenantId)
-    .orderBy(sql`sum(${activityEvents.costUsd}) desc`)
-    .limit(50);
+    .groupBy(activityEvents.tenantId);
+
+  const byTenantMap = new Map(
+    byTenantAgg.map((r) => [
+      r.tenantId,
+      { ...r, plaidCost: usd(r.tenantId ? (plaidCostMap.get(r.tenantId) ?? 0) : 0) },
+    ]),
+  );
+  // Tenants billed by Plaid but with no LLM activity in the window still owe cost.
+  const missingPlaidTenantIds = [...plaidCostMap.keys()].filter((tid) => !byTenantMap.has(tid));
+  if (missingPlaidTenantIds.length > 0) {
+    const extra = await db
+      .select({
+        tenantId: tenants.id,
+        tenantName: tenants.name,
+        email: sql<string | null>`(select min(u.email) from ${users} u where u.tenant_id = ${tenants.id})`,
+      })
+      .from(tenants)
+      .where(inArray(tenants.id, missingPlaidTenantIds));
+    for (const t of extra) {
+      byTenantMap.set(t.tenantId, {
+        tenantId: t.tenantId,
+        tenantName: t.tenantName,
+        email: t.email,
+        llmCost: "0",
+        events: 0,
+        plaidCost: usd(plaidCostMap.get(t.tenantId) ?? 0),
+      });
+    }
+  }
+  const byTenant = [...byTenantMap.values()]
+    .sort((a, b) => Number(b.llmCost) + Number(b.plaidCost) - (Number(a.llmCost) + Number(a.plaidCost)))
+    .slice(0, 50);
 
   return c.json({ days, totals: totalsRow, series, bySource, byModel, byTenant });
 });
@@ -552,13 +642,18 @@ adminRoutes.get("/tenants/:tenantId/detail", async (c) => {
     .orderBy(desc(activityEvents.createdAt))
     .limit(20);
 
-  const [spend30d] = await db
+  const [llmSpend30d] = await db
     .select({
       llmCost: sql<string>`coalesce(sum(${activityEvents.costUsd}) filter (where ${activityEvents.kind} = 'llm'), 0)`,
-      plaidCost: sql<string>`coalesce(sum(${activityEvents.costUsd}) filter (where ${activityEvents.kind} = 'plaid'), 0)`,
     })
     .from(activityEvents)
     .where(sql`${activityEvents.tenantId} = ${tenantId} and ${activityEvents.createdAt} >= now() - interval '30 days'`);
+  // Plaid cost is the tenant's computed monthly per-item/product subscription
+  // (see lib/plaid-pricing.ts), not the fabricated per-event cost.
+  const spend30d = {
+    llmCost: llmSpend30d.llmCost,
+    plaidCost: usd((await plaidCostByTenant(tenantId)).get(tenantId) ?? 0),
+  };
 
   // Same plan classification as the list page, so the chips can't disagree.
   const planSource = classifyPlanSource({

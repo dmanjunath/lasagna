@@ -117,6 +117,7 @@ export async function buildSuggestionsSection(
     model: getModelSlug(SUGGESTIONS_LEVEL),
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
+    costUsd: result.costUsd,
   });
 
   // Trim and drop any item the model left without the two required fields; if

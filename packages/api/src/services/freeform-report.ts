@@ -173,6 +173,7 @@ export async function generateFreeformReport(
       model: FREEFORM_MODEL,
       inputTokens: stepResult.usage?.inputTokens,
       outputTokens: stepResult.usage?.outputTokens,
+      costUsd: stepResult.costUsd,
     });
     finalText = stepResult.text;
     console.log(
@@ -241,6 +242,7 @@ export async function generateFreeformReport(
       model: FREEFORM_MODEL,
       inputTokens: synth.usage?.inputTokens,
       outputTokens: synth.usage?.outputTokens,
+      costUsd: synth.costUsd,
     });
     finalText = synth.text;
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateLlmCostUsd } from "../activity.js";
+import { estimateLlmCostUsd, actualLlmCostUsd } from "../activity.js";
 
 describe("estimateLlmCostUsd", () => {
   it("prices a known model per 1M tokens (sonnet: $3 in / $15 out)", () => {
@@ -16,5 +16,33 @@ describe("estimateLlmCostUsd", () => {
 
   it("zero tokens costs zero", () => {
     expect(estimateLlmCostUsd("anthropic/claude-opus-4.7", 0, 0)).toBe(0);
+  });
+});
+
+describe("actualLlmCostUsd", () => {
+  it("extracts OpenRouter's actual cost from providerMetadata", () => {
+    expect(actualLlmCostUsd({ openrouter: { usage: { cost: 0.0123 } } })).toBe(0.0123);
+  });
+
+  it("accepts a zero cost", () => {
+    expect(actualLlmCostUsd({ openrouter: { usage: { cost: 0 } } })).toBe(0);
+  });
+
+  it("returns undefined when the cost is missing at any level", () => {
+    expect(actualLlmCostUsd(undefined)).toBeUndefined();
+    expect(actualLlmCostUsd(null)).toBeUndefined();
+    expect(actualLlmCostUsd({})).toBeUndefined();
+    expect(actualLlmCostUsd({ openrouter: {} })).toBeUndefined();
+    expect(actualLlmCostUsd({ openrouter: { usage: {} } })).toBeUndefined();
+  });
+
+  it("returns undefined for a NaN or negative cost", () => {
+    expect(actualLlmCostUsd({ openrouter: { usage: { cost: NaN } } })).toBeUndefined();
+    expect(actualLlmCostUsd({ openrouter: { usage: { cost: -0.5 } } })).toBeUndefined();
+    expect(actualLlmCostUsd({ openrouter: { usage: { cost: Infinity } } })).toBeUndefined();
+  });
+
+  it("returns undefined when cost is not a number", () => {
+    expect(actualLlmCostUsd({ openrouter: { usage: { cost: "0.01" } } })).toBeUndefined();
   });
 });

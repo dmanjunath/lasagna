@@ -128,7 +128,7 @@ ${JSON.stringify(compact)}`,
     temperature: 0.2,
     maxOutputTokens: 4000,
   });
-  logLlmUsage({ tenantId, source: "recurring", model: getModelSlug("medium"), inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens });
+  logLlmUsage({ tenantId, source: "recurring", model: getModelSlug("medium"), inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens, costUsd: result.costUsd });
 
   let parsed: LLMResult[];
   try {

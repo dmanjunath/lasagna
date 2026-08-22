@@ -17,6 +17,8 @@ vi.mock("../activity.js", () => ({ logPlaidEvent: vi.fn() }));
 vi.mock("../security-classifier.js", () => ({ classifyUnknownSecuritiesForTenant: vi.fn() }));
 
 const { productsForAccountTypes } = await import("../sync.js");
+// The pure pricing module has no heavy deps, so it needs no mocks.
+const { monthlyPlaidCostForAccountTypes } = await import("../plaid-pricing.js");
 
 describe("productsForAccountTypes", () => {
   it("fetches neither for a cash-only Item", () => {
@@ -66,5 +68,32 @@ describe("productsForAccountTypes", () => {
       investments: false,
       liabilities: false,
     });
+  });
+});
+
+describe("monthlyPlaidCostForAccountTypes", () => {
+  // Rates: transactions $0.30, investments $0.18, liabilities $0.20 per item-month.
+  it("bills only Transactions for a cash-only Item", () => {
+    expect(monthlyPlaidCostForAccountTypes(["depository"])).toBeCloseTo(0.3, 6);
+  });
+
+  it("bills only Investments for an investment-only Item", () => {
+    expect(monthlyPlaidCostForAccountTypes(["investment"])).toBeCloseTo(0.18, 6);
+  });
+
+  it("bills Transactions + Liabilities for a credit Item", () => {
+    expect(monthlyPlaidCostForAccountTypes(["credit"])).toBeCloseTo(0.3 + 0.2, 6);
+  });
+
+  it("bills Transactions + Investments for a brokerage + checking Item", () => {
+    expect(monthlyPlaidCostForAccountTypes(["investment", "depository"])).toBeCloseTo(0.3 + 0.18, 6);
+  });
+
+  it("bills all three when Plaid could not classify the account", () => {
+    expect(monthlyPlaidCostForAccountTypes(["other"])).toBeCloseTo(0.3 + 0.18 + 0.2, 6);
+  });
+
+  it("costs nothing for an Item with no accounts", () => {
+    expect(monthlyPlaidCostForAccountTypes([])).toBe(0);
   });
 });

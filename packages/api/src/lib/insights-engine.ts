@@ -891,7 +891,7 @@ export async function generateInsights(tenantId: string): Promise<number> {
       temperature: 0.3,
       maxOutputTokens: 4000,
     });
-    logLlmUsage({ tenantId, source: "insights", model: getModelSlug("medium"), inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens });
+    logLlmUsage({ tenantId, source: "insights", model: getModelSlug("medium"), inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens, costUsd: result.costUsd });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[Insights] LLM API call failed: ${msg.slice(0, 300)}`);

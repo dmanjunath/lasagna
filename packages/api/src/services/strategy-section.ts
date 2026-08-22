@@ -553,6 +553,7 @@ export async function buildStrategySection(
     let result: {
       object: StrategyObject;
       usage?: { inputTokens?: number; outputTokens?: number };
+      costUsd?: number;
     } | null = null;
     for (let i = 0; i < 2 && result === null; i++) {
       try {
@@ -578,6 +579,7 @@ export async function buildStrategySection(
         model: getModelSlug(STRATEGY_LEVEL),
         inputTokens: result.usage?.inputTokens,
         outputTokens: result.usage?.outputTokens,
+        costUsd: result.costUsd,
       });
     }
     return result?.object ?? null;

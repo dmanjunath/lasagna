@@ -117,6 +117,7 @@ export async function classifySecurity(
     model: getModelSlug(CLASSIFIER_LEVEL),
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
+    costUsd: result.costUsd,
   });
 
   const out = result.object;
