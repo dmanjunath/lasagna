@@ -22,6 +22,17 @@ const config: CapacitorConfig = {
       launchAutoHide: false, // hidden by native-shell.ts once React mounts
       backgroundColor: '#f7f9fc',
     },
+    // Over-the-air web-bundle updates, fully self-hosted — see lib/ota.ts.
+    // autoUpdate is off because Capgo's built-in loop POSTs to an update
+    // server; we drive check/download/apply ourselves against a static
+    // manifest. The three URLs default to Capgo's cloud, so they are blanked
+    // to guarantee the app never phones home to a third party.
+    CapacitorUpdater: {
+      autoUpdate: false,
+      updateUrl: '',
+      statsUrl: '',
+      channelUrl: '',
+    },
   },
 };
 

@@ -419,6 +419,8 @@ export function Settings() {
         <DeleteAccountCard />
       </section>
 
+      {isNativeApp() && <BuildVersion />}
+
       <RulesPanel
         open={rulesOpen}
         seed={null}
@@ -427,6 +429,35 @@ export function Settings() {
       />
     </div>
   );
+}
+
+// ─── Build version — native shell only ───────────────────────────────────────
+
+/**
+ * The store build plus the web bundle running on top of it. Those two can differ
+ * once a bundle ships over the air, so the store version alone no longer
+ * identifies what a device is running.
+ */
+function BuildVersion() {
+  const [label, setLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const [{ App: CapApp }, { runningBundleVersion }] = await Promise.all([
+        import('@capacitor/app'),
+        import('../lib/ota'),
+      ]);
+      const [info, bundle] = await Promise.all([CapApp.getInfo(), runningBundleVersion()]);
+      if (active) setLabel(`Version ${info.version} (${info.build}), update ${bundle}`);
+    })().catch(() => {}); // no version line is better than a broken one
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!label) return null;
+  return <p className="mt-10 text-center text-[12.5px] text-content-muted">{label}</p>;
 }
 
 // ─── Household — members, invites, and each member's personal profile ────────

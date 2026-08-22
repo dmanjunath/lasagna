@@ -203,6 +203,9 @@ importers:
       '@capacitor/status-bar':
         specifier: ^8.0.2
         version: 8.0.2(@capacitor/core@8.4.1)
+      '@capgo/capacitor-updater':
+        specifier: ^8.51.13
+        version: 8.51.13(@capacitor/core@8.4.1)
       '@radix-ui/react-progress':
         specifier: ^1.1.8
         version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -529,6 +532,11 @@ packages:
     resolution: {integrity: sha512-WXs8YB8B9eEaPZz+bcdY6t2nForF1FLoj/JU0Dl9RRgQnddnS98FEEyDooQhaY7wivr000j4+SC1FyeJkrFO7A==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
+
+  '@capgo/capacitor-updater@8.51.13':
+    resolution: {integrity: sha512-9YwIbV7kJid4WRlU3a8fCXtkXKsCRo3ke9Ypavn8HPoP7EVw8HK1nIIDLsWJN8wrmG8/K0tLCfPIKUJ+7/XmAg==}
+    peerDependencies:
+      '@capacitor/core': ^8.0.0
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
@@ -6156,6 +6164,10 @@ snapshots:
       '@capacitor/core': 8.4.1
 
   '@capacitor/status-bar@8.0.2(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
+
+  '@capgo/capacitor-updater@8.51.13(@capacitor/core@8.4.1)':
     dependencies:
       '@capacitor/core': 8.4.1
 

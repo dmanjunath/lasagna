@@ -13,14 +13,27 @@ if [[ -f "$INFRA_ENV" ]]; then
 fi
 : "${IOS_TEAM_ID:?IOS_TEAM_ID not set — create lasagna-infra/ios/signing.env (see signing.env.example)}"
 : "${VITE_API_URL:?VITE_API_URL not set — e.g. https://app.lasagnafi.com}"
+: "${VITE_OTA_MANIFEST_URL:?VITE_OTA_MANIFEST_URL not set — without it the shipped app cannot take OTA updates}"
+
+# The builtin bundle needs its own version to compare against the OTA manifest;
+# the updater plugin reports it only as "builtin". Defaults to the app's
+# marketing version, so a store build at 1.1 ships bundle 1.1 and OTA releases
+# continue 1.1.1, 1.1.2, …
+MARKETING_VERSION=$(sed -n 's/.*MARKETING_VERSION = \([0-9.]*\);.*/\1/p' \
+  "$WEB_DIR/ios/App/App.xcodeproj/project.pbxproj" | head -1)
+VITE_OTA_BUNDLE_VERSION="${OTA_BUNDLE_VERSION:-$MARKETING_VERSION}"
+: "${VITE_OTA_BUNDLE_VERSION:?could not determine bundle version — set OTA_BUNDLE_VERSION}"
 
 BUILD_DIR="$WEB_DIR/ios/build"
 ARCHIVE="$BUILD_DIR/App.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
 mkdir -p "$BUILD_DIR"
 
-echo "==> Building web bundle against $VITE_API_URL"
-(cd "$WEB_DIR" && VITE_API_URL="$VITE_API_URL" pnpm build && npx cap sync ios)
+echo "==> Building web bundle $VITE_OTA_BUNDLE_VERSION against $VITE_API_URL"
+(cd "$WEB_DIR" && VITE_API_URL="$VITE_API_URL" \
+  VITE_OTA_MANIFEST_URL="$VITE_OTA_MANIFEST_URL" \
+  VITE_OTA_BUNDLE_VERSION="$VITE_OTA_BUNDLE_VERSION" \
+  pnpm build && npx cap sync ios)
 
 echo "==> Archiving"
 xcodebuild -project "$WEB_DIR/ios/App/App.xcodeproj" -scheme App -configuration Release \

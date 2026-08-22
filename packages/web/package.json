@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "cap:sync": "vite build && cap sync",
     "cap:ios": "vite build && cap sync && cap open ios",
-    "ios:archive": "bash scripts/ios-archive.sh"
+    "ios:archive": "bash scripts/ios-archive.sh",
+    "ota:publish": "bash scripts/ota-publish.sh"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.136",
@@ -26,6 +27,7 @@
     "@capacitor/privacy-screen": "^2.0.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
+    "@capgo/capacitor-updater": "^8.51.13",
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.2.8",

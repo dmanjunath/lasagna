@@ -8,6 +8,7 @@ import { Keyboard } from '@capacitor/keyboard';
 import { PrivacyScreen } from '@capacitor/privacy-screen';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { checkForOtaUpdate } from './ota';
 
 let initialized = false;
 
@@ -45,7 +46,11 @@ export async function initNativeShell(navigate: (to: string) => void): Promise<v
 
   CapApp.addListener('appStateChange', ({ isActive }) => {
     window.dispatchEvent(new Event(isActive ? 'native:resume' : 'native:background'));
+    // Being offline is normal, so a failed check is logged rather than thrown.
+    if (isActive) checkForOtaUpdate().catch((e) => console.info('[ota] check failed:', e?.message ?? e));
   });
+
+  checkForOtaUpdate().catch((e) => console.info('[ota] check failed:', e?.message ?? e));
 
   // The in-app browser sheet (Stripe Checkout / portal) does NOT resign the app's
   // active state, so appStateChange never fires when it closes. browserFinished
