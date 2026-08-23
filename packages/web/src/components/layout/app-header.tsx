@@ -17,7 +17,13 @@ interface AppHeaderProps {
 
 // How far the nav logo can be yanked down. Capped (and the page content moves
 // down faster) so the mark stays in the pull gap and never reaches content.
-const LOGO_MAX_TRAVEL = 44;
+//
+// Both values must clear the divider under the header, or the mark comes to
+// rest sitting on the line. The nav row is 48px and the mark starts 10px into
+// it, so it needs 38px of travel just to touch the line — the refresh rest
+// position used to be 30.8px, i.e. straddling it for the whole refresh.
+const LOGO_MAX_TRAVEL = 72;
+const LOGO_REFRESH_TRAVEL = 52; // mark lands at 62..90, clear of the 49px edge
 
 /** A few gray wisps that puff outward as the logo lands back in the nav. */
 function SmokePuff() {
@@ -52,7 +58,7 @@ function NavBrandMark({ size }: { size: number }) {
   const y = phase === 'pulling'
     ? Math.min(pull * 0.7, LOGO_MAX_TRAVEL)
     : phase === 'refreshing'
-      ? LOGO_MAX_TRAVEL * 0.7
+      ? LOGO_REFRESH_TRAVEL
       : 0; // idle / returning → home in the nav
   return (
     <div className="relative grid place-items-center">
@@ -84,10 +90,9 @@ export function AppHeader({ leadingSlot }: AppHeaderProps) {
   const isDark = mode === 'dark';
   return (
     <header className="fixed top-0 inset-x-0 z-30 border-b border-line pt-safe-top">
-      {/* The blur sits on its own layer rather than on <header>. An element with
-          backdrop-filter clips its descendants to its border box, which sliced
-          the pull-to-refresh logo off exactly at the header's bottom edge — it
-          looked like the logo stopping on the divider line. */}
+      {/* Blur on its own layer so the pulled mark is never inside a
+          backdrop-filtered element. (Measured: backdrop-filter does not clip
+          descendants in WebKit or Chromium, so this is defensive, not a fix.) */}
       <div
         aria-hidden
         className="absolute inset-0 backdrop-blur-md"
