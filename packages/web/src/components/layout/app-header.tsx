@@ -83,11 +83,17 @@ export function AppHeader({ leadingSlot }: AppHeaderProps) {
   const { mode, toggle } = useUiMode();
   const isDark = mode === 'dark';
   return (
-    <header
-      className="fixed top-0 inset-x-0 z-30 border-b border-line pt-safe-top backdrop-blur-md"
-      style={{ background: 'rgb(var(--ui-canvas) / 0.86)' }}
-    >
-      <div className="mx-auto px-4 h-12 flex items-center gap-2">
+    <header className="fixed top-0 inset-x-0 z-30 border-b border-line pt-safe-top">
+      {/* The blur sits on its own layer rather than on <header>. An element with
+          backdrop-filter clips its descendants to its border box, which sliced
+          the pull-to-refresh logo off exactly at the header's bottom edge — it
+          looked like the logo stopping on the divider line. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 backdrop-blur-md"
+        style={{ background: 'rgb(var(--ui-canvas) / 0.86)' }}
+      />
+      <div className="relative mx-auto px-4 h-12 flex items-center gap-2">
         <div className="w-11 -ml-2 shrink-0 flex items-center">{leadingSlot}</div>
         <div className="flex-1 flex items-center justify-center min-w-0">
           <NavBrandMark size={28} />

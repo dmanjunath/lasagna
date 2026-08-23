@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
 import { ScanFace } from 'lucide-react';
-import { BrandMark } from '../common/BrandMark';
+import { BrandLockup } from '../common/BrandLockup';
 import { Button } from '../uikit';
 import { isLockEnabled, shouldLock } from '../../lib/biometric-lock';
 
@@ -64,12 +64,9 @@ export default function BiometricLock() {
 
   return (
     <div className="ui-root fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 bg-canvas">
-      <div className="flex flex-col items-center">
-        <BrandMark size={54} />
-        <h1 className="mt-4 font-editorial text-[26px] font-medium tracking-[-0.015em] text-content">
-          Lasagna<span className="text-brand">Fi</span>
-        </h1>
-      </div>
+      {/* Same component BootCover uses: the lock takes over from that cover,
+          so a different gap or weight here reads as the logo restyling. */}
+      <BrandLockup />
       {/* Neutral label: allowDeviceCredential means Face ID, Touch ID, or passcode. */}
       <Button size="lg" onClick={() => void unlock()}>
         <ScanFace className="h-4 w-4" />

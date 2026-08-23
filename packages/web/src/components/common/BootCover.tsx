@@ -1,4 +1,4 @@
-import { BrandMark } from './BrandMark';
+import { BrandLockup } from './BrandLockup';
 
 /**
  * Full-screen brand cover for the moments when there is nothing real to show:
@@ -7,11 +7,8 @@ import { BrandMark } from './BrandMark';
  *
  * Deliberately free of Capacitor imports and lazy chunks so it can paint
  * synchronously — a cover that itself has to be fetched would defeat the point.
- *
- * Styled to hand off from the native splash without a visible step: `app-wash`
- * because the Shell root has it (a flat canvas visibly lightens at handoff), and
- * a tight, bold lockup because the splash artwork is ~800 weight with the mark
- * sitting close to the wordmark.
+ * `app-wash` because the Shell root has it; a flat canvas visibly lightens at
+ * the handoff.
  */
 export function BootCover() {
   return (
@@ -24,15 +21,7 @@ export function BootCover() {
       aria-live="polite"
     >
       <span className="sr-only">Loading LasagnaFi</span>
-      {/* Not animated: the splash hands over a fully drawn mark, so the draw-in
-          would read as the logo erasing itself and starting again. */}
-      <BrandMark size={54} animate={false} />
-      <p
-        aria-hidden="true"
-        className="mt-0.5 font-editorial text-[26px] font-bold tracking-[-0.015em] text-content"
-      >
-        Lasagna<span className="text-brand">Fi</span>
-      </p>
+      <BrandLockup />
     </div>
   );
 }
