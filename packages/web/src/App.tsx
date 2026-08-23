@@ -113,7 +113,7 @@ function AppRoutes() {
   // long enough to flash the login screen at someone who is signed in — on
   // native that reads as splash, login, cover, shell. Hinted users (the common
   // case) skip this entirely.
-  if (loading && !user) {
+  if (isNativeApp() && loading && !user) {
     return <BootCover />;
   }
 

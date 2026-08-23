@@ -169,6 +169,27 @@ html {
   --color-bg: 13 17 23;
 }
 
+/* The boot brand screen — the SAME artwork the native launch screen and the
+ * privacy screen (Face ID, app switcher, losing focus) render, at the same
+ * aspect-fill, so the lockup cannot move as the web layer takes over from
+ * either of them.
+ *
+ * This replaces a hand-matched CSS lockup. That got the bounding boxes within a
+ * point of the artwork, but the mark still shifted visibly and the wordmark
+ * weight differed — matching a raster with live text is a losing game. Using
+ * the file itself is exact by construction. Both files' ground colour equals
+ * --ui-canvas, so even the moment before the image decodes is the right
+ * colour. */
+.boot-splash {
+  background-image: url('/splash-light.png');
+  background-size: cover; /* the CSS equivalent of UIView scaleAspectFill */
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.dark .boot-splash {
+  background-image: url('/splash-dark.png');
+}
+
 /* ── Root wrapper for any surface using the new system ───────────────────── */
 .ui-root {
   background-color: rgb(var(--ui-canvas));

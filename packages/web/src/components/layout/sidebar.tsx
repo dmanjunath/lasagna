@@ -140,7 +140,10 @@ export function Sidebar({ className }: SidebarProps) {
     >
       {/* Brand */}
       <div className="flex items-center gap-3 px-2 pt-1.5">
-        <BrandMark size={38} />
+        {/* 34, not 38: the mark stood 1.53x the wordmark's cap height here
+            against 1.34x in the mobile nav, the heaviest lockup in the app.
+            34 lands at 1.37x and matches the mark size the login screen uses. */}
+        <BrandMark size={34} />
         <div className="font-editorial text-[19px] font-semibold leading-none tracking-[-0.01em] text-content">
           LasagnaFi
         </div>

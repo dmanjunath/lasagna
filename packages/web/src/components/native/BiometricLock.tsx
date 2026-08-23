@@ -7,7 +7,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
 import { ScanFace } from 'lucide-react';
-import { BrandLockup } from '../common/BrandLockup';
 import { Button } from '../uikit';
 import { isLockEnabled, shouldLock } from '../../lib/biometric-lock';
 
@@ -63,15 +62,23 @@ export default function BiometricLock() {
   if (!locked) return null;
 
   return (
-    <div className="ui-root fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 bg-canvas">
-      {/* Same component BootCover uses: the lock takes over from that cover,
-          so a different gap or weight here reads as the logo restyling. */}
-      <BrandLockup />
-      {/* Neutral label: allowDeviceCredential means Face ID, Touch ID, or passcode. */}
-      <Button size="lg" onClick={() => void unlock()}>
-        <ScanFace className="h-4 w-4" />
-        Unlock
-      </Button>
+    <div className="ui-root boot-splash fixed inset-0 z-[100]">
+      {/* The artwork itself carries the lockup, centred, exactly as the native
+          launch and privacy screens draw it — so returning from the Face ID
+          prompt does not move the mark. The button is placed relative to the
+          viewport centre because the lockup is centred there; 9vh clears the
+          lockup's lower half at any screen height, since `cover` scales the
+          artwork with the viewport. */}
+      <div
+        className="absolute inset-x-0 flex justify-center"
+        style={{ top: 'calc(50% + 9vh)' }}
+      >
+        {/* Neutral label: allowDeviceCredential means Face ID, Touch ID, or passcode. */}
+        <Button size="lg" onClick={() => void unlock()}>
+          <ScanFace className="h-4 w-4" />
+          Unlock
+        </Button>
+      </div>
     </div>
   );
 }
