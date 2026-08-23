@@ -153,6 +153,22 @@
   --ui-viz-7: #94A3B8;
 }
 
+/* The page itself, before any component paints.
+ *
+ * body uses the legacy `--color-bg`, which is 255 255 255 in BOTH modes — .dark
+ * only remaps the --ui-* scale. So a dark-mode boot painted a full-screen white
+ * frame between the stylesheet landing and React mounting, and every gap after
+ * that. Painting html from --ui-canvas fixes it at the earliest possible layer,
+ * and the .dark remap keeps body itself honest. */
+html {
+  background-color: rgb(var(--ui-canvas));
+}
+/* :root.dark, not .dark — the accent themes declare --color-bg under
+ * :root[data-theme="…"] (specificity 0,2,0), which a bare .dark would lose to. */
+:root.dark {
+  --color-bg: 13 17 23;
+}
+
 /* ── Root wrapper for any surface using the new system ───────────────────── */
 .ui-root {
   background-color: rgb(var(--ui-canvas));

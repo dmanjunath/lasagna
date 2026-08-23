@@ -6,7 +6,11 @@
  * prefers-reduced-motion. Same export signature/props
  * as before so existing usages (sidebar, mobile header, login) keep working.
  */
-export function BrandMark({ size = 38 }: { size?: number }) {
+export function BrandMark({ size = 38, animate = true }: { size?: number; animate?: boolean }) {
+  // The draw-in is wrong when the mark is taking over from something that
+  // already shows it finished — the native splash, for instance. There it reads
+  // as the logo erasing and redrawing itself.
+  const pathClass = animate ? 'brand-wave-path' : undefined;
   return (
     <svg
       width={size}
@@ -23,9 +27,9 @@ export function BrandMark({ size = 38 }: { size?: number }) {
         strokeWidth={2.7}
         strokeLinecap="round"
       >
-        <path className="brand-wave-path" d="M2 7 C5 3.5 8 3.5 11 7 S17 10.5 20 7 S23 3.5 26 7" />
-        <path className="brand-wave-path" d="M2 12 C5 8.5 8 8.5 11 12 S17 15.5 20 12 S23 8.5 26 12" />
-        <path className="brand-wave-path" d="M2 17 C5 13.5 8 13.5 11 17 S17 20.5 20 17 S23 13.5 26 17" />
+        <path className={pathClass} d="M2 7 C5 3.5 8 3.5 11 7 S17 10.5 20 7 S23 3.5 26 7" />
+        <path className={pathClass} d="M2 12 C5 8.5 8 8.5 11 12 S17 15.5 20 12 S23 8.5 26 12" />
+        <path className={pathClass} d="M2 17 C5 13.5 8 13.5 11 17 S17 20.5 20 17 S23 13.5 26 17" />
       </g>
     </svg>
   );

@@ -11,16 +11,21 @@ const config: CapacitorConfig = {
   appId: 'com.lasagnafi.app',
   appName: 'LasagnaFi',
   webDir: 'dist',
-  // Match the app's light-theme background so overscroll/rubber-band areas
-  // don't flash white-on-dark or foreign colors.
-  backgroundColor: '#f7f9fc',
+  // No root backgroundColor: it can only hold one value, so it painted the
+  // webview light on a dark device. MainViewController sets a dark-aware colour
+  // instead, and the storyboard uses the SplashBackground colour set.
   ios: {
     contentInset: 'never',
   },
   plugins: {
     SplashScreen: {
       launchAutoHide: false, // hidden by native-shell.ts once React mounts
-      backgroundColor: '#f7f9fc',
+      // No backgroundColor on purpose. The plugin re-instantiates
+      // LaunchScreen.storyboard and, when this is set, overwrites the root
+      // view's colour with it — and that root view IS the image view. A single
+      // light value there paints the letterbox bars light on a dark device for
+      // the whole boot. Left unset, the storyboard's SplashBackground colour
+      // set (light + dark) survives.
     },
     // Over-the-air web-bundle updates, fully self-hosted — see lib/ota.ts.
     // autoUpdate is off because Capgo's built-in loop POSTs to an update

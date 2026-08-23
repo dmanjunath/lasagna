@@ -3,12 +3,10 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App.js";
 import "./index.css";
 import "./styles/theme.css";
-import { applyMode, getStoredMode } from "./components/uikit/mode";
 import { isNativeApp } from "./lib/native";
 
-// Apply the persisted DS v3 light/dark choice before first paint so the new
-// shell/chrome renders in the right mode without a flash.
-applyMode(getStoredMode());
+// Light/dark is applied by the inline script in index.html — it has to run
+// before the blocking stylesheet paints, which is earlier than any module.
 
 // Tell the OTA updater this bundle booted. Deliberately here rather than in
 // native-shell.ts: it has to run before anything that could throw, so that a

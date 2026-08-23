@@ -2,6 +2,9 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Route, Switch, Redirect, useLocation } from 'wouter';
 import { AuthProvider, useAuth } from './lib/auth';
 import { isNativeApp } from './lib/native';
+import { isLockEnabled } from './lib/biometric-lock';
+import { BootCover } from './components/common/BootCover';
+import { BootBoundary } from './components/common/BootBoundary';
 import { ChatStoreProvider } from './lib/chat-store';
 import { PageContextProvider } from './lib/page-context';
 import { TaxonomyProvider } from './lib/taxonomy';
@@ -12,9 +15,9 @@ import { ConfirmProvider } from './components/ds';
 import { ToastProvider, TooltipProvider } from './components/uikit';
 import { ReportWatcher } from './lib/report-watcher';
 
-// Shell pulls framer-motion + mobile/desktop chat panels. Lazy so the
-// initial bundle stays small for first paint; Suspense fallback is null
-// (the inline skeleton in index.html stays visible until React commits).
+// Shell pulls framer-motion + mobile/desktop chat panels. Lazy so the initial
+// bundle stays small for first paint; its Suspense falls back to BootCover,
+// because the native splash is already dismissed by the time it mounts.
 const Shell = lazy(() => import('./components/layout/shell').then(m => ({ default: m.Shell })));
 
 // Lazy-load all authenticated pages
@@ -69,7 +72,7 @@ const SimpleMoney = lazy(() => import('./pages/simple-money').then(m => ({ defau
 const ChatFullPage = lazy(() => import('./components/chat/chat-full-page').then(m => ({ default: m.ChatFullPage })));
 
 function AppRoutes() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [location, navigate] = useLocation();
 
   // Capacitor shell bootstrap — dynamic import so none of it ships in the web
@@ -106,6 +109,14 @@ function AppRoutes() {
     );
   }
 
+  // Without a localStorage hint `user` stays null until /me answers, which was
+  // long enough to flash the login screen at someone who is signed in — on
+  // native that reads as splash, login, cover, shell. Hinted users (the common
+  // case) skip this entirely.
+  if (loading && !user) {
+    return <BootCover />;
+  }
+
   if (!user) {
     return <Login />;
   }
@@ -115,7 +126,7 @@ function AppRoutes() {
   // === false until they accept here. Strict === false so an undefined value from
   // an optimistic commit never wrongly gates; a returning user with true passes.
   if (user.hasAcceptedTerms === false) {
-    return <Suspense fallback={null}><WelcomeConsent /></Suspense>;
+    return <Suspense fallback={<BootCover />}><WelcomeConsent /></Suspense>;
   }
 
   // Redirect to onboarding if not complete (unless demo mode).
@@ -129,7 +140,7 @@ function AppRoutes() {
     !location.startsWith('/accounts')
   ) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BootCover />}>
         <Onboarding />
       </Suspense>
     );
@@ -146,7 +157,11 @@ function AppRoutes() {
           <ChatStoreProvider>
           <PageContextProvider>
           <TaxonomyProvider>
-            <Suspense fallback={null}>
+            {/* The native splash is dismissed as soon as this tree mounts, so a
+                null fallback would hand off to a blank screen while the Shell
+                chunk loads. The cover matches the splash lockup instead. */}
+            <BootBoundary>
+            <Suspense fallback={<BootCover />}>
               <Shell>
                 {import.meta.env.VITE_DEMO_MODE === "true" && <DemoBanner />}
                 <Suspense fallback={null}>
@@ -207,6 +222,7 @@ function AppRoutes() {
                 </Suspense>
               </Shell>
             </Suspense>
+            </BootBoundary>
           </TaxonomyProvider>
           </PageContextProvider>
           </ChatStoreProvider>
@@ -227,9 +243,14 @@ export function App() {
           {/* Background-report watcher: polls generating advisor reports and
               toasts when one finishes while the user is browsing elsewhere. */}
           <ReportWatcher />
-          {/* Sibling of the routes so the lock covers every auth state, login included. */}
+          {/* Sibling of the routes so the lock covers every auth state, login
+              included. BiometricLock is lazy so the plugin stays out of the web
+              bundle, which left the app rendered and readable until its chunk
+              landed — the one thing the lock exists to prevent. Cover
+              synchronously when the lock is on; isLockEnabled is a plain
+              storage read, no Capacitor import. */}
           {isNativeApp() && (
-            <Suspense fallback={null}>
+            <Suspense fallback={isLockEnabled() ? <BootCover /> : null}>
               <BiometricLock />
             </Suspense>
           )}
