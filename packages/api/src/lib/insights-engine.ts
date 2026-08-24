@@ -854,6 +854,26 @@ export function normalizePunctuation(text: string): string {
     .replace(/\s*·\s*/g, ", ");
 }
 
+// Roughly 4 characters per token, held well under the model's 200k window so a
+// runaway section fails here with a diagnosis instead of as an opaque provider
+// "prompt is too long" after the request has already been paid for.
+const MAX_PROMPT_CHARS = 600_000;
+
+// Fails loudly, naming the section that blew the budget — a data bug upstream
+// (a table growing unbounded, say) is otherwise invisible in the cron logs.
+function assertPromptFits(tenantId: string, data: unknown, dataJson: string): void {
+  if (dataJson.length <= MAX_PROMPT_CHARS) return;
+  const biggest = Object.entries(data as Record<string, unknown>)
+    .map(([key, value]) => [key, JSON.stringify(value)?.length ?? 0] as const)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([key, size]) => `${key}=${Math.round(size / 1024)}KB`)
+    .join(", ");
+  throw new Error(
+    `Insights payload too large for tenant ${tenantId}: ${Math.round(dataJson.length / 1024)}KB exceeds the ${Math.round(MAX_PROMPT_CHARS / 1024)}KB budget. Largest sections: ${biggest}`,
+  );
+}
+
 export async function generateInsights(tenantId: string): Promise<number> {
   // Admin pause: disabled tenants get no actions generated (route + cron both
   // funnel through here).
@@ -869,7 +889,10 @@ export async function generateInsights(tenantId: string): Promise<number> {
   // Scrub PII before sending to LLM
   const aliasMap = await buildAliasMap(tenantId);
   const scrubbedData = scrub(data, aliasMap, "insights-engine");
-  const dataJson = JSON.stringify(scrubbedData, null, 2);
+  // Compact, not pretty-printed — indentation is ~30% of the payload and the
+  // model does not need it.
+  const dataJson = JSON.stringify(scrubbedData);
+  assertPromptFits(tenantId, scrubbedData, dataJson);
 
   let model: ReturnType<typeof getModel>;
   try {

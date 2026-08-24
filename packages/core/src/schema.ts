@@ -386,25 +386,33 @@ export const securityClassifications = pgTable("security_classifications", {
 
 // ── Holdings ───────────────────────────────────────────────────────────────
 
-export const holdings = pgTable("holdings", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  accountId: uuid("account_id")
-    .notNull()
-    .references(() => accounts.id, { onDelete: "cascade" }),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  securityId: uuid("security_id")
-    .notNull()
-    .references(() => securities.id, { onDelete: "cascade" }),
-  quantity: numeric("quantity", { precision: 19, scale: 6 }),
-  institutionPrice: numeric("institution_price", { precision: 19, scale: 4 }),
-  institutionValue: numeric("institution_value", { precision: 19, scale: 4 }),
-  costBasis: numeric("cost_basis", { precision: 19, scale: 4 }),
-  snapshotAt: timestamp("snapshot_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+// Current state, not history: exactly one row per position. Sync upserts on
+// (account_id, security_id) and the unique constraint enforces it. Value over
+// time comes from `balanceSnapshots`, so per-holding history is not needed.
+export const holdings = pgTable(
+  "holdings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    securityId: uuid("security_id")
+      .notNull()
+      .references(() => securities.id, { onDelete: "cascade" }),
+    quantity: numeric("quantity", { precision: 19, scale: 6 }),
+    institutionPrice: numeric("institution_price", { precision: 19, scale: 4 }),
+    institutionValue: numeric("institution_value", { precision: 19, scale: 4 }),
+    costBasis: numeric("cost_basis", { precision: 19, scale: 4 }),
+    // Last time sync refreshed this position.
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [unique().on(t.accountId, t.securityId)],
+);
 
 // ── Sync Log ───────────────────────────────────────────────────────────────
 

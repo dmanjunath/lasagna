@@ -144,7 +144,9 @@ export async function syncItem(itemId: string): Promise<void> {
         }
       }
 
-      // Insert holdings snapshot
+      // Refresh holdings in place — one row per (account, security). Plaid
+      // returns the account's full current position list every run, so an
+      // append would duplicate every unchanged position on every sync.
       for (const h of holdResp.data.holdings) {
         const acct = await db.query.accounts.findFirst({
           where: and(
@@ -159,15 +161,24 @@ export async function syncItem(itemId: string): Promise<void> {
           where: eq(securities.plaidSecurityId, h.security_id),
         });
         if (acct && sec) {
-          await db.insert(holdings).values({
-            accountId: acct.id,
-            tenantId: item.tenantId,
-            securityId: sec.id,
+          const position = {
             quantity: h.quantity?.toString() ?? null,
             institutionPrice: h.institution_price?.toString() ?? null,
             institutionValue: h.institution_value?.toString() ?? null,
             costBasis: h.cost_basis?.toString() ?? null,
-          });
+          };
+          await db
+            .insert(holdings)
+            .values({
+              accountId: acct.id,
+              tenantId: item.tenantId,
+              securityId: sec.id,
+              ...position,
+            })
+            .onConflictDoUpdate({
+              target: [holdings.accountId, holdings.securityId],
+              set: { ...position, snapshotAt: new Date() },
+            });
         }
       }
     } catch {
