@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { niceTicks, formatShortMoney } from '../ds/TrendChart';
 
 // ---------------------------------------------------------------------------
@@ -27,6 +27,11 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const PAN_THRESHOLD = 12;
 
 const PAGE_EASE = 'transform 260ms cubic-bezier(0.22,1,0.36,1)';
+
+// How long a finger must rest on a column before the rest of the plot dims, and
+// how far it may drift vertically first before that reads as a page scroll.
+const PRESS_RAMP_MS = 150;
+const PRESS_SCROLL_SLOP = 10;
 
 export interface CashflowPeriod {
   period: string; // 'YYYY-MM' | 'YYYY'
@@ -60,17 +65,78 @@ export function CashflowBars({
   const wrapRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const clipId = useId();
-  const [containerW, setContainerW] = useState(680);
+  // null until the element has been measured. The layout below needs SOME width
+  // to compute with, but the carousel must not animate from a guessed one: at
+  // the old hardcoded default the first paint laid the columns out at the wrong
+  // pitch and the correction one frame later eased across ~400px of chart on
+  // every page load — the same wrong-offset-then-ease the window re-snap kills.
+  const [containerW, setContainerW] = useState<number | null>(null);
   // hoverIdx is an ABSOLUTE index into `periods` — spending.tsx does periods[i].
   const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
-  const setHoverIdx = (i: number | null) => { setHoverIdxRaw(i); onHoverChange?.(i); };
+  // Keyboard focus previews a column in the hero exactly as a mouse hover does,
+  // but it must not open the readout pill: the pill floats over the top of the
+  // plot, where it would cover the focus ring's top edge, and every figure in it
+  // is already in the KPIs above. It also decides whether the ring PAINTS while
+  // a pointer preview is LIVE: a ring left on another column would be a second
+  // mark disagreeing with the hero. The element keeps DOM focus throughout —
+  // blurring it ejects the user to the top of the tab order in WebKit — and the
+  // ring comes back the moment the pointer gives the preview up.
+  const [hoverIsKeyboard, setHoverIsKeyboard] = useState(false);
+  const setHoverIdx = (i: number | null, fromKeyboard = false) => {
+    setHoverIdxRaw(i);
+    setHoverIsKeyboard(i !== null && fromKeyboard);
+    onHoverChange?.(i);
+  };
   const setHoverRef = useRef(setHoverIdx);
   setHoverRef.current = setHoverIdx;
 
-  useEffect(() => {
+  // Index of the column that currently holds DOM focus, or null.
+  const focusedIdx = (): number | null => {
+    const root = wrapRef.current;
+    const a = document.activeElement;
+    if (!root || !a) return null;
+    const i = [...root.querySelectorAll('rect[role="button"]')].indexOf(a);
+    return i >= 0 ? i : null;
+  };
+
+  // The pointer is done previewing. If a column still holds keyboard focus, hand
+  // the preview back to it so its ring and the hero reappear together instead of
+  // leaving focus unmarked on screen.
+  const releaseHover = () => {
+    const i = focusedIdx();
+    if (i !== null) setHoverIdx(i, true);
+    else setHoverIdx(null);
+  };
+  const releaseHoverRef = useRef(releaseHover);
+  releaseHoverRef.current = releaseHover;
+
+  // Press feedback for touch, which has no hover state (see the overlay note
+  // below). PURELY visual and PURELY local: it must never reach onHoverChange,
+  // or the hero previews the pressed value mid-press and snaps back on release,
+  // which is the bug the touch/hover split exists to fix.
+  //
+  // The band under the finger is instant, like any tap highlight. Dimming every
+  // OTHER column is the loud part, so it waits: a page scroll that merely
+  // begins on the chart is a pointerdown the browser cancels ~140ms later, and
+  // strobing the whole plot on the way past is far more than that gesture
+  // deserves. PRESS_RAMP_MS is UIScrollView's delaysContentTouches window for
+  // the same reason. Vertical travel disarms it outright — that is a scroll.
+  const [pressIdx, setPressIdx] = useState<number | null>(null);
+  const [pressHeld, setPressHeld] = useState(false);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearPress = () => {
+    if (pressTimer.current !== null) { clearTimeout(pressTimer.current); pressTimer.current = null; }
+    setPressIdx(null);
+    setPressHeld(false);
+  };
+  useEffect(() => () => { if (pressTimer.current !== null) clearTimeout(pressTimer.current); }, []);
+
+  // Layout effect, not a passive one: this runs before the browser paints, so
+  // the very first frame is already at the real width instead of correcting.
+  useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const update = () => setContainerW(el.clientWidth || 680);
+    const update = () => { const w = el.clientWidth; if (w > 0) setContainerW(w); };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -84,14 +150,21 @@ export function CashflowBars({
   const visN = windowed ? visibleCount! : n;
 
   // Default to the LATEST window; re-snap whenever the data shape changes.
+  // The re-snap happens DURING the render that sees the new shape, not in an
+  // effect afterwards: an effect lands a paint later, so the remounted layer
+  // paints once at translateX(0) and then eases across the whole range — a
+  // 260ms pan through months nobody asked for on every Year to Month switch.
+  const shapeKey = `${granularity}:${n}`;
   const [windowStart, setWindowStart] = useState(maxStart);
-  useEffect(() => {
+  const [shape, setShape] = useState(shapeKey);
+  if (shape !== shapeKey) {
+    setShape(shapeKey);
     setWindowStart(maxStart);
-  }, [n, granularity, visibleCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   const start = windowed ? Math.min(Math.max(0, windowStart), maxStart) : 0;
 
-  const chartW = containerW;
+  const chartW = containerW ?? 680;
   const innerW = chartW - CHART_M.left - CHART_M.right;
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
   const colW = innerW / Math.max(1, visN);
@@ -108,6 +181,20 @@ export function CashflowBars({
     ? {
         transform: `translateX(${-layerOffset}px)`,
         transition: dragPx === null ? PAGE_EASE : 'none',
+      }
+    : undefined;
+  // The keyboard targets can't take the layers' remount-on-resize trick — they
+  // hold DOM focus — so they get the same easing declaratively, minus the one
+  // render that carries a new width. Recording the applied width in a LAYOUT
+  // effect keeps that decision deterministic: it lands before the paint it has
+  // to suppress, which a passive effect cannot promise.
+  const appliedW = useRef(chartW);
+  const resized = appliedW.current !== chartW;
+  useLayoutEffect(() => { appliedW.current = chartW; });
+  const kbLayerStyle = windowed
+    ? {
+        transform: `translateX(${-layerOffset}px)`,
+        transition: !resized && dragPx === null ? PAGE_EASE : 'none',
       }
     : undefined;
 
@@ -194,21 +281,56 @@ export function CashflowBars({
   // --- Paging ---------------------------------------------------------------
   // Live values mirrored into a ref so the native wheel listener (attached
   // once, non-passive so preventDefault works) always sees current state.
-  const pageCtx = useRef({ windowed, colW, maxStart, start });
-  pageCtx.current = { windowed, colW, maxStart, start };
+  const pageCtx = useRef({ windowed, colW, maxStart, start, visN });
+  pageCtx.current = { windowed, colW, maxStart, start, visN };
 
   const pageTo = (next: number) => {
     const clamped = Math.min(pageCtx.current.maxStart, Math.max(0, next));
     if (clamped === pageCtx.current.start) return false;
     setWindowStart(clamped);
-    setHoverRef.current(null);
+    // A pointer hover means nothing once the plot slides out from under it, so
+    // the preview falls back the same way it does when the pointer leaves: to a
+    // column that still holds focus, or to nothing. A keyboard preview keeps its
+    // column, its ring and the hero together, and if the page carries that
+    // column out of view the focus-containment effect below moves it to the
+    // nearest one still in the window, preview and all.
+    if (!hoverIsKeyboardRef.current) releaseHoverRef.current();
     return true;
   };
+
+  // A data-shape change replaces every column, so whatever the preview pointed
+  // at is gone — and nothing left on screen can clear it: a removed keyboard
+  // target fires no blur, and a pointer parked on the plot fires nothing until
+  // it moves. Either way the preview stays latched, dimming the whole plot
+  // around a column that no longer exists. Drop it explicitly, whatever set it.
+  // (A width change no longer rebuilds them, so it needs no equivalent.)
+  const hoverIsKeyboardRef = useRef(false);
+  hoverIsKeyboardRef.current = hoverIsKeyboard;
+  const hoverIdxRef = useRef<number | null>(null);
+  hoverIdxRef.current = hoverIdx;
+  useLayoutEffect(() => {
+    if (hoverIdxRef.current !== null) setHoverRef.current(null);
+  }, [shapeKey]);
+
+  // Whatever moved the window — wheel, drag, the header stepper — DOM focus must
+  // not be left on a column outside it. Such a column is clipped off the plot,
+  // aria-hidden and untabbable, yet Enter would still commit a period that was
+  // never on screen and the next Tab would jump past the whole chart. One
+  // invariant here beats a call at each call site.
+  useLayoutEffect(() => {
+    const i = focusedIdx();
+    if (i === null || (i >= start && i < start + visN)) return;
+    const rects = wrapRef.current?.querySelectorAll<SVGElement>('rect[role="button"]');
+    rects?.[Math.min(start + visN - 1, Math.max(start, i))]?.focus?.();
+  }, [start, visN]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const wheelAccum = useRef(0);
   useEffect(() => {
     const el = overlayRef.current;
     if (!el) return;
+    // Leftover momentum belongs to the old column pitch; re-dividing it by a
+    // new one would jump an extra column on the first tick after a resize.
+    wheelAccum.current = 0;
     const onWheel = (e: WheelEvent) => {
       const { windowed, colW } = pageCtx.current;
       if (!windowed) return;
@@ -222,12 +344,22 @@ export function CashflowBars({
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Keyed to the measurement, not to mount: before the width is known this
+    // component renders a bare wrapper with no overlay, so a mount-only effect
+    // would find nothing to listen on and never retry.
+  }, [containerW]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pointer drag pans the carousel layer 1:1; a press-and-release without
   // enough horizontal travel stays a hover + click-to-select.
-  const dragRef = useRef<{ startX: number; baseX: number; startPx: number; panning: boolean } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; baseX: number; startPx: number; panning: boolean } | null>(null);
   const pannedRef = useRef(false);
+  // What a touch gesture will commit, decided by the gesture rather than by the
+  // click. The synthesized click carries the pointer-DOWN x, not the release x,
+  // so resolving the column from it would select wherever the finger first
+  // landed while the band tracked where it ended up. `null` outer = a mouse or
+  // pen gesture (resolve from the click); `{ idx: null }` = a touch gesture
+  // that disqualified itself by scrolling or panning and must commit nothing.
+  const touchRef = useRef<{ idx: number | null } | null>(null);
 
   // Release: snap the window to the nearest whole column; clearing dragPx
   // re-enables the transition so the layer eases into place.
@@ -240,8 +372,20 @@ export function CashflowBars({
     setDragPx(null);
   };
 
+  // A width change mid-pan leaves dragPx measured in the OLD column pitch, so
+  // the window parks on a column the finger is nowhere near. End the gesture
+  // instead of translating it: settleDrag snaps to a whole column, and it is a
+  // no-op when nothing is panning.
+  useLayoutEffect(() => { settleDrag(); }, [colW]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const hovered = hoverIdx !== null ? periods[hoverIdx] : null;
   const hoverInWindow = hoverIdx !== null && hoverIdx >= start && hoverIdx < start + visN;
+  // The column drawn as "active". Mouse and pen set hoverIdx, a finger sets
+  // pressIdx, never both. The readout pill stays on hoverIdx: on a phone every
+  // figure in it is already in the KPIs above.
+  const activeIdx = hoverIdx ?? pressIdx;
+  // Only a settled press joins the hover in dimming the rest of the plot.
+  const rampIdx = hoverIdx ?? (pressHeld ? pressIdx : null);
 
   // Hover pill position — clamp the column center (in on-screen coords, so
   // minus the layer translate) so the pill stays inside.
@@ -264,12 +408,37 @@ export function CashflowBars({
   };
 
   const bgW = Math.min(colW - 2, barW + 20);
+  // The column highlight band, and the shape the keyboard target borrows so a
+  // focus ring traces the highlight instead of an invisible square around it.
+  const bandRect = (ai: number) => ({
+    x: colCenter(ai) - bgW / 2,
+    y: CHART_M.top - 4,
+    width: bgW,
+    height: innerH + 8,
+    rx: 8,
+  });
   const clipRef = windowed ? `url(#${clipId})` : undefined;
-  // Remount the carousel layers when the data shape changes so the reset to
-  // the latest window snaps instead of animating across the whole range.
-  const layerKey = `${granularity}:${n}`;
+  // Remount the carousel layers whenever the geometry they were laid out for
+  // changes — the data shape OR the measured width. A CSS transition can only
+  // ease from a value the element already had, so fresh elements simply cannot
+  // slide: a resize snaps to the new pitch instead of panning the plot through
+  // offsets nobody asked for and tearing the selection band off its bar on the
+  // way (the band's transition is shorter than the layer's). Paging and moving
+  // the selection keep the same elements, so those still animate. This is a
+  // property of the tree, not a timing guess — the same decision made from an
+  // effect races the paint that is supposed to be suppressed.
+  const layerKey = `${shapeKey}:${chartW}`;
 
   const yTickStyle = { fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' } as const;
+
+  // Nothing is drawn until the wrapper has been measured. The layout effect
+  // above measures and re-renders before the browser paints, so this frame is
+  // never seen — but committing it means the carousel layer mounts with its
+  // real offset instead of a guessed one, and a CSS transition has no wrong
+  // starting value to ease away from.
+  if (containerW === null) {
+    return <div ref={wrapRef} className="relative select-none" style={{ height: CHART_H }} />;
+  }
 
   return (
     <div ref={wrapRef} className="relative select-none">
@@ -293,24 +462,28 @@ export function CashflowBars({
             {selIdx >= 0 && (
               <rect
                 data-cashflow-selbg=""
-                x={colCenter(selIdx) - bgW / 2}
-                y={CHART_M.top - 4}
-                width={bgW}
-                height={innerH + 8}
-                rx={8}
+                {...bandRect(selIdx)}
                 fill="var(--ui-brand-softer)"
                 style={{ transition: 'x 200ms cubic-bezier(0.22,1,0.36,1)' }}
               />
             )}
-            {hoverIdx !== null && hoverIdx !== selIdx && (
+            {activeIdx !== null && activeIdx !== selIdx && (
+              // A press sits alongside the selection band and has to be told
+              // apart from it: at 0.65 of --ui-brand-softer the two were ~3/255
+              // apart, and the chart could no longer say which column the
+              // figures above belong to. So a press takes the heavier tint AND
+              // the brand ring — the same outline keyboard focus draws, for the
+              // same meaning: this is the column you are aiming at. A hover
+              // moves the hero, so the tint alone does, but it still has to
+              // outweigh the selection band it sits beside: at 0.6 of the same
+              // token it was 4/255 from it in light and 1/255 in dark. So the
+              // active band always takes the full tint, and the ring is what
+              // separates a press from a hover.
               <rect
-                x={colCenter(hoverIdx) - bgW / 2}
-                y={CHART_M.top - 4}
-                width={bgW}
-                height={innerH + 8}
-                rx={8}
-                fill="var(--ui-brand-softer)"
-                fillOpacity={0.65}
+                {...bandRect(activeIdx)}
+                fill="var(--ui-brand-soft)"
+                stroke={hoverIdx === null ? 'var(--ui-brand-ring)' : undefined}
+                strokeWidth={hoverIdx === null ? 1 : undefined}
               />
             )}
           </g>
@@ -347,7 +520,13 @@ export function CashflowBars({
             {/* Bars — income up, expenses down. */}
             {periods.map((p, ai) => {
               const isSelected = p.period === selectedPeriod;
-              const opacity = hoverIdx !== null ? (hoverIdx === ai ? 1 : 0.35) : (isSelected ? 1 : 0.82);
+              // A hover moves the hero, so the hovered column is the only one
+              // that should stand out. A press does NOT (touch has no hover),
+              // so the selected column stays bright through it — otherwise
+              // nothing on the chart says which period the figures above are.
+              const opacity = rampIdx !== null
+                ? (rampIdx === ai || (hoverIdx === null && isSelected) ? 1 : 0.35)
+                : (isSelected ? 1 : 0.82);
               const { up, down } = barRects(p, ai);
               return (
                 <g key={p.period} opacity={opacity} style={{ transition: 'opacity 0.15s' }}>
@@ -372,23 +551,33 @@ export function CashflowBars({
               </text>
             ))}
 
-            {/* Invisible per-column targets for keyboard access — only the
-                 in-window columns are tabbable. */}
+          </g>
+        </g>
+
+        {/* Invisible per-column targets for keyboard access — only the
+             in-window columns are tabbable. They ride the same translate but
+             sit OUTSIDE the keyed layers and never animate: these hold DOM
+             focus, and rebuilding them on a resize would eject the keyboard
+             user to the top of the tab order and — since a removed element
+             fires no blur — leave the preview latched with one column lit and
+             the hero describing it. They ease with the plot so a focus ring
+             never runs ahead of the bar it marks. */}
+        <g clipPath={clipRef} className={hoverIdx !== null && !hoverIsKeyboard ? 'ui-focus-off' : undefined}>
+          <g style={kbLayerStyle}>
             {periods.map((p, ai) => {
               const inWindow = ai >= start && ai < start + visN;
               return (
                 <rect
                   key={`kb-${p.period}`}
-                  x={CHART_M.left + ai * colW}
-                  y={CHART_M.top}
-                  width={colW}
-                  height={innerH}
+                  {...bandRect(ai)}
                   fill="transparent"
+                  className="ui-focus-svg"
                   role="button"
+                  aria-current={p.period === selectedPeriod ? 'true' : undefined}
                   tabIndex={inWindow ? 0 : -1}
                   aria-hidden={inWindow ? undefined : true}
                   aria-label={`${periodLabel(p.period, granularity)}: income ${formatShortMoney(p.income)}, spent ${formatShortMoney(p.expenses)}`}
-                  onFocus={() => setHoverIdx(ai)}
+                  onFocus={() => setHoverIdx(ai, true)}
                   onBlur={() => setHoverIdx(null)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(p.period); }
@@ -401,7 +590,7 @@ export function CashflowBars({
       </svg>
 
       {/* Hover pill — period label + income/spent/net readout. */}
-      {hovered && hoverInWindow && (
+      {hovered && hoverInWindow && !hoverIsKeyboard && (
         <div
           data-chart-hover="pill"
           className="ui-tnum pointer-events-none absolute z-10 flex -translate-x-1/2 flex-col gap-0.5 whitespace-nowrap rounded-ui-sm bg-[rgb(var(--ui-panel-raised))] px-2.5 py-1.5 shadow-ui-lg"
@@ -418,16 +607,30 @@ export function CashflowBars({
 
       {/* Pointer overlay — maps x to a column; click selects it; a horizontal
            drag pans the carousel layer 1:1 and snaps on release. pan-y lets
-           the browser keep handling vertical page scrolls on touch. */}
+           the browser keep handling vertical page scrolls on touch.
+
+           A finger is not a cursor: touch has no hover state, so touch pointers
+           never set hoverIdx. Otherwise pressing a bar previews its value while
+           the finger is still down, and WebKit's pointerleave (1ms after
+           pointerup, ~5ms BEFORE click) snaps it back — the readout lands on
+           the new value, reverts, then animates to it again. A mouse or pen on
+           the same device still hovers normally. */}
       <div
         ref={overlayRef}
         className="absolute inset-0"
         style={{ touchAction: 'pan-y', cursor: 'pointer' }}
         onPointerDown={(e) => {
           (e.target as Element).setPointerCapture?.(e.pointerId);
-          dragRef.current = { startX: e.clientX, baseX: e.clientX, startPx: start * colW, panning: false };
+          dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: e.clientX, startPx: start * colW, panning: false };
           pannedRef.current = false;
-          setHoverIdx(absIdx(pointerToIdx(e.clientX)));
+          if (e.pointerType === 'touch') {
+            touchRef.current = { idx: absIdx(pointerToIdx(e.clientX)) };
+            setPressIdx(touchRef.current.idx);
+            pressTimer.current = setTimeout(() => setPressHeld(true), PRESS_RAMP_MS);
+          } else {
+            touchRef.current = null;
+            setHoverIdx(absIdx(pointerToIdx(e.clientX)));
+          }
         }}
         onPointerMove={(e) => {
           const drag = dragRef.current;
@@ -436,7 +639,9 @@ export function CashflowBars({
               drag.panning = true;
               drag.baseX = e.clientX; // rebase so the pan starts from rest — no threshold jump
               pannedRef.current = true;
+              if (touchRef.current) touchRef.current = { idx: null };
               setHoverIdx(null);
+              clearPress();
             }
             if (drag.panning) {
               const rect = wrapRef.current?.getBoundingClientRect();
@@ -450,16 +655,38 @@ export function CashflowBars({
               return;
             }
           }
-          if (e.pointerType === 'touch' && e.buttons === 0) return;
+          if (e.pointerType === 'touch') {
+            // Follow the finger, and let the band double as the promise the tap
+            // keeps — columns are 44px at 390px and a finger rolls across a
+            // boundary easily. Still never hoverIdx: that is the one that
+            // bubbles up to the hero.
+            if (drag && !drag.panning && touchRef.current) {
+              if (Math.abs(e.clientY - drag.startY) > PRESS_SCROLL_SLOP) {
+                // Vertical travel means the page is scrolling, not tapping.
+                // Disqualify the gesture for good: drifting back inside the
+                // slop must not re-light a band or commit a period.
+                touchRef.current = { idx: null };
+                clearPress();
+              } else if (touchRef.current.idx !== null) {
+                touchRef.current = { idx: absIdx(pointerToIdx(e.clientX)) };
+                setPressIdx(touchRef.current.idx);
+              }
+            }
+            return;
+          }
           setHoverIdx(absIdx(pointerToIdx(e.clientX)));
         }}
-        onPointerUp={settleDrag}
-        onPointerLeave={() => setHoverIdx(null)}
-        onPointerCancel={() => { settleDrag(); setHoverIdx(null); }}
+        onPointerUp={() => { settleDrag(); clearPress(); }}
+        onPointerLeave={() => { releaseHover(); clearPress(); }}
+        onPointerCancel={() => { settleDrag(); releaseHover(); clearPress(); }}
         onClick={(e) => {
           if (pannedRef.current) { pannedRef.current = false; return; }
-          const vi = pointerToIdx(e.clientX);
-          const p = vi !== null ? periods[start + vi] : undefined;
+          const touch = touchRef.current;
+          touchRef.current = null;
+          // Commit what the band promised on touch; fall back to the click's own
+          // x for a mouse or pen, whose click lands where the cursor is.
+          const ai = touch ? touch.idx : absIdx(pointerToIdx(e.clientX));
+          const p = ai !== null ? periods[ai] : undefined;
           if (p) onSelect(p.period);
         }}
       />

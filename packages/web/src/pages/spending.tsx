@@ -18,7 +18,7 @@ import { usePageContext } from '../lib/page-context';
 import { useTaxonomy, taxonomyIcon } from '../lib/taxonomy';
 import { PageActions } from '../components/common/page-actions';
 import { Badge, Button, EmptyState, SegmentedControl, Skeleton } from '../components/uikit';
-import { CashflowBars, periodLabel, type CashflowPeriod } from '../components/charts/CashflowBars';
+import { CashflowBars, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { RulesPanel } from '../components/rules/RulesPanel';
 
@@ -384,6 +384,15 @@ export function Spending() {
   // resolves. Later period switches keep stale content mounted (dimmed) so the
   // page doesn't flash to skeletons on every bar click.
   const [hasLoadedSummary, setHasLoadedSummary] = useState(false);
+  // Which period the totals above actually describe, plus the caption and the
+  // granularity the page gave it. `loadingSummary` can't answer that on the
+  // render right after a selection: the refetch effect sets it in a passive
+  // effect, one paint LATER, so for one frame the page would pair the previous
+  // period's total with the new caption. The label and granularity ride along
+  // because a Month/Year switch moves all three at once, and the figures still
+  // on screen have to keep their OWN caption and their own "vs last month/year"
+  // wording until their replacements land.
+  const [loadedPeriod, setLoadedPeriod] = useState<{ period: string; label: string; granularity: 'month' | 'year' } | null>(null);
 
   // Refresh counter
   const [refreshKey, setRefreshKey] = useState(0);
@@ -435,9 +444,9 @@ export function Spending() {
         setTotalIncome(0);
         setNetCashFlow(0);
       })
-      .finally(() => { if (active) { setLoadingSummary(false); setHasLoadedSummary(true); } });
+      .finally(() => { if (active) { setLoadingSummary(false); setHasLoadedSummary(true); setLoadedPeriod({ period: selectedPeriod, label: periodDisplayLabel, granularity }); } });
     return () => { active = false; };
-  }, [periodStart, periodEnd, refreshKey]);
+  }, [periodStart, periodEnd, selectedPeriod, periodDisplayLabel, granularity, refreshKey]);
 
   // Clear the skip-animation flag after the render that consumed it.
   useEffect(() => {
@@ -467,11 +476,21 @@ export function Spending() {
 
   // Derived. While the summary refetches after a period switch, the chart data
   // already holds the NEW period's totals — drive the hero from it so the old
-  // period's numbers never flash under the new caption. The fetched summary
-  // takes over the moment it lands (values agree; both exclude transfers and
-  // excluded transactions).
+  // period's numbers never flash under the new caption. The handoff to the
+  // fetched summary is value-for-value: /monthly-trend and /spending-summary
+  // net each category over the period and count the positive ones, on the same
+  // exclusions, so they report the same figure for the same window.
   const selPeriodData = periods.find((p) => p.period === selectedPeriod) ?? null;
-  const instant = loadingSummary && selPeriodData !== null;
+  const instant = loadedPeriod?.period !== selectedPeriod && selPeriodData !== null;
+  // Neither source describes the selection yet: the summary is in flight AND
+  // the chart doesn't carry this period — Month → Year, where the year's total
+  // is absent from a month `periods` array. The figures on screen are still the
+  // last loaded period's, so caption them as that period and swap the pair
+  // together when the summary lands.
+  const stale = loadedPeriod !== null && loadedPeriod.period !== selectedPeriod && !instant;
+  const heroPeriod = stale ? loadedPeriod.period : selectedPeriod;
+  const heroPeriodLabel = stale ? loadedPeriod.label : periodDisplayLabel;
+  const heroGranularity = stale ? loadedPeriod.granularity : granularity;
   // While hovering a trend bar, the WHOLE hero (spent + income/net/savings)
   // reflects the hovered period, so the KPIs can never contradict the big
   // number. Off-hover, it's the selected period's totals.
@@ -580,22 +599,54 @@ export function Spending() {
   }, [navigate]);
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
+  // Keyed off heroPeriod, not the selection: while the figures still describe
+  // the previous period the comparison has to describe it too, or the pill
+  // blanks out for a frame and the hero says three things about two periods.
   const priorPeriodDelta = useMemo(() => {
     if (periods.length < 2 || baseSpending === 0) return null;
-    const idx = periods.findIndex((p) => p.period === selectedPeriod);
+    const idx = periods.findIndex((p) => p.period === heroPeriod);
     if (idx < 1) return null;
     const prior = periods[idx - 1];
     if (!prior || prior.expenses === 0) return null;
     const pct = ((baseSpending - prior.expenses) / prior.expenses) * 100;
     return Math.round(pct);
-  }, [periods, baseSpending, selectedPeriod]);
+  }, [periods, baseSpending, heroPeriod]);
+
+  // Whether the comparison row can be decided at all yet. Until the trend data
+  // covers the period the hero describes there is nothing to compare against,
+  // and rendering "across July 2026" in the meantime is a placeholder that
+  // replaces itself with the delta pill a beat later — the third contradiction
+  // in a row the rest of this block works to keep whole. The row reserves its
+  // height either way, so holding it empty costs no layout.
+  const deltaResolved = useMemo(
+    () => periods.some((p) => p.period === heroPeriod),
+    [periods, heroPeriod],
+  );
+
+  // The chart renders whatever `periods` currently holds, and that lags a
+  // granularity switch by one fetch. Describe it by the data it has rather than
+  // by the toggle: told it is in year mode while still holding months, its year
+  // branch prints raw 'YYYY-MM' keys across the axis and un-windows all 13
+  // columns for the ~90ms until the new trend arrives.
+  const chartGranularity: 'month' | 'year' = periods[0]?.period.length === 4 ? 'year' : 'month';
+  const chartSelRef = useRef(selectedPeriod);
+  if (periods.some((p) => p.period === selectedPeriod)) chartSelRef.current = selectedPeriod;
+  // Hold the selection band across that same gap, where the chart is between
+  // datasets and about to receive the new selection. A month outside the
+  // 13-month window is genuinely not on this chart, so that still shows no band
+  // rather than pinning it to a neighbour.
+  const chartSelected = chartGranularity === granularity ? selectedPeriod : chartSelRef.current;
 
   const hasChart = periods.length > 0;
 
   const heroValue = displaySpending;
+  // Long-form on hover too: "Apr 2026" on hover and "April 2026" on release is
+  // the caption correcting itself a beat later, the thing the hero must not do.
   const heroCaption = hoveredPeriod
-    ? periodLabel(hoveredPeriod.period, granularity)
-    : periodDisplayLabel;
+    ? (granularity === 'month'
+        ? monthLabel(new Date(+hoveredPeriod.period.slice(0, 4), +hoveredPeriod.period.slice(5, 7) - 1, 1))
+        : hoveredPeriod.period)
+    : heroPeriodLabel;
 
   const noData = !loadingSummary && totalSpending === 0 && totalIncome === 0;
   const spentMore = priorPeriodDelta !== null && priorPeriodDelta > 0;
@@ -717,7 +768,7 @@ export function Spending() {
               {/* Keyed by period so switching months slides the new figure in;
                    hover swaps stay instant (same key, no re-animation). */}
               <motion.div
-                key={`${granularity}:${selectedPeriod}`}
+                key={heroPeriod}
                 initial={hasLoadedSummary && !skipHeroAnimRef.current ? { opacity: 0, y: 6 } : false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
@@ -745,12 +796,12 @@ export function Spending() {
                       {spentMore ? '+' : '−'}{Math.abs(priorPeriodDelta)}%
                     </span>
                     <span className="text-[13px] font-medium text-content-muted">
-                      {spentMore ? 'more than' : 'less than'} last {granularity === 'month' ? 'month' : 'year'}
+                      {spentMore ? 'more than' : 'less than'} last {heroGranularity === 'month' ? 'month' : 'year'}
                     </span>
                   </>
-                ) : (
-                  <span className="text-[13px] font-medium text-content-muted">across {periodDisplayLabel}</span>
-                )}
+                ) : deltaResolved ? (
+                  <span className="text-[13px] font-medium text-content-muted">across {heroPeriodLabel}</span>
+                ) : null}
               </div>
             </div>
 
@@ -778,11 +829,11 @@ export function Spending() {
             <div className="relative mt-5 pr-2 sm:pr-0">
               <CashflowBars
                 periods={periods}
-                granularity={granularity}
-                selectedPeriod={selectedPeriod}
+                granularity={chartGranularity}
+                selectedPeriod={chartSelected}
                 onSelect={handleSelectPeriod}
                 onHoverChange={setChartHover}
-                visibleCount={granularity === 'month' ? 6 : undefined}
+                visibleCount={chartGranularity === 'month' ? 6 : undefined}
               />
             </div>
           )}

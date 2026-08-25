@@ -329,10 +329,19 @@ transactionRoutes.get("/spending-summary", async (c) => {
   // Income = income-category totals only; spending = positive totals in
   // non-income, non-transfer categories. A refund-heavy expense category (net
   // negative) counts as neither. Matches get_spending_summary + insights engine.
+  //
+  // Such a category also drops out of the BREAKDOWN, not just the total: it
+  // would otherwise render its refund as if it were spending, and the rows the
+  // page lists under the hero have to add up to the hero.
+  const countedRows = rows.filter((row) => {
+    const gt = row.groupType ?? "expense";
+    return gt === "income" || gt === "transfer" || parseFloat(row.total || "0") > 0;
+  });
+
   let totalSpending = 0;
   let totalIncome = 0;
 
-  const categoryRows = rows.map((row) => {
+  const categoryRows = countedRows.map((row) => {
     const total = parseFloat(row.total || "0");
     const gt = row.groupType ?? "expense";
     if (gt === "income") {
@@ -395,14 +404,24 @@ transactionRoutes.get("/monthly-trend", async (c) => {
   const excludedIds = await excludedTxnAccountIds(session.tenantId);
   if (excludedIds.length > 0) conditions.push(notInArray(transactions.accountId, excludedIds));
 
+  // Net per period PER CATEGORY before classifying, exactly as
+  // /spending-summary does for its own window. Summing raw transaction rows
+  // here instead meant a refund cancelled against its category on one endpoint
+  // and not the other, so the same month reported two different totals.
+  const periodExpr = sql<string>`to_char(${transactions.date}, ${bucket})`;
   const rows = await db.select({
-    period: sql<string>`to_char(${transactions.date}, ${bucket})`,
-    amount: transactions.amount,
+    period: periodExpr,
+    amount: sql<string>`sum(${transactions.amount})`,
     groupType: categoryGroups.type,
   }).from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-    .where(and(...conditions));
+    .where(and(...conditions))
+    // GROUP BY 1 is the period expression in the select list. Repeating the
+    // fragment here would bind the format string a second time, and Postgres
+    // does not treat to_char(date, $1) and to_char(date, $2) as the same
+    // expression — it rejects the query.
+    .groupBy(sql`1`, categories.id, categoryGroups.type);
 
   return c.json({ periods: buildPeriods(rows, { granularity, limit, now }) });
 });

@@ -300,6 +300,25 @@ html {
   box-shadow: 0 0 0 2px rgb(var(--ui-canvas)), 0 0 0 4px var(--ui-brand-ring);
 }
 
+/* Same ring for focusable shapes inside an <svg>. SVG elements don't paint
+   box-shadow, so .ui-focus leaves them on the UA's blue default — an outline
+   in the brand ring token is the equivalent that does render. The radius keeps
+   the ring concentric with the rounded shape it traces. The offset is inward
+   because these shapes sit inside a clip path with as little as 1px to spare:
+   a CSS outline paints entirely OUTSIDE its box, so any positive offset loses
+   an edge on the first and last column. */
+.ui-focus-svg:focus-visible {
+  outline: 2px solid var(--ui-brand-ring);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+/* Hold the ring back without moving focus. A pointer that takes over a preview
+   would otherwise leave a ring on one item while the readout describes another,
+   and blurring to fix that ejects the user to the top of the tab order. */
+.ui-focus-off .ui-focus-svg:focus-visible {
+  outline: none;
+}
+
 /* ── Slider (themed native range input) ──────────────────────────────────────
    Filled/unfilled track is driven by --slider-p (a unitless 0–100 the JS sets
    from value/min/max). The fill uses the brand accent; the thumb carries the
