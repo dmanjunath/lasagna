@@ -23,6 +23,7 @@ interface NavItem {
 interface NavSection {
   label: string;
   items: NavItem[];
+  defaultOpen?: boolean;
 }
 
 const NAV_SECTIONS: NavSection[] = [
@@ -53,6 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     label: 'Advanced',
+    defaultOpen: false,
     items: [
       { id: 'retirement',    label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
       { id: 'portfolio',  label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
@@ -62,7 +64,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-const SECTIONS_OPEN_KEY = 'lasagna-sidebar-sections-open';
+const SECTIONS_OPEN_KEY = 'lasagna-sidebar-sections-open-v2';
 
 interface SidebarProps {
   onNewPlan?: () => void;
@@ -96,34 +98,58 @@ export function Sidebar({ className }: SidebarProps) {
     return location === path || location.startsWith(path + '/');
   };
 
-  // Sections default open; user toggles persist as a label->bool map.
+  // Sections open unless they declare defaultOpen: false; user toggles persist
+  // as a label->bool map.
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};
     try {
-      return JSON.parse(window.localStorage.getItem(SECTIONS_OPEN_KEY) ?? '{}');
+      // Validate the shape, don't just guard the parse: a stored "null" or
+      // "[]" parses fine and then blows up on the first property read. Drop
+      // non-boolean values too, or {"Advanced":"yes"} lands verbatim in
+      // aria-expanded. getItem itself throws where storage is blocked, so it
+      // stays inside the try.
+      const stored = JSON.parse(window.localStorage.getItem(SECTIONS_OPEN_KEY) ?? '{}');
+      if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
+      return Object.fromEntries(
+        Object.entries(stored).filter(([, value]) => typeof value === 'boolean'),
+      ) as Record<string, boolean>;
     } catch {
       return {};
     }
   });
-  const isSectionOpen = (label: string) => openSections[label] !== false;
-  const toggleSection = (label: string) => {
-    setOpenSections((prev) => {
-      const next = { ...prev, [label]: !isSectionOpen(label) };
-      window.localStorage.setItem(SECTIONS_OPEN_KEY, JSON.stringify(next));
-      return next;
-    });
+  const sectionHasActiveRoute = (label: string) =>
+    NAV_SECTIONS.find((s) => s.label === label)?.items.some((item) => isActive(item.path)) ?? false;
+  // Openness is derived, never stored: the section holding the active route
+  // auto-expands (deep link, chat navigation) and drops back to its default the
+  // moment you leave it. Storing that auto-expand instead would strand the
+  // section open for the rest of the session.
+  const resolveOpen = (prefs: Record<string, boolean>, label: string) => {
+    const pref = prefs[label];
+    if (pref !== undefined) return pref;
+    if (sectionHasActiveRoute(label)) return true;
+    return NAV_SECTIONS.find((s) => s.label === label)?.defaultOpen ?? true;
   };
-
-  // Auto-open the section containing the active route (e.g. deep link or chat
-  // navigation) so the highlighted item is never hidden. Doesn't persist, so
-  // the user's saved preference survives.
+  const isSectionOpen = (label: string) => resolveOpen(openSections, label);
+  // Flip from `prev`, not from the closed-over map: two toggles in one tick
+  // would both read the pre-batch value and resolve to the same result.
+  const toggleSection = (label: string) => {
+    setOpenSections((prev) => ({ ...prev, [label]: !resolveOpen(prev, label) }));
+  };
   useEffect(() => {
-    const section = NAV_SECTIONS.find((s) => s.items.some((item) => isActive(item.path)));
-    if (section && !isSectionOpen(section.label)) {
-      setOpenSections((prev) => ({ ...prev, [section.label]: true }));
+    try {
+      // Nothing toggled and nothing stored: skip the write so an untouched
+      // sidebar leaves the slot null instead of stamping "{}" on every mount.
+      const nothingToPersist =
+        Object.keys(openSections).length === 0 &&
+        window.localStorage.getItem(SECTIONS_OPEN_KEY) === null;
+      if (nothingToPersist) return;
+      window.localStorage.setItem(SECTIONS_OPEN_KEY, JSON.stringify(openSections));
+    } catch {
+      // Storage blocked (Safari "Block All Cookies", quota, some WebViews) —
+      // the sidebar still works, it just won't remember across reloads. An
+      // uncaught throw here white-screens every authenticated route.
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location]);
+  }, [openSections]);
 
   const rawName = tenant?.name || '';
   const firstName = rawName.startsWith('Seed ') ? 'User' : (rawName.split(' ')[0] || 'User');
@@ -153,6 +179,7 @@ export function Sidebar({ className }: SidebarProps) {
       <nav className="flex-1 mt-4 flex flex-col gap-0.5 overflow-y-auto scrollbar-thin">
         {NAV_SECTIONS.map(({ label, items }, sectionIndex) => {
           const open = isSectionOpen(label);
+          const showActiveRail = !open && sectionHasActiveRoute(label);
           return (
             <div key={label}>
               {sectionIndex > 0 && <div className="h-px bg-line mx-3 mt-1.5" />}
@@ -160,16 +187,32 @@ export function Sidebar({ className }: SidebarProps) {
                 type="button"
                 onClick={() => toggleSection(label)}
                 aria-expanded={open}
-                className="w-full flex items-center justify-between gap-2 px-3 pt-3 pb-1 cursor-pointer"
+                // Inset ring, not `ui-focus`: that one paints an OUTWARD
+                // box-shadow and this full-width header sits flush against the
+                // scrolling nav's edges, which clipped both of its sides away.
+                className="group w-full flex items-center justify-between gap-2 px-3 pt-3 pb-1.5 rounded-ui-sm text-left cursor-pointer focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]"
               >
-                <span className="text-[12px] font-semibold text-content-muted">
+                <span className="relative text-[12px] font-semibold text-content-muted transition-colors group-hover:text-content">
+                  {/* Collapsed, the active item's own rail is hidden with it —
+                      so the header carries it. Same rail as NavButton, sized to
+                      the label and anchored to the nav's left edge. */}
+                  {showActiveRail && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -left-3 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-[3px] bg-brand"
+                    />
+                  )}
                   {label}
+                  {/* The rail is decorative, so say the same thing for screen
+                      readers. Collapsed only: expanded, the active item's own
+                      aria-current carries it. */}
+                  {showActiveRail && <span className="sr-only"> (contains the current page)</span>}
                 </span>
                 <ChevronDown
                   size={13}
                   className={cn(
-                    'text-content-faint transition-transform duration-200',
-                    !open && '-rotate-90',
+                    'text-content-muted transition-[transform,color] duration-200 group-hover:text-content-secondary',
+                    open && 'rotate-180',
                   )}
                 />
               </button>
@@ -296,9 +339,13 @@ function NavButton({ active, icon: Icon, label, onClick, inset }: {
   return (
     <motion.button
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       whileTap={{ scale: 0.985 }}
       className={cn(
         'relative flex items-center gap-3 w-full text-left px-3 py-[6px] rounded-ui-md border-0 cursor-pointer text-[14px] transition-colors',
+        // Matches the section header's ring. Inset, not `ui-focus`: the nav
+        // scrolls, and an outward shadow gets clipped by its padding box.
+        'focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]',
         active
           ? 'text-brand font-semibold'
           : 'text-content-secondary font-medium hover:text-content',

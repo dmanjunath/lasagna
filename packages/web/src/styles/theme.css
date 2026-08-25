@@ -44,7 +44,10 @@
   --ui-brand-fg:     255 255 255;      /* text/icon on a brand fill           */
   --ui-brand-soft:   rgba(5, 178, 121, 0.12);   /* tinted backgrounds        */
   --ui-brand-softer: rgba(5, 178, 121, 0.06);
-  --ui-brand-ring:   rgba(5, 178, 121, 0.42);   /* focus ring                */
+  /* Focus ring. Uses the darker -ink green, not the brand fill: 5/178/121 at
+     ANY alpha tops out at 2.6:1 on the light canvas, under WCAG 1.4.11's 3:1
+     for focus indicators. This lands at 4.25:1. */
+  --ui-brand-ring:   rgba(4, 122, 84, 0.9);     /* focus ring                */
 
   /* ── Card accent — periwinkle (matches the net-worth graph line); used for
      card/section eyebrows + card accent chrome to break up the green. ─────── */
@@ -255,7 +258,7 @@ html {
   --slider-p: 0;
   --slider-thumb: 18px;
   --slider-accent: var(--ui-brand);
-  --slider-halo: var(--ui-brand-ring);
+  --slider-halo: var(--ui-brand-soft);
   /* Thumb-centre position across the usable track (half-thumb inset each end). */
   --slider-pos: calc(var(--slider-thumb) / 2 + (100% - var(--slider-thumb)) * var(--slider-p) / 100);
   position: relative;
@@ -340,11 +343,13 @@ html {
   cursor: grabbing;
   box-shadow: var(--ui-shadow-sm), 0 0 0 8px var(--slider-halo);
 }
+/* The focus ring is a stroke, not the halo: --slider-halo is a soft glow that
+   would not carry WCAG 1.4.11's 3:1, so these take the DS ring directly. */
 .ui-slider__input:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 2px rgb(var(--ui-panel)), 0 0 0 4px var(--slider-halo);
+  box-shadow: 0 0 0 2px rgb(var(--ui-panel)), 0 0 0 4px var(--ui-brand-ring);
 }
 .ui-slider__input:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 2px rgb(var(--ui-panel)), 0 0 0 4px var(--slider-halo);
+  box-shadow: 0 0 0 2px rgb(var(--ui-panel)), 0 0 0 4px var(--ui-brand-ring);
 }
 /* Live value bubble on the thumb (drag / keyboard focus). Positioned by the
    same fill %; translate keeps it centred over the thumb and inside the rail. */

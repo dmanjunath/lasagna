@@ -23,9 +23,11 @@ interface NavSection {
   items: NavItem[];
 }
 
-// Mirrors the desktop sidebar sections (sidebar.tsx). Kept lean so the whole
-// menu fits one phone screen without scrolling: Profile lives in the profile
-// card above; Accounts is reachable via Profile & Settings.
+// Same sections as the desktop sidebar (sidebar.tsx), but all expanded: this
+// drawer is dismissed after one tap, so there is nothing to collapse for.
+// Kept lean so the whole menu fits one phone screen without scrolling. Profile
+// lives in the profile card above, and Accounts is reachable via Profile &
+// Settings.
 const NAV_SECTIONS: NavSection[] = [
   {
     section: 'Overview',
