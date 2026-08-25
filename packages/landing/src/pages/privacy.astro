@@ -3,7 +3,7 @@ import LegalLayout from "../layouts/LegalLayout.astro";
 import { GITHUB_URL } from "../config";
 ---
 
-<LegalLayout title="Privacy Policy" lastUpdated="August 17, 2026">
+<LegalLayout title="Privacy Policy" lastUpdated="August 25, 2026">
   <p>
     This is the privacy policy for LasagnaFi, a personal finance app made by
     <strong>SuperCoolLabs LLC</strong>. It explains what happens to your data.
@@ -58,6 +58,10 @@ import { GITHUB_URL } from "../config";
       number.
     </li>
     <li>
+      <strong>Umami</strong> counts page views. The analytics section below
+      lists everything it receives.
+    </li>
+    <li>
       <strong>Google Cloud</strong> runs the app. Our servers and our database
       are there, and it is where the AI reads your tax documents.
     </li>
@@ -97,9 +101,45 @@ import { GITHUB_URL } from "../config";
 
   <h2>Analytics and tracking</h2>
   <p>
-    We do not currently use any third-party analytics, advertising pixels, or
-    cross-site tracking. There is no Google Analytics, no Facebook pixel, no ad
-    retargeting. We don't follow you around the internet.
+    We use <strong>Umami</strong> to count page views on this website and in the
+    web app, so we can see which pages people actually use. Here is everything
+    Umami receives:
+  </p>
+  <ul>
+    <li>
+      <strong>The page address.</strong> Any account, plan, or user id in it is
+      replaced by a placeholder first, so opening one of your accounts reaches
+      Umami as /accounts/:id and never as the real id. Anything after a ? or a
+      # in the address is removed, so a one-time link such as a password reset
+      or an invite is never sent.
+    </li>
+    <li>
+      <strong>Basic page and browser details.</strong> The page title, the site
+      that linked you to us, your browser language, and your screen size.
+    </li>
+    <li>
+      <strong>Your IP address and your browser user agent.</strong> Every web
+      request carries these. Umami uses them to work out an approximate
+      location, which browser, operating system, and device you are on, and to count how many
+      people visited.
+    </li>
+  </ul>
+  <p>
+    Nothing from inside your account is sent. Not your name, not your email, and
+    nothing about your balances or your transactions.
+  </p>
+  <p>
+    Umami sets no cookies and stores nothing on your device to recognize you on a
+    later visit. It does not follow you to other websites, and there is no
+    advertising pixel and no ad retargeting.
+  </p>
+  <p>
+    If your browser sends Do Not Track or Global Privacy Control, we load no
+    analytics at all. Nothing is requested from Umami, and nothing is sent.
+  </p>
+  <p>
+    The iOS app loads no analytics, and neither does a self-hosted copy of
+    LasagnaFi.
   </p>
 
   <h2>Cookies</h2>

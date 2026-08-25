@@ -4,6 +4,7 @@ import { App } from "./App.js";
 import "./index.css";
 import "./styles/theme.css";
 import { isNativeApp } from "./lib/native";
+import { loadAnalytics } from "./lib/analytics";
 
 // Light/dark is applied by the inline script in index.html — it has to run
 // before the blocking stylesheet paints, which is earlier than any module.
@@ -14,6 +15,8 @@ import { isNativeApp } from "./lib/native";
 if (isNativeApp()) {
   import("./lib/ota").then((m) => m.notifyOtaReady()).catch(() => {});
 }
+
+loadAnalytics();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

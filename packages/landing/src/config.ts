@@ -5,6 +5,12 @@
 export const DEMO_VIDEO_URL: string | null =
   import.meta.env.PUBLIC_VIDEO_URL ?? null;
 
+// PUBLIC_UMAMI_WEBSITE_ID is another Cloudflare Pages build-time env var, set to
+// the umami website id. Blank is the self-hosted case: no tag is rendered and
+// nothing is requested from umami.
+export const UMAMI_WEBSITE_ID: string | null =
+  import.meta.env.PUBLIC_UMAMI_WEBSITE_ID ?? null;
+
 export const GITHUB_URL = "https://github.com/dmanjunath/lasagna";
 export const APP_URL = "https://app.lasagnafi.com";
 export const DEMO_URL = "https://demo.lasagnafi.com";
