@@ -156,11 +156,15 @@ export function TaxInputPanel({ onDocument, onBatchSettled }: TaxInputPanelProps
       // "The rest were saved" was printed even when nothing was: with a single
       // file failing, the alert claimed a save that never happened.
       const allFailed = failures.length === batch.length;
-      setErrorTitle(allFailed ? "We could not read your files" : "Some files were not added");
+      setErrorTitle(
+        allFailed
+          ? `We could not read your file${failures.length === 1 ? "" : "s"}`
+          : "Some files were not added",
+      );
       setError(
         allFailed
           ? `${failures.join(", ")} could not be read. Nothing was saved. Fix or replace ${failures.length === 1 ? "it" : "them"}, then try again.`
-          : `${failures.length} of ${batch.length} could not be read (${failures.join(", ")}). The rest were saved. Fix or remove them, then try again.`
+          : `${failures.length} of ${batch.length} could not be read (${failures.join(", ")}). The rest were saved. Fix or remove ${failures.length === 1 ? "it" : "them"}, then try again.`
       );
     }
     setLoading(false);

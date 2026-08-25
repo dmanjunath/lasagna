@@ -204,7 +204,10 @@ function AccordionActionItem(props: ActionItemProps) {
         aria-expanded={open}
         onClick={toggle}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
-        className="ui-focus cursor-pointer rounded-ui-lg"
+        // Inset ring, not `ui-focus`: that one paints an OUTWARD box-shadow and
+        // the article above clips it (`overflow-hidden`), so the ring vanished
+        // on a collapsed row and left a hairline across an expanded one.
+        className="cursor-pointer rounded-ui-md focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]"
       >
         <DenseRowInner {...props} hideActions={open} expandable expanded={open} />
       </div>

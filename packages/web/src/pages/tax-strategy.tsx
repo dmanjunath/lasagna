@@ -20,6 +20,7 @@ import { usePageContext } from "../lib/page-context.js";
 import { ActionItem } from "../components/common/action-item.js";
 import { Button, Badge, EmptyState, Skeleton, Alert, Select, useToast } from "../components/uikit";
 import { useConfirm } from "../components/ds";
+import { useIsMobile } from "../lib/hooks/use-mobile.js";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -262,6 +263,9 @@ type DocSort = "added-desc" | "added-asc" | "name-asc" | "name-desc";
  *  pushed off the first screen, which is the other half of what this page is
  *  for. */
 const STRATEGY_PREVIEW = 4;
+/** One fewer on phones: four still pushed the documents heading behind the tab
+ *  bar (y 824 vs a bar top of 773 at 390x844), which defeats the cap. */
+const STRATEGY_PREVIEW_MOBILE = 3;
 
 const DOC_SORT_OPTIONS: { value: DocSort; label: string }[] = [
   { value: "added-desc", label: "Newest added" },
@@ -293,6 +297,8 @@ export function TaxStrategy() {
   const [selectedYearKey, setSelectedYearKey] = useState<string | null>(null);
   const [docSort, setDocSort] = useState<DocSort>("added-desc");
   const [showAllStrategies, setShowAllStrategies] = useState(false);
+  const isMobile = useIsMobile();
+  const strategyPreview = isMobile ? STRATEGY_PREVIEW_MOBILE : STRATEGY_PREVIEW;
   const safetyRef = useRef<HTMLDivElement>(null);
   const docsListRef = useRef<HTMLElement>(null);
 
@@ -1005,7 +1011,7 @@ export function TaxStrategy() {
         <section className="mt-3">
           {insights.length > 0 ? (
             <div className="flex flex-col gap-2">
-              {(showAllStrategies ? insights : insights.slice(0, STRATEGY_PREVIEW)).map((ins) => (
+              {(showAllStrategies ? insights : insights.slice(0, strategyPreview)).map((ins) => (
                 <ActionItem
                   key={ins.id}
                   title={ins.title}
@@ -1017,16 +1023,16 @@ export function TaxStrategy() {
                   onDismiss={() => dismiss(ins.id)}
                 />
               ))}
-              {insights.length > STRATEGY_PREVIEW && (
+              {insights.length > strategyPreview && (
                 <button
                   type="button"
                   onClick={() => setShowAllStrategies((v) => !v)}
                   aria-expanded={showAllStrategies}
-                  className="ui-focus mt-1 inline-flex items-center justify-center gap-1.5 self-start rounded-ui-md px-2 py-1.5 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer"
+                  className="touch-target ui-focus mt-1 inline-flex items-center justify-center gap-1.5 self-start rounded-ui-md px-2 py-1.5 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer"
                 >
                   {showAllStrategies
                     ? "Show fewer"
-                    : `Show ${insights.length - STRATEGY_PREVIEW} more`}
+                    : `Show ${insights.length - strategyPreview} more`}
                   <ChevronRight
                     size={14}
                     aria-hidden
@@ -1045,7 +1051,7 @@ export function TaxStrategy() {
           In demo mode, where there is no dropzone, the empty state explains
           what would appear here. */}
       {(hasDocs || docsLoading || docsError || !showUpload || insights.length > 0) && (
-      <section className="mt-10 sm:mt-14">
+      <section className="mt-7 sm:mt-14">
         <div className="flex items-end justify-between gap-3 px-1 pb-3.5">
           <h2 className="font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
             Your documents
