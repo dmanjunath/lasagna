@@ -621,6 +621,23 @@
   }
 }
 
+/* Reveal-on-hover, gated on the POINTER rather than the viewport width. A
+   `sm:opacity-0` guard left the tax list's delete button invisible but still
+   tappable on every iPad and every landscape iPhone: opacity 0, pointer-events
+   auto, 44x44, and a tap opened the delete dialog. Anything hidden until hover
+   must key off whether hover exists at all. */
+.hover-reveal { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .hover-reveal {
+    opacity: 0;
+  }
+  .group:hover .hover-reveal,
+  .group:focus-within .hover-reveal,
+  .hover-reveal:focus-visible {
+    opacity: 1;
+  }
+}
+
 /* Coarse-pointer (touch) hit-targets. Fine pointers (desktop) are untouched —
    these only widen the tap area to the 44px iOS minimum on touch devices, so
    the rendered desktop size of shared controls is unchanged. */
@@ -1648,6 +1665,12 @@
   text-decoration: none;
   min-height: 40px;
 }
+/* Without this the browser paints its own blue outline, which is the one focus
+   ring on the page that isn't --ui-brand-ring. */
+.ds-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--ui-panel-raised)), 0 0 0 4px var(--ui-brand-ring);
+}
 .ds-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .ds-btn--primary {
   background: var(--lf-sauce);
@@ -1672,12 +1695,33 @@
   color: var(--lf-paper);
   border-color: rgba(255,255,255,0.18);
 }
+/* --lf-sauce is emerald, i.e. the primary color: a "cannot be undone" button
+   was wearing the success register. --ui-negative is also dark-aware. */
+/* Matches the uikit Button "destructive" variant exactly. --lf-sauce is
+   emerald, i.e. the primary color, so a "cannot be undone" button used to wear
+   the success register; these two tokens are also dark-aware, which --lf-* is
+   not. */
 .ds-btn--danger {
-  background: var(--lf-sauce);
-  color: var(--lf-paper);
-  border-color: var(--lf-sauce);
+  background: var(--ui-negative-soft);
+  color: rgb(var(--ui-negative));
+  border-color: transparent;
+  font-weight: 700;
 }
-.ds-btn--danger:hover:not(:disabled) { background: var(--lf-sauce-deep); border-color: var(--lf-sauce-deep); }
+/* --ui-negative is a space-separated triplet, so alpha needs the slash form:
+   rgba(var(--ui-negative), .4) parses to nothing and silently drops the tint. */
+.ds-btn--danger:hover:not(:disabled) {
+  background: var(--ui-negative-soft);
+  border-color: rgb(var(--ui-negative) / 0.4);
+}
+/* The shared --ui-negative-soft tint puts 13px/600 label text at 4.48:1 on the
+   dark panel, just under AA. Thinning the tint for this one button clears it
+   without touching the token every other negative surface uses. */
+.dark .ds-btn--danger {
+  background: rgb(var(--ui-negative) / 0.12);
+}
+.dark .ds-btn--danger:hover:not(:disabled) {
+  background: rgb(var(--ui-negative) / 0.2);
+}
 .ds-btn--sm  { padding: 7px 12px; font-size: 12px; min-height: 32px; }
 .ds-btn--lg  { padding: 14px 24px; font-size: 14px; min-height: 48px; }
 /* Inline link button — sauce for the small "→" / "All actions →" accent
@@ -1803,8 +1847,8 @@
   to { opacity: 1; }
 }
 .ds-confirm {
-  background: var(--lf-paper);
-  border: 1px solid var(--lf-rule);
+  background: rgb(var(--ui-panel-raised));
+  border: 1px solid var(--ui-line-strong);
   border-radius: 12px;
   padding: 24px;
   max-width: 420px;
@@ -1839,20 +1883,35 @@
   font-size: 18px;
   line-height: 1.3;
   letter-spacing: -0.01em;
-  color: var(--lf-ink);
+  color: rgb(var(--ui-content));
   margin: 0 0 12px;
 }
 .ds-confirm__body {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.55;
-  color: var(--lf-ink-soft);
+  color: rgb(var(--ui-content-secondary));
   margin: 0 0 20px;
 }
 .ds-confirm__actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+/* Scoped to the dialog: .ds-btn--ghost paints --lf-ink (near-black) with no
+   .dark variant, so Cancel was near-invisible on the retokened dark panel.
+   The wider legacy-scale problem is SCL-75; this covers the modal only. */
+.ds-confirm__actions .ds-btn--ghost {
+  color: rgb(var(--ui-content));
+  border-color: var(--ui-line-strong);
+}
+.ds-confirm__actions .ds-btn--ghost:hover:not(:disabled) {
+  background: rgb(var(--ui-canvas-sunken));
+  border-color: var(--ui-line-strong);
+}
+/* The sheet is thumb-reach on phones, so its buttons clear the 44px minimum. */
+@media (max-width: 639px) {
+  .ds-confirm__actions .ds-btn { min-height: 44px; }
 }
 
 /* ────────────────────────────────────────────────────────────

@@ -107,13 +107,26 @@ function DenseRowInner({
           title, so a one-line (or even two-line) clamp cut long headings even on
           desktop where there's vertical room. Short titles still stay one line, so
           the list keeps its dense feel. */}
-      <h3 className="flex-1 min-w-0 text-[14px] font-semibold leading-tight text-content">
-        {title}
-      </h3>
+      {/* The impact used to be desktop-only, so the dollar figure — the reason
+          to act — was missing entirely on phones. It wraps under the title
+          instead of disappearing. */}
+      <div className="flex-1 min-w-0">
+        <h3 className="text-[14px] font-semibold leading-tight text-content">
+          {title}
+        </h3>
+        {impact && (
+          <span
+            className="mt-1.5 inline-flex lg:hidden items-center rounded-ui-sm px-2 py-0.5 text-[12px] font-bold leading-none ui-tnum"
+            style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
+          >
+            {impact}
+          </span>
+        )}
+      </div>
 
       {impact && (
         <span
-          className="hidden sm:inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum whitespace-nowrap"
+          className="hidden lg:inline-flex shrink-0 items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum whitespace-nowrap"
           style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
         >
           {impact}
@@ -191,7 +204,7 @@ function AccordionActionItem(props: ActionItemProps) {
         aria-expanded={open}
         onClick={toggle}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
-        className="cursor-pointer"
+        className="ui-focus cursor-pointer rounded-ui-lg"
       >
         <DenseRowInner {...props} hideActions={open} expandable expanded={open} />
       </div>

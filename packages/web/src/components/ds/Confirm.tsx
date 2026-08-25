@@ -43,16 +43,49 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
   // On open, focus Cancel for destructive actions so a reflexive Enter/Space
   // doesn't confirm a delete; non-destructive dialogs still focus the primary
-  // action. Escape cancels; that's the universal mental model.
+  // action. Escape cancels; that's the universal mental model. Tab cycles
+  // between the two buttons instead of escaping into the page behind the
+  // overlay, and focus returns to whatever opened the dialog on close.
   useEffect(() => {
     if (!state) return;
+    const opener = document.activeElement as HTMLElement | null;
     if (state.destructive) cancelBtnRef.current?.focus();
     else confirmBtnRef.current?.focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleClose(false);
+      if (e.key === 'Escape') {
+        handleClose(false);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const stops = [cancelBtnRef.current, confirmBtnRef.current].filter(
+        (b): b is HTMLButtonElement => b !== null,
+      );
+      if (stops.length === 0) return;
+      const i = stops.indexOf(document.activeElement as HTMLButtonElement);
+      const next = e.shiftKey
+        ? stops[(i <= 0 ? stops.length : i) - 1]
+        : stops[(i + 1) % stops.length];
+      e.preventDefault();
+      next.focus();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (opener?.isConnected) {
+        opener.focus();
+        return;
+      }
+      // A confirmed delete unmounts its own opener, which drops focus to
+      // <body> and restarts keyboard users at the top of the page. Land on the
+      // main region instead so the next Tab continues from the content.
+      const main = document.querySelector('main');
+      if (!main) return;
+      const hadTabIndex = main.hasAttribute('tabindex');
+      if (!hadTabIndex) main.setAttribute('tabindex', '-1');
+      main.focus({ preventScroll: true });
+      if (!hadTabIndex) main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
+    };
   }, [state, handleClose]);
 
   return (

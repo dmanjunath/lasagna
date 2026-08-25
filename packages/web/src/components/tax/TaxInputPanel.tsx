@@ -1,58 +1,100 @@
 import { useCallback, useRef, useState } from "react";
-import { Upload, FileText, X, PenLine, AlertCircle } from "lucide-react";
+import { Upload, FileText, X, PenLine, Check, AlertTriangle } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 import { api } from "../../lib/api.js";
 import type { TaxInputResult } from "../../lib/types.js";
-import { Button } from "../uikit";
+import { Button, Alert } from "../uikit";
 
 const ACCEPTED_MIME = ["application/pdf", "image/jpeg", "image/png"];
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
-interface TaxInputPanelProps {
-  onSuccess: (doc: TaxInputResult) => void;
+/** Sub-100KB files rendered as "0.0 MB", which reads as an empty file. */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
-  const [files, setFiles] = useState<File[]>([]);
+/** Per-file state, so a five-file batch isn't one opaque spinner. */
+type QueueStatus = "queued" | "uploading" | "done" | "failed";
+
+interface QueuedFile {
+  /** name+size, which is as close to identity as the File API gives us. */
+  key: string;
+  file: File;
+  status: QueueStatus;
+  error?: string;
+}
+
+interface TaxInputPanelProps {
+  /** One document finished extracting. Fires per file, as it lands. */
+  onDocument: (doc: TaxInputResult) => void;
+  /** The whole batch settled. Fires once, with everything that succeeded. */
+  onBatchSettled: (docs: TaxInputResult[]) => void;
+}
+
+export function TaxInputPanel({ onDocument, onBatchSettled }: TaxInputPanelProps) {
+  const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorTitle, setErrorTitle] = useState("Some files were not added");
   const [isDragging, setIsDragging] = useState(false);
   const [inputMode, setInputMode] = useState<"file" | "text">("file");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** Mirrors `queue` so addFiles can dedupe without reading stale closure state. */
+  const queueRef = useRef<QueuedFile[]>([]);
+  queueRef.current = queue;
 
-  const hasFiles = files.length > 0;
+  const pending = queue.filter((q) => q.status !== "done");
+  const hasFiles = pending.length > 0;
   const hasText = text.trim().length > 0;
   const canSubmit = (hasFiles || hasText) && !loading;
   const mode: "file" | "text" | null = hasFiles ? "file" : hasText ? "text" : null;
 
   const switchToText = () => {
     setInputMode("text");
-    setFiles([]);
+    setQueue([]);
+    setError(null);
   };
 
   const switchToFile = () => {
     setInputMode("file");
     setText("");
+    setError(null);
   };
 
   const addFiles = useCallback((incoming: FileList | File[]) => {
     setError(null);
-    const newFiles: File[] = [];
-    for (const f of Array.from(incoming)) {
-      if (!ACCEPTED_MIME.includes(f.type)) {
-        setError("Unsupported file type. Use PDF, PNG, or JPG.");
+    setErrorTitle("Some files were not added");
+    // Sorted synchronously against a ref, NOT inside the setQueue updater:
+    // React runs the updater after this function returns, so a `rejected`
+    // array filled in there is still empty when we check it, and every
+    // rejection was silently swallowed whenever the queue was non-empty.
+    const seen = new Set(queueRef.current.map((q) => q.key));
+    const accepted: QueuedFile[] = [];
+    const rejected: string[] = [];
+    for (const file of Array.from(incoming)) {
+      if (!ACCEPTED_MIME.includes(file.type)) {
+        rejected.push(`${file.name} is not a PDF, PNG, or JPG`);
         continue;
       }
-      if (f.size > MAX_FILE_SIZE) {
-        setError("File too large. Maximum 20MB.");
+      if (file.size > MAX_FILE_SIZE) {
+        rejected.push(`${file.name} is over the 20 MB limit`);
         continue;
       }
-      newFiles.push(f);
+      // Picking the same file twice used to queue it twice, then upload it
+      // twice, leaving two identical extractions feeding the strategist.
+      const key = `${file.name}-${file.size}`;
+      if (seen.has(key)) {
+        rejected.push(`${file.name} is already in the list`);
+        continue;
+      }
+      seen.add(key);
+      accepted.push({ key, file, status: "queued" });
     }
-    if (newFiles.length > 0) {
-      setFiles((prev) => [...prev, ...newFiles]);
-    }
+    if (accepted.length > 0) setQueue((prev) => [...prev, ...accepted]);
+    if (rejected.length > 0) setError(rejected.join(". ") + ".");
   }, []);
 
   const handleDrop = useCallback(
@@ -64,35 +106,78 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
     [addFiles]
   );
 
+  const setStatus = (key: string, status: QueueStatus, message?: string) =>
+    setQueue((prev) => prev.map((q) => (q.key === key ? { ...q, status, error: message } : q)));
+
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setLoading(true);
     setError(null);
-    try {
-      if (hasFiles) {
-        // Process each file sequentially
-        for (const f of files) {
-          const docs = await api.submitTaxInput({ file: f });
-          for (const doc of docs) onSuccess(doc);
-        }
-      } else {
-        const docs = await api.submitTaxInput({
-          text: hasText ? text : undefined,
-        });
-        for (const doc of docs) onSuccess(doc);
+
+    if (!hasFiles) {
+      try {
+        const docs = await api.submitTaxInput({ text });
+        for (const doc of docs) onDocument(doc);
+        setText("");
+        onBatchSettled(docs);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save that. Try again.");
+      } finally {
+        setLoading(false);
       }
-      setFiles([]);
-      setText("");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Submission failed");
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    // Sequential, but one failure no longer abandons the files behind it, and
+    // anything that succeeded leaves the queue so a retry can't re-upload it.
+    const batch = queue.filter((q) => q.status !== "done");
+    const landed: TaxInputResult[] = [];
+    const failures: string[] = [];
+
+    for (const item of batch) {
+      setStatus(item.key, "uploading");
+      try {
+        const docs = await api.submitTaxInput({ file: item.file });
+        for (const doc of docs) {
+          landed.push(doc);
+          onDocument(doc);
+        }
+        setStatus(item.key, "done");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Extraction failed";
+        setStatus(item.key, "failed", message);
+        failures.push(item.file.name);
+      }
+    }
+
+    setQueue((prev) => prev.filter((q) => q.status !== "done"));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (failures.length > 0) {
+      // "The rest were saved" was printed even when nothing was: with a single
+      // file failing, the alert claimed a save that never happened.
+      const allFailed = failures.length === batch.length;
+      setErrorTitle(allFailed ? "We could not read your files" : "Some files were not added");
+      setError(
+        allFailed
+          ? `${failures.join(", ")} could not be read. Nothing was saved. Fix or replace ${failures.length === 1 ? "it" : "them"}, then try again.`
+          : `${failures.length} of ${batch.length} could not be read (${failures.join(", ")}). The rest were saved. Fix or remove them, then try again.`
+      );
+    }
+    setLoading(false);
+    onBatchSettled(landed);
   };
 
   return (
     <div className="space-y-4">
+        {/* Above the dropzone, not below the opt-out link 200px away, so the
+            rejected file and the control that rejected it are in one glance. */}
+        {error && (
+          <div role="alert">
+            <Alert tone="negative" title={errorTitle}>
+              {error}
+            </Alert>
+          </div>
+        )}
 
         {/* ── File upload zone ── */}
         {inputMode === "file" && (
@@ -101,18 +186,27 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
               {/* Dropzone */}
               <div
                 className={cn(
-                  "ui-focus flex min-h-[140px] cursor-pointer flex-col items-center justify-center gap-3 rounded-ui-lg border-2 border-dashed p-6 transition-colors",
+                  "ui-focus flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-ui-lg border-2 border-dashed px-5 py-5 text-center transition-colors",
                   isDragging
                     ? "border-brand bg-brand-soft"
                     : "border-line-strong hover:border-brand hover:bg-brand-softer"
                 )}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
+                // Dragging over the icon or the label bubbles a dragleave from
+                // the child, which must not read as leaving the zone.
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false);
+                }}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
               >
                 <input
                   ref={fileInputRef}
@@ -122,68 +216,108 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
                   multiple
                   onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); }}
                 />
-                <div className={cn(
-                  "flex h-11 w-11 items-center justify-center rounded-ui-md transition-colors",
-                  isDragging ? "bg-brand text-brand-fg" : "bg-brand-soft text-brand"
-                )}>
-                  <Upload className="h-5 w-5" />
-                </div>
-                <div className="text-center">
-                  <div className="text-[14px] font-semibold text-content">
+                <div className="flex items-center justify-center gap-2.5">
+                  <span className={cn(
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-ui-md transition-colors",
+                    isDragging ? "bg-brand text-brand-fg" : "bg-brand-soft text-brand"
+                  )}>
+                    <Upload className="h-4 w-4" />
+                  </span>
+                  <span className="text-[16px] sm:text-[17px] font-semibold text-content">
                     {isDragging ? "Drop to upload" : "Drop files or click to browse"}
-                  </div>
-                  <div className="mt-1 text-[12.5px] text-content-muted">PDF, PNG, or JPG, up to 20 MB each. Multiple files OK.</div>
+                  </span>
                 </div>
+                <div className="text-[12.5px] text-content-muted">PDF, PNG, or JPG, up to 20 MB each. Multiple files OK.</div>
               </div>
 
-              {/* Selected files list — side on desktop, below on mobile */}
-              {files.length > 0 && (
-                <div className="flex flex-col gap-2">
+              {/* Selected files — one row per file with its own state, so a
+                  five-file batch is not a single opaque spinner. */}
+              {queue.length > 0 && (
+                <div className="flex flex-col gap-2" aria-live="polite">
                   <div className="text-[13px] font-semibold text-content-muted">
-                    Ready to upload ({files.length})
+                    {loading
+                      ? `Extracting ${queue.filter((q) => q.status === "done").length + 1} of ${queue.length}`
+                      : queue.some((q) => q.status === "failed")
+                        ? `${queue.filter((q) => q.status === "failed").length} could not be read`
+                        : `Ready to upload (${queue.length})`}
                   </div>
-                  {files.map((f, i) => (
-                    <div key={`${f.name}-${i}`} className="flex items-center gap-2.5 rounded-ui-md border border-line bg-canvas-sunken px-3 py-2">
-                      <FileText className="h-4 w-4 shrink-0 text-brand" />
+                  {queue.map((item) => (
+                    <div
+                      key={item.key}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-ui-md border px-3 py-2 transition-colors",
+                        item.status === "failed"
+                          ? "border-negative/30 bg-negative-soft"
+                          : "border-line bg-canvas-sunken",
+                      )}
+                    >
+                      {item.status === "uploading" ? (
+                        <Upload className="h-4 w-4 shrink-0 animate-pulse text-brand" />
+                      ) : item.status === "done" ? (
+                        <Check className="h-4 w-4 shrink-0 text-positive" />
+                      ) : item.status === "failed" ? (
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-negative" />
+                      ) : (
+                        <FileText className="h-4 w-4 shrink-0 text-brand" />
+                      )}
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[13px] font-semibold text-content">{f.name}</div>
-                        <div className="text-[11px] text-content-muted ui-tnum">{(f.size / 1024 / 1024).toFixed(1)} MB</div>
+                        <div className="truncate text-[13px] font-semibold text-content" title={item.file.name}>
+                          {item.file.name}
+                        </div>
+                        <div className="truncate text-[11px] text-content-muted ui-tnum">
+                          {item.status === "uploading"
+                            ? "Extracting fields…"
+                            : item.status === "failed"
+                              ? item.error
+                              : formatFileSize(item.file.size)}
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${f.name}`}
-                        className="touch-target ui-focus grid shrink-0 place-items-center rounded-ui-sm p-1 text-content-muted transition-colors hover:text-negative"
-                        onClick={(e) => { e.stopPropagation(); setFiles((prev) => prev.filter((_, j) => j !== i)); }}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                      {!loading && (
+                        <button
+                          type="button"
+                          aria-label={`Remove ${item.file.name}`}
+                          className="touch-target ui-focus grid shrink-0 place-items-center rounded-ui-sm p-1 text-content-muted transition-colors hover:text-negative"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQueue((prev) => prev.filter((q) => q.key !== item.key));
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Switch to text */}
-            <div className="flex items-center justify-center">
-              <button
-                type="button"
-                onClick={switchToText}
-                className="touch-target ui-focus inline-flex items-center rounded-ui-sm px-2 text-center text-[13px] text-content-muted transition-colors"
-              >
-                Don't feel comfortable uploading tax documents?{" "}
-                <span className="font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline">Describe your situation instead →</span>
-              </button>
-            </div>
+            {/* Switch to text. Hidden once files are picked — asking "don't
+                feel comfortable uploading?" after the user has committed files
+                arrives too late to be an option. */}
+            {queue.length === 0 && (
+              <div className="flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={switchToText}
+                  className="touch-target ui-focus inline-block rounded-ui-sm px-2 text-center text-[13px] text-content-muted transition-colors"
+                >
+                  Don't feel comfortable uploading tax documents?{" "}
+                  <span className="font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline">Describe your situation instead →</span>
+                </button>
+              </div>
+            )}
 
             <style>{`
+              /* minmax(0,…): a long unbreakable filename must not set the
+                 column's min-content width and blow the grid past its box. */
               .tax-input-file-layout {
                 display: grid;
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1fr);
                 gap: 16px;
               }
               @media (min-width: 701px) {
                 .tax-input-file-layout.tax-input-has-files {
-                  grid-template-columns: 1fr 1fr;
+                  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
                 }
               }
             `}</style>
@@ -194,13 +328,14 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
         {inputMode === "text" && (
           <>
             <div className="flex flex-col overflow-hidden rounded-ui-lg border border-line-strong bg-panel shadow-ui-sm transition-[border-color] focus-within:border-brand">
-              <div className="flex items-center gap-2 border-b border-line px-3.5 py-2.5">
+              <label htmlFor="tax-describe" className="flex items-center gap-2 border-b border-line px-3.5 py-2.5">
                 <PenLine className="h-3.5 w-3.5 shrink-0 text-content-muted" />
                 <span className="text-[12.5px] font-semibold text-content-secondary">Describe your taxes</span>
-              </div>
+              </label>
               <textarea
+                id="tax-describe"
                 className="min-h-[160px] resize-none bg-transparent px-4 py-3 text-[14px] text-content placeholder:text-content-faint focus:outline-none"
-                placeholder={"e.g. married filing jointly, 2023\nW-2 income $120k, withheld $18k\nstandard deduction, no dependents"}
+                placeholder={"e.g. married filing jointly, 2025\nW-2 income $120k, withheld $18k\nstandard deduction, no dependents"}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 autoFocus
@@ -220,33 +355,27 @@ export function TaxInputPanel({ onSuccess }: TaxInputPanelProps) {
           </>
         )}
 
-        {/* Error */}
-        {error && (
-          <div className="flex items-start gap-2.5 rounded-ui-md border border-negative/30 bg-negative-soft px-4 py-3 text-[13.5px] text-negative">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            {error}
+        {/* Footer — there is nothing to submit until something is picked or
+            typed, so a permanently disabled button would say nothing. */}
+        {mode && (
+          <div className="flex items-center justify-end">
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!canSubmit}
+              onClick={handleSubmit}
+              loading={loading}
+            >
+              {loading
+                ? hasFiles
+                  ? "Extracting…"
+                  : "Saving…"
+                : mode === "file"
+                  ? `Extract & save${pending.length > 1 ? ` (${pending.length})` : ""}`
+                  : "Save"}
+            </Button>
           </div>
         )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-end">
-          <Button
-            type="button"
-            variant="primary"
-            disabled={!canSubmit}
-            onClick={handleSubmit}
-            loading={loading}
-          >
-            {loading ? (
-              hasFiles ? `Extracting${files.length > 1 ? ` (${files.length} files)` : ""}…` : "Saving…"
-            ) : (
-              mode === "file"
-                ? `Extract & save${files.length > 1 ? ` (${files.length})` : ""}`
-                : mode === "text" ? "Save"
-                : inputMode === "file" ? "Extract & save" : "Save"
-            )}
-          </Button>
-        </div>
     </div>
   );
 }
