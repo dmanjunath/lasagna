@@ -5,8 +5,16 @@ import { excludedTxnAccountIds } from "../lib/account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "../lib/goal-progress.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { z } from "zod";
-import { type UserFinancialContext } from '../lib/layer-selector.js';
-import { UNIVERSAL_LAYERS, assessLayer } from '../lib/universal-layers.js';
+import { type UserFinancialContext, type ContextDebtAccount } from '../lib/layer-selector.js';
+import {
+  UNIVERSAL_LAYERS,
+  assessLayer,
+  classifyDebtBucket,
+  DEBT_BUCKETS,
+  DEBT_BAND_BY_BUCKET,
+  type DebtBucket,
+} from '../lib/universal-layers.js';
+import { resolveDebtAccounts } from '../lib/debt-accounts.js';
 import { readHouseholdProfile, readUserPersonalProfile, resolveProfile } from "../lib/profile-resolver.js";
 
 const VALID_LAYER_IDS = new Set(UNIVERSAL_LAYERS.map(l => l.id));
@@ -17,7 +25,7 @@ export const priorityRoutes = new Hono<AuthEnv>();
 priorityRoutes.get("/", async (c) => {
   const session = c.get("session");
 
-  const [accts, household, personal, activeGoals, goalLinks] = await Promise.all([
+  const [accts, debtAccounts, household, personal, activeGoals, goalLinks] = await Promise.all([
     (async () => {
       const allAccounts = await db.query.accounts.findMany({
         where: eq(accounts.tenantId, session.tenantId),
@@ -33,6 +41,10 @@ priorityRoutes.get("/", async (c) => {
         })
       );
     })(),
+    // Per-account debts with their real APR resolved from liability metadata —
+    // the same resolver /accounts/debts uses, so the ladder and the debt page
+    // can never disagree about an account's rate.
+    resolveDebtAccounts(session.tenantId),
     // Household row (also carries the priorities bookkeeping) + THIS user's
     // personal profile → merged for the per-user "you vs partner" priorities.
     readHouseholdProfile(session.tenantId),
@@ -65,16 +77,10 @@ priorityRoutes.get("/", async (c) => {
   const retirementAge = resolved.retirementAge ?? 65;
 
   let cashTotal = 0, hsaBalance = 0, rothIraBalance = 0, trad401kBalance = 0, brokerageBalance = 0;
-  let paydayLoanDebt = 0, creditCardDebt = 0, personalLoanHighDebt = 0, autoLoanHighDebt = 0;
-  let mediumInterestDebt = 0, autoLoanMedDebt = 0, personalLoanMedDebt = 0;
-  let federalStudentLoanDebt = 0, privateStudentLoanDebt = 0;
-  let autoLoanLowDebt = 0, studentLoanLowDebt = 0, mortgageBalance = 0;
-  let medicalDebt = 0, collectionsDebt = 0;
   let hasOverdraft = false, hasESPP = false, hasPension = false, has457b = false, has403b = false, hasInheritedIRA = false;
 
   for (const acct of accts) {
     if (acct.excludeFromNetWorth) continue;
-    const balance = Math.abs(acct.balance);
     const sub = (acct.subtype || acct.name || "").toLowerCase();
 
     if (acct.type === "depository") {
@@ -86,42 +92,25 @@ priorityRoutes.get("/", async (c) => {
       else brokerageBalance += acct.balance;
       if (sub.includes("457")) has457b = true;
       if (sub.includes("403")) has403b = true;
-    } else if (acct.type === "credit" || acct.type === "loan") {
-      let rate = 0;
-      try {
-        if (acct.metadata) {
-          const meta = JSON.parse(acct.metadata);
-          rate = meta.interestRate || 0;
-        }
-      } catch { /* ignore */ }
-
-      const loanType = sub;
-      if (loanType.includes("payday") || loanType.includes("bnpl")) {
-        paydayLoanDebt += balance;
-      } else if (loanType.includes("student") || loanType.includes("sloan")) {
-        const isFederal = loanType.includes("federal") || loanType.includes("direct") || loanType.includes("perkins");
-        if (isFederal) federalStudentLoanDebt += balance;
-        else if (rate < 5) studentLoanLowDebt += balance;
-        else privateStudentLoanDebt += balance;
-      } else if (loanType.includes("mortgage") || loanType.includes("home")) {
-        mortgageBalance += balance;
-      } else if (loanType.includes("auto") || loanType.includes("car") || loanType.includes("vehicle")) {
-        if (rate > 10) autoLoanHighDebt += balance;
-        else if (rate >= 6) autoLoanMedDebt += balance;
-        else autoLoanLowDebt += balance;
-      } else if (loanType.includes("medical")) {
-        medicalDebt += balance;
-      } else if (loanType.includes("collection")) {
-        collectionsDebt += balance;
-      } else if (acct.type === "credit") {
-        creditCardDebt += balance;
-      } else {
-        if (rate > 15) personalLoanHighDebt += balance;
-        else if (rate >= 6) personalLoanMedDebt += balance;
-        else mediumInterestDebt += balance;
-      }
     }
   }
+
+  // Debt totals, bucketed from the resolved per-account APRs. One pass fills
+  // both the totals the layers assess and the account list each layer names,
+  // so a balance can't be counted in one band and listed under another.
+  const debtTotals = Object.fromEntries(DEBT_BUCKETS.map((b) => [b, 0])) as Record<DebtBucket, number>;
+  const ctxDebtAccounts: ContextDebtAccount[] = debtAccounts.map((d) => {
+    const bucket = classifyDebtBucket(d);
+    debtTotals[bucket] += d.balance;
+    return {
+      id: d.id,
+      name: d.name,
+      mask: d.mask,
+      balance: d.balance,
+      apr: d.apr,
+      band: DEBT_BAND_BY_BUCKET[bucket],
+    };
+  });
 
   // Monthly expenses from last 30 days of transactions
   const thirtyDaysAgo = new Date();
@@ -193,11 +182,8 @@ priorityRoutes.get("/", async (c) => {
     })),
     skippedLayerIds: household?.skippedPrioritySteps ?? [],
     cashTotal, hsaBalance, rothIraBalance, trad401kBalance, brokerageBalance,
-    paydayLoanDebt, creditCardDebt, personalLoanHighDebt, autoLoanHighDebt,
-    mediumInterestDebt, autoLoanMedDebt, personalLoanMedDebt,
-    federalStudentLoanDebt, privateStudentLoanDebt,
-    autoLoanLowDebt, studentLoanLowDebt, mortgageBalance,
-    medicalDebt, collectionsDebt,
+    ...debtTotals,
+    debtAccounts: ctxDebtAccounts,
     hasOverdraft, hasESPP, hasPension, has457b, has403b, hasInheritedIRA,
     monthlyExpenses,
     stableMonthlyExpenses,
@@ -239,6 +225,7 @@ priorityRoutes.get("/", async (c) => {
       target,
       progress,
       action,
+      accounts: assessment.accounts,
       detail: layer.subtitle,
       priority: layer.order <= 3 ? 'critical' as const : layer.order <= 7 ? 'high' as const : 'medium' as const,
       skipped,
@@ -259,8 +246,8 @@ priorityRoutes.get("/", async (c) => {
       monthlySurplus: hasTransactionData ? Math.round(monthlyIncome - monthlyExpenses!) : null,
       totalCash: Math.round(cashTotal),
       totalInvested: Math.round(rothIraBalance + trad401kBalance + brokerageBalance),
-      totalHighInterestDebt: Math.round(creditCardDebt + paydayLoanDebt + personalLoanHighDebt + autoLoanHighDebt),
-      totalMediumInterestDebt: Math.round(mediumInterestDebt + autoLoanMedDebt + personalLoanMedDebt),
+      totalHighInterestDebt: Math.round(debtTotals.creditCardDebt + debtTotals.paydayLoanDebt + debtTotals.personalLoanHighDebt + debtTotals.autoLoanHighDebt),
+      totalMediumInterestDebt: Math.round(debtTotals.mediumInterestDebt + debtTotals.autoLoanMedDebt + debtTotals.personalLoanMedDebt),
       age,
       retirementAge,
       filingStatus,

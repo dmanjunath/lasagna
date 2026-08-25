@@ -1,4 +1,4 @@
-import { type UserFinancialContext } from './layer-selector.js';
+import { type UserFinancialContext, type DebtBand } from './layer-selector.js';
 
 // ── UniversalLayer ─────────────────────────────────────────────────────────────
 
@@ -122,7 +122,128 @@ export const UNIVERSAL_LAYERS: UniversalLayer[] = [
   },
 ];
 
+// ── Debt buckets ───────────────────────────────────────────────────────────────
+
+/**
+ * The debt totals a UserFinancialContext carries. Bucket names are the context
+ * field names, so a totals record spreads straight into the context.
+ */
+export const DEBT_BUCKETS = [
+  'paydayLoanDebt',
+  'creditCardDebt',
+  'personalLoanHighDebt',
+  'autoLoanHighDebt',
+  'mediumInterestDebt',
+  'autoLoanMedDebt',
+  'personalLoanMedDebt',
+  'federalStudentLoanDebt',
+  'privateStudentLoanDebt',
+  'autoLoanLowDebt',
+  'studentLoanLowDebt',
+  'mortgageBalance',
+  'medicalDebt',
+  'collectionsDebt',
+] as const;
+
+export type DebtBucket = (typeof DEBT_BUCKETS)[number];
+
+/**
+ * Which debt layer sums each bucket. Kept next to the layer totals below so a
+ * bucket can never be counted toward a layer while its accounts are listed
+ * under another. null = the bucket feeds no debt layer: `stabilize` reads
+ * `collectionsDebt` on its own, and `federalStudentLoanDebt` and `medicalDebt`
+ * are tracked but are not summed by any layer.
+ */
+export const DEBT_BAND_BY_BUCKET: Record<DebtBucket, DebtBand | null> = {
+  paydayLoanDebt: 'high',
+  creditCardDebt: 'high',
+  personalLoanHighDebt: 'high',
+  autoLoanHighDebt: 'high',
+  mediumInterestDebt: 'mid',
+  autoLoanMedDebt: 'mid',
+  personalLoanMedDebt: 'mid',
+  privateStudentLoanDebt: 'mid',
+  mortgageBalance: 'low',
+  autoLoanLowDebt: 'low',
+  studentLoanLowDebt: 'low',
+  federalStudentLoanDebt: null,
+  medicalDebt: null,
+  collectionsDebt: null,
+};
+
+/** Whole-word `auto`/`car`/`vehicle`: `car` is a substring of "credit card". */
+const AUTO_WORDS = /\b(auto|car|vehicle)s?\b/;
+
+/**
+ * Which bucket a debt account's balance counts toward, from its type, its
+ * subtype/name and its resolved APR. `apr` must be the rate resolved from the
+ * account's liability metadata (see lib/debt-accounts.ts).
+ *
+ * A null APR means no rate is on file, never 0%. Banding an unrated account as
+ * if it were interest-free is the dangerous direction to be wrong in, so each
+ * branch falls back to the band its type is normally priced into: a card to
+ * the credit-card bucket, an auto or personal loan to its medium band, a
+ * private student loan to its own. That picks a band, it does not invent a
+ * rate — the account still reports no rate everywhere one is shown. The
+ * fallback applies to an UNKNOWN rate only: a rate on file always bands the
+ * account, however low it is.
+ */
+export function classifyDebtBucket(account: {
+  type: string;
+  subtype: string | null;
+  name: string;
+  apr: number | null;
+}): DebtBucket {
+  const loanType = (account.subtype || account.name || '').toLowerCase();
+  const rate = account.apr;
+
+  if (loanType.includes('payday') || loanType.includes('bnpl')) return 'paydayLoanDebt';
+  // Medical debt and collections belong to the stabilize layer whatever the
+  // account's type is, so they are settled before the card branch below.
+  if (loanType.includes('medical')) return 'medicalDebt';
+  if (loanType.includes('collection')) return 'collectionsDebt';
+
+  // Revolving credit is a card: never a mortgage, an auto loan or a student
+  // loan. Deciding on the account's type before the name matchers keeps
+  // Plaid's `credit card` subtype out of the auto branch and a store card like
+  // "Home Depot" out of the `home` branch.
+  //
+  // `creditCardDebt` is the high band, and it is the fallback for a card with
+  // NO rate on file, not a verdict on every card. A card that reports its rate
+  // is banded by that rate on the same ladder every other type uses, so a 0%
+  // promo balance is not presented as debt above 15% APR.
+  if (account.type === 'credit') {
+    if (rate == null) return 'creditCardDebt';
+    return rate > 15 ? 'creditCardDebt' : 'mediumInterestDebt';
+  }
+
+  if (loanType.includes('student') || loanType.includes('sloan')) {
+    const isFederal =
+      loanType.includes('federal') || loanType.includes('direct') || loanType.includes('perkins');
+    if (isFederal) return 'federalStudentLoanDebt';
+    // Unrated: private student loans are priced like private loans, not like a
+    // subsidized federal one, so they do not fall into the sub-5% bucket.
+    return rate != null && rate < 5 ? 'studentLoanLowDebt' : 'privateStudentLoanDebt';
+  }
+  if (loanType.includes('mortgage') || loanType.includes('home')) return 'mortgageBalance';
+  if (AUTO_WORDS.test(loanType)) {
+    if (rate == null) return 'autoLoanMedDebt';
+    return rate > 10 ? 'autoLoanHighDebt' : rate >= 6 ? 'autoLoanMedDebt' : 'autoLoanLowDebt';
+  }
+  if (rate == null) return 'personalLoanMedDebt';
+  return rate > 15 ? 'personalLoanHighDebt' : rate >= 6 ? 'personalLoanMedDebt' : 'mediumInterestDebt';
+}
+
 // ── LayerAssessment ────────────────────────────────────────────────────────────
+
+/** One named account behind a debt layer's total. */
+export interface LayerDebtAccount {
+  id: string;
+  name: string;
+  mask: string | null;
+  balance: number;
+  apr: number | null;
+}
 
 export interface LayerAssessment {
   status: 'complete' | 'in_progress' | 'not_started';
@@ -130,6 +251,56 @@ export interface LayerAssessment {
   current: number | null;
   target: number | null;
   action: string;
+  /** The accounts making up `current`. Debt layers only. */
+  accounts?: LayerDebtAccount[];
+}
+
+/**
+ * The rate an account with none on file is RANKED at, per band: the rate its
+ * band already assumes by holding it (see classifyDebtBucket).
+ *
+ * This is for ordering only and must never be displayed, returned or summed.
+ * It is not a rate the account has, and a row with no rate on file still says
+ * exactly that wherever the account is shown.
+ */
+const BAND_ASSUMED_APR: Record<DebtBand, number> = { high: 22, mid: 8, low: 4 };
+
+/**
+ * The band's accounts in payoff order: worst rate first, smallest balance
+ * breaking a tie.
+ *
+ * An account with no rate on file ranks at the rate its band implies, so it
+ * sits among the accounts it is being treated like instead of at one end of
+ * the list. Sorting unrated accounts to the front let a $0 unrated card
+ * outrank a 31% one and pushed the genuinely worst account behind the preview
+ * cap; sorting them to the back, as if they were 0%, would contradict the band
+ * they are in. `.filter()` returns a copy, so sorting it leaves the caller's
+ * list in its own order.
+ */
+function debtAccountsInBand(ctx: UserFinancialContext, band: DebtBand): LayerDebtAccount[] {
+  const assumed = BAND_ASSUMED_APR[band];
+  return ctx.debtAccounts
+    .filter((a) => a.band === band)
+    .sort((a, b) => (b.apr ?? assumed) - (a.apr ?? assumed) || a.balance - b.balance)
+    .map(({ id, name, mask, balance, apr }) => ({ id, name, mask, balance, apr }));
+}
+
+/**
+ * The dollar figure a debt layer states. Every row under that figure is
+ * rendered from its own rounded balance, so rounding the raw sum can leave the
+ * headline a dollar away from the rows that make it up. Sum the rounded values
+ * the rows show instead. Falls back to the band total when the layer lists no
+ * accounts.
+ *
+ * This figure also decides whether the layer is done. Testing the raw total
+ * instead left a band holding nothing but a residual balance (a 40-cent card)
+ * reading "Pay off $0" over an empty list, with no way to ever clear it: the
+ * headline said zero, the rows agreed, and only the completion test disagreed.
+ */
+function debtDollars(total: number, accounts: LayerDebtAccount[]): number {
+  return accounts.length
+    ? accounts.reduce((sum, a) => sum + Math.round(Math.abs(a.balance)), 0)
+    : Math.round(total);
 }
 
 // ── assessLayer ────────────────────────────────────────────────────────────────
@@ -196,7 +367,9 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
         ctx.paydayLoanDebt +
         ctx.personalLoanHighDebt +
         ctx.autoLoanHighDebt;
-      if (current === 0) {
+      const accounts = debtAccountsInBand(ctx, 'high');
+      const dollars = debtDollars(current, accounts);
+      if (dollars === 0) {
         return { status: 'complete', progress: 100, current: 0, target: 0, action: '' };
       }
       return {
@@ -204,7 +377,8 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
         progress: 0,
         current,
         target: 0,
-        action: `Pay off $${current.toLocaleString()} in high-rate debt (above 15% APR).`,
+        action: `Pay off $${dollars.toLocaleString()} in high-rate debt (above 15% APR).`,
+        accounts,
       };
     }
 
@@ -281,7 +455,9 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
         ctx.autoLoanMedDebt +
         ctx.personalLoanMedDebt +
         ctx.privateStudentLoanDebt;
-      if (current === 0) {
+      const accounts = debtAccountsInBand(ctx, 'mid');
+      const dollars = debtDollars(current, accounts);
+      if (dollars === 0) {
         return { status: 'complete', progress: 100, current: 0, target: 0, action: '' };
       }
       return {
@@ -289,7 +465,8 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
         progress: 0,
         current,
         target: 0,
-        action: `Pay off $${current.toLocaleString()} in medium-rate debt (8 to 15% APR).`,
+        action: `Pay off $${dollars.toLocaleString()} in medium-rate debt (8 to 15% APR).`,
+        accounts,
       };
     }
 
@@ -332,7 +509,9 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
 
     case 'low-interest-debt': {
       const current = ctx.mortgageBalance + ctx.autoLoanLowDebt + ctx.studentLoanLowDebt;
-      if (current === 0) {
+      const accounts = debtAccountsInBand(ctx, 'low');
+      const dollars = debtDollars(current, accounts);
+      if (dollars === 0) {
         return { status: 'complete', progress: 100, current: 0, target: 0, action: '' };
       }
       return {
@@ -340,7 +519,8 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
         progress: 0,
         current,
         target: 0,
-        action: `$${current.toLocaleString()} in low-interest debt remaining. Pay it off or invest instead, based on your preference.`,
+        action: `$${dollars.toLocaleString()} in low-interest debt remaining. Pay it off or invest instead, based on your preference.`,
+        accounts,
       };
     }
 

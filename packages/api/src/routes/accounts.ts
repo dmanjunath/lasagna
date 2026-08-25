@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, desc, and, sql, accounts, balanceSnapshots, plaidItems, parseLoanMetadata, parsePropertyMetadata, accountTypeEnum } from "@lasagna/core";
+import { eq, desc, and, sql, accounts, balanceSnapshots, plaidItems, parsePropertyMetadata, accountTypeEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { validatePropertyLink } from "../lib/account-links.js";
 import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
+import { resolveDebtAccounts } from "../lib/debt-accounts.js";
 import { kickOffValueEstimate, advanceValueEstimate } from "../lib/value-estimate.js";
 import { pollRealEstateValue } from "../services/fetchRealEstateValues.js";
 
@@ -146,13 +147,7 @@ accountRoutes.get("/net-worth/history", async (c) => {
 accountRoutes.get("/debts", async (c) => {
   const session = c.get("session");
 
-  const accts = await db.query.accounts.findMany({
-    where: and(
-      eq(accounts.tenantId, session.tenantId),
-      sql`${accounts.type} IN ('credit', 'loan')`,
-      eq(accounts.excludeFromNetWorth, false),
-    ),
-  });
+  const debtAccounts = await resolveDebtAccounts(session.tenantId);
 
   const propertyRows = await db.query.accounts.findMany({
     where: and(eq(accounts.tenantId, session.tenantId), eq(accounts.type, "real_estate")),
@@ -160,121 +155,23 @@ accountRoutes.get("/debts", async (c) => {
   });
   const propertyById = new Map(propertyRows.map((p) => [p.id, p]));
 
-  const debts = await Promise.all(
-    accts.map(async (acct) => {
-      const latest = await db.query.balanceSnapshots.findFirst({
-        where: eq(balanceSnapshots.accountId, acct.id),
-        orderBy: [desc(balanceSnapshots.snapshotAt)],
-      });
-
-      const balance = Math.abs(parseFloat(latest?.balance ?? "0"));
-
-      // Parse typed liability metadata
-      const typedMeta = parseLoanMetadata(acct.metadata ?? null);
-
-      // Legacy raw fallback (for seed/legacy data without a type discriminant)
-      let legacyInterestRate: number | null = null;
-      let termMonths: number | null = null;
-      let originationDate: string | null = null;
-      if (!typedMeta && acct.metadata) {
-        try {
-          const raw = JSON.parse(acct.metadata);
-          legacyInterestRate = typeof raw.interestRate === "number" ? raw.interestRate : null;
-          termMonths = typeof raw.termMonths === "number" ? raw.termMonths : null;
-          originationDate = typeof raw.originationDate === "string" ? raw.originationDate : null;
-        } catch {
-          // malformed — leave null
-        }
-      }
-
-      // Resolve interestRate (3-step fallback)
-      let interestRate: number | null = null;
-      if (typedMeta) {
-        if (typedMeta.type === "credit_card") {
-          const purchaseApr = typedMeta.aprs?.find((a) => a.aprType === "purchase_apr");
-          interestRate = purchaseApr?.aprPercentage ?? typedMeta.aprs?.[0]?.aprPercentage ?? null;
-        } else if (
-          typedMeta.type === "mortgage" ||
-          typedMeta.type === "student_loan" ||
-          typedMeta.type === "other_loan"
-        ) {
-          interestRate = typedMeta.interestRatePercentage ?? null;
-        }
-      } else {
-        interestRate = legacyInterestRate;
-      }
-
-      // Resolve payoffDate
-      let payoffDate: string | null = null;
-      if (typedMeta) {
-        if (typedMeta.type === "mortgage") {
-          payoffDate = typedMeta.maturityDate ?? null;
-        } else if (typedMeta.type === "student_loan") {
-          payoffDate = typedMeta.expectedPayoffDate ?? null;
-        } else if (typedMeta.type === "other_loan") {
-          payoffDate = typedMeta.maturityDate ?? null;
-        }
-        // credit_card: payoffDate stays null — calculated client-side
-      }
-
-      // Resolve minimumPayment (3-step fallback)
-      let minimumPayment: number;
-      const isMortgage =
-        acct.subtype === "mortgage" || acct.name?.toLowerCase().includes("mortgage");
-
-      let typedMinPayment: number | undefined;
-      if (typedMeta) {
-        if (typedMeta.type === "mortgage" && typedMeta.nextMonthlyPayment != null) {
-          typedMinPayment = typedMeta.nextMonthlyPayment;
-        } else if ("minimumPaymentAmount" in typedMeta && typedMeta.minimumPaymentAmount != null) {
-          typedMinPayment = typedMeta.minimumPaymentAmount;
-        }
-      }
-
-      if (typedMinPayment != null) {
-        minimumPayment = typedMinPayment;
-      } else if (acct.type === "credit") {
-        const monthlyInterest = interestRate ? balance * (interestRate / 100 / 12) : 0;
-        minimumPayment = Math.max(balance * 0.02, monthlyInterest + balance * 0.01, 25);
-      } else if (isMortgage && !termMonths) {
-        const rate = interestRate ?? 6.5;
-        const r = rate / 100 / 12;
-        const n = 360;
-        minimumPayment =
-          r > 0 ? (balance * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1) : balance / n;
-      } else if (termMonths && originationDate) {
-        const originated = new Date(originationDate);
-        const monthsElapsed =
-          (Date.now() - originated.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
-        const remaining = Math.max(termMonths - Math.floor(monthsElapsed), 1);
-        minimumPayment = balance / remaining;
-      } else {
-        minimumPayment = Math.max(balance * 0.02, 25);
-      }
-
-      minimumPayment = Math.round(minimumPayment * 100) / 100;
-
-      return {
-        id: acct.id,
-        name: acct.name,
-        mask: acct.mask ?? null,
-        type: acct.type,
-        subtype: acct.subtype,
-        property: acct.propertyAccountId
-          ? (propertyById.get(acct.propertyAccountId) ?? null)
-          : null,
-        balance,
-        interestRate,
-        termMonths,
-        originationDate,
-        minimumPayment,
-        payoffDate,
-        liabilitySource: typedMeta?.source ?? null,
-        liabilityLastSyncedAt: typedMeta?.lastSyncedAt ?? null,
-        lastUpdated: latest?.snapshotAt ?? null,
-      };
-    }),
-  );
+  const debts = debtAccounts.map((d) => ({
+    id: d.id,
+    name: d.name,
+    mask: d.mask,
+    type: d.type,
+    subtype: d.subtype,
+    property: d.propertyAccountId ? (propertyById.get(d.propertyAccountId) ?? null) : null,
+    balance: d.balance,
+    interestRate: d.apr,
+    termMonths: d.termMonths,
+    originationDate: d.originationDate,
+    minimumPayment: d.minimumPayment,
+    payoffDate: d.payoffDate,
+    liabilitySource: d.liabilitySource,
+    liabilityLastSyncedAt: d.liabilityLastSyncedAt,
+    lastUpdated: d.lastUpdated,
+  }));
 
   const totalDebt = debts.reduce((sum, d) => sum + d.balance, 0);
   const monthlyInterest = debts.reduce((sum, d) => {

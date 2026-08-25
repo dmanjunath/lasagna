@@ -974,6 +974,14 @@ export const api = {
         target: number | null;
         progress: number;
         action: string;
+        /** The accounts behind this step's balance. Debt steps only. */
+        accounts?: Array<{
+          id: string;
+          name: string;
+          mask: string | null;
+          balance: number;
+          apr: number | null;
+        }>;
         detail: string;
         priority: string;
         note: string;

@@ -1,5 +1,20 @@
 // ── UserFinancialContext ───────────────────────────────────────────────────────
 
+/** Which debt layer of the ladder a balance is counted under. */
+export type DebtBand = 'high' | 'mid' | 'low';
+
+/** One debt account behind the aggregate balances below. */
+export interface ContextDebtAccount {
+  id: string;
+  name: string;
+  mask: string | null;
+  balance: number;
+  /** Annual rate in percent, or null when the account has none on file. */
+  apr: number | null;
+  /** The debt layer this balance was counted under, or null when it feeds none. */
+  band: DebtBand | null;
+}
+
 export interface UserFinancialContext {
   // From profile
   age: number | null;
@@ -36,6 +51,8 @@ export interface UserFinancialContext {
   mortgageBalance: number;
   medicalDebt: number;
   collectionsDebt: number;
+  /** The accounts the debt balances above were summed from. */
+  debtAccounts: ContextDebtAccount[];
   hasOverdraft: boolean;
   hasESPP: boolean;
   hasPension: boolean;
@@ -84,6 +101,7 @@ export function buildContextDefaults(overrides: Partial<UserFinancialContext> = 
     mortgageBalance: 0,
     medicalDebt: 0,
     collectionsDebt: 0,
+    debtAccounts: [],
     hasOverdraft: false,
     hasESPP: false,
     hasPension: false,

@@ -6,7 +6,9 @@ import {
   AlertCircle, Check, ChevronRight, Sparkles, ArrowRight, Info,
   PiggyBank, Landmark, Layers,
 } from 'lucide-react';
+import { Link } from 'wouter';
 import { api } from '../lib/api';
+import { stripAccountMask } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import type { LucideIcon } from 'lucide-react';
 import { Button, EmptyState, Skeleton, Textarea, useToast } from '../components/uikit';
@@ -25,6 +27,11 @@ const iconMap: Record<string, LucideIcon> = {
 
 // ── types ────────────────────────────────────────────────────────────────────
 
+interface LevelDebtAccount {
+  id: string; name: string; mask: string | null;
+  balance: number; apr: number | null;
+}
+
 interface PriorityStep {
   id: string; order: number; title: string; subtitle: string;
   description: string;
@@ -33,6 +40,8 @@ interface PriorityStep {
   action: string; detail: string; priority: string;
   skipped: boolean;
   note: string;
+  /** The accounts behind this level's balance. Debt levels only. */
+  accounts?: LevelDebtAccount[];
 }
 
 interface PrioritySummary {
@@ -215,6 +224,153 @@ function LevelRow({ step, state, isSelected, onSelect }: {
   );
 }
 
+// ── DebtAccountRow — one named account behind a debt level ───────────────────
+//
+// Local to this page on purpose: the app's live "account row that drills to
+// /accounts/:id" is the one in pages/Accounts.tsx, and this copies its idiom
+// (name + mask, secondary line, right-aligned balance, chevron) rather than
+// forking a shared abstraction for three call sites in one file. It uses a
+// real <Link>, so middle-click and Enter behave like links everywhere else.
+
+/**
+ * A rate is shown to at most 2 decimals, trailing zeros dropped. 0 is a real
+ * rate (a 0% promo card) and is shown as one — conflating it with a missing
+ * rate is the bug this whole change exists to remove.
+ *
+ * No rate on file reads `Add rate`, not `Rate not set`. The gap decides which
+ * level this account is counted under, the row already links to the page where
+ * the rate is editable, and naming the gap without saying it is fixable leaves
+ * the user at a dead end.
+ */
+function aprLabel(apr: number | null): string {
+  if (apr == null) return 'Add rate';
+  return `${Math.round(apr * 100) / 100}% APR`;
+}
+
+function DebtAccountRow({ account, showBalance }: { account: LevelDebtAccount; showBalance: boolean }) {
+  const name = stripAccountMask(account.name, account.mask);
+  const rate = aprLabel(account.apr);
+
+  // A `title` that repeats text the user can already read is a tooltip for
+  // nothing, so it is offered only when the name is actually clipped.
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const [clipped, setClipped] = useState(false);
+  useEffect(() => {
+    const el = nameRef.current;
+    if (!el) return;
+    const measure = () => setClipped(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [name]);
+
+  return (
+    // The hover tint and focus ring are pulled wider than the text so the text
+    // isn't flush against the tint edge, but only 4px on mobile, where the
+    // card's padding is 14px and the ring has to clear its 4px accent rail.
+    // px cancels mx, so the divider stays inside either way, level with this
+    // card's other rules.
+    <Link
+      href={`/accounts/${account.id}`}
+      className="ui-focus group block rounded-ui-sm -mx-1 px-1 transition-colors hover:bg-brand-softer sm:-mx-2 sm:px-2"
+    >
+      <span className="flex items-center gap-3 border-t border-line py-3 group-first:border-t-0">
+        <span className="min-w-0 flex-1">
+          {/* The mask rides the muted line, not the name line. Accounts.tsx can
+              afford them side by side across a full-width page; this panel is
+              360px, where the mask's ~49px truncated ordinary names like
+              "Sallie Mae Student Loan" and naming the account is the point. */}
+          <span
+            ref={nameRef}
+            className="block truncate text-[14.5px] font-bold leading-tight"
+            title={clipped ? name : undefined}
+          >
+            {name}
+          </span>
+          <span className="mt-0.5 flex items-center gap-2 text-[12.5px] text-content-muted ui-tnum">
+            <span className={account.apr == null ? 'text-[rgb(var(--ui-brand-ink))]' : undefined}>{rate}</span>
+            {account.mask && (
+              <span aria-label={`account ending ${account.mask}`}>••{account.mask}</span>
+            )}
+          </span>
+        </span>
+
+        {showBalance && (
+          <span className="text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
+            {fmt(Math.abs(account.balance))}
+          </span>
+        )}
+        <ChevronRight size={16} className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" aria-hidden />
+      </span>
+    </Link>
+  );
+}
+
+// ── DebtAccountList — the accounts behind a debt level's total ───────────────
+//
+// No heading: the card is already titled "High-rate debt" and subtitled
+// "Eliminate all debt above 15% APR", so a label here would say nothing new.
+// The preview cap matters because the desktop panel is `sticky top-6` — a full
+// list pushes the action buttons past the bottom of the viewport.
+
+const ACCOUNT_PREVIEW = 4;
+
+function DebtAccountList({ step, totalStated }: { step: PriorityStep; totalStated: boolean }) {
+  const [showAll, setShowAll] = useState(false);
+  // A $0 balance is not something to pay off — rendering it is noise. Filter on
+  // the value the row prints, not the raw one: a 40-cent balance renders as
+  // `$0` too, and hiding one $0 row while showing another reads as a bug.
+  const accounts = (step.accounts ?? []).filter((a) => Math.round(Math.abs(a.balance)) > 0);
+  if (accounts.length === 0) return null;
+
+  // One account IS the level's balance, and the action line above has just
+  // stated that figure. Name the account and give it its rate, but don't print
+  // the same dollar amount again 60px below itself.
+  const showBalance = !(totalStated && accounts.length === 1);
+
+  // Server order is the payoff ranking (see debtAccountsInBand) — never
+  // re-sort here.
+  const visible = showAll ? accounts : accounts.slice(0, ACCOUNT_PREVIEW);
+  const hasToggle = accounts.length > ACCOUNT_PREVIEW;
+  // Naming the level keeps the id unique: on mobile the outgoing level's list
+  // animates out while the incoming one animates in, so two are briefly in the
+  // DOM together.
+  const listId = `debt-accounts-${step.id}`;
+
+  return (
+    // role="group" so the label is actually announced: aria-label is ignored on
+    // a bare div.
+    // -mb-4 cancels most of the action row's own mt-5 below, so the list sits
+    // 16px inside its rule at both ends instead of 16 top / 32 bottom. The
+    // toggle's own padding is 6px where a row's is 12px, hence the extra pb.
+    <div
+      className={`mt-5 -mb-4 border-t border-line pt-1 ${hasToggle ? 'pb-1.5' : ''}`}
+      role="group"
+      aria-label={`Accounts in ${step.title}`}
+    >
+      <div id={listId}>
+        {visible.map((a) => <DebtAccountRow key={a.id} account={a} showBalance={showBalance} />)}
+      </div>
+      {hasToggle && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+          aria-controls={listId}
+          className="touch-target ui-focus -ml-1 mt-1 inline-flex items-center justify-center gap-1.5 rounded-ui-md px-1 py-1.5 sm:-ml-2 sm:px-2 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer"
+        >
+          {showAll ? 'Show fewer' : `Show ${accounts.length - ACCOUNT_PREVIEW} more`}
+          <ChevronRight
+            size={14}
+            aria-hidden
+            className={`transition-transform ${showAll ? '-rotate-90' : 'rotate-90'}`}
+          />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── FocusArticle — the selected level, as a Bright action card ───────────────
 
 function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk, onComplete, onUndoComplete }: {
@@ -306,6 +462,10 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
           <p className="text-[14px] leading-[1.5] font-semibold text-content">{step.action}</p>
         </div>
       )}
+
+      {/* The "Next step" box above states this level's total whenever it is
+          rendered, which decides whether a lone account repeats it. */}
+      <DebtAccountList step={step} totalStated={state === 'current' && !!step.action} />
 
       {isComplete && step.note && (
         <div className="mt-5">
