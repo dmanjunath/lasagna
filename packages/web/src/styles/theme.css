@@ -166,10 +166,64 @@
 html {
   background-color: rgb(var(--ui-canvas));
 }
-/* :root.dark, not .dark — the accent themes declare --color-bg under
- * :root[data-theme="…"] (specificity 0,2,0), which a bare .dark would lose to. */
+/* The rest of the legacy neutral scale, remapped for dark. Every --color-*
+ * below is a light-mode value in BOTH modes otherwise, so `text-text`,
+ * `bg-surface` and `border-border` painted near-black text and white panels on
+ * the dark canvas. The values mirror the --ui-* scale above one-for-one so the
+ * two scales agree; the `=` comments name the token each one tracks.
+ *
+ * Only NEUTRALS are remapped. --color-accent / -success / -warning / -danger
+ * and every -accent / -glow tint stay untouched: the accent themes set those
+ * per data-theme, so overriding them here would clobber the chosen accent.
+ * (The two accents that failed on the repainted dark card get a per-theme dark
+ * value below instead, which is narrow enough not to clobber anything.)
+ *
+ * :root.dark, not .dark — the accent themes declare --color-* under
+ * :root[data-theme="…"] (specificity 0,2,0), which a bare .dark would lose to.
+ *
+ * 11 of the 12 below actually take effect. --color-bg-subtle is ALSO written as
+ * an inline style by applyCustomAccent (lib/theme.tsx), and an inline style
+ * outranks every selector, so under the custom accent theme this rule is dead
+ * for that one token. Latent only: bg-bg-subtle has a single consumer, the
+ * secondary Button variant, which nothing currently renders. */
 :root.dark {
-  --color-bg: 13 17 23;
+  --color-bg:            13 17 23;
+  --color-bg-elevated:   22 27 35;      /* = --ui-panel                       */
+  --color-bg-subtle:      9 12 17;      /* = --ui-canvas-sunken               */
+
+  --color-surface:       22 27 35;      /* = --ui-panel                       */
+  --color-surface-hover: 28 35 45;      /* = --ui-panel-raised                */
+
+  --color-text:           244 247 251;  /* = --ui-content                     */
+  --color-text-secondary: 226 232 240;  /* = --ui-content-secondary           */
+  --color-text-muted:     203 212 224;  /* = --ui-content-muted               */
+  --color-text-disabled:  160 172 190;  /* = --ui-content-faint               */
+
+  --color-border:        rgba(255, 255, 255, 0.08);   /* = --ui-hairline      */
+  --color-border-light:  rgba(255, 255, 255, 0.05);
+  --color-border-strong: rgba(255, 255, 255, 0.14);   /* = --ui-line          */
+}
+
+/* Two accents are dark navy/slate by design, so once the legacy cards started
+ * painting --ui-panel, `text-accent` on them fell to 1.67:1 (sapphire) and
+ * 1.68:1 (graphite). Same idiom as --ui-brand's dark value above: keep the
+ * light hue and saturation, lift only the lightness. Lifted just far enough to
+ * join the twelve accents that already sit at 3.0-3.6:1 on that card, and no
+ * further, because `bg-accent text-white` has to stay AA too (these hold ~5:1).
+ * :root.dark[data-theme] is 0,3,0, over the light :root[data-theme] at 0,2,0.
+ *
+ * @media screen, because 0,3,0 also outranks the print block's html:root.dark
+ * (0,2,1) in index.css. Without the wrapper a raw Cmd+P from dark mode carries
+ * these screen-lifted accents onto white paper, where the insight card's
+ * analysis expander on bg-brand-soft falls to 4.40:1. The wrapper is inert on
+ * screen, so both accents keep their dark values there. */
+@media screen {
+  :root.dark[data-theme="sapphire"] {
+    --color-accent: 66 105 214;    /* #1E3A8A lifted, hue 224 / sat 64% kept  */
+  }
+  :root.dark[data-theme="graphite"] {
+    --color-accent: 93 110 137;    /* #374151 lifted, hue 217 / sat 19% kept  */
+  }
 }
 
 /* The boot brand screen — the SAME artwork the native launch screen and the

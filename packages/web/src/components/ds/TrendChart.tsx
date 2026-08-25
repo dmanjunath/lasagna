@@ -134,7 +134,7 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
         {yTicks.map((t) => (
           <g key={t}>
             <line x1={CHART_M.left} y1={yAt(t)} x2={CHART_W - CHART_M.right} y2={yAt(t)} className="stroke-rule/70" strokeWidth={1} strokeDasharray="2 5" />
-            <text x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-text-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
+            <text x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-content-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
           </g>
         ))}
         <path d={areaPath} fill="url(#nw-area)" />
@@ -168,7 +168,7 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
         )}
         {hover && hoverIdx !== null && (
           <g>
-            <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} className="stroke-text-muted/60" strokeWidth={1} strokeDasharray="2 4" />
+            <line x1={xAt(hoverIdx)} y1={CHART_M.top} x2={xAt(hoverIdx)} y2={CHART_M.top + innerH} className="stroke-content-muted/60" strokeWidth={1} strokeDasharray="2 4" />
             <circle cx={xAt(hoverIdx)} cy={yAt(hover.value)} r={14} fill="currentColor" fillOpacity={0.18} />
             <circle
               cx={xAt(hoverIdx)}
@@ -181,7 +181,7 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
           </g>
         )}
         {xLabels.map(({ idx, label }) => (
-          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 12} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 12} textAnchor="middle" className="fill-content-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
         ))}
       </svg>
       {points.length > 0 && (

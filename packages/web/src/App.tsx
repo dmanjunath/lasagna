@@ -214,7 +214,7 @@ function AppRoutes() {
                     <Route path="/settings"><Redirect to="/profile" /></Route>
 
                     <Route>
-                      <div className="flex-1 flex items-center justify-center text-text-secondary">
+                      <div className="flex-1 flex items-center justify-center text-content-secondary">
                         Page not found
                       </div>
                     </Route>

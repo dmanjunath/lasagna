@@ -604,6 +604,42 @@
     box-shadow: var(--shadow-card);
   }
 
+  /* All three card classes paint --lf-surface, which is #FFFFFF in every
+     :root[data-theme] and has no dark remap — so they rendered white cards on
+     the dark canvas, and their --color-text contents went white-on-white the
+     moment that scale became dark-aware. Repainting the three classes here,
+     rather than remapping --lf-surface globally, keeps the blast radius at
+     these rules: --lf-* is read in ~550 more places that are not in scope.
+     --lf-rule-neutral is a near-black hairline, invisible on a dark panel, so
+     the border moves to the DS hairline with it.
+
+     :where(.dark) so the selector keeps the SAME specificity as the bare
+     .glass-card above (0,1,0) and wins only on source order. A plain
+     `.dark .glass-card` is 0,2,0, which silently beat both the per-element
+     Tailwind utilities (`glass-card border-warning/30` lost its amber ring)
+     and `.glass-card-hover:hover`, leaving clickable cards with no hover
+     border in dark. background-color, not the `background` shorthand, so a
+     gradient utility on the same element survives.
+
+     --shadow-card is 3% navy, which is no elevation at all once the card sits
+     on a dark canvas, so these read flat beside the DS surfaces that use
+     --ui-shadow-sm. Same token here, same depth. */
+  :where(.dark) .surface-card,
+  :where(.dark) .glass-card,
+  :where(.dark) .stat-card {
+    background-color: rgb(var(--ui-panel));
+    border-color: var(--ui-hairline);
+    box-shadow: var(--ui-shadow-sm);
+  }
+  /* --shadow-card-hover is the same near-invisible navy, so a clickable card
+     that now rests at --ui-shadow-sm would DROP its shadow on hover. sm → md is
+     the step the DS card primitive (uikit/Surface) uses for exactly this. Only
+     box-shadow: the accent border-color from `.glass-card-hover:hover` still
+     applies, and this matches its 0,2,0 and wins on source order. */
+  :where(.dark) .glass-card-hover:hover {
+    box-shadow: var(--ui-shadow-md);
+  }
+
   .accent-glow { box-shadow: var(--shadow-accent-glow); }
   .progress-glow { box-shadow: 0 0 12px var(--color-accent-glow); }
 }
@@ -2895,8 +2931,16 @@
      Cmd+P / browser-menu print would otherwise resolve the `.dark`-scoped
      --ui-* tokens and ink a near-black page. Re-declare the tokens the plan
      document uses to their :root (light) values, scoped to print + .dark so
-     on-screen dark mode is untouched. */
-  html.dark, .dark {
+     on-screen dark mode is untouched.
+
+     `html:root.dark`, not `html.dark`. This block wins purely on specificity —
+     it is emitted BEFORE theme.css (main.tsx imports index.css first), so
+     source order is against it. `html.dark` is (0,1,1), which beat the old
+     `.dark { --ui-* }` (0,1,0) but LOSES to `:root.dark { --color-* }` (0,2,0),
+     leaving the legacy scale at its dark values on white paper: `text-text`
+     resolved to rgb(244,247,251) at 1.07:1, so chart titles and legends
+     printed blank. Adding `:root` makes it (0,2,1), which outranks both. */
+  html:root.dark, .dark {
     /* Override `.dark { color-scheme: dark }` (theme.css) which — at higher
        specificity than the `html, body` rule above — otherwise makes the
        browser ink the page backdrop black on a raw Cmd+P from dark mode. */
@@ -2948,6 +2992,35 @@
     --ui-viz-5: #0EA5E9;
     --ui-viz-6: #84CC16;
     --ui-viz-7: #64748B;
+
+    /* The legacy neutral scale needs the same treatment now that theme.css
+       gives it dark values. These are the `:root` (minty) light values above;
+       rocket and cobalt vary by a few units on the near-blacks and inherit the
+       rest, a difference that does not survive being put on paper. Only the
+       neutrals: --color-accent stays per-theme, and both dark-tuned accents
+       clear AA on white. */
+    --color-bg:          255 255 255;
+    --color-bg-elevated: 249 250 251;
+    --color-bg-subtle:   226 237 231;
+
+    --color-surface:       255 255 255;
+    --color-surface-hover: 249 251 250;
+
+    --color-text:           15 23 42;
+    --color-text-secondary: 51 65 85;
+    --color-text-muted:     100 116 139;
+    --color-text-disabled:  203 213 225;
+
+    --color-border:        rgba(15, 23, 42, 0.08);
+    --color-border-light:  rgba(15, 23, 42, 0.04);
+    --color-border-strong: rgba(15, 23, 42, 0.14);
+
+    /* The two elevation steps the document body actually uses. Dark's are 45%
+       and 40% black, which a printer renders as a real grey band under every
+       card. Light's are 5-9% and effectively disappear, which is what a report
+       on paper wants. */
+    --ui-shadow-sm: 0 1px 2px rgba(20, 33, 61, 0.06), 0 2px 6px rgba(20, 33, 61, 0.05);
+    --ui-shadow-md: 0 2px 6px rgba(20, 33, 61, 0.06), 0 10px 24px rgba(20, 33, 61, 0.09);
   }
 
   /* Pure-white paper: kill the ambient canvas wash (tint + indigo/amber
