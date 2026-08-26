@@ -286,8 +286,6 @@ export function Dashboard() {
       monthlySurplus: null,
       totalCash: 0,
       totalInvested: 0,
-      totalHighInterestDebt: 0,
-      totalMediumInterestDebt: 0,
       age: null,
       retirementAge: 0,
       filingStatus: null,

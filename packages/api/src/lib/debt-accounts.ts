@@ -16,6 +16,12 @@ export interface DebtAccount {
   /** Annual rate in percent (6.5 = 6.5%), or null when the account has none on file. */
   apr: number | null;
   minimumPayment: number;
+  /**
+   * True when `minimumPayment` was derived here rather than reported by the
+   * lender. A step that funds this account must say so rather than presenting
+   * an estimate as the lender's own number.
+   */
+  minimumPaymentEstimated: boolean;
   termMonths: number | null;
   originationDate: string | null;
   payoffDate: string | null;
@@ -139,6 +145,7 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
       }
 
       minimumPayment = Math.round(minimumPayment * 100) / 100;
+      const minimumPaymentEstimated = typedMinPayment == null;
 
       return {
         id: acct.id,
@@ -149,6 +156,7 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
         balance,
         apr: interestRate,
         minimumPayment,
+        minimumPaymentEstimated,
         termMonths,
         originationDate,
         payoffDate,

@@ -31,7 +31,7 @@ const GOAL_PRESETS: Array<{ name: string; category: string; icon: IconKey; sugge
   { name: 'Home Repair', category: 'home_repair', icon: 'wrench', suggestedTarget: 15000 },
   { name: 'Major Purchase', category: 'major_purchase', icon: 'sparkles', suggestedTarget: 10000 },
   { name: 'Life Event', category: 'life_event', icon: 'sparkles', suggestedTarget: 10000 },
-  { name: 'Retirement', category: 'retirement', icon: 'palmtree' },
+  { name: 'Fully funded retirement', category: 'retirement', icon: 'palmtree' },
   { name: 'Debt Payoff', category: 'debt_payoff', icon: 'creditCard', suggestedTarget: 20000 },
   { name: 'General Savings', category: 'savings', icon: 'wallet', suggestedTarget: 10000 },
 ];

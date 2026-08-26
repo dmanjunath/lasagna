@@ -29,10 +29,13 @@ export function levelStateOf(
 // Segments stay non-interactive (plain spans, no click).
 export function SegmentedRail({ states, labels }: { states: LevelState[]; labels?: string[] }) {
   return (
+    // Segments are capped so a short path reads as a short row of steps rather
+    // than as three slab-sized buttons. At 12+ they are narrower than the cap,
+    // so the long case is unchanged.
     <div className="flex items-stretch gap-[6px] h-10 px-1.5" aria-hidden="true">
       {states.map((st, i) => {
         const label = labels?.[i];
-        const base = 'group/seg relative flex-1 min-w-0 rounded-[6px] transition-colors';
+        const base = 'group/seg relative flex-1 min-w-0 max-w-[52px] rounded-[6px] transition-colors';
         const tip = label ? (
           <span
             className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-ui-md px-2.5 py-1.5 text-[11.5px] font-semibold shadow-ui-md group-hover/seg:block"

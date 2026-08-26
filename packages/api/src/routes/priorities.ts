@@ -1,221 +1,74 @@
 import { Hono } from "hono";
-import { eq, desc, and, accounts, balanceSnapshots, financialProfiles, goals, goalAccounts } from "@lasagna/core";
+import { eq, financialProfiles } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { readMonthlySpend } from "../lib/monthly-spend.js";
-import { buildGoalAccountMap, resolveGoalAmount } from "../lib/goal-progress.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { z } from "zod";
-import { type UserFinancialContext, type ContextDebtAccount } from '../lib/layer-selector.js';
-import {
-  UNIVERSAL_LAYERS,
-  assessLayer,
-  classifyDebtBucket,
-  DEBT_BUCKETS,
-  DEBT_BAND_BY_BUCKET,
-  type DebtBucket,
-} from '../lib/universal-layers.js';
-import { resolveDebtAccounts } from '../lib/debt-accounts.js';
-import { readHouseholdProfile, readUserPersonalProfile, resolveProfile } from "../lib/profile-resolver.js";
+import { readFinancialPath, currentStepKey, pathSummary } from "./financial-path.js";
 
-const VALID_LAYER_IDS = new Set(UNIVERSAL_LAYERS.map(l => l.id));
-
+/**
+ * The older shape of the same path.
+ *
+ * Home and the dashboard still read this, so it stays until they move to
+ * /financial-path. It runs off the same context, candidates and sizing, so the
+ * two responses can never describe different steps.
+ */
 export const priorityRoutes = new Hono<AuthEnv>();
 
-// GET / - Calculate personalized financial priorities
+/** Situation steps keep their original ids, so skip/complete bookkeeping survives. */
+const SITUATION_STEP_IDS = new Set([
+  'stabilize',
+  'employer-match',
+  'emergency-fund',
+  'insurance-will',
+  'savings-rate',
+  'retirement-readiness',
+  'tax-advantaged',
+  'max-contributions',
+  'taxable-brokerage',
+  'financial-independence',
+  'estate-legacy',
+]);
+
+const INSTANCE_STEP_ID = /^(debt|goal):[0-9a-f-]{36}$/i;
+
+function isPathStepId(id: string): boolean {
+  return SITUATION_STEP_IDS.has(id) || INSTANCE_STEP_ID.test(id);
+}
+
 priorityRoutes.get("/", async (c) => {
   const session = c.get("session");
-
-  const [accts, debtAccounts, household, personal, activeGoals, goalLinks] = await Promise.all([
-    (async () => {
-      const allAccounts = await db.query.accounts.findMany({
-        where: eq(accounts.tenantId, session.tenantId),
-      });
-      return Promise.all(
-        allAccounts.map(async (acct) => {
-          const latest = await db.query.balanceSnapshots.findFirst({
-            where: eq(balanceSnapshots.accountId, acct.id),
-            orderBy: [desc(balanceSnapshots.snapshotAt)],
-          });
-          const rawBalance = parseFloat(latest?.balance ?? "0");
-          return { ...acct, balance: acct.invertBalance ? -rawBalance : rawBalance };
-        })
-      );
-    })(),
-    // Per-account debts with their real APR resolved from liability metadata —
-    // the same resolver /accounts/debts uses, so the ladder and the debt page
-    // can never disagree about an account's rate.
-    resolveDebtAccounts(session.tenantId),
-    // Household row (also carries the priorities bookkeeping) + THIS user's
-    // personal profile → merged for the per-user "you vs partner" priorities.
-    readHouseholdProfile(session.tenantId),
-    readUserPersonalProfile(session.tenantId, session.userId),
-    db.query.goals.findMany({
-      where: and(
-        eq(goals.tenantId, session.tenantId),
-        eq(goals.status, 'active'),
-      ),
-    }),
-    db.query.goalAccounts.findMany({
-      where: eq(goalAccounts.tenantId, session.tenantId),
-    }),
-  ]);
-
-  // Merged personal + household fields (session user). Bookkeeping arrays stay
-  // on the raw `household` row below.
-  const resolved = resolveProfile(household ?? null, personal ?? null);
-
-  const goalAccountMap = buildGoalAccountMap(goalLinks);
-  const goalBalanceById = new Map(accts.map((a) => [a.id, a.balance]));
-
-  // ── Build UserFinancialContext from DB data ─────────────────────────────
-
-  const annualIncome = resolved.annualIncome ?? 0;
-  const monthlyIncome = annualIncome / 12;
-  const employerMatchPct = resolved.employerMatchPercent ?? 0;
-  const age = resolved.age;
-  const filingStatus = (resolved.filingStatus ?? null) as UserFinancialContext['filingStatus'];
-  const retirementAge = resolved.retirementAge ?? 65;
-
-  let cashTotal = 0, hsaBalance = 0, rothIraBalance = 0, trad401kBalance = 0, brokerageBalance = 0;
-  let hasOverdraft = false, hasESPP = false, hasPension = false, has457b = false, has403b = false, hasInheritedIRA = false;
-
-  for (const acct of accts) {
-    if (acct.excludeFromNetWorth) continue;
-    const sub = (acct.subtype || acct.name || "").toLowerCase();
-
-    if (acct.type === "depository") {
-      cashTotal += acct.balance;
-    } else if (acct.type === "investment") {
-      if (sub.includes("hsa") || sub.includes("health savings")) hsaBalance += acct.balance;
-      else if (sub.includes("roth") && sub.includes("ira")) rothIraBalance += acct.balance;
-      else if (sub.includes("401") || sub.includes("403b") || sub.includes("457")) trad401kBalance += acct.balance;
-      else brokerageBalance += acct.balance;
-      if (sub.includes("457")) has457b = true;
-      if (sub.includes("403")) has403b = true;
-    }
-  }
-
-  // Debt totals, bucketed from the resolved per-account APRs. One pass fills
-  // both the totals the layers assess and the account list each layer names,
-  // so a balance can't be counted in one band and listed under another.
-  const debtTotals = Object.fromEntries(DEBT_BUCKETS.map((b) => [b, 0])) as Record<DebtBucket, number>;
-  const ctxDebtAccounts: ContextDebtAccount[] = debtAccounts.map((d) => {
-    const bucket = classifyDebtBucket(d);
-    debtTotals[bucket] += d.balance;
-    return {
-      id: d.id,
-      name: d.name,
-      mask: d.mask,
-      balance: d.balance,
-      apr: d.apr,
-      band: DEBT_BAND_BY_BUCKET[bucket],
-    };
-  });
-
-  // Monthly spend — the shared definition, so the ladder and an emergency-fund
-  // goal can never quote two different averages for the same spending.
-  const { monthlyExpenses, stableMonthlyExpenses } = await readMonthlySpend(session.tenantId);
-  const hasTransactionData = monthlyExpenses !== null;
-  const savingsRate = monthlyExpenses !== null && monthlyIncome > 0
-    ? Math.round(((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100)
-    : null;
-
-  const ctx: UserFinancialContext = {
-    age,
-    annualIncome,
-    filingStatus,
-    employmentType: resolved.employmentType ?? 'w2',
-    employerMatchPct,
-    stateOfResidence: resolved.stateOfResidence ?? null,
-    retirementAge,
-    riskTolerance: resolved.riskTolerance ?? null,
-    hasHDHP: resolved.hasHDHP ?? false,
-    dependentCount: resolved.dependentCount ?? 0,
-    isPSLFEligible: resolved.isPSLFEligible ?? false,
-    goals: activeGoals.map(g => ({
-      id: g.id,
-      name: g.name,
-      category: g.category,
-      targetAmount: parseFloat(g.targetAmount ?? "0"),
-      currentAmount: resolveGoalAmount(
-        g.currentAmount ?? "0",
-        goalAccountMap.get(g.id),
-        goalBalanceById,
-      ).amount,
-      deadline: g.deadline ? new Date(g.deadline) : null,
-    })),
-    skippedLayerIds: household?.skippedPrioritySteps ?? [],
-    cashTotal, hsaBalance, rothIraBalance, trad401kBalance, brokerageBalance,
-    ...debtTotals,
-    debtAccounts: ctxDebtAccounts,
-    hasOverdraft, hasESPP, hasPension, has457b, has403b, hasInheritedIRA,
-    monthlyExpenses,
-    stableMonthlyExpenses,
-    savingsRate,
-  };
-
-  // ── Assess all 12 universal layers ──────────────────────────────────────
-
-  const skippedSet = new Set(household?.skippedPrioritySteps ?? []);
-
-  // Build completion map from jsonb
-  const completionEntries: Array<{id: string; note: string; completedAt: string}> =
-    (household?.completedPrioritySteps as any) ?? [];
-  const manuallyCompletedSet = new Set(completionEntries.map(e => e.id));
-  const completionNoteMap = Object.fromEntries(completionEntries.map(e => [e.id, e.note]));
-
-  const steps = UNIVERSAL_LAYERS.map((layer) => {
-    const skipped = skippedSet.has(layer.id);
-    const assessment = assessLayer(layer.id, ctx);
-
-    let { status, progress, current, target, action } = assessment;
-
-    // Manual completion override
-    if (manuallyCompletedSet.has(layer.id)) {
-      status = 'complete';
-      progress = 100;
-      action = completionNoteMap[layer.id] ? `Note: ${completionNoteMap[layer.id]}` : 'Marked complete.';
-    }
-
-    return {
-      id: layer.id,
-      order: layer.order,
-      title: layer.name,
-      subtitle: layer.subtitle,
-      description: layer.description,
-      icon: layer.icon,
-      status,
-      current,
-      target,
-      progress,
-      action,
-      accounts: assessment.accounts,
-      detail: layer.subtitle,
-      priority: layer.order <= 3 ? 'critical' as const : layer.order <= 7 ? 'high' as const : 'medium' as const,
-      skipped,
-      note: completionNoteMap[layer.id] ?? '',
-    };
-  });
-
-  const currentStepId =
-    steps.find(s => s.status !== 'complete' && !s.skipped)?.id ??
-    steps[steps.length - 1]?.id;
+  const { ctx, steps, readiness } = await readFinancialPath(session.tenantId, session.userId);
 
   return c.json({
-    steps,
-    currentStepId,
-    summary: {
-      monthlyIncome: Math.round(monthlyIncome),
-      monthlyExpenses: hasTransactionData ? Math.round(monthlyExpenses!) : null,
-      monthlySurplus: hasTransactionData ? Math.round(monthlyIncome - monthlyExpenses!) : null,
-      totalCash: Math.round(cashTotal),
-      totalInvested: Math.round(rothIraBalance + trad401kBalance + brokerageBalance),
-      totalHighInterestDebt: Math.round(debtTotals.creditCardDebt + debtTotals.paydayLoanDebt + debtTotals.personalLoanHighDebt + debtTotals.autoLoanHighDebt),
-      totalMediumInterestDebt: Math.round(debtTotals.mediumInterestDebt + debtTotals.autoLoanMedDebt + debtTotals.personalLoanMedDebt),
-      age,
-      retirementAge,
-      filingStatus,
-    },
+    steps: steps.map((step, index) => ({
+      id: step.key,
+      order: index + 1,
+      kind: step.kind,
+      title: step.title,
+      subtitle: step.subtitle,
+      description: step.description,
+      icon: step.icon,
+      status: step.status,
+      current: step.current,
+      target: step.target,
+      progress: step.progress,
+      action: step.action,
+      accounts: step.debt
+        ? [{
+            id: step.debt.accountId,
+            name: step.debt.name,
+            mask: step.debt.mask,
+            balance: step.debt.balance,
+            apr: step.debt.apr,
+          }]
+        : undefined,
+      detail: step.subtitle,
+      priority: index < 3 ? 'critical' as const : index < 7 ? 'high' as const : 'medium' as const,
+      skipped: step.skipped,
+      note: step.note,
+    })),
+    currentStepId: currentStepKey(steps),
+    summary: pathSummary(ctx, steps, readiness),
   });
 });
 
@@ -234,7 +87,7 @@ priorityRoutes.patch("/skip", async (c) => {
   }
   const { stepId, skipped } = parsed.data;
 
-  if (!VALID_LAYER_IDS.has(stepId)) {
+  if (!isPathStepId(stepId)) {
     return c.json({ error: 'Invalid step ID' }, 400);
   }
 
@@ -276,7 +129,7 @@ priorityRoutes.patch("/complete", async (c) => {
     note: z.string().optional().default(''),
   }).parse(body);
 
-  if (!VALID_LAYER_IDS.has(stepId)) {
+  if (!isPathStepId(stepId)) {
     return c.json({ error: 'Invalid step ID' }, 400);
   }
 
@@ -284,7 +137,6 @@ priorityRoutes.patch("/complete", async (c) => {
     where: eq(financialProfiles.tenantId, session.tenantId),
   });
 
-  // completedPrioritySteps is now Array<{id, note, completedAt}>
   const current: Array<{id: string; note: string; completedAt: string}> =
     (existing?.completedPrioritySteps as any) ?? [];
 

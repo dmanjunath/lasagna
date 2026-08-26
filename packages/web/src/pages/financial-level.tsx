@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
-  TrendingUp, CreditCard, Rocket,
+  TrendingUp, CreditCard, Rocket, Target, Home,
   AlertCircle, Check, ChevronRight, Sparkles, ArrowRight, Info,
-  PiggyBank, Landmark, Layers,
+  PiggyBank, Landmark, Layers, Wallet, Percent, LineChart,
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { api } from '../lib/api';
@@ -16,10 +16,13 @@ import { type LevelState, levelStateOf, SegmentedRail, LegendSwatch } from '../c
 
 // ── constants ────────────────────────────────────────────────────────────────
 
+// `target` is the same mark the Goals nav uses, so a goal reads as a goal
+// wherever it appears. `home` keeps a mortgage from wearing the estate icon.
 const iconMap: Record<string, LucideIcon> = {
   shield: Shield, gift: Gift, flame: Flame, 'heart-pulse': HeartPulse,
   sprout: Sprout, 'trending-up': TrendingUp, 'credit-card': CreditCard, rocket: Rocket,
   'alert-circle': AlertCircle, 'piggy-bank': PiggyBank, landmark: Landmark, layers: Layers,
+  target: Target, home: Home, wallet: Wallet, percent: Percent, 'line-chart': LineChart,
 };
 
 // LevelState + the rail visuals live in components/common/level-rail so the home
@@ -32,28 +35,47 @@ interface LevelDebtAccount {
   balance: number; apr: number | null;
 }
 
-interface PriorityStep {
-  id: string; order: number; title: string; subtitle: string;
+interface PathStep {
+  id: string; order: number; kind: string; title: string; subtitle: string;
   description: string;
-  icon: string; status: string; current: number | null;
+  /** Why this step is on this person's path. */
+  why: string;
+  icon: string; mandatory: boolean; status: string; current: number | null;
   target: number | null; progress: number;
-  action: string; detail: string; priority: string;
+  monthlyFunding: number;
+  projectedDate: string | null;
+  action: string;
+  /** What is true of this step in any state. Never an instruction. */
+  fact: string;
+  /** Anything the figures would otherwise imply but not state. */
+  notes: string[];
   skipped: boolean;
   note: string;
-  /** The accounts behind this level's balance. Debt levels only. */
+  /** The one account a debt step acts on. */
   accounts?: LevelDebtAccount[];
+  goal?: { id: string; name: string; targetAmount: number; currentAmount: number; deadline: string | null };
 }
 
-interface PrioritySummary {
+interface PathSummary {
   monthlyIncome: number; monthlyExpenses: number | null;
   monthlySurplus: number | null; totalCash: number;
-  totalInvested: number; totalHighInterestDebt: number;
-  totalMediumInterestDebt: number; age: number | null;
-  retirementAge: number; filingStatus: string | null;
+  totalInvested: number; totalDebt: number; stepCount: number;
+  age: number | null;
+  retirementAge: number;
+  /** False when the age above is our default rather than their own figure. */
+  retirementAgeSet: boolean;
+  filingStatus: string | null;
+  /** Null when the simulation could not be run on what this person has given us. */
+  retirement: {
+    successRate: number;
+    targetSuccess: number;
+    verdict: 'on_track' | 'needs_attention' | 'at_risk';
+    retirementAge: number;
+  } | null;
 }
 
-interface PriorityData {
-  steps: PriorityStep[]; currentStepId: string; summary: PrioritySummary;
+interface PathData {
+  steps: PathStep[]; currentStepId: string; summary: PathSummary;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -65,7 +87,7 @@ function fmt(value: number) {
   }).format(value);
 }
 
-function isAutoTracked(step: PriorityStep): boolean {
+function isAutoTracked(step: PathStep): boolean {
   return step.target !== null;
 }
 
@@ -101,39 +123,61 @@ function StatePill({ state, className = '' }: { state: LevelState; className?: s
   return <span className={`${base} bg-canvas-sunken text-content-muted`}>Ahead</span>;
 }
 
-// ── WhyThisOrderPopover — Bright panel ───────────────────────────────────────
+// ── WhyThisPathPopover — Bright panel ────────────────────────────────────────
 
-function WhyThisOrderPopover() {
+function WhyThisPathPopover({ steps, surplus }: { steps: PathStep[]; surplus: number | null }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+  const debtCount = steps.filter(s => s.kind === 'debt').length;
+  const goalCount = steps.filter(s => s.kind === 'goal').length;
+
+  // Reads as a sentence about THIS path: what is in it, and why in this order.
+  const madeOf = [
+    debtCount > 0 ? `${debtCount} ${debtCount === 1 ? 'debt account' : 'debt accounts'}` : null,
+    goalCount > 0 ? `${goalCount} ${goalCount === 1 ? 'goal' : 'goals'}` : null,
+  ].filter(Boolean) as string[];
 
   return (
     <div className="relative inline-block">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-ui-md text-[12.5px] font-bold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors"
+        aria-expanded={open}
+        className="ui-focus inline-flex items-center gap-1.5 h-9 px-3 rounded-ui-md text-[12.5px] font-bold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors"
       >
         <Info className="h-[15px] w-[15px]" />
-        Why this order?
+        Why these steps?
       </button>
       {open && (
         <>
           <div onClick={() => setOpen(false)} className="fixed inset-0 z-[49]" />
-          <div className="absolute top-full right-0 mt-2 z-[50] w-[min(360px,calc(100vw-36px))] rounded-ui-xl border border-line bg-panel-raised shadow-ui-lg p-5">
-            <h3 className="text-[15px] font-semibold text-content">Why this order</h3>
-            <p className="mt-2.5 mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
-              It's a priority order, not a rigid ladder. Chase a lower-priority move first and you can undo
-              your own progress: investing while 22% APR credit cards compound against you, or saving while
-              overdraft fees eat your checking account.
+          <div
+            role="dialog"
+            aria-label="Why these steps"
+            className="absolute top-full right-0 mt-2 z-[50] w-[min(360px,calc(100vw-36px))] rounded-ui-xl border border-line bg-panel-raised shadow-ui-lg p-5"
+          >
+            <p className="mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
+              These {steps.length} steps are built from your own accounts, goals and profile.
+              {madeOf.length > 0 && <> One step each for {madeOf.join(' and ')}, named individually.</>}
+              {' '}Anything that does not apply to you is left out rather than shown greyed.
             </p>
             <p className="mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
               The order follows one rule: <strong className="font-bold text-content">do the thing with the
-              highest guaranteed return first.</strong> Employer match (100% instant return) beats emergency
-              fund beats investing. Paying off 22% debt is a guaranteed 22% return. No stock market year
-              consistently beats that.
+              highest guaranteed return first.</strong>
+              {debtCount > 0 && <> Clearing a balance returns its own rate with no uncertainty, so each debt
+              account is placed by that rate rather than by a band.</>}
             </p>
             <p className="text-[13.5px] leading-relaxed text-content-secondary">
-              The priorities are the same for everyone. What changes is where you start and how fast you move.
+              {surplus !== null && surplus > 0 ? (
+                <>Your {fmt(surplus)} a month goes to the step you are on, then moves down as each finishes.</>
+              ) : (
+                <>Add income or link a spending account and each step gets a monthly figure and a date.</>
+              )}
             </p>
           </div>
         </>
@@ -142,10 +186,47 @@ function WhyThisOrderPopover() {
   );
 }
 
+// ── RetirementVerdict — on track, or not, and the way to the run behind it ──
+//
+// Same pill idiom as StatePill above, in the caution tokens the rest of the app
+// warns with. It is a link because a verdict invites the obvious next question,
+// and /retirement is where the simulation that produced it lives.
+//
+// The success rate itself is deliberately not here: a bare percentage next to a
+// retirement age reads as a second age, and the number means nothing without the
+// threshold beside it. It is stated where it is explained, on the readiness step
+// and on the page this links to.
+//
+// Hover is an inset ring rather than a tint change, because both fills are
+// already tinted and going lighter on hover reads as going away. It matches the
+// ring StatePill puts on the current step.
+
+function RetirementVerdict({ retirement }: { retirement: NonNullable<PathSummary['retirement']> }) {
+  const onTrack = retirement.verdict === 'on_track';
+  return (
+    <Link
+      href="/retirement"
+      className={`ui-focus touch-target group inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 rounded-full text-[12.5px] font-bold transition-shadow ${
+        onTrack
+          ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:shadow-[inset_0_0_0_1.5px_var(--ui-brand-ring)]'
+          : 'bg-caution-soft text-caution hover:shadow-[inset_0_0_0_1.5px_rgb(var(--ui-caution)/0.45)]'
+      }`}
+    >
+      {onTrack
+        ? <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={3} />
+        : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
+      {onTrack
+        ? `On track to retire at ${retirement.retirementAge}`
+        : `Not on track to retire at ${retirement.retirementAge}`}
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-60 transition-transform group-hover:translate-x-0.5" aria-hidden />
+    </Link>
+  );
+}
+
 // ── LevelRow — a compact, tappable index row ─────────────────────────────────
 
 function LevelRow({ step, state, isSelected, onSelect }: {
-  step: PriorityStep;
+  step: PathStep;
   state: LevelState;
   isSelected: boolean;
   onSelect: () => void;
@@ -181,9 +262,8 @@ function LevelRow({ step, state, isSelected, onSelect }: {
       <button
         type="button"
         onClick={onSelect}
-        className={`flex items-center gap-3.5 w-full text-left min-h-touch py-3.5 px-3.5 transition-colors group ${
-          isCurrent ? 'rounded-ui-md' : ''
-        }`}
+        aria-expanded={isSelected}
+        className={`ui-focus flex items-center gap-3.5 w-full text-left min-h-touch py-3.5 px-3.5 rounded-ui-md transition-colors group`}
         style={isCurrent ? { background: 'var(--ui-brand-soft)' } : undefined}
       >
         <span
@@ -195,7 +275,7 @@ function LevelRow({ step, state, isSelected, onSelect }: {
 
         <span className="flex-1 min-w-0 flex flex-col gap-1.5">
           <span className="text-[12px] font-semibold text-content-muted">
-            Level {step.order}
+            Step {step.order}
           </span>
           <span
             className={`font-editorial text-[15.5px] font-bold leading-[1.2] tracking-[-0.012em] line-clamp-2 transition-colors group-hover:text-brand ${
@@ -247,7 +327,7 @@ function aprLabel(apr: number | null): string {
   return `${Math.round(apr * 100) / 100}% APR`;
 }
 
-function DebtAccountRow({ account, showBalance }: { account: LevelDebtAccount; showBalance: boolean }) {
+function DebtAccountRow({ account }: { account: LevelDebtAccount }) {
   const name = stripAccountMask(account.name, account.mask);
   const rate = aprLabel(account.apr);
 
@@ -287,94 +367,71 @@ function DebtAccountRow({ account, showBalance }: { account: LevelDebtAccount; s
           >
             {name}
           </span>
-          <span className="mt-0.5 flex items-center gap-2 text-[12.5px] text-content-muted ui-tnum">
-            <span className={account.apr == null ? 'text-[rgb(var(--ui-brand-ink))]' : undefined}>{rate}</span>
-            {account.mask && (
-              <span aria-label={`account ending ${account.mask}`}>••{account.mask}</span>
-            )}
-          </span>
+          {/* The card above already states the balance and the rate, so the
+              second line appears only when there is something new to say: the
+              prompt to add the rate this account is missing. */}
+          {account.apr == null && (
+            <span className="mt-0.5 block text-[12.5px] font-semibold text-[rgb(var(--ui-brand-ink))]">
+              {rate}
+            </span>
+          )}
         </span>
 
-        {showBalance && (
-          <span className="text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
-            {fmt(Math.abs(account.balance))}
-          </span>
-        )}
         <ChevronRight size={16} className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" aria-hidden />
       </span>
     </Link>
   );
 }
 
-// ── DebtAccountList — the accounts behind a debt level's total ───────────────
+// ── DebtAccountLink — the one account a debt step acts on ───────────────────
 //
-// No heading: the card is already titled "High-rate debt" and subtitled
-// "Eliminate all debt above 15% APR", so a label here would say nothing new.
-// The preview cap matters because the desktop panel is `sticky top-6` — a full
-// list pushes the action buttons past the bottom of the viewport.
+// No heading and no balance: the card above is titled with the account and has
+// just stated what it owes. What the row adds is the account's rate (or the
+// prompt to add one) and the way through to the account itself, which is where
+// both are editable.
 
-const ACCOUNT_PREVIEW = 4;
-
-function DebtAccountList({ step, totalStated }: { step: PriorityStep; totalStated: boolean }) {
-  const [showAll, setShowAll] = useState(false);
-  // A $0 balance is not something to pay off — rendering it is noise. Filter on
-  // the value the row prints, not the raw one: a 40-cent balance renders as
-  // `$0` too, and hiding one $0 row while showing another reads as a bug.
-  const accounts = (step.accounts ?? []).filter((a) => Math.round(Math.abs(a.balance)) > 0);
-  if (accounts.length === 0) return null;
-
-  // One account IS the level's balance, and the action line above has just
-  // stated that figure. Name the account and give it its rate, but don't print
-  // the same dollar amount again 60px below itself.
-  const showBalance = !(totalStated && accounts.length === 1);
-
-  // Server order is the payoff ranking (see debtAccountsInBand) — never
-  // re-sort here.
-  const visible = showAll ? accounts : accounts.slice(0, ACCOUNT_PREVIEW);
-  const hasToggle = accounts.length > ACCOUNT_PREVIEW;
-  // Naming the level keeps the id unique: on mobile the outgoing level's list
-  // animates out while the incoming one animates in, so two are briefly in the
-  // DOM together.
-  const listId = `debt-accounts-${step.id}`;
+function DebtAccountLink({ step }: { step: PathStep }) {
+  // A $0 balance is not something to pay off — rendering it is noise. Test the
+  // value a row would print: a 40-cent balance renders as `$0` too.
+  const account = (step.accounts ?? []).find((a) => Math.round(Math.abs(a.balance)) > 0);
+  if (!account) return null;
 
   return (
-    // role="group" so the label is actually announced: aria-label is ignored on
-    // a bare div.
-    // -mb-4 cancels most of the action row's own mt-5 below, so the list sits
-    // 16px inside its rule at both ends instead of 16 top / 32 bottom. The
-    // toggle's own padding is 6px where a row's is 12px, hence the extra pb.
-    <div
-      className={`mt-5 -mb-4 border-t border-line pt-1 ${hasToggle ? 'pb-1.5' : ''}`}
-      role="group"
-      aria-label={`Accounts in ${step.title}`}
-    >
-      <div id={listId}>
-        {visible.map((a) => <DebtAccountRow key={a.id} account={a} showBalance={showBalance} />)}
-      </div>
-      {hasToggle && (
-        <button
-          type="button"
-          onClick={() => setShowAll((v) => !v)}
-          aria-expanded={showAll}
-          aria-controls={listId}
-          className="touch-target ui-focus -ml-1 mt-1 inline-flex items-center justify-center gap-1.5 rounded-ui-md px-1 py-1.5 sm:-ml-2 sm:px-2 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer"
-        >
-          {showAll ? 'Show fewer' : `Show ${accounts.length - ACCOUNT_PREVIEW} more`}
-          <ChevronRight
-            size={14}
-            aria-hidden
-            className={`transition-transform ${showAll ? '-rotate-90' : 'rotate-90'}`}
-          />
-        </button>
-      )}
+    // -mb-4 cancels most of the action row's own mt-5 below, so the row sits
+    // 16px inside its rule at both ends instead of 16 top / 32 bottom.
+    <div className="mt-5 -mb-4 border-t border-line pt-1">
+      <DebtAccountRow account={account} />
     </div>
   );
 }
 
-// ── FocusArticle — the selected level, as a Bright action card ───────────────
+// ── GoalLink — the goal a goal step acts on ─────────────────────────────────
+//
+// Same idiom as the account row above, and the same reason: the step is about
+// one object, so the card ends with the way through to it.
+
+function GoalLink({ goal }: { goal: NonNullable<PathStep['goal']> }) {
+  return (
+    <div className="mt-5 -mb-4 border-t border-line pt-1">
+      <Link
+        href={`/plans/savings/${goal.id}`}
+        className="ui-focus group block rounded-ui-sm -mx-1 px-1 transition-colors hover:bg-brand-softer sm:-mx-2 sm:px-2"
+      >
+        <span className="flex items-center gap-3 py-3">
+          <span className="min-w-0 flex-1 truncate text-[14.5px] font-bold leading-tight">
+            {goal.name}
+          </span>
+          <ChevronRight size={16} className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" aria-hidden />
+        </span>
+      </Link>
+    </div>
+  );
+}
+
+// ── FocusArticle — the selected step, as a Bright action card ────────────────
 
 function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk, onComplete, onUndoComplete }: {
-  step: PriorityStep;
+  step: PathStep;
   state: LevelState;
   skipped: boolean;
   hideHeader?: boolean;
@@ -394,6 +451,10 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
   let progressDetail = '';
   if (step.target !== null && step.current !== null) {
     if (step.target === 0) progressDetail = 'Goal: $0';
+    // A savings rate is a flow, not a balance. "saved of target" would read the
+    // month's surplus as a pot of money that has been put aside.
+    else if (step.kind === 'savings-rate' || step.kind === 'retirement-readiness')
+      progressDetail = `${fmt(step.current)} of ${fmt(step.target)} a month`;
     else progressDetail = `${fmt(step.current)} saved of ${fmt(step.target)} target`;
   }
   const hasProgress = !isComplete && fill > 0;
@@ -418,7 +479,7 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
             <Icon className="h-5 w-5" />
           </span>
           <span className="text-[13px] font-semibold text-content-muted">
-            Level {step.order}
+            Step {step.order}
           </span>
           <span className="ml-auto"><StatePill state={state} /></span>
         </div>
@@ -427,8 +488,11 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
       <h3 className="font-editorial text-[20px] sm:text-[22px] font-bold leading-[1.18] tracking-[-0.02em] text-content">
         {step.title}
       </h3>
-      {step.subtitle && (
-        <p className="mt-2 text-[14.5px] leading-[1.5] text-content-secondary max-w-[58ch]">{step.subtitle}</p>
+      {/* `why` is this person's own reason, in their own figures, so it leads.
+          The generic argument follows it. The short `subtitle` form is what the
+          home summary shows and would only repeat `why` here. */}
+      {step.why && (
+        <p className="mt-2 text-[14.5px] leading-[1.5] font-semibold text-content max-w-[58ch]">{step.why}</p>
       )}
       {step.description && (
         <p className="mt-2.5 text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]">{step.description}</p>
@@ -454,7 +518,7 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
         </div>
       )}
 
-      {/* "Next step" is only real for the level you're on — future levels would
+      {/* "Next step" is only real for the step you're on — steps ahead would
           just show generic filler, so hide it for them. */}
       {state === 'current' && step.action && (
         <div className="mt-5 rounded-ui-lg border border-line bg-canvas-sunken/50 p-3.5">
@@ -463,16 +527,42 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
         </div>
       )}
 
-      {/* The "Next step" box above states this level's total whenever it is
-          rendered, which decides whether a lone account repeats it. */}
-      <DebtAccountList step={step} totalStated={state === 'current' && !!step.action} />
+      {/* Off the current step there is no "Next step" box, so the figure the
+          note qualifies had nowhere to appear: step 12 read "The $840 minimum is
+          our estimate" with no $840 anywhere on the card. A step you are not on
+          still states the fact, it just does not issue the order. */}
+      {state !== 'current' && step.fact && (
+        <p className="mt-5 text-[14px] leading-[1.5] font-semibold text-content">{step.fact}</p>
+      )}
 
-      {isComplete && step.note && (
+      {/* Anything the figures above would otherwise be read as, but aren't — an
+          estimated minimum payment is not the lender's own number. This sits
+          OUTSIDE the "Next step" box on purpose: it used to be inside, so the
+          disclosure appeared only while you happened to be standing on the step,
+          and the same estimated figure went unqualified everywhere else. */}
+      {step.notes.length > 0 && (
+        <div className="mt-4">
+          {step.notes.map((n) => (
+            <p key={n} className="text-[12.5px] leading-[1.45] text-content-muted">{n}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Not gated on the step being complete: when the figures take the
+          decision back off a tick, the note the user typed is exactly what
+          explains the step's history, and hiding it there loses their words in
+          the one case worth keeping them for. */}
+      {step.note && (
         <div className="mt-5">
-          <div className="text-[13px] font-semibold text-content-muted mb-1">Your note</div>
+          <div className="text-[13px] font-semibold text-content-muted mb-1">
+            {isComplete ? 'Your note' : 'Your note from when you marked this done'}
+          </div>
           <p className="text-[14px] italic text-content-secondary">"{step.note}"</p>
         </div>
       )}
+
+      <DebtAccountLink step={step} />
+      {step.goal && <GoalLink goal={step.goal} />}
 
       <div className="flex items-center gap-2 mt-5 pt-4 flex-wrap border-t border-line">
         <Button size="sm" onClick={onAsk} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
@@ -487,7 +577,7 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
           <button
             type="button"
             onClick={() => onUndoComplete(step.id)}
-            className="touch-target h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+            className="ui-focus touch-target h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
           >
             Undo
           </button>
@@ -496,7 +586,7 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
           <button
             type="button"
             onClick={onSkip}
-            className="touch-target h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
+            className="ui-focus touch-target h-9 px-3 rounded-ui-md text-[13px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
           >
             {skipped ? 'Unskip' : 'Skip this step'}
           </button>
@@ -558,7 +648,7 @@ function StatTile({ label, value, sub, tone }: {
 // ── Financial Level ──────────────────────────────────────────────────────────
 
 export function FinancialLevel() {
-  const [data, setData] = useState<PriorityData | null>(null);
+  const [data, setData] = useState<PathData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [skippedStepIds, setSkippedStepIds] = useState<Set<string>>(new Set());
@@ -613,7 +703,7 @@ export function FinancialLevel() {
   const handleCompleteStep = async (stepId: string, note: string = '') => {
     try {
       await api.completePriorityStep(stepId, true, note);
-      const d = await api.getPriorities();
+      const d = await api.getFinancialPath();
       setData(d);
     } catch (err) {
       toast({ tone: 'negative', title: err instanceof Error && err.message ? err.message : "Couldn't update this step. Try again." });
@@ -623,7 +713,7 @@ export function FinancialLevel() {
   const handleUndoComplete = async (stepId: string) => {
     try {
       await api.completePriorityStep(stepId, false, '');
-      const d = await api.getPriorities();
+      const d = await api.getFinancialPath();
       setData(d);
     } catch (err) {
       toast({ tone: 'negative', title: err instanceof Error && err.message ? err.message : "Couldn't update this step. Try again." });
@@ -631,7 +721,7 @@ export function FinancialLevel() {
   };
 
   useEffect(() => {
-    api.getPriorities()
+    api.getFinancialPath()
       .then(d => {
         setData(d);
         setSelectedStepId(d.currentStepId);
@@ -677,7 +767,7 @@ export function FinancialLevel() {
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       <EmptyState
         icon={<AlertCircle className="h-7 w-7" />}
-        title="Couldn't load your levels"
+        title="Couldn't load your path"
         description={error}
       />
     </div>
@@ -698,7 +788,7 @@ export function FinancialLevel() {
         className="mt-8"
         icon={<Rocket className="h-8 w-8" />}
         title="Let's build your plan"
-        description="Add your income and accounts to see your personalized priority levels."
+        description="Add your income and accounts and we'll build the steps that apply to you."
         action={
           <div className="flex flex-wrap justify-center gap-2.5">
             <a href="/onboarding" className="inline-flex items-center justify-center h-11 px-5 rounded-ui-md bg-brand-soft text-[rgb(var(--ui-brand-ink))] text-sm font-bold hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]">Get started →</a>
@@ -721,7 +811,7 @@ export function FinancialLevel() {
 
   // Shared between the inline accordion (mobile/tablet) and the sticky side
   // panel (desktop) so the detail markup stays in one place.
-  const renderFocus = (step: PriorityStep, inline = false) => (
+  const renderFocus = (step: PathStep, inline = false) => (
     <FocusArticle
       step={step}
       state={levelStateOf(step, currentStepId, skippedStepIds)}
@@ -731,7 +821,7 @@ export function FinancialLevel() {
       onComplete={handleCompleteStep}
       onUndoComplete={handleUndoComplete}
       onAsk={() => openChat(
-        `Help me with this financial step:\n\nTitle: ${step.title}\nDescription: ${step.description || step.subtitle}\n\nWhat exactly should I do, and why does it matter for my finances?`
+        `Help me with this step on my financial path:\n\nTitle: ${step.title}\nWhy it's on my path: ${step.why}\nDescription: ${step.description || step.subtitle}\n\nWhat exactly should I do, and why does it matter for my finances?`
       )}
     />
   );
@@ -763,7 +853,7 @@ export function FinancialLevel() {
           {/* lead */}
           <div className="min-w-0">
             <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              {allComplete ? 'All levels complete' : 'Current level'}
+              {allComplete ? 'Every step done' : 'Current step'}
             </div>
             <div className="mt-2 flex items-baseline gap-2.5">
               <span className="font-editorial text-[58px] sm:text-[68px] font-extrabold leading-[0.85] tracking-[-0.03em] text-[rgb(var(--ui-brand-ink))] ui-tnum">
@@ -771,14 +861,25 @@ export function FinancialLevel() {
               </span>
               <span className="font-editorial text-[18px] font-bold text-content-muted ui-tnum">of {steps.length}</span>
             </div>
-            <p className="mt-3 text-[14.5px] font-medium leading-[1.5] text-content-secondary max-w-[40ch]">
-              {allComplete ? (
-                <>You've worked through every layer of the stack.</>
-              ) : (
-                <>Working on <strong className="font-bold text-content">{currentStep.title}</strong></>
-              )}
-              {summary.retirementAge ? <span className="text-content-muted"> (FI target age {summary.retirementAge})</span> : null}
-            </p>
+            {/* When every step is done the panel below says so and offers the
+                next move, so this line would only repeat it. The kicker above
+                already says this is the current step, so the name stands on its
+                own rather than being read into a sentence an imperative title
+                cannot finish. */}
+            {!allComplete && (
+              <>
+                <p className="mt-3 text-[14.5px] font-bold leading-[1.5] text-content max-w-[40ch]">
+                  {currentStep.title}
+                </p>
+                {/* Only when there is no verdict to show instead. A profile
+                    echo does not earn the footer band the verdict gets. */}
+                {!summary.retirement && summary.retirementAgeSet && (
+                  <p className="mt-1 text-[13px] font-medium text-content-muted">
+                    FI target age {summary.retirementAge}
+                  </p>
+                )}
+              </>
+            )}
 
             {/* overall progress through the stack */}
             <div className="mt-5 max-w-[420px]">
@@ -794,14 +895,15 @@ export function FinancialLevel() {
               </div>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-[12.5px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum">
-                  {completeCount} {completeCount === 1 ? 'level' : 'levels'} cleared
+                  {completeCount} {completeCount === 1 ? 'step' : 'steps'} cleared
                 </span>
                 <span className="text-[12px] font-semibold text-content-muted ui-tnum">{clearedPct}%</span>
               </div>
             </div>
+
           </div>
 
-          {/* progress rail — one segment per level, colored by state */}
+          {/* progress rail — one segment per step, colored by state */}
           <div className="min-w-0 w-full">
             <SegmentedRail states={states} />
             <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
@@ -830,6 +932,22 @@ export function FinancialLevel() {
             </div>
           </div>
         </div>
+
+        {/* The verdict the retirement simulation reached, which the target age
+            alone never told anyone. It links through to the page that shows the
+            run behind it. Absent entirely when we cannot compute one, and the
+            target age stands in as before, as a quiet line in the column above.
+
+            It closes the panel rather than sitting under the step name, because
+            a rounded pill directly under a title on this page means that step's
+            status, and amber there read as a warning about the employer-match
+            step. Below both columns it is last on mobile too, so it never
+            splits the two progress readouts. */}
+        {summary.retirement && (
+          <div className="relative mt-6 pt-5 border-t border-line">
+            <RetirementVerdict retirement={summary.retirement} />
+          </div>
+        )}
       </section>
 
       {/* ════════ Stat tiles ════════ */}
@@ -857,11 +975,11 @@ export function FinancialLevel() {
         <div className="mt-10">
           <EmptyState
             icon={<Rocket className="h-8 w-8" />}
-            title="All levels complete"
-            description="You've worked through every layer of the financial level stack. Time to fine-tune your plan. Ask Lasagna what's next."
+            title="Every step done"
+            description="You've worked through every step on your path. Time to fine-tune your plan. Ask Lasagna what's next."
             action={
               <Button
-                onClick={() => openChat("I've completed all 12 financial levels. What should I focus on next?")}
+                onClick={() => openChat(`I've finished all ${steps.length} steps on my financial path. What should I focus on next?`)}
                 trailingIcon={<ArrowRight className="h-4 w-4" />}
               >
                 Ask what's next
@@ -873,12 +991,14 @@ export function FinancialLevel() {
         <>
           {/* section header */}
           <div className="mt-10 flex items-center gap-3 flex-wrap">
-            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">The {steps.length} levels</h2>
-            <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
-            <WhyThisOrderPopover />
+            <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">
+              Your {steps.length} {steps.length === 1 ? 'step' : 'steps'}
+            </h2>
+            <span className="flex-1 h-px bg-line min-w-[12px]" aria-hidden />
+            <WhyThisPathPopover steps={steps} surplus={summary.monthlySurplus} />
           </div>
           <p className="mt-2 text-[13.5px] font-medium text-content-muted">
-            Ordered by impact: earlier levels usually pay off most, but you can work them in any order.
+            Earlier steps usually pay off most, but you can work them in any order.
           </p>
 
           <div className="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6 items-start">

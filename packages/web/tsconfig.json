@@ -4,7 +4,8 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@lasagna/core/goal-target": ["../core/src/goal-target.ts"]
+      "@lasagna/core/goal-target": ["../core/src/goal-target.ts"],
+      "@lasagna/core/retirement-verdict": ["../core/src/retirement-verdict.ts"]
     },
     "outDir": "dist",
     "rootDir": "..",

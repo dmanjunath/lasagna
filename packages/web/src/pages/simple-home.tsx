@@ -42,6 +42,7 @@ interface BillCard {
 interface LevelStep {
   id: string;
   order: number;
+  kind: string;
   title: string;
   subtitle: string;
   description: string;
@@ -210,6 +211,7 @@ export function SimpleHome() {
           setCurrentStep({
             id: found.id,
             order: found.order,
+            kind: found.kind,
             title: found.title,
             subtitle: found.subtitle,
             description: found.description,
@@ -915,9 +917,12 @@ function LevelSection({
   const isComplete = step.status === 'complete';
   const pct = Math.max(0, Math.min(100, Math.round(step.progress || 0)));
   const detail =
-    step.current != null && step.target != null && step.target > 0
-      ? `${formatMoneyShort(step.current)} saved of ${formatMoneyShort(step.target)} target`
-      : null;
+    step.current == null || step.target == null || !(step.target > 0)
+      ? null
+      // A savings rate is a flow, not a balance — see financial-level.tsx.
+      : step.kind === 'savings-rate'
+        ? `${formatMoneyShort(step.current)} of ${formatMoneyShort(step.target)} a month`
+        : `${formatMoneyShort(step.current)} saved of ${formatMoneyShort(step.target)} target`;
 
   return shell(
     <>
@@ -932,13 +937,14 @@ function LevelSection({
             </span>
             <span className="font-editorial text-[16px] font-bold text-content-muted ui-tnum">of {total}</span>
           </div>
-          <p className="mt-2.5 text-[14px] font-medium leading-[1.5] text-content-secondary max-w-[42ch]">
-            {allComplete ? (
-              <>Every layer of the stack is cleared.</>
-            ) : (
-              <>Working on <strong className="font-bold text-content">{step.title}</strong></>
-            )}
-          </p>
+          {/* Only the all-done line lives here. The step's own card below
+              already names the step, and repeating the title verbatim two
+              lines above it said the same thing twice. */}
+          {allComplete && (
+            <p className="mt-2.5 text-[14px] font-medium leading-[1.5] text-content-secondary max-w-[42ch]">
+              Every layer of the stack is cleared.
+            </p>
+          )}
         </div>
 
         {steps.length > 0 && (

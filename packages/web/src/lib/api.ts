@@ -965,12 +965,81 @@ export const api = {
   deleteGoal: (id: string) =>
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'DELETE' }),
 
+  // The user's own financial path — the steps that apply to them, sized.
+  getFinancialPath: () =>
+    request<{
+      steps: Array<{
+        id: string;
+        order: number;
+        kind: string;
+        title: string;
+        subtitle: string;
+        description: string;
+        /** Why this step is on this person's path. */
+        why: string;
+        icon: string;
+        mandatory: boolean;
+        status: string;
+        progress: number;
+        current: number | null;
+        target: number | null;
+        monthlyFunding: number;
+        /** First of the month this step is projected to finish, or null. */
+        projectedDate: string | null;
+        action: string;
+        /** What is true of this step in any state. Never an instruction. */
+        fact: string;
+        /** Anything the figures would otherwise imply but not state. */
+        notes: string[];
+        skipped: boolean;
+        note: string;
+        /** The one account a debt step acts on. */
+        accounts?: Array<{
+          id: string;
+          name: string;
+          mask: string | null;
+          balance: number;
+          apr: number | null;
+        }>;
+        goal?: {
+          id: string;
+          name: string;
+          targetAmount: number;
+          currentAmount: number;
+          deadline: string | null;
+        };
+      }>;
+      currentStepId: string;
+      summary: {
+        monthlyIncome: number;
+        monthlyExpenses: number | null;
+        monthlySurplus: number | null;
+        totalCash: number;
+        totalInvested: number;
+        totalDebt: number;
+        stepCount: number;
+        age: number | null;
+        retirementAge: number;
+        /** False when the age above is our default rather than their own figure. */
+        retirementAgeSet: boolean;
+        filingStatus: string | null;
+        /** The retirement verdict, or null when it could not be computed. */
+        retirement: {
+          successRate: number;
+          targetSuccess: number;
+          verdict: 'on_track' | 'needs_attention' | 'at_risk';
+          retirementAge: number;
+        } | null;
+      };
+    }>('/financial-path'),
+
   // Priorities
   getPriorities: () =>
     request<{
       steps: Array<{
         id: string;
         order: number;
+        kind: string;
         title: string;
         subtitle: string;
         description: string;
@@ -996,15 +1065,20 @@ export const api = {
       currentStepId: string;
       summary: {
         monthlyIncome: number;
-        monthlyExpenses: number;
-        monthlySurplus: number;
+        monthlyExpenses: number | null;
+        monthlySurplus: number | null;
         totalCash: number;
         totalInvested: number;
-        totalHighInterestDebt: number;
-        totalMediumInterestDebt: number;
         age: number | null;
         retirementAge: number;
+        retirementAgeSet: boolean;
         filingStatus: string | null;
+        retirement: {
+          successRate: number;
+          targetSuccess: number;
+          verdict: 'on_track' | 'needs_attention' | 'at_risk';
+          retirementAge: number;
+        } | null;
       };
     }>('/priorities'),
 

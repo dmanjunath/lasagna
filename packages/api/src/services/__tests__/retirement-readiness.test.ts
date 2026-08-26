@@ -19,7 +19,11 @@ vi.mock("../../lib/account-balances.js", () => ({
   fetchAccountsWithBalances: (t: string) => fetchAccountsWithBalances(t),
 }));
 
-import { buildRetirementReadiness } from "../retirement-readiness.js";
+import {
+  buildRetirementReadiness,
+  buildPathReadiness,
+  resetPathReadinessCache,
+} from "../retirement-readiness.js";
 
 const INPUTS: SimInputs = {
   currentAge: 40,
@@ -71,6 +75,7 @@ function resultFor(strategy: SimInputs["strategy"]): SimResult {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPathReadinessCache();
   resolveSimInputs.mockResolvedValue(INPUTS);
   runRetirementSim.mockImplementation((i) => resultFor(i.strategy));
   fetchAccountsWithBalances.mockResolvedValue([]);
@@ -151,5 +156,70 @@ describe("buildRetirementReadiness", () => {
     expect(runRetirementSim).not.toHaveBeenCalled();
     expect(section.growth).toEqual([]);
     expect(section.methods).toEqual([]);
+  });
+});
+
+// ── The path's read of the same verdict ──────────────────────────────────────
+
+describe("buildPathReadiness", () => {
+  it("reaches the same verdict as the plan document, for a fraction of the runs", async () => {
+    const plan = await buildRetirementReadiness("t", "u");
+    runRetirementSim.mockClear();
+
+    const path = await buildPathReadiness("t", "u", 10_000);
+
+    expect(path!.verdict).toBe(plan.verdict);
+    expect(path!.successRate).toBe(plan.successRate);
+    expect(path!.targetSuccess).toBe(plan.targetSuccess);
+    // The plan runs one simulation per withdrawal method. On track, the path
+    // runs exactly one.
+    expect(runRetirementSim).toHaveBeenCalledTimes(1);
+    expect(path!.simRuns).toBe(1);
+  });
+
+  it("returns nothing at all when there is no balance to project", async () => {
+    resolveSimInputs.mockResolvedValue({ ...INPUTS, startingBalance: 0 });
+    expect(await buildPathReadiness("t", "u", 10_000)).toBeNull();
+  });
+
+  it("solves for a contribution only when the verdict is short of target", async () => {
+    // 60% at what they save now, clearing the target at anything more.
+    runRetirementSim.mockImplementation((i) => ({
+      ...resultFor("constant_dollar"),
+      successRate: i.monthlySavings > INPUTS.monthlySavings ? 0.9 : 0.6,
+    }));
+
+    const readiness = await buildPathReadiness("t", "u", 10_000);
+    expect(readiness!.verdict).toBe("at_risk");
+    expect(readiness!.requiredMonthlySavings).toBeGreaterThan(INPUTS.monthlySavings);
+    expect(readiness!.requiredSuccessRate).toBe(90);
+  });
+
+  it("serves a second read from cache without running the simulation again", async () => {
+    await buildPathReadiness("t", "u", 10_000);
+    runRetirementSim.mockClear();
+
+    const cached = await buildPathReadiness("t", "u", 10_000);
+    expect(runRetirementSim).not.toHaveBeenCalled();
+    expect(cached!.simRuns).toBe(0);
+    expect(cached!.verdict).toBe("on_track");
+  });
+
+  it("re-runs the moment the inputs behind it change", async () => {
+    await buildPathReadiness("t", "u", 10_000);
+    resolveSimInputs.mockResolvedValue({ ...INPUTS, startingBalance: 900_000 });
+    runRetirementSim.mockClear();
+
+    const fresh = await buildPathReadiness("t", "u", 10_000);
+    expect(runRetirementSim).toHaveBeenCalledTimes(1);
+    expect(fresh!.simRuns).toBe(1);
+  });
+
+  it("keeps one household's answer out of another's", async () => {
+    await buildPathReadiness("t", "u", 10_000);
+    runRetirementSim.mockClear();
+
+    await buildPathReadiness("t", "other-user", 10_000);
+    expect(runRetirementSim).toHaveBeenCalledTimes(1);
   });
 });

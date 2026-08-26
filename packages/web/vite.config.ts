@@ -15,6 +15,12 @@ export default defineConfig({
       "@lasagna/core/goal-target": fileURLToPath(
         new URL("../core/src/goal-target.ts", import.meta.url),
       ),
+      // Same reason for the retirement verdict: "on track" is defined once, in
+      // core, so the path and the retirement page cannot judge the same success
+      // rate differently.
+      "@lasagna/core/retirement-verdict": fileURLToPath(
+        new URL("../core/src/retirement-verdict.ts", import.meta.url),
+      ),
     },
   },
   server: {

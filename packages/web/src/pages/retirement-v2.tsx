@@ -13,11 +13,11 @@ import {
   computeWithdrawal,
   type WithdrawalStrategy, type StrategyParams,
 } from '../lib/retirement-engine';
-import { sustainableDrawRate, toneForSuccessRate, toneForPassCount, successLabel } from '../lib/retirement-kpi';
+import { sustainableDrawRate } from '../lib/retirement-kpi';
+import { TARGET_SUCCESS, verdictFor, verdictLabel, verdictTone } from '@lasagna/core/retirement-verdict';
 
 // ── Model constants ──────────────────────────────────────────────────────────
 const INFLATION = 0.03;           // matches the engine's hardcoded MC inflation
-const TARGET_SUCCESS = 85;        // "on track" threshold for the verdict display
 const SMILE_DECLINE = 0.99;       // ~1%/yr real spending decline when enabled
 
 // Social Security quick estimate — 2025 bend points + wage cap. A deliberate
@@ -1437,7 +1437,6 @@ export function RetirementV2() {
   const ssAnnual = ssMonthly * 12;
   const otherAnnual = otherMonthly * 12;
   const effRetireAge = Math.max(retireAge, currentAge); // engine guard
-  const horizonEndAge = Math.max(effRetireAge + 30, 90);
 
   // Projected portfolio at retirement on the deterministic expected-return
   // path — gives the guardrails strategy its year-one dollar spend (initial
@@ -1586,8 +1585,6 @@ export function RetirementV2() {
   // p5/p95 hold the 10th/90th cohort percentiles) — same shape as the MC fan.
   const histBands = btResult ? btResult.cohortBands : null;
 
-  const prob = method === 'hist' && histRate !== null ? histRate : bands.mcSuccessRate;
-
   // ── Year-by-year deterministic plan (table + CSV + blended growth mode) ────
   const planRows = useMemo(
     () => simulatePlan({ portfolioValue, currentAge, retireAge: effRetireAge, lifeExp, expReturn, annualSavings, annualSpend, smile, ssAnnual, ssClaimAge, otherAnnual, otherStartAge, strategy, strategyParams }),
@@ -1696,33 +1693,42 @@ export function RetirementV2() {
   };
 
   // ── Verdict framing ────────────────────────────────────────────────────────
-  // Blended return is one deterministic path — no probability. Its verdict is
-  // simply whether the money lasts through the plan-through age.
+  // Which projection the CHART is drawing. It selects the series below and the
+  // copy that describes it. It no longer selects a verdict: there is one of
+  // those, and it is the same whichever projection is on screen.
   const isBlend = method === 'blend';
-  // Loading affordances — method-independent now that both signals feed the
-  // composite hero and KPI row 2. Recomputing = a stale result on screen with a
-  // fresh run in flight; pending = first run hasn't landed yet.
+  // Loading affordances for the hero, which reads the Monte Carlo run alone.
+  // Recomputing = a stale result on screen with a fresh run in flight; pending =
+  // the first run hasn't landed yet.
   const mcRecomputing = mcLoading && mcResult !== null;
   const mcPending = mcResult === null;
-  const histRecomputing = btLoading && btResult !== null;
   const histPending = btResult === null;
-  const detOnTrack = detRanShortAge === null;
-  const verdict = isBlend
-    ? (detOnTrack ? 'On track' : 'At risk')
-    : prob >= TARGET_SUCCESS ? 'On track' : prob >= 70 ? 'Needs attention' : 'At risk';
 
-  // Composite hero verdict — method-independent. Three method signals; a signal
-  // "passes" at >= 90% chance the money lasts. The hero reads all three at once
-  // so switching the projection method (below) doesn't move the headline.
-  const blendPass = detRanShortAge === null;              // deterministic path stays funded
-  const mcPass = bands.mcSuccessRate >= 90;
-  const histPass = histRate !== null && histRate >= 90;
-  const passCount = [mcPass, histPass, blendPass].filter(Boolean).length;
-  const resultsPending = mcResult === null || btResult === null;  // any method still loading
-  const composite = passCount >= 2 ? 'On track' : passCount === 1 ? 'Needs attention' : 'At risk';
-  // Same tone tokens as the composite pass badge (toneForPassCount) so the
-  // verdict word and the badge render one consistent green in the healthy state.
-  const compositeColor = passCount >= 2 ? 'rgb(var(--ui-positive))' : passCount === 1 ? 'rgb(var(--ui-caution))' : 'rgb(var(--ui-negative))';
+  // The hero verdict — ONE rule, the shared one, read off the Monte Carlo chance
+  // the money lasts. It is method-independent, so switching the projection below
+  // does not move the headline.
+  //
+  // This page used to judge the same household three times over: a copy of the
+  // threshold here, a "2 of 3 methods each clear 90%" composite for the hero,
+  // and an 80/60 scale on the badges. They disagreed with each other and with
+  // the financial path, one nav click away: an 80% chance of lasting read
+  // "Needs attention" on the path, "On track" in this headline and "Good" on the
+  // badge directly beneath it. The historical backtest and the deterministic
+  // path are still shown below, as what they are, but they do not get a vote.
+  const outlook = verdictFor(bands.mcSuccessRate);
+  const verdict = verdictLabel(outlook);
+  const resultsPending = mcResult === null;
+  const verdictColor = `rgb(var(--ui-${verdictTone(outlook)}))`;
+
+  // The only forms of the outlook the page prints. A run that has not landed
+  // yet and a run whose request failed are the same thing on screen — both
+  // leave mcResult null — and neither may state a verdict. The pinned bar used
+  // to read the raw values, so the first frame of every visit, and every frame
+  // after a 500, said "At risk" in red beside "Monte Carlo 0%" about a
+  // simulation that had never run.
+  const shownVerdict = resultsPending ? 'Estimating…' : verdict;
+  const shownVerdictColor = resultsPending ? 'rgb(var(--ui-content-muted))' : verdictColor;
+  const shownMcChance = resultsPending ? '…' : `${bands.mcSuccessRate}%`;
 
   // Age-based sustainable draw: rule-of-thumb withdrawal rate × projected
   // retirement balance / 12. Same in all modes (MC, Hist, Blended).
@@ -1735,9 +1741,12 @@ export function RetirementV2() {
   // Ask Lasagna — opens the chat sidebar seeded with this plan's key numbers
   // (same mechanism as the /retirement hero button) so the conversation starts
   // from what the user is looking at.
-  const askLasagnaPrompt = isBlend
-    ? `I want to assess my retirement plan. On one projected path at my ${expReturn.toFixed(1)}% expected return (retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved, spending ${formatMoney(monthlySpendEff, true)}/mo), the dashboard says "${verdict}": ${detOnTrack ? `the money lasts through age ${lifeExp}` : `the money runs out at age ${detRanShortAge}`}. Can you walk me through what's driving that?`
-    : `I want to assess my retirement plan. The dashboard says "${verdict}": a ${prob}% chance my money lasts through age ${method === 'hist' ? lifeExp : horizonEndAge}, retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved and spending ${formatMoney(monthlySpendEff, true)}/mo. Can you walk me through what's driving that?`;
+  // The verdict is the same one the headline shows, so the conversation starts
+  // from the figure the page states rather than from whichever method happens
+  // to be selected.
+  const askLasagnaPrompt = resultsPending
+    ? `I want to assess my retirement plan: retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved, spending ${formatMoney(monthlySpendEff, true)}/mo, planning through age ${lifeExp}. Can you walk me through what my chances look like?`
+    : `I want to assess my retirement plan. The dashboard says "${shownVerdict}": a ${shownMcChance} chance my money lasts through age ${lifeExp}, retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved and spending ${formatMoney(monthlySpendEff, true)}/mo. Can you walk me through what's driving that?`;
 
   // The pencil on the Monthly spending KPI: open the inputs panel (on the "You"
   // tab, where the spending control lives), scroll the spending field to the
@@ -2063,8 +2072,8 @@ export function RetirementV2() {
             </div>
           </div>
           <div ref={heroNumRef} className="flex items-baseline gap-3 flex-wrap">
-            <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: resultsPending ? 'rgb(var(--ui-content-muted))' : compositeColor }}>
-              {resultsPending ? 'Estimating…' : composite}
+            <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: shownVerdictColor }}>
+              {shownVerdict}
             </span>
             {resultsPending ? (
               <Badge tone="neutral" size="md" className="ui-tnum" data-testid="rv2-outlook-badge">
@@ -2075,14 +2084,14 @@ export function RetirementV2() {
               </Badge>
             ) : (
               <Badge
-                tone={toneForPassCount(passCount)}
+                tone={verdictTone(outlook)}
                 size="md"
                 className="ui-tnum transition-opacity"
-                style={{ opacity: (mcRecomputing || histRecomputing) ? 0.55 : 1 }}
+                style={{ opacity: mcRecomputing ? 0.55 : 1 }}
                 data-testid="rv2-outlook-badge"
               >
-                {passCount} of 3 methods on track
-                {(mcRecomputing || histRecomputing) && (
+                {shownMcChance} vs {TARGET_SUCCESS}% target
+                {mcRecomputing && (
                   <span
                     aria-label="recomputing"
                     className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
@@ -2091,13 +2100,13 @@ export function RetirementV2() {
               </Badge>
             )}
           </div>
-          <p className="mt-3 text-[13.5px] leading-[1.55] text-content-secondary max-w-[62ch]" data-testid="rv2-outlook-explain">
-            {passCount >= 2
-              ? 'Two or more of the three methods below clear a 90% chance your money lasts.'
-              : passCount === 1
-                ? 'Only one of the three methods below clears a 90% chance your money lasts. Retiring later or spending less would help.'
-                : 'None of the three methods below clear a 90% chance your money lasts.'}
-          </p>
+          {!resultsPending && (
+            <p className="mt-3 text-[13.5px] leading-[1.55] text-content-secondary max-w-[62ch]" data-testid="rv2-outlook-explain">
+              {outlook === 'on_track'
+                ? `The outlook reads the Monte Carlo run: on track means a chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets, through age ${lifeExp}.`
+                : `The outlook reads the Monte Carlo run: on track means a chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets, through age ${lifeExp}. Retiring later, spending less or saving more each month would close the gap.`}
+            </p>
+          )}
           <div className="mt-4 sm:hidden">
             {renderAskLasagna('rv2-ask-lasagna-mobile')}
           </div>
@@ -2147,18 +2156,11 @@ export function RetirementV2() {
                   Runs 1,000 randomized market scenarios and reports how often your money lasts to age {lifeExp}. It reflects good and bad luck, including a bad run of early returns.
                 </InfoPopover>
               </div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <span className="font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
-                  {mcResult ? `${Math.round(mcResult.successRate * 100)}%` : '…'}
-                </span>
-                {mcResult && (() => {
-                  // Tone from the same rounded integer shown, so the word and
-                  // the number agree at every boundary (a shown 60 reads Okay).
-                  const tone = toneForSuccessRate(Math.round(mcResult.successRate * 100));
-                  return (
-                    <Badge tone={tone} size="sm">{successLabel(tone)}</Badge>
-                  );
-                })()}
+              {/* No badge beside the number: this IS the figure the verdict
+                  above was read from, and judging it a second time here is what
+                  let a KPI read "Good" under a headline that said otherwise. */}
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {mcResult ? `${Math.round(mcResult.successRate * 100)}%` : '…'}
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted">chance your money lasts</div>
             </div>
@@ -2169,15 +2171,8 @@ export function RetirementV2() {
                   Replays every real market start year since 1928 and reports the share of those actual histories your plan would have survived.
                 </InfoPopover>
               </div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <span className="font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
-                  {histRate !== null ? `${histRate}%` : '…'}
-                </span>
-                {histRate !== null && (
-                  <Badge tone={toneForSuccessRate(histRate)} size="sm">
-                    {successLabel(toneForSuccessRate(histRate))}
-                  </Badge>
-                )}
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {histRate !== null ? `${histRate}%` : '…'}
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">{btResult ? `${btResult.startYearCount} start-years since 1928` : ''}</div>
             </div>
@@ -2668,7 +2663,7 @@ export function RetirementV2() {
             tab — the method toggle itself now lives in the hero). */}
         <p className="mt-3 text-[12px] text-content-muted leading-[1.55]">
           Inflation is fixed at 3%/yr in the Monte Carlo and blended-return models (the historical backtest uses actual CPI).
-          The Monte Carlo always runs to age {horizonEndAge}. "Plan through age" (under You) drives the historical backtest, the blended-return path, drawdown view and table.
+          "Plan through age" (under You) sets how far every method runs: the Monte Carlo, the historical backtest, the blended-return path, the drawdown view and the table.
         </p>
       </Section>
 
@@ -2858,11 +2853,11 @@ export function RetirementV2() {
           <div className="ret-pin__tier1">
             <span className="ret-pin__metric">
               <span className="ret-pin__label">Outlook</span>
-              <span className="ret-pin__pct font-editorial" style={{ color: compositeColor }}>{composite}</span>
+              <span className="ret-pin__pct font-editorial" style={{ color: shownVerdictColor }}>{shownVerdict}</span>
             </span>
             <span className="ret-pin__metric">
               <span className="ret-pin__label">Monte Carlo</span>
-              <span className="ret-pin__pct font-editorial ui-tnum">{bands.mcSuccessRate}%</span>
+              <span className="ret-pin__pct font-editorial ui-tnum">{shownMcChance}</span>
             </span>
             <span className="ret-pin__metric">
               <span className="ret-pin__label">Historical</span>

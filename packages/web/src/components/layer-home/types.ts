@@ -24,8 +24,6 @@ export interface PrioritySummary {
   monthlySurplus: number | null;
   totalCash: number;
   totalInvested: number;
-  totalHighInterestDebt: number;
-  totalMediumInterestDebt: number;
   age: number | null;
   retirementAge: number;
   filingStatus: string | null;
