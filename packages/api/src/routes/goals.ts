@@ -1,11 +1,50 @@
 import { Hono } from "hono";
-import { eq, and, sql, inArray, goals, goalAccounts, goalSnapshots, accounts, balanceSnapshots } from "@lasagna/core";
+import {
+  eq, and, sql, inArray, goals, goalAccounts, goalSnapshots, accounts, balanceSnapshots,
+  parseGoalDetails, resolveGoalTarget, resolveGoalDeadline, type GoalDetails,
+} from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { fetchAccountsWithBalances } from "../lib/account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "../lib/goal-progress.js";
+import { readMonthlySpend, STABLE_SPEND_MONTHS } from "../lib/monthly-spend.js";
+import { readUserPersonalProfile } from "../lib/profile-resolver.js";
 import { type AuthEnv } from "../middleware/auth.js";
 
 export const goalRoutes = new Hono<AuthEnv>();
+
+const NO_BIRTH_DATE_ERROR =
+  "Add your date of birth in Settings to set a goal by age, or give the goal a target date";
+
+/** The age a home or car goal pins its date to, if it is dated that way. */
+function byAgeOf(details: GoalDetails | null | undefined): number | null {
+  return details && (details.kind === "home_purchase" || details.kind === "car")
+    ? details.byAge ?? null
+    : null;
+}
+
+/**
+ * The deadline a described goal implies. A goal that describes itself decides
+ * its own date the same way it decides its own target, so the client's deadline
+ * is never consulted — otherwise a goal could be stored "by age 30" and dated
+ * 2099, and the detail page would show both.
+ *
+ * An age only becomes a date with a birth date on file. Without one we refuse
+ * rather than invent a date or keep the client's, which is what the form does
+ * by not offering "By age" until a birth date exists.
+ */
+async function deriveDeadline(
+  tenantId: string,
+  userId: string,
+  details: GoalDetails,
+): Promise<{ ok: true; deadline: Date | null } | { ok: false; error: string }> {
+  const personal = await readUserPersonalProfile(tenantId, userId);
+  const dob = personal?.dateOfBirth ? personal.dateOfBirth.toISOString().slice(0, 10) : null;
+  const resolved = resolveGoalDeadline(details, dob);
+  if (resolved === null && byAgeOf(details) != null) {
+    return { ok: false, error: NO_BIRTH_DATE_ERROR };
+  }
+  return { ok: true, deadline: resolved ? new Date(resolved) : null };
+}
 
 /** Validate that all accountIds belong to the tenant; returns the valid subset. */
 async function validTenantAccountIds(
@@ -77,11 +116,34 @@ goalRoutes.post("/", async (c) => {
 
   const { name, targetAmount, deadline, category, icon, description, accountIds, monthlyContribution } = body;
 
-  if (!name || !targetAmount) {
+  const resolvedCategory = category || "savings";
+  // Details are validated against the goal's own category before anything is
+  // written, so a mismatch is a 400 that leaves the database untouched.
+  const parsedDetails = parseGoalDetails(resolvedCategory, body.details);
+  if (!parsedDetails.ok) {
+    return c.json({ error: parsedDetails.error }, 400);
+  }
+  // When a goal describes itself, its target is computed, never taken on trust
+  // from the client — so every existing reader of targetAmount stays correct.
+  const computed = resolveGoalTarget(resolvedCategory, parsedDetails.details);
+  const effectiveTarget = computed ? computed.target : targetAmount;
+
+  if (!name || !effectiveTarget) {
     return c.json({ error: "name and targetAmount are required" }, 400);
   }
-  if (!(Number(targetAmount) > 0)) {
+  if (!(Number(effectiveTarget) > 0)) {
     return c.json({ error: "targetAmount must be greater than zero" }, 400);
+  }
+
+  // Same for the date: a described goal's deadline comes from the description,
+  // so it can never contradict the age or date stored beside it.
+  let effectiveDeadline = deadline ? new Date(deadline) : undefined;
+  if (parsedDetails.details) {
+    const derived = await deriveDeadline(session.tenantId, session.userId, parsedDetails.details);
+    if (!derived.ok) {
+      return c.json({ error: derived.error }, 400);
+    }
+    effectiveDeadline = derived.deadline ?? undefined;
   }
 
   const [goal] = await db
@@ -90,11 +152,12 @@ goalRoutes.post("/", async (c) => {
       tenantId: session.tenantId,
       name,
       description: description ?? null,
-      targetAmount: String(targetAmount),
+      targetAmount: String(effectiveTarget),
+      details: parsedDetails.details,
       monthlyContribution:
         Number(monthlyContribution) > 0 ? String(monthlyContribution) : undefined,
-      deadline: deadline ? new Date(deadline) : undefined,
-      category: category || "savings",
+      deadline: effectiveDeadline,
+      category: resolvedCategory,
       icon: icon || undefined,
     })
     .returning();
@@ -117,6 +180,18 @@ goalRoutes.post("/", async (c) => {
   }
 
   return c.json({ goal }, 201);
+});
+
+// GET /spend-baseline - The monthly spend an emergency-fund goal is priced from.
+// Reads the one shared definition the priorities ladder uses, so the months the
+// user picks here and the months the ladder shows can never disagree.
+goalRoutes.get("/spend-baseline", async (c) => {
+  const session = c.get("session");
+  const { stableMonthlyExpenses } = await readMonthlySpend(session.tenantId);
+  return c.json({
+    monthlySpend: stableMonthlyExpenses,
+    windowMonths: STABLE_SPEND_MONTHS,
+  });
 });
 
 // GET /:id/history - Goal value over time.
@@ -218,6 +293,35 @@ goalRoutes.patch("/:id", async (c) => {
     return c.json({ error: "Goal not found" }, 404);
   }
 
+  // Details are validated against this goal's category and rejected with a 400
+  // before anything is written.
+  let nextDetails: ReturnType<typeof parseGoalDetails> | null = null;
+  let computed: ReturnType<typeof resolveGoalTarget> = null;
+  // Whether this goal now describes itself, and the date that description
+  // implies. `undefined` while described means "keep the date already stored".
+  let describesItself = false;
+  let derivedDeadline: Date | null | undefined;
+  if (body.details !== undefined) {
+    const parsedDetails = parseGoalDetails(existing.category, body.details);
+    if (!parsedDetails.ok) {
+      return c.json({ error: parsedDetails.error }, 400);
+    }
+    nextDetails = parsedDetails;
+    computed = resolveGoalTarget(existing.category, parsedDetails.details);
+    if (parsedDetails.details) {
+      describesItself = true;
+      const derived = await deriveDeadline(session.tenantId, session.userId, parsedDetails.details);
+      if (derived.ok) {
+        derivedDeadline = derived.deadline;
+      } else if (byAgeOf(parsedDetails.details) !== byAgeOf(existing.details)) {
+        return c.json({ error: derived.error }, 400);
+      }
+      // Otherwise the goal was already saved at this age and the date it was
+      // saved with still describes it, so a birth date removed since must not
+      // make the goal unsaveable. Only a changed age needs one.
+    }
+  }
+
   // Reconcile linked accounts first so we know if the goal is auto-tracked.
   let isAutoTracked: boolean;
   if (Array.isArray(body.accountIds)) {
@@ -235,13 +339,21 @@ goalRoutes.patch("/:id", async (c) => {
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name;
   if (body.description !== undefined) updates.description = body.description;
-  if (body.targetAmount !== undefined) updates.targetAmount = String(body.targetAmount);
+  if (nextDetails?.ok) updates.details = nextDetails.details;
+  // A described goal's target is always recomputed, so it can't drift from the
+  // description that justifies it.
+  if (computed) updates.targetAmount = String(computed.target);
+  else if (body.targetAmount !== undefined) updates.targetAmount = String(body.targetAmount);
   if (body.monthlyContribution !== undefined)
     updates.monthlyContribution =
       Number(body.monthlyContribution) > 0 ? String(body.monthlyContribution) : null;
   if (body.currentAmount !== undefined && !isAutoTracked)
     updates.currentAmount = String(body.currentAmount);
-  if (body.deadline !== undefined) updates.deadline = body.deadline ? new Date(body.deadline) : null;
+  if (describesItself) {
+    if (derivedDeadline !== undefined) updates.deadline = derivedDeadline;
+  } else if (body.deadline !== undefined) {
+    updates.deadline = body.deadline ? new Date(body.deadline) : null;
+  }
   if (body.status !== undefined) {
     updates.status = body.status;
     if (body.status === "completed" && !existing.completedAt) {

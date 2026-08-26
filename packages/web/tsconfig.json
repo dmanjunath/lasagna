@@ -2,8 +2,12 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@lasagna/core/goal-target": ["../core/src/goal-target.ts"]
+    },
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "..",
     "noEmit": true
   },
   "include": ["src"]

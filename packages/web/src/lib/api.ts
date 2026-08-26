@@ -1,5 +1,6 @@
 import type { Plan, PlanType, PlanStatus, PlanEdit, FinancialPlan, FinancialPlanSummary, FinancialPlanDocument, PlanAssumptions, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, TaxInputResult, ExtractionResult } from "./types.js";
 import { isNativeApp, getNativeToken } from "./native.js";
+import type { GoalDetails } from "@lasagna/core/goal-target";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -937,6 +938,7 @@ export const api = {
         monthlyContribution: string | null;
         deadline: string | null;
         category: string;
+        details: GoalDetails | null;
         status: string;
         icon: string | null;
         accountIds: string[];
@@ -946,14 +948,19 @@ export const api = {
       }>;
     }>('/goals'),
 
-  createGoal: (data: { name: string; targetAmount: number; monthlyContribution?: number; deadline?: string; category?: string; icon?: string; description?: string; accountIds?: string[] }) =>
+  createGoal: (data: { name: string; targetAmount: number; monthlyContribution?: number; deadline?: string; category?: string; icon?: string; description?: string; accountIds?: string[]; details?: GoalDetails | null }) =>
     request<{ goal: { id: string } }>('/goals', { method: 'POST', body: JSON.stringify(data) }),
 
-  updateGoal: (id: string, data: { currentAmount?: number; name?: string; description?: string; targetAmount?: number; monthlyContribution?: number | null; deadline?: string; status?: string; accountIds?: string[] }) =>
+  updateGoal: (id: string, data: { currentAmount?: number; name?: string; description?: string; targetAmount?: number; monthlyContribution?: number | null; deadline?: string | null; status?: string; accountIds?: string[]; details?: GoalDetails | null }) =>
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   getGoalHistory: (id: string) =>
     request<{ history: Array<{ date: string; value: number }> }>(`/goals/${id}/history`),
+
+  // The monthly spend an emergency-fund goal is priced from — the server's one
+  // definition, so the form and the priorities ladder quote the same figure.
+  getGoalSpendBaseline: () =>
+    request<{ monthlySpend: number | null; windowMonths: number }>('/goals/spend-baseline'),
 
   deleteGoal: (id: string) =>
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'DELETE' }),

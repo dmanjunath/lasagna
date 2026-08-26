@@ -2800,10 +2800,13 @@
   color: var(--lf-muted);
   transition: all 0.15s;
 }
-.goals-preset:hover { color: var(--lf-ink); }
+.goals-preset:hover { background: rgb(var(--ui-canvas-sunken)); }
+/* The kind chips are the form's first control — they decide which fields the
+   rest of it shows — so they take the design system's focus ring, not a faint
+   hairline. Matches .ui-focus in theme.css. */
 .goals-preset:focus-visible {
-  outline: 2px solid var(--lf-rule);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--ui-canvas)), 0 0 0 4px var(--ui-brand-ring);
 }
 @media (max-width: 640px) {
   .goals-preset {
@@ -2819,6 +2822,20 @@
 }
 .animate-p2r-bob {
   animation: p2r-bob 700ms ease-in-out infinite;
+}
+
+/* ── Typed goal form — container-query layout ──
+   Same reason as the home hero below: the sidebar and the page max-width mean
+   a viewport breakpoint says nothing about how wide this form actually is. At
+   a 768px viewport the panel is only ~300px wide, so a viewport `md:` split
+   gave 143px tracks that clipped the goal name. The panel carries .cq-inline
+   and the grid splits off its own width: two tracks only once each one clears
+   ~290px, which is what the widest pair needs ("Down payment | Cash" beside
+   its input). Tuning this to a lone amount field instead left the pair
+   wrapping onto two lines, and the toggle moved when its input hid. */
+.goal-fields-grid { display: grid; }
+@container (min-width: 600px) {
+  .goal-fields-grid { grid-template-columns: 1fr 1fr; }
 }
 
 /* ── Home net-worth hero — container-query layout ──

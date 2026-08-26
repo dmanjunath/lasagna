@@ -3,26 +3,35 @@ import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus, Check, Target, ArrowRight, ChevronRight, Clock, Sparkles, RotateCw, Repeat } from 'lucide-react';
 import { api } from '../lib/api';
+import { cn } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
 import { Badge, Button, EmptyState, Field, Input, Label, Skeleton } from '../components/uikit';
 import { formatCurrency, iconFor, toggleId, AccountPicker, IconKey } from './goal-shared';
+import {
+  isTypedGoalCategory, emptyDraft, resolveDraft, useGoalFormContext,
+  GoalDetailFields, GoalTargetReadout, NoSpendData, CalculateFromDetails, READOUT_ID, TODAY,
+  plainFieldErrors, DECIMAL_2DP,
+  type DetailDraft, type GoalDetails, type TypedGoalCategory,
+} from './goal-details';
 
 // ---------------------------------------------------------------------------
 // Presets
 // ---------------------------------------------------------------------------
 
-const GOAL_PRESETS: Array<{ name: string; category: string; icon: IconKey; suggestedTarget: number }> = [
-  { name: 'Emergency Fund', category: 'emergency_fund', icon: 'shield', suggestedTarget: 25000 },
-  { name: 'Home Purchase', category: 'home_purchase', icon: 'home', suggestedTarget: 80000 },
+// A typed category works its own target out from what the user tells it, so it
+// carries no suggested number — one would only contradict the form.
+const GOAL_PRESETS: Array<{ name: string; category: string; icon: IconKey; suggestedTarget?: number }> = [
+  { name: 'Emergency Fund', category: 'emergency_fund', icon: 'shield' },
+  { name: 'Home Purchase', category: 'home_purchase', icon: 'home' },
   { name: 'Vacation / Travel', category: 'vacation', icon: 'plane', suggestedTarget: 5000 },
-  { name: 'Vehicle Purchase', category: 'car', icon: 'car', suggestedTarget: 30000 },
+  { name: 'Vehicle Purchase', category: 'car', icon: 'car' },
   { name: 'Wedding Fund', category: 'wedding', icon: 'heart', suggestedTarget: 30000 },
-  { name: 'Education / 529', category: 'education', icon: 'graduationCap', suggestedTarget: 50000 },
+  { name: 'Education / 529', category: 'education', icon: 'graduationCap' },
   { name: 'Home Repair', category: 'home_repair', icon: 'wrench', suggestedTarget: 15000 },
   { name: 'Major Purchase', category: 'major_purchase', icon: 'sparkles', suggestedTarget: 10000 },
   { name: 'Life Event', category: 'life_event', icon: 'sparkles', suggestedTarget: 10000 },
-  { name: 'Retirement', category: 'retirement', icon: 'palmtree', suggestedTarget: 1000000 },
+  { name: 'Retirement', category: 'retirement', icon: 'palmtree' },
   { name: 'Debt Payoff', category: 'debt_payoff', icon: 'creditCard', suggestedTarget: 20000 },
   { name: 'General Savings', category: 'savings', icon: 'wallet', suggestedTarget: 10000 },
 ];
@@ -39,6 +48,7 @@ interface Goal {
   monthlyContribution: string | null;
   deadline: string | null;
   category: string;
+  details: GoalDetails | null;
   status: string;
   icon: string | null;
   createdAt: string;
@@ -111,9 +121,73 @@ export function Goals() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [newAccountIds, setNewAccountIds] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  // One draft per typed kind, so switching home -> car -> home brings back what
+  // was typed instead of an empty form.
+  const [detailDrafts, setDetailDrafts] = useState<Partial<Record<TypedGoalCategory, DetailDraft>>>({});
+  // Kinds the user chose to give a plain target to instead (emergency fund with
+  // no spending history to price months against).
+  const [plainTargetKinds, setPlainTargetKinds] = useState<string[]>([]);
   const createPanelRef = useRef<HTMLDivElement>(null);
   const createNameRef = useRef<HTMLInputElement>(null);
   const { openChat } = useChatStore();
+
+  // Birth date + the monthly-spend baseline, fetched only once a form is open.
+  const goalCtx = useGoalFormContext(showCreate);
+
+  // A typed category describes itself, so its target is computed rather than
+  // typed. Falling back to a plain target is the user's own opt-out.
+  const activeKind: TypedGoalCategory | null =
+    isTypedGoalCategory(newCategory) && !plainTargetKinds.includes(newCategory) ? newCategory : null;
+  const draft: DetailDraft | null = activeKind
+    ? detailDrafts[activeKind] ?? emptyDraft(activeKind, goalCtx)
+    : null;
+  const resolved = activeKind && draft ? resolveDraft(activeKind, draft, goalCtx) : null;
+  // The profile lands after the form can already be typed in, so a draft
+  // started before it arrived would keep the defaults it was born with: an
+  // empty retirement age, or Date mode on a goal that should offer Age. Only
+  // fields the user has not filled are brought up to date.
+  useEffect(() => {
+    if (!goalCtx.loaded) return;
+    setDetailDrafts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const key of Object.keys(prev) as TypedGoalCategory[]) {
+        const current = prev[key];
+        if (!current) continue;
+        const seed = emptyDraft(key, goalCtx);
+        const patch: Partial<DetailDraft> = {};
+        if (current.targetAge === '' && seed.targetAge !== '') patch.targetAge = seed.targetAge;
+        if (current.byAge === '' && current.byDate === '' && current.dateMode !== seed.dateMode) {
+          patch.dateMode = seed.dateMode;
+        }
+        if (Object.keys(patch).length > 0) {
+          next[key] = { ...current, ...patch };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [goalCtx.loaded, goalCtx.retirementAge, goalCtx.dateOfBirth, goalCtx.currentAge]);
+
+  const patchDraft = (patch: Partial<DetailDraft>) => {
+    if (!activeKind) return;
+    setDetailDrafts((prev) => ({
+      ...prev,
+      [activeKind]: { ...(prev[activeKind] ?? emptyDraft(activeKind, goalCtx)), ...patch },
+    }));
+  };
+
+  // One completeness rule for the primary button and the Enter key, so Enter
+  // can never create a goal the button would have refused.
+  // The same rule the edit panel uses: these are text inputs, so "." and
+  // "1.2.3" reach the API as null or a number nobody typed.
+  const createErrors = plainFieldErrors({
+    target: newTarget,
+    deadline: newDeadline,
+    monthly: newMonthly,
+  });
+  const canCreate =
+    !!newName && !createErrors.monthly && (resolved ? resolved.details !== null : createErrors.ok);
 
   // The "Suggested" tiles at the page bottom open this panel at the top of the
   // page — without this the click looks dead. Scroll it into view and focus
@@ -148,15 +222,18 @@ export function Goals() {
   }, []);
 
   const handleCreate = async () => {
-    if (!newName || !newTarget) return;
+    if (!canCreate) return;
     setCreating(true);
     setFormError(null);
     try {
       await api.createGoal({
         name: newName,
-        targetAmount: parseFloat(newTarget),
+        // A typed goal's target and date come from the description, computed by
+        // the same function the API stores target_amount with.
+        targetAmount: resolved?.target ?? parseFloat(newTarget),
+        details: resolved?.details ?? undefined,
         monthlyContribution: newMonthly ? parseFloat(newMonthly) : undefined,
-        deadline: newDeadline || undefined,
+        deadline: (resolved ? resolved.deadline : newDeadline) || undefined,
         category: newCategory,
         icon: newIcon,
         accountIds: newAccountIds,
@@ -171,6 +248,8 @@ export function Goals() {
       setNewDeadline('');
       setNewCategory('savings');
       setNewAccountIds([]);
+      setDetailDrafts({});
+      setPlainTargetKinds([]);
     } catch (err) {
       console.error(err);
       setFormError('Could not create goal. Please try again.');
@@ -183,9 +262,11 @@ export function Goals() {
     setNewIcon(preset.icon);
     setNewCategory(preset.category);
     // Presets are a starting point, not a reset — never clobber what the user
-    // already typed.
-    if (!newName.trim()) setNewName(preset.name);
-    if (!newTarget) setNewTarget(String(preset.suggestedTarget));
+    // typed. A name still holding an earlier preset's text was never theirs,
+    // so it follows the kind rather than going stale.
+    const untouched = !newName.trim() || GOAL_PRESETS.some((q) => q.name === newName.trim());
+    if (untouched) setNewName(preset.name);
+    if (!newTarget && preset.suggestedTarget) setNewTarget(String(preset.suggestedTarget));
   };
 
   // "Reallocate surplus" on a funded goal: the money conversation belongs in
@@ -286,73 +367,41 @@ export function Goals() {
           >
             <div
               ref={createPanelRef}
-              className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7"
+              className="cq-inline mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7"
               onKeyDown={(e) => {
                 if (e.key === 'Escape') { setShowCreate(false); return; }
                 const t = e.target as HTMLInputElement;
                 if (e.key === 'Enter' && t.tagName === 'INPUT' && t.type !== 'search') {
                   e.preventDefault();
-                  if (newName && parseFloat(newTarget) > 0 && !creating) handleCreate();
+                  // Same rule as the button: a typed goal's target goes valid
+                  // before its date is set, so Enter must not outrun it.
+                  if (canCreate && !creating) handleCreate();
                 }
               }}
             >
               <h3 className="mb-5 font-editorial text-[20px] font-bold tracking-[-0.018em]">
-                What are you saving for?
+                New goal
               </h3>
 
-              <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                <Field label="Goal name">
-                  <div className="flex gap-2">
-                    <div
-                      aria-label="Icon"
-                      className="grid w-14 shrink-0 place-items-center rounded-ui-md border border-line-strong bg-canvas-sunken text-content-secondary"
-                    >
-                      {iconFor(newIcon, 20)}
-                    </div>
-                    <Input
-                      ref={createNameRef}
-                      type="text"
-                      value={newName}
-                      onChange={e => setNewName(e.target.value)}
-                      placeholder="e.g. Emergency Fund"
-                    />
-                  </div>
-                </Field>
-                <Field label="Target amount">
-                  <Input
-                    type="number"
-                    value={newTarget}
-                    onChange={e => setNewTarget(e.target.value)}
-                    placeholder="25000"
-                    className="ui-tnum"
-                    leadingIcon={<span className="text-[13px]">$</span>}
-                  />
-                </Field>
-                <Field label="Planned monthly contribution (optional)">
-                  <Input
-                    type="number"
-                    value={newMonthly}
-                    onChange={e => setNewMonthly(e.target.value)}
-                    placeholder="500"
-                    className="ui-tnum"
-                    leadingIcon={<span className="text-[13px]">$</span>}
-                  />
-                </Field>
-                <Field label="Target date (optional)">
-                  <Input type="date" value={newDeadline} onChange={e => setNewDeadline(e.target.value)} />
-                </Field>
-              </div>
-
-              {/* Category chips — optional quick-start */}
+              {/* The kind comes first: it decides which fields the rest of the
+                  form shows, so choosing it is the first thing you do. */}
               <div className="mb-5">
-                <Label>Category (optional)</Label>
-                <div className="goals-presets" style={{ marginTop: 8 }}>
+                <Label id="goal-kind-label">What kind of goal is this?</Label>
+                <div
+                  className="goals-presets"
+                  role="radiogroup"
+                  aria-labelledby="goal-kind-label"
+                  style={{ marginTop: 8 }}
+                >
                   {GOAL_PRESETS.map((preset) => {
                     const active = newCategory === preset.category;
                     const color = goalAccent(preset.category);
                     return (
                       <button
                         key={preset.category}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
                         onClick={() => selectPreset(preset)}
                         className="goals-preset"
                         style={{
@@ -369,6 +418,100 @@ export function Goals() {
                 </div>
               </div>
 
+              {/* A typed kind gets a fixed column count. auto-fit picks a track
+                  count from the widest field, and the full-width readout forces
+                  a row break, which together strand a lone field beside a void.
+                  A plain goal keeps the auto-fit grid it has always had. */}
+              <div
+                className={cn('grid gap-4 mb-5', activeKind && 'goal-fields-grid')}
+                style={activeKind ? undefined : { gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor="new-goal-name">Goal name</Label>
+                  <div className="flex gap-2">
+                    <div
+                      aria-label="Icon"
+                      className="grid w-14 shrink-0 place-items-center rounded-ui-md border border-line-strong bg-canvas-sunken text-content-secondary"
+                    >
+                      {iconFor(newIcon, 20)}
+                    </div>
+                    <Input
+                      ref={createNameRef}
+                      id="new-goal-name"
+                      type="text"
+                      value={newName}
+                      onChange={e => setNewName(e.target.value)}
+                      placeholder="e.g. Emergency Fund"
+                    />
+                  </div>
+                </div>
+                {activeKind && draft && resolved && !resolved.spendUnavailable ? (
+                  <GoalDetailFields
+                    kind={activeKind}
+                    draft={draft}
+                    onChange={patchDraft}
+                    resolved={resolved}
+                    ctx={goalCtx}
+                  />
+                ) : activeKind ? null : (
+                  <>
+                    <Field label="Target amount" error={newTarget === '' ? undefined : createErrors.target}>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        invalid={newTarget !== '' && !!createErrors.target}
+                        value={newTarget}
+                        onChange={e => setNewTarget(DECIMAL_2DP(e.target.value))}
+                        placeholder="25000"
+                        className="ui-tnum"
+                        leadingIcon={<span className="text-[13px]">$</span>}
+                      />
+                    </Field>
+                    <Field label="Target date (optional)" error={createErrors.deadline}>
+                      <Input
+                        type="date"
+                        min={TODAY}
+                        invalid={!!createErrors.deadline}
+                        value={newDeadline}
+                        onChange={e => setNewDeadline(e.target.value)}
+                      />
+                    </Field>
+                  </>
+                )}
+                {resolved && (
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    {resolved.spendUnavailable ? (
+                      <NoSpendData onSetPlainTarget={() => setPlainTargetKinds((p) => [...p, newCategory])} />
+                    ) : (
+                      <GoalTargetReadout resolved={resolved} onUseMonthlyPlan={(amt) => setNewMonthly(String(amt))} />
+                    )}
+                  </div>
+                )}
+                <Field label="Planned monthly contribution (optional)" error={createErrors.monthly}>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    invalid={!!createErrors.monthly}
+                    value={newMonthly}
+                    onChange={e => setNewMonthly(DECIMAL_2DP(e.target.value))}
+                    placeholder="500"
+                    className="ui-tnum"
+                    leadingIcon={<span className="text-[13px]">$</span>}
+                  />
+                </Field>
+              </div>
+
+              {/* Dropping to a plain amount is reversible here, the same as it
+                  is on the goal's own page. */}
+              {plainTargetKinds.includes(newCategory) && (
+                <div className="mb-5">
+                  <CalculateFromDetails
+                    category={newCategory}
+                    onStart={() => setPlainTargetKinds((p) => p.filter((k) => k !== newCategory))}
+                  />
+                </div>
+              )}
+
               {/* Accounts — linking ≥1 makes the goal auto-track its balance */}
               {accounts.length > 0 && (
                 <div className="mb-5">
@@ -384,11 +527,13 @@ export function Goals() {
                 </div>
               )}
 
-              {newTarget !== '' && !(parseFloat(newTarget) > 0) && (
-                <p className="mb-3 text-[12px] font-semibold text-negative">Target amount must be greater than zero.</p>
-              )}
               <div className="flex gap-2.5">
-                <Button disabled={!newName || !(parseFloat(newTarget) > 0) || creating} loading={creating} onClick={handleCreate}>
+                <Button
+                  disabled={!canCreate || creating}
+                  loading={creating}
+                  onClick={handleCreate}
+                  aria-describedby={resolved && !resolved.spendUnavailable ? READOUT_ID : undefined}
+                >
                   {creating ? 'Creating…' : 'Create goal'}
                 </Button>
                 <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
@@ -494,7 +639,11 @@ export function Goals() {
                   key={preset.category}
                   type="button"
                   onClick={() => { selectPreset(preset); setShowCreate(true); }}
-                  aria-label={`Add ${preset.name} goal, suggested target ${formatCurrency(preset.suggestedTarget)}`}
+                  aria-label={
+                    preset.suggestedTarget
+                      ? `Add ${preset.name} goal, suggested target ${formatCurrency(preset.suggestedTarget)}`
+                      : `Add ${preset.name} goal`
+                  }
                   className="group flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-3.5 text-left transition-[box-shadow,border-color] hover:shadow-ui-md hover:border-line-strong min-h-touch"
                 >
                   <span
@@ -505,9 +654,11 @@ export function Goals() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-bold text-content">{preset.name}</span>
-                    <span className="text-[11.5px] font-semibold text-content-muted ui-tnum">
-                      suggested {formatCurrency(preset.suggestedTarget)}
-                    </span>
+                    {preset.suggestedTarget && (
+                      <span className="text-[11.5px] font-semibold text-content-muted ui-tnum">
+                        suggested {formatCurrency(preset.suggestedTarget)}
+                      </span>
+                    )}
                   </span>
                   <ArrowRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" />
                 </button>

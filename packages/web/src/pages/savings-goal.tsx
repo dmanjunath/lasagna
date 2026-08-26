@@ -2,9 +2,16 @@ import { useState, useEffect, useCallback, useRef, type ReactElement } from 'rea
 import { useRoute, useLocation } from 'wouter';
 import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { cn } from '../lib/utils';
 import { Badge, Button, EmptyState, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
+import {
+  isTypedGoalCategory, resolveGoalTarget, emptyDraft, draftFromDetails, resolveDraft, useGoalFormContext,
+  GoalDetailFields, GoalTargetReadout, NoSpendData, CalculateFromDetails, READOUT_ID, TODAY,
+  plainFieldErrors, DECIMAL_2DP,
+  type DetailDraft, type GoalDetails,
+} from './goal-details';
 import { hapticSuccess } from '../lib/haptics';
 
 // ---------------------------------------------------------------------------
@@ -19,6 +26,7 @@ interface Goal {
   monthlyContribution: string | null;
   deadline: string | null;
   category: string;
+  details: GoalDetails | null;
   status: string;
   icon: string | null;
   accountIds: string[];
@@ -119,6 +127,10 @@ export function SavingsGoal() {
   const [editCurrent, setEditCurrent] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  // Typed goals describe themselves. A goal saved before that opts in from the
+  // edit form, and until it does it keeps rendering exactly as it always has.
+  const [editUseDetails, setEditUseDetails] = useState(false);
+  const [editDraft, setEditDraft] = useState<DetailDraft | null>(null);
   const editPanelRef = useRef<HTMLDivElement>(null);
   const editNameRef = useRef<HTMLInputElement>(null);
 
@@ -185,6 +197,29 @@ export function SavingsGoal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goal]);
 
+  // Birth date + the monthly-spend baseline, fetched only once the form opens.
+  const goalCtx = useGoalFormContext(editing);
+
+  // Same as the create panel: a draft started before the profile landed must
+  // not keep the defaults it was born with. This has to sit above the early
+  // returns below, or the hook stops running the moment the goal arrives.
+  useEffect(() => {
+    if (!goalCtx.loaded || !goal) return;
+    const kind = isTypedGoalCategory(goal.category) && editUseDetails ? goal.category : null;
+    if (!kind) return;
+    setEditDraft((prev) => {
+      if (!prev) return prev;
+      const seed = goal.details ? draftFromDetails(goal.details, goalCtx) : emptyDraft(kind, goalCtx);
+      const patch: Partial<DetailDraft> = {};
+      if (prev.targetAge === '' && seed.targetAge !== '') patch.targetAge = seed.targetAge;
+      if (prev.byAge === '' && prev.byDate === '' && prev.dateMode !== seed.dateMode) {
+        patch.dateMode = seed.dateMode;
+      }
+      return Object.keys(patch).length > 0 ? { ...prev, ...patch } : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goalCtx.loaded, goalCtx.retirementAge, goalCtx.dateOfBirth, goalCtx.currentAge, goal, editUseDetails]);
+
   if (loading) {
     return (
       <div className="mx-auto max-w-[1040px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -247,6 +282,48 @@ export function SavingsGoal() {
       </div>
     );
   }
+
+  // The goal's own description, when it has one. `details === null` on a typed
+  // category means a goal saved before this existed: it renders exactly as it
+  // always has, with no empty slot and no nag.
+  const savedDerivation = resolveGoalTarget(goal.category, goal.details)?.derivation ?? null;
+
+  const editKind = isTypedGoalCategory(goal.category) && editUseDetails ? goal.category : null;
+  // An age the goal was already saved with stays on offer even with no birth
+  // date on file, so editing the goal cannot be what loses it.
+  const savedByAge =
+    goal.details?.kind === 'home_purchase' || goal.details?.kind === 'car'
+      ? goal.details.byAge != null
+      : goal.details?.kind === 'retirement'
+        ? goal.details.targetAge != null
+        : false;
+  const editDraftValue: DetailDraft | null = editKind
+    ? editDraft ??
+      (goal.details ? draftFromDetails(goal.details, goalCtx) : emptyDraft(editKind, goalCtx))
+    : null;
+  const editResolved =
+    editKind && editDraftValue
+      ? resolveDraft(
+          editKind,
+          editDraftValue,
+          goalCtx,
+          {
+            monthlySpend: goal.details?.kind === 'emergency_fund' ? goal.details.monthlySpendUsed : null,
+            // The resolver speaks YYYY-MM-DD; the API sends a timestamp.
+            deadline: goal.deadline ? goal.deadline.slice(0, 10) : null,
+            age:
+              goal.details?.kind === 'home_purchase' || goal.details?.kind === 'car'
+                ? goal.details.byAge ?? null
+                : goal.details?.kind === 'retirement'
+                  ? goal.details.targetAge ?? null
+                  : null,
+          },
+        )
+      : null;
+  const patchEditDraft = (patch: Partial<DetailDraft>) => {
+    if (!editDraftValue) return;
+    setEditDraft({ ...editDraftValue, ...patch });
+  };
 
   const target = parseFloat(goal.targetAmount);
   const current = parseFloat(goal.currentAmount);
@@ -423,20 +500,46 @@ export function SavingsGoal() {
     setEditMonthly(goal.monthlyContribution ?? '');
     setEditDeadline(goal.deadline ? goal.deadline.slice(0, 10) : '');
     setEditCurrent(goal.currentAmount);
+    setEditUseDetails(goal.details !== null);
+    setEditDraft(null);
     setEditError(null);
     setEditing(true);
   };
 
+  // A hand-entered amount is checked too: this field is text, so "." reaches
+  // the API as null and comes back a 500 with nothing to point at.
+  // Every field on this panel that reaches the API as a number, not just the
+  // target: they are all text inputs, so any of them can hold "." or "1.2.3".
+  const plainErrors = plainFieldErrors({
+    target: editTarget,
+    deadline: editDeadline,
+    current: goal.isAutoTracked ? undefined : editCurrent,
+    monthly: editMonthly,
+  });
+  // A described goal computes its target, but the monthly plan and the current
+  // amount beside it are typed in either way, so they are always checked.
+  const canSaveEdit =
+    !!editName &&
+    !plainErrors.current &&
+    !plainErrors.monthly &&
+    (editKind ? editResolved?.details != null : plainErrors.ok);
+
   const saveEdit = async () => {
-    if (!editName || !editTarget) return;
+    if (!canSaveEdit) return;
     setSavingEdit(true);
     setEditError(null);
     try {
       const payload: Parameters<typeof api.updateGoal>[1] = {
         name: editName,
-        targetAmount: parseFloat(editTarget),
+        // A described goal's target and date come from the description.
+        targetAmount: editResolved?.target ?? parseFloat(editTarget),
+        // Going back to a plain amount clears the description, so a goal can
+        // never keep a derivation that contradicts its target.
+        details: editResolved ? editResolved.details : goal.details ? null : undefined,
         monthlyContribution: editMonthly === '' ? null : parseFloat(editMonthly),
-        deadline: editDeadline || undefined,
+        // `undefined` would drop the key and leave the old date in place, so
+        // clearing the field would look like it worked and change nothing.
+        deadline: (editResolved ? editResolved.deadline : editDeadline) || null,
       };
       if (!goal.isAutoTracked) payload.currentAmount = parseFloat(editCurrent);
       await api.updateGoal(goal.id, payload);
@@ -617,6 +720,10 @@ export function SavingsGoal() {
                 <span><span className="font-bold text-content">{formatCurrency(remaining)}</span> left to reach your target</span>
               )}
             </div>
+
+            {savedDerivation && (
+              <p className="mt-1.5 text-[12.5px] text-content-muted">{savedDerivation}</p>
+            )}
           </div>
 
           {/* right — satellite stat tiles; content-sized, centered against the
@@ -642,7 +749,7 @@ export function SavingsGoal() {
                 caption={deadlineCountdown ?? undefined}
                 icon={<Clock className="h-3.5 w-3.5" />}
               />
-            ) : (
+            ) : goal.details ? null : (
               <AddTargetTile onClick={openEdit} />
             )}
             <StatTile
@@ -775,8 +882,13 @@ export function SavingsGoal() {
       {editing && (
         <section ref={editPanelRef} className="mt-8">
           <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Edit goal</h2>
-          <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+          <div className="cq-inline mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
+            {/* Same as the create panel: a described goal gets a fixed column
+                count so the full-width readout cannot strand a lone field. */}
+            <div
+              className={cn('grid gap-4', editKind && 'goal-fields-grid')}
+              style={editKind ? undefined : { gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}
+            >
               <Field label="Goal name">
                 <Input
                   ref={editNameRef}
@@ -785,44 +897,109 @@ export function SavingsGoal() {
                   onChange={(e) => setEditName(e.target.value)}
                 />
               </Field>
-              <Field label="Target amount">
-                <Input
-                  type="number"
-                  value={editTarget}
-                  onChange={(e) => setEditTarget(e.target.value)}
-                  className="ui-tnum"
-                  leadingIcon={<span className="text-[13px]">$</span>}
+              {editKind && editDraftValue && editResolved && !editResolved.spendUnavailable ? (
+                <GoalDetailFields
+                  kind={editKind}
+                  draft={editDraftValue}
+                  onChange={patchEditDraft}
+                  resolved={editResolved}
+                  ctx={goalCtx}
+                  savedByAge={savedByAge}
                 />
-              </Field>
-              <Field label="Planned monthly contribution (optional)">
+              ) : editKind ? null : (
+                <>
+                  <Field label="Target amount" error={plainErrors.target}>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      invalid={!!plainErrors.target}
+                      value={editTarget}
+                      onChange={(e) => setEditTarget(DECIMAL_2DP(e.target.value))}
+                      className="ui-tnum"
+                      leadingIcon={<span className="text-[13px]">$</span>}
+                    />
+                  </Field>
+                  <Field label="Target date" error={plainErrors.deadline}>
+                    <Input
+                      type="date"
+                      min={TODAY}
+                      invalid={!!plainErrors.deadline}
+                      value={editDeadline}
+                      onChange={(e) => setEditDeadline(e.target.value)}
+                    />
+                  </Field>
+                </>
+              )}
+              {editResolved && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  {editResolved.spendUnavailable ? (
+                    <NoSpendData onSetPlainTarget={() => setEditUseDetails(false)} />
+                  ) : (
+                    <GoalTargetReadout
+                      resolved={editResolved}
+                      saved={current}
+                      onUseMonthlyPlan={(amt) => setEditMonthly(String(amt))}
+                    />
+                  )}
+                </div>
+              )}
+              <Field label="Planned monthly contribution (optional)" error={plainErrors.monthly}>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
+                  invalid={!!plainErrors.monthly}
                   value={editMonthly}
-                  onChange={(e) => setEditMonthly(e.target.value)}
+                  onChange={(e) => setEditMonthly(DECIMAL_2DP(e.target.value))}
                   placeholder="500"
                   className="ui-tnum"
                   leadingIcon={<span className="text-[13px]">$</span>}
                 />
               </Field>
-              <Field label="Target date">
-                <Input
-                  type="date"
-                  value={editDeadline}
-                  onChange={(e) => setEditDeadline(e.target.value)}
-                />
-              </Field>
               {!goal.isAutoTracked && (
-                <Field label="Current amount">
+                <Field label="Current amount" error={plainErrors.current}>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
+                    invalid={!!plainErrors.current}
                     value={editCurrent}
-                    onChange={(e) => setEditCurrent(e.target.value)}
+                    onChange={(e) => setEditCurrent(DECIMAL_2DP(e.target.value))}
                     className="ui-tnum"
                     leadingIcon={<span className="text-[13px]">$</span>}
                   />
                 </Field>
               )}
             </div>
+
+            {/* Goals saved before their category could describe itself keep the
+                plain amount, and take the fields only if asked. It goes both
+                ways: a described goal can drop back to a plain amount too, and
+                saving clears the description with it. */}
+            {isTypedGoalCategory(goal.category) && !editResolved?.spendUnavailable && (
+              <div className="mt-4">
+                {editKind ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      // Carry over what the readout is showing. Landing on the
+                      // number the goal was saved with would silently undo the
+                      // edit the user just made.
+                      if (editResolved?.target != null) {
+                        setEditTarget(String(editResolved.target));
+                        // Including when there is none: keeping the old date
+                        // would restore the contradiction the readout dropped.
+                        setEditDeadline(editResolved.deadline ?? '');
+                      }
+                      setEditUseDetails(false);
+                    }}
+                  >
+                    Use a target amount instead
+                  </Button>
+                ) : (
+                  <CalculateFromDetails category={goal.category} onStart={() => setEditUseDetails(true)} />
+                )}
+              </div>
+            )}
             {goal.isAutoTracked && (
               <p className="mt-3.5 text-[12px] text-content-muted">
                 This goal auto-tracks from its linked accounts, so the current amount can't be edited here.
@@ -833,8 +1010,9 @@ export function SavingsGoal() {
                 variant="primary"
                 size="sm"
                 loading={savingEdit}
-                disabled={!editName || !editTarget || savingEdit}
+                disabled={!canSaveEdit || savingEdit}
                 onClick={saveEdit}
+                aria-describedby={editResolved && !editResolved.spendUnavailable ? READOUT_ID : undefined}
               >
                 {savingEdit ? 'Saving…' : 'Save changes'}
               </Button>

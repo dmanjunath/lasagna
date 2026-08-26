@@ -1,3 +1,4 @@
+import { RETIREMENT_INCOME_MULTIPLE } from '@lasagna/core';
 import { type UserFinancialContext, type DebtBand } from './layer-selector.js';
 
 // ── UniversalLayer ─────────────────────────────────────────────────────────────
@@ -531,7 +532,7 @@ export function assessLayer(layerId: string, ctx: UserFinancialContext): LayerAs
           : ctx.annualIncome > 0
           ? ctx.annualIncome * 0.7
           : 0;
-      const fiNumber = annualExpenses * 25;
+      const fiNumber = annualExpenses * RETIREMENT_INCOME_MULTIPLE;
       const totalInvested =
         ctx.rothIraBalance + ctx.trad401kBalance + ctx.brokerageBalance + ctx.hsaBalance;
 

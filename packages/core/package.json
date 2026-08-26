@@ -30,7 +30,8 @@
   "dependencies": {
     "drizzle-orm": "^0.45.1",
     "minimist": "^1.2.8",
-    "postgres": "^3.4.8"
+    "postgres": "^3.4.8",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/minimist": "^1.2.5",

@@ -15,6 +15,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { GoalDetails } from "./goal-target.js";
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 
@@ -741,8 +742,14 @@ export const goals = pgTable("goals", {
   monthlyContribution: numeric("monthly_contribution", { precision: 19, scale: 2 }),
   deadline: timestamp("deadline", { withTimezone: true }),
   category: varchar("category", { length: 50 }).notNull().default("savings"),
+  // What the user is actually saving for, for the categories that can be
+  // described (a house at a price, N months of expenses). `target_amount` is
+  // always written from this via resolveGoalTarget, so every reader of
+  // target_amount keeps working without knowing details exist. Null for goals
+  // that carry a plain hand-entered target.
+  details: jsonb("details").$type<GoalDetails>(),
   status: goalStatusEnum("goal_status").notNull().default("active"),
-  icon: varchar("icon", { length: 10 }),
+  icon: varchar("icon", { length: 32 }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })

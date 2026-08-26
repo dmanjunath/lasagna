@@ -8,5 +8,6 @@ export type { SQL } from "drizzle-orm";
 export { PgDialect } from "drizzle-orm/pg-core";
 export * from "./liability-metadata.js";
 export * from "./property-metadata.js";
+export * from "./goal-target.js";
 export * from "./billing.js";
 export * from "./taxonomy.js";
