@@ -13,6 +13,7 @@
 # Config comes from the environment (lasagna-infra/ios/signing.env locally, or
 # GitHub secrets in CI) — this repo is public and carries no real values:
 #   OTA_BUCKET, VITE_API_URL, VITE_OTA_MANIFEST_URL, OTA_MIN_NATIVE_VERSION
+#   VITE_UMAMI_WEBSITE_ID (optional; blank publishes a bundle with no analytics)
 # Usage: pnpm -F @lasagna/web ota:publish [<sha>]     (defaults to HEAD)
 set -euo pipefail
 
@@ -26,6 +27,11 @@ fi
 : "${OTA_BUCKET:?OTA_BUCKET not set}"
 : "${VITE_API_URL:?VITE_API_URL not set}"
 : "${VITE_OTA_MANIFEST_URL:?VITE_OTA_MANIFEST_URL not set}"
+# Blank is a valid configuration, not an error: the bundle then loads no
+# analytics at all, which is what a self-hosted publish gets. Warned about
+# below rather than enforced, so a variable someone forgot to set shows up in
+# the log instead of quietly shipping a bundle that counts nothing.
+UMAMI_ID="${VITE_UMAMI_WEBSITE_ID:-}"
 MIN_NATIVE="${OTA_MIN_NATIVE_VERSION:-1.0}"
 FORCE="${OTA_FORCE:-0}"
 
@@ -95,11 +101,15 @@ MARKETING_VERSION=$(sed -n 's/.*MARKETING_VERSION = \([0-9.]*\);.*/\1/p' \
 VERSION="${MARKETING_VERSION:-1.0}.$(date +%s)"
 
 echo "==> Building $VERSION from $SHA against $VITE_API_URL"
+if [[ -z "$UMAMI_ID" ]]; then
+  echo "    VITE_UMAMI_WEBSITE_ID is blank, so this bundle counts no page views"
+fi
 (
   cd "$WEB_DIR"
   VITE_API_URL="$VITE_API_URL" \
   VITE_OTA_MANIFEST_URL="$VITE_OTA_MANIFEST_URL" \
   VITE_OTA_BUNDLE_VERSION="$VERSION" \
+  VITE_UMAMI_WEBSITE_ID="$UMAMI_ID" \
   pnpm build
 )
 
