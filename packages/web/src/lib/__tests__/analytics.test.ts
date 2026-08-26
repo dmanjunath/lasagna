@@ -99,4 +99,28 @@ describe("beforeSend", () => {
       referrer: "",
     });
   });
+
+  it("leaves the hostname alone on the web", () => {
+    expect(
+      beforeSend("event", { url: "/money", hostname: "app.lasagnafi.com" }),
+    ).toEqual({ url: "/money", hostname: "app.lasagnafi.com" });
+  });
+
+  // In the native shell umami reads location.hostname as "localhost", which
+  // would land every in-app view on top of local development traffic.
+  it("relabels the capacitor hostname inside the native shell", () => {
+    expect(
+      beforeSend("event", { url: "/money", hostname: "localhost" }, "ios.lasagnafi.com"),
+    ).toEqual({ url: "/money", hostname: "ios.lasagnafi.com" });
+  });
+
+  it("still scrubs ids inside the native shell", () => {
+    const sent = beforeSend(
+      "event",
+      { url: `/accounts/${UUID_HEX}`, hostname: "localhost" },
+      "ios.lasagnafi.com",
+    );
+    expect(sent).toEqual({ url: "/accounts/:id", hostname: "ios.lasagnafi.com" });
+    expect(JSON.stringify(sent)).not.toContain(UUID_HEX);
+  });
 });

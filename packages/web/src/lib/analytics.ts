@@ -25,7 +25,11 @@
  * California, so `optedOut()` gates the tag itself: under either signal no
  * script is loaded and no request is made.
  *
- * Never loaded inside the native shell — tracking has no business in the app.
+ * The native iOS shell serves the page from capacitor://localhost, so umami
+ * reads `location.hostname` as `localhost` and would file every in-app view
+ * alongside local development traffic, with no way to tell them apart.
+ * `beforeSend` rewrites the hostname to NATIVE_HOSTNAME so iOS is its own line
+ * in the dashboard.
  */
 import { isNativeApp } from './native';
 
@@ -37,6 +41,9 @@ const WEBSITE_ID: string = import.meta.env.VITE_UMAMI_WEBSITE_ID || '';
  * so a dotted path would silently never be found.
  */
 const BEFORE_SEND = '__lasagnaUmamiBeforeSend';
+
+/** Stands in for capacitor://localhost so in-app views are separable from web. */
+const NATIVE_HOSTNAME = 'ios.lasagnafi.com';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -73,13 +80,22 @@ export function scrubIds(value: string): string {
   return origin + scrubbed + tail;
 }
 
-type UmamiPayload = { url?: unknown; referrer?: unknown };
+type UmamiPayload = { url?: unknown; referrer?: unknown; hostname?: unknown };
 
-/** Called by the tracker as `beforeSend(type, payload)`. Whatever it returns is what gets sent. */
-export function beforeSend(_type: string, payload: UmamiPayload): UmamiPayload {
+/**
+ * Called by the tracker as `beforeSend(type, payload)`, and whatever it returns
+ * is what gets sent. `hostnameOverride` is bound at registration rather than
+ * read here, so this stays a pure function with no `window` access.
+ */
+export function beforeSend(
+  _type: string,
+  payload: UmamiPayload,
+  hostnameOverride: string | null = null,
+): UmamiPayload {
   const next = { ...payload };
   if (typeof next.url === 'string') next.url = scrubIds(next.url);
   if (typeof next.referrer === 'string') next.referrer = scrubIds(next.referrer);
+  if (hostnameOverride) next.hostname = hostnameOverride;
   return next;
 }
 
@@ -97,9 +113,13 @@ function optedOut(): boolean {
 }
 
 export function loadAnalytics(): void {
-  if (!WEBSITE_ID || isNativeApp() || optedOut()) return;
+  if (!WEBSITE_ID || optedOut()) return;
 
-  (window as unknown as Record<string, unknown>)[BEFORE_SEND] = beforeSend;
+  const hostnameOverride = isNativeApp() ? NATIVE_HOSTNAME : null;
+  (window as unknown as Record<string, unknown>)[BEFORE_SEND] = (
+    type: string,
+    payload: UmamiPayload,
+  ) => beforeSend(type, payload, hostnameOverride);
 
   const script = document.createElement('script');
   script.defer = true;
