@@ -6,13 +6,16 @@ import {
   AlertCircle, Check, ChevronRight, Sparkles, ArrowRight, Info,
   PiggyBank, Landmark, Layers, Wallet, Percent, LineChart,
 } from 'lucide-react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { api } from '../lib/api';
+import { actionArea } from '../lib/action-destination';
+import { useInsights, type Insight } from '../hooks/useInsights';
 import { stripAccountMask } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import type { LucideIcon } from 'lucide-react';
 import { Button, EmptyState, Skeleton, Textarea, useToast } from '../components/uikit';
 import { type LevelState, levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
+import { ActionItem } from '../components/common/action-item';
 
 // ── constants ────────────────────────────────────────────────────────────────
 
@@ -456,9 +459,11 @@ function GoalLink({ goal }: { goal: NonNullable<PathStep['goal']> }) {
 
 // ── FocusArticle — the selected step, as a Bright action card ────────────────
 
-function FocusArticle({ step, state, hideHeader = false, onAsk, onMark, saving, draft, onDraft }: {
+function FocusArticle({ step, state, actions, hideHeader = false, onAsk, onMark, saving, draft, onDraft }: {
   step: PathStep;
   state: LevelState;
+  /** The open actions that serve this step. Empty for a step that has none. */
+  actions: Insight[];
   hideHeader?: boolean;
   onAsk: () => void;
   onMark: (id: string, status: 'pending' | 'done' | 'not_applicable', note?: string) => Promise<boolean>;
@@ -471,6 +476,7 @@ function FocusArticle({ step, state, hideHeader = false, onAsk, onMark, saving, 
   draft: string | undefined;
   onDraft: (value: string | undefined) => void;
 }) {
+  const [, navigate] = useLocation();
   const pendingDone = draft !== undefined;
   const busy = saving !== null;
   const spinning = (status: 'pending' | 'done' | 'not_applicable') =>
@@ -582,6 +588,34 @@ function FocusArticle({ step, state, hideHeader = false, onAsk, onMark, saving, 
       <DebtAccountLink step={step} />
       {step.goal && <GoalLink goal={step.goal} />}
 
+      {/* What to actually do at this step. Actions used to be a separate feed
+          ordered by urgency alone, with nothing saying which part of the plan
+          any of them served. Each one still opens the page it always opened. */}
+      {actions.length > 0 && (
+        <div className="mt-5">
+          <h4 className="text-[13px] font-semibold text-content-muted mb-2">
+            {actions.length === 1 ? 'Action for this step' : 'Actions for this step'}
+          </h4>
+          <div className="flex flex-col gap-2">
+            {actions.map((a) => (
+              <ActionItem
+                key={a.id}
+                title={a.title}
+                tag={(a.type ?? a.category ?? 'general').toUpperCase()}
+                description={a.description}
+                impact={a.impact ?? ''}
+                impactColor={(a.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
+                chatPrompt={a.chatPrompt ?? a.title}
+                // The desktop panel is 360px wide at any viewport, so the row
+                // has to lay itself out for the column it is in, not the screen.
+                compact
+                onContextClick={() => navigate(actionArea(a.type, a.category).link)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 mt-5 pt-4 flex-wrap border-t border-line">
         <Button size="sm" onClick={onAsk} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
           Walk me through this
@@ -668,6 +702,9 @@ export function FinancialLevel() {
       return { ...prev, [stepId]: value };
     });
   const focusRef = useRef<HTMLDivElement>(null);
+  // The open actions, so a step can show the ones that serve it. One list for
+  // the page, filtered per step, rather than a request per panel.
+  const { insights } = useInsights();
   const { openChat } = useChatStore();
   const toast = useToast();
 
@@ -761,10 +798,16 @@ export function FinancialLevel() {
   };
 
   useEffect(() => {
+    // `?step=` names the step to open, so a step heading on the actions page
+    // reaches the step it names rather than dropping the reader at the top of
+    // the path. A key that is not on the path falls back to where they stand.
+    const asked = new URLSearchParams(window.location.search).get('step');
     api.getFinancialPath()
       .then(d => {
         setData(d);
-        setSelectedStepId(d.currentStepId);
+        setSelectedStepId(
+          asked && d.steps.some(s => s.id === asked) ? asked : d.currentStepId,
+        );
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -849,6 +892,7 @@ export function FinancialLevel() {
     <FocusArticle
       step={step}
       state={levelStateOf(step, currentStepId)}
+      actions={insights.filter(a => a.pathStepKey === step.id)}
       hideHeader={inline}
       onMark={markStep}
       saving={saving}

@@ -126,6 +126,7 @@ import {
   applyStoredOrder,
   buildOrderPayload,
   generatePath,
+  stepLabelForKey,
   validateOrder,
   type ProposedStep,
 } from '../path-generator.js';
@@ -198,6 +199,37 @@ beforeEach(() => {
   descrubObject.mockClear();
   lockCalls.length = 0;
   lockQueue.clear();
+});
+
+// ── Naming a step from its key alone ─────────────────────────────────────────
+
+describe('a stored step, named from its key', () => {
+  it('has a name for every key the candidate set can emit', () => {
+    const ctx = firstBuyer();
+    const names = new Map([
+      [CARD_ID, 'Rewards card'],
+      [GOAL_ID, 'First home'],
+    ]);
+    for (const candidate of buildPathCandidates(ctx)) {
+      const label = stepLabelForKey(candidate.key, names);
+      // Falling back to the key itself is the failure this guards: a step added
+      // to the candidate set and not named here would reach a model, and a
+      // reader, as `max-contributions`.
+      expect(label).not.toBe(candidate.key);
+      expect(label.length).toBeGreaterThan(3);
+    }
+  });
+
+  it('names the account or goal a key points at, and carries no figure', () => {
+    const names = new Map([[CARD_ID, 'Rewards card']]);
+    expect(stepLabelForKey(`debt:${CARD_ID}`, names)).toBe('Pay off Rewards card');
+    // A row that is gone still leaves a step on the path, so it is still named.
+    expect(stepLabelForKey(`debt:${DELETED_GOAL_ID}`, names)).toBe('Pay off a balance you owe');
+    expect(stepLabelForKey(`goal:${DELETED_GOAL_ID}`, names)).toBe('A savings goal');
+    for (const candidate of buildPathCandidates(firstBuyer())) {
+      expect(stepLabelForKey(candidate.key, names)).not.toMatch(/[\d$%]/);
+    }
+  });
 });
 
 // ── What the model is shown ──────────────────────────────────────────────────

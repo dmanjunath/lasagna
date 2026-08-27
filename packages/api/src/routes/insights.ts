@@ -3,6 +3,7 @@ import { eq, and, desc, insights, accounts, sql } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { generateInsights } from "../lib/insights-engine.js";
+import { readPathSteps } from "../lib/path-generator.js";
 import { readHouseholdProfile } from "../lib/profile-resolver.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
@@ -34,6 +35,31 @@ function loadActiveInsights(tenantId: string) {
       END`,
       desc(insights.createdAt)
     );
+}
+
+/**
+ * The actions, read in the order of the plan they serve.
+ *
+ * Urgency alone is what this list used to be sorted by, and it is what made the
+ * page a feed: a card at step six sat above the step the person is standing on
+ * because it happened to be marked critical. So the step comes first, and
+ * urgency decides the order WITHIN a step, which is what the SQL above already
+ * gives us. The sort is stable, so nothing else has to be re-stated here.
+ *
+ * An action with no step is shown, after every action that has one. Dropping it
+ * would silently lose real advice the path has no rung for, like a fraud alert
+ * or a document to file.
+ */
+function inPathOrder<T extends { pathStepKey: string | null }>(
+  rows: T[],
+  steps: Awaited<ReturnType<typeof readPathSteps>>,
+): T[] {
+  if (steps.length === 0) return rows;
+  const position = new Map(steps.map((s) => [s.key, s.step]));
+  // A key that no longer names a step on the active path is treated exactly as
+  // no key at all, which is what keeps a regenerated path from hiding anything.
+  const at = (row: T) => position.get(row.pathStepKey ?? "") ?? Number.MAX_SAFE_INTEGER;
+  return [...rows].sort((a, b) => at(a) - at(b));
 }
 
 // Only a tenant with accounts can produce actions. Used to skip the backstop
@@ -84,8 +110,16 @@ insightsRoutes.get("/", async (c) => {
     }
   }
 
+  const pathSteps = await readPathSteps(session.tenantId);
+  // A key that names no step on the path AS IT STANDS is not an answer, it is a
+  // leftover: the path was reordered, or the step was taken off it, or nothing
+  // has attached this action yet. Resolving here rather than in each reader is
+  // what makes the payload mean what it says — a consumer that trusted the raw
+  // column would file an orphan under a step that is not on the plan.
+  const onPath = new Set(pathSteps.map((s) => s.key));
+
   return c.json({
-    insights: rows.map((r) => ({
+    insights: inPathOrder(rows, pathSteps).map((r) => ({
       id: r.id,
       category: r.category,
       urgency: r.urgency,
@@ -97,6 +131,9 @@ insightsRoutes.get("/", async (c) => {
       chatPrompt: r.chatPrompt,
       generatedBy: r.generatedBy,
       createdAt: r.createdAt,
+      // The step of the path this action serves. Null when it serves none, and
+      // null when the key names no step on the path as it stands.
+      pathStepKey: r.pathStepKey && onPath.has(r.pathStepKey) ? r.pathStepKey : null,
     })),
     lastActionsGeneratedAt: profile?.lastActionsGeneratedAt ?? null,
   });

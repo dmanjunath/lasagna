@@ -816,6 +816,8 @@ export const api = {
         chatPrompt: string | null;
         generatedBy: string;
         createdAt: string;
+        /** The step of the path this action serves. Null when it serves none. */
+        pathStepKey: string | null;
       }>;
       lastActionsGeneratedAt: string | null;
     }>("/insights"),

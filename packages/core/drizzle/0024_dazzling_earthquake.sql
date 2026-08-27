@@ -1,0 +1,1 @@
+ALTER TABLE "insights" ADD COLUMN "path_step_key" varchar(100);

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useLocation } from 'wouter';
 import { ArrowRight, Check, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { useInsights } from '../hooks/useInsights';
+import { useInsights, type Insight } from '../hooks/useInsights';
 import { api, type FinancialPath } from '../lib/api';
+import { actionArea } from '../lib/action-destination';
 import { useChatStore } from '../lib/chat-store';
 import { Button, Skeleton, useToast } from '../components/uikit';
 import { ActionItem } from '../components/common/action-item';
@@ -12,7 +13,7 @@ import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/
 // Shared style for "go to this page" affordances on the home page, so every page
 // link reads as the same soft-brand button as the hero's Open Money.
 const pageLinkCls =
-  'inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]';
+  'ui-focus inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]';
 import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../components/ds/TrendChart';
 import { formatCurrency, goalColor, iconFor } from './goal-shared';
 
@@ -407,14 +408,12 @@ export function SimpleHome() {
     openChat(text || undefined);
   }
 
-  // ── Ranked insights ──────────────────────────────────────────────────────
-  const URGENCY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-  const ranked = [...insights].sort(
-    (a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0),
-  );
-  // Three money moves — the top-ranked actions. The level step now lives in its
-  // own section below, so it no longer takes a slot here.
-  const sideActions = ranked.slice(0, 3);
+  // ── The actions that serve the step they are standing on ─────────────────
+  // Home used to show the step and the top three actions as two blocks that
+  // never referred to each other, so the plan and the work on it read as two
+  // features. The actions live inside the step's own section now, which is the
+  // whole point: an action belongs to a step.
+  const stepActions = insights.filter((a) => a.pathStepKey === levelCurrentId);
 
   const topGoal = goals.find((g) => g.status === 'active');
 
@@ -462,8 +461,6 @@ export function SimpleHome() {
   const hasComposition =
     breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0);
 
-  const moveCount = sideActions.length;
-
   return (
     <div className="cq-inline mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* Greeting */}
@@ -508,70 +505,24 @@ export function SimpleHome() {
               </div>
             )}
 
-            {/* The money moves — accordion action rows, consistent with every
-                other page. */}
-            <Card className="p-6 sm:p-7">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold leading-[1.1] tracking-[-0.02em]">
-                    {moveCount > 1 ? `${moveCount} moves to make today` : 'Your next move'}
-                  </h2>
-                  <p className="mt-1 text-[13.5px] font-medium text-content-muted">
-                    Lined up biggest-impact first: quick wins for your wealth.
-                  </p>
-                </div>
-                <Link href="/insights" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
-              </div>
-
-              {insightsLoading ? (
-                <div className="mt-6 flex flex-col gap-2">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex items-center gap-3 rounded-ui-md border border-line bg-panel shadow-ui-sm pl-4 pr-2 py-2.5">
-                      <Skeleton className="h-6 w-6 shrink-0 rounded-ui-sm" />
-                      <Skeleton className="h-4 flex-1 max-w-[16rem]" />
-                      <Skeleton className="h-5 w-16 rounded-ui-sm" />
-                    </div>
-                  ))}
-                </div>
-              ) : sideActions.length > 0 ? (
-                <div className="mt-6 flex flex-col gap-2">
-                  {sideActions.map((a) => (
-                    <ActionItem
-                      key={a.id}
-                      title={a.title}
-                      tag={(a.type ?? a.category ?? 'general').toUpperCase()}
-                      description={a.description}
-                      impact={a.impact ?? ''}
-                      impactColor={(a.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
-                      chatPrompt={a.chatPrompt ?? a.title}
-                      onDismiss={() => dismiss(a.id)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-6 rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap">
-                  <span className="text-[13.5px] text-content-muted">Get personalized actions based on your finances.</span>
-                  <Button
-                    size="sm"
-                    disabled={generatingInsights}
-                    onClick={async () => {
-                      setGeneratingInsights(true);
-                      try { await refreshInsights(); } finally { setGeneratingInsights(false); }
-                    }}
-                  >
-                    {generatingInsights ? 'Generating…' : 'Generate actions'}
-                  </Button>
-                </div>
-              )}
-            </Card>
-
-            {/* Financial level — pulled out of the moves queue into its own section. */}
+            {/* One block: where they are on the path, and the actions that
+                serve the step they are standing on. */}
             <LevelSection
-              className="mt-7"
               step={currentStep}
               steps={levelSteps}
               currentStepId={levelCurrentId}
               loading={levelLoading}
+              actions={stepActions}
+              allActions={insights}
+              actionsLoading={insightsLoading}
+              hasAnyAction={insights.length > 0}
+              generating={generatingInsights}
+              onGenerate={async () => {
+                setGeneratingInsights(true);
+                try { await refreshInsights(); } finally { setGeneratingInsights(false); }
+              }}
+              onOpenAction={(a) => setLocation(actionArea(a.type, a.category).link)}
+              onDismissAction={dismiss}
               onHelp={() => {
                 if (!currentStep) return;
                 const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
@@ -874,15 +825,27 @@ function NetWorthBreakdown({
 
 /** The financial-level standing, echoing the /financial-level hero (a level
  *  ladder), so it reads as its own thing — not another action card. */
-function LevelSection({
-  step, steps, currentStepId, loading, className = '',
+export function LevelSection({
+  step, steps, currentStepId, loading,
+  actions, allActions, actionsLoading, hasAnyAction, generating, onGenerate, onOpenAction, onDismissAction,
   onHelp, onDid, onSetAside, onSetupProfile,
 }: {
   step: LevelStep | null;
   steps: { id: string; order: number; title: string; status: string }[];
   currentStepId: string;
   loading: boolean;
-  className?: string;
+  /** The open actions that serve the step they are standing on. */
+  actions: Insight[];
+  /** Every open action, for when there is no step left to be standing on. */
+  allActions: Insight[];
+  actionsLoading: boolean;
+  /** Whether they have any action at all, which is what "generate" answers. */
+  hasAnyAction: boolean;
+  generating: boolean;
+  onGenerate: () => void | Promise<void>;
+  /** Open the page this action belongs to, as the other two surfaces do. */
+  onOpenAction: (action: Insight) => void;
+  onDismissAction: (id: string) => void;
   onHelp: () => void;
   onDid: () => void | Promise<void>;
   onSetAside: () => void | Promise<void>;
@@ -894,7 +857,7 @@ function LevelSection({
   const working = busy !== null;
 
   const shell = (children: React.ReactNode) => (
-    <section className={`relative rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7 ${className}`}>
+    <section className="relative rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
       <div
         className="pointer-events-none absolute inset-0 rounded-ui-xl"
         style={{ background: 'radial-gradient(95% 80% at 0% 8%, var(--ui-brand-softer), transparent 60%)' }}
@@ -910,7 +873,7 @@ function LevelSection({
         Your financial level
       </h2>
       <Link href="/financial-level" className={`shrink-0 ${pageLinkCls}`}>
-        View all<ArrowRight className="h-4 w-4" />
+        All steps<ArrowRight className="h-4 w-4" />
       </Link>
     </div>
   );
@@ -927,6 +890,108 @@ function LevelSection({
     );
   }
 
+  // The same steps, the same "you are here" and the same length /financial-level
+  // renders, because both came out of the one response the server built.
+  const states = steps.map((s) => levelStateOf(s, currentStepId));
+  const railLabels = steps.map((s) => `Step ${s.order}: ${s.title}`);
+  const total = steps.length || 1;
+  const doneCount = states.filter((s) => s === 'done').length;
+  const futureCount = states.filter((s) => s === 'future').length;
+  const allComplete = doneCount === total;
+
+  // Which actions belong under the standing, and what to call them.
+  //
+  // The step being stood on, when there is one. When there is not — no profile
+  // yet, or the path request failed — every open action, because no action can
+  // serve a step that is not there, and somebody with ten of them open must not
+  // be shown none. Same once every step is cleared: nothing is left to stand
+  // on, and what is still open does not stop mattering.
+  const onAStep = step !== null && !allComplete;
+  const shownActions = onAStep ? actions : allActions;
+  const actionsHeading = onAStep
+    ? shownActions.length === 1
+      ? 'Action for this step'
+      : 'Actions for this step'
+    : allComplete
+      ? 'What is still open'
+      : 'Your actions';
+
+  const allActionsLink = (
+    <Link href="/insights" className={`shrink-0 ${pageLinkCls}`}>
+      All actions<ArrowRight className="h-4 w-4" />
+    </Link>
+  );
+
+  /* The actions that serve the step, under the step itself. They used to sit in
+     a block of their own further up the page, ordered by urgency alone, with
+     nothing tying any of them to the plan.
+     Rendered whether or not there IS a path, and outside the step block below:
+     a person with no path, or one whose path failed to load, still has actions
+     and must still see them, and so must a person who has cleared every step. */
+  const actionsBlock = (
+    <div className="mt-6 pt-5 border-t border-line">
+      {/* A heading only over something. It used to be drawn one line above the
+          sentence saying there was nothing under it, so the block read
+          "Actions for this step" and then "Nothing tied to this step". */}
+      {shownActions.length > 0 && (
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="font-editorial text-[16px] font-bold tracking-[-0.015em]">{actionsHeading}</h3>
+          {allActionsLink}
+        </div>
+      )}
+
+      {actionsLoading ? (
+        <div className="mt-4 flex flex-col gap-2">
+          {[0, 1].map((i) => (
+            <div key={i} className="flex items-center gap-3 rounded-ui-md border border-line bg-panel shadow-ui-sm pl-4 pr-2 py-2.5">
+              <Skeleton className="h-6 w-6 shrink-0 rounded-ui-sm" />
+              <Skeleton className="h-4 flex-1 max-w-[16rem]" />
+              <Skeleton className="h-5 w-16 rounded-ui-sm" />
+            </div>
+          ))}
+        </div>
+      ) : shownActions.length > 0 ? (
+        <div className="mt-4 flex flex-col gap-2">
+          {shownActions.map((a) => (
+            <ActionItem
+              key={a.id}
+              title={a.title}
+              tag={(a.type ?? a.category ?? 'general').toUpperCase()}
+              description={a.description}
+              impact={a.impact ?? ''}
+              impactColor={(a.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
+              chatPrompt={a.chatPrompt ?? a.title}
+              onContextClick={() => onOpenAction(a)}
+              onDismiss={() => onDismissAction(a.id)}
+            />
+          ))}
+        </div>
+      ) : hasAnyAction ? (
+        // Its own statement, carrying the way to the actions it counts, because
+        // the heading that carried that link is not drawn over nothing.
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-[13.5px] text-content-muted">
+            {allActions.length === 1
+              ? 'Nothing tied to this step. One other action is open.'
+              : `Nothing tied to this step. ${allActions.length} other actions are open.`}
+          </p>
+          {allActionsLink}
+        </div>
+      ) : (
+        <div className="rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap">
+          <span className="text-[13.5px] text-content-muted">Get personalized actions based on your finances.</span>
+          <Button
+            size="sm"
+            disabled={generating}
+            onClick={() => { void onGenerate(); }}
+          >
+            {generating ? 'Generating…' : 'Generate actions'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   if (!step) {
     return shell(
       <>
@@ -937,18 +1002,11 @@ function LevelSection({
         <Button size="sm" onClick={onSetupProfile} trailingIcon={<ArrowRight className="h-4 w-4" />}>
           Set up your profile
         </Button>
+        {actionsBlock}
       </>
     );
   }
 
-  // The same steps, the same "you are here" and the same length /financial-level
-  // renders, because both came out of the one response the server built.
-  const states = steps.map((s) => levelStateOf(s, currentStepId));
-  const railLabels = steps.map((s) => `Step ${s.order}: ${s.title}`);
-  const total = steps.length || 1;
-  const doneCount = states.filter((s) => s === 'done').length;
-  const futureCount = states.filter((s) => s === 'future').length;
-  const allComplete = doneCount === total;
   const isComplete = step.status === 'complete';
   const pct = Math.max(0, Math.min(100, Math.round(step.progress || 0)));
   const detail =
@@ -1057,6 +1115,8 @@ function LevelSection({
           </div>
         </div>
       )}
+
+      {actionsBlock}
     </>
   );
 }

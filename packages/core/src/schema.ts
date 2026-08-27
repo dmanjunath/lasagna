@@ -571,6 +571,27 @@ export const insights = pgTable("insights", {
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   generatedBy: varchar("generated_by", { length: 50 }).notNull().default("system"), // system, ai, manual
   insightType: text("type"), // page routing: spending|behavioral|debt|tax|portfolio|savings|retirement|general
+  // The step of this person's path that this action serves, named by the path's
+  // own candidate key (`debt:<id>`, `goal:<id>`, `emergency-fund`, ...). Null
+  // when the action serves no step, which is a real answer and not a failure:
+  // a fraud alert or a tax-document nudge belongs on the list whether or not
+  // the path has a rung for it.
+  //
+  // A KEY, not a `financial_path_steps.id`, and that is the load-bearing part.
+  // Regenerating a path supersedes its step rows and inserts a fresh set, so a
+  // row id would point at a step that is no longer on the path the moment the
+  // order is chosen again, and every action would fall out of its group on
+  // every rebuild. The key is what the path itself is stable on: it is what
+  // carries a person's tick and note onto the next path, what `applyStoredOrder`
+  // re-anchors on, and what `markPathStep` addresses. An action attached by key
+  // survives a regeneration for exactly the reason a tick does.
+  //
+  // Nothing enforces it as a foreign key, and nothing needs to. Resolution
+  // happens on read against the ACTIVE path: a key with no step behind it (the
+  // account closed, the goal deleted, the step taken off the path) resolves to
+  // no step, which is what an `on delete set null` would have produced, and the
+  // action is still shown, after every action that has one.
+  pathStepKey: varchar("path_step_key", { length: 100 }),
   sourceData: text("source_data"), // JSON snapshot of data that triggered this insight
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

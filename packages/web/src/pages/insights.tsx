@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   RefreshCw,
@@ -16,9 +16,10 @@ import {
   Target,
   X,
 } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, type FinancialPath } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
+import { actionArea } from '../lib/action-destination';
 import { formatRelativeTime } from '../lib/utils';
 import { Badge, Button, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 
@@ -42,109 +43,69 @@ const URGENCY_RANK: Record<string, number> = {
   low: 1,
 };
 
-const GROUP_ORDER: UrgencyGroup[] = ['do_now', 'this_week', 'watch'];
-
-const GROUP_META: Record<
-  UrgencyGroup,
-  { label: string; note: string; flag: string }
-> = {
-  do_now: {
-    label: 'Do now',
-    note: 'High urgency, biggest impact first',
-    flag: 'rgb(var(--ui-negative))',
-  },
-  this_week: {
-    label: 'This week',
-    note: 'Worth setting aside time for',
-    flag: 'rgb(var(--ui-caution))',
-  },
-  watch: {
-    label: 'Keep an eye on',
-    note: 'No rush, just on the radar',
-    flag: 'rgb(var(--ui-content-faint))',
-  },
-};
-
 // ---------------------------------------------------------------------------
-// Category (type) → tag, accent bar, icon, page link, friendly label
+// Category (type) → tag, accent bar, icon. Where an action OPENS lives in
+// lib/action-destination, because a step's panel on the path opens the same
+// action and the two must agree.
 // ---------------------------------------------------------------------------
 
 type CatStyle = {
-  label: string;
   icon: typeof Receipt;
   /** soft tag background + text color */
   tagBg: string;
   tagFg: string;
   /** left accent bar color */
   bar: string;
-  /** destination page for the primary action */
-  link: string;
 };
 
 const CATEGORY: Record<string, CatStyle> = {
   tax: {
-    label: 'Taxes',
     icon: Receipt,
     tagBg: 'var(--ui-caution-soft)',
     tagFg: 'rgb(var(--ui-caution))',
     bar: 'var(--ui-viz-3)',
-    link: '/tax',
   },
   debt: {
-    label: 'Debt',
     icon: Flame,
     tagBg: 'var(--ui-negative-soft)',
     tagFg: 'rgb(var(--ui-negative))',
     bar: 'var(--ui-viz-4)',
-    link: '/debt',
   },
   portfolio: {
-    label: 'Investing',
     icon: TrendingUp,
     tagBg: 'var(--ui-info-soft)',
     tagFg: 'rgb(var(--ui-info))',
     bar: 'var(--ui-viz-2)',
-    link: '/portfolio',
   },
   retirement: {
-    label: 'Retirement',
     icon: Target,
     tagBg: 'var(--ui-brand-soft)',
     tagFg: 'rgb(var(--ui-brand))',
     bar: 'rgb(var(--ui-brand))',
-    link: '/retirement',
   },
   savings: {
-    label: 'Savings',
     icon: PiggyBank,
     tagBg: 'var(--ui-brand-soft)',
     tagFg: 'rgb(var(--ui-brand))',
     bar: 'rgb(var(--ui-brand))',
-    link: '/goals',
   },
   spending: {
-    label: 'Spending',
     icon: CreditCard,
     tagBg: 'var(--ui-canvas-sunken)',
     tagFg: 'rgb(var(--ui-content-secondary))',
     bar: 'rgb(var(--ui-content-faint))',
-    link: '/spending',
   },
   behavioral: {
-    label: 'Spending',
     icon: CreditCard,
     tagBg: 'var(--ui-canvas-sunken)',
     tagFg: 'rgb(var(--ui-content-secondary))',
     bar: 'rgb(var(--ui-content-faint))',
-    link: '/spending',
   },
   general: {
-    label: 'Overview',
     icon: Sparkles,
     tagBg: 'var(--ui-canvas-sunken)',
     tagFg: 'rgb(var(--ui-content-secondary))',
     bar: 'rgb(var(--ui-content-faint))',
-    link: '/',
   },
 };
 
@@ -324,6 +285,7 @@ function ActionCard({
   void chatPrompt;
   const cat = catFor(type, category);
   const Icon = cat.icon;
+  const area = actionArea(type, category);
   const [expanded, setExpanded] = useState(false);
 
   // One accordion row per action: a collapsed row that toggles the details
@@ -366,7 +328,7 @@ function ActionCard({
                 </p>
                 <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                   <Button size="sm" onClick={onPrimary} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-                    Open {cat.label}
+                    Open {area.label}
                   </Button>
                   <button
                     type="button"
@@ -411,7 +373,35 @@ export function Insights() {
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingUndoRef = useRef<string | null>(null);
 
-  const { insights, lastActionsGeneratedAt, isLoading, refresh } = useInsights();
+  const { insights, lastActionsGeneratedAt, isLoading: insightsLoading, refresh } = useInsights();
+
+  // The plan the actions hang off. Read from the path itself so the numbers and
+  // titles here are the ones /financial-level shows, rather than a second
+  // reckoning of the same steps. A path that will not load leaves the list
+  // ungrouped rather than empty.
+  const [pathSteps, setPathSteps] = useState<FinancialPath['steps']>([]);
+  const [currentStepId, setCurrentStepId] = useState('');
+  // Whether the answer is in, either way. The list waits for it: rendering
+  // before the path lands shows a flat feed that then reshuffles itself into
+  // the plan, which is the page changing its mind in front of the reader.
+  const [pathSettled, setPathSettled] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api
+      .getFinancialPath()
+      .then((p) => {
+        if (!live) return;
+        setPathSteps(p.steps);
+        setCurrentStepId(p.currentStepId);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (live) setPathSettled(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const UNDO_WINDOW_MS = 6000;
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -419,6 +409,7 @@ export function Insights() {
     ? Date.now() - lastActionsGeneratedAt.getTime()
     : Infinity;
   const refreshReady = msSinceLastGen >= REFRESH_COOLDOWN_MS;
+  const isLoading = insightsLoading || !pathSettled;
 
   const handleRefresh = async () => {
     if (!refreshReady) return;
@@ -524,16 +515,69 @@ export function Insights() {
     return { now, week, watch };
   }, [filteredInsights]);
 
+  // The actions under the step each one serves, in path order, then the ones
+  // the path has no step for. Urgency decides the order WITHIN a step and
+  // nothing else, which is the whole change: a critical action six steps out
+  // used to sit above the step the person is standing on.
+  //
+  // The step numbers and titles come from the path itself rather than from the
+  // actions, so this page counts steps exactly as /financial-level and home do.
+  // A key naming no step on the path lands in the trailing group, which is also
+  // what happens when there is no path at all: then nothing is grouped and the
+  // list reads flat, with no heading over it.
   const grouped = useMemo(() => {
-    const acc: Record<UrgencyGroup, typeof filteredInsights> = { do_now: [], this_week: [], watch: [] };
+    const byKey = new Map<string, typeof filteredInsights>();
+    const unattached: typeof filteredInsights = [];
+    const onPath = new Set(pathSteps.map((s) => s.id));
     for (const i of filteredInsights) {
-      (acc[URGENCY_GROUP[i.urgency] ?? 'watch']).push(i);
+      if (i.pathStepKey && onPath.has(i.pathStepKey)) {
+        const list = byKey.get(i.pathStepKey) ?? [];
+        list.push(i);
+        byKey.set(i.pathStepKey, list);
+      } else {
+        unattached.push(i);
+      }
     }
-    for (const g of GROUP_ORDER) {
-      acc[g].sort((a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0));
+    const byUrgency = (a: (typeof filteredInsights)[number], b: (typeof filteredInsights)[number]) =>
+      (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0);
+
+    const groups: Array<{
+      key: string | null;
+      step: number | null;
+      title: string;
+      current: boolean;
+      items: typeof filteredInsights;
+    }> = [];
+    for (const step of pathSteps) {
+      const items = byKey.get(step.id);
+      if (!items?.length) continue;
+      groups.push({
+        key: step.id,
+        step: step.order,
+        title: step.title,
+        current: step.id === currentStepId,
+        items: [...items].sort(byUrgency),
+      });
     }
-    return acc;
-  }, [filteredInsights]);
+    if (unattached.length > 0) {
+      groups.push({
+        key: null,
+        step: null,
+        // Named for what it is. These are not lesser actions, they are the ones
+        // the path has no step for, and hiding them would drop real advice.
+        //
+        // Empty when it would head the WHOLE list, which is a heading that
+        // groups nothing: there is no path, or nothing on the path has drawn an
+        // action yet — the state every existing list is in until it is next
+        // generated. Saying "not tied to a step" over every action a person has
+        // reads as a verdict on the list rather than as one group of it.
+        title: groups.length > 0 ? 'Not tied to a step' : '',
+        current: false,
+        items: [...unattached].sort(byUrgency),
+      });
+    }
+    return groups;
+  }, [filteredInsights, pathSteps, currentStepId]);
 
   const totalActive = activeInsights.length;
 
@@ -695,60 +739,84 @@ export function Insights() {
         )
       )}
 
-      {/* ════════ Urgency groups ════════ */}
+      {/* ════════ The path, step by step ════════ */}
       {!isLoading &&
         totalActive > 0 &&
-        GROUP_ORDER.map((group) => {
-          const items = grouped[group];
-          if (!items.length) return null;
-          const meta = GROUP_META[group];
-          return (
-            <section key={group} className="mt-9 first:mt-8">
+        grouped.map((group) => (
+          <section key={group.key ?? 'unattached'} className="mt-9 first:mt-8">
+            {group.title !== '' && (
               <div className="flex items-center gap-3">
-                <span
-                  className="w-[9px] h-[9px] rounded-full shrink-0"
-                  style={{ background: meta.flag, boxShadow: `0 0 0 4px color-mix(in srgb, ${meta.flag} 18%, transparent)` }}
-                  aria-hidden
-                />
-                <h2 className="font-editorial text-[19px] font-bold tracking-[-0.02em] text-content">
-                  {meta.label}
+                {/* The step's own number, as /financial-level counts them. The
+                    trailing group carries none because there is no step: its
+                    actions are real advice the path has no rung for, so its
+                    heading is indented to where the others' titles start. */}
+                {group.step !== null && (
+                  <span
+                    className="grid place-items-center h-6 w-6 shrink-0 rounded-full bg-brand-soft text-[12px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum"
+                    aria-hidden
+                  >
+                    {group.step}
+                  </span>
+                )}
+                <h2
+                  className={`font-editorial text-[19px] font-bold tracking-[-0.02em] text-content ${
+                    group.step === null ? 'pl-9' : ''
+                  }`}
+                >
+                  {/* The number is drawn, not read: it is the one thing this
+                      grouping adds, so it has to reach a screen reader too. */}
+                  {group.step !== null && <span className="sr-only">Step {group.step}, </span>}
+                  {/* A heading naming a step of the path opens that step. It
+                      read as the plan and went nowhere otherwise. */}
+                  {group.key ? (
+                    <Link
+                      href={`/financial-level?step=${encodeURIComponent(group.key)}`}
+                      className="ui-focus rounded-ui-sm hover:text-brand transition-colors"
+                    >
+                      {group.title}
+                    </Link>
+                  ) : (
+                    group.title
+                  )}
                 </h2>
-                <span className="text-[12px] font-extrabold px-2.5 py-0.5 rounded-full bg-canvas-sunken text-content-muted ui-tnum">
-                  {items.length}
-                </span>
-                <span className="hidden sm:block text-[12.5px] font-semibold text-content-muted">
-                  {meta.note}
-                </span>
-                <span className="flex-1 h-px bg-hairline min-w-[12px]" aria-hidden />
+                {/* brand-ink, not the badge's own brand green: it sits beside
+                    the numbered chip, which uses ink on the same tint, and two
+                    greens in one line read as two different states. */}
+                {group.current && (
+                  <Badge tone="brand" className="text-[rgb(var(--ui-brand-ink))]">
+                    You are here
+                  </Badge>
+                )}
+                {/* bg-line, not bg-hairline: there is no `hairline` colour key,
+                    so that class resolved to transparent and the rule never
+                    drew. `line` IS --ui-hairline. */}
+                <span className="flex-1 h-px bg-line min-w-[12px]" aria-hidden />
               </div>
+            )}
 
-              <div className="mt-4 flex flex-col gap-2">
-                {items.map((insight, idx) => {
-                  const cat = catFor(insight.type, insight.category);
-                  return (
-                    <ActionCard
-                      key={insight.id}
-                      index={idx}
-                      type={insight.type}
-                      category={insight.category}
-                      title={insight.title}
-                      description={insight.description}
-                      impact={insight.impact}
-                      impactColor={insight.impactColor}
-                      chatPrompt={insight.chatPrompt ?? insight.title}
-                      calm={group === 'watch'}
-                      onPrimary={() => navigate(cat.link)}
-                      onAsk={() =>
-                        askAbout(insight.title, insight.description, insight.chatPrompt ?? insight.title)
-                      }
-                      onSkip={() => handleDismiss(insight.id)}
-                    />
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+            <div className={`flex flex-col gap-2 ${group.title === '' ? '' : 'mt-4'}`}>
+              {group.items.map((insight, idx) => (
+                <ActionCard
+                  key={insight.id}
+                  index={idx}
+                  type={insight.type}
+                  category={insight.category}
+                  title={insight.title}
+                  description={insight.description}
+                  impact={insight.impact}
+                  impactColor={insight.impactColor}
+                  chatPrompt={insight.chatPrompt ?? insight.title}
+                  calm={insight.urgency === 'low'}
+                  onPrimary={() => navigate(actionArea(insight.type, insight.category).link)}
+                  onAsk={() =>
+                    askAbout(insight.title, insight.description, insight.chatPrompt ?? insight.title)
+                  }
+                  onSkip={() => handleDismiss(insight.id)}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
 
       {/* ════════ All caught up — closing seal ════════ */}
       {!isLoading && totalActive > 0 && activeFilter === 'all' && (

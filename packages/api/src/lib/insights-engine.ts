@@ -28,6 +28,7 @@ import {
   fetchAccountsWithBalances,
 } from "./account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "./goal-progress.js";
+import { readPathSteps } from "./path-generator.js";
 import {
   readHouseholdProfile,
   readOwnerPersonalProfile,
@@ -119,6 +120,8 @@ interface GeneratedInsight {
   impact: string;
   impactColor: "green" | "amber" | "red";
   chatPrompt: string;
+  /** The key of the path step this action serves, or "none". */
+  pathStepKey?: string;
 }
 
 async function gatherFinancialData(
@@ -703,6 +706,16 @@ CRITICAL RULES:
 14. TITLES ARE ACTIONS, NOT DIAGNOSES. Start every title with an imperative verb naming the move (Pay, Open, Move, Raise, Trim, Cancel, Add, Switch, Rebalance, Invest, Set). The title says what to DO; the description says why. Bad: "Credit card at 24.99% APR costs $736/yr". Good: "Pay down your $3,076 card to stop $736/yr in interest". Bad: "Missing $3,400/yr in free employer match". Good: "Raise your 401(k) to 4% to claim $3,400/yr in free match".
 15. If an insight is a positive trend, a healthy metric, or an on-track status with no move to make (a spending category dropped, a ratio is healthy, a goal is on pace), either give it a concrete next move (e.g. "Redirect the $158 grocery drop into savings") or do NOT emit it. The Actions list is for actions, not congratulations or observations.
 
+## The user's financial path
+
+The user is working through a numbered path, and its steps are given to you after their data as "financial path". Attach every action to the step it serves, in "pathStepKey", using the step's "key" EXACTLY as it was given to you. That is what lets the action be read as part of the plan rather than as one more suggestion.
+
+- Pick the step the action MOVES FORWARD, not the step it merely mentions. Paying down a card is the card's own step. Raising a 401(k) contribution to capture the match is the match step, not a retirement step further along.
+- Never invent a key, and never adapt one. A key you were not given is dropped and the action loses its place in the plan.
+- Use "none" when no step is genuinely served. Fraud, a document to file, a habit with no rung on the path: these are real actions and they are kept, so do not force one onto the nearest step to avoid saying "none".
+- A step may carry several actions, and a step may carry none. Do not spread actions across steps to even them out.
+- If no path was given, use "none" for every action.
+
 Analyze through these 4 lenses and generate insights from each lens WHERE THE DATA SUPPORTS IT:
 
 ---
@@ -802,7 +815,8 @@ Respond with ONLY a JSON array, no markdown:
     "description": "2-3 sentences explaining WHY, with exact numbers and one comparison. The title already states the action, so use the description for the reasoning and specifics (amounts, timeline, tradeoffs).",
     "impact": "Short label: 'Save $2,400/yr' or 'Earn $3,400 free money' etc.",
     "impactColor": "green" | "amber" | "red",
-    "chatPrompt": "Natural question the user would ask"
+    "chatPrompt": "Natural question the user would ask",
+    "pathStepKey": "the key of the financial path step this action serves, exactly as given, or \\"none\\""
   }
 ]
 
@@ -894,6 +908,16 @@ export async function generateInsights(tenantId: string): Promise<number> {
   const dataJson = JSON.stringify(scrubbedData);
   assertPromptFits(tenantId, scrubbedData, dataJson);
 
+  // The plan the actions belong to. Its titles go through the alias map like
+  // everything else, but the KEYS deliberately do not: a key is what comes back
+  // and gets matched, so it has to reach the model exactly as it is stored.
+  // Scrubbing is whole-word replacement, and an account someone named "debt"
+  // would otherwise rewrite the prefix of every debt step's key.
+  const pathSteps = await readPathSteps(tenantId);
+  const pathJson = JSON.stringify(
+    pathSteps.map((s) => ({ ...s, title: scrub(s.title, aliasMap) as string })),
+  );
+
   let model: ReturnType<typeof getModel>;
   try {
     model = getModel("medium");
@@ -910,7 +934,11 @@ export async function generateInsights(tenantId: string): Promise<number> {
     result = await llmGenerateText({ tenantId, aliasMap, descrubOutput: false }, {
       model,
       system: INSIGHTS_PROMPT,
-      prompt: `Here is the user's complete financial data:\n\n${dataJson}`,
+      prompt:
+        `Here is the user's complete financial data:\n\n${dataJson}` +
+        (pathSteps.length > 0
+          ? `\n\nHere are the steps of their financial path, in the order they work through them:\n\n${pathJson}`
+          : ""),
       temperature: 0.3,
       maxOutputTokens: 4000,
     });
@@ -974,6 +1002,8 @@ export async function generateInsights(tenantId: string): Promise<number> {
     return MISSING_DATA_PATTERNS.some((p) => p.test(text));
   };
 
+  const onThePath = new Set(pathSteps.map((s) => s.key));
+
   let missingDataKept = 0;
   let insertCount = 0;
   for (const ins of generated) {
@@ -1009,6 +1039,12 @@ export async function generateInsights(tenantId: string): Promise<number> {
       chatPrompt: ins.chatPrompt ? descrub(normalizePunctuation(ins.chatPrompt), aliasMap) : null,
       generatedBy: "ai",
       insightType: ins.type || "general",
+      // Validated exactly as the path's own ordering validates the keys it gets
+      // back: a key that is not on the path is not a step, so it is dropped to
+      // null rather than persisted. The action itself is kept either way — an
+      // action the path has no step for is still advice worth reading, and it
+      // is shown after every action that has a step.
+      pathStepKey: onThePath.has(ins.pathStepKey ?? "") ? ins.pathStepKey! : null,
       sourceData: dataJson,
       expiresAt: new Date(Date.now() + NINETY_DAYS),
     });

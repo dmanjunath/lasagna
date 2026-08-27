@@ -13,6 +13,8 @@ export interface Insight {
   chatPrompt: string | null;
   generatedBy: string;
   createdAt: string;
+  /** The step of the user's path this action serves. Null when it serves none. */
+  pathStepKey: string | null;
 }
 
 /**

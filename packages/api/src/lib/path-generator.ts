@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto';
 import {
+  accounts,
   and,
   asc,
   eq,
   financialPathSteps,
   financialPaths,
   financialProfiles,
+  goals,
+  inArray,
   isTypedGoalCategory,
   sql,
 } from '@lasagna/core';
@@ -129,6 +132,44 @@ function candidateLabel(candidate: PathCandidate): string {
       : 'Savings goal';
   }
   return KIND_LABELS[candidate.kind] ?? candidate.kind;
+}
+
+/**
+ * The keys a path can carry that name no account and no goal, and what each one
+ * is, in words.
+ *
+ * Separate from `KIND_LABELS` above because it answers a different question. A
+ * `PathCandidate` is not always to hand: a stored path is a list of KEYS, and
+ * naming those needs the household rebuilt. `buildPathCandidates` writes the
+ * title a person reads, which carries this household's own figures ("Save 6
+ * months of expenses"); these are the same steps said without one, for a
+ * payload that is not allowed to carry a figure.
+ */
+const KEY_LABELS: Record<string, string> = {
+  stabilize: 'Save a starter emergency fund',
+  'employer-match': 'Capture your full employer match',
+  'emergency-fund': 'Save a full emergency fund',
+  'insurance-will': 'Get insured and write your will',
+  'savings-rate': 'Raise your savings rate',
+  'retirement-readiness': 'Raise what you put toward retirement',
+  'tax-advantaged': 'Fund a tax-advantaged account',
+  'max-contributions': "Max out this year's contribution room",
+  'taxable-brokerage': 'Invest what is left in a brokerage account',
+  'financial-independence': 'Reach financial independence',
+  'estate-legacy': 'Put your estate plan in place',
+};
+
+/**
+ * What one step of a stored path is, from its key alone.
+ *
+ * `names` supplies the account or goal a `debt:`/`goal:` key points at. A key
+ * whose row is gone falls back to the generic wording rather than dropping the
+ * step, because the caller is naming a step that is still on the path.
+ */
+export function stepLabelForKey(key: string, names: ReadonlyMap<string, string>): string {
+  if (key.startsWith('debt:')) return `Pay off ${names.get(key.slice(5)) ?? 'a balance you owe'}`;
+  if (key.startsWith('goal:')) return names.get(key.slice(5)) ?? 'A savings goal';
+  return KEY_LABELS[key] ?? key;
 }
 
 /** How big the step is against a month of income. Never the amount itself. */
@@ -521,6 +562,67 @@ export async function readActivePath(
       };
     }),
   };
+}
+
+/** One step of a stored path, for a reader that is not the path page. */
+export interface PathStepRef {
+  key: string;
+  /** 1 based, in the order the path is walked. */
+  step: number;
+  /** What the step is, in words, carrying no figure. */
+  title: string;
+}
+
+/**
+ * The steps of this tenant's active path, in order, named. Empty when they have
+ * no path.
+ *
+ * This exists so that something OUTSIDE the path pages can talk about a step
+ * without rebuilding the household. `readFinancialPath` is the full answer, and
+ * it is the expensive one: it builds the context, runs a retirement simulation
+ * and will generate a path when the stored one is stale. Reading actions must
+ * not pay for any of that, so this reads the stored rows and names them.
+ *
+ * A step somebody took off their path is not on it, so it is not here and takes
+ * no number, which is how the path page counts too.
+ *
+ * KNOWN LIMIT: a stored key whose candidate is gone but whose row is not (a
+ * debt paid to zero, an employer match removed from the profile) still counts
+ * here, and the path page drops it. That disagreement lasts until the next read
+ * of the path, which regenerates on exactly those events, and it can only ever
+ * shift a number by one. Closing it properly would mean building the candidate
+ * set, and the simulation with it, on every read of the actions list.
+ */
+export async function readPathSteps(tenantId: string): Promise<PathStepRef[]> {
+  const stored = await readActivePath(tenantId);
+  if (!stored) return [];
+  const onPath = stored.steps.filter((s) => s.mark !== 'not_applicable');
+
+  const accountIds = onPath.filter((s) => s.key.startsWith('debt:')).map((s) => s.key.slice(5));
+  const goalIds = onPath.filter((s) => s.key.startsWith('goal:')).map((s) => s.key.slice(5));
+  const names = new Map<string, string>();
+  if (accountIds.length > 0) {
+    for (const row of await db
+      .select({ id: accounts.id, name: accounts.name })
+      .from(accounts)
+      .where(and(eq(accounts.tenantId, tenantId), inArray(accounts.id, accountIds)))) {
+      names.set(row.id, row.name);
+    }
+  }
+  if (goalIds.length > 0) {
+    for (const row of await db
+      .select({ id: goals.id, name: goals.name })
+      .from(goals)
+      .where(and(eq(goals.tenantId, tenantId), inArray(goals.id, goalIds)))) {
+      names.set(row.id, row.name);
+    }
+  }
+
+  return onPath.map((s, index) => ({
+    key: s.key,
+    step: index + 1,
+    title: stepLabelForKey(s.key, names),
+  }));
 }
 
 /**

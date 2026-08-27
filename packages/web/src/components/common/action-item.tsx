@@ -22,6 +22,13 @@ interface ActionItemProps {
   impactColor: 'green' | 'amber' | 'red';
   chatPrompt: string;
   defaultOpen?: boolean;
+  /**
+   * Stack the impact under the title instead of setting it beside the title on
+   * a wide screen. For a row in a NARROW container on a wide screen: the side
+   * panel on /financial-level is 360px at a 1440px viewport, where the inline
+   * pill takes half the row and leaves the title one word per line.
+   */
+  compact?: boolean;
   onDismiss?: () => void;
   onContextClick?: () => void;
 }
@@ -80,6 +87,7 @@ function DenseRowInner({
   impact,
   impactColor,
   chatPrompt,
+  compact,
   onDismiss,
   onContextClick,
   hideActions,
@@ -90,8 +98,10 @@ function DenseRowInner({
   const cat = catForTag(tag);
   const Icon = cat.icon;
   // Accordion rows expand for detail, so on phones we move the per-row icons into
-  // the opened body, leaving just the chevron.
-  const hideOnMobile = expandable ? 'max-sm:hidden' : '';
+  // the opened body, leaving just the chevron. A compact row is in a column as
+  // narrow as a phone whatever the screen is, so it does the same: three 32px
+  // targets and a chevron took more of a 310px card than the title did.
+  const hideOnMobile = expandable ? (compact ? 'hidden' : 'max-sm:hidden') : '';
 
   return (
     <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
@@ -116,7 +126,7 @@ function DenseRowInner({
         </h3>
         {impact && (
           <span
-            className="mt-1.5 inline-flex lg:hidden items-center rounded-ui-sm px-2 py-0.5 text-[12px] font-bold leading-none ui-tnum"
+            className={`mt-1.5 inline-flex items-center rounded-ui-sm px-2 py-1 text-[12px] font-bold leading-[1.35] ui-tnum ${compact ? '' : 'lg:hidden'}`}
             style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
           >
             {impact}
@@ -124,7 +134,7 @@ function DenseRowInner({
         )}
       </div>
 
-      {impact && (
+      {impact && !compact && (
         <span
           className="hidden lg:inline-flex shrink-0 items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum whitespace-nowrap"
           style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
