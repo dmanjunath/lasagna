@@ -45,7 +45,7 @@ interface PathStep {
   monthlyFunding: number;
   projectedDate: string | null;
   action: string;
-  /** What is true of this step in any state. Never an instruction. */
+  /** Where an unfinished step stands. Never an instruction, empty once done. */
   fact: string;
   /** Anything the figures would otherwise imply but not state. */
   notes: string[];
@@ -234,9 +234,7 @@ function LevelRow({ step, state, isSelected, onSelect }: {
   const isComplete = state === 'done';
   const isCurrent = state === 'current';
   const isSkipped = state === 'skipped';
-  const fill = isComplete ? 100 : Math.min(step.progress, 100);
   const Icon = iconMap[step.icon] ?? Layers;
-  const accent = STATE_ACCENT[state];
 
   // chip surface per state
   const chipBg = isCurrent
@@ -284,14 +282,6 @@ function LevelRow({ step, state, isSelected, onSelect }: {
           >
             {step.title}
           </span>
-          {isCurrent && fill > 0 && fill < 100 && (
-            <span className="mt-0.5 flex items-center gap-2 max-w-[260px]">
-              <span className="h-[6px] flex-1 rounded-full bg-canvas-sunken overflow-hidden">
-                <span className="block h-full rounded-full" style={{ width: `${fill}%`, background: accent }} />
-              </span>
-              <span className="text-[11px] font-bold text-[rgb(var(--ui-brand-ink))] ui-tnum">{fill}%</span>
-            </span>
-          )}
           {/* Mobile: the pill lives on its own line so it never eats the name. */}
           <StatePill state={state} className="sm:hidden mt-0.5 self-start" />
         </span>
@@ -443,21 +433,9 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
   const [pendingDone, setPendingDone] = useState(false);
   const [noteText, setNoteText] = useState('');
   const isComplete = step.status === 'complete';
-  const fill = isComplete ? 100 : Math.min(step.progress, 100);
   const Icon = iconMap[step.icon] ?? Layers;
   const accent = STATE_ACCENT[state];
   const greenText = state === 'done' || state === 'current';
-
-  let progressDetail = '';
-  if (step.target !== null && step.current !== null) {
-    if (step.target === 0) progressDetail = 'Goal: $0';
-    // A savings rate is a flow, not a balance. "saved of target" would read the
-    // month's surplus as a pot of money that has been put aside.
-    else if (step.kind === 'savings-rate' || step.kind === 'retirement-readiness')
-      progressDetail = `${fmt(step.current)} of ${fmt(step.target)} a month`;
-    else progressDetail = `${fmt(step.current)} saved of ${fmt(step.target)} target`;
-  }
-  const hasProgress = !isComplete && fill > 0;
 
   return (
     <article className="relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
@@ -498,26 +476,6 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
         <p className="mt-2.5 text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]">{step.description}</p>
       )}
 
-      {hasProgress && (
-        <div className="mt-5">
-          <div className="flex items-baseline justify-between gap-3 mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Progress</span>
-            <span className="text-[12.5px] font-bold text-[rgb(var(--ui-brand-ink))] ui-tnum">
-              {fill}%{progressDetail ? ` (${progressDetail})` : ''}
-            </span>
-          </div>
-          <div className="h-[9px] rounded-full bg-canvas-sunken overflow-hidden">
-            <motion.div
-              className="h-full rounded-full"
-              style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 60%, transparent), ${accent})` }}
-              initial={{ width: 0 }}
-              animate={{ width: `${fill}%` }}
-              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* "Next step" is only real for the step you're on — steps ahead would
           just show generic filler, so hide it for them. */}
       {state === 'current' && step.action && (
@@ -527,10 +485,12 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
         </div>
       )}
 
-      {/* Off the current step there is no "Next step" box, so the figure the
-          note qualifies had nowhere to appear: step 12 read "The $840 minimum is
-          our estimate" with no $840 anywhere on the card. A step you are not on
-          still states the fact, it just does not issue the order. */}
+      {/* Off the current step there is no "Next step" box, so without this a
+          card you are not standing on carries no figure at all: an estimated
+          minimum was qualified with no minimum shown anywhere, and a measured
+          step named neither what is saved nor what it is aiming at. A step you
+          are not on still states where it stands, it just does not issue the
+          order. */}
       {state !== 'current' && step.fact && (
         <p className="mt-5 text-[14px] leading-[1.5] font-semibold text-content">{step.fact}</p>
       )}
@@ -621,27 +581,6 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
         </div>
       )}
     </article>
-  );
-}
-
-// ── StatTile ─────────────────────────────────────────────────────────────────
-
-function StatTile({ label, value, sub, tone }: {
-  label: string; value: string; sub: string; tone?: 'pos' | 'neg';
-}) {
-  const valueColor =
-    tone === 'pos' ? 'rgb(var(--ui-positive))' : tone === 'neg' ? 'rgb(var(--ui-negative))' : undefined;
-  return (
-    <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-4 sm:p-5">
-      <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{label}</div>
-      <div
-        className="mt-1.5 font-editorial text-[24px] sm:text-[27px] font-extrabold leading-none tracking-[-0.02em] ui-tnum"
-        style={{ color: valueColor }}
-      >
-        {value}
-      </div>
-      <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">{sub}</div>
-    </div>
   );
 }
 
@@ -807,7 +746,6 @@ export function FinancialLevel() {
   const states = steps.map(s => levelStateOf(s, currentStepId, skippedStepIds));
   const futureCount = states.filter(s => s === 'future').length;
   const skippedCount = states.filter(s => s === 'skipped').length;
-  const clearedPct = Math.round((completeCount / steps.length) * 100);
 
   // Shared between the inline accordion (mobile/tablet) and the sticky side
   // panel (desktop) so the detail markup stays in one place.
@@ -825,12 +763,6 @@ export function FinancialLevel() {
       )}
     />
   );
-
-  const surplusTone: 'pos' | 'neg' | undefined =
-    summary.monthlySurplus == null ? undefined :
-    summary.monthlySurplus >= 0 ? 'pos' : 'neg';
-  const investedOrCash = summary.totalInvested > 0 ? summary.totalInvested : summary.totalCash;
-  const investedLabel = summary.totalInvested > 0 ? 'total portfolio' : summary.totalCash > 0 ? 'cash holdings' : 'link accounts';
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -880,27 +812,6 @@ export function FinancialLevel() {
                 )}
               </>
             )}
-
-            {/* overall progress through the stack */}
-            <div className="mt-5 max-w-[420px]">
-              <div className="h-[10px] rounded-full bg-canvas-sunken overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.max(clearedPct, completeCount === 0 ? 0 : 4)}%`,
-                    background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))',
-                    minWidth: completeCount === 0 ? 0 : undefined,
-                  }}
-                />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-[12.5px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum">
-                  {completeCount} {completeCount === 1 ? 'step' : 'steps'} cleared
-                </span>
-                <span className="text-[12px] font-semibold text-content-muted ui-tnum">{clearedPct}%</span>
-              </div>
-            </div>
-
           </div>
 
           {/* progress rail — one segment per step, colored by state */}
@@ -942,33 +853,13 @@ export function FinancialLevel() {
             a rounded pill directly under a title on this page means that step's
             status, and amber there read as a warning about the employer-match
             step. Below both columns it is last on mobile too, so it never
-            splits the two progress readouts. */}
+            splits the lead from the rail. */}
         {summary.retirement && (
           <div className="relative mt-6 pt-5 border-t border-line">
             <RetirementVerdict retirement={summary.retirement} />
           </div>
         )}
       </section>
-
-      {/* ════════ Stat tiles ════════ */}
-      <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <StatTile
-          label="Monthly income"
-          value={summary.monthlyIncome > 0 ? fmt(summary.monthlyIncome) : '—'}
-          sub="per month"
-        />
-        <StatTile
-          label="Surplus / mo"
-          value={summary.monthlySurplus !== null ? fmt(summary.monthlySurplus) : '—'}
-          sub="income − expenses"
-          tone={surplusTone}
-        />
-        <StatTile
-          label={summary.totalInvested > 0 ? 'Invested' : 'Cash'}
-          value={investedOrCash > 0 ? fmt(investedOrCash) : '—'}
-          sub={investedLabel}
-        />
-      </div>
 
       {/* ════════ Levels ════════ */}
       {allComplete ? (

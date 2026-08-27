@@ -331,6 +331,31 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
   }
 }
 
+/**
+ * What a step states about itself, in the same register as the debt minimum: a
+ * figure, never an order. Every unfinished measured step needs one, because
+ * `action` renders only on the step the user is standing on, so off that step a
+ * measured card had no figure on it at all.
+ */
+function factFor(step: PathCandidate, m: Measure): string {
+  // A finished step already says it is finished, so where it stands adds
+  // nothing, and a target run well past reads as a lopsided ratio nobody would
+  // say out loud. A cleared debt goes with it: it has no minimum left to pay.
+  if (m.status === 'complete') return '';
+  // The minimum is owed whatever the balance does, so it holds on a step the
+  // user has not reached as well as the one they are standing on.
+  if (step.kind === 'debt') {
+    return `Minimum payment ${usd(step.debt!.minimumPayment)} a month.`;
+  }
+  // Nothing measures the step, so there is no position to state.
+  if (m.target === null || m.current === null) return '';
+  // A rate is what moves each month, not a pot that has been put aside.
+  if (step.kind === 'savings-rate' || step.kind === 'retirement-readiness') {
+    return `${usd(m.current)} a month of the ${usd(m.target)} target.`;
+  }
+  return `${usd(m.current)} saved of the ${usd(m.target)} target.`;
+}
+
 // ── The waterfall ─────────────────────────────────────────────────────────────
 
 export function sizePath(candidates: PathCandidate[], ctx: PathContext): SizedStep[] {
@@ -376,14 +401,9 @@ export function sizePath(candidates: PathCandidate[], ctx: PathContext): SizedSt
     let projectedDate: string | null = null;
     const notes = [...m.notes];
 
-    // The minimum is a property of the account, not of where the step sits, so
-    // it is true on a step you have finished, are on, or have not reached. The
-    // estimated-minimum note needs it stated: `action` carries the figure only
-    // on the step you are standing on, so off that step the note qualified a
-    // number the card never showed.
-    const fact = candidate.kind === 'debt'
-      ? `Minimum payment ${usd(candidate.debt!.minimumPayment)} a month.`
-      : '';
+    // A fact is a property of the step, not of where the step sits, so it holds
+    // on a step you have finished, are on, or have not reached.
+    const fact = factFor(candidate, m);
 
     if (candidate.kind === 'debt' && !done) {
       const facts = candidate.debt!;

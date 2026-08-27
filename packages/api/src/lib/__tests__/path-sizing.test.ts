@@ -183,6 +183,99 @@ describe('an estimated minimum payment is never presented as reported', () => {
   });
 });
 
+// ── What a card says when you are not standing on it ─────────────────────────
+
+// The page renders `action` only on the current step, so off it `fact` is the
+// only line carrying figures. A measured step that leaves it empty puts a card
+// on screen with no number on it at all.
+describe('every measured step states its own figures', () => {
+  const READINESS: PathReadiness = {
+    successRate: 61,
+    targetSuccess: 85,
+    verdict: 'at_risk',
+    currentAge: 50,
+    retirementAge: 65,
+    currentMonthlySavings: 900,
+    requiredMonthlySavings: 1400,
+    requiredSuccessRate: 87,
+    simRuns: 8,
+  };
+  const ctx = buildPathContextDefaults({
+    age: 40,
+    annualIncome: 120_000,
+    monthlyIncome: 10_000,
+    monthlyExpenses: 6_000,
+    stableMonthlyExpenses: 6_000,
+    monthlySurplus: 4_000,
+    savingsRate: 40,
+    cashTotal: 20_000,
+    hasHDHP: true,
+    trad401kBalance: 90_000,
+    rothIraBalance: 30_000,
+    brokerageBalance: 15_000,
+    debtAccounts: [debt({ id: 'a', name: 'Visa', balance: 5_000, apr: 20, minimumPayment: 150 })],
+    goals: [{ id: 'g', name: 'Boat', category: 'savings', targetAmount: 60_000, currentAmount: 15_000, deadline: null, details: null }],
+  });
+
+  it('leaves no unfinished measured step without a figure, and adds none to the rest', () => {
+    const { steps } = size(ctx, READINESS);
+    const measured = steps.filter((s) => s.target !== null);
+    const unmeasured = steps.filter((s) => s.target === null);
+
+    // The sweep is only worth anything if it actually sees the measured kinds.
+    expect(new Set(measured.map((s) => s.kind))).toEqual(new Set([
+      'buffer', 'debt', 'emergency-fund', 'savings-rate', 'retirement-readiness', 'goal', 'independence',
+    ]));
+    expect(measured.filter((s) => s.status !== 'complete' && s.fact === '')).toEqual([]);
+    expect(unmeasured.filter((s) => s.fact !== '')).toEqual([]);
+  });
+
+  // A finished step is already ticked. Restating a position against a target it
+  // has run past reads as a lopsided ratio nobody would say out loud, and the
+  // tick has already said the only thing left worth saying.
+  it('says nothing about where a finished step stands', () => {
+    const { byKey } = size(ctx, READINESS);
+    const buffer = byKey.get('stabilize')!;
+    const rate = byKey.get('savings-rate')!;
+
+    // Both are measured, both are past their target: the case this covers.
+    expect([buffer.status, rate.status]).toEqual(['complete', 'complete']);
+    expect(buffer.current! > buffer.target!).toBe(true);
+    expect(rate.current! > rate.target!).toBe(true);
+
+    expect(buffer.fact).toBe('');
+    expect(rate.fact).toBe('');
+  });
+
+  it('states a pot as what is saved against what it is for', () => {
+    const { byKey } = size(ctx, READINESS);
+    // The shared context has the buffer long finished, so it is read short of
+    // its target instead.
+    expect(size({ ...ctx, cashTotal: 400 }, READINESS).byKey.get('stabilize')!.fact)
+      .toBe('$400 saved of the $1,000 target.');
+    expect(byKey.get('emergency-fund')!.fact).toBe('$20,000 saved of the $36,000 target.');
+    expect(byKey.get('goal:g')!.fact).toBe('$15,000 saved of the $60,000 target.');
+    expect(byKey.get('financial-independence')!.fact).toBe('$135,000 saved of the $1,800,000 target.');
+  });
+
+  // A month's surplus is not a pot that has been put aside, so it is stated in
+  // the unit it is measured in.
+  it('states a rate in its own unit', () => {
+    const { byKey } = size(ctx, READINESS);
+    expect(byKey.get('retirement-readiness')!.fact).toBe('$900 a month of the $1,400 target.');
+    // The surplus here already clears the benchmark, so the savings-rate step is
+    // finished. Below it, it states the rate the same way.
+    expect(size({ ...ctx, monthlySurplus: 1_000 }, READINESS).byKey.get('savings-rate')!.fact)
+      .toBe('$1,000 a month of the $2,000 target.');
+  });
+
+  // Its balance is already the payoff figure the rest of the card quotes, so a
+  // saved-of-target line would say the same thing a second way.
+  it('leaves a debt step with the minimum it already stated, and nothing else', () => {
+    expect(size(ctx, READINESS).byKey.get('debt:a')!.fact).toBe('Minimum payment $150 a month.');
+  });
+});
+
 // ── The waterfall ────────────────────────────────────────────────────────────
 
 describe('monthly funding waterfalls over the surplus in path order', () => {
