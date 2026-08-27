@@ -2,13 +2,14 @@ import { Hono } from "hono";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildPathContext, type PathContext } from "../lib/path-context.js";
 import { buildPathCandidates } from "../lib/path-candidates.js";
-import { sizePath, type SizedStep } from "../lib/path-sizing.js";
+import { type SizedStep } from "../lib/path-sizing.js";
+import { generatePath, readActivePath, storedPath } from "../lib/path-generator.js";
 import { buildPathReadiness, type PathReadiness } from "../services/retirement-readiness.js";
 
 export const financialPathRoutes = new Hono<AuthEnv>();
 
 /** The wire shape of one step. Debt steps carry the single account they act on. */
-export function serializeStep(step: SizedStep, index: number) {
+export function serializeStep(step: SizedStep, index: number, reason = '') {
   return {
     id: step.key,
     order: index + 1,
@@ -17,6 +18,9 @@ export function serializeStep(step: SizedStep, index: number) {
     subtitle: step.subtitle,
     description: step.description,
     why: step.why,
+    // Why the step sits at this point of the path rather than another, as the
+    // model that ordered it put it. Empty whenever the order was deterministic.
+    reason,
     icon: step.icon,
     mandatory: step.mandatory,
     status: step.status,
@@ -112,20 +116,40 @@ async function readPathReadiness(
   return buildPathReadiness(tenantId, userId, ctx.monthlyIncome);
 }
 
+/**
+ * This person's path: the steps that apply to them, in the order that was
+ * stored for them, sized against what they hold today.
+ *
+ * The ORDER is read back rather than recomputed. It was chosen once, by a model
+ * over the validated candidate set, and a plan somebody is standing in the
+ * middle of must not reshuffle because the model was asked a second time. A
+ * tenant with no path yet gets one generated and stored here, and that is the
+ * only model call this endpoint ever makes.
+ *
+ * The FIGURES are recomputed every read. They have to be: a balance moves, and
+ * ticking a step done writes to the profile rather than to the path, so serving
+ * the stored numbers would freeze the page against the household behind it.
+ */
 export async function readFinancialPath(tenantId: string, userId: string) {
   const ctx = await buildPathContext(tenantId, userId);
   const readiness = await readPathReadiness(ctx, tenantId, userId);
-  const steps = sizePath(buildPathCandidates(ctx, readiness), ctx);
-  return { ctx, steps, readiness };
+  const candidates = buildPathCandidates(ctx, readiness);
+
+  const stored = await readActivePath(tenantId);
+  const { steps, reasons } = stored
+    ? storedPath(candidates, ctx, stored)
+    : await generatePath(tenantId, ctx, candidates, 'no_active_path');
+
+  return { ctx, steps, readiness, reasons };
 }
 
 // GET / — this person's path: the steps that apply to them, in order, sized.
 financialPathRoutes.get("/", async (c) => {
   const session = c.get("session");
-  const { ctx, steps, readiness } = await readFinancialPath(session.tenantId, session.userId);
+  const { ctx, steps, readiness, reasons } = await readFinancialPath(session.tenantId, session.userId);
 
   return c.json({
-    steps: steps.map(serializeStep),
+    steps: steps.map((step, index) => serializeStep(step, index, reasons.get(step.key))),
     currentStepId: currentStepKey(steps),
     summary: pathSummary(ctx, steps, readiness),
   });

@@ -977,6 +977,8 @@ export const api = {
         description: string;
         /** Why this step is on this person's path. */
         why: string;
+        /** Why it sits at this point of the path. Empty when nothing chose an order. */
+        reason: string;
         icon: string;
         mandatory: boolean;
         status: string;

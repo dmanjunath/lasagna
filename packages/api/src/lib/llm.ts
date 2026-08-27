@@ -33,10 +33,15 @@ export interface LlmAnonContext {
   tenantId: string;
   aliasMap?: AliasMap;
   /**
-   * Default true. Set false when the caller JSON.parses the returned text —
-   * descrubbing first would splice real names (which may contain quotes or
-   * backslashes) into the JSON and corrupt it. The caller must then descrub
-   * the parsed fields itself.
+   * Default true. Two reasons to set it false:
+   *
+   *  - The caller JSON.parses the returned text. Descrubbing first would splice
+   *    real names (which may contain quotes or backslashes) into the JSON and
+   *    corrupt it. The caller must then descrub the parsed fields itself.
+   *  - The model was told not to name anything, so the response should carry no
+   *    alias at all. Descrubbing it can only do damage: a debt alias IS a common
+   *    noun ("auto", "credit card"), so restoring one splices an account name
+   *    into ordinary prose and doubles the noun ("your Auto Loan loan").
    */
   descrubOutput?: boolean;
 }
@@ -101,7 +106,9 @@ export async function llmGenerateObject<T>(
   const map = await resolveMap(anon);
   const result = await generateObject(scrubOpts(opts, map) as never);
   return {
-    object: descrubObject(result.object, map) as T,
+    object: (anon.descrubOutput === false
+      ? result.object
+      : descrubObject(result.object, map)) as T,
     usage: result.usage as { inputTokens?: number; outputTokens?: number } | undefined,
     costUsd: actualLlmCostUsd(result.providerMetadata),
   };

@@ -40,6 +40,8 @@ interface PathStep {
   description: string;
   /** Why this step is on this person's path. */
   why: string;
+  /** Why it sits at this point of the path. Empty when nothing chose an order. */
+  reason: string;
   icon: string; mandatory: boolean; status: string; current: number | null;
   target: number | null; progress: number;
   monthlyFunding: number;
@@ -167,10 +169,10 @@ function WhyThisPathPopover({ steps, surplus }: { steps: PathStep[]; surplus: nu
               {' '}Anything that does not apply to you is left out rather than shown greyed.
             </p>
             <p className="mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
-              The order follows one rule: <strong className="font-bold text-content">do the thing with the
-              highest guaranteed return first.</strong>
-              {debtCount > 0 && <> Clearing a balance returns its own rate with no uncertainty, so each debt
-              account is placed by that rate rather than by a band.</>}
+              The order is chosen for <strong className="font-bold text-content">your situation</strong>,
+              not read off a fixed list. What protects you is weighed against what you are saving for, so a
+              goal with a date close by can sit ahead of a step that would come first for someone else.
+              {' '}It is set once and stays put, so the plan does not move under you.
             </p>
             <p className="text-[13.5px] leading-relaxed text-content-secondary">
               {surplus !== null && surplus > 0 ? (
@@ -474,6 +476,21 @@ function FocusArticle({ step, state, skipped, hideHeader = false, onSkip, onAsk,
       )}
       {step.description && (
         <p className="mt-2.5 text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]">{step.description}</p>
+      )}
+
+      {/* `why` and `description` both argue for the step. This argues for its
+          POSITION, which is the one part of the path that was chosen for this
+          person rather than computed, so it is labelled to keep it from reading
+          as a third explanation and sits after the two that are. Absent, and
+          nothing renders, on a path whose order nobody chose. */}
+      {step.reason && (
+        <div className="mt-4">
+          <div className="text-[13px] font-semibold text-content-muted mb-1">Why it sits here</div>
+          {/* Same leading as `description`. They are the same size and colour
+              and sit next to each other, so a tighter one visibly breaks the
+              rhythm once this runs past a line. */}
+          <p className="text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]">{step.reason}</p>
+        </div>
       )}
 
       {/* "Next step" is only real for the step you're on — steps ahead would

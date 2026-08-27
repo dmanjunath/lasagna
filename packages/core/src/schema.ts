@@ -869,3 +869,82 @@ export const financialPlans = pgTable("financial_plans", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+// ── Financial path ──────────────────────────────────────────────────────────
+// One generated path per tenant, with its steps in the order they were placed.
+//
+// The path is stored rather than recomputed because its ORDER is a judgement,
+// not a formula: a model picks it from the validated candidate set. Asking the
+// model twice would otherwise reshuffle a plan the user is standing in the
+// middle of. Only the newest row is `active`; earlier ones are kept as
+// `superseded` so a reshuffle is a visible event rather than a silent edit.
+
+/** Which of the two orderings produced the stored path. */
+export const financialPathSourceEnum = pgEnum("financial_path_source", [
+  "model",
+  "deterministic",
+]);
+
+export const financialPathStatusEnum = pgEnum("financial_path_status", [
+  "active",
+  "superseded",
+]);
+
+export const financialPaths = pgTable(
+  "financial_paths",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+    // What caused this generation, e.g. "no_active_path".
+    reason: varchar("reason", { length: 40 }).notNull(),
+    // Digest of the figures the sizing pass ran on, so a later slice can tell a
+    // stale path from a current one without re-reading the whole household.
+    inputsFingerprint: varchar("inputs_fingerprint", { length: 64 }).notNull(),
+    // The model that chose the order. Null when the deterministic order did.
+    model: text("model"),
+    orderSource: financialPathSourceEnum("order_source").notNull(),
+    status: financialPathStatusEnum("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("financial_paths_tenant_status_idx").on(t.tenantId, t.status),
+    // At most one active path per tenant, enforced by the database rather than
+    // by a read-then-write. Two requests landing together (the path page and
+    // the dashboard both read this) would otherwise each generate one, and the
+    // tenant would have two active orders and have paid for two model calls.
+    uniqueIndex("financial_paths_one_active_per_tenant")
+      .on(t.tenantId)
+      .where(sql`"status" = 'active'`),
+  ],
+);
+
+// The steps of one path, in order.
+//
+// The order is the whole of what is stored. Titles, targets, balances, monthly
+// figures, dates and statuses are all recomputed on every read against the
+// household as it stands that day, because a balance moves and a finished step
+// can reopen, so storing them would only freeze the page against the accounts
+// behind it. A step therefore holds the candidate it names and the one line the
+// model wrote about where it sits, and nothing else.
+export const financialPathSteps = pgTable(
+  "financial_path_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pathId: uuid("path_id")
+      .notNull()
+      .references(() => financialPaths.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    // Names the account or goal it acts on when it acts on one: `debt:<id>`,
+    // `goal:<id>`. A key whose row is gone is skipped on read.
+    candidateKey: varchar("candidate_key", { length: 100 }).notNull(),
+    // One sentence on why the step sits here. The model's, when it ordered.
+    reason: text("reason").notNull().default(""),
+  },
+  (t) => [unique("financial_path_steps_path_position_uniq").on(t.pathId, t.position)],
+);
