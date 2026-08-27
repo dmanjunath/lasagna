@@ -3,9 +3,9 @@ import { Link, useLocation } from 'wouter';
 import { ArrowRight, Check, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useInsights } from '../hooks/useInsights';
-import { api } from '../lib/api';
+import { api, type FinancialPath } from '../lib/api';
 import { useChatStore } from '../lib/chat-store';
-import { Button, Skeleton } from '../components/uikit';
+import { Button, Skeleton, useToast } from '../components/uikit';
 import { ActionItem } from '../components/common/action-item';
 import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 
@@ -49,7 +49,6 @@ interface LevelStep {
   status: string;
   progress: number;
   action: string;
-  detail: string;
   current: number | null;
   target: number | null;
 }
@@ -167,6 +166,7 @@ export function SimpleHome() {
   const { user, tenant } = useAuth();
   const [, setLocation] = useLocation();
   const { openChat } = useChatStore();
+  const toast = useToast();
   const { insights, refresh: refreshInsights, dismiss, isLoading: insightsLoading } = useInsights();
   const [generatingInsights, setGeneratingInsights] = useState(false);
   const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
@@ -176,7 +176,7 @@ export function SimpleHome() {
   const [upcomingBill, setUpcomingBill] = useState<BillCard | null>(null);
   const [askDraft, setAskDraft] = useState('');
   const [currentStep, setCurrentStep] = useState<LevelStep | null>(null);
-  const [levelSteps, setLevelSteps] = useState<{ id: string; order: number; title: string; status: string; skipped: boolean }[]>([]);
+  const [levelSteps, setLevelSteps] = useState<{ id: string; order: number; title: string; status: string }[]>([]);
   const [levelCurrentId, setLevelCurrentId] = useState<string>('');
   const [levelLoading, setLevelLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -202,13 +202,16 @@ export function SimpleHome() {
     };
   }, []);
 
-  const loadPriorities = useCallback(() => {
-    return api
-      .getPriorities()
-      .then(({ steps, currentStepId }) => {
-        const found = steps.find((s) => s.id === currentStepId) ?? steps[0];
-        if (found) {
-          setCurrentStep({
+  // The same endpoint /financial-level reads, and the server's own answer for
+  // where this person stands. Home used to run off a second endpoint with a
+  // second idea of "you are here", which is two things that can disagree about
+  // one fact. There is now one.
+  const applyPath = useCallback((path: FinancialPath) => {
+    const { steps, currentStepId } = path;
+    const found = steps.find((s) => s.id === currentStepId) ?? steps[0];
+    setCurrentStep(
+      found
+        ? {
             id: found.id,
             order: found.order,
             kind: found.kind,
@@ -218,18 +221,64 @@ export function SimpleHome() {
             status: found.status,
             progress: found.progress,
             action: found.action,
-            detail: found.detail,
             current: found.current,
             target: found.target,
-          });
-        } else {
-          setCurrentStep(null);
-        }
-        setLevelSteps(steps.map((s) => ({ id: s.id, order: s.order, title: s.title, status: s.status, skipped: s.skipped })));
-        setLevelCurrentId(currentStepId);
-      })
-      .catch(() => { setCurrentStep(null); setLevelSteps([]); });
+          }
+        : null,
+    );
+    setLevelSteps(steps.map((s) => ({ id: s.id, order: s.order, title: s.title, status: s.status })));
+    setLevelCurrentId(currentStepId);
   }, []);
+
+  const loadPath = useCallback(() => {
+    return api
+      .getFinancialPath()
+      .then(applyPath)
+      .catch(() => { setCurrentStep(null); setLevelSteps([]); });
+  }, [applyPath]);
+
+  const markCurrentStep = useCallback(
+    async (status: 'done' | 'not_applicable' | 'pending') => {
+      const step = currentStep;
+      if (!step) return;
+      try {
+        applyPath(await api.markPathStep(step.id, status));
+        // Both marks move the card on to a different step, so without this the
+        // one they acted on is off the screen, unnamed, with no way back. The
+        // step card on /financial-level says the same thing the same way.
+        if (status !== 'pending') {
+          toast({
+            title:
+              status === 'done'
+                ? `${step.title} is done`
+                : `${step.title} is off your path`,
+            duration: 8000,
+            // The uikit button, not a text link. Home moves the card on to the
+            // next step, so once this toast expires there is no way back to the
+            // one they just acted on at all, and it has to be a target a thumb
+            // can hit. The negative margin cancels the button's own padding, so
+            // the label lines up under the title rather than sitting indented.
+            description: (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="-ml-3.5"
+                onClick={() => {
+                  void api.markPathStep(step.id, 'pending').then(applyPath).catch(() => loadPath());
+                }}
+              >
+                {status === 'done' ? 'Undo' : 'Put back'}
+              </Button>
+            ),
+          });
+        }
+      } catch {
+        toast({ tone: 'negative', title: "Couldn't update this step. Try again." });
+        await loadPath();
+      }
+    },
+    [applyPath, currentStep, loadPath, toast],
+  );
 
   useEffect(() => {
     const BIG_CATEGORIES = new Set(['housing', 'debt_payment', 'transportation', 'insurance', 'utilities']);
@@ -238,7 +287,7 @@ export function SimpleHome() {
     Promise.all([
       api.getBalances().catch(() => ({ balances: [] as any[] })),
       api.getGoals().catch(() => ({ goals: [] })),
-      loadPriorities().finally(() => setLevelLoading(false)),
+      loadPath().finally(() => setLevelLoading(false)),
       api.getRecurring().catch(() => ({ recurring: [] as any[] })),
       api.getNetWorthHistory().catch(() => ({ history: [] as { date: string; value: number }[] })),
     ]).then(([balanceData, goalsData, , recurringData, historyData]) => {
@@ -296,7 +345,7 @@ export function SimpleHome() {
         setUpcomingBill({ ...upcoming, daysAway });
       }
     }).finally(() => setLoading(false));
-  }, [loadPriorities]);
+  }, [loadPath]);
 
   // Side rail: month-to-date spending/cash-flow plus the latest transactions.
   useEffect(() => {
@@ -528,21 +577,8 @@ export function SimpleHome() {
                 const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
                 openChat(prompt);
               }}
-              onDid={async () => {
-                if (!currentStep) return;
-                try { await api.completePriorityStep(currentStep.id, true); } catch {}
-                await loadPriorities();
-              }}
-              onSkip={async () => {
-                if (!currentStep) return;
-                try { await api.skipPriorityStep(currentStep.id, true); } catch {}
-                await loadPriorities();
-              }}
-              onUnskip={async () => {
-                if (!currentStep) return;
-                try { await api.skipPriorityStep(currentStep.id, false); } catch {}
-                await loadPriorities();
-              }}
+              onDid={() => markCurrentStep('done')}
+              onSetAside={() => markCurrentStep('not_applicable')}
               onSetupProfile={() => setLocation('/profile')}
             />
           </div>
@@ -840,21 +876,22 @@ function NetWorthBreakdown({
  *  ladder), so it reads as its own thing — not another action card. */
 function LevelSection({
   step, steps, currentStepId, loading, className = '',
-  onHelp, onDid, onSkip, onUnskip, onSetupProfile,
+  onHelp, onDid, onSetAside, onSetupProfile,
 }: {
   step: LevelStep | null;
-  steps: { id: string; order: number; title: string; status: string; skipped: boolean }[];
+  steps: { id: string; order: number; title: string; status: string }[];
   currentStepId: string;
   loading: boolean;
   className?: string;
   onHelp: () => void;
   onDid: () => void | Promise<void>;
-  onSkip: () => void | Promise<void>;
-  onUnskip: () => void | Promise<void>;
+  onSetAside: () => void | Promise<void>;
   onSetupProfile: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [justSkipped, setJustSkipped] = useState(false);
+  // Which mark is in flight. Calling a step done reopens the order, which takes
+  // as long as a model call, so the control has to say it is working.
+  const [busy, setBusy] = useState<null | 'done' | 'not_applicable'>(null);
+  const working = busy !== null;
 
   const shell = (children: React.ReactNode) => (
     <section className={`relative rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7 ${className}`}>
@@ -904,15 +941,13 @@ function LevelSection({
     );
   }
 
-  // Mirror the /financial-level page: skipped state comes from each step's
-  // server `skipped` flag, so the counts and rail match that page exactly.
-  const skipped = new Set(steps.filter((s) => s.skipped).map((s) => s.id));
-  const states = steps.map((s) => levelStateOf(s, currentStepId, skipped));
-  const railLabels = steps.map((s) => `Level ${s.order}: ${s.title}`);
+  // The same steps, the same "you are here" and the same length /financial-level
+  // renders, because both came out of the one response the server built.
+  const states = steps.map((s) => levelStateOf(s, currentStepId));
+  const railLabels = steps.map((s) => `Step ${s.order}: ${s.title}`);
   const total = steps.length || 1;
   const doneCount = states.filter((s) => s === 'done').length;
   const futureCount = states.filter((s) => s === 'future').length;
-  const skippedCount = states.filter((s) => s === 'skipped').length;
   const allComplete = doneCount === total;
   const isComplete = step.status === 'complete';
   const pct = Math.max(0, Math.min(100, Math.round(step.progress || 0)));
@@ -964,11 +999,6 @@ function LevelSection({
                   <LegendSwatch state="future" />{futureCount} ahead
                 </span>
               )}
-              {skippedCount > 0 && (
-                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
-                  <LegendSwatch state="skipped" />{skippedCount} skipped
-                </span>
-              )}
             </div>
           </div>
         )}
@@ -990,45 +1020,40 @@ function LevelSection({
               {detail && <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">{detail}</div>}
             </div>
           )}
+          {/* The same four words for the same four actions the step card on
+              /financial-level offers, because they are the same actions and two
+              vocabularies for one thing read as two features. */}
           <div className="flex items-center gap-2 mt-4 flex-wrap">
-            <Button size="sm" disabled={busy} onClick={onHelp} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-              Start
+            <Button size="sm" disabled={working} onClick={onHelp} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+              Walk me through this
             </Button>
+            {/* Only where a tick decides anything. A step the figures measure
+                completes itself off the balance behind it, so this button used
+                to accept the press, spend a reorder, and change nothing. */}
+            {step.target === null && (
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={busy === 'done'}
+                disabled={working}
+                leadingIcon={<Check className="h-3.5 w-3.5" />}
+                onClick={async () => { setBusy('done'); try { await onDid(); } finally { setBusy(null); } }}
+              >
+                Mark done
+              </Button>
+            )}
             <Button
               size="sm"
               variant="ghost"
-              disabled={busy}
-              onClick={async () => { setBusy(true); try { await onDid(); } finally { setBusy(false); } }}
-            >
-              {busy ? '…' : 'I did it'}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
+              loading={busy === 'not_applicable'}
+              disabled={working}
               onClick={async () => {
-                setBusy(true);
-                try {
-                  await onSkip();
-                  setJustSkipped(true);
-                  setTimeout(() => setJustSkipped(false), 4000);
-                } finally { setBusy(false); }
+                setBusy('not_applicable');
+                try { await onSetAside(); } finally { setBusy(null); }
               }}
             >
-              Skip
+              Not applicable to me
             </Button>
-            {justSkipped && (
-              <button
-                type="button"
-                className="text-[12px] font-semibold text-content-secondary underline underline-offset-2 hover:text-brand"
-                onClick={async () => {
-                  setBusy(true);
-                  try { await onUnskip(); setJustSkipped(false); } finally { setBusy(false); }
-                }}
-              >
-                Undo skip
-              </button>
-            )}
           </div>
         </div>
       )}

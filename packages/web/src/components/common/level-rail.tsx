@@ -2,20 +2,20 @@
 // legend swatch, plus the state mapper. Used by the /financial-level hero and the
 // home page's level summary so the two never drift.
 
-// State drives the whole palette. Four intentional, token-only states:
-//   done    → brand green (filled) · settled, earned
-//   current → brand green (loud)   · the focal "you are here"
-//   future  → neutral faint        · quiet, ahead of you
-//   skipped → neutral faint, struck
-export type LevelState = 'done' | 'current' | 'future' | 'skipped';
+// State drives the whole palette. Three intentional, token-only states:
+//   done    → brand green (filled), settled, earned
+//   current → brand green (loud), the focal "you are here"
+//   future  → neutral faint, quiet, ahead of you
+//
+// There is no fourth state for a step somebody set aside. A step that does not
+// apply to them is not on the path at all, so it never reaches this.
+export type LevelState = 'done' | 'current' | 'future';
 
 export function levelStateOf(
   step: { id: string; status: string },
   currentStepId: string,
-  skipped: Set<string>,
 ): LevelState {
   if (step.status === 'complete') return 'done';
-  if (skipped.has(step.id)) return 'skipped';
   if (step.id === currentStepId) return 'current';
   return 'future';
 }
@@ -23,7 +23,7 @@ export function levelStateOf(
 // ── SegmentedRail — one equal-height segment per level, colored only by STATE
 // (never index or height, since completion is non-linear): done = brand-green
 // fill, current = green with a ring/halo + a centred marker dot ("you are here"),
-// future = quiet neutral track, skipped = muted dashed outline. ──
+// future = quiet neutral track. ──
 // `labels` (optional) makes each segment reveal its level on hover via a small
 // tooltip — used on the home summary where there's no level list below the rail.
 // Segments stay non-interactive (plain spans, no click).
@@ -60,16 +60,6 @@ export function SegmentedRail({ states, labels }: { states: LevelState[]; labels
               {tip}
             </span>
           );
-        if (st === 'skipped')
-          return (
-            <span
-              key={i}
-              className={base}
-              style={{ border: '1.5px dashed color-mix(in srgb, rgb(var(--ui-content-faint)) 60%, transparent)' }}
-            >
-              {tip}
-            </span>
-          );
         return (
           <span
             key={i}
@@ -97,13 +87,6 @@ export function LegendSwatch({ state }: { state: LevelState }) {
     );
   if (state === 'done')
     return <span className="w-[11px] h-[11px] rounded-[3px] shrink-0 bg-brand" />;
-  if (state === 'skipped')
-    return (
-      <span
-        className="w-[11px] h-[11px] rounded-[3px] shrink-0"
-        style={{ border: '1.5px dashed color-mix(in srgb, rgb(var(--ui-content-faint)) 60%, transparent)' }}
-      />
-    );
   return (
     <span
       className="w-[11px] h-[11px] rounded-[3px] shrink-0"

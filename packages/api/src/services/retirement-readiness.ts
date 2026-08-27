@@ -326,9 +326,8 @@ export function solveMonthlySavings(
 
 // One readiness read per set of inputs, held in process.
 //
-// The path endpoint and the older /priorities endpoint both build the path on
-// every request, and a Monte Carlo is thousands of times the cost of the rest of
-// it. The key is the resolved SimInputs themselves, so a hit is only ever
+// The path endpoint builds the path on every request, and a Monte Carlo is
+// thousands of times the cost of the rest of it. The key is the resolved SimInputs themselves, so a hit is only ever
 // returned for a household whose balances, profile and spending are byte-for-
 // byte what the cached answer was computed from — a stale verdict is not
 // reachable. The TTL exists to bound memory, not correctness.

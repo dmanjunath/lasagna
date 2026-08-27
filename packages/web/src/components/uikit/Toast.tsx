@@ -65,7 +65,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {typeof document !== 'undefined' &&
         createPortal(
-          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 sm:items-end sm:p-6">
+          // Clear of the mobile tab bar, which is fixed to the same edge and is
+          // 68px tall over the safe area, the figure the shell already pads its
+          // own content by. A toast landing on it swallowed its taps for as long
+          // as the toast lived.
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 pb-[calc(env(safe-area-inset-bottom)+80px)] sm:items-end sm:p-6 sm:pb-6">
             {toasts.map((t) => (
               <ToastCard key={t.id} toast={t} onClose={() => remove(t.id)} />
             ))}

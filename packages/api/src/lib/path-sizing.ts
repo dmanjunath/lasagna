@@ -1,4 +1,5 @@
 import type { PathContext } from './path-context.js';
+import type { PathStepMark } from './path-generator.js';
 import {
   type PathCandidate,
   SAVINGS_RATE_BENCHMARK,
@@ -36,7 +37,13 @@ export interface SizedStep extends PathCandidate {
   fact: string;
   /** Anything the figures above would otherwise imply but not state. */
   notes: string[];
-  skipped: boolean;
+  /** What the person wrote when they marked this step. Empty when nothing. */
+  note: string;
+}
+
+/** Where the person says they stand on a step, and what they wrote about it. */
+export interface StepMark {
+  mark: PathStepMark;
   note: string;
 }
 
@@ -332,6 +339,17 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
 }
 
 /**
+ * Whether the figures decide where this step stands.
+ *
+ * The one definition, off the same `measure` the waterfall runs, so nothing can
+ * disagree with it: `sizePath` applies a tick only where this is false, and the
+ * page offers a tick only where this is false.
+ */
+export function stepIsMeasured(step: PathCandidate, ctx: PathContext): boolean {
+  return measure(step, ctx).target !== null;
+}
+
+/**
  * What a step states about itself, in the same register as the debt minimum: a
  * figure, never an order. Every unfinished measured step needs one, because
  * `action` renders only on the step the user is standing on, so off that step a
@@ -358,10 +376,18 @@ function factFor(step: PathCandidate, m: Measure): string {
 
 // ── The waterfall ─────────────────────────────────────────────────────────────
 
-export function sizePath(candidates: PathCandidate[], ctx: PathContext): SizedStep[] {
+/**
+ * @param marks Where the person says they stand on each step, by candidate key.
+ *   Steps they marked not applicable must already be OUT of `candidates`: the
+ *   waterfall walks this list in order, so leaving one in would push every date
+ *   behind it out by a step nobody is working on.
+ */
+export function sizePath(
+  candidates: PathCandidate[],
+  ctx: PathContext,
+  marks: ReadonlyMap<string, StepMark> = new Map(),
+): SizedStep[] {
   const surplus = Math.max(ctx.monthlySurplus ?? 0, 0);
-  const skipped = new Set(ctx.skippedStepIds);
-  const completedById = new Map(ctx.completedSteps.map((e) => [e.id, e]));
 
   // Months from now that the waterfall reaches the next step, how much of the
   // surplus is still unclaimed, and whether a step ahead has already absorbed
@@ -372,14 +398,13 @@ export function sizePath(candidates: PathCandidate[], ctx: PathContext): SizedSt
 
   return candidates.map((candidate) => {
     const m = measure(candidate, ctx);
-    const isSkipped = skipped.has(candidate.key);
     // A stored tick is a note about a step nothing measures — an insurance
     // policy, a will. Where the figures DO measure the step, the figures win,
     // in both directions: an emergency fund that gets spent drops back to
-    // in_progress on its own, and a tick carried over from the old fixed
-    // ladder can never pin a step complete against the balance behind it.
-    const ticked = completedById.get(candidate.key);
-    const manual = m.target === null ? ticked : undefined;
+    // in_progress on its own, and a tick can never pin a step complete against
+    // the balance behind it.
+    const marked = marks.get(candidate.key);
+    const manual = m.target === null && marked?.mark === 'done';
 
     let status = m.status;
     let progress = m.progress;
@@ -388,7 +413,7 @@ export function sizePath(candidates: PathCandidate[], ctx: PathContext): SizedSt
       progress = 100;
     }
 
-    const done = status === 'complete' || isSkipped;
+    const done = status === 'complete';
 
     // A finished step does not issue an order. Measured steps kept quoting the
     // instruction that got them there long after they were done, so a completed
@@ -476,11 +501,10 @@ export function sizePath(candidates: PathCandidate[], ctx: PathContext): SizedSt
       action,
       fact,
       notes,
-      skipped: isSkipped,
       // Theirs whether or not the tick still decides the status. When the
       // figures take the decision back the note is still the sentence they
       // typed, and dropping it silently loses their own words.
-      note: ticked?.note ?? '',
+      note: marked?.note ?? '',
     };
   });
 }

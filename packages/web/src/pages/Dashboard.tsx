@@ -120,7 +120,7 @@ export function Dashboard() {
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
       api.getGoals().catch(() => ({ goals: [] })),
       api.getInsights().catch(() => ({ insights: [], lastActionsGeneratedAt: null as string | null })),
-      api.getPriorities().catch(() => ({ steps: [], currentStepId: '', summary: {} })),
+      api.getFinancialPath().catch(() => null),
       api.getNetWorthHistory().catch(() => ({ history: [] as Array<{ date: string; value: number }> })),
       api.getSpendingSummary().catch(() => ({ categories: [] as Array<{ name: string; systemKey: string | null; groupType: 'income' | 'expense' | 'transfer'; total: number; count: number; percentage: number }>, totalSpending: 0, totalIncome: 0, netCashFlow: 0, period: { start: '', end: '' } })),
     ]).then(([balanceData, itemData, debtData, profileData, goalsData, insightsData, prioritiesData, historyData, spendingData]) => {
@@ -186,11 +186,17 @@ export function Dashboard() {
         insightsData.lastActionsGeneratedAt ? new Date(insightsData.lastActionsGeneratedAt) : null
       );
 
-      // Priority steps from backend
-      const apiSteps = (prioritiesData.steps || []) as PriorityStep[];
-      const apiSummary = prioritiesData.summary as PrioritySummary | null;
-      setPrioritySteps(apiSteps);
-      setPrioritySummary(apiSummary);
+      // The path, as the layer view wants it. `detail` and `priority` are this
+      // view's own presentation of a step, not facts the server holds.
+      setPrioritySteps(
+        (prioritiesData?.steps ?? []).map((step, i): PriorityStep => ({
+          ...step,
+          detail: step.subtitle,
+          skipped: false,
+          priority: i < 3 ? 'critical' : i < 7 ? 'high' : 'medium',
+        })),
+      );
+      setPrioritySummary(prioritiesData?.summary ?? null);
 
       // Debts mapping
       const apiDebts = debtData.debts || [];

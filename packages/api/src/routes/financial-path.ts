@@ -1,9 +1,20 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildPathContext, type PathContext } from "../lib/path-context.js";
-import { buildPathCandidates } from "../lib/path-candidates.js";
-import { type SizedStep } from "../lib/path-sizing.js";
-import { generatePath, readActivePath, storedPath } from "../lib/path-generator.js";
+import { buildPathCandidates, type PathCandidate } from "../lib/path-candidates.js";
+import { stepIsMeasured, type SizedStep } from "../lib/path-sizing.js";
+import {
+  generatePath,
+  invalidatePath,
+  markPathStep,
+  pathFingerprint,
+  readActivePath,
+  storedPath,
+  type PathGenerationReason,
+  type PathStepMark,
+  type StoredPath,
+} from "../lib/path-generator.js";
 import { buildPathReadiness, type PathReadiness } from "../services/retirement-readiness.js";
 
 export const financialPathRoutes = new Hono<AuthEnv>();
@@ -32,7 +43,6 @@ export function serializeStep(step: SizedStep, index: number, reason = '') {
     action: step.action,
     fact: step.fact,
     notes: step.notes,
-    skipped: step.skipped,
     note: step.note,
     // One entry, always: a debt step acts on exactly one account.
     accounts: step.debt
@@ -88,10 +98,16 @@ export function pathSummary(
   };
 }
 
-/** The first step that is neither finished nor skipped. */
+/**
+ * "You are here": the first step that is not finished.
+ *
+ * The one definition, computed once on the server, because home and the path
+ * page both render this and two computations of it would eventually disagree.
+ * A step taken off the path is not in `steps` at all, so it cannot be it.
+ */
 export function currentStepKey(steps: SizedStep[]): string {
   return (
-    steps.find((s) => s.status !== 'complete' && !s.skipped)?.key ??
+    steps.find((s) => s.status !== 'complete')?.key ??
     steps[steps.length - 1]?.key ??
     ''
   );
@@ -117,40 +133,195 @@ async function readPathReadiness(
 }
 
 /**
+ * Whether this stored path still describes this household, and if not, what
+ * changed it.
+ *
+ * Null means keep it. A path that reshuffled on anything less than these would
+ * be a plan that moves under the person walking it.
+ *
+ * The reason is looked for in the most specific place first. A parked reason is
+ * an act the user performed, and only whatever performed it could know: a goal
+ * edit that leaves the ordering inputs identical, or a step ticked done, are
+ * both invisible here. Failing that, a step appearing or disappearing says what
+ * happened on its own.
+ *
+ * `inputs_changed` is the catch-all, and it is honestly named: the digest no
+ * longer matches and we cannot say which input moved. Usually it is a figure
+ * crossing a band. But a release that changes what the digest is TAKEN OVER
+ * lands here too, and then nothing about the household changed at all, so
+ * nothing downstream may tell the reader their figures did.
+ */
+function regenerationReason(
+  stored: StoredPath,
+  candidates: PathCandidate[],
+  fingerprint: string,
+): PathGenerationReason | null {
+  if (stored.pendingReason) return stored.pendingReason;
+  if (stored.inputsFingerprint === fingerprint) return null;
+
+  const before = new Set(stored.steps.map((s) => s.key));
+  const now = new Set(candidates.map((c) => c.key));
+  const appeared = (prefix: string) => [...now].some((k) => k.startsWith(prefix) && !before.has(k));
+  const vanished = (prefix: string) => [...before].some((k) => k.startsWith(prefix) && !now.has(k));
+
+  if (appeared('debt:')) return 'debt_added';
+  if (vanished('debt:')) return 'debt_cleared';
+  if (appeared('goal:')) return 'goal_added';
+  if (vanished('goal:')) return 'goal_removed';
+  return 'inputs_changed';
+}
+
+/**
+ * What a read of the path is computed from, before the stored order is applied:
+ * the household, the simulation, the steps that apply, and the digest of the
+ * inputs their ORDER turns on.
+ *
+ * Separate from the read so a request that both marks a step and answers with
+ * the path builds this once. None of it is changed by a mark, so the same
+ * object is correct on either side of one.
+ */
+async function pathInputs(tenantId: string, userId: string) {
+  const ctx = await buildPathContext(tenantId, userId);
+  const readiness = await readPathReadiness(ctx, tenantId, userId);
+  const candidates = buildPathCandidates(ctx, readiness);
+  return { ctx, readiness, candidates, fingerprint: pathFingerprint(ctx, candidates) };
+}
+
+/**
  * This person's path: the steps that apply to them, in the order that was
  * stored for them, sized against what they hold today.
  *
  * The ORDER is read back rather than recomputed. It was chosen once, by a model
  * over the validated candidate set, and a plan somebody is standing in the
- * middle of must not reshuffle because the model was asked a second time. A
- * tenant with no path yet gets one generated and stored here, and that is the
- * only model call this endpoint ever makes.
+ * middle of must not reshuffle because the model was asked a second time. This
+ * read regenerates it only when `regenerationReason` names an event that
+ * warrants it, and that is the only model call this endpoint ever makes.
  *
- * The FIGURES are recomputed every read. They have to be: a balance moves, and
- * ticking a step done writes to the profile rather than to the path, so serving
- * the stored numbers would freeze the page against the household behind it.
+ * The FIGURES are recomputed every read. They have to be: a balance moves and a
+ * finished step can reopen, so serving the stored numbers would freeze the page
+ * against the household behind it.
  */
-export async function readFinancialPath(tenantId: string, userId: string) {
-  const ctx = await buildPathContext(tenantId, userId);
-  const readiness = await readPathReadiness(ctx, tenantId, userId);
-  const candidates = buildPathCandidates(ctx, readiness);
+export async function readFinancialPath(
+  tenantId: string,
+  userId: string,
+  inputs?: Awaited<ReturnType<typeof pathInputs>>,
+) {
+  const { ctx, readiness, candidates, fingerprint } =
+    inputs ?? (await pathInputs(tenantId, userId));
 
   const stored = await readActivePath(tenantId);
-  const { steps, reasons } = stored
-    ? storedPath(candidates, ctx, stored)
-    : await generatePath(tenantId, ctx, candidates, 'no_active_path');
+  const stale = stored ? regenerationReason(stored, candidates, fingerprint) : null;
 
-  return { ctx, steps, readiness, reasons };
+  const path =
+    stored && !stale
+      ? storedPath(candidates, ctx, stored)
+      : await generatePath(tenantId, ctx, candidates, stale ?? 'no_active_path', stored);
+
+  return { ctx, readiness, ...path };
+}
+
+/** The wire shape of the whole path. One builder, so every reader agrees. */
+function serializePath(
+  path: Awaited<ReturnType<typeof readFinancialPath>>,
+) {
+  const { ctx, steps, notApplicable, readiness, reasons, generatedAt, reason } = path;
+  return {
+    steps: steps.map((step, index) => serializeStep(step, index, reasons.get(step.key))),
+    // Off the path, so they carry no number and no figures. Named only so the
+    // page can offer them back, which is the whole of what it does with them.
+    notApplicable: notApplicable.map((c) => ({ id: c.key, title: c.title })),
+    currentStepId: currentStepKey(steps),
+    // When this order was chosen and what chose it, so the page can say why the
+    // path it is showing is the one it is.
+    updatedAt: generatedAt.toISOString(),
+    updatedReason: reason,
+    summary: pathSummary(ctx, steps, readiness),
+  };
 }
 
 // GET / — this person's path: the steps that apply to them, in order, sized.
 financialPathRoutes.get("/", async (c) => {
   const session = c.get("session");
-  const { ctx, steps, readiness, reasons } = await readFinancialPath(session.tenantId, session.userId);
+  return c.json(serializePath(await readFinancialPath(session.tenantId, session.userId)));
+});
 
-  return c.json({
-    steps: steps.map((step, index) => serializeStep(step, index, reasons.get(step.key))),
-    currentStepId: currentStepKey(steps),
-    summary: pathSummary(ctx, steps, readiness),
-  });
+// PATCH /steps/:key — where this person stands on one step of their path.
+//
+// `done` is a tick, and it only decides a step no figure measures. A measured
+// step goes on completing itself from the balances behind it, in both
+// directions, so a tick can never pin one against its own figures.
+//
+// `not_applicable` takes the step off the path entirely: it stops being
+// counted, numbered, funded and shown. `pending` is how it comes back, which is
+// why it is a status rather than a delete.
+const markSchema = z.object({
+  status: z.enum(['pending', 'done', 'not_applicable']),
+  note: z.string().max(500).optional(),
+});
+
+/**
+ * Whether this mark can change the SEQUENCE, and so is worth reopening it for.
+ *
+ * Only a step called done can: what is left to do has changed, so what should
+ * come next may have too. But a tick on a step the figures measure changes
+ * nothing at all, because `sizePath` reads those off the balances behind them
+ * whatever was ticked, so reordering for one would buy the same sequence back
+ * for the length and price of a model call.
+ *
+ * Taking a step off the path, and putting it back, are both left out for a
+ * reason of their own: removing a step reorders nothing, and restoring one
+ * restores a position that is already stored. A person tidying up which steps
+ * apply to them would otherwise pay for every toggle.
+ */
+function markReopensTheOrder(
+  mark: PathStepMark,
+  key: string,
+  { ctx, candidates }: Awaited<ReturnType<typeof pathInputs>>,
+): boolean {
+  if (mark !== 'done') return false;
+  const candidate = candidates.find((c) => c.key === key);
+  return candidate !== undefined && !stepIsMeasured(candidate, ctx);
+}
+
+/**
+ * Record where this person stands on one step, and answer with the path as it
+ * stands after it, including any regeneration the mark just triggered. One
+ * round trip, so nothing renders a path that disagrees with the tick that was
+ * just made.
+ *
+ * Null when no step on the active path carries that key.
+ */
+export async function markAndReadPath(
+  tenantId: string,
+  userId: string,
+  key: string,
+  mark: PathStepMark,
+  note?: string,
+) {
+  // Built before the mark and reused by the read below. A mark changes nothing
+  // this describes, and building it twice would run the retirement simulation
+  // twice for one tick.
+  const inputs = await pathInputs(tenantId, userId);
+
+  if (!(await markPathStep(tenantId, key, mark, note))) return null;
+  if (markReopensTheOrder(mark, key, inputs)) await invalidatePath(tenantId, 'step_completed');
+
+  return readFinancialPath(tenantId, userId, inputs);
+}
+
+financialPathRoutes.patch("/steps/:key", async (c) => {
+  const session = c.get("session");
+  const parsed = markSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
+
+  const path = await markAndReadPath(
+    session.tenantId,
+    session.userId,
+    c.req.param("key"),
+    parsed.data.status,
+    parsed.data.note,
+  );
+  if (!path) return c.json({ error: "That step is not on your path" }, 404);
+
+  return c.json(serializePath(path));
 });

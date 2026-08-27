@@ -5,6 +5,7 @@ import {
   eq,
   financialPathSteps,
   financialPaths,
+  financialProfiles,
   isTypedGoalCategory,
   sql,
 } from '@lasagna/core';
@@ -44,8 +45,42 @@ import { llmGenerateObject } from './llm.js';
 
 const ORDER_LEVEL = 'medium' as const;
 
-/** What a generation was for. Only one cause exists while nothing regenerates. */
-export type PathGenerationReason = 'no_active_path';
+/**
+ * What a generation was for.
+ *
+ * These are the ONLY causes. A path that reshuffled on anything else would be
+ * a plan that moves under the person walking it, and one that never reshuffled
+ * would be a plan that ignores the household it was built for. Three of these
+ * are a deliberate act by the user, three are read off the household, and the
+ * last is the first path a tenant ever gets.
+ */
+export type PathGenerationReason =
+  | 'no_active_path'
+  | 'goal_added'
+  | 'goal_updated'
+  | 'goal_removed'
+  | 'step_completed'
+  | 'debt_added'
+  | 'debt_cleared'
+  | 'inputs_changed';
+
+const GENERATION_REASONS: readonly PathGenerationReason[] = [
+  'no_active_path',
+  'goal_added',
+  'goal_updated',
+  'goal_removed',
+  'step_completed',
+  'debt_added',
+  'debt_cleared',
+  'inputs_changed',
+];
+
+export function isGenerationReason(value: string | null): value is PathGenerationReason {
+  return value !== null && (GENERATION_REASONS as readonly string[]).includes(value);
+}
+
+/** Where the person stands on one step, as they said so themselves. */
+export type PathStepMark = 'pending' | 'done' | 'not_applicable';
 
 export type PathOrderSource = 'model' | 'deterministic';
 
@@ -370,60 +405,92 @@ export function validateOrder(
 // ── Fingerprint ──────────────────────────────────────────────────────────────
 
 /**
- * A digest of the figures the sizing pass ran on. Stored so a later slice can
- * tell a path built on this household from one built on an older version of it.
+ * A digest of the inputs an ORDER turns on. Stored, and compared on every read,
+ * so a path built on this household can be told from one built on an older
+ * version of it.
+ *
+ * What counts as material is not a judgement call here: it is exactly the
+ * payload the model was shown. If those inputs are unchanged, asking again
+ * would produce the same sequence, so there is nothing to regenerate and
+ * nothing to pay for. If they have changed, the sequence may rightly differ.
+ *
+ * That definition is also what keeps the path still. The payload is banded on
+ * purpose — income to $25k/$50k steps, surplus to four bands, each step's
+ * amount to a t-shirt size against a month of income — so the figures that
+ * drift daily cannot move it. A balance falling by a dollar, a goal gaining a
+ * contribution, a quiet month of spending: none of them change a band, so none
+ * of them regenerate. What does change it is a step appearing or disappearing
+ * (a debt account opened, a balance cleared, a goal added or removed), a goal's
+ * target month moving, an income or surplus that crosses a band, a birthday,
+ * a change of employment, or a dependent. Those are the events a person would
+ * expect their plan to answer to.
+ *
+ * It deliberately does NOT digest the things only the sizing pass reads —
+ * cash, invested totals, exact balances, exact spend. Those decide the figures
+ * on each card, which are recomputed on every read anyway, and they move
+ * every day.
  */
-function fingerprintInputs(ctx: PathContext, candidates: PathCandidate[]): string {
-  const subject = {
-    keys: candidates.map((c) => c.key),
-    age: ctx.age,
-    annualIncome: Math.round(ctx.annualIncome),
-    monthlySurplus: ctx.monthlySurplus === null ? null : Math.round(ctx.monthlySurplus),
-    stableMonthlyExpenses:
-      ctx.stableMonthlyExpenses === null ? null : Math.round(ctx.stableMonthlyExpenses),
-    cashTotal: Math.round(ctx.cashTotal),
-    invested: Math.round(
-      ctx.hsaBalance + ctx.rothIraBalance + ctx.trad401kBalance + ctx.brokerageBalance,
-    ),
-    employmentType: ctx.employmentType,
-    dependentCount: ctx.dependentCount,
-    debts: ctx.debtAccounts.map((a) => [a.id, Math.round(a.balance), a.apr]),
-    goals: ctx.goals.map((g) => [
-      g.id,
-      Math.round(g.targetAmount),
-      g.deadline ? g.deadline.toISOString().slice(0, 10) : null,
-    ]),
-  };
-  return createHash('sha256').update(JSON.stringify(subject)).digest('hex');
+export function pathFingerprint(ctx: PathContext, candidates: PathCandidate[]): string {
+  return createHash('sha256')
+    .update(JSON.stringify(buildOrderPayload(candidates, ctx)))
+    .digest('hex');
 }
 
 // ── Persistence ──────────────────────────────────────────────────────────────
 
 /**
- * One stored step: the candidate it names, and why the model put it there.
+ * One stored step: the candidate it names, why the model put it there, and
+ * where the person says they stand on it.
  *
  * Nothing else is stored. Every figure a step shows is recomputed on read
  * because balances move and a finished step can reopen, so a stored target or
- * date would only be a snapshot of a household that has since changed.
+ * date would only be a snapshot of a household that has since changed. The mark
+ * is the exception, and has to be: nothing in the household records that
+ * somebody bought term life or that a step does not apply to them.
  */
 export interface StoredStep {
   key: string;
   /** The model's placement line, or empty when the order was deterministic. */
   reason: string;
+  mark: PathStepMark;
+  /** What they wrote when they marked it. Empty when they wrote nothing. */
+  note: string;
+  markedAt: Date | null;
+}
+
+/** This tenant's active path, as it stands in the database. */
+export interface StoredPath {
+  id: string;
+  generatedAt: Date;
+  /** What caused this path to be generated. */
+  reason: PathGenerationReason;
+  inputsFingerprint: string;
+  /** Why it is already due to be replaced, parked by whatever knew. */
+  pendingReason: PathGenerationReason | null;
+  steps: StoredStep[];
 }
 
 /** A path as the page consumes it: sized steps, plus the line behind each one. */
 export interface PathOrder {
   steps: SizedStep[];
+  /**
+   * The steps this person said do not apply to them, in path order. They are
+   * NOT part of `steps`, so they take no number, no segment and no share of the
+   * monthly surplus. A step struck through forever is still a step you read.
+   */
+  notApplicable: PathCandidate[];
   /** Keyed by candidate key. A step with no line is simply absent. */
   reasons: Map<string, string>;
+  /** When this order was chosen, and what caused it to be. */
+  generatedAt: Date;
+  reason: PathGenerationReason;
 }
 
-/** This tenant's stored order. Null when they have no path. */
+/** This tenant's stored path. Null when they have no path. */
 export async function readActivePath(
   tenantId: string,
   reader: Pick<typeof db, 'query'> = db,
-): Promise<StoredStep[] | null> {
+): Promise<StoredPath | null> {
   const path = await reader.query.financialPaths.findFirst({
     where: and(eq(financialPaths.tenantId, tenantId), eq(financialPaths.status, 'active')),
   });
@@ -432,19 +499,178 @@ export async function readActivePath(
     where: eq(financialPathSteps.pathId, path.id),
     orderBy: [asc(financialPathSteps.position)],
   });
-  return rows.map((r) => ({ key: r.candidateKey, reason: r.reason }));
+  const legacy = await readLegacyMarks(tenantId, reader);
+  return {
+    id: path.id,
+    generatedAt: path.generatedAt,
+    reason: isGenerationReason(path.reason) ? path.reason : 'no_active_path',
+    inputsFingerprint: path.inputsFingerprint,
+    pendingReason: isGenerationReason(path.pendingReason) ? path.pendingReason : null,
+    steps: rows.map((r) => {
+      // A row nobody has ever said anything about: not marked, nothing written
+      // on it, and no moment it was marked at. That is where what they recorded
+      // before there were paths still stands, and the only place it is read.
+      const untouched = r.status === 'pending' && r.note === '' && r.statusAt === null;
+      const before = untouched ? legacy.get(r.candidateKey) : undefined;
+      return {
+        key: r.candidateKey,
+        reason: r.reason,
+        mark: before?.mark ?? r.status,
+        note: before?.note ?? r.note,
+        markedAt: before?.markedAt ?? r.statusAt,
+      };
+    }),
+  };
+}
+
+/**
+ * Where this person stood on their steps BEFORE a path was ever stored.
+ *
+ * Until this table existed, a tick and a note lived on the profile row against
+ * a step id, and a step someone had put aside lived beside it. Those columns
+ * still hold the only record that somebody bought term life or wrote themselves
+ * a will, and a step row carrying nobody's mark is not a statement that they
+ * never made one. So they are read as a FALLBACK, for steps this path has never
+ * been told anything about, and they stop being consulted for a step the moment
+ * it is marked here.
+ *
+ * A fallback rather than a backfill on purpose. Nothing is written back and
+ * nothing is cleared, so there is no pass over everyone's rows that can get a
+ * mapping wrong, and a person who never returns is left exactly as they are.
+ * It fades on its own: the first regeneration writes what it found onto the
+ * steps it stores, and from then on the stored mark is what answers.
+ *
+ * A tick is carried only where its id is EXACTLY a candidate key. Every id of
+ * the old list is one, bar the three that named a rate band rather than a step
+ * ("high-rate-debt", "mid-rate-debt", "low-interest-debt"). A band stood for a
+ * group of accounts, so there is no one step it means, and it is dropped rather
+ * than landed on a debt the person may never have been talking about.
+ */
+async function readLegacyMarks(
+  tenantId: string,
+  reader: Pick<typeof db, 'query'> = db,
+): Promise<Map<string, StoredStep>> {
+  const profile = await reader.query.financialProfiles.findFirst({
+    where: eq(financialProfiles.tenantId, tenantId),
+    columns: { skippedPrioritySteps: true, completedPrioritySteps: true },
+  });
+  if (!profile) return new Map();
+
+  const marks = new Map<string, StoredStep>();
+  for (const id of profile.skippedPrioritySteps ?? []) {
+    if (id) marks.set(id, { key: id, reason: '', mark: 'not_applicable', note: '', markedAt: null });
+  }
+  // Second, so a step they finished is finished even if it was also put aside.
+  for (const tick of profile.completedPrioritySteps ?? []) {
+    if (!tick?.id) continue;
+    const at = tick.completedAt ? new Date(tick.completedAt) : null;
+    marks.set(tick.id, {
+      key: tick.id,
+      reason: '',
+      mark: 'done',
+      note: tick.note ?? '',
+      markedAt: at && !Number.isNaN(at.getTime()) ? at : null,
+    });
+  }
+  return marks;
 }
 
 /** Today's candidates in the stored order, sized, with the stored lines. */
 export function storedPath(
   candidates: PathCandidate[],
   ctx: PathContext,
-  stored: StoredStep[],
+  stored: StoredPath,
 ): PathOrder {
+  const marks = new Map(stored.steps.map((s) => [s.key, s]));
+  const ordered = applyStoredOrder(candidates, stored.steps.map((s) => s.key));
+  // Split before sizing, not after. The waterfall pours the monthly surplus
+  // down the steps in order, so a step that is not on the path must not be in
+  // the list the waterfall walks, or it would push every date behind it out.
+  const notApplicable = ordered.filter((c) => marks.get(c.key)?.mark === 'not_applicable');
+  const applicable = ordered.filter((c) => marks.get(c.key)?.mark !== 'not_applicable');
   return {
-    steps: sizePath(applyStoredOrder(candidates, stored.map((s) => s.key)), ctx),
-    reasons: new Map(stored.filter((s) => s.reason).map((s) => [s.key, s.reason])),
+    steps: sizePath(applicable, ctx, marks),
+    notApplicable,
+    reasons: new Map(stored.steps.filter((s) => s.reason).map((s) => [s.key, s.reason])),
+    generatedAt: stored.generatedAt,
+    reason: stored.reason,
   };
+}
+
+/**
+ * Record where the person stands on one step of their active path.
+ *
+ * Returns false when no step on the active path carries that key, which is the
+ * only failure this has: a key naming an account or goal that is gone, or a
+ * step that was never on this tenant's path.
+ *
+ * A tick is deliberately NOT applied to a step the figures measure. `sizePath`
+ * decides those from the balances every read, in both directions, so pinning
+ * one here would let a full emergency fund read as done long after it was
+ * spent. The mark is still stored, and the note with it, because they are the
+ * person's own words about the step.
+ *
+ * `note` left out means the note is left ALONE. Undo and "put back" say where
+ * the person stands and say nothing about what they wrote, and blanking the
+ * sentence they typed because they did not retype it destroys their own words.
+ * Only an empty string clears one, which is what the composer sends.
+ *
+ * KNOWN LIMIT: this does not take the generation lock, so a mark made in the
+ * same instant that another request is regenerating the path can land on the
+ * row that request is about to supersede, and be lost. Taking the lock would
+ * make every tick wait behind a model call that runs eleven to fourteen
+ * seconds, which is a certain cost paid against an uncertain one. The window is
+ * the length of one regeneration, and reaching it needs a tick and a
+ * regeneration for the same tenant at the same moment.
+ */
+export async function markPathStep(
+  tenantId: string,
+  key: string,
+  mark: PathStepMark,
+  note?: string,
+): Promise<boolean> {
+  const path = await db.query.financialPaths.findFirst({
+    where: and(eq(financialPaths.tenantId, tenantId), eq(financialPaths.status, 'active')),
+    columns: { id: true },
+  });
+  if (!path) return false;
+
+  const updated = await db
+    .update(financialPathSteps)
+    .set({
+      status: mark,
+      ...(note === undefined ? {} : { note }),
+      // Stamped for every mark, `pending` included. It is when they last said
+      // where they stand, not when they finished, and putting a step back is
+      // them saying so. It is also what tells a step they have answered for
+      // from one nobody has ever touched, which is the only place the older
+      // bookkeeping is still read.
+      statusAt: new Date(),
+    })
+    .where(
+      and(eq(financialPathSteps.pathId, path.id), eq(financialPathSteps.candidateKey, key)),
+    )
+    .returning({ id: financialPathSteps.id });
+  return updated.length > 0;
+}
+
+/**
+ * Park a reason on this tenant's path, so the read that next regenerates knows
+ * what to call it.
+ *
+ * Two of the three triggers cannot be seen in the fingerprint at all. A goal
+ * whose target moves without crossing a t-shirt size, and a step somebody ticks
+ * done, both leave the ordering inputs identical, so nothing on a later read
+ * could tell that anything happened. Whatever performed the act says so here.
+ */
+export async function invalidatePath(
+  tenantId: string,
+  reason: PathGenerationReason,
+): Promise<void> {
+  await db
+    .update(financialPaths)
+    .set({ pendingReason: reason })
+    .where(and(eq(financialPaths.tenantId, tenantId), eq(financialPaths.status, 'active')));
 }
 
 // ── Reserving a tenant before spending on one ────────────────────────────────
@@ -511,6 +737,16 @@ export async function generatePath(
   ctx: PathContext,
   candidates: PathCandidate[],
   reason: PathGenerationReason,
+  /**
+   * The path this generation replaces, as the caller read it. Null on a
+   * tenant's first path.
+   *
+   * Passing it rather than re-deriving it inside the lock is what makes the
+   * race safe. Under the lock we re-read the active row: if it is no longer the
+   * one the caller judged stale, another request has already regenerated and
+   * paid, so its order is the tenant's path and ours is not asked for.
+   */
+  supersedes: StoredPath | null = null,
 ): Promise<PathOrder> {
   // Built before the lock, not during it. `lib/llm.ts` otherwise builds this
   // map partway through the ordering call, which would mean reaching into the
@@ -519,6 +755,10 @@ export async function generatePath(
   // on a pool they are themselves holding. Inside the transaction, nothing
   // touches the pool but the transaction.
   const aliasMap = isWorthOrdering(candidates) ? await buildAliasMap(tenantId) : null;
+  // Read here rather than in the transaction, for the same reason the alias map
+  // is: nothing should reach into the pool while holding one of its connections
+  // open for the length of a model call.
+  const legacy = await readLegacyMarks(tenantId);
 
   return db.transaction(async (tx) => {
     await tx.execute(
@@ -528,39 +768,78 @@ export async function generatePath(
     // Read inside the lock. A request that queued ahead of this one has already
     // generated and paid, and its order is the tenant's path, not ours.
     const already = await readActivePath(tenantId, tx);
-    if (already) return storedPath(candidates, ctx, already);
+    if (already && already.id !== supersedes?.id) return storedPath(candidates, ctx, already);
 
     const proposed = aliasMap ? await proposeOrder(tenantId, aliasMap, candidates, ctx) : null;
     const { ordered, source } = validateOrder(proposed, candidates);
 
-    const steps = sizePath(
-      ordered.map((o) => o.candidate),
-      ctx,
-    );
+    // What the person said about each step, carried forward by key. A step they
+    // ticked done or took off the path stays that way through a reshuffle: the
+    // order is the model's to change, the marks are not. A key that is gone
+    // from the household drops out with its candidate, and a key that is new to
+    // this path starts pending, which is what it is.
+    const carried = new Map((already?.steps ?? []).map((s) => [s.key, s]));
+
+    // Then, only for a key nothing on this path has ever said anything about,
+    // what the person said before there were paths. This is the one place the
+    // old bookkeeping is read, so it lands on the stored steps once and the
+    // stored steps answer for it after that: a step they later put back to
+    // pending stays pending, because its key now has a mark of its own.
+    for (const [key, mark] of legacy) {
+      if (!carried.has(key)) carried.set(key, mark);
+    }
+
+    const notApplicable = ordered
+      .map((o) => o.candidate)
+      .filter((c) => carried.get(c.key)?.mark === 'not_applicable');
+    const applicable = ordered
+      .map((o) => o.candidate)
+      .filter((c) => carried.get(c.key)?.mark !== 'not_applicable');
+
+    const steps = sizePath(applicable, ctx, carried);
     const reasons = new Map(ordered.filter((o) => o.reason).map((o) => [o.candidate.key, o.reason]));
+    const generatedAt = new Date();
+
+    // The old order stops being the tenant's path before the new one becomes
+    // it, in the same transaction, because the partial unique index allows one
+    // active row per tenant and this is what keeps a reshuffle a visible event
+    // rather than a silent edit of the row somebody was reading.
+    if (already) {
+      await tx
+        .update(financialPaths)
+        .set({ status: 'superseded', pendingReason: null })
+        .where(eq(financialPaths.id, already.id));
+    }
 
     const [path] = await tx
       .insert(financialPaths)
       .values({
         tenantId,
+        generatedAt,
         reason,
-        inputsFingerprint: fingerprintInputs(ctx, candidates),
+        inputsFingerprint: pathFingerprint(ctx, candidates),
         model: source === 'model' ? getModelSlug(ORDER_LEVEL) : null,
         orderSource: source,
       })
       .returning({ id: financialPaths.id });
 
     await tx.insert(financialPathSteps).values(
-      steps.map((step, index) => ({
-        pathId: path.id,
-        tenantId,
-        position: index,
-        candidateKey: step.key,
-        reason: reasons.get(step.key) ?? '',
-      })),
+      ordered.map(({ candidate }, index) => {
+        const was = carried.get(candidate.key);
+        return {
+          pathId: path.id,
+          tenantId,
+          position: index,
+          candidateKey: candidate.key,
+          reason: reasons.get(candidate.key) ?? '',
+          status: was?.mark ?? ('pending' as const),
+          note: was?.note ?? '',
+          statusAt: was?.markedAt ?? null,
+        };
+      }),
     );
 
-    return { steps, reasons };
+    return { steps, notApplicable, reasons, generatedAt, reason };
   });
 }
 

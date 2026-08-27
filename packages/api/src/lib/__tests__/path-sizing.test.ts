@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildPathContextDefaults, type PathContext } from '../path-context.js';
 import { buildPathCandidates } from '../path-candidates.js';
-import { sizePath, contributionLimits, emergencyFundTarget } from '../path-sizing.js';
+import { sizePath, contributionLimits, emergencyFundTarget, type StepMark } from '../path-sizing.js';
 import { currentStepKey } from '../../routes/financial-path.js';
 import type { DebtAccount } from '../debt-accounts.js';
 import type { PathReadiness } from '../../services/retirement-readiness.js';
@@ -26,8 +26,20 @@ function debt(overrides: Partial<DebtAccount> & { id: string; name: string }): D
   };
 }
 
-function size(ctx: PathContext, readiness: PathReadiness | null = null) {
-  const steps = sizePath(buildPathCandidates(ctx, readiness), ctx);
+/** Marks by key, as the stored path hands them to the sizing pass. */
+function marks(entries: Record<string, StepMark>): Map<string, StepMark> {
+  return new Map(Object.entries(entries));
+}
+
+/** A step ticked done by hand, with the sentence they typed. */
+const done = (note = ''): StepMark => ({ mark: 'done', note });
+
+function size(
+  ctx: PathContext,
+  readiness: PathReadiness | null = null,
+  stepMarks: ReadonlyMap<string, StepMark> = new Map(),
+) {
+  const steps = sizePath(buildPathCandidates(ctx, readiness), ctx, stepMarks);
   return { steps, byKey: new Map(steps.map((s) => [s.key, s])) };
 }
 
@@ -395,12 +407,11 @@ describe('monthly funding waterfalls over the surplus in path order', () => {
 
 // ── Bookkeeping ──────────────────────────────────────────────────────────────
 
-describe('manual completion and skipping survive the rebuild', () => {
+describe('what the person said about a step survives the rebuild', () => {
   it('marks a step complete from the stored note, and stops instructing', () => {
-    const ctx = buildPathContextDefaults({
-      completedSteps: [{ id: 'insurance-will', note: 'Got term life', completedAt: '2026-01-02T00:00:00Z' }],
-    });
-    const step = size(ctx).byKey.get('insurance-will')!;
+    const ctx = buildPathContextDefaults();
+    const step = size(ctx, null, marks({ 'insurance-will': done('Got term life') }))
+      .byKey.get('insurance-will')!;
     expect(step.status).toBe('complete');
     expect(step.progress).toBe(100);
     // A finished step issues no order.
@@ -417,9 +428,9 @@ describe('manual completion and skipping survive the rebuild', () => {
       annualIncome: 96000, monthlyIncome: 8000,
       monthlyExpenses: 6000, stableMonthlyExpenses: 6000, monthlySurplus: 2000,
       cashTotal: 500,
-      completedSteps: [{ id: 'stabilize', note: 'Opened the savings account', completedAt: '2026-01-02T00:00:00Z' }],
     });
-    const step = size(ctx).byKey.get('stabilize')!;
+    const step = size(ctx, null, marks({ stabilize: done('Opened the savings account') }))
+      .byKey.get('stabilize')!;
     expect(step.status).toBe('in_progress');
     expect(step.note).toBe('Opened the savings account');
   });
@@ -437,12 +448,15 @@ describe('manual completion and skipping survive the rebuild', () => {
     expect(step.action).toBe('');
   });
 
-  it('carries a skip through by key, including a per-account one', () => {
+  it('never lets a step taken off the path reach the sizing pass at all', () => {
+    // The stored path splits these out before it sizes anything, because the
+    // waterfall walks the list it is given in order: a step nobody is working
+    // on, left in, would push every date behind it out by its own funding.
     const ctx = buildPathContextDefaults({
-      skippedStepIds: ['debt:a'],
       debtAccounts: [debt({ id: 'a', name: 'Visa', balance: 500, apr: 19 })],
     });
-    expect(size(ctx).byKey.get('debt:a')!.skipped).toBe(true);
+    const candidates = buildPathCandidates(ctx).filter((c) => c.key !== 'debt:a');
+    expect(sizePath(candidates, ctx).map((s) => s.key)).not.toContain('debt:a');
   });
 });
 
@@ -552,20 +566,15 @@ describe('a step regresses when the balance behind it falls', () => {
   it('never lets a stored tick pin a measured step complete against the figures', () => {
     // The old fixed ladder let a user tick these off by hand. The balance is
     // the truth now, in both directions.
-    const stored = [
-      { id: 'emergency-fund', note: 'done', completedAt: '2026-01-02T00:00:00Z' },
-      { id: 'stabilize', note: '', completedAt: '2026-01-02T00:00:00Z' },
-    ];
-    const { byKey } = size(withCash(6000, { completedSteps: stored }));
+    const ticked = marks({ 'emergency-fund': done('done'), stabilize: done() });
+    const { byKey } = size(withCash(6000), null, ticked);
     expect(byKey.get('emergency-fund')!.status).toBe('in_progress');
     expect(byKey.get('stabilize')!.status).toBe('complete'); // $6,000 clears $1,000 on its own
-    expect(size(withCash(0, { completedSteps: stored })).byKey.get('stabilize')!.status).toBe('not_started');
+    expect(size(withCash(0), null, ticked).byKey.get('stabilize')!.status).toBe('not_started');
   });
 
   it('still honours a stored tick on a step nothing measures', () => {
-    const { byKey } = size(withCash(6000, {
-      completedSteps: [{ id: 'insurance-will', note: 'Got term life', completedAt: '2026-01-02T00:00:00Z' }],
-    }));
+    const { byKey } = size(withCash(6000), null, marks({ 'insurance-will': done('Got term life') }));
     expect(byKey.get('insurance-will')!.status).toBe('complete');
   });
 });
@@ -624,11 +633,8 @@ describe('retirement readiness is sized as a monthly rate, not a pot', () => {
   });
 
   it('cannot be ticked off by hand while the figures say otherwise', () => {
-    const ticked = buildPathContextDefaults({
-      ...ctx,
-      completedSteps: [{ id: 'retirement-readiness', note: 'done', completedAt: '2026-01-01' }],
-    });
-    expect(size(ticked, READINESS).byKey.get('retirement-readiness')!.status).toBe('in_progress');
+    const ticked = marks({ 'retirement-readiness': done('done') });
+    expect(size(ctx, READINESS, ticked).byKey.get('retirement-readiness')!.status).toBe('in_progress');
   });
 
   it('reads not started when nothing goes in today', () => {

@@ -162,6 +162,13 @@
       "when": 1787800045274,
       "tag": "0022_yielding_agent_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787808497794,
+      "tag": "0023_nifty_kinsey_walden",
+      "breakpoints": true
     }
   ]
 }

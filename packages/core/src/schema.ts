@@ -890,6 +890,20 @@ export const financialPathStatusEnum = pgEnum("financial_path_status", [
   "superseded",
 ]);
 
+/**
+ * Where the person stands on one step, as they told us.
+ *
+ * `pending` is every step nobody has touched. `done` is a manual tick, which
+ * only decides the status of a step no figure measures. `not_applicable` takes
+ * the step off the path: it is not counted, not numbered and not shown among
+ * the steps, because a step struck through forever is still a step you read.
+ */
+export const financialPathStepStatusEnum = pgEnum("financial_path_step_status", [
+  "pending",
+  "done",
+  "not_applicable",
+]);
+
 export const financialPaths = pgTable(
   "financial_paths",
   {
@@ -907,6 +921,11 @@ export const financialPaths = pgTable(
     model: text("model"),
     orderSource: financialPathSourceEnum("order_source").notNull(),
     status: financialPathStatusEnum("status").notNull().default("active"),
+    // Why this path is due to be replaced, parked here by whatever knew: a goal
+    // route that changed the set, or a step being ticked. The read that next
+    // regenerates spends it, so the page can say what changed rather than only
+    // that something did. Null whenever nothing is owed.
+    pendingReason: varchar("pending_reason", { length: 40 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -923,12 +942,13 @@ export const financialPaths = pgTable(
 
 // The steps of one path, in order.
 //
-// The order is the whole of what is stored. Titles, targets, balances, monthly
-// figures, dates and statuses are all recomputed on every read against the
-// household as it stands that day, because a balance moves and a finished step
-// can reopen, so storing them would only freeze the page against the accounts
-// behind it. A step therefore holds the candidate it names and the one line the
-// model wrote about where it sits, and nothing else.
+// The order is the whole of what is COMPUTED that gets stored. Titles, targets,
+// balances, monthly figures and dates are all recomputed on every read against
+// the household as it stands that day, because a balance moves and a finished
+// step can reopen, so storing them would only freeze the page against the
+// accounts behind it. What a step stores is therefore the candidate it names,
+// the one line the model wrote about where it sits, and what the PERSON said
+// about it, which nothing in the household can be read back from.
 export const financialPathSteps = pgTable(
   "financial_path_steps",
   {
@@ -945,6 +965,12 @@ export const financialPathSteps = pgTable(
     candidateKey: varchar("candidate_key", { length: 100 }).notNull(),
     // One sentence on why the step sits here. The model's, when it ordered.
     reason: text("reason").notNull().default(""),
+    // Where the person stands on this step, and what they wrote about it.
+    // Carried onto the next path for every key that survives a regeneration,
+    // so a step you ticked stays ticked when the order is chosen again.
+    status: financialPathStepStatusEnum("status").notNull().default("pending"),
+    note: text("note").notNull().default(""),
+    statusAt: timestamp("status_at", { withTimezone: true }),
   },
   (t) => [unique("financial_path_steps_path_position_uniq").on(t.pathId, t.position)],
 );

@@ -8,9 +8,10 @@ import { readHouseholdProfile, readUserPersonalProfile, resolveProfile } from ".
 /**
  * Everything a financial path is built from, read once.
  *
- * This is the single read of a household's situation. The path candidates, the
- * sizing pass and the legacy priorities response all take this same object, so
- * two surfaces can never quote two different figures for the same fact.
+ * This is the single read of a household's situation. The path candidates and
+ * the sizing pass take this same object, and every surface that shows the path
+ * reads it through one endpoint, so two of them can never quote two different
+ * figures for the same fact.
  */
 
 /** One active goal, with the typed details its target was derived from. */
@@ -80,10 +81,6 @@ export interface PathContext {
   debtAccounts: DebtAccount[];
 
   goals: PathGoal[];
-
-  // ── Bookkeeping ──
-  skippedStepIds: string[];
-  completedSteps: Array<{ id: string; note: string; completedAt: string }>;
 }
 
 export async function buildPathContext(tenantId: string, userId: string): Promise<PathContext> {
@@ -107,8 +104,8 @@ export async function buildPathContext(tenantId: string, userId: string): Promis
     // the same resolver /accounts/debts uses, so the path and the debt page
     // can never disagree about an account's rate.
     resolveDebtAccounts(tenantId),
-    // Household row (also carries the path bookkeeping) + THIS user's personal
-    // profile → merged for the per-user "you vs partner" figures.
+    // Household row + THIS user's personal profile → merged for the per-user
+    // "you vs partner" figures.
     readHouseholdProfile(tenantId),
     readUserPersonalProfile(tenantId, userId),
     db.query.goals.findMany({
@@ -208,9 +205,6 @@ export async function buildPathContext(tenantId: string, userId: string): Promis
       deadline: g.deadline ? new Date(g.deadline) : null,
       details: (g.details as GoalDetails | null) ?? null,
     })),
-
-    skippedStepIds: household?.skippedPrioritySteps ?? [],
-    completedSteps: (household?.completedPrioritySteps as PathContext['completedSteps']) ?? [],
   };
 }
 
@@ -252,8 +246,6 @@ export function buildPathContextDefaults(overrides: Partial<PathContext> = {}): 
     hasInheritedIRA: false,
     debtAccounts: [],
     goals: [],
-    skippedStepIds: [],
-    completedSteps: [],
     ...overrides,
   };
 }

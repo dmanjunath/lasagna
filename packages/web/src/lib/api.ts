@@ -35,6 +35,86 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * One person's financial path, as the server serves it.
+ *
+ * Named because two calls return it: reading the path, and marking a step. They
+ * have to be the same shape, since marking a step returns the path the mark
+ * produced and every surface renders that one answer.
+ */
+export interface FinancialPath {
+  steps: Array<{
+    id: string;
+    order: number;
+    kind: string;
+    title: string;
+    subtitle: string;
+    description: string;
+    /** Why this step is on this person's path. */
+    why: string;
+    /** Why it sits at this point of the path. Empty when nothing chose an order. */
+    reason: string;
+    icon: string;
+    mandatory: boolean;
+    status: string;
+    progress: number;
+    current: number | null;
+    target: number | null;
+    monthlyFunding: number;
+    /** First of the month this step is projected to finish, or null. */
+    projectedDate: string | null;
+    action: string;
+    /** What is true of this step in any state. Never an instruction. */
+    fact: string;
+    /** Anything the figures would otherwise imply but not state. */
+    notes: string[];
+    /** What they wrote when they marked this step. Empty when nothing. */
+    note: string;
+    /** The one account a debt step acts on. */
+    accounts?: Array<{
+      id: string;
+      name: string;
+      mask: string | null;
+      balance: number;
+      apr: number | null;
+    }>;
+    goal?: {
+      id: string;
+      name: string;
+      targetAmount: number;
+      currentAmount: number;
+      deadline: string | null;
+    };
+  }>;
+  /** Steps taken off the path. Not counted, not numbered, offered back. */
+  notApplicable: Array<{ id: string; title: string }>;
+  currentStepId: string;
+  /** When this order was chosen, and what caused it to be chosen again. */
+  updatedAt: string;
+  updatedReason: string;
+  summary: {
+    monthlyIncome: number;
+    monthlyExpenses: number | null;
+    monthlySurplus: number | null;
+    totalCash: number;
+    totalInvested: number;
+    totalDebt: number;
+    stepCount: number;
+    age: number | null;
+    retirementAge: number;
+    /** False when the age above is our default rather than their own figure. */
+    retirementAgeSet: boolean;
+    filingStatus: string | null;
+    /** The retirement verdict, or null when it could not be computed. */
+    retirement: {
+      successRate: number;
+      targetSuccess: number;
+      verdict: 'on_track' | 'needs_attention' | 'at_risk';
+      retirementAge: number;
+    } | null;
+  };
+}
+
 export const api = {
   // Auth
   signup: (data: { email: string; password?: string; name?: string; acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }): Promise<{ needsVerification: true; email: string }> =>
@@ -966,134 +1046,18 @@ export const api = {
     request<{ ok: boolean }>(`/goals/${id}`, { method: 'DELETE' }),
 
   // The user's own financial path — the steps that apply to them, sized.
-  getFinancialPath: () =>
-    request<{
-      steps: Array<{
-        id: string;
-        order: number;
-        kind: string;
-        title: string;
-        subtitle: string;
-        description: string;
-        /** Why this step is on this person's path. */
-        why: string;
-        /** Why it sits at this point of the path. Empty when nothing chose an order. */
-        reason: string;
-        icon: string;
-        mandatory: boolean;
-        status: string;
-        progress: number;
-        current: number | null;
-        target: number | null;
-        monthlyFunding: number;
-        /** First of the month this step is projected to finish, or null. */
-        projectedDate: string | null;
-        action: string;
-        /** What is true of this step in any state. Never an instruction. */
-        fact: string;
-        /** Anything the figures would otherwise imply but not state. */
-        notes: string[];
-        skipped: boolean;
-        note: string;
-        /** The one account a debt step acts on. */
-        accounts?: Array<{
-          id: string;
-          name: string;
-          mask: string | null;
-          balance: number;
-          apr: number | null;
-        }>;
-        goal?: {
-          id: string;
-          name: string;
-          targetAmount: number;
-          currentAmount: number;
-          deadline: string | null;
-        };
-      }>;
-      currentStepId: string;
-      summary: {
-        monthlyIncome: number;
-        monthlyExpenses: number | null;
-        monthlySurplus: number | null;
-        totalCash: number;
-        totalInvested: number;
-        totalDebt: number;
-        stepCount: number;
-        age: number | null;
-        retirementAge: number;
-        /** False when the age above is our default rather than their own figure. */
-        retirementAgeSet: boolean;
-        filingStatus: string | null;
-        /** The retirement verdict, or null when it could not be computed. */
-        retirement: {
-          successRate: number;
-          targetSuccess: number;
-          verdict: 'on_track' | 'needs_attention' | 'at_risk';
-          retirementAge: number;
-        } | null;
-      };
-    }>('/financial-path'),
+  getFinancialPath: () => request<FinancialPath>('/financial-path'),
 
-  // Priorities
-  getPriorities: () =>
-    request<{
-      steps: Array<{
-        id: string;
-        order: number;
-        kind: string;
-        title: string;
-        subtitle: string;
-        description: string;
-        icon: string;
-        status: string;
-        skipped: boolean;
-        current: number | null;
-        target: number | null;
-        progress: number;
-        action: string;
-        /** The accounts behind this step's balance. Debt steps only. */
-        accounts?: Array<{
-          id: string;
-          name: string;
-          mask: string | null;
-          balance: number;
-          apr: number | null;
-        }>;
-        detail: string;
-        priority: string;
-        note: string;
-      }>;
-      currentStepId: string;
-      summary: {
-        monthlyIncome: number;
-        monthlyExpenses: number | null;
-        monthlySurplus: number | null;
-        totalCash: number;
-        totalInvested: number;
-        age: number | null;
-        retirementAge: number;
-        retirementAgeSet: boolean;
-        filingStatus: string | null;
-        retirement: {
-          successRate: number;
-          targetSuccess: number;
-          verdict: 'on_track' | 'needs_attention' | 'at_risk';
-          retirementAge: number;
-        } | null;
-      };
-    }>('/priorities'),
-
-  skipPriorityStep: (stepId: string, skipped: boolean) =>
-    request<{ ok: boolean; skippedSteps: string[] }>('/priorities/skip', {
+  // Where this person stands on one step of their path. Returns the whole path
+  // as it stands after the mark, including any regeneration the mark triggered,
+  // so nothing renders a path that disagrees with the tick just made.
+  // `note` left out leaves the stored note alone. Undo and "put back" say where
+  // you stand and say nothing about what you wrote, so sending an empty string
+  // for them would erase the sentence they typed when they marked the step.
+  markPathStep: (stepId: string, status: 'pending' | 'done' | 'not_applicable', note?: string) =>
+    request<FinancialPath>(`/financial-path/steps/${encodeURIComponent(stepId)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ stepId, skipped }),
-    }),
-
-  completePriorityStep: (stepId: string, completed: boolean, note?: string) =>
-    request<{ ok: boolean }>('/priorities/complete', {
-      method: 'PATCH',
-      body: JSON.stringify({ stepId, completed, note: note ?? '' }),
+      body: JSON.stringify(note === undefined ? { status } : { status, note }),
     }),
 
   // Manual Accounts

@@ -87,6 +87,9 @@ function makeQuery() {
   return {
     financialPaths: { findFirst: async () => activePath },
     financialPathSteps: { findMany: async () => activeSteps },
+    // Nobody here came from the older bookkeeping. What happens when they did
+    // is driven end to end in the regeneration suite.
+    financialProfiles: { findFirst: async () => undefined },
   };
 }
 
@@ -435,15 +438,21 @@ describe('generatePath', () => {
     const { steps, reasons } = await generatePath('tenant-1', ctx, candidates, 'no_active_path');
 
     const card = recorded.steps.find((s) => s.candidateKey === `debt:${CARD_ID}`)!;
-    // A stored step is the position, the key and the line. Anything a balance
-    // would move is computed on read instead, so none of it is written here.
+    // A stored step is the position, the key, the line, and what the person
+    // said about it. Anything a balance would move is computed on read instead,
+    // so none of it is written here.
     expect(Object.keys(card).sort()).toEqual([
       'candidateKey',
+      'note',
       'pathId',
       'position',
       'reason',
+      'status',
+      'statusAt',
       'tenantId',
     ]);
+    expect(card.status).toBe('pending');
+    expect(card.note).toBe('');
     expect(card.reason).toBe('It belongs about here for you.');
     for (const step of recorded.steps) {
       expect(String(step.reason)).not.toMatch(/[\d$%]/);

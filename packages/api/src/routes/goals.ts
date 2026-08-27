@@ -8,6 +8,7 @@ import { fetchAccountsWithBalances } from "../lib/account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "../lib/goal-progress.js";
 import { readMonthlySpend, STABLE_SPEND_MONTHS } from "../lib/monthly-spend.js";
 import { readUserPersonalProfile } from "../lib/profile-resolver.js";
+import { invalidatePath } from "../lib/path-generator.js";
 import { type AuthEnv } from "../middleware/auth.js";
 
 export const goalRoutes = new Hono<AuthEnv>();
@@ -179,12 +180,16 @@ goalRoutes.post("/", async (c) => {
     });
   }
 
+  // A new goal is a new step, and where it sits among the others is a decision
+  // nobody has made yet. The next read of the path makes it.
+  await invalidatePath(session.tenantId, 'goal_added');
+
   return c.json({ goal }, 201);
 });
 
 // GET /spend-baseline - The monthly spend an emergency-fund goal is priced from.
-// Reads the one shared definition the priorities ladder uses, so the months the
-// user picks here and the months the ladder shows can never disagree.
+// Reads the one shared definition the path uses, so the months the user picks
+// here and the months the path shows can never disagree.
 goalRoutes.get("/spend-baseline", async (c) => {
   const session = c.get("session");
   const { stableMonthlyExpenses } = await readMonthlySpend(session.tenantId);
@@ -384,6 +389,18 @@ goalRoutes.patch("/:id", async (c) => {
     });
   }
 
+  // Only what could move this goal among the others. A contribution logged
+  // against it, or a rename, changes what the card SAYS, which is recomputed on
+  // every read anyway. Treating those as an edit would reorder the path, and
+  // pay a model to do it, every time somebody put money aside.
+  if (
+    updates.targetAmount !== undefined ||
+    updates.deadline !== undefined ||
+    updates.status !== undefined
+  ) {
+    await invalidatePath(session.tenantId, 'goal_updated');
+  }
+
   return c.json({ goal: updated });
 });
 
@@ -403,6 +420,8 @@ goalRoutes.delete("/:id", async (c) => {
   await db
     .delete(goals)
     .where(and(eq(goals.id, goalId), eq(goals.tenantId, session.tenantId)));
+
+  await invalidatePath(session.tenantId, 'goal_removed');
 
   return c.json({ ok: true });
 });
