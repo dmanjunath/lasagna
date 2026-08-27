@@ -912,17 +912,26 @@ export const financialPathStatusEnum = pgEnum("financial_path_status", [
 ]);
 
 /**
- * Where the person stands on one step, as they told us.
+ * Where a step of the path stands.
  *
- * `pending` is every step nobody has touched. `done` is a manual tick, which
- * only decides the status of a step no figure measures. `not_applicable` takes
- * the step off the path: it is not counted, not numbered and not shown among
- * the steps, because a step struck through forever is still a step you read.
+ * The first three are the person's own word on it. `pending` is every step
+ * nobody has touched. `done` is a manual tick, which only decides the status of
+ * a step no figure measures. `not_applicable` takes the step off the path: it
+ * is not counted, not numbered and not shown among the steps, because a step
+ * struck through forever is still a step you read.
+ *
+ * `left_out` is the ONE that is not theirs. It is a step that applies to this
+ * household but that the model judged does not belong in their sequence, and it
+ * is stored rather than dropped so the page can name it, say why it was left
+ * out, and offer it back. Putting it back writes `pending` over it, which is
+ * how a person overrules the model and why that overrule survives the next
+ * generation: the row then carries a mark of their own.
  */
 export const financialPathStepStatusEnum = pgEnum("financial_path_step_status", [
   "pending",
   "done",
   "not_applicable",
+  "left_out",
 ]);
 
 export const financialPaths = pgTable(
@@ -984,7 +993,8 @@ export const financialPathSteps = pgTable(
     // Names the account or goal it acts on when it acts on one: `debt:<id>`,
     // `goal:<id>`. A key whose row is gone is skipped on read.
     candidateKey: varchar("candidate_key", { length: 100 }).notNull(),
-    // One sentence on why the step sits here. The model's, when it ordered.
+    // One sentence on why the step sits here, and on a `left_out` row, why it is
+    // not on the path at all. The model's, when it decided.
     reason: text("reason").notNull().default(""),
     // Where the person stands on this step, and what they wrote about it.
     // Carried onto the next path for every key that survives a regeneration,

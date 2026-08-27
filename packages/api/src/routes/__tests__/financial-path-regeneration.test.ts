@@ -36,9 +36,13 @@ vi.mock('../../lib/path-context.js', async (importOriginal) => ({
   buildPathContext: async () => world,
 }));
 // A Monte Carlo has nothing to say about when a path may change, and it is
-// thousands of times the cost of the rest of the read.
+// thousands of times the cost of the rest of the read. A spy rather than a
+// stub, because the verdict is now an input to the decision as well as to the
+// readiness step, and "reuse the simulation this read already ran" is a claim
+// worth holding to.
+const buildPathReadiness = vi.fn(async () => READINESS);
 vi.mock('../../services/retirement-readiness.js', () => ({
-  buildPathReadiness: async () => null,
+  buildPathReadiness: (...args: unknown[]) => buildPathReadiness(...(args as [])),
 }));
 
 // ── The two path tables, in memory ───────────────────────────────────────────
@@ -250,12 +254,26 @@ vi.mock('../../lib/db.js', () => ({
 }));
 
 import { PgDialect, financialPaths, financialPathSteps } from '@lasagna/core';
+import type { ReadinessVerdict } from '@lasagna/core/retirement-verdict';
 import { buildPathContextDefaults, type PathContext } from '../../lib/path-context.js';
 import { buildPathCandidates } from '../../lib/path-candidates.js';
 import { invalidatePath, markPathStep, readActivePath } from '../../lib/path-generator.js';
 import { currentStepKey, markAndReadPath, readFinancialPath } from '../financial-path.js';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
+
+/** What one run of the simulation said. Every read reuses this one answer. */
+const READINESS = {
+  successRate: 71,
+  targetSuccess: 80,
+  verdict: 'needs_attention' as ReadinessVerdict,
+  currentAge: 31,
+  retirementAge: 65,
+  currentMonthlySavings: 1_200,
+  requiredMonthlySavings: null,
+  requiredSuccessRate: null,
+  simRuns: 1,
+};
 
 const TENANT = '00000000-0000-4000-8000-000000000001';
 const USER = '00000000-0000-4000-8000-000000000002';
@@ -316,9 +334,26 @@ function modelEchoesTheOrder() {
         key: c.key,
         reason: 'It belongs about here for you.',
       })),
+      leftOut: [],
     },
     usage: { inputTokens: 400, outputTokens: 200 },
   }));
+}
+
+/** The model keeps everything but one key, and says why that one is not there. */
+function modelLeavesOut(key: string, reason: string) {
+  generateObject.mockImplementation(async ({ prompt }: { prompt: string }) => {
+    const keys = (JSON.parse(prompt).candidates as Array<{ key: string }>).map((c) => c.key);
+    return {
+      object: {
+        steps: keys
+          .filter((k) => k !== key)
+          .map((k) => ({ key: k, reason: 'It belongs about here for you.' })),
+        leftOut: keys.filter((k) => k === key).map((k) => ({ key: k, reason })),
+      },
+      usage: { inputTokens: 400, outputTokens: 200 },
+    };
+  });
 }
 
 const read = () => readFinancialPath(TENANT, USER);
@@ -332,6 +367,10 @@ beforeEach(() => {
   store.profiles = [];
   held.clear();
   nextId = 0;
+  // Reset, not clear: a test that hands back a different verdict must not
+  // leave that verdict standing for the ones after it.
+  buildPathReadiness.mockReset();
+  buildPathReadiness.mockResolvedValue(READINESS);
   world = household();
 });
 
@@ -693,6 +732,163 @@ describe('a tick made before there were paths', () => {
   });
 });
 
+// ── A step the model left out ────────────────────────────────────────────────
+//
+// Which steps a person gets is the model's call, not a threshold's. The whole
+// of what makes that safe is that a step it leaves out is still on the page,
+// with its reason, one click from coming back, and that once somebody puts one
+// back the model does not get to take it away again.
+
+describe('a step the path left out', () => {
+  it('is off the sequence, on the page, and carries the reason it was given', async () => {
+    modelLeavesOut('insurance-will', 'Nobody depends on your income yet, so cover can wait.');
+    const path = await read();
+
+    expect(path.steps.map((s) => s.key)).not.toContain('insurance-will');
+    expect(path.leftOut.map((o) => o.candidate.key)).toEqual(['insurance-will']);
+    expect(path.leftOut[0].reason).toBe(
+      'Nobody depends on your income yet, so cover can wait.',
+    );
+    // Numbering closes over it, exactly as it does for a step taken off by hand.
+    expect(path.steps.map((s) => s.key)).not.toContain('insurance-will');
+    // And it is a stored row, so it survives being read back.
+    const active = (await readActivePath(TENANT))!;
+    expect(active.steps.find((s) => s.key === 'insurance-will')).toMatchObject({
+      mark: 'left_out',
+      reason: 'Nobody depends on your income yet, so cover can wait.',
+    });
+  });
+
+  it('comes back onto the path in one click, and is not paid for', async () => {
+    modelLeavesOut('insurance-will', 'Nobody depends on your income yet, so cover can wait.');
+    const before = await read();
+    expect(generateObject).toHaveBeenCalledTimes(1);
+
+    await markPathStep(TENANT, 'insurance-will', 'pending', '');
+    const back = await read();
+
+    expect(back.steps.map((s) => s.key)).toContain('insurance-will');
+    expect(back.leftOut).toHaveLength(0);
+    expect(back.steps).toHaveLength(before.steps.length + 1);
+    // Putting a step back restores a position that is already stored, so it
+    // reorders nothing and costs nothing.
+    expect(generateObject).toHaveBeenCalledTimes(1);
+    expect(store.paths).toHaveLength(1);
+  });
+
+  it('STAYS back through the next generation, even when the model drops it again', async () => {
+    modelLeavesOut('insurance-will', 'Nobody depends on your income yet, so cover can wait.');
+    await read();
+    await markPathStep(TENANT, 'insurance-will', 'pending', '');
+    expect((await read()).steps.map((s) => s.key)).toContain('insurance-will');
+
+    // A goal lands, so the whole path is chosen again, and the model leaves the
+    // same step out a second time. Once somebody says they want a step, they
+    // have it: the model does not get to overrule them.
+    world = household({ goals: [houseDeposit] });
+    await invalidatePath(TENANT, 'goal_added');
+    const later = await read();
+
+    expect(generateObject).toHaveBeenCalledTimes(2);
+    expect(later.reason).toBe('goal_added');
+    expect(later.steps.map((s) => s.key)).toContain('insurance-will');
+    expect(later.leftOut).toHaveLength(0);
+    // And on the new row, so it holds through the one after that too.
+    const active = (await readActivePath(TENANT))!;
+    expect(active.steps.find((s) => s.key === 'insurance-will')!.mark).toBe('pending');
+  });
+
+  it('is left out again when nobody ever asked for it back', async () => {
+    modelLeavesOut('insurance-will', 'Nobody depends on your income yet, so cover can wait.');
+    await read();
+
+    world = household({ goals: [houseDeposit] });
+    await invalidatePath(TENANT, 'goal_added');
+    const later = await read();
+
+    expect(later.steps.map((s) => s.key)).not.toContain('insurance-will');
+    expect(later.leftOut.map((o) => o.candidate.key)).toEqual(['insurance-will']);
+  });
+
+  it('leaves every debt and every goal somewhere on the page', async () => {
+    // The safety line. The model answers with one step and says nothing about
+    // any of the others, which is the worst readable response there is.
+    world = household({ goals: [houseDeposit] });
+    generateObject.mockResolvedValue({
+      object: { steps: [{ key: 'emergency-fund', reason: 'Everything else waits on this.' }], leftOut: [] },
+      usage: { inputTokens: 400, outputTokens: 200 },
+    });
+
+    const path = await read();
+    const onThePage = [
+      ...path.steps.map((s) => s.key),
+      ...path.notApplicable.map((c) => c.key),
+      ...path.leftOut.map((o) => o.candidate.key),
+    ];
+
+    expect(path.steps.map((s) => s.key)).toEqual(['emergency-fund']);
+    expect(onThePage).toContain(`debt:${CARD}`);
+    expect(onThePage).toContain(`goal:${GOAL}`);
+    expect(new Set(onThePage)).toEqual(new Set(buildPathCandidates(world).map((c) => c.key)));
+  });
+});
+
+// ── One simulation, however many decisions turn on it ────────────────────────
+
+describe('the retirement verdict the decision now reads', () => {
+  /** A household the simulation can actually be run for. */
+  const simulated = () =>
+    household({ dateOfBirth: new Date('1994-05-02T00:00:00Z'), retirementAgeSet: true });
+
+  it('is the one the read already ran, and is not simulated a second time', async () => {
+    world = simulated();
+    await read();
+
+    // A generation reads the verdict, the candidate set reads it, and the
+    // payload carries it. One run of the engine answers all three.
+    expect(buildPathReadiness).toHaveBeenCalledTimes(1);
+    expect(generateObject).toHaveBeenCalledTimes(1);
+
+    // And a plain read that regenerates nothing does not run it twice either.
+    // Reset, not clear: a test that hands back a different verdict must not
+  // leave that verdict standing for the ones after it.
+  buildPathReadiness.mockReset();
+  buildPathReadiness.mockResolvedValue(READINESS);
+    await read();
+    expect(buildPathReadiness).toHaveBeenCalledTimes(1);
+    expect(generateObject).toHaveBeenCalledTimes(1);
+  });
+
+  it('reaches the model, banded, with nothing raw beside it', async () => {
+    world = simulated();
+    world.trad401kBalance = 318_400;
+    world.propertyValue = 0;
+    await read();
+
+    const payload = JSON.parse(generateObject.mock.calls[0][0].prompt);
+    expect(payload.situation.retirementOutlook).toBe('needs_attention');
+    expect(payload.situation.transferableAssets).toBe('$250k to $1m');
+    expect(payload.situation.ownsProperty).toBe(false);
+    expect(JSON.stringify(payload)).not.toContain('318400');
+    expect(JSON.stringify(payload)).not.toContain('Rewards card');
+    expect(JSON.stringify(payload)).not.toContain('6400');
+  });
+
+  it('regenerates the path when the trajectory changes and nothing else does', async () => {
+    world = simulated();
+    await read();
+    expect(generateObject).toHaveBeenCalledTimes(1);
+
+    // Same accounts, same income, same goals. A different destination.
+    buildPathReadiness.mockResolvedValue({ ...READINESS, verdict: 'at_risk', successRate: 48 });
+    expect((await read()).reason).toBe('inputs_changed');
+    expect(generateObject).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(generateObject.mock.calls[1][0].prompt).situation.retirementOutlook).toBe(
+      'at_risk',
+    );
+  });
+});
+
 // ── Two requests, one bill ───────────────────────────────────────────────────
 
 describe('two reads that both find the path stale', () => {
@@ -726,11 +922,11 @@ describe('the fingerprint', () => {
     const { buildOrderPayload, pathFingerprint } = await import('../../lib/path-generator.js');
     const drifted = household({ cashTotal: 4_137, brokerageBalance: 900 });
     const same =
-      JSON.stringify(buildOrderPayload(buildPathCandidates(household()), household())) ===
-      JSON.stringify(buildOrderPayload(buildPathCandidates(drifted), drifted));
+      JSON.stringify(buildOrderPayload(buildPathCandidates(household()), household(), null)) ===
+      JSON.stringify(buildOrderPayload(buildPathCandidates(drifted), drifted, null));
     expect(same).toBe(true);
-    expect(pathFingerprint(household(), buildPathCandidates(household()))).toBe(
-      pathFingerprint(drifted, buildPathCandidates(drifted)),
+    expect(pathFingerprint(household(), buildPathCandidates(household()), null)).toBe(
+      pathFingerprint(drifted, buildPathCandidates(drifted), null),
     );
   });
 });

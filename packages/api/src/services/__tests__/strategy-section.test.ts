@@ -195,6 +195,19 @@ describe("buildStrategySection", () => {
     expect(result).toBeNull();
   });
 
+  it("rules out a step the reader's plan left out, exactly as chat does", async () => {
+    generateObject.mockResolvedValueOnce({ object: fullObject, usage: okUsage });
+    await buildStrategySection("tenant-1", "user-1", grounding);
+
+    // Both lists sit off the path, and the report used to rule out only the one
+    // the person set aside. A step their own plan decided against could then be
+    // recommended back to them in the same document that shows the plan.
+    const system = generateObject.mock.calls[0][0].system as string;
+    expect(system).toContain("notApplicable");
+    expect(system).toContain("leftOut");
+    expect(system).toContain("never propose one as a move");
+  });
+
   it("returns null on first failure then succeeds on second attempt", async () => {
     generateObject
       .mockRejectedValueOnce(new Error("transient error"))

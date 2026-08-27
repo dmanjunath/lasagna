@@ -194,7 +194,7 @@ export function createFinancialTools(tenantId: string, userId: string) {
 
     get_financial_path: tool({
       description:
-        "Get the user's financial path: the ordered steps of the plan they are actually walking, each with the figures computed for it (current, target, dollars a month flowing to it, projected finish date, the one thing to do), its status, and the number of the step they are on now (currentStep). This is the SAME path the Financial Level page shows them, read as it stands. Use it for \"what should I do next\", \"what am I working on\", \"why is this before that\", and any question of priority or order, and answer FROM this order rather than reasoning up an order of your own. Steps the user has taken off their path come back under notApplicable, and are not for you to recommend. When `rebuildPending` is true the household has changed and the Financial Level page has not settled the new order yet, so the step numbers are provisional. When the user has no path yet, `steps` is empty: say so, and do not invent one.",
+        "Get the user's financial path: the ordered steps of the plan they are actually walking, each with the figures computed for it (current, target, dollars a month flowing to it, projected finish date, the one thing to do), its status, and the number of the step they are on now (currentStep). This is the SAME path the Financial Level page shows them, read as it stands. Use it for \"what should I do next\", \"what am I working on\", \"why is this before that\", and any question of priority or order, and answer FROM this order rather than reasoning up an order of your own. Steps the user has taken off their path come back under notApplicable, and are not for you to recommend. Steps their plan judged do not belong come back under leftOut with the reason it gave, and are not part of their sequence either. When `rebuildPending` is true the household has changed and the Financial Level page has not settled the new order yet, so the step numbers are provisional. When the user has no path yet, `steps` is empty: say so, and do not invent one.",
       inputSchema: z.object({}),
       // Reads the stored path and never generates one. A chat turn must not pay
       // for a path generation, and must never reshuffle the plan behind the page
@@ -205,6 +205,7 @@ export function createFinancialTools(tenantId: string, userId: string) {
           return {
             steps: [],
             notApplicable: [],
+            leftOut: [],
             currentStep: null,
             rebuildPending: false,
             note: "This user has no financial path yet. It is built for them on the Financial Level page.",

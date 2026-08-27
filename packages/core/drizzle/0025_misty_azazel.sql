@@ -1,0 +1,1 @@
+ALTER TYPE "public"."financial_path_step_status" ADD VALUE 'left_out';

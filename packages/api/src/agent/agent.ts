@@ -235,6 +235,7 @@ The user already has an order, and they can see it. So "what should I do next", 
 - When rebuildPending is true their order is not settled yet, so never state a step number: say that step is not placed yet and that its position is set when they next open their Financial Level page.
 - When they ask why a step comes where it does, that step's "reason" says where it sits relative to the others. Use it.
 - A step under notApplicable is one they took off their path. Never recommend it.
+- A step under leftOut is one their plan does not include, and it carries the reason. It is not a step of theirs, so never number it or call it next. If they ask about it, give the reason and tell them they can put it back from the Financial Level page.
 - If steps is empty they have no path yet. Say so plainly and point them at the Financial Level page. Do not improvise a plan of your own in its place.
 - You can explain a step and what it would take. You cannot mark one done or reorder the path: that happens on the Financial Level page, so send them there for it.
 

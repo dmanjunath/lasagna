@@ -55,7 +55,6 @@ export interface FinancialPath {
     /** Why it sits at this point of the path. Empty when nothing chose an order. */
     reason: string;
     icon: string;
-    mandatory: boolean;
     status: string;
     progress: number;
     current: number | null;
@@ -86,8 +85,15 @@ export interface FinancialPath {
       deadline: string | null;
     };
   }>;
-  /** Steps taken off the path. Not counted, not numbered, offered back. */
-  notApplicable: Array<{ id: string; title: string }>;
+  /**
+   * Steps that are not on the path. Not counted, not numbered, offered back.
+   *
+   * One list, two causes. `byYou` is a step the person took off themselves.
+   * The rest are steps their plan judged do not belong, and those carry the
+   * `reason` it gave. Nothing that applies to this household is ever missing
+   * from the page: it is in `steps` or it is here.
+   */
+  offPath: Array<{ id: string; title: string; reason: string; byYou: boolean }>;
   currentStepId: string;
   /** When this order was chosen, and what caused it to be chosen again. */
   updatedAt: string;

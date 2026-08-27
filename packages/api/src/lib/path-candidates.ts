@@ -98,8 +98,6 @@ export interface PathCandidate {
   /** Why this step is on THIS person's path. */
   why: string;
   icon: string;
-  /** A step whose absence would undo the rest. Never quietly dropped. */
-  mandatory: boolean;
   accountId: string | null;
   goalId: string | null;
   debt?: DebtFacts;
@@ -394,7 +392,6 @@ export function buildPathCandidates(
       'A deductible is the first bill most emergencies produce, which is why it sets the floor whenever it is the larger number. Keep this money liquid, and clear anything in collections before you build it.',
     why: 'Without a first cash buffer, the next surprise bill becomes new debt.',
     icon: 'wallet',
-    mandatory: true,
     accountId: null,
     goalId: null,
   });
@@ -411,7 +408,6 @@ export function buildPathCandidates(
         'Every paycheck that goes by without capturing the match is a permanent loss. A 100% match on 3% of salary is an instant double on those dollars, which no investment comes close to, so this comes before any other investing.',
       why: `Your employer matches ${ratePct(ctx.employerMatchPct)} of pay. You only get it by contributing.`,
       icon: 'gift',
-      mandatory: true,
       accountId: null,
       goalId: null,
     });
@@ -466,7 +462,6 @@ export function buildPathCandidates(
           : account.apr != null && account.apr > DEBT_URGENT_ABOVE
           ? 'flame'
           : 'credit-card',
-      mandatory: account.apr != null && account.apr > DEBT_URGENT_ABOVE,
       accountId: account.id,
       goalId: null,
       debt: facts,
@@ -487,7 +482,6 @@ export function buildPathCandidates(
         ? 'Your income is your own, so it needs a deeper buffer than a salary does.'
         : 'Enough cash that losing your income for a while does not turn into debt.',
     icon: 'piggy-bank',
-    mandatory: true,
     accountId: null,
     goalId: null,
   });
@@ -499,13 +493,12 @@ export function buildPathCandidates(
     title: 'Get insured and write your will',
     subtitle: 'Term life, disability cover, and named beneficiaries',
     description:
-      'One uninsured event can reset your entire financial journey to the first step. Term life costs $30 to $60/month and replaces your income for dependents. Disability insurance is even more likely to be needed: 1 in 4 workers are disabled before retirement. A will ensures your assets go where you intend.',
+      'One uninsured event can reset your entire financial journey to the first step. Term life costs $30 to $60/month and replaces your income for dependents. Disability insurance is even more likely to be needed: 1 in 4 workers are disabled before retirement. A will ensures your assets go where you intend, and while you are writing it, name a beneficiary on every retirement account and policy: that name overrides the will, and setting it takes ten minutes.',
     why:
       ctx.dependentCount > 0
         ? `${ctx.dependentCount} ${ctx.dependentCount === 1 ? 'person depends' : 'people depend'} on your income, so it needs replacing if it stops.`
         : 'A will and the right cover keep one bad event from undoing everything behind it.',
     icon: 'shield',
-    mandatory: true,
     accountId: null,
     goalId: null,
   });
@@ -526,7 +519,6 @@ export function buildPathCandidates(
           ? `You keep ${ratePct(ctx.savingsRate)} of what you earn.`
           : 'Nothing is left over at the end of the month, so nothing is reaching any of these steps.',
       icon: 'percent',
-      mandatory: false,
       accountId: null,
       goalId: null,
     });
@@ -557,8 +549,6 @@ export function buildPathCandidates(
       why:
         `At ${usd(current)} a month, ${readiness.successRate} of 100 simulated markets carry you through retirement at ${readiness.retirementAge}. On track is ${readiness.targetSuccess} of 100.`,
       icon: 'alert-circle',
-      // Everything below this step assumes retirement is funded. It is not.
-      mandatory: true,
       accountId: null,
       goalId: null,
       readiness: {
@@ -586,7 +576,6 @@ export function buildPathCandidates(
       description: choice.description,
       why: choice.why,
       icon: 'sprout',
-      mandatory: false,
       accountId: null,
       goalId: null,
     });
@@ -606,7 +595,6 @@ export function buildPathCandidates(
         'Every dollar in these accounts compounds with a structural tax advantage, and the room you skip this year does not come back. This is the one deadline on the path that a calendar enforces rather than you.',
       why: 'You already contribute, so filling the annual limits is the next lever you have.',
       icon: 'trending-up',
-      mandatory: false,
       accountId: null,
       goalId: null,
     });
@@ -629,7 +617,6 @@ export function buildPathCandidates(
         ? `You hold ${usd(ctx.brokerageBalance)} in a taxable account, with ${usd(monthlySpare)} a month spare to add to it.`
         : `Your tax-advantaged accounts hold ${usd(taxAdvantagedBalance)}, and ${usd(monthlySpare)} a month has nowhere else to go.`,
       icon: 'line-chart',
-      mandatory: false,
       accountId: null,
       goalId: null,
     });
@@ -656,7 +643,6 @@ export function buildPathCandidates(
           ? `Your own goal: ${usd(goal.targetAmount)} by ${monthName(deadline)}, ${monthsUntil(deadline)}.`
           : `Your own goal: ${usd(goal.targetAmount)}. Give it a date and it gets a monthly number.`,
         icon: 'target',
-        mandatory: false,
         accountId: null,
         goalId: goal.id,
         goal: {
@@ -695,37 +681,47 @@ export function buildPathCandidates(
           ? `You are already on track to retire at ${readiness.retirementAge}. This is the same portfolio, reached early enough that work becomes optional.`
           : `This comes after being ready to retire at ${readiness.retirementAge}, which you are not yet. Close that gap first and this becomes a question of when.`,
       icon: 'rocket',
-      mandatory: false,
       accountId: null,
       goalId: null,
     });
   }
 
   // ── Estate and legacy ──
-  // Pruned when there is nobody to leave anything to, no property, and no
-  // portfolio that has outgrown a will. A renter with no dependents does not
-  // get an estate step.
-  const invested = ctx.rothIraBalance + ctx.trad401kBalance + ctx.brokerageBalance + ctx.hsaBalance;
-  const fiNumber = fiTarget(ctx);
+  // Emitted whenever anything at all would pass to somebody: a person who
+  // depends on this one, property, or a balance. That is a FACT about the
+  // household, and it is the only test left here.
+  //
+  // It used to be a threshold as well: no dependents and no property meant the
+  // step waited until the portfolio passed 25 times a year's spending. Nobody
+  // can pick that number correctly. A childless renter with a large retirement
+  // balance plainly has assets to transfer and never saw the step, and a number
+  // set lower would have put it in front of people with nothing to transfer.
+  // So WHETHER it belongs in this person's sequence today is the ordering
+  // model's call, made against the banded assets, the property flag and the
+  // retirement verdict it is now given, and a step it leaves out is listed off
+  // the path with its reason rather than hidden.
   const estateReason =
     ctx.dependentCount > 0
       ? 'Someone depends on you, so where your assets land is a decision you should make, not a court.'
       : ctx.propertyValue > 0
       ? 'You own property, which passes through probate unless you say otherwise.'
-      : fiNumber > 0 && invested >= fiNumber
-      ? 'Your portfolio has outgrown what a will alone handles well.'
+      : transferableAssets(ctx) > 0
+      ? 'What you have built will pass to someone, and without a plan it goes through a court to get there.'
       : null;
   if (estateReason) {
     add(TIER.estate, 0, {
       key: 'estate-legacy',
       kind: 'estate',
       title: 'Put your estate plan in place',
-      subtitle: 'A trust, beneficiary designations, and a giving plan',
+      // Beneficiary designations are NOT here. They override a will, they take
+      // ten minutes, and a person reads this step years after the one that
+      // should have had them do it, so they belong with the will and are named
+      // there. What is left here is the work a will alone does not do.
+      subtitle: 'A trust to keep your estate out of court, and a plan for what you give',
       description:
-        'Optimize for what outlasts you: a revocable trust avoids probate, donor-advised funds maximize charitable tax efficiency, and beneficiary designations ensure assets transfer as intended.',
+        'Optimize for what outlasts you: a revocable trust keeps your estate out of probate, so what you leave reaches people in weeks rather than months, and a donor-advised fund makes charitable giving tax efficient.',
       why: estateReason,
       icon: 'landmark',
-      mandatory: false,
       accountId: null,
       goalId: null,
     });
@@ -752,6 +748,30 @@ export function fiAnnualExpenses(ctx: PathContext): number {
 
 export function fiTarget(ctx: PathContext): number {
   return fiAnnualExpenses(ctx) * RETIREMENT_INCOME_MULTIPLE;
+}
+
+/**
+ * What this household would actually leave behind: cash, every invested
+ * balance, and property.
+ *
+ * One definition, because two readers need the same one. The estate step is
+ * emitted from it, and the ordering payload bands it so the model can judge
+ * whether that step belongs in this person's sequence. A figure computed twice
+ * would eventually let the step exist for a household the model was told has
+ * nothing.
+ *
+ * Debt is deliberately not netted off. An estate is settled from the assets,
+ * so what has to be directed somewhere is the gross of them.
+ */
+export function transferableAssets(ctx: PathContext): number {
+  return (
+    ctx.cashTotal +
+    ctx.rothIraBalance +
+    ctx.trad401kBalance +
+    ctx.brokerageBalance +
+    ctx.hsaBalance +
+    ctx.propertyValue
+  );
 }
 
 /** The sentence a typed goal's own inputs already state, when it has them. */

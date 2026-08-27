@@ -53,16 +53,36 @@ const EARNER = { annualIncome: 85_000, monthlyIncome: 85_000 / 12, stableMonthly
 // ── Pruning ──────────────────────────────────────────────────────────────────
 
 describe('pruning — a step whose precondition is absent is never emitted', () => {
-  it('a renter with no dependents and no portfolio gets NO estate step', () => {
+  it('gets NO estate step for a household with nothing to transfer', () => {
+    // No dependents, no property, and not a dollar anywhere. There is no
+    // possible basis for the step, which is a fact rather than a judgement, so
+    // it is not emitted and nothing is asked about it.
     const ctx = buildPathContextDefaults({
       annualIncome: 62000,
       monthlyIncome: 62000 / 12,
       dependentCount: 0,
       propertyValue: 0,
-      cashTotal: 4200,
+      cashTotal: 0,
       stableMonthlyExpenses: 3100,
     });
     expect(keys(ctx)).not.toContain('estate-legacy');
+  });
+
+  it('emits an estate step for a childless renter with a portfolio behind them', () => {
+    // The case no threshold got right. This household is nowhere near 25 times
+    // a year's spending, which is what the step used to wait for, and they
+    // plainly have assets that will pass to somebody. Whether it belongs in
+    // their sequence today is the ordering model's call, not a number's.
+    const ctx = buildPathContextDefaults({
+      annualIncome: 145_000,
+      monthlyIncome: 145_000 / 12,
+      dependentCount: 0,
+      propertyValue: 0,
+      cashTotal: 18_000,
+      trad401kBalance: 410_000,
+      stableMonthlyExpenses: 6_400,
+    });
+    expect(keys(ctx)).toContain('estate-legacy');
   });
 
   it('emits an estate step once someone depends on them', () => {
@@ -239,7 +259,6 @@ describe('an account with no rate on file is never given one', () => {
     expect(step.description).toContain('Without a rate we cannot say');
     // Ordered urgently, but never dressed as a known high-rate account.
     expect(step.icon).not.toBe('flame');
-    expect(step.mandatory).toBe(false);
   });
 
   it('orders an unrated card among cards, ahead of a rated auto loan', () => {

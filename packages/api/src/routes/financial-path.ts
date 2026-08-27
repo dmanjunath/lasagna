@@ -33,7 +33,6 @@ export function serializeStep(step: SizedStep, index: number, reason = '') {
     // model that ordered it put it. Empty whenever the order was deterministic.
     reason,
     icon: step.icon,
-    mandatory: step.mandatory,
     status: step.status,
     progress: step.progress,
     current: step.current,
@@ -184,7 +183,7 @@ async function pathInputs(tenantId: string, userId: string) {
   const ctx = await buildPathContext(tenantId, userId);
   const readiness = await readPathReadiness(ctx, tenantId, userId);
   const candidates = buildPathCandidates(ctx, readiness);
-  return { ctx, readiness, candidates, fingerprint: pathFingerprint(ctx, candidates) };
+  return { ctx, readiness, candidates, fingerprint: pathFingerprint(ctx, candidates, readiness) };
 }
 
 /**
@@ -215,7 +214,7 @@ export async function readFinancialPath(
   const path =
     stored && !stale
       ? storedPath(candidates, ctx, stored)
-      : await generatePath(tenantId, ctx, candidates, stale ?? 'no_active_path', stored);
+      : await generatePath(tenantId, ctx, candidates, readiness, stale ?? 'no_active_path', stored);
 
   return { ctx, readiness, ...path };
 }
@@ -250,6 +249,13 @@ export interface PathView {
   steps: PathStepView[];
   /** Steps this person took off their path. Off it, so they carry no number. */
   notApplicable: { title: string }[];
+  /**
+   * Steps that apply to this household but that their plan does not include,
+   * each with the reason it gives. Also off the path, and also numberless. They
+   * are here so a reader outside the page can say why a step is not in the plan
+   * rather than behaving as though it never existed.
+   */
+  leftOut: { title: string; reason: string }[];
   /** The number of the step they are on. Null when they have no steps. */
   currentStep: number | null;
   /**
@@ -301,7 +307,7 @@ export async function readStoredPath(
   if (!stored) return null;
 
   const { ctx, candidates, fingerprint } = await pathInputs(tenantId, userId);
-  const { steps, notApplicable, reasons, generatedAt } = storedPath(candidates, ctx, stored);
+  const { steps, notApplicable, leftOut, reasons, generatedAt } = storedPath(candidates, ctx, stored);
   const current = currentStepKey(steps);
 
   return {
@@ -319,6 +325,7 @@ export async function readStoredPath(
       fact: step.fact,
     })),
     notApplicable: notApplicable.map((c) => ({ title: c.title })),
+    leftOut: leftOut.map((o) => ({ title: o.candidate.title, reason: o.reason })),
     currentStep: steps.length > 0 ? steps.findIndex((s) => s.key === current) + 1 : null,
     // The same question `readFinancialPath` asks before it regenerates, asked
     // by the reader that must not.
@@ -331,12 +338,22 @@ export async function readStoredPath(
 function serializePath(
   path: Awaited<ReturnType<typeof readFinancialPath>>,
 ) {
-  const { ctx, steps, notApplicable, readiness, reasons, generatedAt, reason } = path;
+  const { ctx, steps, notApplicable, leftOut, readiness, reasons, generatedAt, reason } = path;
   return {
     steps: steps.map((step, index) => serializeStep(step, index, reasons.get(step.key))),
-    // Off the path, so they carry no number and no figures. Named only so the
-    // page can offer them back, which is the whole of what it does with them.
-    notApplicable: notApplicable.map((c) => ({ id: c.key, title: c.title })),
+    // Off the path, so they carry no number and no figures. One list, because
+    // the page shows one list: what puts a step here differs, what you can do
+    // about it does not. `reason` says why it is off, and is empty for a step
+    // the person took off themselves, since they already know.
+    offPath: [
+      ...notApplicable.map((c) => ({ id: c.key, title: c.title, reason: '', byYou: true })),
+      ...leftOut.map((o) => ({
+        id: o.candidate.key,
+        title: o.candidate.title,
+        reason: o.reason,
+        byYou: false,
+      })),
+    ],
     currentStepId: currentStepKey(steps),
     // When this order was chosen and what chose it, so the page can say why the
     // path it is showing is the one it is.

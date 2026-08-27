@@ -16,8 +16,9 @@ import { z } from 'zod';
 import { getModel, getModelSlug } from '../agent/index.js';
 import { logLlmUsage } from './activity.js';
 import { db } from './db.js';
-import type { PathCandidate } from './path-candidates.js';
+import { transferableAssets, type PathCandidate } from './path-candidates.js';
 import type { PathContext } from './path-context.js';
+import type { PathReadiness } from '../services/retirement-readiness.js';
 import { sizePath, type SizedStep } from './path-sizing.js';
 import { buildAliasMap, type AliasMap } from './pii-scrubber.js';
 import { llmGenerateObject } from './llm.js';
@@ -25,25 +26,39 @@ import { llmGenerateObject } from './llm.js';
 /**
  * Who does what, in what order, and once.
  *
- * The CONTENTS of a path are computed: `buildPathCandidates` emits the steps
- * that apply to one household and prunes the rest. The ORDER is the part that
- * genuinely varies between two people in the same position — a first-time buyer
- * with a dated deposit and a sole earner with dependents do not walk the same
- * rail — so the order is a model's call over the validated candidate set.
+ * `buildPathCandidates` emits the steps that COULD apply to one household and
+ * prunes the rest, on facts alone: no debt accounts, no debt steps. Which of
+ * those belong in this person's plan, and in what order, is a model's call over
+ * that validated set. It may leave a candidate out.
  *
- * Three things keep that honest:
+ * Letting it leave one out is what a threshold cannot do. The estate step used
+ * to wait for 25 times a year's spending, so a childless renter with a large
+ * retirement balance never saw it though they plainly had assets to transfer,
+ * and a number set lower would have shown it to people with nothing. No
+ * hand-set figure gets that right, so the judgement is made against the whole
+ * situation instead: the banded assets, whether a home is owned, and the
+ * retirement verdict the simulation already produced for this read.
  *
- *  1. The chosen order is PERSISTED. Asking a model twice must never reshuffle
+ * Four things keep that safe:
+ *
+ *  1. NOTHING VANISHES. A candidate left out is stored with the model's own
+ *     line on why, listed off the path, and put back in one click. Every debt
+ *     someone owes and every goal they set is on the page either way.
+ *  2. A step the person PUT BACK is theirs. The next generation cannot leave it
+ *     out again, exactly as it cannot overrule a step they called not
+ *     applicable. Once somebody says they want a step, they have it.
+ *  3. The chosen order is PERSISTED. Asking a model twice must never reshuffle
  *     a plan somebody is standing in the middle of, so the path is generated
  *     once and read back after that.
- *  2. The model never decides a NUMBER, and never names a thing. It returns
+ *  4. The model never decides a NUMBER, and never names a thing. It returns
  *     candidate keys it was given and, per step, one clause on where that step
- *     sits relative to the others. Every target, balance, monthly figure and
+ *     sits or why it is not there. Every target, balance, monthly figure and
  *     date is computed by `sizePath` AFTER the order is fixed, and every title
  *     comes from the household, so nothing it wrote is ever a name or a figure.
- *  3. Generation RESERVES before it spends. A tenant is locked before the model
- *     is asked, so simultaneous first-reads produce one call between them
- *     rather than one each.
+ *
+ * Generation also RESERVES before it spends: a tenant is locked before the
+ * model is asked, so simultaneous first-reads produce one call between them
+ * rather than one each.
  */
 
 const ORDER_LEVEL = 'medium' as const;
@@ -82,8 +97,15 @@ export function isGenerationReason(value: string | null): value is PathGeneratio
   return value !== null && (GENERATION_REASONS as readonly string[]).includes(value);
 }
 
-/** Where the person stands on one step, as they said so themselves. */
-export type PathStepMark = 'pending' | 'done' | 'not_applicable';
+/**
+ * Where one step of a stored path stands.
+ *
+ * The first three are the person's own word. `left_out` is the model's: a step
+ * that applies to this household but that it judged does not belong in their
+ * sequence. It is not a mark they can make, and any mark they DO make on that
+ * key replaces it, which is how putting a step back overrules the model.
+ */
+export type PathStepMark = 'pending' | 'done' | 'not_applicable' | 'left_out';
 
 export type PathOrderSource = 'model' | 'deterministic';
 
@@ -111,7 +133,12 @@ const KIND_LABELS: Record<string, string> = {
   buffer: 'Starter emergency fund',
   match: 'Employer retirement match',
   'emergency-fund': 'Full emergency fund',
-  protection: 'Insurance and will',
+  // Named by all three of its parts on purpose. Called "Insurance and will",
+  // this step reads as life cover, and life cover is the only part of it that
+  // turns on somebody else depending on you. A model that read the short name
+  // set the whole step aside for anyone without children, taking a will and
+  // own-income cover with it.
+  protection: 'Disability cover, term life, and a will',
   'savings-rate': 'Savings rate',
   'retirement-readiness': 'Retirement funding gap',
   'tax-advantaged': 'Tax-advantaged account',
@@ -213,7 +240,50 @@ function surplusBand(monthlySurplus: number | null): string {
   return 'over $4k a month';
 }
 
-export function buildOrderPayload(candidates: PathCandidate[], ctx: PathContext) {
+/**
+ * What this household would leave behind, banded.
+ *
+ * A step like the estate plan turns on whether there is anything to transfer,
+ * which the payload could not say at all before: it carried an income and a
+ * surplus, and nothing about what has been built. The band is the whole of what
+ * a judgement of that kind needs. Nothing changes between $412,000 and
+ * $418,000, and the exact figure would be a balance leaving the boundary.
+ */
+function assetsBand(ctx: PathContext): string {
+  const total = transferableAssets(ctx);
+  if (total <= 0) return 'nothing on file';
+  if (total < 25_000) return 'under $25k';
+  if (total < 100_000) return '$25k to $100k';
+  if (total < 250_000) return '$100k to $250k';
+  if (total < 1_000_000) return '$250k to $1m';
+  return 'over $1m';
+}
+
+/**
+ * The phrases the payload states to this household in figures. Exactly the
+ * three bands above, which are the only fields in it that write one.
+ *
+ * The rest of the payload's numbers are deliberately not here. An age, a
+ * dependent count and a goal's target month are all things the prompt forbids
+ * the model to restate, so a line carrying one is a line breaking a rule
+ * whether or not the number behind it is real.
+ */
+function sentBands(ctx: PathContext): string[] {
+  return [incomeBand(ctx.annualIncome), surplusBand(ctx.monthlySurplus), assetsBand(ctx)];
+}
+
+export function buildOrderPayload(
+  candidates: PathCandidate[],
+  ctx: PathContext,
+  /**
+   * What the retirement simulation said, or null when it could not be run.
+   *
+   * Passed in rather than computed. `buildPathReadiness` has already run for
+   * this read, and a Monte Carlo is thousands of times the cost of everything
+   * else here, so the verdict is reused and no second simulation is paid for.
+   */
+  readiness: PathReadiness | null,
+) {
   return {
     situation: {
       age: ctx.age,
@@ -221,6 +291,14 @@ export function buildOrderPayload(candidates: PathCandidate[], ctx: PathContext)
       surplusBand: surplusBand(ctx.monthlySurplus),
       employmentType: ctx.employmentType,
       dependents: ctx.dependentCount,
+      // What they have built, and whether any of it is a house. Both matter to
+      // whether a step belongs at all, and neither is a figure.
+      transferableAssets: assetsBand(ctx),
+      ownsProperty: ctx.propertyValue > 0,
+      // Where they are HEADING, which nothing in the payload said before. A
+      // household on track and one at risk can hold the same accounts and want
+      // different steps, and this is the only line that can tell them apart.
+      retirementOutlook: readiness?.verdict ?? 'not on file',
     },
     candidates: candidates.map((candidate) => ({
       key: candidate.key,
@@ -243,16 +321,25 @@ export function buildOrderPayload(candidates: PathCandidate[], ctx: PathContext)
 // others, because that is the one part of the path a model chose. So the prompt
 // asks for a placement clause and rules out everything the card already says.
 //
+// A line for a step it LEFT OUT is the opposite case and the rules say so: that
+// step has no card, so its line is the only thing anyone will ever read about
+// it, and it has to carry its own reason rather than point at a position.
+//
 // Refusing to let it name an account is not only style. The reason is stored and
 // rendered verbatim, and an account name it wrote would be one it invented.
-const SYSTEM_PROMPT = `You order one person's financial path.
+const SYSTEM_PROMPT = `You build one person's financial path: which steps belong in it, and in what order.
 
-You are given the steps that already apply to this person and the facts about their situation. Decide the sequence. Then, for each step, write the one clause that says why it sits WHERE YOU PUT IT relative to the other steps.
+You are given the steps that COULD apply to this person and the facts about their situation. Some of them will not be worth their attention now. Put the ones that are into the sequence they should work through, and for each one write the one clause that says why it sits WHERE YOU PUT IT relative to the other steps. Put the rest under leftOut, each with the one sentence that says why it is not on their path.
+
+Nothing is lost by leaving a step out. Every key under leftOut is shown to the person below their path with the line you wrote for it, and one click puts it back. So leave out what does not belong, and say plainly why.
 
 Rules:
-- Return EVERY key you were given, exactly once, in the order this person should work through them. Never invent a key, never repeat one, never leave one out.
+- Every key you were given belongs in exactly one of the two lists. Never invent a key and never repeat one.
+- Decide inclusion against THIS person's situation, not against a rule. What they have built, whether they own their home, how many people depend on them and whether their retirement is on track all bear on whether a step is worth their attention now. A step is in the sequence because it earns a place there, not because it was offered.
+- Dependents are not what makes a protective step worth doing. A will directs whatever someone has built, whoever is or is not in their life, and where there is no will the state decides instead. Cover against disability replaces THEIR OWN income, so nobody has to depend on them for it to be worth holding. Only term life is weighted by dependents, and it is one part of a step that carries all three. Set protection aside when there is nothing built to direct and no income worth replacing, never on a count of dependents alone.
+- A leftOut line is the ONLY thing the person will read about that step, so it has to stand on its own: one sentence, second person, saying what about their situation puts it aside. Never say a step is not applicable without saying what makes it so.
 - Order for THIS person. A goal with a near target date can rightly come before a protective step, and for someone else the protective steps come first. There is no fixed rail.
-- The line is about POSITION and nothing else. Say what this step comes before or after, and why that order is right for this person.
+- A sequence line is about POSITION and nothing else. Say what this step comes before or after, and why that order is right for this person.
 - Never describe the step, what it is for, what it involves or what it is worth. The page already says all of that next to your line, so repeating it wastes the reader's time.
 - One sentence, written to the person in the second person, opening on the position rather than on the step: "This comes before...", "This waits until...", "Nothing here moves until...", "You can turn to this once...", "Once your other balances are gone...".
 - Vary how you open. A reader goes down these one after another, and a page where every line starts the same way reads as a form letter rather than a decision.
@@ -263,33 +350,49 @@ Rules:
 - The path is worked in order, one step at a time. Never say a step runs alongside, in parallel with, or at the same time as another. The card next to your line carries the step's number, so a line hedging the order contradicts it.
 - Do not use em dashes, en dashes, middots or semicolons. Write plain sentences.`;
 
+const proposedStepSchema = z.object({ key: z.string(), reason: z.string() });
+
 const orderSchema = z.object({
-  steps: z.array(
-    z.object({
-      key: z.string(),
-      reason: z.string(),
-    }),
-  ),
+  steps: z.array(proposedStepSchema),
+  leftOut: z.array(proposedStepSchema),
 });
 
-/** One ordered step as the model returned it, before validation. */
+/** One step as the model returned it, before validation. */
 export interface ProposedStep {
   key: string;
   reason: string;
 }
 
+/** A whole answer: the sequence it chose, and what it set aside. */
+export interface ProposedOrder {
+  steps: ProposedStep[];
+  /** Keys it judged do not belong, each with the line saying why. */
+  leftOut: ProposedStep[];
+}
+
 /**
- * Whether this candidate set is worth paying to order.
+ * The three steps every household gets, whatever we know about them. They have
+ * no precondition, they are emitted in one fixed order, and none of them is a
+ * judgement call: everybody needs a first buffer, a full one, and cover.
+ */
+const UNIVERSAL_KEYS = new Set(['stabilize', 'emergency-fund', 'insurance-will']);
+
+/**
+ * Whether this candidate set is worth paying to decide.
  *
- * The order varies between two people because of the things they own: a debt
- * account and a dated goal are what push a step ahead of the one that would
- * otherwise come first. A set with neither is nothing but situation steps, each
- * already placed by the precondition that emitted it, and a model asked to
- * order them hands back the sequence it was given. A brand new account is the
- * clearest case: three unconditional steps, one fixed order, and a bill for it.
+ * A brand new account emits exactly the three steps above, in one order, with
+ * nothing to leave out. A model asked about that hands back what it was given
+ * and sends a bill for it.
+ *
+ * Anything MORE than those three is a question. It is not only about the things
+ * a person owns any more: a household with no debt and no goals but a portfolio
+ * behind them has an estate step and an independence step whose place in their
+ * plan is exactly the judgement this call exists to make. Testing for an
+ * account or a goal, as this did, would hand that household the deterministic
+ * rail and never ask.
  */
 export function isWorthOrdering(candidates: PathCandidate[]): boolean {
-  return candidates.some((c) => c.accountId !== null || c.goalId !== null);
+  return candidates.some((c) => !UNIVERSAL_KEYS.has(c.key));
 }
 
 /**
@@ -301,7 +404,8 @@ async function proposeOrder(
   aliasMap: AliasMap,
   candidates: PathCandidate[],
   ctx: PathContext,
-): Promise<ProposedStep[] | null> {
+  readiness: PathReadiness | null,
+): Promise<ProposedOrder | null> {
   let result;
   try {
     result = await llmGenerateObject(
@@ -312,13 +416,14 @@ async function proposeOrder(
       // into the name on the account and doubles the noun the model already
       // wrote ("your auto loan" became "your Auto Loan loan"). The remaining
       // aliases cannot survive the guards below either way, since "Account 1",
-      // "Goal 1" and a numbered debt all carry a digit.
+      // "Goal 1" and a numbered debt all end in a count, and a bare count is
+      // never one of the bands the payload sent.
       { tenantId, aliasMap, descrubOutput: false },
       {
         model: getModel(ORDER_LEVEL),
         schema: orderSchema,
         system: SYSTEM_PROMPT,
-        prompt: JSON.stringify(buildOrderPayload(candidates, ctx)),
+        prompt: JSON.stringify(buildOrderPayload(candidates, ctx, readiness)),
         temperature: 0,
         maxOutputTokens: 1500,
       },
@@ -337,13 +442,49 @@ async function proposeOrder(
     costUsd: result.costUsd,
   });
 
-  return result.object.steps ?? null;
+  const steps = result.object.steps;
+  if (!steps) return null;
+  return { steps, leftOut: result.object.leftOut ?? [] };
 }
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
-/** A reason that states a figure is a figure the model decided. Drop it. */
-const REASON_HAS_FIGURE = /[\d$%]/;
+/** A figure as anything written in digits, currency or percent. */
+const HAS_FIGURE = /[\d$%]/;
+/**
+ * A figure written out in words.
+ *
+ * The payload states its bands in digits, so a line restating one restates it
+ * as it was handed over, and a figure spelled out is a figure that came from
+ * somewhere else. This is the half of the guard a digit test could never see:
+ * "over four thousand a month" and "under five hundred a month" were reaching
+ * the page verbatim while the same sentences in digits were being dropped.
+ */
+const SPELLS_A_FIGURE = /\b(?:hundred|thousand|million|billion)\b/i;
+
+/**
+ * Whether this line states a figure the payload never gave it.
+ *
+ * A figure the model decided is the thing to stop, and this used to drop any
+ * line carrying a digit at all. That was blunt in both directions. It killed
+ * true sentences: "You are already putting over $4k a month aside, so a step
+ * that asks you to find surplus does not apply" is this household's own surplus
+ * band, read back correctly, and the reader got a blank in its place. And it
+ * waved through the invented ones, which a model spells out as readily as it
+ * writes them in digits.
+ *
+ * So the test is what went out rather than what a figure looks like. The bands
+ * this household was shown are struck out of the line first, and the old rule
+ * decides what is left. Striking the whole PHRASE rather than the number in it
+ * is deliberate: a household shown "$1.5k to $4k a month" was not shown "over
+ * $4k a month", and a line recombining the figures it was handed into a claim
+ * that is false for the person reading it is no better than an invented one.
+ */
+function statesAFigureNobodySent(reason: string, sent: string[]): boolean {
+  const residue = sent.reduce((line, band) => line.replaceAll(band, ' '), reason.toLowerCase());
+  return HAS_FIGURE.test(residue) || SPELLS_A_FIGURE.test(residue);
+}
+
 /** House style for anything a user reads: no dashes, middots or semicolons. */
 const REASON_HAS_BANNED_PUNCTUATION = /[\u2014\u2013\u00b7;]/;
 /**
@@ -359,19 +500,21 @@ const REASON_CLAIMS_A_RATE =
 const REASON_MAX_LENGTH = 220;
 
 /**
- * Whether this line can go on the step's card.
+ * Whether this line can be shown, whether it places a step or says why one is
+ * not on the path at all.
  *
- * A reason is dropped rather than repaired, because the card reads correctly
- * with nothing there. Four things disqualify one: a figure, which would be a
- * figure the model decided, punctuation the product does not write in, a length
- * past one sentence, and a claim about what a balance costs on an account that
- * reports no rate. The last one is the one a user would catch: the card already
- * says twice that the rate is unknown, so a line in between calling the same
- * balance expensive contradicts the two sentences around it.
+ * A reason is dropped rather than repaired, because both places read correctly
+ * without one. Four things disqualify one: a figure this household's payload
+ * never sent, which would be a figure the model decided, punctuation the
+ * product does not write in, a length past one sentence, and a claim about what
+ * a balance costs on an account that reports no rate. The last one is the one a
+ * user would catch: the card already says twice that the rate is unknown, so a
+ * line in between calling the same balance expensive contradicts the two
+ * sentences around it.
  */
-function reasonIsUsable(reason: string, candidate: PathCandidate): boolean {
+function reasonIsUsable(reason: string, candidate: PathCandidate, sent: string[]): boolean {
   if (reason.length === 0 || reason.length > REASON_MAX_LENGTH) return false;
-  if (REASON_HAS_FIGURE.test(reason)) return false;
+  if (statesAFigureNobodySent(reason, sent)) return false;
   if (REASON_HAS_BANNED_PUNCTUATION.test(reason)) return false;
   if (candidate.kind === 'debt' && candidate.debt!.apr === null) {
     return !REASON_CLAIMS_A_RATE.test(reason);
@@ -379,18 +522,32 @@ function reasonIsUsable(reason: string, candidate: PathCandidate): boolean {
   return true;
 }
 
+/** A candidate and the line the model wrote about it. */
+export interface PlacedCandidate {
+  candidate: PathCandidate;
+  reason: string;
+}
+
 export interface ValidatedOrder {
-  ordered: Array<{ candidate: PathCandidate; reason: string }>;
+  /** The sequence, in the order it is walked. */
+  ordered: PlacedCandidate[];
+  /** What the model judged does not belong, each with its reason. */
+  leftOut: PlacedCandidate[];
   source: PathOrderSource;
 }
 
 /**
- * Turn what the model said into an order that can be persisted, or fall back.
+ * Turn what the model said into a path that can be persisted, or fall back.
  *
  * Nothing here trusts the response: a key that is not in the candidate set and
  * a key returned twice are both dropped before anything reaches the database.
- * Candidates the model left out are appended rather than lost, because WHICH
- * steps a person gets is computed and is not the model's to change.
+ *
+ * A candidate the model put in NEITHER list is not silently gone. It is not in
+ * the sequence it chose, so it is off the path, and it is listed as left out
+ * with nothing said about it. That is the honest reading of a key it never
+ * mentioned, and it is what keeps the guarantee absolute: every candidate that
+ * came in is in exactly one of the two lists that go out, so a debt somebody
+ * owes cannot disappear because a response was short.
  *
  * A key naming a deleted account or goal needs no separate guard. The candidate
  * set is built from the household as it stands, so a deleted row has no
@@ -400,47 +557,44 @@ export interface ValidatedOrder {
  * drops a stored key with no candidate behind it on the next read.
  */
 export function validateOrder(
-  proposed: ProposedStep[] | null,
+  proposed: ProposedOrder | null,
   candidates: PathCandidate[],
+  /** The household the payload described, so a line can be read against it. */
+  ctx: PathContext,
 ): ValidatedOrder {
   const byKey = new Map(candidates.map((c) => [c.key, c]));
   const taken = new Set<string>();
-  const ordered: ValidatedOrder['ordered'] = [];
+  const ordered: PlacedCandidate[] = [];
+  const sent = sentBands(ctx);
 
-  for (const step of proposed ?? []) {
+  const place = (step: ProposedStep, into: PlacedCandidate[]) => {
     const candidate = byKey.get(step?.key);
-    if (!candidate) continue;
-    if (taken.has(candidate.key)) continue;
+    if (!candidate || taken.has(candidate.key)) return;
     taken.add(candidate.key);
     const reason = (step.reason ?? '').trim();
-    ordered.push({
-      candidate,
-      reason: reasonIsUsable(reason, candidate) ? reason : '',
-    });
-  }
+    into.push({ candidate, reason: reasonIsUsable(reason, candidate, sent) ? reason : '' });
+  };
 
-  // Nothing survived, so there is no model order to persist.
+  for (const step of proposed?.steps ?? []) place(step, ordered);
+
+  // Nothing survived, so there is no model path to persist. The deterministic
+  // rail is every candidate, in the order they were emitted: a response we
+  // could not read is not a judgement that anything should be left out.
   if (ordered.length === 0) {
     return {
       ordered: candidates.map((candidate) => ({ candidate, reason: '' })),
+      leftOut: [],
       source: 'deterministic',
     };
   }
 
-  // Mandatory steps first among what was left out, then the rest, each in the
-  // deterministic order it was emitted in. WHICH steps a person gets is
-  // computed, so a candidate the model skipped is appended rather than lost.
+  const leftOut: PlacedCandidate[] = [];
+  for (const step of proposed?.leftOut ?? []) place(step, leftOut);
   for (const candidate of candidates) {
-    if (candidate.mandatory && !taken.has(candidate.key)) {
-      taken.add(candidate.key);
-      ordered.push({ candidate, reason: '' });
-    }
-  }
-  for (const candidate of candidates) {
-    if (!taken.has(candidate.key)) ordered.push({ candidate, reason: '' });
+    if (!taken.has(candidate.key)) leftOut.push({ candidate, reason: '' });
   }
 
-  return { ordered, source: 'model' };
+  return { ordered, leftOut, source: 'model' };
 }
 
 // ── Fingerprint ──────────────────────────────────────────────────────────────
@@ -471,9 +625,13 @@ export function validateOrder(
  * on each card, which are recomputed on every read anyway, and they move
  * every day.
  */
-export function pathFingerprint(ctx: PathContext, candidates: PathCandidate[]): string {
+export function pathFingerprint(
+  ctx: PathContext,
+  candidates: PathCandidate[],
+  readiness: PathReadiness | null,
+): string {
   return createHash('sha256')
-    .update(JSON.stringify(buildOrderPayload(candidates, ctx)))
+    .update(JSON.stringify(buildOrderPayload(candidates, ctx, readiness)))
     .digest('hex');
 }
 
@@ -520,11 +678,36 @@ export interface PathOrder {
    * monthly surplus. A step struck through forever is still a step you read.
    */
   notApplicable: PathCandidate[];
+  /**
+   * The steps the model judged do not belong in this person's sequence, each
+   * with the line it wrote saying why.
+   *
+   * Also off `steps`, for the same reasons, and shown in the same place. The
+   * difference from the list above is only whose call it was, and that is why
+   * the reason travels with these and not with those: the person knows why they
+   * took a step off their own path.
+   */
+  leftOut: PlacedCandidate[];
   /** Keyed by candidate key. A step with no line is simply absent. */
   reasons: Map<string, string>;
   /** When this order was chosen, and what caused it to be. */
   generatedAt: Date;
   reason: PathGenerationReason;
+}
+
+/**
+ * Whether the person has answered for this step themselves.
+ *
+ * `pending` is the column default, so a pending row on its own says nothing: it
+ * is every step nobody has touched. Only the timestamp tells one they put back
+ * from one they have never seen, which is why every mark stamps it, `pending`
+ * included. `done` and `not_applicable` are statements whatever their
+ * timestamp, including the ones carried over from before there were paths,
+ * where nothing recorded when they were made.
+ */
+function personSpokeFor(was: StoredStep | undefined): boolean {
+  if (!was) return false;
+  return was.mark === 'done' || was.mark === 'not_applicable' || was.markedAt !== null;
 }
 
 /** This tenant's stored path. Null when they have no path. */
@@ -596,7 +779,9 @@ export interface PathStepRef {
 export async function readPathSteps(tenantId: string): Promise<PathStepRef[]> {
   const stored = await readActivePath(tenantId);
   if (!stored) return [];
-  const onPath = stored.steps.filter((s) => s.mark !== 'not_applicable');
+  const onPath = stored.steps.filter(
+    (s) => s.mark !== 'not_applicable' && s.mark !== 'left_out',
+  );
 
   const accountIds = onPath.filter((s) => s.key.startsWith('debt:')).map((s) => s.key.slice(5));
   const goalIds = onPath.filter((s) => s.key.startsWith('goal:')).map((s) => s.key.slice(5));
@@ -685,15 +870,32 @@ export function storedPath(
 ): PathOrder {
   const marks = new Map(stored.steps.map((s) => [s.key, s]));
   const ordered = applyStoredOrder(candidates, stored.steps.map((s) => s.key));
+  const markOf = (c: PathCandidate) => marks.get(c.key)?.mark;
   // Split before sizing, not after. The waterfall pours the monthly surplus
   // down the steps in order, so a step that is not on the path must not be in
   // the list the waterfall walks, or it would push every date behind it out.
-  const notApplicable = ordered.filter((c) => marks.get(c.key)?.mark === 'not_applicable');
-  const applicable = ordered.filter((c) => marks.get(c.key)?.mark !== 'not_applicable');
+  // Both kinds of off-path step are taken out here, for that one reason.
+  //
+  // A candidate with no stored row at all is new to this path and is ON it. It
+  // is nobody's judgement yet, and `applyStoredOrder` has already put it at the
+  // end, where it stays until the path is next generated.
+  const leftOut = ordered.filter((c) => markOf(c) === 'left_out');
+  const notApplicable = ordered.filter((c) => markOf(c) === 'not_applicable');
+  const applicable = ordered.filter(
+    (c) => markOf(c) !== 'not_applicable' && markOf(c) !== 'left_out',
+  );
   return {
     steps: sizePath(applicable, ctx, marks),
     notApplicable,
-    reasons: new Map(stored.steps.filter((s) => s.reason).map((s) => [s.key, s.reason])),
+    leftOut: leftOut.map((c) => ({ candidate: c, reason: marks.get(c.key)?.reason ?? '' })),
+    // Placement lines only. A left-out row's `reason` says why the step is NOT
+    // on the path, and it travels with that step rather than as the line under
+    // a card that does not exist.
+    reasons: new Map(
+      stored.steps
+        .filter((s) => s.reason && s.mark !== 'left_out')
+        .map((s) => [s.key, s.reason]),
+    ),
     generatedAt: stored.generatedAt,
     reason: stored.reason,
   };
@@ -838,6 +1040,12 @@ export async function generatePath(
   tenantId: string,
   ctx: PathContext,
   candidates: PathCandidate[],
+  /**
+   * What the retirement simulation said for this read, or null. Reused, never
+   * re-run: it is the trajectory signal the decision turns on and it is also
+   * the most expensive thing the read did.
+   */
+  readiness: PathReadiness | null,
   reason: PathGenerationReason,
   /**
    * The path this generation replaces, as the caller read it. Null on a
@@ -872,8 +1080,10 @@ export async function generatePath(
     const already = await readActivePath(tenantId, tx);
     if (already && already.id !== supersedes?.id) return storedPath(candidates, ctx, already);
 
-    const proposed = aliasMap ? await proposeOrder(tenantId, aliasMap, candidates, ctx) : null;
-    const { ordered, source } = validateOrder(proposed, candidates);
+    const proposed = aliasMap
+      ? await proposeOrder(tenantId, aliasMap, candidates, ctx, readiness)
+      : null;
+    const { ordered: placed, leftOut: omitted, source } = validateOrder(proposed, candidates, ctx);
 
     // What the person said about each step, carried forward by key. A step they
     // ticked done or took off the path stays that way through a reshuffle: the
@@ -890,6 +1100,18 @@ export async function generatePath(
     for (const [key, mark] of legacy) {
       if (!carried.has(key)) carried.set(key, mark);
     }
+
+    // The person's own word outranks the model's omission. A step they put back,
+    // ticked done, or took off the path is a step they have answered for, and a
+    // later generation does not get to overrule any of those answers: it may
+    // leave out only a step nobody has ever said anything about.
+    //
+    // Overruled steps go on the END of the sequence. The model wrote no
+    // placement line for a step it did not place, so there is no position of
+    // its choosing to honour and nothing for it to say about one.
+    const overruled = omitted.filter((o) => personSpokeFor(carried.get(o.candidate.key)));
+    const leftOut = omitted.filter((o) => !personSpokeFor(carried.get(o.candidate.key)));
+    const ordered = [...placed, ...overruled.map((o) => ({ candidate: o.candidate, reason: '' }))];
 
     const notApplicable = ordered
       .map((o) => o.candidate)
@@ -919,29 +1141,39 @@ export async function generatePath(
         tenantId,
         generatedAt,
         reason,
-        inputsFingerprint: pathFingerprint(ctx, candidates),
+        inputsFingerprint: pathFingerprint(ctx, candidates, readiness),
         model: source === 'model' ? getModelSlug(ORDER_LEVEL) : null,
         orderSource: source,
       })
       .returning({ id: financialPaths.id });
 
+    // Both lists are stored, the sequence first and what was left out behind
+    // it, so a left-out step has a row of its own to carry the model's line and
+    // to take the person's mark when they put it back.
     await tx.insert(financialPathSteps).values(
-      ordered.map(({ candidate }, index) => {
+      [
+        ...ordered.map(({ candidate }) => ({
+          candidate,
+          reason: reasons.get(candidate.key) ?? '',
+          onPath: true,
+        })),
+        ...leftOut.map(({ candidate, reason }) => ({ candidate, reason, onPath: false })),
+      ].map(({ candidate, reason: line, onPath }, index) => {
         const was = carried.get(candidate.key);
         return {
           pathId: path.id,
           tenantId,
           position: index,
           candidateKey: candidate.key,
-          reason: reasons.get(candidate.key) ?? '',
-          status: was?.mark ?? ('pending' as const),
+          reason: line,
+          status: onPath ? was?.mark ?? ('pending' as const) : ('left_out' as const),
           note: was?.note ?? '',
-          statusAt: was?.markedAt ?? null,
+          statusAt: onPath ? was?.markedAt ?? null : null,
         };
       }),
     );
 
-    return { steps, notApplicable, reasons, generatedAt, reason };
+    return { steps, notApplicable, leftOut, reasons, generatedAt, reason };
   });
 }
 

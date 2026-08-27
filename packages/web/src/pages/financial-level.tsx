@@ -45,7 +45,7 @@ interface PathStep {
   why: string;
   /** Why it sits at this point of the path. Empty when nothing chose an order. */
   reason: string;
-  icon: string; mandatory: boolean; status: string; current: number | null;
+  icon: string; status: string; current: number | null;
   target: number | null; progress: number;
   monthlyFunding: number;
   projectedDate: string | null;
@@ -81,8 +81,11 @@ interface PathSummary {
 
 interface PathData {
   steps: PathStep[];
-  /** Steps taken off the path. Not counted, not numbered, offered back. */
-  notApplicable: Array<{ id: string; title: string }>;
+  /**
+   * Steps that are not on the path: the ones this person took off, and the ones
+   * their plan left out. Not counted, not numbered, offered back.
+   */
+  offPath: Array<{ id: string; title: string; reason: string; byYou: boolean }>;
   currentStepId: string;
   updatedAt: string;
   updatedReason: string;
@@ -854,7 +857,7 @@ export function FinancialLevel() {
 
   if (!data) return null;
 
-  const { steps, notApplicable, currentStepId, summary } = data;
+  const { steps, offPath, currentStepId, summary } = data;
 
   // ── No-data empty state ──
   const hasNoData = summary.monthlyIncome === 0 && summary.totalCash === 0 && summary.totalInvested === 0;
@@ -1097,25 +1100,38 @@ export function FinancialLevel() {
       )}
 
       {/* ════════ Off the path ════════
-          A step you said does not apply to you is not one of your steps: it
-          takes no number, no segment and no share of the month. It is listed
-          here only so you can put it back, which is the whole reason it is a
-          status rather than a delete. */}
-      {notApplicable.length > 0 && (
+          A step that is not one of your steps takes no number, no segment and
+          no share of the month. Two things put one here: you said it does not
+          apply to you, or your plan judged it does not belong, and then it
+          carries the reason. One list, because what you can do about either is
+          the same, and it is here so nothing that applies to you can vanish
+          from the page without saying so. */}
+      {offPath.length > 0 && (
         // The same two-column grid the step list sits in, so this list is the
         // width of that one. Full width, it ran under the sticky panel and left
         // a thousand pixels of nothing between the title and the button.
         <section className="mt-10 grid grid-cols-1 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6 items-start">
           <div className="min-w-0">
           <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">
-            Not applicable to you
+            Not on your path
           </h2>
           <ul className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-2 sm:px-3.5 py-1">
-            {notApplicable.map(off => (
-              <li key={off.id} className="flex items-center gap-3 border-t border-line py-2.5 px-1.5 first:border-t-0">
-                <span className="min-w-0 flex-1 text-[14.5px] font-semibold text-content-muted">
-                  {off.title}
-                </span>
+            {offPath.map(off => (
+              <li key={off.id} className="flex items-start gap-3 border-t border-line py-3 px-1.5 first:border-t-0">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14.5px] font-semibold text-content-secondary">{off.title}</p>
+                  {/* Why it is not on the path. A step you took off yourself
+                      needs no explaining back to you, so that row says who took
+                      it off and stops there. A step the plan left out without a
+                      line says exactly that rather than an invented reason: it
+                      was never placed, and that is all anyone can honestly say
+                      about it. */}
+                  <p className="mt-1 text-[13px] leading-[1.5] text-content-muted">
+                    {off.byYou
+                      ? 'You said this does not apply to you.'
+                      : off.reason || 'Your plan did not place this step.'}
+                  </p>
+                </div>
                 <Button
                   size="sm"
                   variant="ghost"
