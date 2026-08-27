@@ -898,8 +898,11 @@ export function FinancialLevel() {
       saving={saving}
       draft={noteDrafts[step.id]}
       onDraft={value => setNoteDraft(step.id, value)}
+      // Names the step rather than pasting it. The assistant reads the path
+      // itself, so a copy of the step travelling with the question could only
+      // ever go stale against the one this page is showing.
       onAsk={() => openChat(
-        `Help me with this step on my financial path:\n\nTitle: ${step.title}\nWhy it's on my path: ${step.why}\nDescription: ${step.description || step.subtitle}\n\nWhat exactly should I do, and why does it matter for my finances?`
+        `Walk me through step ${step.order} of my financial path, "${step.title}". What exactly should I do on this step, and why does it sit where it does?`
       )}
     />
   );

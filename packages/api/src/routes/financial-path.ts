@@ -220,6 +220,113 @@ export async function readFinancialPath(
   return { ctx, readiness, ...path };
 }
 
+/**
+ * One step of the path for a reader that renders no pixels: chat, and the report.
+ *
+ * It carries no candidate key. Neither reader can mark a step, reorder one, or
+ * address one by key, so a key here buys nothing and costs something: a model
+ * handed `debt:<uuid>` will print it back as a citation, and did.
+ */
+export interface PathStepView {
+  /** 1 based, in the order the path is walked. */
+  step: number;
+  title: string;
+  /** Why this step is on THIS person's path. */
+  why: string;
+  /** Where it sits relative to the rest, as the order that was stored put it. */
+  reason: string;
+  status: SizedStep['status'];
+  /** Every figure below is `sizePath`'s, recomputed here exactly as the page recomputes it. */
+  current: number | null;
+  target: number | null;
+  monthlyFunding: number;
+  projectedDate: string | null;
+  action: string;
+  fact: string;
+}
+
+/** This person's path as it STANDS, for a reader outside the path pages. */
+export interface PathView {
+  steps: PathStepView[];
+  /** Steps this person took off their path. Off it, so they carry no number. */
+  notApplicable: { title: string }[];
+  /** The number of the step they are on. Null when they have no steps. */
+  currentStep: number | null;
+  /**
+   * True when this order is already due to be rebuilt: the household moved, and
+   * the Financial Level page has not chosen the new order yet. The steps are
+   * all here and their figures are current, but their POSITIONS are not settled,
+   * so nothing may state one as final while this is true.
+   */
+  rebuildPending: boolean;
+  updatedAt: string;
+}
+
+/**
+ * The path exactly as `/financial-level` shows it, for a reader that must not
+ * change it: the chat agent, and the plan report's grounding.
+ *
+ * The difference from `readFinancialPath` is the whole point. That one
+ * GENERATES: no stored path, or a stored path the household has outgrown, and
+ * it calls a model to choose an order and writes the result. Correct for the
+ * page, where a person asked for their path and can see it change. Wrong
+ * everywhere else, because a chat turn would then silently pay for a
+ * regeneration and reshuffle the plan behind the page the question came from.
+ *
+ * So this reads the stored rows FIRST and answers null when there are none,
+ * which is `readPathSteps`' bargain: nothing is built for somebody who has no
+ * path, and no read of one can ever write. Past that gate the household and its
+ * candidates are built and `storedPath` sizes them, because a step without its
+ * figures is not the step the page shows, and the point of this is that the two
+ * of them say the same thing. Nothing on that route can generate.
+ *
+ * KNOWN LIMIT, and the price of not writing: between a household changing and
+ * the next read of the path page, this answers with the order that is stored
+ * rather than the order that page is about to choose. `storedPath` still shows
+ * every step that applies, so nothing is hidden, but a step nobody has placed
+ * yet sits at the end. The page closes it on its next read, which is the one
+ * place a person can watch their path move.
+ *
+ * So the limit is DECLARED rather than papered over. `rebuildPending` is the
+ * same test the page regenerates on, and a reader that cannot rebuild can at
+ * least decline to call a position final. Without it the only honest answer
+ * available reads as a confident one: chat placed a just-added goal at step 8
+ * and the next read of the page placed it at step 4.
+ */
+export async function readStoredPath(
+  tenantId: string,
+  userId: string,
+): Promise<PathView | null> {
+  const stored = await readActivePath(tenantId);
+  if (!stored) return null;
+
+  const { ctx, candidates, fingerprint } = await pathInputs(tenantId, userId);
+  const { steps, notApplicable, reasons, generatedAt } = storedPath(candidates, ctx, stored);
+  const current = currentStepKey(steps);
+
+  return {
+    steps: steps.map((step, index) => ({
+      step: index + 1,
+      title: step.title,
+      why: step.why,
+      reason: reasons.get(step.key) ?? '',
+      status: step.status,
+      current: step.current,
+      target: step.target,
+      monthlyFunding: step.monthlyFunding,
+      projectedDate: step.projectedDate,
+      action: step.action,
+      fact: step.fact,
+    })),
+    notApplicable: notApplicable.map((c) => ({ title: c.title })),
+    currentStep: steps.length > 0 ? steps.findIndex((s) => s.key === current) + 1 : null,
+    // The same question `readFinancialPath` asks before it regenerates, asked
+    // by the reader that must not.
+    rebuildPending: regenerationReason(stored, candidates, fingerprint) !== null,
+    updatedAt: generatedAt.toISOString(),
+  };
+}
+
 /** The wire shape of the whole path. One builder, so every reader agrees. */
 function serializePath(
   path: Awaited<ReturnType<typeof readFinancialPath>>,

@@ -525,8 +525,11 @@ export function SimpleHome() {
               onDismissAction={dismiss}
               onHelp={() => {
                 if (!currentStep) return;
-                const prompt = `Help me with: ${currentStep.title}. ${currentStep.subtitle ?? ''}`.trim();
-                openChat(prompt);
+                // The same words /financial-level hands off with, because it is
+                // the same button on the same step.
+                openChat(
+                  `Walk me through step ${currentStep.order} of my financial path, "${currentStep.title}". What exactly should I do on this step, and why does it sit where it does?`
+                );
               }}
               onDid={() => markCurrentStep('done')}
               onSetAside={() => markCurrentStep('not_applicable')}

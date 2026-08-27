@@ -37,6 +37,7 @@ import {
   type PlanAssumptions,
 } from "./plan-assumptions-overrides.js";
 import type { ScheduleSection, ScheduleRow, ScheduleFlags } from "./retirement-schedule.js";
+import type { PathView } from "../routes/financial-path.js";
 
 export interface StoredSections {
   snapshot?: FinancialSnapshotSection;
@@ -216,6 +217,18 @@ export interface PersonContext {
    * summary can cite them from one source. Empty when none sold.
    */
   soldProperties: { name: string; netEquity: number }[];
+  /**
+   * The reader's OWN financial path: the steps of their plan in the order that
+   * was settled for them, sized, and the step they are standing on.
+   *
+   * Here so the report cannot prescribe a sequence that contradicts the one the
+   * reader already has in front of them. Two orders for one household is one
+   * order too many, and the one they can see is the one that wins.
+   *
+   * Read, never generated: a report must not reshuffle somebody's path as a side
+   * effect of being written. Null when they have no path.
+   */
+  financialPath: PathView | null;
 }
 
 export interface CompactPlanGrounding {
@@ -458,7 +471,15 @@ export async function resolvePersonContext(
     )
     .catch(() => null);
 
-  const [profile, simInputs, goalRows, taxDoc] = await Promise.all([
+  // The reader's own path, as it stands. Lazily imported for the same reason as
+  // the sim inputs above, and read-only by construction: `readStoredPath`
+  // answers null rather than generating, so writing a report never reshuffles
+  // the plan the reader is walking.
+  const pathP = import("../routes/financial-path.js")
+    .then((m) => m.readStoredPath(tenantId, userId))
+    .catch(() => null);
+
+  const [profile, simInputs, goalRows, taxDoc, financialPath] = await Promise.all([
     readResolvedProfile(tenantId, userId).catch(() => null),
     simInputsP,
     db.query.goals
@@ -470,6 +491,7 @@ export async function resolvePersonContext(
         orderBy: [desc(taxDocuments.createdAt)],
       })
       .catch(() => undefined),
+    pathP,
   ]);
 
   // ── Real estate + linked mortgages (via accounts.propertyAccountId FK) ───────
@@ -623,6 +645,7 @@ export async function resolvePersonContext(
       name: p.name,
       netEquity: p.netEquity,
     })),
+    financialPath,
   };
 }
 

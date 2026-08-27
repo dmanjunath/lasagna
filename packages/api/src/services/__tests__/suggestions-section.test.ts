@@ -111,6 +111,7 @@ const grounding: CompactPlanGrounding = {
     taxDocumentSummary: null,
     portfolioBasis: null,
     soldProperties: [],
+    financialPath: null,
   },
   appliedAssumptions: null,
   schedule: null,

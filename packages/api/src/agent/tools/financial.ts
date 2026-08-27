@@ -14,6 +14,7 @@ import {
 } from "@lasagna/core";
 import { readResolvedProfile } from "../../lib/profile-resolver.js";
 import { getHoldingsInput } from "../../routes/portfolio.js";
+import { readStoredPath } from "../../routes/financial-path.js";
 import { aggregatePortfolio } from "../../services/portfolio-aggregator.js";
 import {
   fetchAccountsWithBalances,
@@ -188,6 +189,28 @@ export function createFinancialTools(tenantId: string, userId: string) {
           debts: apr,
           totalDebt: apr.reduce((s, d) => s + d.balance, 0),
         };
+      },
+    }),
+
+    get_financial_path: tool({
+      description:
+        "Get the user's financial path: the ordered steps of the plan they are actually walking, each with the figures computed for it (current, target, dollars a month flowing to it, projected finish date, the one thing to do), its status, and the number of the step they are on now (currentStep). This is the SAME path the Financial Level page shows them, read as it stands. Use it for \"what should I do next\", \"what am I working on\", \"why is this before that\", and any question of priority or order, and answer FROM this order rather than reasoning up an order of your own. Steps the user has taken off their path come back under notApplicable, and are not for you to recommend. When `rebuildPending` is true the household has changed and the Financial Level page has not settled the new order yet, so the step numbers are provisional. When the user has no path yet, `steps` is empty: say so, and do not invent one.",
+      inputSchema: z.object({}),
+      // Reads the stored path and never generates one. A chat turn must not pay
+      // for a path generation, and must never reshuffle the plan behind the page
+      // the question was asked from. Marking a step done is the page's job too.
+      execute: async () => {
+        const path = await readStoredPath(tenantId, userId);
+        if (!path) {
+          return {
+            steps: [],
+            notApplicable: [],
+            currentStep: null,
+            rebuildPending: false,
+            note: "This user has no financial path yet. It is built for them on the Financial Level page.",
+          };
+        }
+        return path;
       },
     }),
 
