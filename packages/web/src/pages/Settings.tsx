@@ -444,12 +444,12 @@ function BuildVersion() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const [{ App: CapApp }, { runningBundleVersion }] = await Promise.all([
+      const [{ App: CapApp }, { runningBundleVersion, buildVersionLabel }] = await Promise.all([
         import('@capacitor/app'),
         import('../lib/ota'),
       ]);
       const [info, bundle] = await Promise.all([CapApp.getInfo(), runningBundleVersion()]);
-      if (active) setLabel(`Version ${info.version} (${info.build}), update ${bundle}`);
+      if (active) setLabel(buildVersionLabel(info.version, info.build, bundle));
     })().catch(() => {}); // no version line is better than a broken one
     return () => {
       active = false;

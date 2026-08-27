@@ -22,6 +22,14 @@ fi
 # variable someone forgot to set is visible rather than silent.
 UMAMI_ID="${VITE_UMAMI_WEBSITE_ID:-}"
 
+# Shown in Settings so a device says which commit it is running. Unlike the OTA
+# publish script this one does not refuse a dirty tree, so a dirty build is
+# marked rather than reported as the commit it is not.
+COMMIT_SHA=$(git -C "$WEB_DIR" rev-parse --short=7 HEAD 2>/dev/null || echo "")
+if [[ -n "$COMMIT_SHA" ]] && ! git -C "$WEB_DIR" diff --quiet HEAD 2>/dev/null; then
+  COMMIT_SHA="$COMMIT_SHA-dirty"
+fi
+
 # The builtin bundle needs its own version to compare against the OTA manifest;
 # the updater plugin reports it only as "builtin". Defaults to the app's
 # marketing version, so a store build at 1.1 ships bundle 1.1 and OTA releases
@@ -43,6 +51,7 @@ fi
 (cd "$WEB_DIR" && VITE_API_URL="$VITE_API_URL" \
   VITE_OTA_MANIFEST_URL="$VITE_OTA_MANIFEST_URL" \
   VITE_OTA_BUNDLE_VERSION="$VITE_OTA_BUNDLE_VERSION" \
+  VITE_OTA_COMMIT_SHA="$COMMIT_SHA" \
   VITE_UMAMI_WEBSITE_ID="$UMAMI_ID" \
   pnpm build && npx cap sync ios)
 

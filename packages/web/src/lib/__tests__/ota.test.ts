@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareVersions, decideUpdate, type OtaManifest } from "../ota.js";
+import { compareVersions, decideUpdate, buildVersionLabel, type OtaManifest } from "../ota.js";
 
 const manifest = (over: Partial<OtaManifest> = {}): OtaManifest => ({
   version: "1.2.0",
@@ -72,5 +72,27 @@ describe("decideUpdate", () => {
     ["missing minNativeVersion", { ...manifest(), minNativeVersion: undefined }],
   ])("rejects a malformed manifest (%s)", (_label, bad) => {
     expect(decideUpdate(bad, "1.1.0", "1.0")).toEqual({ apply: false, reason: "malformed" });
+  });
+});
+
+describe("buildVersionLabel", () => {
+  // The point of the sha: identify the running code without looking its bundle
+  // version up in the manifest published to the bucket.
+  it("names the commit the running bundle came from", () => {
+    expect(buildVersionLabel("1.0", "14", "1.0.1787765995", "45736ba")).toBe(
+      "Version 1.0 (14), update 1.0.1787765995 (45736ba)",
+    );
+  });
+
+  it("shows no empty parentheses when the build carries no sha", () => {
+    expect(buildVersionLabel("1.0", "14", "builtin", "")).toBe(
+      "Version 1.0 (14), update builtin",
+    );
+  });
+
+  it("passes the sha through verbatim, so a dirty build can say so", () => {
+    expect(buildVersionLabel("1.0", "15", "builtin", "45736ba-dirty")).toBe(
+      "Version 1.0 (15), update builtin (45736ba-dirty)",
+    );
   });
 });

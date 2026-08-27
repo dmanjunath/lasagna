@@ -39,6 +39,31 @@ const MANIFEST_URL: string = import.meta.env.VITE_OTA_MANIFEST_URL || '';
  */
 const BUNDLE_VERSION: string = import.meta.env.VITE_OTA_BUNDLE_VERSION || '';
 
+/**
+ * Commit the running bundle was built from, baked in beside its version and for
+ * the same reason: the bundle has to carry its own identity, because the plugin
+ * knows the builtin one only as "builtin". Blank in any build the release
+ * scripts did not produce. The release scripts decide the format, so a build
+ * from a dirty tree can say so.
+ */
+const COMMIT_SHA: string = import.meta.env.VITE_OTA_COMMIT_SHA || '';
+
+/**
+ * The store build, the web bundle running on top of it, and the commit that
+ * bundle came from. Without the commit, working out which code a device is on
+ * means looking its bundle version up in the published manifest.
+ *
+ * A build carrying no sha shows no parentheses rather than empty ones.
+ */
+export function buildVersionLabel(
+  version: string,
+  build: string,
+  bundle: string,
+  sha: string = COMMIT_SHA,
+): string {
+  return `Version ${version} (${build}), update ${bundle}${sha ? ` (${sha})` : ''}`;
+}
+
 const NUMERIC_VERSION = /^\d+(\.\d+)*$/;
 
 /** Numeric-dotted compare. Missing segments count as zero, so "1.0" equals "1.0.0". */
