@@ -316,6 +316,81 @@ describe('one step per active goal', () => {
   });
 });
 
+// ── A goal and a built-in step covering the same job ─────────────────────────
+//
+// Two goal categories work out exactly what a built-in step works out, and both
+// used to be emitted, so a person saving into an emergency fund got their own
+// goal AND a step telling them to save the same months of expenses, one after
+// the other. Where the goal exists, the goal is the step.
+
+describe('a goal that covers a built-in step', () => {
+  const typed = (id: string, name: string, category: string, target: number) => ({
+    ...goal(id, name, target),
+    category,
+  });
+
+  it('drops the emergency-fund step for an active emergency_fund goal', () => {
+    const ctx = buildPathContextDefaults({
+      ...EARNER,
+      goals: [typed('ef', 'Emergency Fund', 'emergency_fund', 25500)],
+    });
+    expect(keys(ctx)).not.toContain('emergency-fund');
+    expect(keys(ctx)).toContain('goal:ef');
+  });
+
+  it('drops the independence step for an active retirement goal', () => {
+    const ctx = buildPathContextDefaults({
+      ...EARNER,
+      goals: [typed('ret', 'Retirement Savings', 'retirement', 2125000)],
+    });
+    expect(keys(ctx)).not.toContain('financial-independence');
+    expect(keys(ctx)).toContain('goal:ret');
+  });
+
+  it('keeps both steps for a household with no goal in either category', () => {
+    const ctx = buildPathContextDefaults({
+      ...EARNER,
+      goals: [typed('house', 'First home', 'home_purchase', 92000)],
+    });
+    expect(keys(ctx)).toContain('emergency-fund');
+    expect(keys(ctx)).toContain('financial-independence');
+  });
+
+  it('keeps the emergency-fund step when that goal is no longer active', () => {
+    // `buildPathContext` loads goals with `goal_status = 'active'`, so a
+    // completed emergency-fund goal is simply not in `ctx.goals`. Having any
+    // goal at all must not cost this person the step.
+    const ctx = buildPathContextDefaults({
+      ...EARNER,
+      goals: [typed('other', 'Become Debt Free', 'debt_payoff', 4000)],
+    });
+    expect(keys(ctx)).toContain('emergency-fund');
+    expect(keys(ctx)).toContain('financial-independence');
+  });
+
+  it('suppresses once for two active goals of the same category, and keeps both goals', () => {
+    const ctx = buildPathContextDefaults({
+      ...EARNER,
+      goals: [
+        typed('ef-1', 'Emergency Fund', 'emergency_fund', 25500),
+        typed('ef-2', 'Bigger cushion', 'emergency_fund', 40000),
+      ],
+    });
+    expect(keys(ctx).filter((k) => k === 'emergency-fund')).toEqual([]);
+    expect(keys(ctx)).toContain('goal:ef-1');
+    expect(keys(ctx)).toContain('goal:ef-2');
+  });
+
+  it('does not suppress on a goal that carries no target, since it is no step either', () => {
+    const ctx = buildPathContextDefaults({
+      ...EARNER,
+      goals: [typed('ef-0', 'Emergency Fund', 'emergency_fund', 0)],
+    });
+    expect(keys(ctx)).not.toContain('goal:ef-0');
+    expect(keys(ctx)).toContain('emergency-fund');
+  });
+});
+
 // ── The two newest steps ─────────────────────────────────────────────────────
 
 describe('savings rate', () => {

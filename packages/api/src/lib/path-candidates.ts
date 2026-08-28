@@ -358,6 +358,28 @@ export function emergencyFundMonths(employmentType: string | null): number {
 
 // ── Candidates ────────────────────────────────────────────────────────────────
 
+/**
+ * The goal categories that compute exactly what a built-in step computes, and
+ * the step each one covers.
+ *
+ * An `emergency_fund` goal is months of expenses times trailing spend, which is
+ * what the emergency-fund step works out. A `retirement` goal is 25 times an
+ * annual figure, which is what the independence step works out. Emitted
+ * separately, they landed side by side and said the same job twice, and the
+ * ordering model could not tell they were one job.
+ *
+ * Where a goal like this exists, the goal is the step: the person chose the
+ * months and the target, so theirs is the more specific number, and the
+ * built-in step is there for people who have not set one.
+ *
+ * This map is the only place the pairing is written down, so a third typed
+ * category cannot reintroduce the duplicate by being added elsewhere.
+ */
+const STEP_COVERED_BY_GOAL_CATEGORY: Record<string, string> = {
+  emergency_fund: 'emergency-fund',
+  retirement: 'financial-independence',
+};
+
 interface Placed {
   tier: number;
   /** Breaks ties inside a tier. Lower runs first. */
@@ -375,8 +397,22 @@ export function buildPathCandidates(
   readiness: PathReadiness | null = null,
 ): PathCandidate[] {
   const placed: Placed[] = [];
-  const add = (tier: number, within: number, candidate: PathCandidate) =>
+
+  // `ctx.goals` is the active goals, so a completed or paused one covers
+  // nothing and leaves the built-in step exactly where it was. The same
+  // `targetAmount > 0` test the goal steps below are emitted under, so a goal
+  // that never becomes a step never suppresses one either.
+  const coveredByGoal = new Set(
+    ctx.goals
+      .filter((goal) => goal.targetAmount > 0)
+      .map((goal) => STEP_COVERED_BY_GOAL_CATEGORY[goal.category])
+      .filter((key): key is string => key !== undefined),
+  );
+
+  const add = (tier: number, within: number, candidate: PathCandidate) => {
+    if (coveredByGoal.has(candidate.key)) return;
     placed.push({ tier, within, candidate });
+  };
 
   // ── Starter emergency fund ──
   // No precondition: a first $1,000 applies to everyone who has money moving.
