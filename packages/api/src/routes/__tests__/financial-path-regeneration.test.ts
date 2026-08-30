@@ -536,7 +536,7 @@ describe('a step the person marked', () => {
     world = household({ debtAccounts: [], cashTotal: 40_000 });
     const before = await read();
     const standing = currentStepKey(before.steps);
-    expect(standing).toBe('insurance-will');
+    expect(standing).toBe('estate-legacy');
 
     await markPathStep(TENANT, standing, 'done', '');
     const after = await read();

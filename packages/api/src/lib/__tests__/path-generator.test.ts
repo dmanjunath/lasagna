@@ -298,6 +298,30 @@ describe('the ordering payload', () => {
     expect(payload).toContain('"transferableAssets":"under $25k"');
     expect(payload).toContain('"ownsProperty":false');
   });
+
+  it('lists the steps in an order that suggests nothing, so the sequence comes from the model', () => {
+    const ctx = firstBuyer();
+    const keys = buildOrderPayload(buildPathCandidates(ctx), ctx, null).candidates.map((c) => c.key);
+
+    // Ascending by key: arbitrary with respect to what any step is FOR. The
+    // emitted order is the tier order, and it is a worked-out sequence, so
+    // handing it over as the list itself is handing over an answer.
+    expect(keys).toEqual([...keys].sort());
+    expect(keys).not.toEqual(buildPathCandidates(ctx).map((c) => c.key));
+    // The tell: the estate step used to be last in every payload ever built.
+    expect(keys.indexOf('estate-legacy')).toBeGreaterThan(-1);
+    expect(keys.indexOf('estate-legacy')).toBeLessThan(keys.length - 1);
+  });
+
+  it('is byte-identical across two builds of the same household', () => {
+    // The fingerprint is a hash of this payload and is compared on every read.
+    // An order that varied per call would move the hash every time and
+    // regenerate the path forever, so neutral has to mean stable, not random.
+    const ctx = firstBuyer();
+    const first = JSON.stringify(buildOrderPayload(buildPathCandidates(ctx), ctx, null));
+    const second = JSON.stringify(buildOrderPayload(buildPathCandidates(ctx), ctx, null));
+    expect(first).toBe(second);
+  });
 });
 
 // ── Validation ───────────────────────────────────────────────────────────────

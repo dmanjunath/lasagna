@@ -272,6 +272,36 @@ function sentBands(ctx: PathContext): string[] {
   return [incomeBand(ctx.annualIncome), surplusBand(ctx.monthlySurplus), assetsBand(ctx)];
 }
 
+/**
+ * The order the candidates are LISTED IN to the model: ascending by key, which
+ * is to say no order at all.
+ *
+ * They used to be listed in the order they were emitted, which is the order of
+ * the tiers they carry, which is a worked-out sequence. The model was free to
+ * reorder them and the tier decides nothing any more, but a list handed over
+ * already in a defensible order is a suggestion, and the estate step sat last
+ * in it every single time. Sorting on the key breaks that: it is arbitrary with
+ * respect to what any step is FOR, so the sequence that comes back is the
+ * model's own rather than a nudge it declined to fight.
+ *
+ * It has to be STABLE, not merely tier-free. This payload is what the
+ * fingerprint digests, and the fingerprint is compared on every read to decide
+ * whether to regenerate, so an order that varied per call would move the
+ * fingerprint on every read and rebuild the path forever. Sorting on the key is
+ * a pure function of the candidate set: same household, same bytes.
+ *
+ * Compared by code point rather than `localeCompare`, whose result depends on
+ * the runtime's default locale. The digest is stored and read back by whichever
+ * process serves the next request, so it can hold no opinion about where it ran.
+ *
+ * The DETERMINISTIC order is untouched. `buildPathCandidates` still returns
+ * tier order, and that is what `validateOrder` falls back to when the call fails
+ * or is skipped, because a path nobody chose still needs a worked-out one.
+ */
+function listedNeutrally(candidates: PathCandidate[]): PathCandidate[] {
+  return [...candidates].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+}
+
 export function buildOrderPayload(
   candidates: PathCandidate[],
   ctx: PathContext,
@@ -300,7 +330,7 @@ export function buildOrderPayload(
       // different steps, and this is the only line that can tell them apart.
       retirementOutlook: readiness?.verdict ?? 'not on file',
     },
-    candidates: candidates.map((candidate) => ({
+    candidates: listedNeutrally(candidates).map((candidate) => ({
       key: candidate.key,
       kind: candidate.kind,
       label: candidateLabel(candidate),
