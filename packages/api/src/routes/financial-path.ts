@@ -3,7 +3,7 @@ import { z } from "zod";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildPathContext, type PathContext } from "../lib/path-context.js";
 import { buildPathCandidates, type PathCandidate } from "../lib/path-candidates.js";
-import { stepIsMeasured, type SizedStep } from "../lib/path-sizing.js";
+import { isRateShaped, stepIsMeasured, type SizedStep } from "../lib/path-sizing.js";
 import {
   generatePath,
   invalidatePath,
@@ -12,6 +12,7 @@ import {
   readActivePath,
   storedPath,
   type PathGenerationReason,
+  type PathOrderSource,
   type PathStepMark,
   type StoredPath,
 } from "../lib/path-generator.js";
@@ -40,6 +41,10 @@ export function serializeStep(step: SizedStep, index: number, reason = '') {
     monthlyFunding: step.monthlyFunding,
     projectedDate: step.projectedDate,
     action: step.action,
+    // A rate step never holds the "you are here" pointer, so the page cannot
+    // key its instruction off that pointer alone or the step would never state
+    // one. It says which steps those are rather than the page re-deriving it.
+    rateShaped: isRateShaped(step.kind),
     fact: step.fact,
     notes: step.notes,
     note: step.note,
@@ -72,7 +77,13 @@ export function pathSummary(
 ) {
   return {
     monthlyIncome: Math.round(ctx.monthlyIncome),
-    monthlyExpenses: ctx.monthlyExpenses !== null ? Math.round(ctx.monthlyExpenses) : null,
+    // The STABLE three-month figure, not the last 30 days, because the surplus
+    // beside it is income minus that same figure. Off the 30-day window the
+    // three of them did not add up: one household shipped income $19,583,
+    // expenses $26,592 and a surplus of positive $5,470, and the page then
+    // offered to put that $5,470 a month down the path.
+    monthlyExpenses:
+      ctx.stableMonthlyExpenses !== null ? Math.round(ctx.stableMonthlyExpenses) : null,
     monthlySurplus: ctx.monthlySurplus !== null ? Math.round(ctx.monthlySurplus) : null,
     totalCash: Math.round(ctx.cashTotal),
     totalInvested: Math.round(ctx.rothIraBalance + ctx.trad401kBalance + ctx.brokerageBalance),
@@ -98,14 +109,31 @@ export function pathSummary(
 }
 
 /**
- * "You are here": the first step that is not finished.
+ * "You are here": the first step that is not finished and CAN be.
  *
  * The one definition, computed once on the server, because home and the path
  * page both render this and two computations of it would eventually disagree.
  * A step taken off the path is not in `steps` at all, so it cannot be it.
+ *
+ * A rate-shaped step is skipped. Its target is a monthly rate rather than a pot
+ * to fill, so it can sit short for years, and the retirement gap can never read
+ * complete at all: its target is by construction the smallest contribution that
+ * clears the threshold, which is always more than is going in. Whichever of the
+ * two the order put first therefore held this pointer forever, the path never
+ * advanced past it, and because the page renders an instruction only on the
+ * step you are standing on, every step below it was silent. The rate step still
+ * shows its own instruction, and `isRateShaped` is why the two agree.
+ *
+ * With no milestone left the first UNFINISHED step takes it, rate step or not,
+ * because a rate that is still short is still where the work is. Falling
+ * straight to the last step put "You are here" on a card that is already ticked
+ * done, under a hero counting steps that were finished.
+ *
+ * The last step is the fallback only when everything is genuinely complete.
  */
 export function currentStepKey(steps: SizedStep[]): string {
   return (
+    steps.find((s) => s.status !== 'complete' && !isRateShaped(s.kind))?.key ??
     steps.find((s) => s.status !== 'complete')?.key ??
     steps[steps.length - 1]?.key ??
     ''
@@ -235,6 +263,15 @@ export interface PathStepView {
   /** Where it sits relative to the rest, as the order that was stored put it. */
   reason: string;
   status: SizedStep['status'];
+  /**
+   * Whether this step's target is a monthly RATE rather than a pot to fill.
+   *
+   * The page keys its whole rendering of a step off this, and a reader that
+   * must say the same thing the page says cannot tell a rate from a pot
+   * without it: "$1,200 of the $4,180 target" reads as a balance one third
+   * saved when it is a monthly contribution one third of the way to a rate.
+   */
+  rateShaped: boolean;
   /** Every figure below is `sizePath`'s, recomputed here exactly as the page recomputes it. */
   current: number | null;
   target: number | null;
@@ -265,6 +302,12 @@ export interface PathView {
    * so nothing may state one as final while this is true.
    */
   rebuildPending: boolean;
+  /**
+   * Who chose this sequence. Nothing weighed this household at all on a
+   * deterministic path, so a reader outside the page must not describe the
+   * order as one that was reasoned about for them.
+   */
+  orderSource: PathOrderSource;
   updatedAt: string;
 }
 
@@ -317,6 +360,7 @@ export async function readStoredPath(
       why: step.why,
       reason: reasons.get(step.key) ?? '',
       status: step.status,
+      rateShaped: isRateShaped(step.kind),
       current: step.current,
       target: step.target,
       monthlyFunding: step.monthlyFunding,
@@ -330,6 +374,7 @@ export async function readStoredPath(
     // The same question `readFinancialPath` asks before it regenerates, asked
     // by the reader that must not.
     rebuildPending: regenerationReason(stored, candidates, fingerprint) !== null,
+    orderSource: stored.orderSource,
     updatedAt: generatedAt.toISOString(),
   };
 }
@@ -338,7 +383,7 @@ export async function readStoredPath(
 function serializePath(
   path: Awaited<ReturnType<typeof readFinancialPath>>,
 ) {
-  const { ctx, steps, notApplicable, leftOut, readiness, reasons, generatedAt, reason } = path;
+  const { ctx, steps, notApplicable, leftOut, readiness, reasons, generatedAt, reason, orderSource } = path;
   return {
     steps: steps.map((step, index) => serializeStep(step, index, reasons.get(step.key))),
     // Off the path, so they carry no number and no figures. One list, because
@@ -359,6 +404,9 @@ function serializePath(
     // path it is showing is the one it is.
     updatedAt: generatedAt.toISOString(),
     updatedReason: reason,
+    // Who chose this sequence. The page explains the order to the reader, and
+    // the explanation is a different one when nothing weighed their situation.
+    orderSource,
     summary: pathSummary(ctx, steps, readiness),
   };
 }

@@ -234,9 +234,9 @@ const SIX_STEPS = [
   "stabilize",
   `debt:${CARD}`,
   "emergency-fund",
-  "insurance-will",
+  "term-life",
   "tax-advantaged",
-  "estate-legacy",
+  "will-trust",
 ];
 
 beforeEach(() => {
@@ -254,7 +254,7 @@ describe("the actions list reads in path order", () => {
     storePath(SIX_STEPS);
     // The order the SQL hands them over in: urgency alone, which is what this
     // list used to be. Nothing about step 6 changes because it is critical.
-    storeInsight("Write your will", "critical", "estate-legacy");
+    storeInsight("Write your will", "critical", "will-trust");
     storeInsight("Move $200 into your buffer", "low", "stabilize");
 
     expect(await listed()).toEqual(["Move $200 into your buffer", "Write your will"]);
@@ -273,7 +273,7 @@ describe("the actions list reads in path order", () => {
     storePath(SIX_STEPS);
     storeInsight("Dispute the charge you did not make", "critical", null);
     storeInsight("Move $200 into your buffer", "low", "stabilize");
-    storeInsight("Write your will", "medium", "estate-legacy");
+    storeInsight("Write your will", "medium", "will-trust");
 
     expect(await listed()).toEqual([
       "Move $200 into your buffer",
@@ -286,14 +286,14 @@ describe("the actions list reads in path order", () => {
     // The step was taken off the path, so it is not one of its steps any more.
     // The action is not lost with it.
     storePath(["stabilize", "emergency-fund"]);
-    storeInsight("Buy term life", "critical", "insurance-will");
+    storeInsight("Buy term life", "critical", "term-life");
     storeInsight("Move $200 into your buffer", "low", "stabilize");
 
     expect(await listed()).toEqual(["Move $200 into your buffer", "Buy term life"]);
   });
 
   it("leaves the list alone when the person has no path", async () => {
-    storeInsight("Write your will", "critical", "estate-legacy");
+    storeInsight("Write your will", "critical", "will-trust");
     storeInsight("Move $200 into your buffer", "low", "stabilize");
 
     expect(await listed()).toEqual(["Write your will", "Move $200 into your buffer"]);
@@ -303,7 +303,7 @@ describe("the actions list reads in path order", () => {
 describe("a regenerated path does not lose an action", () => {
   it("keeps the action attached when every step row is replaced", async () => {
     const first = storePath(SIX_STEPS);
-    storeInsight("Write your will", "critical", "estate-legacy");
+    storeInsight("Write your will", "critical", "will-trust");
     storeInsight("Move $200 into your buffer", "low", "stabilize");
     expect(await listed()).toEqual(["Move $200 into your buffer", "Write your will"]);
 
@@ -316,7 +316,7 @@ describe("a regenerated path does not lose an action", () => {
     expect(after.some((id) => before.includes(id))).toBe(false);
 
     // Both actions are still here, still attached, and now in the new order:
-    // the estate step leads the reversed path, so its action does too.
+    // the will step leads the reversed path, so its action does too.
     expect(await listed()).toEqual(["Write your will", "Move $200 into your buffer"]);
   });
 

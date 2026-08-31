@@ -22,6 +22,15 @@ export interface DebtAccount {
    * an estimate as the lender's own number.
    */
   minimumPaymentEstimated: boolean;
+  /**
+   * The rate the minimum was AMORTISED AT when we had to invent one, or null.
+   *
+   * Only the mortgage branch below invents a rate, and until now it did so
+   * silently: every other estimate on the path says it is one, and this one
+   * quoted a payment worked out from a number nobody supplied. Whatever shows
+   * the payment shows this beside it.
+   */
+  minimumPaymentAssumedApr: number | null;
   termMonths: number | null;
   originationDate: string | null;
   payoffDate: string | null;
@@ -30,6 +39,14 @@ export interface DebtAccount {
   liabilityLastSyncedAt: string | null;
   lastUpdated: Date | null;
 }
+
+/**
+ * The rate a mortgage payment is amortised at when the account reports none.
+ *
+ * A stand-in for ordering and for a payment estimate, never a claim about this
+ * loan. Anything that shows a payment worked out from it says so.
+ */
+const DEFAULT_MORTGAGE_APR = 6.5;
 
 /**
  * Resolve an account's APR from its stored metadata.
@@ -111,6 +128,7 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
 
       // Resolve minimumPayment (3-step fallback)
       let minimumPayment: number;
+      let minimumPaymentAssumedApr: number | null = null;
       const isMortgage =
         acct.subtype === "mortgage" || acct.name?.toLowerCase().includes("mortgage");
 
@@ -129,17 +147,25 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
         const monthlyInterest = interestRate ? balance * (interestRate / 100 / 12) : 0;
         minimumPayment = Math.max(balance * 0.02, monthlyInterest + balance * 0.01, 25);
       } else if (isMortgage && !termMonths) {
-        const rate = interestRate ?? 6.5;
+        const rate = interestRate ?? DEFAULT_MORTGAGE_APR;
+        if (interestRate == null) minimumPaymentAssumedApr = DEFAULT_MORTGAGE_APR;
         const r = rate / 100 / 12;
         const n = 360;
         minimumPayment =
           r > 0 ? (balance * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1) : balance / n;
       } else if (termMonths && originationDate) {
         const originated = new Date(originationDate);
-        const monthsElapsed =
-          (Date.now() - originated.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
-        const remaining = Math.max(termMonths - Math.floor(monthsElapsed), 1);
-        minimumPayment = balance / remaining;
+        const monthsElapsed = Math.floor(
+          (Date.now() - originated.getTime()) / (1000 * 60 * 60 * 24 * 30.44),
+        );
+        const remaining = termMonths - monthsElapsed;
+        // A loan past its own term has no schedule left to spread the balance
+        // over. Clamping the months remaining to 1 asked for the entire balance
+        // as a monthly payment, so a $27,537 auto loan whose term ran out
+        // reported a minimum of $27,537 a month. Past the term the schedule
+        // tells us nothing, so it falls back to the same estimate a balance
+        // with no schedule at all gets.
+        minimumPayment = remaining >= 1 ? balance / remaining : Math.max(balance * 0.02, 25);
       } else {
         minimumPayment = Math.max(balance * 0.02, 25);
       }
@@ -157,6 +183,7 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
         apr: interestRate,
         minimumPayment,
         minimumPaymentEstimated,
+        minimumPaymentAssumedApr,
         termMonths,
         originationDate,
         payoffDate,

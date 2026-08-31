@@ -195,7 +195,7 @@ describe("attaching an action to the step it serves", () => {
       action("Pay off the yacht", "debt:99999999-9999-4999-8999-999999999999"),
       // A step that was taken off the path, so `readPathSteps` does not carry
       // it. Same answer.
-      action("Buy term life", "insurance-will"),
+      action("Write your will", "will-trust"),
       // A key the model adapted rather than echoed.
       action("Top up the buffer", "Stabilize"),
     ]);
@@ -205,7 +205,7 @@ describe("attaching an action to the step it serves", () => {
     // Every one of them is still an action the person reads.
     expect(inserted.map((r) => r.title)).toEqual([
       "Pay off the yacht",
-      "Buy term life",
+      "Write your will",
       "Top up the buffer",
     ]);
   });

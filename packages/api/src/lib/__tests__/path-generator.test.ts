@@ -32,7 +32,13 @@ interface Recorded {
 }
 const recorded: Recorded = { paths: [], steps: [] };
 let activePath: { id: string; orderSource: string } | null = null;
-let activeSteps: Array<{ candidateKey: string; reason: string }> = [];
+let activeSteps: Array<{
+  candidateKey: string;
+  reason: string;
+  status?: string;
+  note?: string;
+  statusAt?: Date | null;
+}> = [];
 
 /** Set to fail the write, so the reservation has to roll back with it. */
 let insertFails = false;
@@ -66,6 +72,9 @@ function insertInto(_table: unknown) {
         activeSteps = recorded.steps.map((r) => ({
           candidateKey: String(r.candidateKey),
           reason: String(r.reason ?? ''),
+          status: String(r.status),
+          note: String(r.note ?? ''),
+          statusAt: (r.statusAt as Date | null) ?? null,
         }));
       } else {
         recorded.paths.push(...list);
@@ -97,6 +106,10 @@ async function transaction(fn: (tx: unknown) => unknown) {
   const held: { release: (() => void) | null } = { release: null };
   const tx = {
     insert: insertInto,
+    // Superseding the row this generation replaces. Nothing here reads the old
+    // row again, so retiring it is a no-op the module still has to be able to
+    // perform.
+    update: () => ({ set: () => ({ where: async () => undefined }) }),
     query: makeQuery(),
     execute: async (statement: unknown) => {
       const { sql: text, params } = new PgDialect().sqlToQuery(statement as never);
@@ -120,15 +133,18 @@ vi.mock('../db.js', () => ({
 
 import { PgDialect } from '@lasagna/core';
 import { buildPathContextDefaults, type PathContext } from '../path-context.js';
-import { buildPathCandidates, type PathCandidate } from '../path-candidates.js';
+import { CONTRIBUTION_TAX_YEAR, buildPathCandidates, type PathCandidate } from '../path-candidates.js';
 import type { DebtAccount } from '../debt-accounts.js';
 import {
   applyStoredOrder,
   buildOrderPayload,
   generatePath,
+  isLiveStepKey,
   stepLabelForKey,
+  storedPath,
   validateOrder,
   type ProposedStep,
+  type StoredPath,
 } from '../path-generator.js';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -146,6 +162,7 @@ function debt(overrides: Partial<DebtAccount> & { id: string; name: string }): D
     apr: 22,
     minimumPayment: 200,
     minimumPaymentEstimated: false,
+    minimumPaymentAssumedApr: null,
     termMonths: null,
     originationDate: null,
     payoffDate: null,
@@ -161,6 +178,9 @@ function debt(overrides: Partial<DebtAccount> & { id: string; name: string }): D
 function firstBuyer(): PathContext {
   return buildPathContextDefaults({
     age: 24,
+    // Answered, so these fixtures are about ordering rather than about the
+    // term-life step an unanswered dependants question puts on the path.
+    dependentCount: 0,
     annualIncome: 72_000,
     monthlyIncome: 72_000 / 12,
     stableMonthlyExpenses: 3_400,
@@ -238,6 +258,30 @@ describe('a stored step, named from its key', () => {
       expect(stepLabelForKey(candidate.key, names)).not.toMatch(/[\d$%]/);
     }
   });
+
+  it('names the room step for the year the step itself names', () => {
+    // The label feeds the actions engine, which puts it in front of the model
+    // as this step's title. Saying "this year's" beside a card headed with a
+    // tax year is two labels for one deadline, and they disagree the moment the
+    // constant and the calendar do.
+    expect(stepLabelForKey('max-contributions', new Map()))
+      .toBe(`Max out your ${CONTRIBUTION_TAX_YEAR} contribution room`);
+  });
+
+  it('knows a retired key from a live one, so no reader has to print the key', () => {
+    // `insurance-will` split into two steps, `estate-legacy` folded into the
+    // will and `retirement-readiness` merged into the amount step. Rows against
+    // them are still stored, because a mark on a retired key expires with the
+    // step rather than being moved onto a step it may not have meant.
+    for (const retired of ['insurance-will', 'estate-legacy', 'retirement-readiness']) {
+      expect(isLiveStepKey(retired)).toBe(false);
+    }
+    for (const candidate of buildPathCandidates(firstBuyer())) {
+      expect(isLiveStepKey(candidate.key)).toBe(true);
+    }
+    expect(isLiveStepKey(`debt:${CARD_ID}`)).toBe(true);
+    expect(isLiveStepKey(`goal:${GOAL_ID}`)).toBe(true);
+  });
 });
 
 // ── What the model is shown ──────────────────────────────────────────────────
@@ -254,11 +298,36 @@ describe('the ordering payload', () => {
     // The surplus is $2,600 a month. A band is all an ordering decision needs.
     expect(payload).not.toContain('2600');
     // What it does carry: the kind, a relative size, and the goal's date.
-    expect(payload).toContain('Credit card balance');
-    expect(payload).toContain('"size":"medium"');
+    expect(payload).toContain('"size":"large"');
     expect(payload).toContain('"targetDate":"2030-06"');
     expect(payload).toContain('"incomeBand":"$50k to $75k"');
     expect(payload).toContain('"surplusBand":"$1.5k to $4k a month"');
+  });
+
+  it('says a dependants count is not on file rather than sending a bare null', () => {
+    // Read as zero, the model wrote "You have no dependents relying on your
+    // income" onto a live path as the reason the cover step was left off it.
+    // Nobody ever told us that.
+    const unanswered = { ...firstBuyer(), dependentCount: null };
+    const payload = buildOrderPayload(buildPathCandidates(unanswered), unanswered, null);
+    expect(payload.situation.dependents).toBe('not on file');
+    expect(buildOrderPayload(buildPathCandidates(firstBuyer()), firstBuyer(), null).situation.dependents)
+      .toBe(0);
+  });
+
+  it('carries no balance at all, in any form, because their order is not asked for', () => {
+    // Debt sits at the position its own APR band puts it in, and the model is
+    // not consulted about it. Nothing in what leaves the boundary may suggest
+    // otherwise: no key it could place, no label it could name, no size it
+    // could weigh one balance against another with.
+    const ctx = firstBuyer();
+    const payload = buildOrderPayload(buildPathCandidates(ctx), ctx, null);
+    const debts = buildPathCandidates(ctx).filter((c) => c.kind === 'debt');
+
+    expect(debts.length).toBeGreaterThan(0);
+    expect(payload.candidates.map((c) => c.key)).not.toContain(debts[0].key);
+    expect(payload.candidates.some((c) => c.kind === 'debt')).toBe(false);
+    expect(JSON.stringify(payload)).not.toContain('Credit card balance');
   });
 
   it('bands what the household holds, and never states the balance itself', () => {
@@ -278,6 +347,7 @@ describe('the ordering payload', () => {
       currentMonthlySavings: 900,
       requiredMonthlySavings: 1_800,
       requiredSuccessRate: 84,
+      medianByAge: Array.from({ length: 42 }, (_, i) => Math.round(412_800 * 1.06 ** i)),
       simRuns: 0,
     };
     const payload = JSON.stringify(buildOrderPayload(buildPathCandidates(ctx), ctx, readiness));
@@ -308,9 +378,10 @@ describe('the ordering payload', () => {
     // handing it over as the list itself is handing over an answer.
     expect(keys).toEqual([...keys].sort());
     expect(keys).not.toEqual(buildPathCandidates(ctx).map((c) => c.key));
-    // The tell: the estate step used to be last in every payload ever built.
-    expect(keys.indexOf('estate-legacy')).toBeGreaterThan(-1);
-    expect(keys.indexOf('estate-legacy')).toBeLessThan(keys.length - 1);
+    // The tell: whatever the last tier emits used to be last in every payload
+    // ever built, and the independence step is that tier.
+    expect(keys.indexOf('financial-independence')).toBeGreaterThan(-1);
+    expect(keys.indexOf('financial-independence')).toBeLessThan(keys.length - 1);
   });
 
   it('is byte-identical across two builds of the same household', () => {
@@ -340,7 +411,6 @@ describe('validation rejects what the model made up', () => {
         { key: `goal:${DELETED_GOAL_ID}`, reason: 'A goal that is gone.' },
       ], leftOut: [] },
       candidates,
-      ctx,
     );
 
     const placed = ordered.map((o) => o.candidate.key);
@@ -348,12 +418,90 @@ describe('validation rejects what the model made up', () => {
     expect(placed).not.toContain('pay-off-the-yacht');
     expect(placed).not.toContain(`goal:${DELETED_GOAL_ID}`);
     expect(placed.filter((k) => k === 'emergency-fund')).toHaveLength(1);
-    // The step it did place is the only one in the sequence, and every other
-    // candidate is off the path rather than gone.
-    expect(placed).toEqual(['emergency-fund']);
+    // The one step it placed, plus the balance whose position was never its to
+    // choose. Every other candidate is off the path rather than gone.
+    expect(placed).toEqual(['emergency-fund', `debt:${CARD_ID}`]);
     expect(new Set([...placed, ...leftOut.map((o) => o.candidate.key)])).toEqual(
       new Set(keysOf(candidates)),
     );
+  });
+
+  it('puts a step the person kept back at its own position, not on the end', () => {
+    // A step somebody has answered for cannot be left out again. It has no
+    // placement line, so there is no position of the model's choosing to
+    // honour, and it used to be appended behind everything else, which is the
+    // position least likely to be right for a step they explicitly asked to
+    // keep. Its deterministic slot is a worked-out answer.
+    const ctx = firstBuyer();
+    const candidates = buildPathCandidates(ctx);
+    const rail = keysOf(candidates);
+    expect(rail.indexOf('stabilize')).toBe(0);
+
+    const { ordered } = validateOrder(
+      {
+        steps: candidates
+          .filter((c) => c.kind !== 'debt' && c.key !== 'stabilize')
+          .map((c) => ({ key: c.key, reason: `Placed ${c.key}.` })),
+        leftOut: [{ key: 'stabilize', reason: 'You already hold more than a first buffer.' }],
+      },
+      candidates,
+      new Set(['stabilize']),
+    );
+
+    const placed = ordered.map((o) => o.candidate.key);
+    expect(placed).toContain('stabilize');
+    expect(placed[placed.length - 1]).not.toBe('stabilize');
+    expect(placed.indexOf('stabilize')).toBe(0);
+  });
+
+  it('keeps every balance in the sequence, whatever the model returned', () => {
+    // Payoff order is computed from each account's own APR band, so a balance
+    // is not a candidate the model can decline. It cannot be left out by a
+    // response that omits it, because it was never offered in the first place.
+    const ctx = firstBuyer();
+    const candidates = buildPathCandidates(ctx);
+
+    for (const proposed of [
+      null,
+      { steps: [{ key: 'emergency-fund', reason: 'Placed.' }], leftOut: [] },
+      {
+        steps: [{ key: 'emergency-fund', reason: 'Placed.' }],
+        leftOut: [{ key: `debt:${CARD_ID}`, reason: 'Not worth your attention.' }],
+      },
+    ]) {
+      const { ordered, leftOut } = validateOrder(proposed, candidates);
+      expect(ordered.map((o) => o.candidate.key)).toContain(`debt:${CARD_ID}`);
+      expect(leftOut.map((o) => o.candidate.key)).not.toContain(`debt:${CARD_ID}`);
+    }
+  });
+
+  it('threads the model order through the positions the balances hold', () => {
+    // The deterministic rail puts a 22% card above the emergency fund and below
+    // the starter buffer. The model reverses the two steps around it, and the
+    // card keeps its slot between them.
+    const ctx = firstBuyer();
+    const candidates = buildPathCandidates(ctx);
+    const rail = keysOf(candidates);
+    expect(rail.slice(0, 3)).toEqual(['stabilize', `debt:${CARD_ID}`, 'emergency-fund']);
+
+    const { ordered } = validateOrder(
+      {
+        steps: [
+          { key: 'emergency-fund', reason: 'This comes first for you.' },
+          { key: 'stabilize', reason: 'You can turn to this after the reserve.' },
+        ],
+        leftOut: candidates
+          .filter((c) => c.kind !== 'debt' && c.key !== 'stabilize' && c.key !== 'emergency-fund')
+          .map((c) => ({ key: c.key, reason: `Set aside because of ${c.key}.` })),
+      },
+      candidates,
+    );
+
+    expect(ordered.map((o) => o.candidate.key)).toEqual([
+      'emergency-fund',
+      `debt:${CARD_ID}`,
+      'stabilize',
+    ]);
   });
 
   it('leaves a candidate out when that is what the model said, and says why', () => {
@@ -374,7 +522,6 @@ describe('validation rejects what the model made up', () => {
         ],
       },
       candidates,
-      ctx,
     );
 
     expect(ordered.map((o) => o.candidate.key)).not.toContain('stabilize');
@@ -393,19 +540,18 @@ describe('validation rejects what the model made up', () => {
     const { ordered, leftOut } = validateOrder(
       {
         steps: candidates
-          .filter((c) => c.key !== `debt:${CARD_ID}`)
-          .map((c) => ({ key: c.key, reason: 'Placed.' })),
+          .filter((c) => c.kind !== 'debt' && c.key !== 'financial-independence')
+          .map((c) => ({ key: c.key, reason: `Placed ${c.key}.` })),
         leftOut: [],
       },
       candidates,
-      ctx,
     );
 
-    // A short answer is not a decision to drop a balance somebody owes. It is
-    // off the sequence the model chose, so it is off the path, and it is on the
-    // page with nothing said about it.
-    expect(ordered.map((o) => o.candidate.key)).not.toContain(`debt:${CARD_ID}`);
-    expect(leftOut.map((o) => o.candidate.key)).toEqual([`debt:${CARD_ID}`]);
+    // A short answer is not a decision to drop a step. It is off the sequence
+    // the model chose, so it is off the path, and it is on the page with
+    // nothing said about it.
+    expect(ordered.map((o) => o.candidate.key)).not.toContain('financial-independence');
+    expect(leftOut.map((o) => o.candidate.key)).toEqual(['financial-independence']);
     expect(leftOut[0].reason).toBe('');
   });
 
@@ -416,7 +562,6 @@ describe('validation rejects what the model made up', () => {
     const { ordered, leftOut, source } = validateOrder(
       { steps: [{ key: 'nonsense', reason: 'x' }, { key: 'also-nonsense', reason: 'y' }], leftOut: [] },
       candidates,
-      ctx,
     );
 
     expect(source).toBe('deterministic');
@@ -435,7 +580,6 @@ describe('validation rejects what the model made up', () => {
         { key: 'emergency-fund', reason: 'A deeper buffer comes next, once the first one is there.' },
       ], leftOut: [] },
       candidates,
-      ctx,
     );
 
     const byKey = new Map(ordered.map((o) => [o.candidate.key, o.reason]));
@@ -457,51 +601,30 @@ describe('validation rejects what the model made up', () => {
         { key: 'emergency-fund', reason: 'This waits until you are putting over four thousand a month aside.' },
       ], leftOut: [] },
       candidates,
-      ctx,
     );
 
     for (const placed of ordered) expect(placed.reason).toBe('');
   });
 
-  it('keeps a reason that reads back a band the payload sent', () => {
+  it('drops a reason stating a band, because the band it was true of moves', () => {
+    // This used to be allowed, on the ground that a band the payload had just
+    // handed over is the household's own figure read back correctly. The band
+    // was the one at GENERATION time and the line is stored and rendered on
+    // every read after that, so a surplus that later falls leaves the sentence
+    // asserting a figure that is no longer true of the person reading it, and
+    // nothing revalidates a stored path on a read. A line that can go stale is
+    // not stored at all.
     const ctx = firstBuyer();
-    // Enough room each month to put this household in the payload's top surplus
-    // band, so "over $4k a month" is a phrase the model was handed.
     ctx.monthlySurplus = 4_600;
     const candidates = buildPathCandidates(ctx);
-
-    // The line the digit test used to destroy. It is correct, it is useful, and
-    // the reader saw "Your plan did not place this step." in its place.
-    const restatement =
-      'You are already putting over $4k a month aside, so a step that asks you to find surplus does not apply.';
+    const payload = JSON.stringify(buildOrderPayload(candidates, ctx, null));
+    expect(payload).toContain('over $4k a month');
 
     const { leftOut } = validateOrder(
       {
         steps: candidates
           .filter((c) => c.key !== 'savings-rate')
-          .map((c) => ({ key: c.key, reason: 'Placed.' })),
-        leftOut: [{ key: 'savings-rate', reason: restatement }],
-      },
-      candidates,
-      ctx,
-    );
-
-    expect(new Map(leftOut.map((o) => [o.candidate.key, o.reason])).get('savings-rate')).toBe(
-      restatement,
-    );
-  });
-
-  it('reads a band back only for the household it was sent to', () => {
-    // Same sentence, a household whose surplus band is not that one. The figure
-    // is then one the model decided, and it goes exactly as any other would.
-    const ctx = firstBuyer();
-    const candidates = buildPathCandidates(ctx);
-
-    const { leftOut } = validateOrder(
-      {
-        steps: candidates
-          .filter((c) => c.key !== 'savings-rate')
-          .map((c) => ({ key: c.key, reason: 'Placed.' })),
+          .map((c) => ({ key: c.key, reason: `Placed ${c.key}.` })),
         leftOut: [
           {
             key: 'savings-rate',
@@ -511,94 +634,96 @@ describe('validation rejects what the model made up', () => {
         ],
       },
       candidates,
-      ctx,
     );
 
     expect(new Map(leftOut.map((o) => [o.candidate.key, o.reason])).get('savings-rate')).toBe('');
   });
 
-  it('lets through only phrases the payload put in front of the model', () => {
+  it('drops a figure spelled out in words as readily as one in digits', () => {
     const ctx = firstBuyer();
-    const candidates = buildPathCandidates(ctx);
-    const payload = JSON.stringify(buildOrderPayload(candidates, ctx, null));
-
-    // Each of these reads back one of this household's three bands verbatim, and
-    // each of those bands is in the payload the model was handed. A fourth field
-    // stating a figure would have to be allowed deliberately rather than
-    // widening the guard by being written.
-    const readBack = [
-      'This waits until your income clears $50k to $75k.',
-      'You can turn to this once you have $1.5k to $4k a month spare.',
-      'Nothing here moves while what you have built is under $25k.',
-    ];
-    for (const band of ['$50k to $75k', '$1.5k to $4k a month', 'under $25k']) {
-      expect(payload).toContain(band);
-    }
-
-    const { ordered } = validateOrder(
-      { steps: readBack.map((reason, i) => ({ key: candidates[i].key, reason })), leftOut: [] },
-      candidates,
-      ctx,
-    );
-    expect(ordered.slice(0, readBack.length).map((o) => o.reason)).toEqual(readBack);
-  });
-
-  it('drops a line about what a balance costs when the account reports no rate', () => {
-    const ctx = firstBuyer();
-    // Same card, no rate on file. The card then says twice that the rate is
-    // unknown, so a line calling the balance expensive contradicts it.
-    ctx.debtAccounts = [debt({ id: CARD_ID, name: 'Rewards card', apr: null })];
     const candidates = buildPathCandidates(ctx);
 
     const { ordered } = validateOrder(
       { steps: [
-        { key: `debt:${CARD_ID}`, reason: 'You should clear this high-interest debt before it grows.' },
-        { key: 'emergency-fund', reason: 'A buffer comes first so a surprise does not land on the card.' },
+        { key: 'stabilize', reason: 'You can turn to this once you have a few thousand spare.' },
+        { key: 'emergency-fund', reason: 'This waits until the first reserve is behind you.' },
       ], leftOut: [] },
       candidates,
-      ctx,
     );
 
     const byKey = new Map(ordered.map((o) => [o.candidate.key, o.reason]));
-    expect(byKey.get(`debt:${CARD_ID}`)).toBe('');
-    expect(byKey.get('emergency-fund')).toBe(
-      'A buffer comes first so a surprise does not land on the card.',
-    );
+    expect(byKey.get('stabilize')).toBe('');
+    expect(byKey.get('emergency-fund')).toBe('This waits until the first reserve is behind you.');
   });
 
-  it('drops a line claiming what terms a balance carries when no rate is on file', () => {
+  it('drops a line about what borrowing costs, on any step, whatever is on file', () => {
+    // The guard used to fire on an account reporting no rate, which is a fact
+    // about our data rather than about what the model was told. It is told no
+    // rate for anything, ever, so a 2.5% mortgage could be called high interest
+    // purely because that account happened to have a rate stored against it.
+    // The invariant holds for every line, so the guard runs on every line.
     const ctx = firstBuyer();
-    ctx.debtAccounts = [debt({ id: CARD_ID, name: 'Rewards card', apr: null })];
     const candidates = buildPathCandidates(ctx);
 
     const { ordered } = validateOrder(
       { steps: [
+        { key: 'stabilize', reason: 'This comes before your high-interest balances.' },
+        { key: 'emergency-fund', reason: 'You reach this once the expensive borrowing is gone.' },
         {
-          key: `debt:${CARD_ID}`,
-          reason: 'This comes first because this debt typically carries terms that reward earlier attention.',
+          key: 'tax-advantaged',
+          reason: 'This waits because that debt typically carries terms that reward earlier attention.',
         },
+        { key: 'will-trust', reason: 'This sits after the steps that build your reserve.' },
       ], leftOut: [] },
       candidates,
-      ctx,
     );
 
-    expect(new Map(ordered.map((o) => [o.candidate.key, o.reason])).get(`debt:${CARD_ID}`)).toBe('');
+    const byKey = new Map(ordered.map((o) => [o.candidate.key, o.reason]));
+    expect(byKey.get('stabilize')).toBe('');
+    expect(byKey.get('emergency-fund')).toBe('');
+    expect(byKey.get('tax-advantaged')).toBe('');
+    expect(byKey.get('will-trust')).toBe('This sits after the steps that build your reserve.');
   });
 
-  it('keeps a placement line on the same account once a rate is on file', () => {
+  it('keeps a line using "terms" in its ordinary sense', () => {
+    // The guard is about claims on what BORROWING costs. Matching the bare word
+    // dropped a line that made no claim about a rate at all.
     const ctx = firstBuyer();
     const candidates = buildPathCandidates(ctx);
 
     const { ordered } = validateOrder(
-      { steps: [{ key: `debt:${CARD_ID}`, reason: 'Clearing this high-interest balance comes before your goals.' }], leftOut: [] },
+      { steps: [
+        { key: 'stabilize', reason: 'You can finish this one on your own terms, once it is funded.' },
+        { key: 'emergency-fund', reason: 'That balance carries terms that reward earlier attention.' },
+      ], leftOut: [] },
       candidates,
-      ctx,
     );
 
     const byKey = new Map(ordered.map((o) => [o.candidate.key, o.reason]));
-    expect(byKey.get(`debt:${CARD_ID}`)).toBe(
-      'Clearing this high-interest balance comes before your goals.',
+    expect(byKey.get('stabilize')).toBe('You can finish this one on your own terms, once it is funded.');
+    expect(byKey.get('emergency-fund')).toBe('');
+  });
+
+  it('writes the same sentence once, and leaves the repeats blank', () => {
+    // Three balances came back with a byte-identical line between them, and the
+    // reader went down the list reading the same excuse three times.
+    const ctx = firstBuyer();
+    const candidates = buildPathCandidates(ctx);
+    const repeated = 'You set this aside because the work above it comes first.';
+
+    const { ordered } = validateOrder(
+      { steps: [
+        { key: 'stabilize', reason: repeated },
+        { key: 'emergency-fund', reason: repeated },
+        { key: 'will-trust', reason: repeated },
+      ], leftOut: [] },
+      candidates,
     );
+
+    const byKey = new Map(ordered.map((o) => [o.candidate.key, o.reason]));
+    expect(byKey.get('stabilize')).toBe(repeated);
+    expect(byKey.get('emergency-fund')).toBe('');
+    expect(byKey.get('will-trust')).toBe('');
   });
 
   it('drops a reason written in punctuation the product does not use', () => {
@@ -609,16 +734,143 @@ describe('validation rejects what the model made up', () => {
       { steps: [
         { key: 'stabilize', reason: 'This comes first \u2014 everything else rests on it.' },
         { key: 'emergency-fund', reason: 'A buffer first; the rest can wait.' },
-        { key: 'insurance-will', reason: 'One bad event should not undo what is behind it.' },
+        { key: 'will-trust', reason: 'Where what you own goes should be your decision, not a court\'s.' },
       ], leftOut: [] },
       candidates,
-      ctx,
     );
 
     const byKey = new Map(ordered.map((o) => [o.candidate.key, o.reason]));
     expect(byKey.get('stabilize')).toBe('');
     expect(byKey.get('emergency-fund')).toBe('');
-    expect(byKey.get('insurance-will')).toBe('One bad event should not undo what is behind it.');
+    expect(byKey.get('will-trust')).toBe('Where what you own goes should be your decision, not a court\'s.');
+  });
+
+  it('drops a reason claiming an absolute place, because balances are woven in around it', () => {
+    const ctx = firstBuyer();
+    const candidates = buildPathCandidates(ctx);
+
+    // Verbatim off a live path: step 10 of 14, with four debt steps under it.
+    // The model orders the list it was given, balances are held out of that
+    // list entirely, and they are woven back in at the positions their own
+    // rates put them in. So nothing it was shown tells it where the path ends.
+    const { ordered } = validateOrder(
+      { steps: [
+        { key: 'stabilize', reason: 'This comes last because you open it once contribution limits are reached.' },
+        { key: 'emergency-fund', reason: 'Once the protective steps are settled, this is first.' },
+        { key: 'will-trust', reason: 'This waits until the buffer above it is built.' },
+      ], leftOut: [] },
+      candidates,
+    );
+
+    const byKey = new Map(ordered.map((o) => [o.candidate.key, o.reason]));
+    expect(byKey.get('stabilize')).toBe('');
+    expect(byKey.get('emergency-fund')).toBe('');
+    // A RELATIVE claim survives, because whatever ends up above a step is
+    // still above it however the balances land.
+    expect(byKey.get('will-trust')).toBe('This waits until the buffer above it is built.');
+  });
+
+  it('keeps a balance that beats the market above the steps that only compound', () => {
+    // A Roth balance so a brokerage step is emitted too, which makes this two
+    // compounding steps rather than one.
+    const ctx = { ...firstBuyer(), rothIraBalance: 40_000 };
+    const candidates = buildPathCandidates(ctx);
+
+    // The model never sees the card, so it can hand back an order that opens
+    // on the compounding steps, and the weave holds each balance's INDEX
+    // rather than its rank. A 22% card then landed below independence and the
+    // brokerage step, next to its own copy saying money put there beats money
+    // invested with none of the uncertainty.
+    const compounding = ['financial-independence', 'taxable-brokerage'];
+    const rest = candidates
+      .filter((c) => c.kind !== 'debt' && !compounding.includes(c.key))
+      .map((c) => c.key);
+    const { ordered } = validateOrder(
+      {
+        steps: [...compounding, ...rest].map((key) => ({ key, reason: '' })),
+        leftOut: [],
+      },
+      candidates,
+    );
+
+    const at = (key: string) => ordered.findIndex((o) => o.candidate.key === key);
+    expect(at(`debt:${CARD_ID}`)).toBeGreaterThanOrEqual(0);
+    expect(at('financial-independence')).toBeGreaterThan(at(`debt:${CARD_ID}`));
+    expect(at('taxable-brokerage')).toBeGreaterThan(at(`debt:${CARD_ID}`));
+    // Nothing else is disturbed: every candidate is still on the path once.
+    expect(new Set(ordered.map((o) => o.candidate.key)).size).toBe(ordered.length);
+  });
+
+  it('holds the amount step above the retirement outcomes, whichever order came back', () => {
+    // The rate is the LEVER and independence is the READING. Ordered the other
+    // way the page tells somebody to put more away after telling them the
+    // outcome that money acts through has already been reached, at which point
+    // the instruction has nothing left to change.
+    const ctx = firstBuyer();
+    const candidates = buildPathCandidates(ctx);
+    expect(keysOf(candidates)).toContain('savings-rate');
+    expect(keysOf(candidates)).toContain('financial-independence');
+
+    // Independence first, the amount step dead last: an order the model is free
+    // to return, because nothing it was shown says these two are a pair.
+    const middle = candidates
+      .filter((c) => c.kind !== 'debt' && !['financial-independence', 'savings-rate'].includes(c.key))
+      .map((c) => c.key);
+    const { ordered } = validateOrder(
+      {
+        steps: ['financial-independence', ...middle, 'savings-rate'].map((key) => ({ key, reason: '' })),
+        leftOut: [],
+      },
+      candidates,
+    );
+
+    const at = (key: string) => ordered.findIndex((o) => o.candidate.key === key);
+    expect(at('savings-rate')).toBeLessThan(at('financial-independence'));
+    // Everything either side keeps the order the model chose, and nothing is
+    // lost or doubled moving one step.
+    expect(new Set(ordered.map((o) => o.candidate.key)).size).toBe(ordered.length);
+    expect(ordered.length).toBe(candidates.length);
+    expect(at(middle[0])).toBeGreaterThan(at('financial-independence'));
+  });
+});
+
+// ── The guard runs on the way out of storage too ─────────────────────────────
+
+describe('a stored placement line is checked again every time it is read', () => {
+  const storedWith = (steps: Array<{ key: string; reason: string }>): StoredPath => ({
+    id: 'path-1',
+    generatedAt: new Date('2026-08-01T00:00:00Z'),
+    reason: 'no_active_path',
+    inputsFingerprint: 'fp',
+    pendingReason: null,
+    orderSource: 'model',
+    steps: steps.map((s) => ({ ...s, mark: 'pending' as const, note: '', markedAt: null })),
+  });
+
+  it('drops a line the guard has since learned to catch, without regenerating', () => {
+    // A path is not regenerated on a read, and nothing else heals a stored row,
+    // so a line that only became catchable when the guard was tightened would
+    // otherwise sit on the page until something unrelated moved the
+    // fingerprint. Every one of these passed the guard the day it was written.
+    const ctx = firstBuyer();
+    const candidates = buildPathCandidates(ctx);
+    const { reasons } = storedPath(
+      candidates,
+      ctx,
+      storedWith([
+        { key: 'stabilize', reason: 'This one carries the highest interest of anything you hold.' },
+        { key: 'emergency-fund', reason: 'This comes last once everything above it is settled.' },
+        { key: 'savings-rate', reason: 'You keep $2,600 a month, which is what pays for the rest.' },
+        { key: 'will-trust', reason: 'This waits until the buffer above it is built.' },
+      ]),
+    );
+
+    expect(reasons.get('stabilize')).toBeUndefined();
+    expect(reasons.get('emergency-fund')).toBeUndefined();
+    expect(reasons.get('savings-rate')).toBeUndefined();
+    // A line that is still true is still shown. The heal costs a good path
+    // nothing.
+    expect(reasons.get('will-trust')).toBe('This waits until the buffer above it is built.');
   });
 });
 
@@ -647,9 +899,11 @@ describe('generatePath', () => {
     expect(storedKeys).not.toContain('pay-off-the-yacht');
     expect(storedKeys.filter((k) => k === `goal:${GOAL_ID}`)).toHaveLength(1);
     expect(new Set(storedKeys)).toEqual(new Set(keysOf(candidates)));
-    // The model's order leads, and sizing ran over that order.
+    // The model's order leads, and sizing ran over that order. The balance
+    // holds the slot its APR band gives it, second on the rail, and the two
+    // steps the model placed fill the slots either side of it.
     expect(steps[0].key).toBe(`goal:${GOAL_ID}`);
-    expect(storedKeys.slice(0, 2)).toEqual([`goal:${GOAL_ID}`, 'stabilize']);
+    expect(storedKeys.slice(0, 3)).toEqual([`goal:${GOAL_ID}`, `debt:${CARD_ID}`, 'stabilize']);
   });
 
   it('stores the deterministic order when the model call fails', async () => {
@@ -678,8 +932,10 @@ describe('generatePath', () => {
   it('stores the order and the reason, and no figure the read would recompute', async () => {
     const ctx = firstBuyer();
     const candidates = buildPathCandidates(ctx);
+    // A line per key. One sentence repeated is kept once on purpose, so a
+    // fixture that repeated one would be asserting the dedupe instead.
     modelReturns(
-      candidates.map((c) => ({ key: c.key, reason: 'It belongs about here for you.' })),
+      candidates.map((c) => ({ key: c.key, reason: `It belongs about here, for the ${c.kind} of it.` })),
     );
 
     const { steps, reasons } = await generatePath('tenant-1', ctx, candidates, null, 'no_active_path');
@@ -700,12 +956,13 @@ describe('generatePath', () => {
     ]);
     expect(card.status).toBe('pending');
     expect(card.note).toBe('');
-    expect(card.reason).toBe('It belongs about here for you.');
+    // A balance takes a computed position, which nothing wrote a line about.
+    expect(card.reason).toBe('');
     for (const step of recorded.steps) {
       expect(String(step.reason)).not.toMatch(/[\d$%]/);
     }
     // And the line comes back out with the step it belongs to.
-    expect(reasons.get(steps[0].key)).toBe('It belongs about here for you.');
+    expect(reasons.get(steps[0].key)).toBe(`It belongs about here, for the ${steps[0].kind} of it.`);
   });
 
   it('takes the order already stored when a concurrent request won the race', async () => {
@@ -731,7 +988,9 @@ describe('generatePath', () => {
   it('never descrubs the line it stores, so no account name is spliced into it', async () => {
     const ctx = firstBuyer();
     const candidates = buildPathCandidates(ctx);
-    modelReturns(candidates.map((c) => ({ key: c.key, reason: 'This comes after your auto loan.' })));
+    modelReturns(
+      candidates.map((c) => ({ key: c.key, reason: `This comes after your auto loan, ${c.kind}.` })),
+    );
 
     await generatePath('tenant-1', ctx, candidates, null, 'no_active_path');
 
@@ -740,7 +999,11 @@ describe('generatePath', () => {
     // so there is nothing to restore and the boundary is told not to try.
     expect(generateObject).toHaveBeenCalledTimes(1);
     expect(descrubObject).not.toHaveBeenCalled();
-    expect(recorded.steps.every((s) => s.reason === 'This comes after your auto loan.')).toBe(true);
+    expect(
+      recorded.steps
+        .filter((s) => String(s.reason) !== '')
+        .every((s) => String(s.reason).startsWith('This comes after your auto loan,')),
+    ).toBe(true);
   });
 
   it('stores a left-out step with its reason, off the sequence but not gone', async () => {
@@ -769,6 +1032,79 @@ describe('generatePath', () => {
     expect(new Set(recorded.steps.map((s) => s.candidateKey))).toEqual(new Set(keysOf(candidates)));
   });
 
+  it('brings a step back to pending when this generation puts it in the sequence', async () => {
+    // `left_out` is the PREVIOUS generation's own omission, not a mark the
+    // person made. Carried onto a step this generation placed, it stored a step
+    // that IS on the path as off it, `storedPath` filtered it straight back
+    // off, and nothing could rescue it: a left-out row stores no `statusAt`, so
+    // it never reads as one the person spoke for. Two households had a student
+    // loan and a car loan stuck off the path for three generations that way,
+    // each listed under "not on your path" beneath a sentence saying when to
+    // pay it.
+    const ctx = firstBuyer();
+    const candidates = buildPathCandidates(ctx);
+
+    activePath = { id: 'path-0', orderSource: 'model' };
+    activeSteps = candidates.map((c) => ({
+      candidateKey: c.key,
+      reason: c.key === 'emergency-fund' ? 'You set this aside last time.' : '',
+      status: c.key === 'emergency-fund' ? 'left_out' : 'pending',
+      note: '',
+      statusAt: null,
+    }));
+
+    modelPlacesAll(
+      candidates.filter((c) => c.kind !== 'debt'),
+      'This is where it goes for you.',
+    );
+
+    const { steps } = await generatePath(
+      'tenant-1', ctx, candidates, null, 'inputs_changed',
+      { id: 'path-0' } as never,
+    );
+
+    const row = recorded.steps.find((r) => r.candidateKey === 'emergency-fund')!;
+    expect(row.status).toBe('pending');
+    // And it is genuinely back on the path this read, not merely stored so.
+    expect(steps.map((st) => st.key)).toContain('emergency-fund');
+  });
+
+  it('never leaves out a goal that a built-in step was suppressed for', async () => {
+    // An `emergency_fund` goal computes what the emergency-fund step computes,
+    // so only the goal is emitted. Dropping the goal therefore takes the job
+    // off the path in BOTH forms, and one household ended up with neither, the
+    // goal listed under "not on your path" with an empty reason so the page
+    // read "Your plan did not place this step."
+    const ctx = firstBuyer();
+    ctx.goals = [
+      {
+        id: GOAL_ID,
+        name: 'Rainy day',
+        category: 'emergency_fund',
+        targetAmount: 24_000,
+        currentAmount: 0,
+        deadline: null,
+        details: null,
+      },
+    ];
+    const candidates = buildPathCandidates(ctx);
+    expect(candidates.map((c) => c.key)).not.toContain('emergency-fund');
+
+    modelReturns(
+      [{ key: 'stabilize', reason: 'Everything else waits on this.' }],
+      [{ key: `goal:${GOAL_ID}`, reason: 'You do not need this one.' }],
+    );
+
+    const { steps, leftOut } = await generatePath('tenant-1', ctx, candidates, null, 'no_active_path');
+
+    expect(leftOut.map((o) => o.candidate.key)).not.toContain(`goal:${GOAL_ID}`);
+    expect(steps.map((st) => st.key)).toContain(`goal:${GOAL_ID}`);
+    // The guarantee stated plainly: the job is on the path in one form or the
+    // other, never in neither.
+    const onPath = new Set(steps.map((st) => st.key));
+    expect(onPath.has('emergency-fund') || onPath.has(`goal:${GOAL_ID}`)).toBe(true);
+  });
+
   it('keeps every debt and every goal on the page when the model drops both', async () => {
     const ctx = firstBuyer();
     const candidates = buildPathCandidates(ctx);
@@ -778,7 +1114,8 @@ describe('generatePath', () => {
 
     const { steps, leftOut } = await generatePath('tenant-1', ctx, candidates, null, 'no_active_path');
 
-    expect(steps.map((s) => s.key)).toEqual(['emergency-fund']);
+    // The one step it placed, and the balance it was never asked about.
+    expect(steps.map((s) => s.key)).toEqual(['emergency-fund', `debt:${CARD_ID}`]);
     const onThePage = [...steps.map((s) => s.key), ...leftOut.map((o) => o.candidate.key)];
     // A real obligation and a goal they set themselves are both still there.
     expect(onThePage).toContain(`debt:${CARD_ID}`);

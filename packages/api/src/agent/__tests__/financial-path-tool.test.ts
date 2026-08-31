@@ -241,6 +241,7 @@ function household(overrides: Partial<PathContext> = {}): PathContext {
         apr: 21,
         minimumPayment: 160,
         minimumPaymentEstimated: false,
+        minimumPaymentAssumedApr: null,
         termMonths: null,
         originationDate: null,
         payoffDate: null,
@@ -340,6 +341,7 @@ describe('the answer carries the path that is stored, and nothing else', () => {
         why: shown.why,
         reason: shown.reason,
         status: shown.status,
+        rateShaped: shown.rateShaped,
         current: shown.current,
         target: shown.target,
         monthlyFunding: shown.monthlyFunding,
@@ -417,7 +419,7 @@ describe('the answer carries nothing a reader could print as a citation', () => 
     for (const step of answer.steps) {
       expect(Object.keys(step).sort()).toEqual([
         'action', 'current', 'fact', 'monthlyFunding', 'projectedDate',
-        'reason', 'status', 'step', 'target', 'title', 'why',
+        'rateShaped', 'reason', 'status', 'step', 'target', 'title', 'why',
       ]);
     }
     for (const off of answer.notApplicable) {

@@ -63,6 +63,9 @@ export interface FinancialPath {
     /** First of the month this step is projected to finish, or null. */
     projectedDate: string | null;
     action: string;
+    /** A step whose target is a monthly rate. It never takes the current-step
+     *  pointer, so it states its own instruction rather than waiting for one. */
+    rateShaped: boolean;
     /** What is true of this step in any state. Never an instruction. */
     fact: string;
     /** Anything the figures would otherwise imply but not state. */
@@ -98,6 +101,12 @@ export interface FinancialPath {
   /** When this order was chosen, and what caused it to be chosen again. */
   updatedAt: string;
   updatedReason: string;
+  /**
+   * Who chose this sequence. `deterministic` is the default rail, taken when
+   * no model call decided the order, and the page explains the two differently
+   * because only one of them weighed this household.
+   */
+  orderSource: 'model' | 'deterministic';
   summary: {
     monthlyIncome: number;
     monthlyExpenses: number | null;

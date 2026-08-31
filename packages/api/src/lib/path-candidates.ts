@@ -9,8 +9,9 @@ import type { PathReadiness } from '../services/retirement-readiness.js';
  * A candidate is an instance, not a rung: one per debt account, one per active
  * goal, plus the situation steps whose precondition this person actually meets.
  * A candidate whose precondition is absent is never emitted — no employer match
- * on file means no match step, no debt accounts means no debt steps, nothing to
- * leave means no estate step. Pruning is the point: two people should not get
+ * on file means no match step, no debt accounts means no debt steps, no income
+ * and no spending history means no savings-rate step. Pruning is the point:
+ * two people should not get
  * the same path, and neither should get a step that does not apply to them.
  *
  * Order here is the deterministic default. Sizing runs over it as a waterfall,
@@ -22,15 +23,14 @@ export type PathStepKind =
   | 'match'
   | 'debt'
   | 'emergency-fund'
-  | 'protection'
+  | 'term-life'
+  | 'will-trust'
   | 'savings-rate'
-  | 'retirement-readiness'
   | 'tax-advantaged'
   | 'contribution-limits'
   | 'brokerage'
   | 'goal'
-  | 'independence'
-  | 'estate';
+  | 'independence';
 
 /** What a debt account is, from its type and name alone. No rate involved. */
 export type DebtKind =
@@ -54,6 +54,8 @@ export interface DebtFacts {
   apr: number | null;
   minimumPayment: number;
   minimumPaymentEstimated: boolean;
+  /** The rate the minimum was amortised at when we had to invent one, or null. */
+  minimumPaymentAssumedApr: number | null;
   /** A payoff date the lender reports, when there is one. */
   payoffDate: string | null;
 }
@@ -88,6 +90,20 @@ export interface ReadinessFacts {
   requiredSuccessRate: number;
 }
 
+/**
+ * The retirement simulation's median path, for the steps that price the pot it
+ * projects.
+ *
+ * Every figure here came out of `buildPathReadiness`, the same run the page's
+ * on-track verdict is read from. Nothing is projected a second time.
+ */
+export interface RetirementCurve {
+  /** The age `median[0]` is measured at. */
+  currentAge: number;
+  /** Median projected balance at the start of each age from `currentAge`. */
+  median: number[];
+}
+
 export interface PathCandidate {
   /** Stable across reads, so skip/complete bookkeeping survives a re-run. */
   key: string;
@@ -103,6 +119,25 @@ export interface PathCandidate {
   debt?: DebtFacts;
   goal?: GoalFacts;
   readiness?: ReadinessFacts;
+  /**
+   * The simulation's median path for the pot THIS step targets.
+   *
+   * Set on the two steps that price the retirement portfolio, and only one of
+   * them is ever on a path: a `retirement` goal takes the independence step's
+   * place. Sizing dates those two off this curve rather than off the monthly
+   * surplus, because the surplus alone credits none of the growth the same
+   * page's on-track verdict is built on.
+   */
+  retirementCurve?: RetirementCurve;
+  /**
+   * The built-in step key this candidate SUPPRESSED by standing in for it.
+   *
+   * A goal that computes what a built-in step computes takes that step's place,
+   * so only one of the two is ever emitted. That makes this candidate load
+   * bearing: drop it and the job it covers is on the path in neither form.
+   * `validateOrder` reads this and refuses to leave such a candidate out.
+   */
+  coversStep?: string;
 }
 
 // ── Debt kinds ────────────────────────────────────────────────────────────────
@@ -174,18 +209,26 @@ const TIER = {
   buffer: 10,
   match: 20,
   debtUrgent: 30,
+  // Cover comes before the full reserve when someone depends on this income.
+  // The reserve protects against a month with no pay; term life and a will
+  // protect against there being no more pay at all, which is the larger loss
+  // and the one a reserve cannot absorb.
+  protection: 35,
   emergencyFund: 40,
-  protection: 50,
-  savingsRate: 55,
-  retirementReadiness: 57,
   taxAdvantaged: 60,
+  // The account is opened before the amount going into it is raised, because
+  // "put more away" with nowhere named to put it is half an instruction.
+  savingsRate: 62,
   debtMiddle: 70,
   contributionLimits: 80,
   brokerage: 85,
   goal: 90,
   debtPatient: 100,
+  // With nobody depending on this income, a will is about what has been built
+  // rather than who is left, so it waits until there is meaningfully something
+  // to direct. It is still a step, just not an early one.
+  willLate: 105,
   independence: 110,
-  estate: 120,
 } as const;
 
 const DEBT_URGENT_ABOVE = 15;
@@ -201,6 +244,19 @@ function debtTier(rate: number): number {
   if (rate > DEBT_URGENT_ABOVE) return TIER.debtUrgent;
   if (rate > DEBT_PATIENT_AT_OR_BELOW) return TIER.debtMiddle;
   return TIER.debtPatient;
+}
+
+/**
+ * A balance whose rate beats any expected market return, which is what the
+ * step's own copy says about it: "money put here beats money invested, with
+ * none of the uncertainty".
+ *
+ * Exported because the weave enforces that sentence rather than hoping for it.
+ * One definition, so the band the copy describes and the band the order holds
+ * to can never be two different numbers.
+ */
+export function isUrgentDebt(candidate: PathCandidate): boolean {
+  return candidate.kind === 'debt' && orderingApr(candidate.debt!) > DEBT_URGENT_ABOVE;
 }
 
 // ── Copy ──────────────────────────────────────────────────────────────────────
@@ -233,25 +289,125 @@ function monthName(date: Date): string {
 }
 
 /**
+ * The tax year every contribution limit and phase-out floor in this app is
+ * taken from.
+ *
+ * It is a CONSTANT rather than the current year on purpose: the figures below
+ * and in `contributionLimits` are that year's, and printing "this year" against
+ * them silently misdates them the moment the calendar rolls over. Anything that
+ * shows a limit to a person names this year, so the number and the label can
+ * never disagree. Moving the figures forward means changing both together.
+ *
+ * Being a constant is also how it rots, and it did: the page went on offering
+ * to "max out your 2025 contribution room" through 2026, next to a sentence
+ * saying the room does not come back. So the constant is ASSERTED against the
+ * calendar by `path-candidates.test.ts`, which fails the suite the moment a new
+ * year opens and these figures are still last year's. The failure names the
+ * IRS notice to read.
+ */
+export const CONTRIBUTION_TAX_YEAR = 2026;
+
+/**
  * Where a Roth IRA contribution starts phasing out, by filing status. Below
  * these a full contribution is allowed, so below these we are willing to name
  * the account.
+ *
+ * `CONTRIBUTION_TAX_YEAR` figures, from IRS Notice 2025-67 (2026 amounts
+ * relating to retirement plans and IRAs), as summarised at
+ * https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500
+ * Never printed: this is an eligibility gate, so it decides which account a
+ * step names and nothing else.
  *
  * The test runs on gross annual income, which is at or above the modified AGI
  * the IRS actually measures, so it can only ever under-claim eligibility. A
  * filing status we do not hold means we do not name the account at all.
  */
 const ROTH_PHASE_OUT_START: Record<NonNullable<PathContext['filingStatus']>, number> = {
-  single: 150_000,
-  head_of_household: 150_000,
-  married_joint: 236_000,
+  single: 153_000,
+  head_of_household: 153_000,
+  married_joint: 242_000,
   married_separate: 0,
 };
 
-function canFullyFundRothIra(ctx: PathContext): boolean {
+export function canFullyFundRothIra(ctx: PathContext): boolean {
   if (ctx.filingStatus === null) return false;
   return ctx.annualIncome > 0 && ctx.annualIncome < ROTH_PHASE_OUT_START[ctx.filingStatus];
 }
+
+/**
+ * Whether this household has a 401(k) at all.
+ *
+ * Their own answer decides it, and it is already collected: onboarding asks
+ * "do you have a 401(k)?" and writes the match percent, 0 for a plan that
+ * matches nothing, and null for no plan at all. Reading that column as `?? 0`
+ * flattened the two, so a household with a plan and no match was told it had no
+ * plan and lost the whole elective deferral limit out of its room.
+ *
+ * A BALANCE is deliberately not part of it. A 401(k) balance can be one left
+ * behind at a former employer, which is no room to contribute to, so counting
+ * it overstates in exactly the way the flattening understated. A household that
+ * has told us nothing gets no 401(k) room, which under-claims rather than
+ * ordering somebody to fill space they cannot reach.
+ */
+export function hasEmployerPlan(ctx: PathContext): boolean {
+  return ctx.employerMatchPct !== null;
+}
+
+/**
+ * The tax-advantaged room this household can ACTUALLY use, for
+ * `CONTRIBUTION_TAX_YEAR`.
+ *
+ * Every account is gated on holding it or being eligible for it, which the
+ * total was not: an IRA holder with no workplace plan was told to fill $30,500
+ * of room, most of it in a 401(k) they do not have, and a household over the
+ * Roth phase-out was counted an IRA the step above had just declined to name
+ * for exactly that reason. The room is the one figure on the step, it sets the
+ * monthly rate the waterfall takes, and it recurs every year, so room they
+ * cannot reach starves their own dated goals for good.
+ *
+ * The gates are the same ones the tax-advantaged step names an account by, so
+ * the two steps can never disagree about what is open to this person.
+ *
+ * Every figure is `CONTRIBUTION_TAX_YEAR`'s, from the IRS:
+ *   - elective deferral $24,500, age 50+ catch-up $8,000, ages 60 to 63
+ *     catch-up $11,250, IRA $7,500, IRA catch-up $1,100 — Notice 2025-67, per
+ *     https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500
+ *   - HSA self-only $4,400 — Rev. Proc. 2025-19 section 2.01,
+ *     https://www.irs.gov/pub/irs-drop/rp-25-19.pdf (family coverage is $8,750
+ *     there, and is not read here: we hold whether a household has an HDHP, not
+ *     whether the cover is self-only or family, so the smaller of the two is
+ *     the only one we can state without inventing the answer)
+ *   - HSA age 55+ catch-up $1,000, fixed in statute by IRC 223(b)(3)(B) rather
+ *     than adjusted, per https://www.irs.gov/publications/p969
+ *
+ * It lives here rather than with the sizing so that `buildPathCandidates` can
+ * ask whether there is any room at all before it emits a step about filling it.
+ */
+export function contributionLimits(ctx: PathContext) {
+  const years = ctx.age ?? 0;
+  const rothMax = canFullyFundRothIra(ctx) ? (years >= 50 ? 8600 : 7500) : 0;
+  const k401Max = hasEmployerPlan(ctx)
+    ? years >= 60 && years <= 63 ? 35750 : years >= 50 ? 32500 : 24500
+    : 0;
+  const hsaMax = ctx.hasHDHP === true ? 4400 + (years >= 55 ? 1000 : 0) : 0;
+  return { rothMax, k401Max, hsaMax, total: rothMax + k401Max + hsaMax };
+}
+
+/**
+ * Whether any figure priced in months of spending is priced from spending we
+ * have actually seen.
+ *
+ * False means the emergency fund and the independence number are both standing
+ * on 70% of income, which is OUR assumption and not this person's spending.
+ * Every step that quotes one says so rather than reading it back as theirs.
+ */
+export function hasSpendHistory(ctx: PathContext): boolean {
+  const spend = ctx.stableMonthlyExpenses ?? ctx.monthlyExpenses;
+  return spend !== null && spend > 0;
+}
+
+/** The share of income that stands in for spending when there is no history. */
+export const ASSUMED_SPEND_SHARE_OF_INCOME = 0.7;
 
 /** One tax-advantaged step, named for the account this person should use. */
 export interface TaxAdvantagedChoice {
@@ -261,6 +417,12 @@ export interface TaxAdvantagedChoice {
   why: string;
   /** What the sizing pass tells them to do, in the same account's name. */
   action: string;
+  /**
+   * Whether this branch OPENS an account rather than putting more into one
+   * already held. Only an opening is a step of its own: "raise what goes into
+   * the 401(k) you have" is the amount step said twice.
+   */
+  opensAccount: boolean;
 }
 
 /**
@@ -288,6 +450,7 @@ export function taxAdvantagedChoice(ctx: PathContext): TaxAdvantagedChoice {
         'Contributions come off your taxable income, the balance grows untaxed, and withdrawals for medical costs are untaxed too. No other account does all three. Invest the balance rather than leaving it as cash, and pay small medical bills out of pocket so it can compound.',
       why: 'Your health plan is high-deductible, which is the only way this account is open to you.',
       action: 'Open an HSA through your employer or a provider, and set up a monthly contribution.',
+      opensAccount: true,
     };
   }
   if (roth && ctx.rothIraBalance <= 0) {
@@ -298,6 +461,7 @@ export function taxAdvantagedChoice(ctx: PathContext): TaxAdvantagedChoice {
         'You pay the tax on the way in and never again, so decades of growth come out untaxed. Contributions (not the growth) can also come back out at any time without penalty, which makes it the most forgiving retirement account to start with.',
       why: 'Your income is under the limit for a full Roth IRA contribution at your filing status.',
       action: 'Open a Roth IRA and set up a monthly contribution into a broad index fund.',
+      opensAccount: true,
     };
   }
   if (roth) {
@@ -308,26 +472,32 @@ export function taxAdvantagedChoice(ctx: PathContext): TaxAdvantagedChoice {
         'You already hold one, so this is a transfer rather than an opening. The allowance is annual and does not carry forward: what you do not put in by the filing deadline is gone.',
       why: 'You hold a Roth IRA and your income is under the limit to keep funding it.',
       action: 'Move this year\'s Roth IRA contribution across before the filing deadline.',
+      opensAccount: false,
     };
   }
-  if (ctx.trad401kBalance > 0) {
+  // Whether there is a 401(k) to raise is `hasEmployerPlan`, the same answer the
+  // contribution room is counted from. A BALANCE decided it here, which is the
+  // reading `hasEmployerPlan` exists to rule out: a balance left at a former
+  // employer is no room to contribute to, and this branch told somebody holding
+  // one to raise a rate on a plan they no longer have, then took every other
+  // investing step off the path for having named an account they already hold.
+  if (hasEmployerPlan(ctx)) {
+    const matched = (ctx.employerMatchPct ?? 0) > 0;
     return {
-      title: 'Raise your 401(k) contribution',
-      subtitle: 'The account you already have, with room left in it',
-      description:
-        'The 401(k) limit is several times an IRA\'s, and contributions come straight off your taxable income before you ever see the money. Raising the percentage is a single form, and the higher rate applies to every paycheck after it.',
-      why: 'You already contribute to a 401(k), so raising the rate is the least friction of any move here.',
-      action: 'Raise your 401(k) contribution rate with your payroll provider.',
-    };
-  }
-  if (ctx.employerMatchPct > 0) {
-    return {
-      title: 'Contribute to your 401(k) beyond the match',
-      subtitle: 'The same plan, past the point the match stops',
-      description:
-        'The match is the first reason to contribute, not the last. Everything past it still comes off your taxable income and still compounds untaxed until you draw it.',
-      why: 'You have a 401(k) through work, and its limit is far above what the match alone puts in.',
-      action: 'Raise your 401(k) contribution rate past the percentage the match covers.',
+      title: matched ? 'Contribute to your 401(k) beyond the match' : 'Raise your 401(k) contribution',
+      subtitle: matched
+        ? 'The same plan, past the point the match stops'
+        : 'The plan you have at work, with room left in it',
+      description: matched
+        ? 'The match is the first reason to contribute, not the last. Everything past it still comes off your taxable income and still compounds untaxed until you draw it.'
+        : 'The 401(k) limit is several times an IRA\'s, and contributions come straight off your taxable income before you ever see the money. Raising the percentage is a single form, and the higher rate applies to every paycheck after it.',
+      why: matched
+        ? 'You have a 401(k) through work, and its limit is far above what the match alone puts in.'
+        : 'You have a 401(k) through work, so raising the rate is the least friction of any move here.',
+      action: matched
+        ? 'Raise your 401(k) contribution rate past the percentage the match covers.'
+        : 'Raise your 401(k) contribution rate with your payroll provider.',
+      opensAccount: false,
     };
   }
   // Nothing on file names one account. Ask only for what we do NOT hold and
@@ -348,6 +518,9 @@ export function taxAdvantagedChoice(ctx: PathContext): TaxAdvantagedChoice {
     action: askFor.length > 0
       ? `Add your ${askFor.join(' and ')} in your profile so we can name the right account.`
       : 'Check what retirement plan your employer offers, and open an IRA if there is none.',
+    // Nothing is held here that could be topped up instead, so whatever this
+    // resolves to is an opening.
+    opensAccount: true,
   };
 }
 
@@ -398,6 +571,15 @@ export function buildPathCandidates(
 ): PathCandidate[] {
   const placed: Placed[] = [];
 
+  // One read of the simulation's median path, handed to whichever of the two
+  // retirement-pot steps this household gets. Null readiness means the
+  // simulation could not be run at all, and then neither step is dated: a
+  // saving-rate date on a pot that compounds is the wrong answer, not a
+  // partial one.
+  const retirementCurve: RetirementCurve | undefined = readiness
+    ? { currentAge: readiness.currentAge, median: readiness.medianByAge }
+    : undefined;
+
   // `ctx.goals` is the active goals, so a completed or paused one covers
   // nothing and leaves the built-in step exactly where it was. The same
   // `targetAmount > 0` test the goal steps below are emitted under, so a goal
@@ -409,8 +591,18 @@ export function buildPathCandidates(
       .filter((key): key is string => key !== undefined),
   );
 
+  // Which built-in steps a goal actually took the place of. Recorded as they
+  // are turned away, because whether a built-in would have been emitted at all
+  // is not knowable when the goal's own step is built: the independence step is
+  // itself gated on there being something to price it from, so a retirement
+  // goal for a household with neither spending nor income displaced nothing.
+  const suppressed = new Set<string>();
+
   const add = (tier: number, within: number, candidate: PathCandidate) => {
-    if (coveredByGoal.has(candidate.key)) return;
+    if (coveredByGoal.has(candidate.key)) {
+      suppressed.add(candidate.key);
+      return;
+    }
     placed.push({ tier, within, candidate });
   };
 
@@ -434,7 +626,7 @@ export function buildPathCandidates(
 
   // ── Employer match ──
   // Pruned outright when there is no match on file. There is nothing to capture.
-  if (ctx.employerMatchPct > 0) {
+  if ((ctx.employerMatchPct ?? 0) > 0) {
     add(TIER.match, 0, {
       key: 'employer-match',
       kind: 'match',
@@ -442,7 +634,7 @@ export function buildPathCandidates(
       subtitle: 'Contribute enough to your 401(k) to leave none of it behind',
       description:
         'Every paycheck that goes by without capturing the match is a permanent loss. A 100% match on 3% of salary is an instant double on those dollars, which no investment comes close to, so this comes before any other investing.',
-      why: `Your employer matches ${ratePct(ctx.employerMatchPct)} of pay. You only get it by contributing.`,
+      why: `Your employer matches ${ratePct(ctx.employerMatchPct ?? 0)} of pay. You only get it by contributing.`,
       icon: 'gift',
       accountId: null,
       goalId: null,
@@ -463,12 +655,16 @@ export function buildPathCandidates(
       apr: account.apr,
       minimumPayment: account.minimumPayment,
       minimumPaymentEstimated: account.minimumPaymentEstimated,
+      minimumPaymentAssumedApr: account.minimumPaymentAssumedApr,
       payoffDate: account.payoffDate,
     };
     const rate = orderingApr(facts);
     const named = account.mask ? `${account.name} ••${account.mask}` : account.name;
 
-    add(debtTier(rate), rate === 0 ? 0 : -rate, {
+    // Highest rate first inside the tier. Negated because `within` sorts
+    // ascending, and 0 negates to 0, so a 0% balance sorts last among its own
+    // tier exactly as it should.
+    add(debtTier(rate), -rate, {
       key: `debt:${account.id}`,
       kind: 'debt',
       title: `Pay off ${named}`,
@@ -522,88 +718,157 @@ export function buildPathCandidates(
     goalId: null,
   });
 
-  // ── Insurance and will ──
-  add(TIER.protection, 0, {
-    key: 'insurance-will',
-    kind: 'protection',
-    title: 'Get insured and write your will',
-    subtitle: 'Term life, disability cover, and named beneficiaries',
-    description:
-      'One uninsured event can reset your entire financial journey to the first step. Term life costs $30 to $60/month and replaces your income for dependents. Disability insurance is even more likely to be needed: 1 in 4 workers are disabled before retirement. A will ensures your assets go where you intend, and while you are writing it, name a beneficiary on every retirement account and policy: that name overrides the will, and setting it takes ten minutes.',
-    why:
-      ctx.dependentCount > 0
-        ? `${ctx.dependentCount} ${ctx.dependentCount === 1 ? 'person depends' : 'people depend'} on your income, so it needs replacing if it stops.`
-        : 'A will and the right cover keep one bad event from undoing everything behind it.',
-    icon: 'shield',
-    accountId: null,
-    goalId: null,
-  });
-
-  // ── Savings rate ──
-  // Pruned when no rate can be computed: a rate needs both an income and some
-  // spending history, and a rate we cannot work out is never shown as 0%.
-  if (ctx.savingsRate !== null) {
-    add(TIER.savingsRate, 0, {
-      key: 'savings-rate',
-      kind: 'savings-rate',
-      title: `Save ${SAVINGS_RATE_BENCHMARK}% of your income`,
-      subtitle: `${usd(savingsRateTarget(ctx))} a month, out of the ${usd(ctx.monthlyIncome)} you earn`,
+  // ── Term life, and the will ──
+  // Two steps, not one. Bundled, they moved together: a model reading a single
+  // "insurance and will" step set the whole thing aside for anyone childless,
+  // taking the will with it, and a person who bought cover still had an
+  // unticked step because the will half was outstanding. They are bought from
+  // different places, in an afternoon each, so each one is its own achievement.
+  //
+  // Only ONE of them turns on dependents. Term life replaces income for people
+  // who rely on it, so with nobody relying on it, it waits. A will directs what
+  // someone has built whoever is in their life, and where there is none the
+  // state decides instead, so it is never gated on a count of dependents.
+  // Term life exists for one reason: replacing income somebody else lives on.
+  // With nobody in that position it is not an early step or a late one, it is
+  // not a step. Suggesting it anyway sells a product against a risk this
+  // household does not carry.
+  // Their answer decides it, and an ANSWER is not the absence of one. The count
+  // is what onboarding writes: a number, 0 for nobody, and null for a question
+  // they skipped. Read as `?? 0`, the skip was taken as "nobody relies on me"
+  // and the step was deleted from everyone who never filled the field in, which
+  // is most people. Unknown offers the step and says what would settle it,
+  // rather than answering on their behalf in either direction.
+  const dependents = ctx.dependentCount;
+  const dependentsUnknown = dependents === null;
+  if ((dependents ?? 0) > 0 || (dependentsUnknown && ctx.annualIncome > 0)) {
+    add(TIER.protection, 0, {
+      key: 'term-life',
+      kind: 'term-life',
+      title: 'Take out term life insurance',
+      subtitle: dependentsUnknown
+        ? 'Enough to replace your income for anyone who relies on it'
+        : `Enough to replace your income for the ${dependents === 1 ? 'person who relies' : 'people who rely'} on it`,
       description:
-        'What you keep each month is what pays for every other step on this path, so your savings rate sets the pace of all of them at once. The two levers are earning more and spending less, and spending is usually the faster of the two.',
-      why:
-        ctx.savingsRate > 0
-          ? `You keep ${ratePct(ctx.savingsRate)} of what you earn.`
-          : 'Nothing is left over at the end of the month, so nothing is reaching any of these steps.',
-      icon: 'percent',
+        'Term life costs $30 to $60 a month at most ages and replaces your income for the people who depend on it. Buy term, not whole life: the investment wrapper on a whole-life policy costs several times more for the same cover. Take the same afternoon to add disability cover, which is the more likely claim of the two, since 1 in 4 workers are disabled before they retire.',
+      why: dependentsUnknown
+        ? 'Your profile does not say whether anyone relies on your income. Add your dependents and this step is either sized or taken off.'
+        : `${dependents} ${dependents === 1 ? 'person depends' : 'people depend'} on your income, so it needs replacing if it stops.`,
+      icon: 'shield',
       accountId: null,
       goalId: null,
     });
   }
 
-  // ── Retirement readiness ──
-  // Only when the simulation says they are short, and only when it could solve
-  // for a contribution that closes the gap. On track, or no verdict at all, and
-  // there is no step: an aspiration nobody can act on is not one.
-  if (
+  // The will is never gated on dependents, because it directs what somebody
+  // built whoever is or is not in their life. It is gated on there being
+  // something to direct AT ALL: any cash, any investment, any property. That is
+  // a low bar and stated as the low bar it is, rather than as an estate worth
+  // the paperwork, which `transferableAssets` counts nothing like.
+  //
+  // What dependents move is WHEN it comes: with somebody relying on this income
+  // it sits up with the cover, and otherwise it waits until after the
+  // compounding steps.
+  const hasDependents = (ctx.dependentCount ?? 0) > 0;
+  if (hasDependents || ctx.propertyValue > 0 || transferableAssets(ctx) > 0) {
+    add(hasDependents ? TIER.protection : TIER.willLate, 1, {
+      key: 'will-trust',
+      kind: 'will-trust',
+      title: 'Put your will and trust in place',
+      subtitle: 'Where what you own goes, decided by you rather than a court',
+      description:
+        'A will directs what you own to the people you choose, and without one the state decides instead. While you are writing it, name a beneficiary on every retirement account and policy: that name overrides the will, and setting it takes ten minutes. A revocable trust does what the will alone cannot, keeping your estate out of probate so what you leave reaches people in weeks rather than months.',
+      why:
+        hasDependents
+          ? 'Someone depends on you, so where what you own lands is your decision to make, not a court\'s.'
+          : ctx.propertyValue > 0
+          ? 'You own property, which passes through probate unless you say otherwise.'
+          : 'What you have built will pass to somebody, and with no will it goes through a court to get there.',
+      icon: 'scroll-text',
+      accountId: null,
+      goalId: null,
+    });
+  }
+
+  // ── What goes away each month ──
+  // ONE step, from two tests that were two steps and said the same thing. The
+  // savings-rate step asked for 20% of income; the readiness step asked for the
+  // contribution the simulation needed. Side by side they read as two separate
+  // orders to save more, and a household short on both got a third when the
+  // tax-advantaged step said "raise your 401(k) contribution".
+  //
+  // So the step is the HIGHER of the two figures, which is the one that
+  // satisfies both, and it says which test set it. Whichever binds, the action
+  // a person takes is identical: move more per month.
+  const shortForRetirement =
     readiness &&
     readiness.verdict !== 'on_track' &&
     readiness.requiredMonthlySavings !== null &&
     readiness.requiredSuccessRate !== null
-  ) {
-    const required = readiness.requiredMonthlySavings;
-    const current = readiness.currentMonthlySavings;
-    add(TIER.retirementReadiness, 0, {
-      key: 'retirement-readiness',
-      kind: 'retirement-readiness',
-      title: `Raise retirement saving to ${usd(required)} a month`,
+      ? {
+          successRate: readiness.successRate,
+          targetSuccess: readiness.targetSuccess,
+          verdict: readiness.verdict,
+          retirementAge: readiness.retirementAge,
+          currentMonthlySavings: readiness.currentMonthlySavings,
+          requiredMonthlySavings: readiness.requiredMonthlySavings,
+          requiredSuccessRate: readiness.requiredSuccessRate,
+        }
+      : null;
+  // One predicate for the whole card. `current`, the copy, the icon and the
+  // sizing instruction all read `retirementBinds`, so the figure on top and the
+  // figure underneath it are always the same two quantities.
+  const {
+    target: savingTarget,
+    current,
+    retirementBinds,
+  } = savingsRateMeasure(ctx, shortForRetirement);
+  if (savingTarget > 0) {
+    add(TIER.savingsRate, 0, {
+      key: 'savings-rate',
+      kind: 'savings-rate',
+      title: `Put ${usd(savingTarget)} a month away`,
       subtitle:
-        current > 0
-          ? `Up from the ${usd(current)} a month going in now`
-          : 'Nothing is going into retirement today',
-      description:
-        `This is the amount the Monte Carlo simulation needed to clear the target, run against your own age, spending, retirement age and mix of holdings. At ${usd(required)} a month, ${readiness.requiredSuccessRate} of 100 simulated markets carried you through. It is the amount, not the account. The tax-advantaged step names where to put it.`,
-      why:
-        `At ${usd(current)} a month, ${readiness.successRate} of 100 simulated markets carry you through retirement at ${readiness.retirementAge}. On track is ${readiness.targetSuccess} of 100.`,
-      icon: 'alert-circle',
+        current >= savingTarget
+          ? `Already there, at ${usd(current)} a month`
+          : current > 0
+          ? `Up from the ${usd(current)} a month going away now`
+          : 'Nothing is going away each month today',
+      description: retirementBinds
+        ? `This is the amount the Monte Carlo simulation needed to clear the target, run against your own age, spending, retirement age and mix of holdings. At ${usd(savingTarget)} a month, ${shortForRetirement!.requiredSuccessRate} of 100 simulated markets carried you through. It is the amount, not the account: the steps above name where it goes.`
+        : `${SAVINGS_RATE_BENCHMARK}% of what you earn is the benchmark this is measured against. What you keep each month is what pays for every other step on this path, so it sets the pace of all of them at once. The two levers are earning more and spending less, and spending is usually the faster of the two.`,
+      why: retirementBinds
+        ? `At ${usd(current)} a month, ${shortForRetirement!.successRate} of 100 simulated markets carry you through retirement at ${shortForRetirement!.retirementAge}. On track is ${shortForRetirement!.targetSuccess} of 100.`
+        : ctx.savingsRate !== null && ctx.savingsRate > 0
+        ? `You keep ${ratePct(ctx.savingsRate)} of what you earn, against a ${SAVINGS_RATE_BENCHMARK}% benchmark.`
+        : 'Nothing is left over at the end of the month, so nothing is reaching any of these steps.',
+      icon: retirementBinds ? 'alert-circle' : 'percent',
       accountId: null,
       goalId: null,
-      readiness: {
-        successRate: readiness.successRate,
-        targetSuccess: readiness.targetSuccess,
-        verdict: readiness.verdict,
-        retirementAge: readiness.retirementAge,
-        currentMonthlySavings: current,
-        requiredMonthlySavings: required,
-        requiredSuccessRate: readiness.requiredSuccessRate,
-      },
+      ...(shortForRetirement ? { readiness: shortForRetirement } : {}),
     });
   }
 
   // ── Tax-advantaged investing ──
   // Pruned without earned income: there is nothing to contribute from. The step
   // names the one account this person should use, not the menu.
-  if (ctx.annualIncome > 0) {
-    const choice = taxAdvantagedChoice(ctx);
+  // And pruned when it would only repeat the step above. The branches that
+  // name an account this household ALREADY holds all resolve to "put more into
+  // it", which is the amount step's whole instruction. The branches that open
+  // one are a different act, done once, so they stay.
+  //
+  // And never pruned to nothing. The two steps below it are what make the
+  // pruning safe: the room step prices the limits, the brokerage step names
+  // where anything past them goes. Where NEITHER is emitted, this is the only
+  // investing instruction there is, and taking it off left a household with
+  // income, a surplus and a retirement balance being told nothing about where
+  // to put any of it.
+  const taxAdvantagedBalance = ctx.hsaBalance + ctx.rothIraBalance + ctx.trad401kBalance;
+  const monthlySpare = ctx.monthlySurplus ?? 0;
+  const roomStep = ctx.annualIncome > 0 && taxAdvantagedBalance > 0 && contributionLimits(ctx).total > 0;
+  const brokerageStep = taxAdvantagedBalance > 0 && monthlySpare > 0 && ctx.taxableBrokerageBalance <= 0;
+  const choice = ctx.annualIncome > 0 ? taxAdvantagedChoice(ctx) : null;
+  if (choice && (choice.opensAccount || savingTarget <= 0 || (!roomStep && !brokerageStep))) {
     add(TIER.taxAdvantaged, 0, {
       key: 'tax-advantaged',
       kind: 'tax-advantaged',
@@ -620,15 +885,20 @@ export function buildPathCandidates(
   // ── Contribution limits ──
   // Only once something is already going in. Otherwise the step above is the
   // whole job and this would be a second copy of it.
-  const taxAdvantagedBalance = ctx.hsaBalance + ctx.rothIraBalance + ctx.trad401kBalance;
-  if (ctx.annualIncome > 0 && taxAdvantagedBalance > 0) {
+  //
+  // And only where there is room to fill. Every account in the total is gated
+  // on this household holding it or being eligible for it, so the total can be
+  // zero: a Roth holder over the phase-out with no workplace plan reaches none
+  // of it. The step then read "Fill $0 of contribution room" and claimed a $0
+  // monthly share of the surplus, which is an order to do nothing.
+  if (roomStep) {
     add(TIER.contributionLimits, 0, {
       key: 'max-contributions',
       kind: 'contribution-limits',
-      title: "Max out this year's contribution room",
-      subtitle: 'Every tax-advantaged account at its annual limit',
+      title: `Max out your ${CONTRIBUTION_TAX_YEAR} contribution room`,
+      subtitle: 'Every tax-advantaged account you can use, at its annual limit',
       description:
-        'Every dollar in these accounts compounds with a structural tax advantage, and the room you skip this year does not come back. This is the one deadline on the path that a calendar enforces rather than you.',
+        `Every dollar in these accounts compounds with a structural tax advantage, and the room you skip for ${CONTRIBUTION_TAX_YEAR} does not come back. This is the one deadline on the path that a calendar enforces rather than you.`,
       why: 'You already contribute, so filling the annual limits is the next lever you have.',
       icon: 'trending-up',
       accountId: null,
@@ -640,18 +910,19 @@ export function buildPathCandidates(
   // Pruned when it does not apply: nothing in the tax-advantaged accounts yet
   // (the step above is then the whole job), or nothing spare each month to
   // invest with.
-  const monthlySpare = ctx.monthlySurplus ?? 0;
-  if (taxAdvantagedBalance > 0 && monthlySpare > 0) {
+  // Pruned once one is open, too. "Invest what is left" is not something a
+  // person can finish, and somebody already holding a taxable account has done
+  // the part of it that is an act. What is left over each month is the amount
+  // step's job, and the sizing waterfall's.
+  if (brokerageStep) {
     add(TIER.brokerage, 0, {
       key: 'taxable-brokerage',
       kind: 'brokerage',
-      title: 'Invest what is left in a brokerage account',
-      subtitle: 'A taxable account, with no annual contribution cap',
+      title: 'Open a taxable brokerage account',
+      subtitle: 'No annual cap, and nothing locked until 59 and a half',
       description:
         'Nothing here is locked until 59 and a half, so this is the account that pays for anything before retirement. Hold broad index funds and hold them past a year, so gains are taxed at the long-term rate instead of as income.',
-      why: ctx.brokerageBalance > 0
-        ? `You hold ${usd(ctx.brokerageBalance)} in a taxable account, with ${usd(monthlySpare)} a month spare to add to it.`
-        : `Your tax-advantaged accounts hold ${usd(taxAdvantagedBalance)}, and ${usd(monthlySpare)} a month has nowhere else to go.`,
+      why: `Your tax-advantaged accounts hold ${usd(taxAdvantagedBalance)}, and their limits are annual, so this is where anything past them goes.`,
       icon: 'line-chart',
       accountId: null,
       goalId: null,
@@ -662,6 +933,12 @@ export function buildPathCandidates(
   ctx.goals.forEach((goal, index) => {
     if (!(goal.targetAmount > 0)) return;
     const deadline = goal.deadline;
+    // ONE name for the step, everywhere on it. Renaming only the title left the
+    // card headed "Retirement ready" above a link reading "Retirement Savings",
+    // which is two names for one thing on one card, and a `why` claiming a
+    // title as the reader's own words when they never wrote it.
+    const renamed = goal.category === 'retirement';
+    const stepName = renamed ? 'Retirement ready' : goal.name;
     add(
       TIER.goal,
       // Soonest deadline first, then the smallest target. Goals with no date
@@ -670,20 +947,40 @@ export function buildPathCandidates(
       {
         key: `goal:${goal.id}`,
         kind: 'goal',
-        title: goal.name,
+        // A goal's own name is the title, because it is the person's own words
+        // for it, EXCEPT where those words name a life stage rather than an
+        // achievement. "Retirement" is a date that arrives whether or not
+        // anything was done about it, so as a step it can never be ticked. The
+        // achievement underneath it is being ready for it, which is what the
+        // simulation actually measures, so that is what the step is called.
+        title: stepName,
         subtitle: deadline
           ? `${usd(goal.targetAmount)} by ${monthName(deadline)}`
           : `${usd(goal.targetAmount)}, no date set`,
         description: goalDescription(goal.details),
+        // Their FIGURE is theirs whatever the step is called, and the sentence
+        // says so without attributing a name we chose to them.
         why: deadline
-          ? `Your own goal: ${usd(goal.targetAmount)} by ${monthName(deadline)}, ${monthsUntil(deadline)}.`
+          ? `${renamed ? 'The target you set' : 'Your own goal'}: ${usd(goal.targetAmount)} by ${monthName(deadline)}, ${monthsUntil(deadline)}.`
+          // The retirement step is dated by the simulation rather than by a
+          // deadline, so asking for one to earn a date would ask for something
+          // the same card already shows two lines further down.
+          : renamed
+          ? `The target you set: ${usd(goal.targetAmount)}.`
           : `Your own goal: ${usd(goal.targetAmount)}. Give it a date and it gets a monthly number.`,
         icon: 'target',
         accountId: null,
         goalId: goal.id,
+        // Set only when this goal actually took a built-in step's place, which
+        // is what makes it load bearing. A `savings` goal covers nothing and
+        // stays as droppable as any other candidate.
+        coversStep: STEP_COVERED_BY_GOAL_CATEGORY[goal.category],
+        // Only the retirement goal: it is the one whose target is the portfolio
+        // the simulation projects.
+        ...(renamed && retirementCurve ? { retirementCurve } : {}),
         goal: {
           goalId: goal.id,
-          name: goal.name,
+          name: stepName,
           category: goal.category,
           targetAmount: goal.targetAmount,
           currentAmount: goal.currentAmount,
@@ -719,48 +1016,18 @@ export function buildPathCandidates(
       icon: 'rocket',
       accountId: null,
       goalId: null,
+      ...(retirementCurve ? { retirementCurve } : {}),
     });
   }
 
-  // ── Estate and legacy ──
-  // Emitted whenever anything at all would pass to somebody: a person who
-  // depends on this one, property, or a balance. That is a FACT about the
-  // household, and it is the only test left here.
-  //
-  // It used to be a threshold as well: no dependents and no property meant the
-  // step waited until the portfolio passed 25 times a year's spending. Nobody
-  // can pick that number correctly. A childless renter with a large retirement
-  // balance plainly has assets to transfer and never saw the step, and a number
-  // set lower would have put it in front of people with nothing to transfer.
-  // So WHETHER it belongs in this person's sequence today is the ordering
-  // model's call, made against the banded assets, the property flag and the
-  // retirement verdict it is now given, and a step it leaves out is listed off
-  // the path with its reason rather than hidden.
-  const estateReason =
-    ctx.dependentCount > 0
-      ? 'Someone depends on you, so where your assets land is a decision you should make, not a court.'
-      : ctx.propertyValue > 0
-      ? 'You own property, which passes through probate unless you say otherwise.'
-      : transferableAssets(ctx) > 0
-      ? 'What you have built will pass to someone, and without a plan it goes through a court to get there.'
-      : null;
-  if (estateReason) {
-    add(TIER.estate, 0, {
-      key: 'estate-legacy',
-      kind: 'estate',
-      title: 'Put your estate plan in place',
-      // Beneficiary designations are NOT here. They override a will, they take
-      // ten minutes, and a person reads this step years after the one that
-      // should have had them do it, so they belong with the will and are named
-      // there. What is left here is the work a will alone does not do.
-      subtitle: 'A trust to keep your estate out of court, and a plan for what you give',
-      description:
-        'Optimize for what outlasts you: a revocable trust keeps your estate out of probate, so what you leave reaches people in weeks rather than months, and a donor-advised fund makes charitable giving tax efficient.',
-      why: estateReason,
-      icon: 'landmark',
-      accountId: null,
-      goalId: null,
-    });
+  // `coversStep` is load bearing: `validateOrder` refuses to leave such a
+  // candidate out, because dropping it takes the job off the path in BOTH
+  // forms. So it stands only where a built-in step was genuinely turned away,
+  // and a goal that displaced nothing stays as droppable as any other.
+  for (const { candidate } of placed) {
+    if (candidate.coversStep !== undefined && !suppressed.has(candidate.coversStep)) {
+      delete candidate.coversStep;
+    }
   }
 
   placed.sort((a, b) => a.tier - b.tier || a.within - b.within || a.candidate.key.localeCompare(b.candidate.key));
@@ -775,11 +1042,66 @@ export function savingsRateTarget(ctx: PathContext): number {
   return ctx.monthlyIncome * (SAVINGS_RATE_BENCHMARK / 100);
 }
 
-/** Annual spending the FI number is priced from, and the number itself. */
+/**
+ * The whole measurement behind the amount step: what has to go away each month,
+ * what goes away now, and which of the two tests set the figure.
+ *
+ * ONE function because the two figures have to be on ONE basis, and they were
+ * not. The target is the higher of the benchmark share and the simulation's
+ * contribution, but `current` was taken from the simulation whenever a
+ * simulation had run at all, and the simulation counts a different quantity:
+ * `max(0, income * 0.75 - annual spend) / 12 + match`, rounded and capped,
+ * against a surplus of `income - spending`. They differ by roughly a quarter of
+ * gross plus the match. So a household the BENCHMARK binds on had its
+ * retirement-contribution proxy measured against a total-savings target: the
+ * same household read "already there, at $2,000 a month" with no simulation and
+ * "up from the $900 a month going away now", 56% and an order to move $700 more,
+ * with one attached. Nothing about them had changed.
+ *
+ * Whichever test binds now supplies BOTH figures, and every branch of the card,
+ * its copy and its instruction reads `retirementBinds` rather than testing for
+ * the presence of a readiness read. A figure can only be compared with one on
+ * its own basis.
+ */
+export interface SavingsRateMeasure {
+  /** The monthly figure to reach, the higher of the two tests. */
+  target: number;
+  /** What goes away each month, on the same basis as `target`. */
+  current: number;
+  /** True when the simulation's contribution is the binding figure, not the benchmark. */
+  retirementBinds: boolean;
+}
+
+export function savingsRateMeasure(
+  ctx: PathContext,
+  readiness: Pick<ReadinessFacts, 'currentMonthlySavings' | 'requiredMonthlySavings'> | null,
+): SavingsRateMeasure {
+  const rateTarget = ctx.savingsRate !== null ? savingsRateTarget(ctx) : 0;
+  const needTarget = readiness?.requiredMonthlySavings ?? null;
+  const retirementBinds = needTarget !== null && needTarget >= rateTarget;
+  return {
+    target: Math.max(rateTarget, needTarget ?? 0),
+    // The simulation's own reading only where the simulation is what set the
+    // target. Otherwise a month that ends in the red keeps nothing, and a
+    // negative rate is not a share of the benchmark.
+    current: retirementBinds
+      ? readiness!.currentMonthlySavings
+      : Math.max(ctx.monthlySurplus ?? 0, 0),
+    retirementBinds,
+  };
+}
+
+/**
+ * Annual spending the FI number is priced from.
+ *
+ * With no spending history this is a share of income, which is OUR assumption.
+ * `hasSpendHistory` says which of the two a caller is holding, and every step
+ * that prints this figure uses it rather than calling an assumption theirs.
+ */
 export function fiAnnualExpenses(ctx: PathContext): number {
   const spendBasis = ctx.stableMonthlyExpenses ?? ctx.monthlyExpenses;
   if (spendBasis !== null && spendBasis > 0) return spendBasis * 12;
-  return ctx.annualIncome > 0 ? ctx.annualIncome * 0.7 : 0;
+  return ctx.annualIncome > 0 ? ctx.annualIncome * ASSUMED_SPEND_SHARE_OF_INCOME : 0;
 }
 
 export function fiTarget(ctx: PathContext): number {
@@ -790,14 +1112,11 @@ export function fiTarget(ctx: PathContext): number {
  * What this household would actually leave behind: cash, every invested
  * balance, and property.
  *
- * One definition, because two readers need the same one. The estate step is
- * emitted from it, and the ordering payload bands it so the model can judge
- * whether that step belongs in this person's sequence. A figure computed twice
- * would eventually let the step exist for a household the model was told has
- * nothing.
+ * The ordering payload bands it, so the model can weigh how much a household
+ * has actually built when it decides where the steps that only compound belong.
  *
- * Debt is deliberately not netted off. An estate is settled from the assets,
- * so what has to be directed somewhere is the gross of them.
+ * Debt is deliberately not netted off. What a will has to direct somewhere is
+ * the gross of these, because an estate is settled from the assets.
  */
 export function transferableAssets(ctx: PathContext): number {
   return (

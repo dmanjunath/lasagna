@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
   TrendingUp, CreditCard, Rocket, Target, Home,
   AlertCircle, Check, ChevronRight, Sparkles, ArrowRight, Info,
-  PiggyBank, Landmark, Layers, Wallet, Percent, LineChart,
+  PiggyBank, Layers, Wallet, Percent, LineChart, ScrollText,
 } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { api } from '../lib/api';
@@ -12,6 +12,7 @@ import { actionArea } from '../lib/action-destination';
 import { useInsights, type Insight } from '../hooks/useInsights';
 import { stripAccountMask } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
+import { useAuth } from '../lib/auth';
 import type { LucideIcon } from 'lucide-react';
 import { Button, EmptyState, Skeleton, Textarea, useToast } from '../components/uikit';
 import { type LevelState, levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
@@ -20,12 +21,13 @@ import { ActionItem } from '../components/common/action-item';
 // ── constants ────────────────────────────────────────────────────────────────
 
 // `target` is the same mark the Goals nav uses, so a goal reads as a goal
-// wherever it appears. `home` keeps a mortgage from wearing the estate icon.
+// wherever it appears. `home` keeps a mortgage from wearing a card's flame.
 const iconMap: Record<string, LucideIcon> = {
   shield: Shield, gift: Gift, flame: Flame, 'heart-pulse': HeartPulse,
   sprout: Sprout, 'trending-up': TrendingUp, 'credit-card': CreditCard, rocket: Rocket,
-  'alert-circle': AlertCircle, 'piggy-bank': PiggyBank, landmark: Landmark, layers: Layers,
+  'alert-circle': AlertCircle, 'piggy-bank': PiggyBank, layers: Layers,
   target: Target, home: Home, wallet: Wallet, percent: Percent, 'line-chart': LineChart,
+  'scroll-text': ScrollText,
 };
 
 // LevelState + the rail visuals live in components/common/level-rail so the home
@@ -50,6 +52,9 @@ interface PathStep {
   monthlyFunding: number;
   projectedDate: string | null;
   action: string;
+  /** A step whose target is a monthly rate. It never takes the current-step
+   *  pointer, so it renders its own instruction rather than waiting for one. */
+  rateShaped: boolean;
   /** Where an unfinished step stands. Never an instruction, empty once done. */
   fact: string;
   /** Anything the figures would otherwise imply but not state. */
@@ -89,6 +94,8 @@ interface PathData {
   currentStepId: string;
   updatedAt: string;
   updatedReason: string;
+  /** Who chose this order. The explanation below differs by which. */
+  orderSource: 'model' | 'deterministic';
   summary: PathSummary;
 }
 
@@ -146,13 +153,29 @@ function isAutoTracked(step: PathStep): boolean {
 const STATE_ACCENT: Record<LevelState, string> = {
   done: 'rgb(var(--ui-brand))',
   current: 'rgb(var(--ui-brand))',
+  ongoing: 'rgb(var(--ui-brand))',
   future: 'rgb(var(--ui-content-faint))',
 };
 
 // ── StatePill — small status chip, never color-only ──────────────────────────
 
-function StatePill({ state, className = '' }: { state: LevelState; className?: string }) {
+function StatePill({ state, rateShaped = false, className = '' }: {
+  state: LevelState;
+  /**
+   * A step whose target is a monthly rate. `levelStateOf` already reads it, so
+   * this is only the belt to that braces: nothing about a standing condition is
+   * ahead of the reader, and nothing about it is finished either.
+   */
+  rateShaped?: boolean;
+  className?: string;
+}) {
   const base = `inline-flex items-center gap-1 h-[22px] px-2.5 rounded-full text-[10.5px] font-extrabold uppercase tracking-[0.06em] whitespace-nowrap ${className}`;
+  // Before either verdict, because a standing monthly condition is neither.
+  // Read only in `future`, the pill said Ongoing while short and then wore a
+  // DONE tick the month the rate was met, which is the same overclaim the
+  // Ahead-to-Ongoing change existed to remove, in the other direction.
+  if (state === 'ongoing' || rateShaped)
+    return <span className={`${base} bg-brand-soft text-[rgb(var(--ui-brand-ink))]`}>Ongoing</span>;
   // current: readable brand-ink on the soft tint + a brand ring + leading dot,
   // so it passes AA on light and stays visually distinct from the "Done" pill.
   if (state === 'current')
@@ -172,16 +195,48 @@ function StatePill({ state, className = '' }: { state: LevelState; className?: s
 
 // ── WhyThisPathPopover — Bright panel ────────────────────────────────────────
 
-function WhyThisPathPopover({ steps, surplus }: { steps: PathStep[]; surplus: number | null }) {
+function WhyThisPathPopover({ steps, surplus, orderSource }: {
+  steps: PathStep[];
+  surplus: number | null;
+  /** Who chose the sequence. Two different true sentences, never one. */
+  orderSource: 'model' | 'deterministic';
+}) {
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
+    // The trigger sits beside a section heading well down the page, so on a
+    // 390 wide screen the panel opened entirely below the fold and the reader
+    // saw nothing happen. Bounded above and brought into view here, so opening
+    // it always shows it.
+    panelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
-  const debtCount = steps.filter(s => s.kind === 'debt').length;
+  const debtSteps = steps.filter(s => s.kind === 'debt');
+  const debtCount = debtSteps.length;
   const goalCount = steps.filter(s => s.kind === 'goal').length;
+  // How many balances on the path actually report a rate. Most do not, and the
+  // order falls back to where accounts of that type usually sit. The step's own
+  // card says exactly that, so a panel one click away claiming every balance is
+  // placed by its rate was contradicted by the thing it was describing.
+  const ratedDebtCount = debtSteps.filter(s => s.accounts?.[0]?.apr != null).length;
+  // Written for the number of balances actually there. "Balances sit by their
+  // interest rate, highest first" is a sentence about a list, and a household
+  // with one rated balance has no list.
+  const debtOrderLine =
+    ratedDebtCount === debtCount
+      ? debtCount === 1
+        ? 'Your balance sits where its own interest rate puts it, which is not a judgement call.'
+        : 'Balances sit by their interest rate, highest first, which is not a judgement call.'
+      : ratedDebtCount === 0
+      ? debtCount === 1
+        ? 'Your lender reports no rate, so the balance sits where accounts of its type usually sit, until you add one.'
+        : 'No lender on your path reports a rate, so each balance sits where accounts of its type usually sit, until you add one.'
+      : ratedDebtCount === 1
+      ? 'The one balance that reports a rate sits where that rate puts it. The rest sit where accounts of their type usually sit, until you add one.'
+      : 'The balances that report a rate sit by it, highest first. The rest sit where accounts of their type usually sit, until you add one.';
 
   // Reads as a sentence about THIS path: what is in it, and why in this order.
   const madeOf = [
@@ -195,7 +250,8 @@ function WhyThisPathPopover({ steps, surplus }: { steps: PathStep[]; surplus: nu
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="ui-focus inline-flex items-center gap-1.5 h-9 px-3 rounded-ui-md text-[12.5px] font-bold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors"
+        aria-controls="why-these-steps"
+        className="ui-focus touch-target inline-flex items-center gap-1.5 h-9 px-3 rounded-ui-md text-[12.5px] font-bold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors"
       >
         <Info className="h-[15px] w-[15px]" />
         Why these steps?
@@ -203,21 +259,47 @@ function WhyThisPathPopover({ steps, surplus }: { steps: PathStep[]; surplus: nu
       {open && (
         <>
           <div onClick={() => setOpen(false)} className="fixed inset-0 z-[49]" />
+          {/* A disclosure, not a dialog. It holds nothing focusable and traps
+              nothing, so calling it a dialog promised a modal that was not
+              there: Tab from the trigger walked straight into the list behind
+              it. Escape and a click outside still close it.
+
+              Bounded and scrollable because at 390 wide it opens 129px below
+              the fold, and a panel taller than the viewport cannot be read to
+              its end. */}
           <div
-            role="dialog"
-            aria-label="Why these steps"
-            className="absolute top-full right-0 mt-2 z-[50] w-[min(360px,calc(100vw-36px))] rounded-ui-xl border border-line bg-panel-raised shadow-ui-lg p-5"
+            id="why-these-steps"
+            ref={panelRef}
+            className="absolute top-full right-0 mt-2 z-[50] w-[min(360px,calc(100vw-36px))] max-h-[min(70vh,560px)] overflow-y-auto rounded-ui-xl border border-line bg-panel-raised shadow-ui-lg p-5"
           >
             <p className="mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
               These {steps.length} steps are built from your own accounts, goals and profile.
               {madeOf.length > 0 && <> One step each for {madeOf.join(' and ')}, named individually.</>}
               {' '}Anything that does not apply to you is left out rather than shown greyed.
             </p>
+            {/* Two orders are possible and they were not chosen the same way,
+                so this says which one the reader is looking at. Claiming a
+                sequence was weighed against somebody's situation when it is the
+                default rail is simply false, and the reader has no way to tell.
+                Balances are placed the same way under both, and the sentence
+                about them says which of the two placements they actually got:
+                most lenders report no rate, so most balances sit by type. */}
             <p className="mb-2.5 text-[13.5px] leading-relaxed text-content-secondary">
-              The order is chosen for <strong className="font-bold text-content">your situation</strong>,
-              not read off a fixed list. What protects you is weighed against what you are saving for, so a
-              goal with a date close by can sit ahead of a step that would come first for someone else.
-              {' '}It is set once and stays put, so the plan does not move under you.
+              {orderSource === 'model' ? (
+                <>
+                  The order is chosen for <strong className="font-bold text-content">your situation</strong>,
+                  not read off a fixed list. What protects you is weighed against what you are saving for, so a
+                  goal with a date close by can sit ahead of a step that would come first for someone else.
+                </>
+              ) : (
+                <>
+                  The order is our <strong className="font-bold text-content">default sequence</strong>: steady
+                  ground first, then what protects you, then what compounds.
+                </>
+              )}
+              {debtCount > 0 && <> {debtOrderLine}</>}
+              {' '}It holds until something on your path changes, and the line under the
+              title says when it last did.
             </p>
             <p className="text-[13.5px] leading-relaxed text-content-secondary">
               {surplus !== null && surplus > 0 ? (
@@ -307,7 +389,12 @@ function LevelRow({ step, state, isSelected, onSelect }: {
         type="button"
         onClick={onSelect}
         aria-expanded={isSelected}
-        className={`ui-focus flex items-center gap-3.5 w-full text-left min-h-touch py-3.5 px-3.5 rounded-ui-md transition-colors group`}
+        // A hover surface, like every other row that opens something on this
+        // page: the account row and the "Why these steps?" trigger both take
+        // `hover:bg-brand-softer`. A title changing colour under the cursor is
+        // not a target, and on a row 42px tall it is most of the row saying
+        // nothing. The current row already carries the louder tint.
+        className={`ui-focus flex items-center gap-3.5 w-full text-left min-h-touch py-3.5 px-3.5 rounded-ui-md transition-colors group${isCurrent ? '' : ' hover:bg-brand-softer'}`}
         style={isCurrent ? { background: 'var(--ui-brand-soft)' } : undefined}
       >
         <span
@@ -325,11 +412,11 @@ function LevelRow({ step, state, isSelected, onSelect }: {
             {step.title}
           </span>
           {/* Mobile: the pill lives on its own line so it never eats the name. */}
-          <StatePill state={state} className="sm:hidden mt-0.5 self-start" />
+          <StatePill state={state} rateShaped={step.rateShaped} className="sm:hidden mt-0.5 self-start" />
         </span>
 
         {/* Desktop/tablet: pill sits inline at the end of the row. */}
-        <StatePill state={state} className="hidden sm:inline-flex" />
+        <StatePill state={state} rateShaped={step.rateShaped} className="hidden sm:inline-flex" />
         <ChevronRight className="h-4 w-4 shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" />
       </button>
     </li>
@@ -462,7 +549,7 @@ function GoalLink({ goal }: { goal: NonNullable<PathStep['goal']> }) {
 
 // ── FocusArticle — the selected step, as a Bright action card ────────────────
 
-function FocusArticle({ step, state, actions, hideHeader = false, onAsk, onMark, saving, draft, onDraft }: {
+function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk, onMark, saving, draft, onDraft }: {
   step: PathStep;
   state: LevelState;
   /** The open actions that serve this step. Empty for a step that has none. */
@@ -472,6 +559,12 @@ function FocusArticle({ step, state, actions, hideHeader = false, onAsk, onMark,
   onMark: (id: string, status: 'pending' | 'done' | 'not_applicable', note?: string) => Promise<boolean>;
   /** The mark the page has in flight, if any. Held there, not here: tapping
    *  another row remounts this card, and the guard has to outlive that. */
+  /**
+   * False for a demo account, whose every write is refused by the server. The
+   * controls were live, and a tap answered with a toast saying to try again,
+   * which is not something a demo reader can ever succeed at.
+   */
+  canMark: boolean;
   saving: { id: string; status: 'pending' | 'done' | 'not_applicable' } | null;
   /** What is typed into this step's note, or undefined when it is not open.
    *  Held by the page for the same reason `saving` is: tapping another row
@@ -511,7 +604,7 @@ function FocusArticle({ step, state, actions, hideHeader = false, onAsk, onMark,
           <span className="text-[13px] font-semibold text-content-muted">
             Step {step.order}
           </span>
-          <span className="ml-auto"><StatePill state={state} /></span>
+          <span className="ml-auto"><StatePill state={state} rateShaped={step.rateShaped} /></span>
         </div>
       )}
 
@@ -557,8 +650,25 @@ function FocusArticle({ step, state, actions, hideHeader = false, onAsk, onMark,
           minimum was qualified with no minimum shown anywhere, and a measured
           step named neither what is saved nor what it is aiming at. A step you
           are not on still states where it stands, it just does not issue the
-          order. */}
-      {state !== 'current' && step.fact && (
+          order.
+
+          A rate step is the exception, and states its instruction here instead.
+          It never takes the "you are here" pointer, because its target is a
+          monthly rate it can sit short of for years, so the box above will
+          never render for it and the one number that matters on it is the one
+          it is asking for. Heading this "Next step" on a card nobody is
+          standing on would be the wrong claim, so it takes the same quiet line
+          every other unreached step gets. */}
+      {state !== 'current' && step.rateShaped && step.action && (
+        <div className="mt-5 rounded-ui-lg border border-line bg-canvas-sunken/50 p-3.5">
+          {/* Not "Next step": nobody is standing on this card. It is a rate
+              that has to hold every month, so the heading says which, and the
+              box distinguishes an order from the plain readings below. */}
+          <div className="text-[13px] font-semibold text-content-muted mb-1.5">Every month</div>
+          <p className="text-[14px] leading-[1.5] font-semibold text-content">{step.action}</p>
+        </div>
+      )}
+      {state !== 'current' && !step.rateShaped && step.fact && (
         <p className="mt-5 text-[14px] leading-[1.5] font-semibold text-content">{step.fact}</p>
       )}
 
@@ -626,12 +736,12 @@ function FocusArticle({ step, state, actions, hideHeader = false, onAsk, onMark,
         {/* A step the figures measure completes itself off the balance behind
             it, so there is nothing here to tick: a button that appeared to set
             it and then did not would be worse than none. */}
-        {!isComplete && !isAutoTracked(step) && !pendingDone && (
+        {canMark && !isComplete && !isAutoTracked(step) && !pendingDone && (
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => onDraft('')} leadingIcon={<Check className="h-3.5 w-3.5" />}>
             Mark done
           </Button>
         )}
-        {isComplete && !isAutoTracked(step) && (
+        {canMark && isComplete && !isAutoTracked(step) && (
           <Button size="sm" variant="ghost" loading={spinning('pending')} disabled={busy} onClick={() => { void onMark(step.id, 'pending'); }}>
             Undo
           </Button>
@@ -639,7 +749,7 @@ function FocusArticle({ step, state, actions, hideHeader = false, onAsk, onMark,
         {/* Hidden while the note is open. It sat directly above the field, so
             one mis-tap threw away what they had typed and took the step off the
             path. `Mark done` is hidden there for the same reason. */}
-        {!isComplete && !pendingDone && (
+        {canMark && !isComplete && !pendingDone && (
           <Button size="sm" variant="ghost" loading={spinning('not_applicable')} disabled={busy} onClick={() => { void onMark(step.id, 'not_applicable'); }}>
             Not applicable to me
           </Button>
@@ -684,7 +794,10 @@ function FocusArticle({ step, state, actions, hideHeader = false, onAsk, onMark,
 export function FinancialLevel() {
   const [data, setData] = useState<PathData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // A flag, not the server's sentence. The message is upstream's, written for
+  // an operator, and putting it on the page leaked a database host and a
+  // request id at a reader who can do nothing with either.
+  const [failed, setFailed] = useState(false);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   // Which mark is in flight, held on the page rather than in the card. Calling
   // a step done reopens the order, which runs as long as a model call, and a
@@ -710,6 +823,12 @@ export function FinancialLevel() {
   const { insights } = useInsights();
   const { openChat } = useChatStore();
   const toast = useToast();
+  // A demo account is refused every write by the API, so the controls that
+  // write are not offered to one. Hidden rather than disabled: a row of dead
+  // buttons on every step is more of the page than the refusal is worth, and
+  // the demo path is there to be read.
+  const { user } = useAuth();
+  const canMark = !user?.isDemo;
 
   // Below the side-panel breakpoint the detail expands inline beneath the tapped
   // row (accordion); at or above it, the detail lives in a sticky side panel.
@@ -800,11 +919,16 @@ export function FinancialLevel() {
     }
   };
 
-  useEffect(() => {
+  // Named, so the error state can run it again. A failed path read is almost
+  // always the upstream being briefly unavailable, and asking again is the
+  // whole remedy: without a button the only way out was a browser reload.
+  const loadPath = useCallback(() => {
     // `?step=` names the step to open, so a step heading on the actions page
     // reaches the step it names rather than dropping the reader at the top of
     // the path. A key that is not on the path falls back to where they stand.
     const asked = new URLSearchParams(window.location.search).get('step');
+    setLoading(true);
+    setFailed(false);
     api.getFinancialPath()
       .then(d => {
         setData(d);
@@ -812,9 +936,11 @@ export function FinancialLevel() {
           asked && d.steps.some(s => s.id === asked) ? asked : d.currentStepId,
         );
       })
-      .catch(err => setError(err.message))
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadPath(); }, [loadPath]);
 
   // ── Loading ──
   if (loading) return (
@@ -845,12 +971,25 @@ export function FinancialLevel() {
   );
 
   // ── Error ──
-  if (error) return (
+  //
+  // Our own words, the page's own heading, and a way out. The server's message
+  // was printed straight through, so a reader met a connection string, an
+  // upstream service name and a request id. The mark-a-step handler two hundred
+  // lines up already refuses to echo the server for the same reason.
+  if (failed) return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+      <header className="animate-fade-in">
+        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
+          Financial Level
+        </h1>
+      </header>
       <EmptyState
+        className="mt-8"
+        tone="negative"
         icon={<AlertCircle className="h-7 w-7" />}
-        title="Couldn't load your path"
-        description={error}
+        title="We couldn't load your path"
+        description="Your steps and everything you have marked are safe. This is on our side, so trying again usually works."
+        action={<Button onClick={loadPath}>Try again</Button>}
       />
     </div>
   );
@@ -887,6 +1026,12 @@ export function FinancialLevel() {
   const currentStep = steps.find(s => s.id === currentStepId) ?? steps[0];
 
   const states = steps.map(s => levelStateOf(s, currentStepId));
+  // Counted off the states the rail is painted from, so the legend can never
+  // describe a segment differently from the segment or from the row's own pill.
+  // A standing monthly condition was being counted "ahead" beside a pill
+  // reading Ongoing.
+  const doneCount = states.filter(s => s === 'done').length;
+  const ongoingCount = states.filter(s => s === 'ongoing').length;
   const futureCount = states.filter(s => s === 'future').length;
 
   // Shared between the inline accordion (mobile/tablet) and the sticky side
@@ -897,6 +1042,7 @@ export function FinancialLevel() {
       state={levelStateOf(step, currentStepId)}
       actions={insights.filter(a => a.pathStepKey === step.id)}
       hideHeader={inline}
+      canMark={canMark}
       onMark={markStep}
       saving={saving}
       draft={noteDrafts[step.id]}
@@ -941,20 +1087,14 @@ export function FinancialLevel() {
         <div className="relative grid gap-7 sm:gap-10 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] items-center">
           {/* lead */}
           <div className="min-w-0">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              {allComplete ? 'Every step done' : 'Current step'}
-            </div>
-            <div className="mt-2 flex items-baseline gap-2.5">
+            <div className="flex items-baseline gap-2.5">
               <span className="font-editorial text-[58px] sm:text-[68px] font-extrabold leading-[0.85] tracking-[-0.03em] text-[rgb(var(--ui-brand-ink))] ui-tnum">
                 {allComplete ? steps.length : currentStep.order}
               </span>
               <span className="font-editorial text-[18px] font-bold text-content-muted ui-tnum">of {steps.length}</span>
             </div>
             {/* When every step is done the panel below says so and offers the
-                next move, so this line would only repeat it. The kicker above
-                already says this is the current step, so the name stands on its
-                own rather than being read into a sentence an imperative title
-                cannot finish. */}
+                next move, so this line would only repeat it. */}
             {!allComplete && (
               <>
                 <p className="mt-3 text-[14.5px] font-bold leading-[1.5] text-content max-w-[40ch]">
@@ -977,12 +1117,18 @@ export function FinancialLevel() {
             <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
               <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
                 <LegendSwatch state="done" />
-                {completeCount} done
+                {doneCount} done
               </span>
               {!allComplete && (
                 <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
                   <LegendSwatch state="current" />
                   You are here
+                </span>
+              )}
+              {ongoingCount > 0 && (
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                  <LegendSwatch state="ongoing" />
+                  {ongoingCount} ongoing
                 </span>
               )}
               {futureCount > 0 && (
@@ -1013,91 +1159,101 @@ export function FinancialLevel() {
       </section>
 
       {/* ════════ Levels ════════ */}
-      {allComplete ? (
-        <div className="mt-10">
-          <EmptyState
-            icon={<Rocket className="h-8 w-8" />}
-            title="Every step done"
-            description="You've worked through every step on your path. Time to fine-tune your plan. Ask Lasagna what's next."
-            action={
-              <Button
-                onClick={() => openChat(`I've finished all ${steps.length} steps on my financial path. What should I focus on next?`)}
-                trailingIcon={<ArrowRight className="h-4 w-4" />}
-              >
-                Ask what's next
-              </Button>
-            }
-          />
-        </div>
-      ) : (
-        <>
-          {/* section header */}
-          <div className="mt-10 flex items-center gap-3 flex-wrap">
+      {/* Finishing the path does not delete it. The list was replaced by a
+          panel, so somebody who had worked through every step could no longer
+          read one back, undo a tick the figures had not taken back for them, or
+          see anything they had written. The panel is what is NEW, so it sits
+          above the list rather than in place of it, and it says the one thing
+          the hero does not already: what to do next. */}
+      {allComplete && (
+        <section className="mt-10 flex flex-col items-start gap-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">
-              Your {steps.length} {steps.length === 1 ? 'step' : 'steps'}
+              Every step done
             </h2>
-            <span className="flex-1 h-px bg-line min-w-[12px]" aria-hidden />
-            <WhyThisPathPopover steps={steps} surplus={summary.monthlySurplus} />
+            <p className="mt-1.5 text-[13.5px] leading-[1.5] font-medium text-content-muted">
+              Time to fine-tune your plan.
+            </p>
           </div>
-          <p className="mt-2 text-[13.5px] font-medium text-content-muted">
-            Earlier steps usually pay off most, but you can work them in any order.
-          </p>
+          <Button
+            className="shrink-0"
+            onClick={() => openChat(`I've finished all ${steps.length} steps on my financial path. What should I focus on next?`)}
+            trailingIcon={<ArrowRight className="h-4 w-4" />}
+          >
+            Ask what's next
+          </Button>
+        </section>
+      )}
 
-          {/* The same number `isStacked` watches, so the grid never holds a
-              column open for a panel that is not rendering into it. */}
-          <div className="mt-5 grid grid-cols-1 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6 items-start">
-            {/* list */}
-            <motion.ul
-              className="rounded-ui-xl border border-line bg-panel shadow-ui-sm px-2 sm:px-3.5 py-1"
+      {/* section header */}
+      <div className="mt-10 flex items-center gap-3 flex-wrap">
+        <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">
+          Your {steps.length} {steps.length === 1 ? 'step' : 'steps'}
+        </h2>
+        <span className="flex-1 h-px bg-line min-w-[12px]" aria-hidden />
+        <WhyThisPathPopover
+          steps={steps}
+          surplus={summary.monthlySurplus}
+          orderSource={data.orderSource}
+        />
+      </div>
+      <p className="mt-2 text-[13.5px] font-medium text-content-muted">
+        Earlier steps usually pay off most, but you can work them in any order.
+      </p>
+
+      {/* The same number `isStacked` watches, so the grid never holds a
+          column open for a panel that is not rendering into it. */}
+      <div className="mt-5 grid grid-cols-1 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6 items-start">
+        {/* list */}
+        <motion.ul
+          className="rounded-ui-xl border border-line bg-panel shadow-ui-sm px-2 sm:px-3.5 py-1"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+        >
+          {steps.map((step) => (
+            <Fragment key={step.id}>
+              <LevelRow
+                step={step}
+                state={levelStateOf(step, currentStepId)}
+                isSelected={selectedStepId === step.id}
+                onSelect={() => handleSelectStep(step.id)}
+              />
+              {/* Mobile/tablet: detail expands inline beneath the row. */}
+              {isStacked && (
+                <AnimatePresence initial={false}>
+                  {selectedStepId === step.id && (
+                    <motion.li
+                      className="list-none overflow-hidden"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    >
+                      <div className="pb-3.5 pt-1 px-1">{renderFocus(step, true)}</div>
+                    </motion.li>
+                  )}
+                </AnimatePresence>
+              )}
+            </Fragment>
+          ))}
+        </motion.ul>
+
+        {/* Desktop: sticky side panel. */}
+        {!isStacked && selectedStep && (
+          <div className="sticky top-6" ref={focusRef}>
+            <h3 className="text-[15px] font-semibold text-content mb-3">Current focus</h3>
+            <motion.div
+              key={selectedStep.id}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35 }}
+              transition={{ duration: 0.3 }}
             >
-              {steps.map((step) => (
-                <Fragment key={step.id}>
-                  <LevelRow
-                    step={step}
-                    state={levelStateOf(step, currentStepId)}
-                    isSelected={selectedStepId === step.id}
-                    onSelect={() => handleSelectStep(step.id)}
-                  />
-                  {/* Mobile/tablet: detail expands inline beneath the row. */}
-                  {isStacked && (
-                    <AnimatePresence initial={false}>
-                      {selectedStepId === step.id && (
-                        <motion.li
-                          className="list-none overflow-hidden"
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                        >
-                          <div className="pb-3.5 pt-1 px-1">{renderFocus(step, true)}</div>
-                        </motion.li>
-                      )}
-                    </AnimatePresence>
-                  )}
-                </Fragment>
-              ))}
-            </motion.ul>
-
-            {/* Desktop: sticky side panel. */}
-            {!isStacked && selectedStep && (
-              <div className="sticky top-6" ref={focusRef}>
-                <h3 className="text-[15px] font-semibold text-content mb-3">Current focus</h3>
-                <motion.div
-                  key={selectedStep.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {renderFocus(selectedStep)}
-                </motion.div>
-              </div>
-            )}
+              {renderFocus(selectedStep)}
+            </motion.div>
           </div>
-        </>
-      )}
+        )}
+      </div>
 
       {/* ════════ Off the path ════════
           A step that is not one of your steps takes no number, no segment and
@@ -1120,28 +1276,31 @@ export function FinancialLevel() {
               <li key={off.id} className="flex items-start gap-3 border-t border-line py-3 px-1.5 first:border-t-0">
                 <div className="min-w-0 flex-1">
                   <p className="text-[14.5px] font-semibold text-content-secondary">{off.title}</p>
-                  {/* Why it is not on the path. A step you took off yourself
-                      needs no explaining back to you, so that row says who took
-                      it off and stops there. A step the plan left out without a
-                      line says exactly that rather than an invented reason: it
-                      was never placed, and that is all anyone can honestly say
-                      about it. */}
-                  <p className="mt-1 text-[13px] leading-[1.5] text-content-muted">
-                    {off.byYou
-                      ? 'You said this does not apply to you.'
-                      : off.reason || 'Your plan did not place this step.'}
-                  </p>
+                  {/* Why it is not on the path, where there is something to
+                      say. A step you took off yourself says who took it off. A
+                      step the plan left out carries the line it wrote. A step
+                      the plan never mentioned has no line, and the heading over
+                      this list already says it is not on your path, so the row
+                      says nothing rather than the same empty sentence three
+                      times over. */}
+                  {(off.byYou ? 'You said this does not apply to you.' : off.reason) && (
+                    <p className="mt-1 text-[13px] leading-[1.5] text-content-muted">
+                      {off.byYou ? 'You said this does not apply to you.' : off.reason}
+                    </p>
+                  )}
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="shrink-0"
-                  loading={saving?.id === off.id}
-                  disabled={saving !== null}
-                  onClick={() => { void markStep(off.id, 'pending'); }}
-                >
-                  Put back
-                </Button>
+                {canMark && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0"
+                    loading={saving?.id === off.id}
+                    disabled={saving !== null}
+                    onClick={() => { void markStep(off.id, 'pending'); }}
+                  >
+                    Put back
+                  </Button>
+                )}
               </li>
             ))}
           </ul>

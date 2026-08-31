@@ -272,6 +272,7 @@ const READINESS = {
   currentMonthlySavings: 1_200,
   requiredMonthlySavings: null,
   requiredSuccessRate: null,
+  medianByAge: Array.from({ length: 60 }, (_, i) => Math.round(120_000 * 1.06 ** i)),
   simRuns: 1,
 };
 
@@ -303,6 +304,7 @@ function household(overrides: Partial<PathContext> = {}): PathContext {
         apr: 21,
         minimumPayment: 160,
         minimumPaymentEstimated: false,
+        minimumPaymentAssumedApr: null,
         termMonths: null,
         originationDate: null,
         payoffDate: null,
@@ -511,32 +513,33 @@ describe('a step the person marked', () => {
   it('is still complete after the path is regenerated around it', async () => {
     await read();
 
-    // Insurance is a step nothing measures, so a tick decides it and the order
+    // The will is a step nothing measures, so a tick decides it and the order
     // it sits in is reopened for it.
-    const after = (await markAndReadPath(TENANT, USER, 'insurance-will', 'done', 'Term life bound'))!;
+    const after = (await markAndReadPath(TENANT, USER, 'will-trust', 'done', 'Signed at the lawyer'))!;
     expect(after.reason).toBe('step_completed');
     expect(store.paths).toHaveLength(2);
 
-    const step = after.steps.find((s) => s.key === 'insurance-will')!;
+    const step = after.steps.find((s) => s.key === 'will-trust')!;
     expect(step.status).toBe('complete');
-    expect(step.note).toBe('Term life bound');
+    expect(step.note).toBe('Signed at the lawyer');
 
     // And it is on the NEW row, not read off the old one.
     const active = (await readActivePath(TENANT))!;
     expect(active.id).toBe(store.paths[1].id);
-    expect(active.steps.find((s) => s.key === 'insurance-will')).toMatchObject({
+    expect(active.steps.find((s) => s.key === 'will-trust')).toMatchObject({
       mark: 'done',
-      note: 'Term life bound',
+      note: 'Signed at the lawyer',
     });
   });
 
   it('moves "you are here" past it', async () => {
-    // No debt and a funded emergency fund, so the step they are standing on is
-    // one nothing measures, which is the only case a tick decides.
-    world = household({ debtAccounts: [], cashTotal: 40_000 });
+    // No debt, a funded emergency fund and a portfolio past the independence
+    // number, so every measured step is finished and the step they are standing
+    // on is one nothing measures, which is the only case a tick decides.
+    world = household({ debtAccounts: [], cashTotal: 40_000, brokerageBalance: 1_600_000 });
     const before = await read();
     const standing = currentStepKey(before.steps);
-    expect(standing).toBe('estate-legacy');
+    expect(standing).toBe('tax-advantaged');
 
     await markPathStep(TENANT, standing, 'done', '');
     const after = await read();
@@ -548,19 +551,19 @@ describe('a step the person marked', () => {
     const before = await read();
     const length = before.steps.length;
 
-    await markPathStep(TENANT, 'insurance-will', 'not_applicable', '');
+    await markPathStep(TENANT, 'will-trust', 'not_applicable', '');
     const off = await read();
     expect(off.steps).toHaveLength(length - 1);
-    expect(off.steps.map((s) => s.key)).not.toContain('insurance-will');
-    expect(off.notApplicable.map((c) => c.key)).toEqual(['insurance-will']);
+    expect(off.steps.map((s) => s.key)).not.toContain('will-trust');
+    expect(off.notApplicable.map((c) => c.key)).toEqual(['will-trust']);
     // Numbering closes over it rather than leaving a gap, and nothing was paid
     // to take a step off a path.
     expect(off.steps.map((s) => s.key)).toEqual(
-      before.steps.map((s) => s.key).filter((k) => k !== 'insurance-will'),
+      before.steps.map((s) => s.key).filter((k) => k !== 'will-trust'),
     );
     expect(generateObject).toHaveBeenCalledTimes(1);
 
-    await markPathStep(TENANT, 'insurance-will', 'pending', '');
+    await markPathStep(TENANT, 'will-trust', 'pending', '');
     const back = await read();
     expect(back.steps).toHaveLength(length);
     expect(back.notApplicable).toHaveLength(0);
@@ -585,21 +588,21 @@ describe('a step the person marked', () => {
 
   it('keeps the note when a later mark says nothing about it', async () => {
     await read();
-    await markAndReadPath(TENANT, USER, 'insurance-will', 'done', 'Term life bound');
+    await markAndReadPath(TENANT, USER, 'will-trust', 'done', 'Signed at the lawyer');
 
     // "Undo" says where they stand. It says nothing about what they wrote, so
     // the sentence they typed survives the round trip.
-    const undone = (await markAndReadPath(TENANT, USER, 'insurance-will', 'pending'))!;
-    expect(undone.steps.find((s) => s.key === 'insurance-will')!.note).toBe('Term life bound');
+    const undone = (await markAndReadPath(TENANT, USER, 'will-trust', 'pending'))!;
+    expect(undone.steps.find((s) => s.key === 'will-trust')!.note).toBe('Signed at the lawyer');
 
-    const off = (await markAndReadPath(TENANT, USER, 'insurance-will', 'not_applicable'))!;
-    expect(off.notApplicable.map((c) => c.key)).toContain('insurance-will');
-    const back = (await markAndReadPath(TENANT, USER, 'insurance-will', 'pending'))!;
-    expect(back.steps.find((s) => s.key === 'insurance-will')!.note).toBe('Term life bound');
+    const off = (await markAndReadPath(TENANT, USER, 'will-trust', 'not_applicable'))!;
+    expect(off.notApplicable.map((c) => c.key)).toContain('will-trust');
+    const back = (await markAndReadPath(TENANT, USER, 'will-trust', 'pending'))!;
+    expect(back.steps.find((s) => s.key === 'will-trust')!.note).toBe('Signed at the lawyer');
 
     // An empty string is a sentence they deleted, and that still clears it.
-    const cleared = (await markAndReadPath(TENANT, USER, 'insurance-will', 'done', ''))!;
-    expect(cleared.steps.find((s) => s.key === 'insurance-will')!.note).toBe('');
+    const cleared = (await markAndReadPath(TENANT, USER, 'will-trust', 'done', ''))!;
+    expect(cleared.steps.find((s) => s.key === 'will-trust')!.note).toBe('');
   });
 });
 
@@ -626,8 +629,8 @@ describe('a tick on a step the figures already decide', () => {
 
   it('still reorders when the tick is the only thing that decides the step', async () => {
     await read();
-    const after = (await markAndReadPath(TENANT, USER, 'insurance-will', 'done'))!;
-    expect(after.steps.find((s) => s.key === 'insurance-will')!.status).toBe('complete');
+    const after = (await markAndReadPath(TENANT, USER, 'will-trust', 'done'))!;
+    expect(after.steps.find((s) => s.key === 'will-trust')!.status).toBe('complete');
     expect(after.reason).toBe('step_completed');
     expect(generateObject).toHaveBeenCalledTimes(2);
   });
@@ -658,13 +661,13 @@ describe('a tick made before there were paths', () => {
     expect(store.steps.every((s) => s.status === 'pending' && s.note === '')).toBe(true);
     recordedBefore({
       completedPrioritySteps: [
-        { id: 'insurance-will', note: 'legacy note the user typed' },
+        { id: 'will-trust', note: 'legacy note the user typed' },
         { id: 'tax-advantaged' },
       ],
     });
 
     const path = await read();
-    const insurance = path.steps.find((s) => s.key === 'insurance-will')!;
+    const insurance = path.steps.find((s) => s.key === 'will-trust')!;
     expect(insurance.status).toBe('complete');
     expect(insurance.note).toBe('legacy note the user typed');
     expect(path.steps.find((s) => s.key === 'tax-advantaged')!.status).toBe('complete');
@@ -674,17 +677,17 @@ describe('a tick made before there were paths', () => {
 
   it('carries onto the first path a returning person is given', async () => {
     recordedBefore({
-      completedPrioritySteps: [{ id: 'insurance-will', note: 'legacy note the user typed' }],
+      completedPrioritySteps: [{ id: 'will-trust', note: 'legacy note the user typed' }],
     });
 
     const path = await read();
-    expect(path.steps.find((s) => s.key === 'insurance-will')).toMatchObject({
+    expect(path.steps.find((s) => s.key === 'will-trust')).toMatchObject({
       status: 'complete',
       note: 'legacy note the user typed',
     });
     // And onto the row, so the stored mark answers for it from here.
     const active = (await readActivePath(TENANT))!;
-    expect(active.steps.find((s) => s.key === 'insurance-will')).toMatchObject({
+    expect(active.steps.find((s) => s.key === 'will-trust')).toMatchObject({
       mark: 'done',
       note: 'legacy note the user typed',
     });
@@ -707,28 +710,28 @@ describe('a tick made before there were paths', () => {
   });
 
   it('takes a step off the path when that is what they said', async () => {
-    recordedBefore({ skippedPrioritySteps: ['insurance-will'] });
+    recordedBefore({ skippedPrioritySteps: ['will-trust'] });
 
     const path = await read();
-    expect(path.notApplicable.map((c) => c.key)).toEqual(['insurance-will']);
-    expect(path.steps.map((s) => s.key)).not.toContain('insurance-will');
+    expect(path.notApplicable.map((c) => c.key)).toEqual(['will-trust']);
+    expect(path.steps.map((s) => s.key)).not.toContain('will-trust');
   });
 
   it('does not come back once they have put the step back', async () => {
     recordedBefore({
-      completedPrioritySteps: [{ id: 'insurance-will', note: 'legacy note the user typed' }],
+      completedPrioritySteps: [{ id: 'will-trust', note: 'legacy note the user typed' }],
     });
     await read();
 
-    const undone = (await markAndReadPath(TENANT, USER, 'insurance-will', 'pending'))!;
-    expect(undone.steps.find((s) => s.key === 'insurance-will')!.status).toBe('not_started');
-    expect((await read()).steps.find((s) => s.key === 'insurance-will')!.status).toBe('not_started');
+    const undone = (await markAndReadPath(TENANT, USER, 'will-trust', 'pending'))!;
+    expect(undone.steps.find((s) => s.key === 'will-trust')!.status).toBe('not_started');
+    expect((await read()).steps.find((s) => s.key === 'will-trust')!.status).toBe('not_started');
 
     // And it stays put through a reshuffle. A goal appears, so the whole path
     // is chosen again around it, and the profile row still says done.
     world = household({ goals: [houseDeposit] });
     const later = await read();
-    expect(later.steps.find((s) => s.key === 'insurance-will')!.status).toBe('not_started');
+    expect(later.steps.find((s) => s.key === 'will-trust')!.status).toBe('not_started');
   });
 });
 
@@ -741,33 +744,33 @@ describe('a tick made before there were paths', () => {
 
 describe('a step the path left out', () => {
   it('is off the sequence, on the page, and carries the reason it was given', async () => {
-    modelLeavesOut('insurance-will', 'Nobody depends on your income yet, so cover can wait.');
+    modelLeavesOut('will-trust', 'There is little built to direct yet, so this can wait.');
     const path = await read();
 
-    expect(path.steps.map((s) => s.key)).not.toContain('insurance-will');
-    expect(path.leftOut.map((o) => o.candidate.key)).toEqual(['insurance-will']);
+    expect(path.steps.map((s) => s.key)).not.toContain('will-trust');
+    expect(path.leftOut.map((o) => o.candidate.key)).toEqual(['will-trust']);
     expect(path.leftOut[0].reason).toBe(
-      'Nobody depends on your income yet, so cover can wait.',
+      'There is little built to direct yet, so this can wait.',
     );
     // Numbering closes over it, exactly as it does for a step taken off by hand.
-    expect(path.steps.map((s) => s.key)).not.toContain('insurance-will');
+    expect(path.steps.map((s) => s.key)).not.toContain('will-trust');
     // And it is a stored row, so it survives being read back.
     const active = (await readActivePath(TENANT))!;
-    expect(active.steps.find((s) => s.key === 'insurance-will')).toMatchObject({
+    expect(active.steps.find((s) => s.key === 'will-trust')).toMatchObject({
       mark: 'left_out',
-      reason: 'Nobody depends on your income yet, so cover can wait.',
+      reason: 'There is little built to direct yet, so this can wait.',
     });
   });
 
   it('comes back onto the path in one click, and is not paid for', async () => {
-    modelLeavesOut('insurance-will', 'Nobody depends on your income yet, so cover can wait.');
+    modelLeavesOut('will-trust', 'There is little built to direct yet, so this can wait.');
     const before = await read();
     expect(generateObject).toHaveBeenCalledTimes(1);
 
-    await markPathStep(TENANT, 'insurance-will', 'pending', '');
+    await markPathStep(TENANT, 'will-trust', 'pending', '');
     const back = await read();
 
-    expect(back.steps.map((s) => s.key)).toContain('insurance-will');
+    expect(back.steps.map((s) => s.key)).toContain('will-trust');
     expect(back.leftOut).toHaveLength(0);
     expect(back.steps).toHaveLength(before.steps.length + 1);
     // Putting a step back restores a position that is already stored, so it
@@ -776,11 +779,32 @@ describe('a step the path left out', () => {
     expect(store.paths).toHaveLength(1);
   });
 
-  it('STAYS back through the next generation, even when the model drops it again', async () => {
-    modelLeavesOut('insurance-will', 'Nobody depends on your income yet, so cover can wait.');
+  it('does not wear the reason it was left out under "why it sits here"', async () => {
+    const excuse = 'There is no income to replace yet and nothing built to direct.';
+    modelLeavesOut('will-trust', excuse);
     await read();
-    await markPathStep(TENANT, 'insurance-will', 'pending', '');
-    expect((await read()).steps.map((s) => s.key)).toContain('insurance-will');
+
+    await markPathStep(TENANT, 'will-trust', 'pending', '');
+    const back = await read();
+
+    // The step is on the path now, so the stored line is no longer a reason it
+    // is off one. `storedPath` reads any non-left-out row's reason as the
+    // placement line under the card, so left standing it rendered as "Why it
+    // sits here" on a step that IS on the path. A put-back never regenerates,
+    // so nothing downstream would ever have cleared it.
+    expect(back.steps.map((s) => s.key)).toContain('will-trust');
+    expect(back.reasons.get('will-trust')).toBeUndefined();
+    expect((await readActivePath(TENANT))!.steps.find((s) => s.key === 'will-trust')!.reason)
+      .toBe('');
+    // And no other step lost the line the model wrote for it.
+    expect(back.reasons.get('emergency-fund')).toBe('It belongs about here for you.');
+  });
+
+  it('STAYS back through the next generation, even when the model drops it again', async () => {
+    modelLeavesOut('will-trust', 'There is little built to direct yet, so this can wait.');
+    await read();
+    await markPathStep(TENANT, 'will-trust', 'pending', '');
+    expect((await read()).steps.map((s) => s.key)).toContain('will-trust');
 
     // A goal lands, so the whole path is chosen again, and the model leaves the
     // same step out a second time. Once somebody says they want a step, they
@@ -791,23 +815,23 @@ describe('a step the path left out', () => {
 
     expect(generateObject).toHaveBeenCalledTimes(2);
     expect(later.reason).toBe('goal_added');
-    expect(later.steps.map((s) => s.key)).toContain('insurance-will');
+    expect(later.steps.map((s) => s.key)).toContain('will-trust');
     expect(later.leftOut).toHaveLength(0);
     // And on the new row, so it holds through the one after that too.
     const active = (await readActivePath(TENANT))!;
-    expect(active.steps.find((s) => s.key === 'insurance-will')!.mark).toBe('pending');
+    expect(active.steps.find((s) => s.key === 'will-trust')!.mark).toBe('pending');
   });
 
   it('is left out again when nobody ever asked for it back', async () => {
-    modelLeavesOut('insurance-will', 'Nobody depends on your income yet, so cover can wait.');
+    modelLeavesOut('will-trust', 'There is little built to direct yet, so this can wait.');
     await read();
 
     world = household({ goals: [houseDeposit] });
     await invalidatePath(TENANT, 'goal_added');
     const later = await read();
 
-    expect(later.steps.map((s) => s.key)).not.toContain('insurance-will');
-    expect(later.leftOut.map((o) => o.candidate.key)).toEqual(['insurance-will']);
+    expect(later.steps.map((s) => s.key)).not.toContain('will-trust');
+    expect(later.leftOut.map((o) => o.candidate.key)).toEqual(['will-trust']);
   });
 
   it('leaves every debt and every goal somewhere on the page', async () => {
@@ -826,7 +850,8 @@ describe('a step the path left out', () => {
       ...path.leftOut.map((o) => o.candidate.key),
     ];
 
-    expect(path.steps.map((s) => s.key)).toEqual(['emergency-fund']);
+    // The one step it placed, plus the balance whose position it never chose.
+    expect(path.steps.map((s) => s.key)).toEqual(['emergency-fund', `debt:${CARD}`]);
     expect(onThePage).toContain(`debt:${CARD}`);
     expect(onThePage).toContain(`goal:${GOAL}`);
     expect(new Set(onThePage)).toEqual(new Set(buildPathCandidates(world).map((c) => c.key)));

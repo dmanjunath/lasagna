@@ -40,8 +40,8 @@ function action(id: string, title: string, pathStepKey: string | null): Insight 
 }
 
 const STEPS = [
-  { id: 'stabilize', order: 1, title: 'Stabilize', status: 'complete' },
-  { id: 'emergency-fund', order: 2, title: 'Emergency fund', status: 'in_progress' },
+  { id: 'stabilize', order: 1, title: 'Stabilize', status: 'complete', rateShaped: false },
+  { id: 'emergency-fund', order: 2, title: 'Emergency fund', status: 'in_progress', rateShaped: false },
 ];
 
 const CURRENT = {

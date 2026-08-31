@@ -34,7 +34,17 @@ export interface PathContext {
   monthlyIncome: number;
   filingStatus: 'single' | 'married_joint' | 'married_separate' | 'head_of_household' | null;
   employmentType: string | null;
-  employerMatchPct: number;
+  /**
+   * Their answer to "do you have a 401(k)?", as onboarding writes it: the match
+   * percent, 0 for a plan that matches nothing, and null for no plan at all.
+   *
+   * The three are not the same thing, and flattening the last two with `?? 0`
+   * told a household with a plan and no match that they had no plan, which cost
+   * them the whole elective deferral limit out of their contribution room. That
+   * room recurs every year and takes a standing share of the surplus, so
+   * understating it re-routes their money for good.
+   */
+  employerMatchPct: number | null;
   stateOfResidence: string | null;
   retirementAge: number;
   /** False when the 65 above is our default rather than a figure they gave us. */
@@ -43,7 +53,16 @@ export interface PathContext {
   /** True/false when they told us, null when they never did. The three are not
    *  the same thing: a step must not ask for a health plan already on file. */
   hasHDHP: boolean | null;
-  dependentCount: number;
+  /**
+   * How many people rely on this income, as onboarding writes it: the count, 0
+   * for nobody, and null for a field they never filled in.
+   *
+   * The same three-way distinction `employerMatchPct` above holds, and it was
+   * flattened the same way. Once the term-life step was gated on a count above
+   * zero, reading the column as `?? 0` deleted that step from everybody who
+   * skipped the question, on the strength of an answer they never gave.
+   */
+  dependentCount: number | null;
   isPSLFEligible: boolean;
 
   // ── Spending ──
@@ -67,7 +86,23 @@ export interface PathContext {
   hsaBalance: number;
   rothIraBalance: number;
   trad401kBalance: number;
+  /**
+   * The CATCH-ALL investment bucket: every investment account that is not an
+   * HSA, not a Roth IRA and not a workplace plan. A traditional IRA, a 529 and
+   * a crypto account all land here, so this is a total of what is invested and
+   * not a statement about any wrapper. Only read where every investment counts.
+   */
   brokerageBalance: number;
+  /**
+   * What is held in an ordinary taxable brokerage account, and nothing else.
+   *
+   * The step that asks somebody to OPEN one was pruned on `brokerageBalance`
+   * above, which is a different question: a household holding a traditional IRA
+   * and a crypto account read as already having a taxable brokerage, so nobody
+   * with a retirement account and money to spare was ever told where anything
+   * past the annual limits goes.
+   */
+  taxableBrokerageBalance: number;
   /** Market value of real_estate accounts that count toward net worth. */
   propertyValue: number;
   hasOverdraft: boolean;
@@ -81,6 +116,27 @@ export interface PathContext {
   debtAccounts: DebtAccount[];
 
   goals: PathGoal[];
+}
+
+/**
+ * Whether an investment account that is not an HSA, a Roth IRA or a workplace
+ * plan is nonetheless a TAXABLE BROKERAGE.
+ *
+ * The bucket it is applied to is the catch-all, so it holds every wrapper this
+ * file does not name above: a traditional or rollover IRA, a SEP or SIMPLE, a
+ * 529, an annuity, a pension, a crypto account. None of those is the account
+ * the brokerage step asks somebody to open, and reading the bucket as though
+ * they were deleted that step from anyone holding one.
+ *
+ * Stated as what a taxable brokerage is NOT, because the bucket already
+ * excludes the accounts with a settled vocabulary and what is left is mostly
+ * ordinary. A wrapper we fail to recognise offers somebody a step they have
+ * already taken, which is the milder of the two failures.
+ */
+function isTaxableBrokerage(subtypeOrName: string): boolean {
+  return !/\bira\b|retirement|529|education savings|coverdell|annuity|pension|keogh|profit.sharing|thrift|\btsp\b|sarsep|\bsep\b|simple|non.?taxable|crypto|\besop\b/.test(
+    subtypeOrName,
+  );
 }
 
 export async function buildPathContext(tenantId: string, userId: string): Promise<PathContext> {
@@ -125,6 +181,7 @@ export async function buildPathContext(tenantId: string, userId: string): Promis
   const monthlyIncome = annualIncome / 12;
 
   let cashTotal = 0, hsaBalance = 0, rothIraBalance = 0, trad401kBalance = 0, brokerageBalance = 0;
+  let taxableBrokerageBalance = 0;
   let propertyValue = 0;
   let has457b = false, has403b = false;
 
@@ -138,7 +195,10 @@ export async function buildPathContext(tenantId: string, userId: string): Promis
       if (sub.includes("hsa") || sub.includes("health savings")) hsaBalance += acct.balance;
       else if (sub.includes("roth") && sub.includes("ira")) rothIraBalance += acct.balance;
       else if (sub.includes("401") || sub.includes("403b") || sub.includes("457")) trad401kBalance += acct.balance;
-      else brokerageBalance += acct.balance;
+      else {
+        brokerageBalance += acct.balance;
+        if (isTaxableBrokerage(sub)) taxableBrokerageBalance += acct.balance;
+      }
       if (sub.includes("457")) has457b = true;
       if (sub.includes("403")) has403b = true;
     } else if (acct.type === "real_estate") {
@@ -168,13 +228,13 @@ export async function buildPathContext(tenantId: string, userId: string): Promis
     monthlyIncome,
     filingStatus: (resolved.filingStatus ?? null) as PathContext['filingStatus'],
     employmentType: resolved.employmentType ?? 'w2',
-    employerMatchPct: resolved.employerMatchPercent ?? 0,
+    employerMatchPct: resolved.employerMatchPercent ?? null,
     stateOfResidence: resolved.stateOfResidence ?? null,
     retirementAge: resolved.retirementAge ?? 65,
     retirementAgeSet: resolved.retirementAge != null,
     riskTolerance: resolved.riskTolerance ?? null,
     hasHDHP: resolved.hasHDHP,
-    dependentCount: resolved.dependentCount ?? 0,
+    dependentCount: resolved.dependentCount,
     isPSLFEligible: resolved.isPSLFEligible ?? false,
 
     monthlyExpenses,
@@ -183,6 +243,7 @@ export async function buildPathContext(tenantId: string, userId: string): Promis
     savingsRate,
 
     cashTotal, hsaBalance, rothIraBalance, trad401kBalance, brokerageBalance,
+    taxableBrokerageBalance,
     propertyValue,
     hasOverdraft: false,
     hasESPP: false,
@@ -220,13 +281,13 @@ export function buildPathContextDefaults(overrides: Partial<PathContext> = {}): 
     monthlyIncome: 0,
     filingStatus: null,
     employmentType: 'w2',
-    employerMatchPct: 0,
+    employerMatchPct: null,
     stateOfResidence: null,
     retirementAge: 65,
     retirementAgeSet: false,
     riskTolerance: null,
     hasHDHP: null,
-    dependentCount: 0,
+    dependentCount: null,
     isPSLFEligible: false,
     monthlyExpenses: null,
     stableMonthlyExpenses: null,
@@ -237,6 +298,7 @@ export function buildPathContextDefaults(overrides: Partial<PathContext> = {}): 
     rothIraBalance: 0,
     trad401kBalance: 0,
     brokerageBalance: 0,
+    taxableBrokerageBalance: 0,
     propertyValue: 0,
     hasOverdraft: false,
     hasESPP: false,

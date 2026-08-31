@@ -11,12 +11,19 @@ export function EmptyState({
   description,
   action,
   className,
+  tone = 'brand',
 }: {
   icon?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
   className?: string;
+  /**
+   * What the medallion says before the words are read. `negative` for a
+   * failure: the brand tint is the same green a finished step wears, so a
+   * "couldn't load" panel announced itself in the colour of success.
+   */
+  tone?: 'brand' | 'negative';
 }) {
   return (
     <div
@@ -26,7 +33,12 @@ export function EmptyState({
       )}
     >
       {icon && (
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-ui-md bg-brand-soft text-brand">
+        <div
+          className={cn(
+            'mb-4 flex h-12 w-12 items-center justify-center rounded-ui-md',
+            tone === 'negative' ? 'bg-negative-soft text-negative' : 'bg-brand-soft text-brand',
+          )}
+        >
           {icon}
         </div>
       )}

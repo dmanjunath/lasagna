@@ -177,7 +177,7 @@ export function SimpleHome() {
   const [upcomingBill, setUpcomingBill] = useState<BillCard | null>(null);
   const [askDraft, setAskDraft] = useState('');
   const [currentStep, setCurrentStep] = useState<LevelStep | null>(null);
-  const [levelSteps, setLevelSteps] = useState<{ id: string; order: number; title: string; status: string }[]>([]);
+  const [levelSteps, setLevelSteps] = useState<{ id: string; order: number; title: string; status: string; rateShaped: boolean }[]>([]);
   const [levelCurrentId, setLevelCurrentId] = useState<string>('');
   const [levelLoading, setLevelLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -227,7 +227,9 @@ export function SimpleHome() {
           }
         : null,
     );
-    setLevelSteps(steps.map((s) => ({ id: s.id, order: s.order, title: s.title, status: s.status })));
+    // `rateShaped` travels with the step, because the rail's states are read
+    // from it and this summary paints the same rail the path page does.
+    setLevelSteps(steps.map((s) => ({ id: s.id, order: s.order, title: s.title, status: s.status, rateShaped: s.rateShaped })));
     setLevelCurrentId(currentStepId);
   }, []);
 
@@ -834,7 +836,7 @@ export function LevelSection({
   onHelp, onDid, onSetAside, onSetupProfile,
 }: {
   step: LevelStep | null;
-  steps: { id: string; order: number; title: string; status: string }[];
+  steps: { id: string; order: number; title: string; status: string; rateShaped: boolean }[];
   currentStepId: string;
   loading: boolean;
   /** The open actions that serve the step they are standing on. */
@@ -899,8 +901,11 @@ export function LevelSection({
   const railLabels = steps.map((s) => `Step ${s.order}: ${s.title}`);
   const total = steps.length || 1;
   const doneCount = states.filter((s) => s === 'done').length;
+  const ongoingCount = states.filter((s) => s === 'ongoing').length;
   const futureCount = states.filter((s) => s === 'future').length;
-  const allComplete = doneCount === total;
+  // `steps.length > 0` first: with no path at all every step is vacuously
+  // complete, and the summary would congratulate somebody who has none.
+  const allComplete = steps.length > 0 && steps.every((s) => s.status === 'complete');
 
   // Which actions belong under the standing, and what to call them.
   //
@@ -1053,6 +1058,11 @@ export function LevelSection({
               {!allComplete && (
                 <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
                   <LegendSwatch state="current" />You are here
+                </span>
+              )}
+              {ongoingCount > 0 && (
+                <span className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-muted">
+                  <LegendSwatch state="ongoing" />{ongoingCount} ongoing
                 </span>
               )}
               {futureCount > 0 && (

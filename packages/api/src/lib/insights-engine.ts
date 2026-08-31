@@ -98,7 +98,8 @@ interface FinancialSnapshot {
   debtTrajectory: Array<{
     name: string;
     balance: number;
-    interestRate: number;
+    /** The rate on file, or null when the account has none. Never a substitute. */
+    interestRate: number | null;
     minimumPayment: number | null;
     monthsToPayoff: number | null;
     totalInterestRemaining: number | null;
@@ -584,8 +585,13 @@ async function gatherFinancialData(
 
   const debtTrajectory = debtAccounts.map((a) => {
     const meta = a.metadata || {};
+    // A rate we do not hold is not a rate of 0%. Flattened to zero, the model
+    // was told an account carried no interest and wrote "the current interest
+    // rate shows as 0%" onto a card whose own copy, two inches above, read "no
+    // rate on file". Null says what is true, and the payoff arithmetic below
+    // does not run on a rate nobody supplied.
     const rate =
-      typeof meta.interestRate === "number" ? meta.interestRate : 0;
+      typeof meta.interestRate === "number" ? meta.interestRate : null;
     const minPayment =
       typeof meta.minimumPayment === "number" ? meta.minimumPayment : null;
     const balance = Math.abs(a.invertBalance ? -a.balance : a.balance);
@@ -593,7 +599,7 @@ async function gatherFinancialData(
     let monthsToPayoff: number | null = null;
     let totalInterestRemaining: number | null = null;
 
-    if (minPayment && minPayment > 0 && balance > 0) {
+    if (rate !== null && minPayment && minPayment > 0 && balance > 0) {
       if (rate === 0) {
         monthsToPayoff = Math.ceil(balance / minPayment);
         totalInterestRemaining = 0;
@@ -752,7 +758,7 @@ Apply each rule ONLY if the condition is precisely met — do NOT generate the i
 - **0% LTCG harvest**: ONLY if annualIncome < $47,025 (single) or < $94,050 (married_joint) AND taxable brokerage has holdings. At income above these thresholds, gains are taxed at 15%+ — do NOT suggest 0% rate.
 - **Max 401(k)**: If no 401k account exists or 401k balance is very low relative to income (less than 1x annual income), suggest contributing toward the $23,500/yr limit for pre-tax savings.
 - **W-4 withholding check**: ONLY if profile.employmentType is "w2". Suggest reviewing W-4 withholding — over-withholding gives the IRS an interest-free loan, under-withholding causes a surprise bill. The IRS withholding estimator takes 15 minutes. Urgency: low. Impact label: "Optimize cash flow".
-- **High-APR debt** (>7%): paying this off is a guaranteed X% return — flag if interest rate exceeds this.
+- **High-APR debt** (>7%): paying this off is a guaranteed X% return — flag if interest rate exceeds this. A debtTrajectory entry whose interestRate is null has NO rate on file: never state or imply a rate for it (not "0%", not "no interest"), never compute interest on it, and never call it high or low interest. The only honest action on such an account is to add the rate.
 - **Cash drag**: If depository + money market balances exceed 12 months of income AND there are investment accounts available, calculate the opportunity cost. Use: excess_cash = total_cash - (6 * monthly_income); opportunity_cost = excess_cash * 0.03 (3% spread between cash yield ~5% and expected market return ~8%). Show the specific dollar opportunity cost per year.
 
 ACTIVELY EVALUATE THESE CONDITIONS — the bullets above are a FLOOR, not a ceiling. The following are NOT optional ideas to consider — they are deterministic triggers you MUST CHECK, one by one, against the user's actual data (annualIncome, filingStatus, stateOfResidence, age, retirementAge, employmentType, accounts + subtypes, holdings + cost basis, debt, spending, goals, taxDocuments). For EACH trigger: evaluate its condition. WHEN the condition holds, you MUST emit the corresponding action with a specific dollar figure. WHEN it does not hold, stay silent — do not emit it and never invent eligibility. This is mandatory-when-eligible, not discretionary:

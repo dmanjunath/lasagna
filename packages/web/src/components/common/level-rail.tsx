@@ -2,19 +2,26 @@
 // legend swatch, plus the state mapper. Used by the /financial-level hero and the
 // home page's level summary so the two never drift.
 
-// State drives the whole palette. Three intentional, token-only states:
+// State drives the whole palette. Four intentional, token-only states:
 //   done    → brand green (filled), settled, earned
 //   current → brand green (loud), the focal "you are here"
+//   ongoing → brand green (soft), a standing condition, never finished
 //   future  → neutral faint, quiet, ahead of you
 //
-// There is no fourth state for a step somebody set aside. A step that does not
+// There is no fifth state for a step somebody set aside. A step that does not
 // apply to them is not on the path at all, so it never reaches this.
-export type LevelState = 'done' | 'current' | 'future';
+export type LevelState = 'done' | 'current' | 'ongoing' | 'future';
 
 export function levelStateOf(
-  step: { id: string; status: string },
+  step: { id: string; status: string; rateShaped?: boolean },
   currentStepId: string,
 ): LevelState {
+  // A step whose target is a monthly RATE is a standing condition. It can never
+  // take the "you are here" pointer, so it arrived here as `future` and was
+  // counted "ahead" while its own pill said Ongoing, and when the rate was met
+  // it wore a DONE tick on a condition that has to hold again next month. It is
+  // neither, in either direction, and it says so in one place now.
+  if (step.rateShaped) return 'ongoing';
   if (step.status === 'complete') return 'done';
   if (step.id === currentStepId) return 'current';
   return 'future';
@@ -46,6 +53,8 @@ export function SegmentedRail({ states, labels }: { states: LevelState[]; labels
         ) : null;
         if (st === 'done')
           return <span key={i} className={base} style={{ background: 'rgb(var(--ui-brand))' }}>{tip}</span>;
+        if (st === 'ongoing')
+          return <span key={i} className={base} style={{ background: 'var(--ui-brand-soft)' }}>{tip}</span>;
         if (st === 'current')
           return (
             <span
@@ -87,6 +96,8 @@ export function LegendSwatch({ state }: { state: LevelState }) {
     );
   if (state === 'done')
     return <span className="w-[11px] h-[11px] rounded-[3px] shrink-0 bg-brand" />;
+  if (state === 'ongoing')
+    return <span className="w-[11px] h-[11px] rounded-[3px] shrink-0 bg-brand-soft" />;
   return (
     <span
       className="w-[11px] h-[11px] rounded-[3px] shrink-0"

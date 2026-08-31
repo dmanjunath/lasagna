@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { getModel, getModelSlug } from '../agent/index.js';
 import { logLlmUsage } from './activity.js';
 import { db } from './db.js';
-import { transferableAssets, type PathCandidate } from './path-candidates.js';
+import { CONTRIBUTION_TAX_YEAR, isUrgentDebt, transferableAssets, type PathCandidate } from './path-candidates.js';
 import type { PathContext } from './path-context.js';
 import type { PathReadiness } from '../services/retirement-readiness.js';
 import { sizePath, type SizedStep } from './path-sizing.js';
@@ -31,26 +31,31 @@ import { llmGenerateObject } from './llm.js';
  * those belong in this person's plan, and in what order, is a model's call over
  * that validated set. It may leave a candidate out.
  *
- * Letting it leave one out is what a threshold cannot do. The estate step used
- * to wait for 25 times a year's spending, so a childless renter with a large
- * retirement balance never saw it though they plainly had assets to transfer,
- * and a number set lower would have shown it to people with nothing. No
- * hand-set figure gets that right, so the judgement is made against the whole
+ * Letting it leave one out is what a threshold cannot do. Whether a taxable
+ * brokerage belongs above a patient balance, or an independence step belongs in
+ * a sequence at all, is not a number anybody can hand-set: too high and a
+ * household that plainly qualifies never sees the step, too low and it lands in
+ * front of people with nothing. So the judgement is made against the whole
  * situation instead: the banded assets, whether a home is owned, and the
  * retirement verdict the simulation already produced for this read.
  *
- * Four things keep that safe:
+ * Five things keep that safe:
  *
- *  1. NOTHING VANISHES. A candidate left out is stored with the model's own
- *     line on why, listed off the path, and put back in one click. Every debt
- *     someone owes and every goal they set is on the page either way.
- *  2. A step the person PUT BACK is theirs. The next generation cannot leave it
+ *  1. DEBT IS NOT ITS CALL AT ALL. Balances hold the positions their own APR
+ *     bands give them, they are not in the payload, and the model orders
+ *     everything else AROUND them. So a balance cannot be left out, cannot be
+ *     misplaced, and carries no line the model wrote. `modelOrders` is where
+ *     that is decided and why.
+ *  2. NOTHING ELSE VANISHES EITHER. A candidate left out is stored with the
+ *     model's own line on why, listed off the path, and put back in one click.
+ *     Every goal somebody set is on the page one way or the other.
+ *  3. A step the person PUT BACK is theirs. The next generation cannot leave it
  *     out again, exactly as it cannot overrule a step they called not
  *     applicable. Once somebody says they want a step, they have it.
- *  3. The chosen order is PERSISTED. Asking a model twice must never reshuffle
+ *  4. The chosen order is PERSISTED. Asking a model twice must never reshuffle
  *     a plan somebody is standing in the middle of, so the path is generated
  *     once and read back after that.
- *  4. The model never decides a NUMBER, and never names a thing. It returns
+ *  5. The model never decides a NUMBER, and never names a thing. It returns
  *     candidate keys it was given and, per step, one clause on where that step
  *     sits or why it is not there. Every target, balance, monthly figure and
  *     date is computed by `sizePath` AFTER the order is fixed, and every title
@@ -116,41 +121,53 @@ export type PathOrderSource = 'model' | 'deterministic';
 // payload carries an income band, a surplus band and a t-shirt size per step,
 // never a balance, a salary, a surplus, a rate or the name on an account. A
 // goal's date changes the order. The exact dollars do not.
-
-const DEBT_LABELS: Record<string, string> = {
-  payday: 'Payday or buy-now-pay-later balance',
-  collections: 'Balance in collections',
-  card: 'Credit card balance',
-  personal: 'Personal loan',
-  private_student: 'Private student loan',
-  federal_student: 'Federal student loan',
-  auto: 'Auto loan',
-  mortgage: 'Mortgage',
-  medical: 'Medical debt',
-};
+//
+// DEBT IS NOT IN IT AT ALL. See `modelOrders` below.
 
 const KIND_LABELS: Record<string, string> = {
   buffer: 'Starter emergency fund',
   match: 'Employer retirement match',
   'emergency-fund': 'Full emergency fund',
-  // Named by all three of its parts on purpose. Called "Insurance and will",
-  // this step reads as life cover, and life cover is the only part of it that
-  // turns on somebody else depending on you. A model that read the short name
-  // set the whole step aside for anyone without children, taking a will and
-  // own-income cover with it.
-  protection: 'Disability cover, term life, and a will',
-  'savings-rate': 'Savings rate',
-  'retirement-readiness': 'Retirement funding gap',
+  'term-life': 'Term life cover',
+  'will-trust': 'Will, beneficiaries, and a trust',
+  'savings-rate': 'What goes away each month',
   'tax-advantaged': 'Tax-advantaged account',
   'contribution-limits': 'Annual contribution room',
   brokerage: 'Taxable brokerage investing',
   independence: 'Financial independence',
-  estate: 'Estate plan',
 };
+
+/**
+ * Whether this candidate's POSITION is the model's to choose.
+ *
+ * Debt is not, and is taken back out of the model's hands deliberately.
+ *
+ * Payoff order is a solved problem: highest rate first, which is what
+ * `buildPathCandidates` already computes from each account's own APR. The model
+ * was never in a position to do it as well, because it was never given a rate
+ * to do it with. The payload carries a t-shirt `size` against a month of income
+ * and nothing else, and the prompt then forbids reasoning about rates at all,
+ * so a model asked to sequence five balances was choosing between them on how
+ * big they are. It duly ordered by balance, and wrote lines about "terms" and
+ * "attention" to justify an order it had no basis for.
+ *
+ * The hardcoded copy on a debt step already asserts a position in so many
+ * words: above 15% it says money here beats money invested, between 8 and 15 it
+ * says this year's tax-advantaged space expires and the balance does not, below
+ * that it says investing usually wins. Those three sentences were being printed
+ * next to a sequence chosen without reference to any of them. Fixing the
+ * positions to the bands the copy describes is what makes the copy true again.
+ *
+ * The model still orders everything else, and it orders it AROUND these
+ * positions rather than after them. A debt cannot be left off the path either,
+ * which is a guarantee the previous arrangement could only ever promise.
+ */
+function modelOrders(candidate: PathCandidate): boolean {
+  return candidate.kind !== 'debt';
+}
 
 /** A name for the step that carries no account name and no balance. */
 function candidateLabel(candidate: PathCandidate): string {
-  if (candidate.kind === 'debt') return DEBT_LABELS[candidate.debt!.debtKind] ?? 'Loan balance';
   if (candidate.kind === 'goal') {
     const category = candidate.goal!.category;
     // The category is free text on the goal, so only the typed set is quoted.
@@ -176,15 +193,33 @@ const KEY_LABELS: Record<string, string> = {
   stabilize: 'Save a starter emergency fund',
   'employer-match': 'Capture your full employer match',
   'emergency-fund': 'Save a full emergency fund',
-  'insurance-will': 'Get insured and write your will',
-  'savings-rate': 'Raise your savings rate',
-  'retirement-readiness': 'Raise what you put toward retirement',
+  'term-life': 'Take out term life insurance',
+  'will-trust': 'Put your will and trust in place',
+  'savings-rate': 'Raise what you put away each month',
   'tax-advantaged': 'Fund a tax-advantaged account',
-  'max-contributions': "Max out this year's contribution room",
-  'taxable-brokerage': 'Invest what is left in a brokerage account',
+  'max-contributions': `Max out your ${CONTRIBUTION_TAX_YEAR} contribution room`,
+  'taxable-brokerage': 'Open a taxable brokerage account',
   'financial-independence': 'Reach financial independence',
-  'estate-legacy': 'Put your estate plan in place',
 };
+
+/**
+ * Whether a stored key still names a step this product builds.
+ *
+ * A step key is retired when the step it named is gone: `insurance-will` split
+ * into term life and a will, `estate-legacy` folded into the will, and
+ * `retirement-readiness` merged into the amount step. Rows against those keys
+ * are still in the table, and they will be until each tenant's path is next
+ * generated, because a mark on a retired key expires with the step rather than
+ * being migrated onto a step it may not have meant.
+ *
+ * `storedPath` already drops them, because they match no candidate. Anything
+ * else reading the stored rows has to drop them too, or it names a step by its
+ * key: the actions engine put a step titled `"insurance-will"` in front of the
+ * insights model, in a list of steps otherwise written in English.
+ */
+export function isLiveStepKey(key: string): boolean {
+  return key.startsWith('debt:') || key.startsWith('goal:') || key in KEY_LABELS;
+}
 
 /**
  * What one step of a stored path is, from its key alone.
@@ -192,6 +227,9 @@ const KEY_LABELS: Record<string, string> = {
  * `names` supplies the account or goal a `debt:`/`goal:` key points at. A key
  * whose row is gone falls back to the generic wording rather than dropping the
  * step, because the caller is naming a step that is still on the path.
+ *
+ * Callers filter with `isLiveStepKey` first: a retired key has no name to give,
+ * and the raw key is not one.
  */
 export function stepLabelForKey(key: string, names: ReadonlyMap<string, string>): string {
   if (key.startsWith('debt:')) return `Pay off ${names.get(key.slice(5)) ?? 'a balance you owe'}`;
@@ -203,11 +241,9 @@ export function stepLabelForKey(key: string, names: ReadonlyMap<string, string>)
 function candidateSize(candidate: PathCandidate, ctx: PathContext): string | undefined {
   if (ctx.monthlyIncome <= 0) return undefined;
   const amount =
-    candidate.kind === 'debt'
-      ? candidate.debt!.balance
-      : candidate.kind === 'goal'
-        ? Math.max(candidate.goal!.targetAmount - candidate.goal!.currentAmount, 0)
-        : null;
+    candidate.kind === 'goal'
+      ? Math.max(candidate.goal!.targetAmount - candidate.goal!.currentAmount, 0)
+      : null;
   if (amount === null || amount <= 0) return undefined;
   const months = amount / ctx.monthlyIncome;
   if (months < 1) return 'small';
@@ -243,9 +279,9 @@ function surplusBand(monthlySurplus: number | null): string {
 /**
  * What this household would leave behind, banded.
  *
- * A step like the estate plan turns on whether there is anything to transfer,
- * which the payload could not say at all before: it carried an income and a
- * surplus, and nothing about what has been built. The band is the whole of what
+ * The steps that only compound turn on whether anything has been built, which
+ * the payload could not say at all before: it carried an income and a surplus,
+ * and nothing about what is already there. The band is the whole of what
  * a judgement of that kind needs. Nothing changes between $412,000 and
  * $418,000, and the exact figure would be a balance leaving the boundary.
  */
@@ -260,27 +296,14 @@ function assetsBand(ctx: PathContext): string {
 }
 
 /**
- * The phrases the payload states to this household in figures. Exactly the
- * three bands above, which are the only fields in it that write one.
- *
- * The rest of the payload's numbers are deliberately not here. An age, a
- * dependent count and a goal's target month are all things the prompt forbids
- * the model to restate, so a line carrying one is a line breaking a rule
- * whether or not the number behind it is real.
- */
-function sentBands(ctx: PathContext): string[] {
-  return [incomeBand(ctx.annualIncome), surplusBand(ctx.monthlySurplus), assetsBand(ctx)];
-}
-
-/**
  * The order the candidates are LISTED IN to the model: ascending by key, which
  * is to say no order at all.
  *
  * They used to be listed in the order they were emitted, which is the order of
  * the tiers they carry, which is a worked-out sequence. The model was free to
  * reorder them and the tier decides nothing any more, but a list handed over
- * already in a defensible order is a suggestion, and the estate step sat last
- * in it every single time. Sorting on the key breaks that: it is arbitrary with
+ * already in a defensible order is a suggestion, and the last-tier step sat
+ * last in it every single time. Sorting on the key breaks that: it is arbitrary with
  * respect to what any step is FOR, so the sequence that comes back is the
  * model's own rather than a nudge it declined to fight.
  *
@@ -302,6 +325,14 @@ function listedNeutrally(candidates: PathCandidate[]): PathCandidate[] {
   return [...candidates].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
+/**
+ * The candidates whose order this call is being asked for: everything except
+ * debt, whose position is fixed. See `modelOrders`.
+ */
+export function orderableCandidates(candidates: PathCandidate[]): PathCandidate[] {
+  return candidates.filter(modelOrders);
+}
+
 export function buildOrderPayload(
   candidates: PathCandidate[],
   ctx: PathContext,
@@ -320,7 +351,12 @@ export function buildOrderPayload(
       incomeBand: incomeBand(ctx.annualIncome),
       surplusBand: surplusBand(ctx.monthlySurplus),
       employmentType: ctx.employmentType,
-      dependents: ctx.dependentCount,
+      // "not on file" rather than null, the same way the income band and the
+      // retirement outlook say it. A bare null was read as the answer zero: the
+      // model left the cover step out of a path saying "you have no dependents
+      // relying on your income", which is a fact about this household that
+      // nobody has ever told us.
+      dependents: ctx.dependentCount ?? 'not on file',
       // What they have built, and whether any of it is a house. Both matter to
       // whether a step belongs at all, and neither is a figure.
       transferableAssets: assetsBand(ctx),
@@ -330,7 +366,11 @@ export function buildOrderPayload(
       // different steps, and this is the only line that can tell them apart.
       retirementOutlook: readiness?.verdict ?? 'not on file',
     },
-    candidates: listedNeutrally(candidates).map((candidate) => ({
+    // Debt is filtered out here rather than by the caller so that NOTHING in
+    // what leaves this boundary can imply a balance is movable: no debt key, no
+    // debt label, no debt size, and so nothing for the model to place, mention
+    // or leave out.
+    candidates: listedNeutrally(orderableCandidates(candidates)).map((candidate) => ({
       key: candidate.key,
       kind: candidate.kind,
       label: candidateLabel(candidate),
@@ -366,16 +406,19 @@ Nothing is lost by leaving a step out. Every key under leftOut is shown to the p
 Rules:
 - Every key you were given belongs in exactly one of the two lists. Never invent a key and never repeat one.
 - Decide inclusion against THIS person's situation, not against a rule. What they have built, whether they own their home, how many people depend on them and whether their retirement is on track all bear on whether a step is worth their attention now. A step is in the sequence because it earns a place there, not because it was offered.
-- Dependents are not what makes a protective step worth doing. A will directs whatever someone has built, whoever is or is not in their life, and where there is no will the state decides instead. Cover against disability replaces THEIR OWN income, so nobody has to depend on them for it to be worth holding. Only term life is weighted by dependents, and it is one part of a step that carries all three. Set protection aside when there is nothing built to direct and no income worth replacing, never on a count of dependents alone.
+- Term life and the will are separate steps and are judged separately. Term life replaces income for people who rely on it, so a count of dependents is a fair reason to set THAT one aside. The will is not: it directs whatever someone has built, whoever is or is not in their life, and where there is no will the state decides instead. Never leave the will out on a count of dependents.
 - A leftOut line is the ONLY thing the person will read about that step, so it has to stand on its own: one sentence, second person, saying what about their situation puts it aside. Never say a step is not applicable without saying what makes it so.
+- A leftOut line says what THE PLAN judged, never what the person decided. They did not choose this and have not been asked, so never write that they set it aside, leave it out, skip it, or are holding off. Say what about their situation puts it below their attention: "There is no income to replace yet and nothing built to direct."
 - Order for THIS person. A goal with a near target date can rightly come before a protective step, and for someone else the protective steps come first. There is no fixed rail.
 - A sequence line is about POSITION and nothing else. Say what this step comes before or after, and why that order is right for this person.
+- Say where a step sits RELATIVE to other steps, never where it sits absolutely. Your list is not the whole path: their balances hold fixed places in it that you cannot see, and they can be anywhere, including below everything you were given. So never write that a step comes first or last, is the first or final one, closes the path, or comes after everything else.
 - Never describe the step, what it is for, what it involves or what it is worth. The page already says all of that next to your line, so repeating it wastes the reader's time.
-- One sentence, written to the person in the second person, opening on the position rather than on the step: "This comes before...", "This waits until...", "Nothing here moves until...", "You can turn to this once...", "Once your other balances are gone...".
-- Vary how you open. A reader goes down these one after another, and a page where every line starts the same way reads as a form letter rather than a decision.
-- Never name an account, a provider, a product or a goal. Point at the other steps by what they are for: your other balances, the goal you put a date on, the steps that protect you.
+- One sentence, written to the person in the second person, opening on the position rather than on the step: "This comes before...", "This waits until...", "Nothing here moves until...", "You can turn to this once...", "Once the steps above are in hand...".
+- Vary how you open, and never write the same sentence for two steps. A reader goes down these one after another, and a page where two lines are word for word identical reads as a form letter rather than a decision.
+- Never name an account, a provider, a product or a goal. Point at the other steps by what they are for: the goal you put a date on, the steps that protect you, the work above this one.
 - Never state an amount, a balance, a date or a percentage. You were not given those and any you write would be invented.
-- You are given no rate, no terms and no cost. Never call a balance high interest or low interest, cheap or expensive, never say what terms it carries, and never say what carrying it costs. The page says plainly when a rate is not on file, and a line of yours guessing at one contradicts it.
+- The person also has balances they owe, and those are NOT in your list. Their places in the sequence are already fixed and you cannot see them, so never place a step relative to a balance, a loan, a card or a mortgage, and never say a balance is cleared, outstanding or first.
+- You are given no rate, no terms and no cost. Never call anything high interest or low interest, cheap or expensive, never say what terms something carries, and never say what carrying it costs.
 - Never justify a position by restating it. "This is second because you do it second" tells the reader nothing they cannot see from the number on the card.
 - The path is worked in order, one step at a time. Never say a step runs alongside, in parallel with, or at the same time as another. The card next to your line carries the step's number, so a line hedging the order contradicts it.
 - Do not use em dashes, en dashes, middots or semicolons. Write plain sentences.`;
@@ -401,11 +444,15 @@ export interface ProposedOrder {
 }
 
 /**
- * The three steps every household gets, whatever we know about them. They have
- * no precondition, they are emitted in one fixed order, and none of them is a
- * judgement call: everybody needs a first buffer, a full one, and cover.
+ * The two steps every household gets, whatever we know about them. They have no
+ * precondition, they are emitted in one fixed order, and neither is a judgement
+ * call: everybody needs a first buffer and then a full one.
+ *
+ * Cover and the will are NOT in here. Term life turns on somebody depending on
+ * this income and the will on there being something to direct, so a household
+ * that gets either has something to decide and is worth asking about.
  */
-const UNIVERSAL_KEYS = new Set(['stabilize', 'emergency-fund', 'insurance-will']);
+const UNIVERSAL_KEYS = new Set(['stabilize', 'emergency-fund']);
 
 /**
  * Whether this candidate set is worth paying to decide.
@@ -414,15 +461,19 @@ const UNIVERSAL_KEYS = new Set(['stabilize', 'emergency-fund', 'insurance-will']
  * nothing to leave out. A model asked about that hands back what it was given
  * and sends a bill for it.
  *
- * Anything MORE than those three is a question. It is not only about the things
+ * Anything MORE than those four is a question. It is not only about the things
  * a person owns any more: a household with no debt and no goals but a portfolio
- * behind them has an estate step and an independence step whose place in their
- * plan is exactly the judgement this call exists to make. Testing for an
+ * behind them has a brokerage step and an independence step whose place in
+ * their plan is exactly the judgement this call exists to make. Testing for an
  * account or a goal, as this did, would hand that household the deterministic
  * rail and never ask.
+ *
+ * Balances do not count toward it, because their positions are computed and
+ * nothing about them is being asked. Somebody whose only steps are the four
+ * universal ones and a stack of debt gets a fully worked-out path and no bill.
  */
 export function isWorthOrdering(candidates: PathCandidate[]): boolean {
-  return candidates.some((c) => !UNIVERSAL_KEYS.has(c.key));
+  return orderableCandidates(candidates).some((c) => !UNIVERSAL_KEYS.has(c.key));
 }
 
 /**
@@ -484,35 +535,34 @@ const HAS_FIGURE = /[\d$%]/;
 /**
  * A figure written out in words.
  *
- * The payload states its bands in digits, so a line restating one restates it
- * as it was handed over, and a figure spelled out is a figure that came from
- * somewhere else. This is the half of the guard a digit test could never see:
- * "over four thousand a month" and "under five hundred a month" were reaching
- * the page verbatim while the same sentences in digits were being dropped.
+ * A digit test alone could never see this half: "over four thousand a month"
+ * and "under five hundred a month" were reaching the page verbatim while the
+ * same sentences in digits were being dropped.
  */
 const SPELLS_A_FIGURE = /\b(?:hundred|thousand|million|billion)\b/i;
 
 /**
- * Whether this line states a figure the payload never gave it.
+ * Whether this line states a figure at all.
  *
- * A figure the model decided is the thing to stop, and this used to drop any
- * line carrying a digit at all. That was blunt in both directions. It killed
- * true sentences: "You are already putting over $4k a month aside, so a step
- * that asks you to find surplus does not apply" is this household's own surplus
- * band, read back correctly, and the reader got a blank in its place. And it
- * waved through the invented ones, which a model spells out as readily as it
- * writes them in digits.
+ * It used to allow one, on the narrow ground that a band the payload had just
+ * handed over was this household's own figure read back correctly, and killing
+ * "You are already putting over $4k a month aside" left the reader a blank.
  *
- * So the test is what went out rather than what a figure looks like. The bands
- * this household was shown are struck out of the line first, and the old rule
- * decides what is left. Striking the whole PHRASE rather than the number in it
- * is deliberate: a household shown "$1.5k to $4k a month" was not shown "over
- * $4k a month", and a line recombining the figures it was handed into a claim
- * that is false for the person reading it is no better than an invented one.
+ * The band it was validated against was the band at GENERATION time, and the
+ * line it approved is then stored and rendered on every read after that. The
+ * bands move. A surplus that crosses from "over $4k a month" down to "$500 to
+ * $1.5k" leaves the sentence on the page asserting a figure that is no longer
+ * true of the person reading it, and nothing revalidates it, because the whole
+ * point of a stored path is that it is not regenerated on a read.
+ *
+ * A stored line therefore has to be true whenever it is read, and the only
+ * lines with that property are the ones that state no figure. Which is the
+ * prompt's own rule, so this is the guard finally matching it. Nothing is lost
+ * that the page does not already say: every figure a step has is on the card
+ * beside this line, recomputed on every read.
  */
-function statesAFigureNobodySent(reason: string, sent: string[]): boolean {
-  const residue = sent.reduce((line, band) => line.replaceAll(band, ' '), reason.toLowerCase());
-  return HAS_FIGURE.test(residue) || SPELLS_A_FIGURE.test(residue);
+function statesAFigure(reason: string): boolean {
+  return HAS_FIGURE.test(reason) || SPELLS_A_FIGURE.test(reason);
 }
 
 /** House style for anything a user reads: no dashes, middots or semicolons. */
@@ -525,8 +575,49 @@ const REASON_HAS_BANNED_PUNCTUATION = /[\u2014\u2013\u00b7;]/;
  * debt typically carries terms that reward earlier attention" is a claim about
  * this account's borrowing on an account whose rate it was never given.
  */
-const REASON_CLAIMS_A_RATE =
-  /\b(?:high|higher|highest|low|lower|lowest|steep|punishing)[- ](?:interest|rate|apr|cost)|\b(?:expensive|costly|pricey|terms)\b/i;
+const REASON_CLAIMS_A_RATE = new RegExp(
+  [
+    '\\b(?:high|higher|highest|low|lower|lowest|steep|punishing)[- ](?:interest|rate|apr|cost)',
+    '\\b(?:expensive|costly|pricey)\\b',
+    // "Terms" only where the borrowing is being said to HAVE them, which is the
+    // claim. A bare `\\bterms\\b` also caught the ordinary sense, so a line
+    // saying a step happens on the reader's own terms was dropped for a claim
+    // it never made.
+    '\\b(?:carr(?:y|ies|ied|ying)|comes?\\s+with|came\\s+with|has|have|had|offers?)\\b[^.]{0,24}\\bterms\\b',
+    '\\b(?:favou?rable|unfavou?rable|better|worse|good|bad|poor|punishing|harsh|generous|steep|attractive)\\s+terms\\b',
+  ].join('|'),
+  'i',
+);
+
+/**
+ * A line claiming an ABSOLUTE place in the sequence, which the model is in no
+ * position to know.
+ *
+ * It orders the list it was given, and that list is not the path. Balances are
+ * held out of it and woven back in at the positions their own rates put them
+ * in, so anything the model calls the end of the path can have four debt steps
+ * under it. One household read "This comes last because you open it once
+ * contribution limits are reached" on step 10 of 14.
+ *
+ * The same shape as the rate guard, and there for the same reason: a stored
+ * line has to be true whenever it is READ, and this one was not even true when
+ * it was written. A relative claim survives the weave, because whatever ends up
+ * above a step is still above it. An absolute one cannot.
+ */
+const REASON_CLAIMS_AN_ABSOLUTE_POSITION = new RegExp(
+  [
+    // "This comes last", "That step is first", "..., and it sits last."
+    // Anchored to the head of a clause on purpose: a line is allowed to say
+    // that the work ABOVE a step comes first, which is a relative claim and
+    // survives the weave. Only the step talking about ITSELF is the problem.
+    '(?:^|[,.]\\s+)(?:this|it|that)\\s+(?:step\\s+)?(?:comes?|sits?|goes|stays?|lands?|belongs?|is|ranks?)\\s+(?:dead\\s+)?(?:last|first)\\b',
+    '\\bnothing\\s+(?:comes?|goes|sits?|follows?)\\s+after\\s+(?:this|it)\\b',
+    '\\bcloses?\\s+(?:out\\s+)?(?:the|your)\\s+(?:path|plan|sequence)\\b',
+    '\\bat\\s+the\\s+(?:very\\s+)?(?:end|bottom)\\s+of\\s+(?:the|your)\\s+(?:path|plan|sequence|list)\\b',
+    '\\b(?:the\\s+)?(?:final|last)\\s+step\\s+(?:on|of|in)\\s+(?:the|your)\\s+(?:path|plan|sequence|list)\\b',
+  ].join('|'),
+  'i',
+);
 const REASON_MAX_LENGTH = 220;
 
 /**
@@ -534,21 +625,24 @@ const REASON_MAX_LENGTH = 220;
  * not on the path at all.
  *
  * A reason is dropped rather than repaired, because both places read correctly
- * without one. Four things disqualify one: a figure this household's payload
- * never sent, which would be a figure the model decided, punctuation the
- * product does not write in, a length past one sentence, and a claim about what
- * a balance costs on an account that reports no rate. The last one is the one a
- * user would catch: the card already says twice that the rate is unknown, so a
- * line in between calling the same balance expensive contradicts the two
- * sentences around it.
+ * without one. Five things disqualify one: any figure, punctuation the product
+ * does not write in, a length past one sentence, a claim about what borrowing
+ * costs, and a claim to an absolute place in the sequence.
+ *
+ * The rate test runs on EVERY line, not just a debt step's, and not just one
+ * whose account reports no rate. It used to fire on `apr === null`, which is a
+ * fact about our data rather than about what the model was told, so a 2.5%
+ * mortgage could be called high interest purely because that account happened
+ * to have a rate on file. The invariant the guard actually protects is that the
+ * model is never sent a rate for anything, which is true of every line it
+ * writes, so the guard belongs on every line it writes.
  */
-function reasonIsUsable(reason: string, candidate: PathCandidate, sent: string[]): boolean {
+function reasonIsUsable(reason: string): boolean {
   if (reason.length === 0 || reason.length > REASON_MAX_LENGTH) return false;
-  if (statesAFigureNobodySent(reason, sent)) return false;
+  if (statesAFigure(reason)) return false;
   if (REASON_HAS_BANNED_PUNCTUATION.test(reason)) return false;
-  if (candidate.kind === 'debt' && candidate.debt!.apr === null) {
-    return !REASON_CLAIMS_A_RATE.test(reason);
-  }
+  if (REASON_CLAIMS_A_RATE.test(reason)) return false;
+  if (REASON_CLAIMS_AN_ABSOLUTE_POSITION.test(reason)) return false;
   return true;
 }
 
@@ -589,28 +683,38 @@ export interface ValidatedOrder {
 export function validateOrder(
   proposed: ProposedOrder | null,
   candidates: PathCandidate[],
-  /** The household the payload described, so a line can be read against it. */
-  ctx: PathContext,
+  /**
+   * Keys this generation may NOT leave out, because the person has already
+   * answered for them: put back, ticked done, or set aside. Empty on a first
+   * path, and empty for every caller that is not `generatePath`.
+   */
+  mustInclude: ReadonlySet<string> = new Set(),
 ): ValidatedOrder {
-  const byKey = new Map(candidates.map((c) => [c.key, c]));
+  const orderable = orderableCandidates(candidates);
+  const byKey = new Map(orderable.map((c) => [c.key, c]));
   const taken = new Set<string>();
-  const ordered: PlacedCandidate[] = [];
-  const sent = sentBands(ctx);
+  const placed: PlacedCandidate[] = [];
+  // One sentence, once. Three balances came back with a byte-identical line
+  // between them, and a reader going down the list reads the same excuse three
+  // times. The first keeps it and the rest fall back to the page's own wording.
+  const written = new Set<string>();
 
   const place = (step: ProposedStep, into: PlacedCandidate[]) => {
     const candidate = byKey.get(step?.key);
     if (!candidate || taken.has(candidate.key)) return;
     taken.add(candidate.key);
     const reason = (step.reason ?? '').trim();
-    into.push({ candidate, reason: reasonIsUsable(reason, candidate, sent) ? reason : '' });
+    const usable = reasonIsUsable(reason) && !written.has(reason.toLowerCase());
+    if (usable) written.add(reason.toLowerCase());
+    into.push({ candidate, reason: usable ? reason : '' });
   };
 
-  for (const step of proposed?.steps ?? []) place(step, ordered);
+  for (const step of proposed?.steps ?? []) place(step, placed);
 
   // Nothing survived, so there is no model path to persist. The deterministic
   // rail is every candidate, in the order they were emitted: a response we
   // could not read is not a judgement that anything should be left out.
-  if (ordered.length === 0) {
+  if (placed.length === 0) {
     return {
       ordered: candidates.map((candidate) => ({ candidate, reason: '' })),
       leftOut: [],
@@ -618,13 +722,153 @@ export function validateOrder(
     };
   }
 
-  const leftOut: PlacedCandidate[] = [];
-  for (const step of proposed?.leftOut ?? []) place(step, leftOut);
-  for (const candidate of candidates) {
-    if (!taken.has(candidate.key)) leftOut.push({ candidate, reason: '' });
+  const omitted: PlacedCandidate[] = [];
+  for (const step of proposed?.leftOut ?? []) place(step, omitted);
+  for (const candidate of orderable) {
+    if (!taken.has(candidate.key)) omitted.push({ candidate, reason: '' });
   }
 
-  return { ordered, leftOut, source: 'model' };
+  // Two kinds of omission cannot stand.
+  //
+  // A key the person has answered for is theirs, and a later generation does
+  // not get to overrule them.
+  //
+  // A candidate carrying `coversStep` SUPPRESSED a built-in step by standing in
+  // for it, so leaving it out takes both off the path at once. A household with
+  // an emergency-fund goal had no emergency-fund step, because the goal covers
+  // it, and then the goal itself was left out with nothing said about it: the
+  // page showed no emergency fund anywhere and the line under the goal read
+  // that the plan did not place it. Neither is a state a path may reach, so the
+  // substitute is reinstated rather than the built-in step being restored,
+  // because the person chose the goal's months and its target and theirs is the
+  // more specific number.
+  const reinstate = (o: PlacedCandidate) =>
+    mustInclude.has(o.candidate.key) || o.candidate.coversStep !== undefined;
+  const reinstated = new Set(omitted.filter(reinstate).map((o) => o.candidate.key));
+  const leftOut = omitted.filter((o) => !reinstate(o));
+
+  return {
+    ordered: rateBeforeRetirement(urgentDebtFirst(weave(candidates, placed, reinstated))),
+    leftOut,
+    source: 'model',
+  };
+}
+
+/**
+ * The final sequence: the model's order threaded through the positions that
+ * were not its to choose.
+ *
+ * `candidates` arrives in the DETERMINISTIC order, which is the worked-out one:
+ * tier by tier, with each balance sitting at the tier its own APR band puts it
+ * in. Walking it and emitting the fixed steps where they fall, while every
+ * other slot takes the next step the model chose, is what "the model orders
+ * everything else around the fixed positions" means in code.
+ *
+ * Two kinds of step are fixed. A balance, always, because payoff order is
+ * computed rather than judged. And a step the model omitted that is being put
+ * back, which has no placement line and so no position of the model's choosing
+ * to honour. Those used to go on the END of the sequence, which is the position
+ * least likely to be right for a step somebody had explicitly asked to keep.
+ * Its deterministic slot is a worked-out answer, and it is the same answer the
+ * whole path falls back to when there is no model order at all.
+ *
+ * What this preserves is each fixed step's INDEX among the slots, which is not
+ * the same as its rank against the steps around it. The slots above a balance
+ * take the model's first few steps whatever those are, so a balance above 15%
+ * could land under the brokerage step while its own card said money put there
+ * beats money invested. `urgentDebtFirst` below is what closes that gap.
+ */
+function weave(
+  candidates: PathCandidate[],
+  placed: PlacedCandidate[],
+  reinstated: ReadonlySet<string>,
+): PlacedCandidate[] {
+  const isFixed = (c: PathCandidate) => !modelOrders(c) || reinstated.has(c.key);
+  const ordered: PlacedCandidate[] = [];
+  let next = 0;
+  for (const candidate of candidates) {
+    if (isFixed(candidate)) ordered.push({ candidate, reason: '' });
+    else if (next < placed.length) ordered.push(placed[next++]);
+  }
+  return ordered;
+}
+
+/**
+ * The steps whose entire argument is compounding, and which a balance above
+ * `DEBT_URGENT_ABOVE` therefore beats outright.
+ *
+ * Named by key rather than by tier because that is what the page shows. Each
+ * one is emitted at a tier below the urgent debt band already, so this is the
+ * deterministic rail's own answer, held to after the weave.
+ */
+const AFTER_URGENT_DEBT = new Set([
+  'max-contributions',
+  'taxable-brokerage',
+  'financial-independence',
+]);
+
+/**
+ * The one ordering claim the page makes out loud, enforced rather than hoped
+ * for: a balance whose rate beats the market sits above the steps that only
+ * compound.
+ *
+ * The weave holds each balance's INDEX, not its rank, so under a model order
+ * that opened on the compounding steps an urgent balance landed below them
+ * about half the time, next to its own copy saying the opposite. Anything that
+ * ended up above the last urgent balance and belongs below it is moved down to
+ * just after it, in the order the model put them in. Nothing else moves, so the
+ * model's sequence survives everywhere the claim is not at stake.
+ */
+function urgentDebtFirst(ordered: PlacedCandidate[]): PlacedCandidate[] {
+  let lastUrgent = -1;
+  ordered.forEach((o, at) => { if (isUrgentDebt(o.candidate)) lastUrgent = at; });
+  if (lastUrgent < 0) return ordered;
+
+  const above = ordered.slice(0, lastUrgent + 1);
+  const misplaced = above.filter((o) => AFTER_URGENT_DEBT.has(o.candidate.key));
+  if (misplaced.length === 0) return ordered;
+
+  return [
+    ...above.filter((o) => !AFTER_URGENT_DEBT.has(o.candidate.key)),
+    ...misplaced,
+    ...ordered.slice(lastUrgent + 1),
+  ];
+}
+
+/**
+ * The steps that are only reached, never worked at: being ready to retire, and
+ * the independence that is the same portfolio carried further.
+ */
+const RETIREMENT_OUTCOMES = new Set(['financial-independence']);
+
+function isRetirementOutcome(candidate: PathCandidate): boolean {
+  return RETIREMENT_OUTCOMES.has(candidate.key) || candidate.coversStep === 'financial-independence';
+}
+
+/**
+ * The savings rate sits above the retirement outcomes, always.
+ *
+ * The rate is the LEVER and readiness is the READING. Ordered the other way
+ * round the page tells somebody to raise what they keep after it has already
+ * told them they are retirement ready, at which point the instruction has
+ * nothing left to change: the outcome it was there to move has been reached and
+ * the step below it reads as busywork. Every dollar of the rate acts through
+ * the outcomes above, so it cannot be placed after them and still be an action.
+ *
+ * The model gets no say in this one. It is a dependency between two steps, not
+ * a judgement about a household, and it held right on its own only sometimes.
+ * Everything either side of the pair keeps the order the model chose.
+ */
+function rateBeforeRetirement(ordered: PlacedCandidate[]): PlacedCandidate[] {
+  const rate = ordered.findIndex((o) => o.candidate.key === 'savings-rate');
+  if (rate < 0) return ordered;
+
+  const outcome = ordered.findIndex((o) => isRetirementOutcome(o.candidate));
+  if (outcome < 0 || outcome > rate) return ordered;
+
+  const moved = ordered[rate];
+  const rest = ordered.filter((_, at) => at !== rate);
+  return [...rest.slice(0, outcome), moved, ...rest.slice(outcome)];
 }
 
 // ── Fingerprint ──────────────────────────────────────────────────────────────
@@ -654,6 +898,21 @@ export function validateOrder(
  * cash, invested totals, exact balances, exact spend. Those decide the figures
  * on each card, which are recomputed on every read anyway, and they move
  * every day.
+ *
+ * CHANGING WHAT THIS DIGESTS INVALIDATES EVERY STORED PATH. The digest is
+ * compared, not versioned, so a release that alters its shape makes every
+ * active row mismatch on its first read: one paid ordering call per active
+ * tenant, and every sequence rebuilt. That is the cost of the key list below,
+ * and it is also load bearing here. It is what heals the `left_out` rows the
+ * old carry-forward bug wrote, because `storedPath` does not heal them on a
+ * read, only a regeneration does. Weigh both before touching this.
+ *
+ * The candidate KEYS in deterministic order go in alongside the payload, and
+ * carry the half of the order the payload no longer describes. Balances are not
+ * in the payload at all now, so on the payload alone a mortgage opening or a
+ * card being cleared changed nothing, the digest still matched, and the path
+ * was never rebuilt for either. The key list is where a balance appearing,
+ * disappearing, or moving between APR bands shows up.
  */
 export function pathFingerprint(
   ctx: PathContext,
@@ -661,7 +920,12 @@ export function pathFingerprint(
   readiness: PathReadiness | null,
 ): string {
   return createHash('sha256')
-    .update(JSON.stringify(buildOrderPayload(candidates, ctx, readiness)))
+    .update(
+      JSON.stringify({
+        payload: buildOrderPayload(candidates, ctx, readiness),
+        sequence: candidates.map((c) => c.key),
+      }),
+    )
     .digest('hex');
 }
 
@@ -696,6 +960,8 @@ export interface StoredPath {
   inputsFingerprint: string;
   /** Why it is already due to be replaced, parked by whatever knew. */
   pendingReason: PathGenerationReason | null;
+  /** Who chose this order. `deterministic` when no model call decided it. */
+  orderSource: PathOrderSource;
   steps: StoredStep[];
 }
 
@@ -723,6 +989,12 @@ export interface PathOrder {
   /** When this order was chosen, and what caused it to be. */
   generatedAt: Date;
   reason: PathGenerationReason;
+  /**
+   * Who chose this order. The page says which, because on a deterministic path
+   * nothing weighed this household at all, and telling somebody their order was
+   * chosen for their situation when it was the fallback rail is simply false.
+   */
+  orderSource: PathOrderSource;
 }
 
 /**
@@ -760,6 +1032,7 @@ export async function readActivePath(
     reason: isGenerationReason(path.reason) ? path.reason : 'no_active_path',
     inputsFingerprint: path.inputsFingerprint,
     pendingReason: isGenerationReason(path.pendingReason) ? path.pendingReason : null,
+    orderSource: path.orderSource === 'model' ? 'model' : 'deterministic',
     steps: rows.map((r) => {
       // A row nobody has ever said anything about: not marked, nothing written
       // on it, and no moment it was marked at. That is where what they recorded
@@ -810,7 +1083,10 @@ export async function readPathSteps(tenantId: string): Promise<PathStepRef[]> {
   const stored = await readActivePath(tenantId);
   if (!stored) return [];
   const onPath = stored.steps.filter(
-    (s) => s.mark !== 'not_applicable' && s.mark !== 'left_out',
+    // A retired key names no step this product builds any more, so it is not a
+    // step on anybody's path and it has no title to give. `storedPath` drops
+    // the same rows, which is what the path page counts.
+    (s) => s.mark !== 'not_applicable' && s.mark !== 'left_out' && isLiveStepKey(s.key),
   );
 
   const accountIds = onPath.filter((s) => s.key.startsWith('debt:')).map((s) => s.key.slice(5));
@@ -921,13 +1197,22 @@ export function storedPath(
     // Placement lines only. A left-out row's `reason` says why the step is NOT
     // on the path, and it travels with that step rather than as the line under
     // a card that does not exist.
+    //
+    // And run past the guard again on the way out, not only on the way in. A
+    // stored line has to be true whenever it is READ, which is the rule the
+    // guard exists to keep, and a path is not regenerated on a read: a line
+    // the guard learns to catch would otherwise stay on the page until
+    // something unrelated moved the fingerprint. Nothing that passed at
+    // generation time fails here, so this costs a stored path nothing and
+    // heals every one of them the moment the guard is tightened.
     reasons: new Map(
       stored.steps
-        .filter((s) => s.reason && s.mark !== 'left_out')
+        .filter((s) => s.reason && s.mark !== 'left_out' && reasonIsUsable(s.reason))
         .map((s) => [s.key, s.reason]),
     ),
     generatedAt: stored.generatedAt,
     reason: stored.reason,
+    orderSource: stored.orderSource,
   };
 }
 
@@ -968,6 +1253,24 @@ export async function markPathStep(
     columns: { id: true },
   });
   if (!path) return false;
+
+  // First, and only while the row still says what it was: a `left_out` row's
+  // `reason` is the model's line for keeping the step OFF the path, and the
+  // person is about to overrule it. Left in place, `storedPath` reads it back
+  // as a placement line the moment the mark is no longer `left_out`, and the
+  // step renders on the path under "Why it sits here" with the sentence saying
+  // why it is not on it. Nothing later clears it either: a put-back
+  // deliberately never regenerates, so the window has no end.
+  await db
+    .update(financialPathSteps)
+    .set({ reason: '' })
+    .where(
+      and(
+        eq(financialPathSteps.pathId, path.id),
+        eq(financialPathSteps.candidateKey, key),
+        eq(financialPathSteps.status, 'left_out'),
+      ),
+    );
 
   const updated = await db
     .update(financialPathSteps)
@@ -1113,7 +1416,6 @@ export async function generatePath(
     const proposed = aliasMap
       ? await proposeOrder(tenantId, aliasMap, candidates, ctx, readiness)
       : null;
-    const { ordered: placed, leftOut: omitted, source } = validateOrder(proposed, candidates, ctx);
 
     // What the person said about each step, carried forward by key. A step they
     // ticked done or took off the path stays that way through a reshuffle: the
@@ -1134,14 +1436,13 @@ export async function generatePath(
     // The person's own word outranks the model's omission. A step they put back,
     // ticked done, or took off the path is a step they have answered for, and a
     // later generation does not get to overrule any of those answers: it may
-    // leave out only a step nobody has ever said anything about.
-    //
-    // Overruled steps go on the END of the sequence. The model wrote no
-    // placement line for a step it did not place, so there is no position of
-    // its choosing to honour and nothing for it to say about one.
-    const overruled = omitted.filter((o) => personSpokeFor(carried.get(o.candidate.key)));
-    const leftOut = omitted.filter((o) => !personSpokeFor(carried.get(o.candidate.key)));
-    const ordered = [...placed, ...overruled.map((o) => ({ candidate: o.candidate, reason: '' }))];
+    // leave out only a step nobody has ever said anything about. Handed to
+    // `validateOrder`, so such a step is put back at its deterministic position
+    // rather than appended behind everything else.
+    const spokenFor = new Set(
+      [...carried.keys()].filter((key) => personSpokeFor(carried.get(key))),
+    );
+    const { ordered, leftOut, source } = validateOrder(proposed, candidates, spokenFor);
 
     const notApplicable = ordered
       .map((o) => o.candidate)
@@ -1190,20 +1491,36 @@ export async function generatePath(
         ...leftOut.map(({ candidate, reason }) => ({ candidate, reason, onPath: false })),
       ].map(({ candidate, reason: line, onPath }, index) => {
         const was = carried.get(candidate.key);
+        // `left_out` is not a mark the PERSON can make: it is the previous
+        // generation's own omission, and this generation has just placed the
+        // step in the sequence, which supersedes it. Carrying it forward stored
+        // a step that IS on the path as off it, `storedPath` filtered it
+        // straight back off, and nothing could rescue it, because a left-out
+        // row stores no `statusAt` and so never reads as one the person spoke
+        // for. Two households lost a student loan and a car loan that way, each
+        // shown under "not on your path" beneath a sentence saying when to pay
+        // it. Every other mark is the person's own and carries forward as it is.
+        const held = was && was.mark !== 'left_out' ? was : undefined;
         return {
           pathId: path.id,
           tenantId,
           position: index,
           candidateKey: candidate.key,
           reason: line,
-          status: onPath ? was?.mark ?? ('pending' as const) : ('left_out' as const),
+          status: onPath ? held?.mark ?? ('pending' as const) : ('left_out' as const),
+          // `was`, not `held`: the note is the only field the `left_out` test
+          // does not gate, and deliberately. A mark is a judgement this
+          // generation supersedes, but a note is the person's own sentence
+          // about the step, and a `left_out` row can hold one (they wrote it,
+          // then a later generation left the step out around it). Dropping it
+          // for that would destroy their words to tidy up ours.
           note: was?.note ?? '',
-          statusAt: onPath ? was?.markedAt ?? null : null,
+          statusAt: onPath ? held?.markedAt ?? null : null,
         };
       }),
     );
 
-    return { steps, notApplicable, leftOut, reasons, generatedAt, reason };
+    return { steps, notApplicable, leftOut, reasons, generatedAt, reason, orderSource: source };
   });
 }
 

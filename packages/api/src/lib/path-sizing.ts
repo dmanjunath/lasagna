@@ -1,14 +1,26 @@
+import { RETIREMENT_INCOME_MULTIPLE } from '@lasagna/core';
 import type { PathContext } from './path-context.js';
 import type { PathStepMark } from './path-generator.js';
 import {
+  ASSUMED_SPEND_SHARE_OF_INCOME,
+  CONTRIBUTION_TAX_YEAR,
   type PathCandidate,
+  type PathStepKind,
+  type RetirementCurve,
   SAVINGS_RATE_BENCHMARK,
+  contributionLimits,
   emergencyFundMonths,
   fiAnnualExpenses,
   fiTarget,
-  savingsRateTarget,
+  hasSpendHistory,
+  savingsRateMeasure,
   taxAdvantagedChoice,
 } from './path-candidates.js';
+
+// Re-exported from where it now lives: `buildPathCandidates` has to ask whether
+// there is any room before it emits a step about filling it, and a step that
+// prices the room has to read the same answer.
+export { contributionLimits };
 
 /**
  * What each step costs, where it stands, and when it lands.
@@ -70,23 +82,97 @@ function readableMonth(isoDate: string): string {
   });
 }
 
-/** Annual tax-advantaged contribution room, by age. */
-export function contributionLimits(age: number | null, hasHDHP: boolean | null) {
-  const years = age ?? 0;
-  const rothMax = years >= 50 ? 8000 : 7000;
-  const k401Max = years >= 60 && years <= 63 ? 34750 : years >= 50 ? 31000 : 23500;
-  const hsaMax = hasHDHP === true ? 4300 + (years >= 55 ? 1000 : 0) : 0;
-  return { rothMax, k401Max, hsaMax, total: rothMax + k401Max + hsaMax };
+/** The monthly spend an emergency fund is priced from. Our own share of income when there is no history. */
+function emergencyFundBasis(ctx: PathContext): number {
+  const spend = ctx.stableMonthlyExpenses ?? ctx.monthlyExpenses;
+  if (spend !== null && spend > 0) return spend;
+  return ctx.annualIncome > 0 ? (ctx.annualIncome / 12) * ASSUMED_SPEND_SHARE_OF_INCOME : 0;
 }
 
-/** The emergency-fund target: months of the stable spend figure, or 70% of income when there is no spend history. */
+/** The emergency-fund target: months of the figure above. */
 export function emergencyFundTarget(ctx: PathContext): number {
-  const months = emergencyFundMonths(ctx.employmentType);
-  const spend = ctx.stableMonthlyExpenses ?? ctx.monthlyExpenses;
-  const base = spend !== null && spend > 0
-    ? spend
-    : ctx.annualIncome > 0 ? (ctx.annualIncome / 12) * 0.7 : 0;
-  return base * months;
+  return emergencyFundBasis(ctx) * emergencyFundMonths(ctx.employmentType);
+}
+
+/**
+ * A step whose target is a MONTHLY RATE rather than a pot to fill.
+ *
+ * Two things follow from it, and both are why this is one named predicate
+ * rather than a test repeated in three files.
+ *
+ * It never takes the "you are here" pointer. `currentStepKey` is the first step
+ * that is not complete, and a rate is a standing condition that can sit short
+ * for years: the retirement gap in particular is BY CONSTRUCTION the smallest
+ * contribution that clears the threshold, so it is always above what is going
+ * in and can never read complete. Whichever of these came first therefore held
+ * the pointer permanently, and because the page renders an instruction only on
+ * the step you are standing on, every step below it was silent.
+ *
+ * And it renders its instruction anyway. Losing the pointer would otherwise
+ * silence the rate step itself, which is the one place its number is an order
+ * rather than a reading.
+ */
+export function isRateShaped(kind: PathStepKind): boolean {
+  return kind === 'savings-rate';
+}
+
+/**
+ * A step whose target IS the retirement portfolio.
+ *
+ * Only one of the two is ever on a path: a `retirement` goal takes the
+ * independence step's place. Both aim at the pot the readiness simulation
+ * projects, so both take their date from that simulation and neither may fall
+ * back to the waterfall's. Straight-lining $4,998,000 at $11,071 a month put
+ * one household's retirement in 2068, on a page whose own verdict said they
+ * were on track to retire at 58, because the arithmetic credited no growth to
+ * the $1,252,000 already invested or to any dollar added after it.
+ */
+function isRetirementPot(step: PathCandidate): boolean {
+  return (
+    step.kind === 'independence' ||
+    (step.kind === 'goal' && step.goal!.category === 'retirement')
+  );
+}
+
+/**
+ * The first age the simulation's median path is worth at least `target`, and
+ * how far off that is. Null when it never gets there inside the plan horizon,
+ * which is not a date we have.
+ */
+function medianCrosses(
+  curve: RetirementCurve,
+  target: number,
+): { age: number; months: number } | null {
+  const index = curve.median.findIndex((balance) => balance >= target);
+  return index === -1 ? null : { age: curve.currentAge + index, months: index * 12 };
+}
+
+/**
+ * How far a retirement goal's own pricing may sit from what this household
+ * spends before the two are worth telling apart. Inside it the goal IS their
+ * spending at the 4% rule, and a sentence saying otherwise tells them nothing.
+ */
+const RETIREMENT_PRICING_GAP = 0.1;
+
+/**
+ * The disclosure a retirement goal owes when its target buys a different
+ * retirement from the one the page's verdict is run on.
+ *
+ * The verdict answers "can you stop working at 58", priced off what this
+ * household spends. The target is a pot the person set, and at the 4% rule it
+ * buys whatever income it buys. Where those are not the same retirement, the
+ * page carries two readings of one event with nothing saying they answer
+ * different questions.
+ */
+function retirementPricingNote(target: number, ctx: PathContext): string[] {
+  const theirOwnSpending = fiTarget(ctx);
+  if (!(theirOwnSpending > 0)) return [];
+  if (Math.abs(target - theirOwnSpending) <= theirOwnSpending * RETIREMENT_PRICING_GAP) return [];
+  return [
+    // The pot figure is already on the card twice. What is NOT anywhere on it
+    // is the income that pot was priced to buy, which is the whole difference.
+    `This target buys ${usd(target / RETIREMENT_INCOME_MULTIPLE)} a year at the 4% rule. The retirement verdict on this page runs on what you spend now instead, so the two are not pricing the same retirement.`,
+  ];
 }
 
 // ── The measured position of one step, before funding ─────────────────────────
@@ -104,6 +190,22 @@ interface Measure {
   monthlyCap: number | null;
   /** A step that recurs every year rather than finishing on a date. */
   recurring: boolean;
+}
+
+/**
+ * The disclosure a step priced in months of spending owes when there is no
+ * spending to price it from.
+ *
+ * Both steps that use it went on calling the figure "your expenses" and "the
+ * $X a year you spend" when it was a flat 70% of income we picked. Every other
+ * estimate on this page announces itself, and an assumption stated back to
+ * somebody as their own figure is the one kind that cannot be checked.
+ */
+function assumedSpendNotes(ctx: PathContext): string[] {
+  if (hasSpendHistory(ctx) || ctx.annualIncome <= 0) return [];
+  return [
+    `We have no spending history for you yet, so this is priced at ${Math.round(ASSUMED_SPEND_SHARE_OF_INCOME * 100)}% of your income. Link a spending account and it is priced from what you actually spend.`,
+  ];
 }
 
 function towardTarget(current: number, target: number): Pick<Measure, 'status' | 'progress'> {
@@ -130,8 +232,13 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
         current,
         target: STARTER_BUFFER,
         remaining: short,
-        action: inCollections
+        // Two independent things gate this step, so the instruction names only
+        // the ones still outstanding. With the buffer already funded there is
+        // nothing left to save, and the sentence used to ask for $0 of it.
+        action: inCollections && short > 0
           ? `Clear what is in collections first, then save ${usd(short)} to reach the ${usd(STARTER_BUFFER)} starter fund.`
+          : inCollections
+          ? 'Clear what is in collections. Your starter fund is already there behind it.'
           : short > 0
           ? `Save ${usd(short)} more to reach the ${usd(STARTER_BUFFER)} starter fund.`
           : '',
@@ -159,7 +266,12 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
       const notes: string[] = [];
       if (facts.minimumPaymentEstimated) {
         notes.push(
-          `The ${usd(facts.minimumPayment)} minimum is our estimate. Your lender has not reported one.`,
+          facts.minimumPaymentAssumedApr !== null
+            // The one estimate on the page that was itself built on an invented
+            // figure. Saying only that the payment is an estimate hides that
+            // the rate under it is one too.
+            ? `The ${usd(facts.minimumPayment)} minimum is our estimate, worked out over 30 years at ${facts.minimumPaymentAssumedApr}% a year. Your lender has reported neither a payment nor a rate.`
+            : `The ${usd(facts.minimumPayment)} minimum is our estimate. Your lender has not reported one.`,
         );
       }
       return {
@@ -193,6 +305,7 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
       const short = Math.max(target - current, 0);
       return {
         ...base,
+        notes: assumedSpendNotes(ctx),
         status,
         progress,
         current,
@@ -202,8 +315,23 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
       };
     }
 
-    case 'protection':
-    case 'estate':
+    case 'term-life':
+      return {
+        ...base,
+        status: 'not_started',
+        progress: 0,
+        current: null,
+        target: null,
+        remaining: null,
+        // The step is offered on an unanswered question, so the instruction is
+        // the answer, the way the tax-advantaged step asks for the fields that
+        // would name an account.
+        action: ctx.dependentCount === null
+          ? 'Add your dependents in your profile, so this can be sized or taken off your path.'
+          : 'Review and mark complete when done.',
+      };
+
+    case 'will-trust':
       return {
         ...base,
         status: 'not_started',
@@ -215,10 +343,12 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
       };
 
     case 'savings-rate': {
-      const target = savingsRateTarget(ctx);
-      // What is actually being kept each month. A month that ends in the red
-      // keeps nothing, and a negative rate is not a share of the benchmark.
-      const current = Math.max(ctx.monthlySurplus ?? 0, 0);
+      // The same call the candidate builder made, so the figures under the
+      // title are the figures the title was built from and the instruction is
+      // the one the copy above it explains. Deriving either half here a second
+      // time is what let the target come off the benchmark while `current` and
+      // the wording came off the simulation.
+      const { target, current, retirementBinds } = savingsRateMeasure(ctx, step.readiness ?? null);
       const { status, progress } = towardTarget(current, target);
       const short = Math.max(target - current, 0);
       return {
@@ -231,40 +361,33 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
         // circular, so it takes no share of the waterfall and carries no date.
         remaining: null,
         action: short > 0
-          ? `Free up ${usd(short)} a month to save ${SAVINGS_RATE_BENCHMARK}% of what you earn.`
+          ? retirementBinds
+            ? `Move ${usd(short)} a month more into savings to reach ${usd(target)}.`
+            : `Free up ${usd(short)} a month to save ${SAVINGS_RATE_BENCHMARK}% of what you earn.`
           : '',
       };
     }
 
-    case 'retirement-readiness': {
-      const facts = step.readiness!;
-      const short = Math.max(facts.requiredMonthlySavings - facts.currentMonthlySavings, 0);
-      return {
-        ...base,
-        ...towardTarget(facts.currentMonthlySavings, facts.requiredMonthlySavings),
-        current: facts.currentMonthlySavings,
-        target: facts.requiredMonthlySavings,
-        // A monthly rate, not a pot to fill. Funding it out of the surplus would
-        // be circular in exactly the way the savings-rate step is, so it takes
-        // no share of the waterfall and carries no completion date.
-        remaining: null,
-        action: `Move ${usd(short)} a month more into retirement to reach ${usd(facts.requiredMonthlySavings)}.`,
-      };
-    }
-
     case 'brokerage': {
-      const funded = ctx.brokerageBalance > 0;
+      // The taxable figure, which is what this step is about. The catch-all
+      // bucket holds a traditional IRA and a crypto account too, and reading it
+      // here told somebody with neither a brokerage account nor any way to open
+      // one that they already had one.
+      const funded = ctx.taxableBrokerageBalance > 0;
       return {
         ...base,
         // How much belongs in a taxable account depends on what it is for, so
         // there is no target to measure against and no share of one to claim.
         status: funded ? 'in_progress' : 'not_started',
         progress: 0,
-        current: ctx.brokerageBalance,
+        current: ctx.taxableBrokerageBalance,
         target: null,
         remaining: null,
         action: funded
-          ? 'Keep adding to your brokerage account once this year\'s tax-advantaged room is used.'
+          // Names the year the step above it names. "This year" beside a step
+          // headed with a tax year is two labels for one deadline, and they
+          // disagree the moment the constant and the calendar do.
+          ? `Keep adding to your brokerage account once your ${CONTRIBUTION_TAX_YEAR} tax-advantaged room is used.`
           : 'Open a taxable brokerage account and set up a monthly transfer into broad index funds.',
       };
     }
@@ -286,7 +409,7 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
     }
 
     case 'contribution-limits': {
-      const { total } = contributionLimits(ctx.age, ctx.hasHDHP);
+      const { total } = contributionLimits(ctx);
       // No current/target pair: what an account HOLDS is not what was paid into
       // it this year, and we do not track contributions to date. Stating a
       // balance against an annual limit read as progress and was not one. The
@@ -302,7 +425,7 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
         remaining: total,
         monthlyCap: total / 12,
         recurring: true,
-        action: `Fill ${usd(total)} of contribution room this year across your tax-advantaged accounts.`,
+        action: `Fill ${usd(total)} of ${CONTRIBUTION_TAX_YEAR} contribution room across your tax-advantaged accounts.`,
       };
     }
 
@@ -312,6 +435,9 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
       const short = Math.max(goal.targetAmount - goal.currentAmount, 0);
       return {
         ...base,
+        // Only where a verdict is on the page to disagree with. The curve is
+        // set on the retirement goal alone, and only when the simulation ran.
+        notes: step.retirementCurve ? retirementPricingNote(goal.targetAmount, ctx) : [],
         status,
         progress,
         current: goal.currentAmount,
@@ -325,14 +451,22 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
       const target = fiTarget(ctx);
       const current = ctx.rothIraBalance + ctx.trad401kBalance + ctx.brokerageBalance + ctx.hsaBalance;
       const { status, progress } = towardTarget(current, target);
+      const annual = fiAnnualExpenses(ctx);
       return {
         ...base,
+        notes: assumedSpendNotes(ctx),
         status,
         progress,
         current,
         target,
         remaining: Math.max(target - current, 0),
-        action: `Build the portfolio to ${usd(target)}, 25 times the ${usd(fiAnnualExpenses(ctx))} a year you spend.`,
+        // "you spend" is only true of a figure read off their own spending.
+        // With no history this number is a share of their income, so the
+        // sentence states it without claiming it is theirs and the note above
+        // says where it came from.
+        action: hasSpendHistory(ctx)
+          ? `Build the portfolio to ${usd(target)}, 25 times the ${usd(annual)} a year you spend.`
+          : `Build the portfolio to ${usd(target)}, 25 times ${usd(annual)} a year.`,
       };
     }
   }
@@ -368,7 +502,7 @@ function factFor(step: PathCandidate, m: Measure): string {
   // Nothing measures the step, so there is no position to state.
   if (m.target === null || m.current === null) return '';
   // A rate is what moves each month, not a pot that has been put aside.
-  if (step.kind === 'savings-rate' || step.kind === 'retirement-readiness') {
+  if (isRateShaped(step.kind)) {
     return `${usd(m.current)} a month of the ${usd(m.target)} target.`;
   }
   return `${usd(m.current)} saved of the ${usd(m.target)} target.`;
@@ -424,6 +558,10 @@ export function sizePath(
 
     let monthlyFunding = 0;
     let projectedDate: string | null = null;
+    // The age the simulation put this step's target within reach, when a
+    // simulation is what dated it. It is what the instruction quotes, because
+    // the reading is an age and the pill beside it is an age.
+    let reachedAtAge: number | null = null;
     const notes = [...m.notes];
 
     // A fact is a property of the step, not of where the step sits, so it holds
@@ -475,6 +613,27 @@ export function sizePath(
         // left for everything below it is genuinely smaller.
         available -= share;
         if (available <= 0) blocked = true;
+      } else if (isRetirementPot(candidate)) {
+        // Dated off the simulation, never off the surplus. The pot compounds
+        // whether or not the waterfall has reached it, so the date does not
+        // turn on this step's share, and where the simulation cannot produce
+        // one there is NO date: a saving-rate figure in its place would be a
+        // number nothing on this page believes. Nothing below can be dated
+        // then either, on the same rule an over-horizon step already follows.
+        const crossing =
+          candidate.retirementCurve && m.target !== null
+            ? medianCrosses(candidate.retirementCurve, m.target)
+            : null;
+        if (crossing && crossing.months <= MAX_PROJECTION_MONTHS) {
+          projectedDate = monthsFromNow(crossing.months);
+          reachedAtAge = crossing.age;
+          // Only where the surplus is actually flowing here. The waterfall
+          // cursor is about when the MONEY frees up for the steps below, and
+          // the curve can land ahead of where the cursor already stands.
+          if (share > 0) cursor = Math.max(cursor, crossing.months);
+        } else {
+          blocked = true;
+        }
       } else if (share > 0) {
         const months = cursor + Math.ceil(m.remaining / share);
         if (months <= MAX_PROJECTION_MONTHS) {
@@ -487,7 +646,12 @@ export function sizePath(
     }
 
     if (projectedDate && !m.recurring && candidate.kind !== 'debt') {
-      action = `${action} At ${usd(monthlyFunding)} a month that is ${readableMonth(projectedDate)}.`.trim();
+      // Each date says what produced it. A monthly rate reached a pot on a
+      // rate; a retirement pot was reached by a simulation that compounds, and
+      // quoting a rate for it would name a model this figure did not come from.
+      action = reachedAtAge !== null
+        ? `${action} The retirement simulation's median path reaches it at age ${reachedAtAge}.`.trim()
+        : `${action} At ${usd(monthlyFunding)} a month that is ${readableMonth(projectedDate)}.`.trim();
     }
 
     return {

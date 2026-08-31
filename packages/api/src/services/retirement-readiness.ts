@@ -259,6 +259,18 @@ export interface PathReadiness {
   requiredMonthlySavings: number | null;
   /** The rate that saving produced, from the run that found it. */
   requiredSuccessRate: number | null;
+  /**
+   * The median projected balance of the invested pot at each age from
+   * `currentAge`. Index 0 is today, straight off the run that set the verdict.
+   *
+   * It is here because the path has to say WHEN a retirement-sized pot is
+   * reached, and this simulation has already answered it: it compounds the
+   * balance and the contributions at the household's own blended return.
+   * Dividing what is left to find by what goes in each month credits none of
+   * that growth, and put one household's retirement target 21 years further out
+   * than this same engine's verdict on the same screen.
+   */
+  medianByAge: number[];
   /** Simulations this read cost. 0 on a cache hit. */
   simRuns: number;
 }
@@ -362,7 +374,8 @@ export async function buildPathReadiness(
     return { ...hit.value, simRuns: 0 };
   }
 
-  const successRate = Math.round(runRetirementSim(inputs).successRate * 100);
+  const projection = runRetirementSim(inputs);
+  const successRate = Math.round(projection.successRate * 100);
   const verdict = verdictFor(successRate);
 
   const solved =
@@ -379,6 +392,7 @@ export async function buildPathReadiness(
     currentMonthlySavings: Math.round(inputs.monthlySavings),
     requiredMonthlySavings: solved.monthlySavings,
     requiredSuccessRate: solved.successRate,
+    medianByAge: projection.percentiles.p50,
     simRuns: 1 + solved.runs,
   };
 
