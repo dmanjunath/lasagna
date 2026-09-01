@@ -40,7 +40,38 @@ vi.mock("../db.js", () => ({
   },
 }));
 
-const { resolveDebtAccounts, resolveDebtApr } = await import("../debt-accounts.js");
+const { resolveDebtAccounts, resolveDebtApr, creditCardPaysInFull } = await import(
+  "../debt-accounts.js"
+);
+
+/** A resolved card, defaulted to one we cannot classify, for the classifier tests. */
+function card(
+  over: Partial<Awaited<ReturnType<typeof resolveDebtAccounts>>[number]> = {},
+): Awaited<ReturnType<typeof resolveDebtAccounts>>[number] {
+  return {
+    id: "card-1",
+    name: "Visa",
+    mask: "1111",
+    type: "credit",
+    subtype: null,
+    balance: 1000,
+    apr: 22,
+    minimumPayment: 25,
+    minimumPaymentEstimated: true,
+    minimumPaymentAssumedApr: null,
+    termMonths: null,
+    originationDate: null,
+    payoffDate: null,
+    propertyAccountId: null,
+    liabilitySource: "plaid",
+    liabilityLastSyncedAt: null,
+    lastUpdated: null,
+    lastStatementBalance: null,
+    lastPaymentAmount: null,
+    paidInFullMonthly: false,
+    ...over,
+  };
+}
 
 /** How many months ago, as an origination date the resolver can read. */
 function monthsAgo(months: number): string {
@@ -123,6 +154,94 @@ describe("a loan is amortised over the schedule it still has", () => {
     expect(loan.minimumPayment).toBe(412.19);
     expect(loan.minimumPaymentEstimated).toBe(false);
     expect(loan.apr).toBe(7.25);
+  });
+});
+
+describe("a card carries the last statement and last payment behind it", () => {
+  it("reads the last statement balance and last payment off card metadata", async () => {
+    const card = await resolveOne(
+      {
+        type: "credit",
+        subtype: "credit card",
+        metadata: JSON.stringify({
+          type: "credit_card",
+          lastStatementBalance: 1200,
+          lastPaymentAmount: 1200,
+        }),
+      },
+      "800",
+    );
+    expect(card.lastStatementBalance).toBe(1200);
+    expect(card.lastPaymentAmount).toBe(1200);
+  });
+
+  it("reports null for a loan, which has no statement of its own", async () => {
+    const loan = await resolveOne({ metadata: null }, "9000");
+    expect(loan.lastStatementBalance).toBeNull();
+    expect(loan.lastPaymentAmount).toBeNull();
+  });
+});
+
+describe("a card paid in full is a transactor, not a balance to plan around", () => {
+  it("calls it paid when the last payment cleared the last statement", () => {
+    expect(creditCardPaysInFull(card({ lastStatementBalance: 1200, lastPaymentAmount: 1200 }))).toBe(
+      true,
+    );
+  });
+
+  it("calls it paid when the last payment covered more than the statement", () => {
+    expect(creditCardPaysInFull(card({ lastStatementBalance: 1200, lastPaymentAmount: 1300 }))).toBe(
+      true,
+    );
+  });
+
+  it("calls it paid when the last statement owed nothing at all", () => {
+    expect(creditCardPaysInFull(card({ lastStatementBalance: 0, lastPaymentAmount: null }))).toBe(
+      true,
+    );
+  });
+
+  it("calls it a carrier when the last payment fell short of the statement", () => {
+    expect(creditCardPaysInFull(card({ lastStatementBalance: 5000, lastPaymentAmount: 200 }))).toBe(
+      false,
+    );
+  });
+
+  it("cannot tell without a statement, and does not guess", () => {
+    expect(creditCardPaysInFull(card({ lastStatementBalance: null, lastPaymentAmount: 4000 }))).toBe(
+      false,
+    );
+  });
+
+  it("cannot tell when a statement was owed but no payment is on file", () => {
+    expect(creditCardPaysInFull(card({ lastStatementBalance: 3000, lastPaymentAmount: null }))).toBe(
+      false,
+    );
+  });
+
+  it("never applies to a loan, which is not a revolving statement", () => {
+    expect(
+      creditCardPaysInFull(
+        card({ type: "loan", lastStatementBalance: 0, lastPaymentAmount: 0 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("honours a manual designation even with no statement signal on file", () => {
+    // The fallback for banks that report neither: the user says it clears.
+    expect(creditCardPaysInFull(card({ paidInFullMonthly: true }))).toBe(true);
+  });
+
+  it("honours a manual designation even when the last statement was carried", () => {
+    expect(
+      creditCardPaysInFull(
+        card({ paidInFullMonthly: true, lastStatementBalance: 5000, lastPaymentAmount: 200 }),
+      ),
+    ).toBe(true);
+  });
+
+  it("still never applies the manual designation to a loan", () => {
+    expect(creditCardPaysInFull(card({ type: "loan", paidInFullMonthly: true }))).toBe(false);
   });
 });
 

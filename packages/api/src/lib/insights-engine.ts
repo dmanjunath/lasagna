@@ -28,6 +28,27 @@ import {
   fetchAccountsWithBalances,
 } from "./account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "./goal-progress.js";
+import { statementPaidInFull } from "./debt-accounts.js";
+
+/**
+ * Whether this account is a credit card cleared in full each month. Such a card
+ * is this month's spending, not a debt, so it is left out of the debt trajectory
+ * the model reasons over — nothing may recommend paying off a balance the person
+ * already clears. Reads the transactor signal off the account's own metadata and
+ * applies the same rule the path uses. See `creditCardPaysInFull`.
+ */
+export function debtAccountPaidInFull(a: {
+  type: string;
+  metadata: Record<string, unknown> | null;
+  paidInFullMonthly?: boolean;
+}): boolean {
+  if (a.type !== "credit") return false;
+  if (a.paidInFullMonthly) return true;
+  const meta = a.metadata ?? {};
+  const stmt = typeof meta.lastStatementBalance === "number" ? meta.lastStatementBalance : null;
+  const paid = typeof meta.lastPaymentAmount === "number" ? meta.lastPaymentAmount : null;
+  return statementPaidInFull(stmt, paid);
+}
 import { readPathSteps } from "./path-generator.js";
 import {
   readHouseholdProfile,
@@ -104,6 +125,12 @@ interface FinancialSnapshot {
     monthsToPayoff: number | null;
     totalInterestRemaining: number | null;
   }>;
+  /**
+   * Credit cards cleared in full every month. The balance is this month's
+   * spending, not debt: never a payoff target. Listed so the model can name
+   * them to steer AROUND, not act on.
+   */
+  paidInFullCards: Array<{ name: string; balance: number }>;
   taxDocuments: Array<{
     documentType: string | null;
     taxYear: number | null;
@@ -580,8 +607,21 @@ async function gatherFinancialData(
   // Debt trajectory
   const debtAccounts = accountsWithBalances.filter(
     (a) =>
-      !a.excludeFromNetWorth && (a.type === "credit" || a.type === "loan")
+      !a.excludeFromNetWorth &&
+      (a.type === "credit" || a.type === "loan") &&
+      // A card paid in full each month is this month's spending, not a debt to
+      // recommend paying off. Keep it out of what the model reasons over.
+      !debtAccountPaidInFull(a)
   );
+
+  // Named so the model can steer AROUND them: these clear every month and must
+  // never be a payoff target, nor a place to move cash to "clear".
+  const paidInFullCards = accountsWithBalances
+    .filter((a) => !a.excludeFromNetWorth && a.type === "credit" && debtAccountPaidInFull(a))
+    .map((a) => ({
+      name: a.name,
+      balance: Math.abs(a.invertBalance ? -a.balance : a.balance),
+    }));
 
   const debtTrajectory = debtAccounts.map((a) => {
     const meta = a.metadata || {};
@@ -670,6 +710,7 @@ async function gatherFinancialData(
     },
     goals: goalsData,
     debtTrajectory,
+    paidInFullCards,
     taxDocuments: await (async () => {
       const docs = await db
         .select({
@@ -759,6 +800,7 @@ Apply each rule ONLY if the condition is precisely met — do NOT generate the i
 - **Max 401(k)**: If no 401k account exists or 401k balance is very low relative to income (less than 1x annual income), suggest contributing toward the $23,500/yr limit for pre-tax savings.
 - **W-4 withholding check**: ONLY if profile.employmentType is "w2". Suggest reviewing W-4 withholding — over-withholding gives the IRS an interest-free loan, under-withholding causes a surprise bill. The IRS withholding estimator takes 15 minutes. Urgency: low. Impact label: "Optimize cash flow".
 - **High-APR debt** (>7%): paying this off is a guaranteed X% return — flag if interest rate exceeds this. A debtTrajectory entry whose interestRate is null has NO rate on file: never state or imply a rate for it (not "0%", not "no interest"), never compute interest on it, and never call it high or low interest. The only honest action on such an account is to add the rate.
+- **Cards paid in full** (data field \`paidInFullCards\`): these clear in full every month, so their balance is this month's spending, NOT debt. They are deliberately absent from debtTrajectory. Never recommend paying one down, paying one off, or moving cash from checking/savings to "clear" it, and never treat its balance as interest-bearing or compute interest on it. Say nothing about them at all unless there is a genuinely different action (never a payoff one).
 - **Cash drag**: If depository + money market balances exceed 12 months of income AND there are investment accounts available, calculate the opportunity cost. Use: excess_cash = total_cash - (6 * monthly_income); opportunity_cost = excess_cash * 0.03 (3% spread between cash yield ~5% and expected market return ~8%). Show the specific dollar opportunity cost per year.
 
 ACTIVELY EVALUATE THESE CONDITIONS — the bullets above are a FLOOR, not a ceiling. The following are NOT optional ideas to consider — they are deterministic triggers you MUST CHECK, one by one, against the user's actual data (annualIncome, filingStatus, stateOfResidence, age, retirementAge, employmentType, accounts + subtypes, holdings + cost basis, debt, spending, goals, taxDocuments). For EACH trigger: evaluate its condition. WHEN the condition holds, you MUST emit the corresponding action with a specific dollar figure. WHEN it does not hold, stay silent — do not emit it and never invent eligibility. This is mandatory-when-eligible, not discretionary:

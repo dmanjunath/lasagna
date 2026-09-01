@@ -1,0 +1,1 @@
+ALTER TABLE "accounts" ADD COLUMN "paid_in_full_monthly" boolean DEFAULT false NOT NULL;

@@ -27,6 +27,9 @@ function debt(overrides: Partial<DebtAccount> & { id: string; name: string }): D
     liabilitySource: null,
     liabilityLastSyncedAt: null,
     lastUpdated: null,
+    lastStatementBalance: null,
+    lastPaymentAmount: null,
+    paidInFullMonthly: false,
     ...overrides,
   };
 }
@@ -194,6 +197,51 @@ describe('pruning — a step whose precondition is absent is never emitted', () 
       debtAccounts: [debt({ id: 'a1', name: 'Paid Card', balance: 0.4 })],
     });
     expect(buildPathCandidates(ctx).filter((c) => c.kind === 'debt')).toEqual([]);
+  });
+
+  it('leaves out a card paid in full each month, so it gets no payoff step', () => {
+    // The current balance is this month's spending, cleared by the due date, not
+    // a debt to plan around. The last payment covered the last statement, so it
+    // is off the path entirely — no step, and no due-date reminder.
+    const ctx = buildPathContextDefaults({
+      debtAccounts: [
+        debt({
+          id: 'transactor',
+          name: 'Everyday Card',
+          balance: 1800,
+          apr: 24.99,
+          lastStatementBalance: 1200,
+          lastPaymentAmount: 1200,
+        }),
+      ],
+    });
+    expect(buildPathCandidates(ctx).filter((c) => c.kind === 'debt')).toEqual([]);
+  });
+
+  it('keeps the payoff step for a card that carried its balance', () => {
+    const ctx = buildPathContextDefaults({
+      debtAccounts: [
+        debt({
+          id: 'revolver',
+          name: 'Carried Card',
+          balance: 5000,
+          apr: 24.99,
+          lastStatementBalance: 5000,
+          lastPaymentAmount: 200,
+        }),
+      ],
+    });
+    expect(keys(ctx)).toContain('debt:revolver');
+  });
+
+  it('keeps the payoff step when the card reports no statement to judge by', () => {
+    // No statement/payment on file (a manual card, or a bank that does not
+    // report them) means we cannot tell. An unknown card keeps its step rather
+    // than being dropped on a guess.
+    const ctx = buildPathContextDefaults({
+      debtAccounts: [debt({ id: 'unknown', name: 'Manual Card', balance: 3000, apr: 19.9 })],
+    });
+    expect(keys(ctx)).toContain('debt:unknown');
   });
 
   it('no employer match on file means no match step', () => {

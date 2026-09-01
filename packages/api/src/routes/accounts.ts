@@ -5,7 +5,7 @@ import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { validatePropertyLink } from "../lib/account-links.js";
 import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
-import { resolveDebtAccounts } from "../lib/debt-accounts.js";
+import { resolveDebtAccounts, creditCardPaysInFull, type DebtAccount } from "../lib/debt-accounts.js";
 import { kickOffValueEstimate, advanceValueEstimate } from "../lib/value-estimate.js";
 import { pollRealEstateValue } from "../services/fetchRealEstateValues.js";
 
@@ -144,6 +144,18 @@ accountRoutes.get("/net-worth/history", async (c) => {
 });
 
 // Get debt details for all credit/loan accounts
+/**
+ * Monthly interest across debts. A card paid in full each month accrues none:
+ * its balance is this month's spending, cleared by the due date, so counting
+ * interest on it overstates what the person actually pays.
+ */
+export function debtsMonthlyInterest(debts: DebtAccount[]): number {
+  return debts.reduce((sum, d) => {
+    if (d.apr == null || creditCardPaysInFull(d)) return sum;
+    return sum + d.balance * (d.apr / 100 / 12);
+  }, 0);
+}
+
 accountRoutes.get("/debts", async (c) => {
   const session = c.get("session");
 
@@ -168,18 +180,20 @@ accountRoutes.get("/debts", async (c) => {
     originationDate: d.originationDate,
     minimumPayment: d.minimumPayment,
     payoffDate: d.payoffDate,
+    // A card cleared in full each month. The balance is real and still owed, so
+    // it stays on the page, but it is this month's spending rather than a debt
+    // to pay down: no interest counted, no payoff framing.
+    paidInFull: creditCardPaysInFull(d),
+    // The user's own designation (distinct from paidInFull, which is also true
+    // when the bank's statement data says so). Drives the toggle's state.
+    paidInFullMonthly: d.paidInFullMonthly,
     liabilitySource: d.liabilitySource,
     liabilityLastSyncedAt: d.liabilityLastSyncedAt,
     lastUpdated: d.lastUpdated,
   }));
 
   const totalDebt = debts.reduce((sum, d) => sum + d.balance, 0);
-  const monthlyInterest = debts.reduce((sum, d) => {
-    if (d.interestRate) {
-      return sum + d.balance * (d.interestRate / 100 / 12);
-    }
-    return sum;
-  }, 0);
+  const monthlyInterest = debtsMonthlyInterest(debtAccounts);
 
   return c.json({
     debts,
@@ -492,6 +506,8 @@ accountRoutes.patch("/:id", async (c) => {
       excludeFromNetWorth: z.boolean(),
       excludeTransactions: z.boolean(),
       invertBalance: z.boolean(),
+      // The user's own "this card clears every month" designation.
+      paidInFullMonthly: z.boolean(),
       propertyAccountId: z.string().uuid().nullable(),
     })
     .partial();

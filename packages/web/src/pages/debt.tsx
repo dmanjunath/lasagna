@@ -29,6 +29,8 @@ interface DebtAccount {
   minPayoffDate: string;
   suggestedPayoffDate: string;
   payoffDate: string | null;
+  paidInFull: boolean;
+  paidInFullMonthly: boolean;
   liabilitySource: "plaid" | "manual" | null;
   liabilityLastSyncedAt: string | null;
 }
@@ -106,6 +108,7 @@ export function Debt() {
   const { openChat } = useChatStore();
   const [loading, setLoading] = useState(true);
   const [debts, setDebts] = useState<DebtAccount[]>([]);
+  const [paidInFullCards, setPaidInFullCards] = useState<DebtAccount[]>([]);
   const [totalDebt, setTotalDebt] = useState(0);
   const [hasAccounts, setHasAccounts] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -122,12 +125,11 @@ export function Debt() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; property: { id: string; name: string } | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
+      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; property: { id: string; name: string } | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; paidInFull: boolean; paidInFullMonthly: boolean; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
       api.getBalances().catch(() => ({ balances: [] })),
     ]).then(([debtResult, balanceData]) => {
       setHasAccounts(balanceData.balances.length > 0);
       const apiDebts = debtResult.debts;
-      const apiTotal = debtResult.totalDebt;
       const mapped: DebtAccount[] = apiDebts.map((d) => {
         const isMortgage = d.name?.toLowerCase().includes('mortgage');
         const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
@@ -150,14 +152,20 @@ export function Debt() {
           minPayoffDate: addMonths(minMonths),
           suggestedPayoffDate: addMonths(sugMonths),
           payoffDate: d.payoffDate ?? null,
+          paidInFull: d.paidInFull,
+          paidInFullMonthly: d.paidInFullMonthly,
           liabilitySource: d.liabilitySource ?? null,
           liabilityLastSyncedAt: d.liabilityLastSyncedAt ?? null,
         };
       });
 
       mapped.sort((a, b) => b.apr - a.apr);
-      setDebts(mapped);
-      setTotalDebt(apiTotal);
+      // A card cleared in full each month is this month's spending, not a debt
+      // to pay down: it drives none of the payoff math and is listed apart.
+      const paydown = mapped.filter((d) => !d.paidInFull);
+      setDebts(paydown);
+      setPaidInFullCards(mapped.filter((d) => d.paidInFull));
+      setTotalDebt(paydown.reduce((sum, d) => sum + d.balance, 0));
     })
     .finally(() => setLoading(false));
   }, [refreshKey]);
@@ -201,6 +209,7 @@ export function Debt() {
       ) : hasDebt ? (
         <HasDebtView
           debts={debts}
+          paidInFullCards={paidInFullCards}
           totalDebt={totalDebt}
           totalMonthlyPayment={totalMonthlyPayment}
           interestSavedVsSnowball={interestSavedVsSnowball}
@@ -213,13 +222,20 @@ export function Debt() {
           onStrategyChange={setStrategy}
           orderedDebts={orderedDebts}
           openChat={openChat}
-          editingDebt={editingDebt}
           onEditDebt={setEditingDebt}
-          onCloseModal={closeModal}
-          onLoanDetailsSaved={handleLoanDetailsSaved}
         />
+      ) : paidInFullCards.length > 0 ? (
+        <NoRevolvingDebtView cards={paidInFullCards} onEdit={setEditingDebt} />
       ) : (
         <DebtFreeView openChat={openChat} />
+      )}
+
+      {editingDebt && (
+        <LoanDetailsModal
+          debt={editingDebt}
+          onClose={closeModal}
+          onSaved={handleLoanDetailsSaved}
+        />
       )}
     </div>
   );
@@ -569,13 +585,14 @@ function AccountCard({
 // ── Has Debt View ─────────────────────────────────────────────────────────────
 
 function HasDebtView({
-  debts, totalDebt, totalMonthlyPayment, interestSavedVsSnowball,
+  debts, paidInFullCards, totalDebt, totalMonthlyPayment, interestSavedVsSnowball,
   avalancheInterest, snowballInterest,
   debtFreeDate, minOnlyDate, apr,
   strategy, onStrategyChange, orderedDebts,
-  openChat, editingDebt, onEditDebt, onCloseModal, onLoanDetailsSaved,
+  openChat, onEditDebt,
 }: {
   debts: DebtAccount[];
+  paidInFullCards: DebtAccount[];
   totalDebt: number;
   totalMonthlyPayment: number;
   interestSavedVsSnowball: number;
@@ -588,10 +605,7 @@ function HasDebtView({
   onStrategyChange: (s: 'avalanche' | 'snowball') => void;
   orderedDebts: DebtAccount[];
   openChat: (prompt: string) => void;
-  editingDebt: DebtAccount | null;
   onEditDebt: (debt: DebtAccount) => void;
-  onCloseModal: () => void;
-  onLoanDetailsSaved: () => void;
 }) {
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -775,17 +789,11 @@ function HasDebtView({
         </div>
       </section>
 
+      <PaidInFullSection cards={paidInFullCards} onEdit={onEditDebt} className="mt-11" />
+
       <section className="mt-12">
         <PageActions types="debt" />
       </section>
-
-      {editingDebt && (
-        <LoanDetailsModal
-          debt={editingDebt}
-          onClose={onCloseModal}
-          onSaved={onLoanDetailsSaved}
-        />
-      )}
     </>
   );
 }
@@ -810,6 +818,7 @@ function LoanDetailsModal({
   const [originationDate, setOriginationDate] = useState("");
   const [repaymentPlanType, setRepaymentPlanType] = useState("");
   const [purchaseApr, setPurchaseApr] = useState("");
+  const [paidInFull, setPaidInFull] = useState(debt.paidInFullMonthly);
 
   const isCredit = debt.type === "credit";
   const loanType: "mortgage" | "student_loan" | "credit_card" | "other_loan" = isCredit
@@ -849,12 +858,16 @@ function LoanDetailsModal({
         if (minPayment) body.minimumPaymentAmount = parseFloat(minPayment);
         if (originationDate) body.originationDate = originationDate;
       }
-      const hasData = Object.keys(body).length > 1;
-      if (!hasData) {
+      // The paid-in-full designation is an account flag, saved on its own so it
+      // never freezes Plaid sync the way a manual loan-detail edit does.
+      const loanDetailChanged = Object.keys(body).length > 1;
+      const paidInFullChanged = paidInFull !== debt.paidInFullMonthly;
+      if (!loanDetailChanged && !paidInFullChanged) {
         setError("Please fill in at least one field.");
         return;
       }
-      await api.patchLoanDetails(debt.id, body);
+      if (loanDetailChanged) await api.patchLoanDetails(debt.id, body);
+      if (paidInFullChanged) await api.updateAccount(debt.id, { paidInFullMonthly: paidInFull });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -867,7 +880,7 @@ function LoanDetailsModal({
     <Modal
       open
       onClose={onClose}
-      title={debt.name}
+      title={`${debt.name}${debt.mask ? ` ••${debt.mask}` : ''}`}
       description="Update loan details"
       footer={
         <>
@@ -935,10 +948,130 @@ function LoanDetailsModal({
             />
           </Field>
         )}
+        {loanType === "credit_card" && (
+          <div className="border-t border-line pt-1">
+            <Toggle
+              checked={paidInFull}
+              onChange={setPaidInFull}
+              label="Paid in full every month"
+              description="Keeps this card off your payoff plan and out of interest totals. Turn on if you clear the statement balance each month."
+            />
+          </div>
+        )}
 
         {error && <p className="text-[12px] font-semibold text-negative">{error}</p>}
       </form>
     </Modal>
+  );
+}
+
+// ── Paid-in-full cards — balances cleared every month, outside the payoff plan ─
+// Listed because they are real balances owed now, but kept apart from the payoff
+// math: no APR, no interest, no attack order. A transactor's balance is this
+// month's spending, not a debt to eliminate.
+
+function PaidInFullSection({
+  cards, onEdit, className,
+}: {
+  cards: DebtAccount[];
+  onEdit?: (debt: DebtAccount) => void;
+  className?: string;
+}) {
+  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
+  const editable = onEdit && !isDemo;
+  if (cards.length === 0) return null;
+  return (
+    <section className={className}>
+      <div className="flex items-center gap-2.5 pb-1">
+        <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Paid in full</h2>
+        <span className="ml-auto text-[10.5px] font-bold uppercase tracking-[0.14em] text-content-muted">
+          {cards.length} card{cards.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      <p className="max-w-[60ch] pb-3.5 text-[13px] leading-[1.5] text-content-muted">
+        These clear every month, so they sit outside your payoff plan and cost no interest.
+      </p>
+      <ul className="flex flex-col gap-2">
+        {cards.map((d) => (
+          <li key={d.id} className="flex items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-3.5 py-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-secondary">
+              <CreditCard size={16} />
+            </span>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="truncate font-semibold text-content">{d.name}</span>
+              {d.mask && <span className="shrink-0 font-semibold text-content-muted">••{d.mask}</span>}
+              {d.liabilitySource === 'plaid' && <Badge tone="brand" size="sm">Synced</Badge>}
+            </div>
+            <div className="shrink-0 text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-content ui-tnum">
+              {formatCurrency(d.balance)}
+            </div>
+            {editable && (
+              <button
+                type="button"
+                onClick={() => onEdit(d)}
+                aria-label={`Edit ${d.name}${d.mask ? ` ••${d.mask}` : ''}`}
+                className="ui-focus grid h-11 w-11 shrink-0 place-items-center rounded-ui-sm border border-line text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ── No Revolving Debt View — every card clears each month, nothing to pay down ─
+
+function NoRevolvingDebtView({ cards, onEdit }: { cards: DebtAccount[]; onEdit: (debt: DebtAccount) => void }) {
+  return (
+    <>
+      <DebtHeader tags={<Badge tone="positive">No debt to pay down</Badge>} />
+      <PaidInFullSection cards={cards} onEdit={onEdit} className="mt-8" />
+      <section className="mt-12">
+        <PageActions types="debt" />
+      </section>
+    </>
+  );
+}
+
+// ── Toggle — the design-system switch, matching the account settings idiom ─────
+
+function Toggle({
+  checked, onChange, label, description,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className="ui-focus flex w-full items-start gap-3 text-left"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-semibold text-content">{label}</span>
+        <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">{description}</span>
+      </span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          'relative mt-0.5 h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-150 ease-ui',
+          checked ? 'bg-brand' : 'bg-line-strong',
+        )}
+      >
+        <span
+          className="absolute top-[2px] h-[18px] w-[18px] rounded-full bg-panel shadow-ui-sm transition-[left] duration-150 ease-ui"
+          style={{ left: checked ? 18 : 2 }}
+        />
+      </span>
+    </button>
   );
 }
 

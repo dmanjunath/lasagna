@@ -329,6 +329,8 @@ export const api = {
         originationDate: string | null;
         minimumPayment: number;
         payoffDate: string | null;
+        paidInFull: boolean;
+        paidInFullMonthly: boolean;
         liabilitySource: "plaid" | "manual" | null;
         liabilityLastSyncedAt: string | null;
         lastUpdated: string | null;
@@ -1097,6 +1099,7 @@ export const api = {
       excludeFromNetWorth?: boolean;
       excludeTransactions?: boolean;
       invertBalance?: boolean;
+      paidInFullMonthly?: boolean;
       propertyAccountId?: string | null;
     },
   ) => request<{ ok: boolean; account?: unknown }>(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

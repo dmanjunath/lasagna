@@ -25,6 +25,7 @@ export interface AccountWithBalance {
   excludeFromNetWorth: boolean;
   excludeTransactions: boolean;
   invertBalance: boolean;
+  paidInFullMonthly: boolean;
   propertyAccountId: string | null;
   /** Latest snapshot balance, parsed (0 when the account has no snapshot). */
   rawBalance: number;
@@ -62,6 +63,7 @@ export async function fetchAccountsWithBalances(
         excludeFromNetWorth: acct.excludeFromNetWorth,
         excludeTransactions: acct.excludeTransactions,
         invertBalance: acct.invertBalance,
+        paidInFullMonthly: acct.paidInFullMonthly,
         propertyAccountId: acct.propertyAccountId ?? null,
         rawBalance,
         effectiveBalance: acct.invertBalance ? -rawBalance : rawBalance,

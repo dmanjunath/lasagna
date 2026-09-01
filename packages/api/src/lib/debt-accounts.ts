@@ -38,6 +38,54 @@ export interface DebtAccount {
   liabilitySource: "plaid" | "manual" | null;
   liabilityLastSyncedAt: string | null;
   lastUpdated: Date | null;
+  /**
+   * A credit card's last statement balance and last payment, or null. Together
+   * they say whether the card is paid in full each month (a transactor) or
+   * carries a balance (a revolver) — see `creditCardPaysInFull`. Null on a loan,
+   * which has no revolving statement, and on a card that reports neither.
+   */
+  lastStatementBalance: number | null;
+  lastPaymentAmount: number | null;
+  /**
+   * The user's own designation that this card is paid in full every month. A
+   * fallback for banks that report no statement/payment data: it makes the card
+   * a transactor regardless of what sync knows. Credit cards only.
+   */
+  paidInFullMonthly: boolean;
+}
+
+/**
+ * The rule behind `creditCardPaysInFull`, over the two raw numbers, so a caller
+ * with its own account shape (the insights engine) applies the same test.
+ *
+ * The signal Plaid reports on the first sync, no transaction history needed:
+ * did the last payment cover the last statement. A statement of nothing owed is
+ * paid by definition. When the statement is missing, or a balance was owed and
+ * no payment is on file, we cannot tell — and an unknown card is treated as a
+ * carrier rather than dropped on a guess. A dollar of slack absorbs rounding.
+ */
+export function statementPaidInFull(
+  lastStatementBalance: number | null,
+  lastPaymentAmount: number | null,
+): boolean {
+  if (lastStatementBalance == null) return false;
+  if (lastStatementBalance <= 0) return true;
+  if (lastPaymentAmount == null) return false;
+  return lastPaymentAmount >= lastStatementBalance - 1;
+}
+
+/**
+ * Whether a credit card is paid in full each month rather than carrying a
+ * balance. A transactor's current balance is this month's spending, cleared by
+ * the due date, so it is not a debt to plan a payoff for.
+ */
+export function creditCardPaysInFull(account: DebtAccount): boolean {
+  if (account.type !== "credit") return false;
+  // A manual designation is the fallback when the bank reports no statement data.
+  return (
+    account.paidInFullMonthly ||
+    statementPaidInFull(account.lastStatementBalance, account.lastPaymentAmount)
+  );
 }
 
 /**
@@ -173,6 +221,12 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
       minimumPayment = Math.round(minimumPayment * 100) / 100;
       const minimumPaymentEstimated = typedMinPayment == null;
 
+      // Statement/payment behaviour is a credit card concept; a loan has neither.
+      const lastStatementBalance =
+        typedMeta?.type === "credit_card" ? typedMeta.lastStatementBalance ?? null : null;
+      const lastPaymentAmount =
+        typedMeta?.type === "credit_card" ? typedMeta.lastPaymentAmount ?? null : null;
+
       return {
         id: acct.id,
         name: acct.name,
@@ -191,6 +245,9 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
         liabilitySource: typedMeta?.source ?? null,
         liabilityLastSyncedAt: typedMeta?.lastSyncedAt ?? null,
         lastUpdated: latest?.snapshotAt ?? null,
+        lastStatementBalance,
+        lastPaymentAmount,
+        paidInFullMonthly: acct.paidInFullMonthly,
       };
     }),
   );

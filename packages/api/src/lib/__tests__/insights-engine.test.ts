@@ -1,5 +1,48 @@
 import { describe, it, expect } from "vitest";
-import { normalizePunctuation } from "../insights-engine.js";
+import { normalizePunctuation, debtAccountPaidInFull } from "../insights-engine.js";
+
+describe("debtAccountPaidInFull — a card cleared each month is not a payoff target", () => {
+  const card = (metadata: Record<string, unknown>) => ({ type: "credit", metadata });
+
+  it("is true when the last payment cleared the last statement", () => {
+    expect(
+      debtAccountPaidInFull(
+        card({ type: "credit_card", lastStatementBalance: 1200, lastPaymentAmount: 1200 }),
+      ),
+    ).toBe(true);
+  });
+
+  it("is false for a carried balance", () => {
+    expect(
+      debtAccountPaidInFull(
+        card({ type: "credit_card", lastStatementBalance: 5000, lastPaymentAmount: 200 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for legacy metadata that carries no statement signal", () => {
+    expect(debtAccountPaidInFull(card({ interestRate: 24.99 }))).toBe(false);
+  });
+
+  it("never applies to a loan", () => {
+    expect(
+      debtAccountPaidInFull({
+        type: "loan",
+        metadata: { lastStatementBalance: 0, lastPaymentAmount: 0 },
+      }),
+    ).toBe(false);
+  });
+
+  it("honours a manual designation with no statement signal", () => {
+    expect(
+      debtAccountPaidInFull({ type: "credit", metadata: { interestRate: 24.99 }, paidInFullMonthly: true }),
+    ).toBe(true);
+  });
+
+  it("never applies a manual designation to a loan", () => {
+    expect(debtAccountPaidInFull({ type: "loan", metadata: null, paidInFullMonthly: true })).toBe(false);
+  });
+});
 
 describe("normalizePunctuation", () => {
   it("replaces the spaced em dash seen in generated insights with a comma", () => {

@@ -23,6 +23,9 @@ function debt(overrides: Partial<DebtAccount> & { id: string; name: string }): D
     liabilitySource: null,
     liabilityLastSyncedAt: null,
     lastUpdated: null,
+    lastStatementBalance: null,
+    lastPaymentAmount: null,
+    paidInFullMonthly: false,
     ...overrides,
   };
 }

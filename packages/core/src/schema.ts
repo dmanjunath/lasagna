@@ -303,6 +303,10 @@ export const accounts = pgTable("accounts", {
   invertBalance: boolean("invert_balance").notNull().default(false), // flip the sign of the balance at point of use
   // Over the tenant's plan account limit → read-only: not synced, shown locked.
   frozen: boolean("frozen").notNull().default(false),
+  // Credit cards only: the user designates the card as paid in full every month.
+  // A fallback for banks that do not report statement/payment data — it makes the
+  // card a transactor (off the payoff plan) regardless of what sync knows.
+  paidInFullMonthly: boolean("paid_in_full_monthly").notNull().default(false),
   // Debt accounts only: the real_estate account this debt is secured by
   // (e.g. mortgage → home). N debts may point at one property. Enforced
   // debt→property at the API layer; DB clears the link if the property goes.
