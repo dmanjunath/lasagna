@@ -84,9 +84,25 @@ gate blocks that too.
 
 ## Checking what a device is running
 
-Settings shows `Version <app> (<build>), update <bundle>`. The store version
-alone no longer identifies what is running, since the web layer moves
-independently.
+Settings shows the store build, the bundle running on top of it, and the commit
+that bundle was built from:
+
+    Version 1.0 (14), update 1.0.1787765995 (45736ba)
+    Version 1.0 (14), update builtin (45736ba)
+
+The store version alone no longer identifies what is running, since the web
+layer moves independently, and the bundle version is only the marketing version
+plus a build timestamp. A builtin bundle carries the marketing version alone,
+and the plugin reports it as `builtin`. The sha names the code directly, so a
+screenshot of that line answers the question without bucket access.
+
+The release scripts bake the sha in as `VITE_OTA_COMMIT_SHA` and own its format.
+`ios-archive.sh`, unlike the publish script, does not refuse a dirty tree, so a
+dirty build reads `45736ba-dirty` rather than naming a commit it is not. It
+judges dirty with `git diff --quiet HEAD`, which ignores untracked files, so a
+tree dirty only with new untracked files still gets a clean sha. The publish
+script's `git status --porcelain` counts those files and refuses. A build with
+no sha set shows no parentheses rather than empty ones.
 
 ## Apple compliance
 
