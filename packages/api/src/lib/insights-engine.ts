@@ -742,16 +742,17 @@ CRITICAL RULES:
 3. Every insight MUST end with a concrete next step — "review", "consider", "look into", or "adjust accordingly" are NOT concrete. A concrete step is: "increase X by $Y", "move $X from A to B", "open an account at...", "set up automatic transfer of $X/mo"
 4. NEVER generate an insight from a lens if that lens has no data (e.g., skip spending insights if spending arrays are empty)
 5. NEVER make factually incorrect statements — double-check all tax bracket thresholds against the user's actual income
-6. Keep dollar amounts consistent: if the title states a benefit amount (money saved or earned), it MUST match the impact field. The title MAY instead name the amount to act on (a balance, a monthly contribution) while the impact field carries the benefit. Never state the same figure two different ways.
+6. Keep dollar amounts consistent: if the title states a figure, it MUST match the impact field. The figure is either the amount to act on (a balance, a monthly contribution, remaining contribution room) or a NON-TAX benefit (interest avoided, employer match earned, extra investment return). Never state the same figure two different ways.
 7. When calculating opportunity costs, use a single consistent spread percentage throughout the insight.
 8. NEVER report a goal as "behind" if currentAmount >= targetAmount — that goal is MET. If projectedCompletionDate is "completed", the goal is achieved.
 9. NEVER produce timelines more than 30 years out. If a projection would be absurd (e.g., "complete in 2120"), instead calculate what monthly savings increase would be needed to hit the deadline.
-10. AVOID generic boilerplate advice like "max out your 401(k)" or "contribute to your Roth IRA" unless you can tie it to a SPECIFIC number from the data (e.g., "You're contributing $15k to your 401(k). Increasing to $23,500 saves $2,040 in taxes at your 24% bracket."). If you can't calculate a specific savings amount, don't generate the insight.
+10. AVOID generic boilerplate advice like "max out your 401(k)" or "contribute to your Roth IRA" unless you can tie it to a SPECIFIC number from the data (e.g., "You're contributing $15k to your 401(k), so $8,500 of this year's limit is still unused."). If you can't name a specific amount to act on from their data, don't generate the insight.
 11. When taxDocuments are present, PRIORITIZE document-specific insights (Lens 5) over generic optimization advice (Lens 3). The user uploaded documents to get specific analysis, not boilerplate.
 12. AT MOST ONE insight may primarily flag missing/incomplete data (phrases like "no holdings data", "with no payment tracking", "unknown interest rate", "no income tracked", "$0 monthly expenses"). The user knows their data is incomplete — repeating it across 3-4 insights is noise. If multiple data gaps exist, pick the single highest-impact gap and combine the rest into one "complete your profile" suggestion. Every OTHER insight must derive a concrete recommendation from data that IS present (account balances, balances by type, ages, account names, debt/asset ratios, etc.) — even partial data supports useful advice.
 13. STYLE: never use em dashes, en dashes, middots, or semicolons in any output field. Write complete sentences. Write ranges as "X to Y".
 14. TITLES ARE ACTIONS, NOT DIAGNOSES. Start every title with an imperative verb naming the move (Pay, Open, Move, Raise, Trim, Cancel, Add, Switch, Rebalance, Invest, Set). The title says what to DO; the description says why. Bad: "Credit card at 24.99% APR costs $736/yr". Good: "Pay down your $3,076 card to stop $736/yr in interest". Bad: "Missing $3,400/yr in free employer match". Good: "Raise your 401(k) to 4% to claim $3,400/yr in free match".
 15. If an insight is a positive trend, a healthy metric, or an on-track status with no move to make (a spending category dropped, a ratio is healthy, a goal is on pace), either give it a concrete next move (e.g. "Redirect the $158 grocery drop into savings") or do NOT emit it. The Actions list is for actions, not congratulations or observations.
+16. NEVER state or estimate a dollar or percentage amount of TAX that an action would save, avoid, defer, refund, or reduce. No "saves $2,040 in taxes", no "cuts your tax bill by 12%", no credit estimate, no refund estimate, no deduction expressed as its tax value. Name the OPPORTUNITY and the amount to ACT ON from their data (contribution room left, an account balance, the annual limit, a withholding gap, a harvestable loss) and leave the tax outcome unquantified. This binds on the title, the description and the impact field. NON-TAX benefits are untouched and still stated in dollars exactly as before: interest avoided on a debt, employer match earned, and investment opportunity cost.
 
 ## The user's financial path
 
@@ -793,28 +794,28 @@ IN-PROGRESS MONTH EXCEPTION: spending.inProgressMonth has the partial current mo
 Apply each rule ONLY if the condition is precisely met — do NOT generate the insight if the condition is false:
 
 - **Employer match**: ONLY if employerMatchPercent > 0. Calculate missed annual match = (employerMatchPercent/100) * annualIncome.
-- **HSA**: ONLY if NO account with subtype containing "hsa" or "health savings". Missed deduction = $4,300/yr (single) or $8,550/yr (married_joint).
+- **HSA**: ONLY if NO account with subtype containing "hsa" or "health savings". Name the annual contribution room going unused: $4,300/yr (single) or $8,550/yr (married_joint). Do not price what that room is worth in tax.
 - **Roth IRA**: ONLY if annualIncome < $161,000 (single) or < $240,000 (married_joint). Do NOT assume they haven't contributed just because they have a balance — only flag this if it seems like a worthwhile reminder based on their income level and existing Roth balance relative to annual limits.
 - **Roth conversion**: ONLY if traditional IRA/401k balance > 0. Roth conversions have no income limit. The insight should compare their marginal tax rate now vs expected rate in retirement. For high earners ($150k+), note that the conversion will be taxed at their current marginal rate and they should consult a tax advisor for optimal conversion amounts.
 - **0% LTCG harvest**: ONLY if annualIncome < $47,025 (single) or < $94,050 (married_joint) AND taxable brokerage has holdings. At income above these thresholds, gains are taxed at 15%+ — do NOT suggest 0% rate.
 - **Max 401(k)**: If no 401k account exists or 401k balance is very low relative to income (less than 1x annual income), suggest contributing toward the $23,500/yr limit for pre-tax savings.
-- **W-4 withholding check**: ONLY if profile.employmentType is "w2". Suggest reviewing W-4 withholding — over-withholding gives the IRS an interest-free loan, under-withholding causes a surprise bill. The IRS withholding estimator takes 15 minutes. Urgency: low. Impact label: "Optimize cash flow".
+- **W-4 withholding check**: ONLY if profile.employmentType is "w2". Suggest reviewing W-4 withholding — over-withholding gives the IRS an interest-free loan, under-withholding causes a surprise bill. The IRS withholding estimator takes 15 minutes. Urgency: low. Impact label: the withholding gap, figure first and no verb, e.g. "$2,000/yr over-withheld" or "$1,400/yr short". If the data does not support a gap figure, use the withholding on file instead, e.g. "$18,400 withheld". NEVER a verb phrase with no figure such as "Optimize cash flow", and never the tax the change would save.
 - **High-APR debt** (>7%): paying this off is a guaranteed X% return — flag if interest rate exceeds this. A debtTrajectory entry whose interestRate is null has NO rate on file: never state or imply a rate for it (not "0%", not "no interest"), never compute interest on it, and never call it high or low interest. The only honest action on such an account is to add the rate.
 - **Cards paid in full** (data field \`paidInFullCards\`): these clear in full every month, so their balance is this month's spending, NOT debt. They are deliberately absent from debtTrajectory. Never recommend paying one down, paying one off, or moving cash from checking/savings to "clear" it, and never treat its balance as interest-bearing or compute interest on it. Say nothing about them at all unless there is a genuinely different action (never a payoff one).
 - **Cash drag**: If depository + money market balances exceed 12 months of income AND there are investment accounts available, calculate the opportunity cost. Use: excess_cash = total_cash - (6 * monthly_income); opportunity_cost = excess_cash * 0.03 (3% spread between cash yield ~5% and expected market return ~8%). Show the specific dollar opportunity cost per year.
 
-ACTIVELY EVALUATE THESE CONDITIONS — the bullets above are a FLOOR, not a ceiling. The following are NOT optional ideas to consider — they are deterministic triggers you MUST CHECK, one by one, against the user's actual data (annualIncome, filingStatus, stateOfResidence, age, retirementAge, employmentType, accounts + subtypes, holdings + cost basis, debt, spending, goals, taxDocuments). For EACH trigger: evaluate its condition. WHEN the condition holds, you MUST emit the corresponding action with a specific dollar figure. WHEN it does not hold, stay silent — do not emit it and never invent eligibility. This is mandatory-when-eligible, not discretionary:
+ACTIVELY EVALUATE THESE CONDITIONS — the bullets above are a FLOOR, not a ceiling. The following are NOT optional ideas to consider — they are deterministic triggers you MUST CHECK, one by one, against the user's actual data (annualIncome, filingStatus, stateOfResidence, age, retirementAge, employmentType, accounts + subtypes, holdings + cost basis, debt, spending, goals, taxDocuments). For EACH trigger: evaluate its condition. WHEN the condition holds, you MUST emit the corresponding action with the specific amount to act on from their data. WHEN it does not hold, stay silent — do not emit it and never invent eligibility. This is mandatory-when-eligible, not discretionary:
 
 - **Roth IRA, direct vs backdoor**: reason DIRECTIONALLY about the user's income relative to the direct Roth contribution phase-out for their filingStatus — do NOT cite a specific phase-out dollar threshold in the copy. A DIRECT Roth IRA contribution may be suggested ONLY when income is clearly BELOW that phase-out; when income is clearly ABOVE it (a high earner) a direct contribution is DISALLOWED, so never suggest a plain/direct Roth contribution as if it were allowed — the correct route is the BACKDOOR Roth. WHEN income is clearly above the phase-out AND they have earned income, you MUST surface the backdoor Roth: contribute the current-year IRA limit to a Traditional IRA (nondeductible) and convert it to Roth. Frame the specific contribution amount against the current-year IRA limit. CAVEAT: if they hold a large PRE-TAX Traditional IRA balance, the pro-rata rule makes most of the conversion taxable — name this pro-rata caveat and add the "confirm with a tax professional" hedge, but STILL SURFACE the action.
 - **HSA as stealth retirement**: IF the user HAS an account with subtype containing "hsa" or "health savings", THEN you MUST surface maxing the HSA and INVESTING it for retirement (triple tax advantage: deductible in, tax-free growth, tax-free for medical in retirement). Frame the specific remaining contribution room against the current-year HSA limit for their filingStatus.
 - **State 529 deduction**: IF stateOfResidence is a state that offers a state income-tax deduction or credit for 529 contributions, THEN you MUST surface funding a 529 with the state's deduction framing (e.g. New York deducts up to $10,000/yr married_joint against state tax). Do NOT emit this for states with NO such benefit — states with no income tax (e.g. TX, FL, WA, NV, TN, WY, SD, AK, NH) and non-conforming states with an income tax but no 529 deduction (e.g. CA, HI) get NOTHING here. Gate strictly on the actual stateOfResidence.
-- **Saver's Credit**: IF annualIncome falls within the Saver's Credit range for their filingStatus (lower income) AND they contribute to a 401(k)/IRA, THEN you MUST surface it with the specific credit estimate.
+- **Saver's Credit**: IF annualIncome falls within the Saver's Credit range for their filingStatus (lower income) AND they contribute to a 401(k)/IRA, THEN you MUST surface it, naming the contribution amount from their data that qualifies. Do NOT estimate the credit itself.
 - **Tax-loss harvesting**: IF any holding has an unrealized LOSS (cost basis > current value), THEN you MUST surface harvesting that specific lot, naming the ticker and the loss amount. If NO holding is at a loss (all at gains), emit NOTHING here.
 
-Then, as SECONDARY candidates, also consider these and surface any the data supports with a specific dollar figure (same mandatory-when-eligible discipline, but these are lower priority than the triggers above): education credits (AOTC or Lifetime Learning Credit) where tuition or education spending appears; Child & Dependent Care Credit or a Dependent Care FSA where dependent-care spending appears; above-the-line deductions (student-loan interest, and for 1099 income the self-employed health insurance deduction plus a SEP-IRA or Solo 401(k)); mega-backdoor Roth via after-tax 401(k) contributions; bunching itemized deductions or funding a donor-advised fund when total itemizables sit near the standard-deduction threshold; Qualified Charitable Distributions for users over 70.5 with a Traditional IRA; asset location (holding tax-inefficient assets in tax-advantaged accounts); EV and residential clean-energy credits and Premium Tax Credit reconciliation where the data hints at eligibility. Surface the move, not the diagnosis, per the title rules above.
+Then, as SECONDARY candidates, also consider these and surface any the data supports with a specific amount to act on from their data (same mandatory-when-eligible discipline, but these are lower priority than the triggers above): education credits (AOTC or Lifetime Learning Credit) where tuition or education spending appears; Child & Dependent Care Credit or a Dependent Care FSA where dependent-care spending appears; above-the-line deductions (student-loan interest, and for 1099 income the self-employed health insurance deduction plus a SEP-IRA or Solo 401(k)); mega-backdoor Roth via after-tax 401(k) contributions; bunching itemized deductions or funding a donor-advised fund when total itemizables sit near the standard-deduction threshold; Qualified Charitable Distributions for users over 70.5 with a Traditional IRA; asset location (holding tax-inefficient assets in tax-advantaged accounts); EV and residential clean-energy credits and Premium Tax Credit reconciliation where the data hints at eligibility. Surface the move, not the diagnosis, per the title rules above.
 
 GUARDRAILS (these bind on every trigger and candidate above):
-- Rule 1 still binds: every suggestion MUST tie to a SPECIFIC number from the user's data, or it is skipped. No vague "consider a backdoor Roth" with no figure — no number, no insight.
+- Rule 1 still binds: every suggestion MUST tie to a SPECIFIC number from the user's data, or it is skipped. No vague "consider a backdoor Roth" with no figure — no number, no insight. Rule 16 decides WHICH number: the specific amount to act on, never the tax it would save. An action carrying a real amount to act on is NOT skipped for lacking a savings figure.
 - NO specific phase-out dollar thresholds in the copy: when eligibility depends on an income phase-out (Roth IRA, Saver's Credit, IRA deduction, education credits, etc.), the action text must NOT cite a specific phase-out dollar threshold — those numbers go stale and get miscompared. Reason DIRECTIONALLY about the user's income relative to the phase-out ("above/below the limit for your filing status"); if unsure of the exact number, do not state one.
 - NO internally-contradictory actions: never emit an action whose own text is internally inconsistent (e.g. claiming an income is "below" a number it is actually above, or "eligible" for a route it is barred from). Before emitting each tax action, self-check its numeric claims for consistency — any figure you do cite must agree with the direction of your recommendation.
 - Only emit when the eligibility condition GENUINELY holds. No false positives: do NOT recommend a 529 deduction in a state without one; do NOT recommend a direct Roth IRA contribution for someone clearly ABOVE the phase-out (route them to the backdoor Roth instead); and do NOT recommend a backdoor Roth for someone clearly UNDER the phase-out (they can contribute directly).
@@ -828,7 +829,7 @@ This lens is the HIGHEST PRIORITY when tax documents are present. Analyze the ac
 For each tax document, cross-reference its extracted fields with the user's current financial data:
 - **Withholding vs liability**: If a W-2 shows federal_tax_withheld and you can estimate their tax liability from income + filing status, calculate whether they're over- or under-withheld. Show the specific dollar gap. "Your W-2 shows $18,400 withheld on $120k income. Estimated liability is ~$16,200, so you're over-withholding ~$2,200/yr. Adjust W-4 to keep that money working for you."
 - **Year-over-year changes**: If documents span multiple tax years, compare key figures (wages, deductions, tax owed) and flag significant changes. "Your wages grew 12% from $107k to $120k but your effective tax rate jumped from 14.2% to 16.8%. You may have crossed into the 24% bracket."
-- **Deduction analysis**: If a 1040 shows standard vs itemized deduction, calculate whether switching would save money. If they itemized, check if their total exceeds the standard deduction threshold meaningfully. If not, they may be doing extra work for little benefit.
+- **Deduction analysis**: If a 1040 shows standard vs itemized deduction, compare their itemized total against the standard deduction for their filing status and state the gap between the two amounts. If they itemized and the total does not clear the standard deduction meaningfully, they may be doing extra work for little benefit. Do not state what switching would save in tax.
 - **1099 income patterns**: If 1099s show freelance/investment income, calculate estimated quarterly tax payments needed. Flag if no estimated payments appear to be made (risk of underpayment penalty).
 - **K-1 / S-Corp**: If K-1 or 1120S docs exist, look for pass-through income that may not have withholding — these often cause surprise tax bills.
 - **Interest & dividend income**: Cross-reference 1099-INT/1099-DIV amounts with current account balances. Are they earning reasonable yields? Is dividend income tax-efficient (qualified vs ordinary)?
@@ -861,8 +862,8 @@ Respond with ONLY a JSON array, no markdown:
     "type": "spending" | "behavioral" | "debt" | "tax" | "portfolio" | "savings" | "retirement" | "general",
     "title": "The action to take: start with an imperative verb (Pay, Open, Move, Raise, Trim, Cancel, Add, Invest, Rebalance), name the specific move and a real number. Not a diagnosis or a bare metric.",
     "description": "2-3 sentences explaining WHY, with exact numbers and one comparison. The title already states the action, so use the description for the reasoning and specifics (amounts, timeline, tradeoffs).",
-    "impact": "Short label: 'Save $2,400/yr' or 'Earn $3,400 free money' etc.",
-    "impactColor": "green" | "amber" | "red",
+    "impact": "Short label, 22 characters or less, figure FIRST and no verb: '$7,000 room left', '$3,000 limit', '$736/yr interest', '$3,400 match'. On a tax action this is the amount to ACT ON, never the tax saved.",
+    "impactColor": "green" | "amber" | "red" (green means money gained, so never green on a tax action, whose figure is an amount to act on: use "amber"),
     "chatPrompt": "Natural question the user would ask",
     "pathStepKey": "the key of the financial path step this action serves, exactly as given, or \\"none\\""
   }
@@ -871,7 +872,7 @@ Respond with ONLY a JSON array, no markdown:
 ## Title examples (write the move, not the diagnosis)
 - Instead of "Credit card at 24.99% APR costs $736/yr in interest", write "Pay down your $3,076 card to stop $736/yr in interest".
 - Instead of "Missing $3,400/yr in free employer match", write "Raise your 401(k) to 4% to claim $3,400/yr in free match".
-- Instead of "No HSA means missing $1,290/yr tax-free savings", write "Open an HSA to save $1,290/yr in taxes".
+- Instead of "No HSA means missing $1,290/yr tax-free savings", write "Open an HSA and put the $4,300 you can still contribute to work".
 - Instead of "100% US equity allocation misses international diversification", write "Move about 30% into international funds to diversify".
 - Instead of "32% of brokerage in Procter & Gamble creates concentration risk", write "Trim Procter & Gamble from 32% to under 10% to cut single-stock risk".
 - Instead of "$33,290 excess cash earning 5% instead of 8%", write "Invest $33,290 of idle cash to earn about $998/yr more".
@@ -900,7 +901,7 @@ Also check these portfolio rules:
 
 Output at most 10 insights, ordered from most urgent/actionable to least. Skip a lens entirely if its data is weak — there is no minimum count, and padding with generic observations is a failure mode.
 
-PRIORITIZATION against the 10-item cap: when you have more candidates than slots, RANK by concrete dollar impact combined with eligibility confidence, and let the highest-value moves the user is CLEARLY eligible for take their slots first. Do NOT drop a clearly-eligible, high-dollar tax optimization (a real credit, deduction, or Roth/HSA move worth material dollars) in order to keep a lower-impact or marginal suggestion — the low-impact one is the one that yields its slot. This is directional ranking by value, not a quota: never invent or inflate an item to make the cut, and never emit anything the data does not genuinely support. A high-value, clearly-eligible move that also carries a pro-rata caveat and a tax-pro hedge (e.g. a backdoor Roth alongside a large pre-tax Traditional IRA) still counts as high-value — surface it responsibly (name the pro-rata drag and the standard remedy: roll the pre-tax Traditional IRA into an employer 401(k) first to clear pro-rata, THEN do the backdoor Roth, confirm with a tax professional) rather than dropping it at the cap.`;
+PRIORITIZATION against the 10-item cap: when you have more candidates than slots, RANK by how much of the user's own money the move puts in play combined with eligibility confidence, and let the highest-value moves the user is CLEARLY eligible for take their slots first. Do NOT drop a clearly-eligible, high-value tax optimization (a real credit, deduction, or Roth/HSA move on material dollars) in order to keep a lower-impact or marginal suggestion — the low-impact one is the one that yields its slot. This is directional ranking by value, not a quota: never invent or inflate an item to make the cut, and never emit anything the data does not genuinely support. A high-value, clearly-eligible move that also carries a pro-rata caveat and a tax-pro hedge (e.g. a backdoor Roth alongside a large pre-tax Traditional IRA) still counts as high-value — surface it responsibly (name the pro-rata drag and the standard remedy: roll the pre-tax Traditional IRA into an employer 401(k) first to clear pro-rata, THEN do the backdoor Roth, confirm with a tax professional) rather than dropping it at the cap.`;
 
 // Deterministic punctuation backstop for STYLE rule 13: the model is told to
 // avoid em dashes, en dashes, and middots but still slips on roughly a third
@@ -914,6 +915,110 @@ export function normalizePunctuation(text: string): string {
     .replace(/(\d)\s*[—–]\s*(\d)/g, "$1 to $2") // dash between digits = range
     .replace(/[—–]/g, ", ") // any dash still left = clause break
     .replace(/\s*·\s*/g, ", ");
+}
+
+// Deterministic backstop for CRITICAL rule 16: the model is told never to price
+// a tax outcome, and still writes "saves $2,040 in taxes" often enough that the
+// prompt alone cannot be trusted (same reasoning as normalizePunctuation above
+// and the missing-data cap below). An action is dropped after parsing when it
+// puts a number on the tax an action would save.
+//
+// Deliberately TAX-SCOPED, because `impact` is shared by every category: a debt
+// payoff that stops $736/yr in interest, an employer match worth $3,400/yr, and
+// the opportunity cost of idle cash are all legitimate dollar benefits and must
+// survive. A match needs a saving VERB, a TAX noun, and an AMOUNT standing in
+// the relationship "this much tax, saved" — an amount the user is asked to ACT
+// on ("contribute $8,550 to lower your taxable income") is not that.
+const TAX_SAVE_VERB =
+  "(?:sav(?:e|es|ed|ing|ings)|avoid(?:s|ed|ing)?|reduc(?:e|es|ed|ing)|cut(?:s|ting)?|lower(?:s|ed|ing)?|defer(?:s|red|ring)?|shave(?:s|d)?|slash(?:es|ed)?)";
+// Only nouns naming the tax OUTCOME. "taxable income", "deduction" and
+// "bracket" name the BASE an action moves, so "lower your taxable income by
+// $7,000" is an amount to act on and survives. "tax" is matched only as a
+// standalone word, so "pre-tax", "tax-advantaged" and "taxable brokerage"
+// describe an account rather than claiming anything about tax owed.
+const TAX_NOUN =
+  "(?<![\\w-])(?:taxes|tax bill|tax liability|taxation|refund|tax)(?![-\\w])";
+const MONEY = "(?:\\$\\s?[\\d,]+(?:\\.\\d+)?(?:\\s?[kKmM]\\b)?|\\d+(?:\\.\\d+)?\\s?%)";
+// Gaps never cross a sentence boundary, so a tax word in the next sentence
+// cannot reach back and condemn an amount that has nothing to do with it.
+const GAP = "[^.!?]{0,40}?";
+const SHORT_GAP = "[^.!?]{0,24}?";
+
+const TAX_SAVING_PATTERNS: RegExp[] = [
+  // "saves $2,040 in taxes", "cuts $1,290/yr off your tax bill"
+  new RegExp(`\\b${TAX_SAVE_VERB}\\b${GAP}${MONEY}${SHORT_GAP}${TAX_NOUN}`, "i"),
+  // "cut your tax bill by $2,000", "reduce taxes by 12%"
+  new RegExp(`\\b${TAX_SAVE_VERB}\\b${SHORT_GAP}${TAX_NOUN}${SHORT_GAP}${MONEY}`, "i"),
+  // "$1,200+ tax savings", "$800 tax break"
+  new RegExp(
+    `${MONEY}${SHORT_GAP}(?<![\\w-])tax(?:es)?(?![-\\w])\\s+(?:sav(?:ings?|ed)|reduction|relief|break|benefit)\\b`,
+    "i",
+  ),
+  // "$600 less in federal tax". Deliberately requires the comparative: a bare
+  // "$41,200 in federal tax withheld" is a figure READ OFF the user's W-2, and
+  // banning that silences the whole withholding lens.
+  new RegExp(
+    `${MONEY}\\s+(?:less|lower|fewer)\\s+(?:in|of)\\s+(?:federal\\s+|state\\s+|income\\s+)?${TAX_NOUN}`,
+    "i",
+  ),
+];
+
+/** True when the text puts a dollar or percentage figure on a tax saving. */
+export function mentionsTaxSavingAmount(text: string): boolean {
+  if (!text) return false;
+  return TAX_SAVING_PATTERNS.some((p) => p.test(text));
+}
+
+/**
+ * The two rules below are the whole of what rule 16 enforces on a stored row,
+ * and BOTH paths call them: the insert loop as it writes, and the read in
+ * routes/insights.ts as it serves. Applying the rule only on the way in leaves
+ * every row written before it existed still saying "save $2,790 in taxes" until
+ * that tenant next regenerates, which is days. Applying it on the way out too
+ * costs a regex per row and makes the banned copy unreachable immediately.
+ *
+ * They live here, together, so the two paths cannot drift into disagreeing
+ * about what the rule is.
+ */
+export interface InsightCopy {
+  title: string | null;
+  description: string | null;
+  impact: string | null;
+}
+
+/**
+ * True when this action prices the tax it saves, so it may not be stored and
+ * may not be shown.
+ *
+ * Not gated on the tax category, which is what makes the two paths the same
+ * check: `mentionsTaxSavingAmount` is already tax-scoped by construction (it
+ * needs a saving verb, a tax noun and an amount standing in the relationship
+ * "this much tax, saved"), so a debt payoff worth "$340/yr" and an employer
+ * match worth "$3,400" cannot match it whatever category they carry.
+ */
+export function pricesTaxSaving(copy: InsightCopy): boolean {
+  return mentionsTaxSavingAmount(
+    `${copy.title ?? ""} ${copy.description ?? ""} ${copy.impact ?? ""}`,
+  );
+}
+
+const VALID_IMPACT_COLORS = ["green", "amber", "red"] as const;
+export type ImpactColor = (typeof VALID_IMPACT_COLORS)[number];
+
+/**
+ * Green is the colour of money gained, and a tax action's figure is an amount
+ * to ACT on now that it can no longer be the tax saved. The model still reaches
+ * for green out of habit, so it is corrected to the amber the tax tag already
+ * wears. Anything that is not one of the three colours is no colour at all.
+ */
+export function taxSafeImpactColor(row: {
+  category: string | null;
+  type: string | null;
+  impactColor: string | null;
+}): ImpactColor | null {
+  if (!VALID_IMPACT_COLORS.includes(row.impactColor as ImpactColor)) return null;
+  const isTax = row.category === "tax" || row.type === "tax";
+  return row.impactColor === "green" && isTax ? "amber" : (row.impactColor as ImpactColor);
 }
 
 // Roughly 4 characters per token, held well under the model's 200k window so a
@@ -1029,7 +1134,6 @@ export async function generateInsights(tenantId: string): Promise<number> {
     "general",
   ] as const;
   const validUrgencies = ["low", "medium", "high", "critical"] as const;
-  const validColors = ["green", "amber", "red"];
   const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
 
   // Cap "this data is missing" insights at one per generation. The LLM is told
@@ -1055,6 +1159,16 @@ export async function generateInsights(tenantId: string): Promise<number> {
   let missingDataKept = 0;
   let insertCount = 0;
   for (const ins of generated) {
+    // Checked before the missing-data cap so a dropped action never spends the
+    // one slot that cap allows.
+    if (pricesTaxSaving(ins)) {
+      // The text goes in the log too: a drop is either the rule working or the
+      // matcher over-reaching, and the title alone never says which.
+      const insText = `${ins.title ?? ""} ${ins.description ?? ""} ${ins.impact ?? ""}`;
+      console.log(`[Insights] Dropping insight that prices a tax saving: ${insText.slice(0, 240)}`);
+      continue;
+    }
+
     if (isMissingDataInsight(ins)) {
       if (missingDataKept >= 1) {
         console.log(`[Insights] Dropping duplicate missing-data insight: "${ins.title?.slice(0, 80)}"`);
@@ -1081,9 +1195,11 @@ export async function generateInsights(tenantId: string): Promise<number> {
       title: descrub(normalizePunctuation(ins.title || "Financial insight"), aliasMap),
       description: descrub(normalizePunctuation(ins.description || ""), aliasMap),
       impact: ins.impact ? descrub(normalizePunctuation(ins.impact), aliasMap) : null,
-      impactColor: validColors.includes(ins.impactColor)
-        ? ins.impactColor
-        : null,
+      impactColor: taxSafeImpactColor({
+        category,
+        type: ins.type ?? null,
+        impactColor: ins.impactColor,
+      }),
       chatPrompt: ins.chatPrompt ? descrub(normalizePunctuation(ins.chatPrompt), aliasMap) : null,
       generatedBy: "ai",
       insightType: ins.type || "general",

@@ -29,7 +29,7 @@ const DEFAULT_LLM_PRICE = { in: 1.0, out: 3.0 };
 // individual events. logPlaidEvent still records events as an audit trail and
 // for the dashboard's event counts, but writes costUsd = 0.
 
-export type LlmSource = "chat" | "chat-title" | "insights" | "recurring" | "tax-vision" | "security-classify" | "suggestions" | "narrative" | "strategy" | "freeform" | "quick-import" | "financial-path";
+export type LlmSource = "chat" | "chat-title" | "insights" | "recurring" | "tax-vision" | "security-classify" | "suggestions" | "narrative" | "strategy" | "freeform" | "quick-import" | "financial-path" | "tax-summary";
 export type PlaidSource = "sync" | "link";
 
 /** Pure + unit-testable: estimated USD for a call. */

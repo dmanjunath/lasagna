@@ -14,11 +14,11 @@ import {
 import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
 import type { TaxDocument, TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
-import { cn } from "../lib/utils.js";
+import { cn, splitParagraphs, formatRelativeTime, exactSyncTime } from "../lib/utils.js";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
 import { ActionItem } from "../components/common/action-item.js";
-import { Button, Badge, EmptyState, Skeleton, Alert, Select, useToast } from "../components/uikit";
+import { Button, Badge, EmptyState, Skeleton, SkeletonText, Alert, Select, Tooltip, useToast } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { useIsMobile } from "../lib/hooks/use-mobile.js";
 
@@ -42,6 +42,33 @@ const FILING_ABBR: Record<string, string> = {
 const TAX_INSIGHT_TYPE = "tax";
 
 const FILING_YEAR = new Date().getFullYear() - 1;
+
+/**
+ * "Updated 3m ago" with the exact moment one hover or one Tab away. Same idiom
+ * as every other timestamp in the app (simple-money, account-detail): a real
+ * Tooltip rather than a native title, which is slow, unstyled, and invisible
+ * to the keyboard.
+ */
+function TimeStamp({ iso }: { iso: string }) {
+  const exact = exactSyncTime(iso);
+  const label = (
+    <span className="text-[12px] font-semibold text-content-muted">
+      Updated {formatRelativeTime(new Date(iso))}
+    </span>
+  );
+  if (!exact) return label;
+  return (
+    <Tooltip content={exact}>
+      <span
+        tabIndex={0}
+        aria-label={`Summary updated ${exact}`}
+        className="ui-focus inline-block rounded-ui-sm"
+      >
+        {label}
+      </span>
+    </Tooltip>
+  );
+}
 
 /** Segment key for a document's tax year. Undated docs share one bucket. */
 function yearKey(year: number | null): string {
@@ -292,6 +319,14 @@ export function TaxStrategy() {
   const [refreshingInsights, setRefreshingInsights] = useState(false);
   const [docsLoading, setDocsLoading] = useState(true);
   const [docsError, setDocsError] = useState(false);
+  /** Plain-language description of what the uploaded documents show. */
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryGeneratedAt, setSummaryGeneratedAt] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState(false);
+  const heroBodyRef = useRef<HTMLDivElement>(null);
+  /** A retry is in flight, so focus needs catching if its button disappears. */
+  const retryingRef = useRef(false);
   const docsErrorRef = useRef(false);
   docsErrorRef.current = docsError;
   const [selectedYearKey, setSelectedYearKey] = useState<string | null>(null);
@@ -368,6 +403,7 @@ export function TaxStrategy() {
 
   useEffect(() => {
     loadDocuments();
+    void loadSummary();
     api
       .getFinancialProfile()
       .then(({ financialProfile }) => {
@@ -394,6 +430,53 @@ export function TaxStrategy() {
       setDocsLoading(false);
     }
   };
+
+  /**
+   * The summary is written server-side on first read after the documents
+   * change, so this is a plain read that occasionally costs a generation. A
+   * failed read keeps whatever was already on screen: a summary of documents
+   * the user still has on file is better than an error.
+   */
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      const { summary, generatedAt } = await api.getTaxSummary();
+      setSummary(summary);
+      setSummaryGeneratedAt(generatedAt);
+      setSummaryError(false);
+    } catch {
+      setSummaryError(true);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, []);
+
+  // "Updated" is news, not a status. Left alone it pinned a green badge in the
+  // Actions header for the rest of the session, long after anything updated.
+  useEffect(() => {
+    if (insightStatus !== "done") return;
+    const t = setTimeout(() => setInsightStatus("idle"), 6000);
+    return () => clearTimeout(t);
+  }, [insightStatus]);
+
+  const retrySummary = useCallback(() => {
+    retryingRef.current = true;
+    void loadSummary();
+  }, [loadSummary]);
+
+  // A successful retry replaces the button the user just pressed with the
+  // summary, dropping focus to <body> and sending a keyboard reader back to
+  // the top of the page. Land them on the text they asked for instead. Same
+  // rescue the document list does when a deleted row unmounts under focus.
+  useEffect(() => {
+    if (!retryingRef.current || summaryLoading) return;
+    retryingRef.current = false;
+    requestAnimationFrame(() => {
+      if (document.activeElement === document.body) {
+        heroBodyRef.current?.focus({ preventScroll: true });
+      }
+    });
+  }, [summaryLoading]);
 
   // Insight generation happens server-side after a document lands, with no
   // completion signal to subscribe to. Poll for a bounded window instead of
@@ -456,9 +539,10 @@ export function TaxStrategy() {
       // API is reachable again. Without this the new document lands in state
       // behind the error Alert and the save looks lost.
       if (docsErrorRef.current) void loadDocuments();
+      void loadSummary();
       void awaitNewInsights();
     },
-    [awaitNewInsights]
+    [awaitNewInsights, loadSummary]
   );
 
   const handleDeleteDocument = useCallback(
@@ -479,6 +563,7 @@ export function TaxStrategy() {
         // button unmounts a tick later when this row disappears, dropping
         // focus to <body>. Land on the list so Tab continues from the content.
         requestAnimationFrame(() => docsListRef.current?.focus({ preventScroll: true }));
+        void loadSummary();
         void awaitNewInsights();
       } catch {
         toast({
@@ -488,7 +573,7 @@ export function TaxStrategy() {
         });
       }
     },
-    [selectedDoc, confirm, toast, awaitNewInsights]
+    [selectedDoc, confirm, toast, awaitNewInsights, loadSummary]
   );
 
   const handleSelectDocument = useCallback(async (id: string) => {
@@ -510,11 +595,11 @@ export function TaxStrategy() {
   const handleRefreshInsights = useCallback(async () => {
     setRefreshingInsights(true);
     try {
-      await refresh();
+      await Promise.all([refresh(), loadSummary()]);
     } finally {
       setRefreshingInsights(false);
     }
-  }, [refresh]);
+  }, [refresh, loadSummary]);
 
   const filingLabel = profile?.filingStatus
     ? FILING_LABELS[profile.filingStatus] ?? profile.filingStatus
@@ -712,15 +797,16 @@ export function TaxStrategy() {
       setPageContext({
         pageId: "tax",
         pageTitle: "Tax Strategy",
-        description: "Tax optimization suggestions and uploaded document analysis.",
+        description: "What the user's uploaded tax documents show, plus the actions on file.",
       });
     }
   }, [profile, setPageContext]);
 
   const showUpload = import.meta.env.VITE_DEMO_MODE !== "true";
 
-  // "Updating"/"Updated" is about the STRATEGIES, so it lives beside them, not
-  // in the documents toolbar where it ended up after the restructure.
+  // "Updating"/"Updated" is about the ACTIONS, so it lives in their header, not
+  // in the hero (which describes the situation, not the actions) and not in the
+  // documents toolbar where it ended up after the restructure.
   const insightStatusBadge =
     insightStatus === "generating" ? (
       <Badge tone="caution" size="sm">
@@ -799,17 +885,36 @@ export function TaxStrategy() {
 
   const hasDocs = documents.length > 0;
   /**
-   * The hero, Refresh and the strategy list must agree. They are one section,
-   * and gating them separately produced an error screen that promised "6 ways
-   * to lower your 2025 taxes" above an empty page, and a first-run pitch shown
-   * to a user who already had 20 documents.
+   * ONE derived state for the hero. The summary and the document list are two
+   * independent fetches, and gating them separately made a single page load
+   * flash three different sentences on the way to the answer.
    *
+   * Order is the point. A summary that is already on screen outranks a failed
+   * document list, because it still describes documents the user has, and it
+   * outranks its own refetch too: pressing Refresh must not blank the card it
+   * is not refreshing, and it does not blank the retry button either: the
+   * skeleton unmounting mid-retry threw keyboard focus back to <body>. Loading
+   * therefore only wins when the card has nothing on it yet. Below that,
    * `insights.length` matters on its own: the tax lens in the insights engine
-   * is not document-gated, so a user can genuinely have strategies and no
-   * uploaded documents, and was being shown the upload pitch instead of them.
+   * is not document-gated, so a user can genuinely have actions and no
+   * uploaded documents, and was being shown the upload pitch instead.
    */
-  const showStrategyZone = hasDocs || docsError || docsLoading || insights.length > 0;
-  const strategyCount = insights.length;
+  const heroState = docsLoading || (hasDocs && summaryLoading && !summary && !summaryError)
+    ? "loading"
+    : summary
+      ? "summary"
+      : summaryError
+        ? "summary-failed"
+        : docsError
+          ? "docs-error"
+          : hasDocs
+            ? "no-summary"
+            : insights.length > 0
+              ? "account-data"
+              : "first-run";
+
+  /** The hero, the Actions header and the Actions list are one section. */
+  const showStrategyZone = heroState !== "first-run";
 
   return (
     <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -833,9 +938,9 @@ export function TaxStrategy() {
         </h1>
       </header>
 
-      {/* ══════════ ZONE 1 — What can I save? ══════════ */}
+      {/* ══════════ ZONE 1 — Where do I stand? ══════════ */}
 
-      {/* ── HERO — the one confident answer: savings on the table ── */}
+      {/* ── HERO — what the documents on file actually say ── */}
       <section
         data-hero
         className="relative mt-6 sm:mt-7 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8"
@@ -854,75 +959,123 @@ export function TaxStrategy() {
         {/* One column. The old right-hand "Where it comes from" panel listed the
             same strategies rendered in full 600px below, so it read as the page
             repeating itself rather than as a second view of the data. */}
-        {/* Stacks below sm: side by side, Refresh plus the status badge took
-            the headline to 63% of the card, and to 5 lines once "Updating"
-            appeared. */}
-        <div className="relative flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 max-w-[62ch]">
+        <div className="relative min-w-0 max-w-[62ch]">
           {showStrategyZone ? (
             <>
               {/* Constant string. Swapping the headline between loading and
                   loaded states meant reserving its height per breakpoint, and
                   the reservation was wrong wherever the 62ch column wrapped
                   differently (40px at 768, 16px at 834). A headline that never
-                  changes cannot shift, at any width. The count moved to the
-                  sentence below, which is 15px text and cheap to reserve. */}
+                  changes cannot shift, at any width. */}
               <h2 className="font-editorial text-[28px] sm:text-[38px] font-extrabold leading-[1.04] tracking-[-0.028em] text-content">
-                Lower your {FILING_YEAR} taxes
+                Your tax situation
               </h2>
-              {/* The loading and loaded sentences wrap to different line counts
-                  at different column widths, so a per-breakpoint min-height
-                  never converged: fixing 768 broke 834. Instead the loaded
-                  sentence is rendered invisibly during loading to reserve its
-                  exact height. The reserve is mounted in EVERY state, not just
-                  while loading: covering one branch left the others jumping a
-                  full line as they swapped (docs-error shrank 46px, zero
-                  strategies grew 23px). Every branch below is kept shorter than
-                  the reserve so nothing can overflow it. */}
-              <p className="relative mt-3.5 text-[15px] leading-[1.55] text-content-secondary">
-                <span className="invisible" aria-hidden>
-                  0 ways to pay less, found across the 00 documents on file.
-                </span>
-                <span className="absolute inset-0">
-                  {docsLoading || insightsLoading ? (
-                    <>Looking for ways to lower what you owe.</>
-                  ) : strategyCount > 0 ? (
-                    // The document clause needs documents to be true: the tax
-                    // lens also reads account data, so a user can have
-                    // strategies and nothing uploaded.
-                    docsError ? (
+              <div ref={heroBodyRef} tabIndex={-1} className="ui-focus mt-3.5 rounded-ui-md">
+                {heroState === "summary" ? (
+                  <>
+                    {/* No live region on the prose: re-reading 400 characters
+                        on every load and every Refresh is noise, and this is
+                        the card's main content, which a reader reaches anyway. */}
+                    <div className="space-y-2.5">
+                      {splitParagraphs(summary ?? "").map((para, i) => (
+                        <p key={i} className="text-[15px] leading-[1.6] text-content-secondary">
+                          {para}
+                        </p>
+                      ))}
+                    </div>
+                    {/* Only ever shown beside a summary. "Updated" with nothing
+                        updated beneath it says nothing. */}
+                    {summaryGeneratedAt && (
+                      <p className="mt-3">
+                        <TimeStamp iso={summaryGeneratedAt} />
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div aria-live="polite">
+                    {heroState === "loading" ? (
+                      <SkeletonText lines={3} />
+                    ) : heroState === "summary-failed" ? (
                       <>
-                        <strong className="font-bold text-content ui-tnum">{strategyCount}</strong>{" "}
-                        way{strategyCount === 1 ? "" : "s"} to pay less.
-                      </>
-                    ) : documents.length === 0 ? (
-                      <>
-                        <strong className="font-bold text-content ui-tnum">{strategyCount}</strong>{" "}
-                        way{strategyCount === 1 ? "" : "s"} to pay less, found in your account data.
+                        <p className="text-[15px] leading-[1.6] text-content-secondary">
+                          We could not load your summary.
+                        </p>
+                        {/* The same control the documents error below uses, so
+                            one word does not mean two different affordances.
+                            Deliberately NOT `loading`: that prop disables the
+                            button, and disabling the focused element blurs it,
+                            which is the very thing this is avoiding. The icon
+                            carries the progress instead. */}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="mt-3"
+                          aria-busy={summaryLoading || undefined}
+                          leadingIcon={
+                            <RefreshCw size={14} className={summaryLoading ? "animate-spin" : ""} />
+                          }
+                          onClick={retrySummary}
+                        >
+                          {summaryLoading ? "Retrying…" : "Try again"}
+                        </Button>
                       </>
                     ) : (
-                      <>
-                        <strong className="font-bold text-content ui-tnum">{strategyCount}</strong>{" "}
-                        way{strategyCount === 1 ? "" : "s"} to pay less, found across the{" "}
-                        {documents.length} document{documents.length === 1 ? "" : "s"} on file.
-                      </>
-                    )
-                  ) : docsError ? (
-                    <>We could not load your documents. Try again below.</>
-                  ) : (
-                    <>Nothing to suggest yet. Add a form below, or refresh.</>
-                  )}
-                </span>
-              </p>
+                      /* The three one-line states share a fixed reserve. They
+                         wrap to different line counts at different column
+                         widths, so a per-breakpoint min-height never converged:
+                         fixing 768 broke 834. The longest of them is rendered
+                         invisibly to reserve its exact height, and the visible
+                         one is laid over it, so swapping between them cannot
+                         move the card. The summary, loading and failed states
+                         are deliberately NOT in here: prose of two to four
+                         sentences would clip, and a button would break the
+                         height guarantee. */
+                      <p className="relative text-[15px] leading-[1.55] text-content-secondary">
+                        {/* All three are kept short enough to sit on ONE line
+                            down to 375, so the reserve costs no dead line under
+                            the sentence at the widths most people are on. */}
+                        <span className="invisible" aria-hidden>
+                          Actions below come from your accounts.
+                        </span>
+                        <span className="absolute inset-0">
+                          {heroState === "docs-error" ? (
+                            /* Says what the HERO lost, not what failed. The
+                               documents section states the failure beside its
+                               own retry, and repeating its exact sentence up
+                               here put the same words on screen twice. */
+                            <>No summary until your documents load.</>
+                          ) : heroState === "no-summary" ? (
+                            <>A summary is not available right now.</>
+                          ) : (
+                            <>Actions below come from your accounts.</>
+                          )}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* filing context chips */}
               <div className="mt-5 flex flex-wrap items-center gap-2">
-                {filingAbbr && (
-                  <Badge tone="neutral" size="md" title={filingLabel ?? undefined}>
-                    <Receipt className="h-3 w-3 text-content-muted" />
-                    {filingAbbr}
-                  </Badge>
-                )}
+                {filingAbbr &&
+                  (filingLabel ? (
+                    // Same tooltip idiom as the timestamp above: a native
+                    // title is slow, unstyled, and invisible to touch and to
+                    // the keyboard, and this abbreviation is the one string on
+                    // the card that has to expand.
+                    <Tooltip content={filingLabel}>
+                      <Badge tone="neutral" size="md" tabIndex={0} aria-label={filingLabel} className="ui-focus">
+                        <Receipt className="h-3 w-3 text-content-muted" />
+                        {filingAbbr}
+                      </Badge>
+                    </Tooltip>
+                  ) : (
+                    <Badge tone="neutral" size="md">
+                      <Receipt className="h-3 w-3 text-content-muted" />
+                      {filingAbbr}
+                    </Badge>
+                  ))}
                 {profile?.stateOfResidence && (
                   <Badge tone="neutral" size="md">{profile.stateOfResidence}</Badge>
                 )}
@@ -939,37 +1092,18 @@ export function TaxStrategy() {
                   headline swap under them. The invitation lives in the
                   sentence, which is allowed to differ. */}
               <h2 className="font-editorial text-[28px] sm:text-[38px] font-extrabold leading-[1.04] tracking-[-0.028em] text-content">
-                Lower your {FILING_YEAR} taxes
+                Your tax situation
               </h2>
               <p className="mt-3.5 text-[15px] leading-[1.55] text-content-secondary">
-                Add your W-2s, 1099s, or any tax form. We extract the fields, surface the deductions and
-                credits you qualify for, and never store the original file.
+                Add your W-2s, 1099s, or any tax form. We read the figures, describe what they show, and
+                never store the original file.
               </p>
             </>
           )}
         </div>
 
-        {/* Sits at the card's top-right and AFTER the headline in DOM, so Tab
-            from the page top reaches the heading first. It carries the insight
-            status, which is about these strategies rather than the documents. */}
-        {showStrategyZone && (
-          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
-            {insightStatusBadge}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefreshInsights}
-              disabled={refreshingInsights || insightsLoading}
-              leadingIcon={<RefreshCw size={15} className={refreshingInsights ? "animate-spin" : ""} />}
-            >
-              {refreshingInsights ? "Refreshing…" : "Refresh"}
-            </Button>
-          </div>
-        )}
-        </div>
-
         {/* First run only. Once documents exist the dropzone belongs with them,
-            not wedged between the headline and the strategies it promises. */}
+            not wedged between the headline and the actions it introduces. */}
         {showUpload && !showStrategyZone && (
           <div className="tax-input-wrap mt-6 sm:mt-7">
             <div className="mb-4 flex items-center justify-end gap-3">
@@ -982,33 +1116,76 @@ export function TaxStrategy() {
       </section>
 
       {/* The four-up stat strip that used to sit here restated the filing
-          status, document count, strategy count and filing year, every one of
-          which the hero already shows within 400px. */}
+          status, document count, action count and filing year, every one of
+          which the page already shows within 400px. */}
 
-      {/* ── Strategies — the concrete moves ── */}
+      {/* ── Actions — the concrete moves ── */}
+      {/* Its own header. The hero above describes the situation, so it can no
+          longer double as this list's heading, and the list was left with
+          nothing naming it. "Actions" because that is what this same data is
+          called on /insights and in PageActions. */}
       {!showStrategyZone ? null : insightsLoading ? (
-        // Mirrors the loaded shape: no header (the hero is the header) and
-        // slim rows, so nothing jumps when the real list arrives.
-        <section className="mt-3 flex flex-col gap-2" aria-hidden>
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-2.5 shadow-ui-sm"
-            >
-              <Skeleton className="h-6 w-6 shrink-0 rounded-ui-md" />
-              <Skeleton className="h-4 flex-1" />
-              <Skeleton className="h-[22px] w-32 shrink-0 rounded-full" />
-            </div>
-          ))}
+        // Mirrors the loaded shape, header included: without the header
+        // placeholder the h2 and Refresh popped in and shoved the list down 16px.
+        <section className="mt-7 sm:mt-14" aria-hidden>
+          {/* Same wrapper classes as the real header row, so the heading and
+              the Refresh button both land where their placeholders sat. */}
+          <div className="flex items-end justify-between gap-3 px-1 pb-3.5">
+            <Skeleton className="h-[26px] w-32" />
+            {/* Wears `touch-target` for the same reason the real Refresh
+                button does, so it grows to 44px on exactly the widths and
+                pointers that grow the button. Guessing the breakpoint instead
+                left an 8px drop at 640, where max-width:640 and Tailwind's
+                min-width:640 both apply. */}
+            <Skeleton className="touch-target h-9 w-[99px] rounded-ui-md" />
+          </div>
+          <div className="flex flex-col gap-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-2.5 shadow-ui-sm"
+              >
+                <Skeleton className="h-6 w-6 shrink-0 rounded-ui-md" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-[22px] w-32 shrink-0 rounded-full" />
+              </div>
+            ))}
+          </div>
         </section>
-      ) : showStrategyZone ? (
-        // Rendered whenever documents exist, not only when strategies do — the
-        // hero tells a user with zero strategies to "refresh below", and the
-        // Refresh button used to live inside the has-strategies branch only.
-        // No section header: the hero headline directly above is this list's
-        // header. It used to promise "N ways to lower your taxes" and then hand
-        // the reader an upload control before the ways ever appeared.
-        <section className="mt-3">
+      ) : (
+        <section className="mt-7 sm:mt-14">
+          {/* Wraps rather than overflows: at 320 the count, the "Updating"
+              badge and Refresh together are wider than the row, and an
+              unwrapped row made the whole page scroll sideways. */}
+          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 px-1 pb-3.5">
+            <h2 className="font-editorial text-[21px] sm:text-[23px] font-bold tracking-[-0.02em]">
+              Actions
+            </h2>
+            {/* Beside the actions, not the hero: next to a description of the
+                situation Refresh reads as "refresh the summary", which is not
+                what it does. The count sits here in the same words and the same
+                place as "N documents" on the sibling header below, rather than
+                as a bare digit beside the heading. */}
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {/* Suppressed at zero: the empty state directly below already
+                  says there are none. */}
+              {insights.length > 0 && (
+                <span className="text-[13px] font-semibold text-content-muted ui-tnum">
+                  {insights.length} {insights.length === 1 ? "action" : "actions"}
+                </span>
+              )}
+              {insightStatusBadge}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefreshInsights}
+                disabled={refreshingInsights || insightsLoading}
+                leadingIcon={<RefreshCw size={15} className={refreshingInsights ? "animate-spin" : ""} />}
+              >
+                {refreshingInsights ? "Refreshing…" : "Refresh"}
+              </Button>
+            </div>
+          </div>
           {insights.length > 0 ? (
             <div className="flex flex-col gap-2">
               {(showAllStrategies ? insights : insights.slice(0, strategyPreview)).map((ins) => (
@@ -1041,9 +1218,18 @@ export function TaxStrategy() {
                 </button>
               )}
             </div>
-          ) : null /* the hero headline and its Refresh already say this */}
+          ) : (
+            // Rendered rather than skipped: the Refresh button beside the
+            // heading has to refer to something on screen.
+            <EmptyState
+              tone="brand"
+              icon={<Receipt size={24} />}
+              title="No actions right now"
+              description="Nothing on file needs a decision from you. Add a document and this list updates."
+            />
+          )}
         </section>
-      ) : null}
+      )}
 
       {/* ══════════ ZONE 2 — What have I got on file? ══════════ */}
       {/* A first-run user with the dropzone live on screen does not need a

@@ -4,6 +4,7 @@ import { db } from "../lib/db.js";
 import { taxDocuments, eq, and, desc } from "@lasagna/core";
 import { type AuthEnv } from "../middleware/auth.js";
 import { extractFromVision } from "../lib/tax-vision-extraction.js";
+import { readTaxSummary } from "../lib/tax-summary.js";
 import { visionProvider } from "../lib/vision/index.js";
 
 export const taxDocumentsRouter = new Hono<AuthEnv>();
@@ -128,6 +129,16 @@ taxDocumentsRouter.get("/", async (c) => {
     .orderBy(desc(taxDocuments.createdAt));
 
   return c.json({ documents: docs });
+});
+
+// Plain-language description of what the uploaded documents show. MUST stay
+// above GET /:id, which would otherwise match "summary" as a document id.
+// Generation is lazy and fingerprinted, so this is a cheap read unless the
+// documents changed.
+taxDocumentsRouter.get("/summary", async (c) => {
+  const { tenantId } = c.get("session");
+  const { summary, generatedAt } = await readTaxSummary(tenantId);
+  return c.json({ summary, generatedAt });
 });
 
 // Get single document

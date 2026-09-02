@@ -2,7 +2,11 @@ import { Hono } from "hono";
 import { eq, and, desc, insights, accounts, sql } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
-import { generateInsights } from "../lib/insights-engine.js";
+import {
+  generateInsights,
+  pricesTaxSaving,
+  taxSafeImpactColor,
+} from "../lib/insights-engine.js";
 import { readPathSteps } from "../lib/path-generator.js";
 import { readHouseholdProfile } from "../lib/profile-resolver.js";
 
@@ -118,8 +122,20 @@ insightsRoutes.get("/", async (c) => {
   // column would file an orphan under a step that is not on the plan.
   const onPath = new Set(pathSteps.map((s) => s.key));
 
+  // The same rule the insert loop applies, applied again on the way out.
+  // A row written before that rule existed is still sitting in the table
+  // saying "save $2,790 in taxes", and it stays there until that tenant's
+  // next generation. Suppressed rather than deleted: the row is the model's
+  // output, not the user's data, but it still carries a dismissed/snoozed
+  // state a purge would silently throw away, and generation already replaces
+  // every non-dismissed row on the next run, so hiding it is enough to make
+  // the copy unreachable and costs nothing to undo.
+  const shown = inPathOrder(rows, pathSteps).filter(
+    (r) => !pricesTaxSaving({ title: r.title, description: r.description, impact: r.impact }),
+  );
+
   return c.json({
-    insights: inPathOrder(rows, pathSteps).map((r) => ({
+    insights: shown.map((r) => ({
       id: r.id,
       category: r.category,
       urgency: r.urgency,
@@ -127,7 +143,11 @@ insightsRoutes.get("/", async (c) => {
       title: r.title,
       description: r.description,
       impact: r.impact,
-      impactColor: r.impactColor,
+      impactColor: taxSafeImpactColor({
+        category: r.category,
+        type: r.insightType,
+        impactColor: r.impactColor,
+      }),
       chatPrompt: r.chatPrompt,
       generatedBy: r.generatedBy,
       createdAt: r.createdAt,

@@ -578,7 +578,7 @@ export const BUILDING_WEALTH_PERSONA: MockPersona = {
       urgency: 'medium',
       title: '$4,200 in unrealized losses available for harvesting',
       description: 'Your taxable account shows $4,200 in unrealized losses. Harvesting these offsets capital gains and up to $3,000 of ordinary income.',
-      impact: '$1,200+ tax savings',
+      impact: '$4,200 in losses',
       actionText: 'Harvest losses in taxable brokerage',
     },
     {

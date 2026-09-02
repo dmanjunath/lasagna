@@ -191,6 +191,12 @@ export const financialProfiles = pgTable("financial_profiles", {
   dependentCount: integer("dependent_count"),   // null = unknown; 0 = none; 1+ = has dependents
   isPSLFEligible: boolean("is_pslf_eligible"),
   lastActionsGeneratedAt: timestamp("last_actions_generated_at", { withTimezone: true }),
+  // Plain-language description of what this household's tax documents show.
+  // Regenerated only when the fingerprint (the documents plus the profile
+  // fields the summary reads) changes, so a page view costs nothing.
+  taxSummary: text("tax_summary"),
+  taxSummaryFingerprint: varchar("tax_summary_fingerprint", { length: 64 }),
+  taxSummaryGeneratedAt: timestamp("tax_summary_generated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

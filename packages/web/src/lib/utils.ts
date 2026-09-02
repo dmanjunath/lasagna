@@ -72,3 +72,16 @@ export function formatRelativeTime(date: Date): string {
 
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+/**
+ * Split model prose into paragraphs on paragraph breaks. Handles both real
+ * newlines AND the literal two-character "\n" sequence the model sometimes
+ * emits as text (which would otherwise print verbatim, e.g. "robust pace.\n\nThe...").
+ */
+export function splitParagraphs(body: string): string[] {
+  return body
+    .replace(/\\n/g, '\n')
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}

@@ -137,7 +137,10 @@ vi.mock("../../lib/db.js", () => ({
 // stale backstop does not fire. Stubbed so a regression there fails loudly
 // rather than quietly paying for a model call.
 const generateInsights = vi.fn(async () => 0);
-vi.mock("../../lib/insights-engine.js", () => ({
+// Only generation is stubbed. The copy rules the route applies as it serves are
+// the engine's own, so they are taken from it rather than restated here.
+vi.mock("../../lib/insights-engine.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/insights-engine.js")>()),
   generateInsights: () => generateInsights(),
 }));
 vi.mock("../../lib/profile-resolver.js", () => ({

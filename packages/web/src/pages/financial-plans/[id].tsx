@@ -6,7 +6,7 @@ import { watchReport } from "../../lib/report-watcher.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { SegmentedControl } from "../../components/uikit/SegmentedControl.js";
 import { vizColor } from "../../components/uikit/viz.js";
-import { formatMoney } from "../../lib/utils.js";
+import { formatMoney, splitParagraphs } from "../../lib/utils.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { BrandMark } from "../../components/common/BrandMark.js";
 import { DISCLAIMER_COPY } from "../../components/common/legal-disclaimer.js";
@@ -190,17 +190,6 @@ function Figure({
 // section degrades gracefully to its exhibit-only rendering.
 function themeBody(narrative: NarrativeSection | null, key: NarrativeThemeKey): string | null {
   return narrative?.themes.find((t) => t.key === key)?.body ?? null;
-}
-
-// Split a narrative body into paragraphs on paragraph breaks. Handles both real
-// newlines AND the literal two-character "\n" sequence the model sometimes emits
-// as text (which would otherwise print verbatim, e.g. "robust pace.\n\nThe...").
-function splitParagraphs(body: string): string[] {
-  return body
-    .replace(/\\n/g, "\n")
-    .split(/\n+/)
-    .map((p) => p.trim())
-    .filter(Boolean);
 }
 
 // A theme's prose rendered as the LEDE atop its section's exhibits: a comfortable

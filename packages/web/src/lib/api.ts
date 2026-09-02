@@ -525,6 +525,9 @@ export const api = {
   getTaxDocument: (id: string) =>
     request<{ document: TaxDocument }>(`/tax/documents/${id}`),
 
+  getTaxSummary: () =>
+    request<{ summary: string | null; generatedAt: string | null }>("/tax/documents/summary"),
+
   extractTaxDocument: async (file: File): Promise<ExtractionResult> => {
     const formData = new FormData();
     formData.append("file", file);
