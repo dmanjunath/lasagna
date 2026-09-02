@@ -77,6 +77,12 @@ export const env = {
   get MULTI_TENANT() {
     return optional("MULTI_TENANT", "true") === "true";
   },
+  // Hosted deployments state general allocation guidance in generated portfolio
+  // actions instead of the reader's own holdings and figures. Self-hosted
+  // deployments (the default) are unaffected.
+  get HOSTED_MODE() {
+    return optional("HOSTED_MODE", "false") === "true";
+  },
   get APP_ENV() {
     return optional("APP_ENV", process.env.NODE_ENV || "dev");
   },

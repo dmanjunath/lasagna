@@ -3,6 +3,7 @@ import { getModel, getModelSlug } from "../agent/index.js";
 import { logLlmUsage } from "./activity.js";
 import { isTenantDisabled } from "./billing.js";
 import { db } from "./db.js";
+import { env } from "./env.js";
 import { buildAliasMap, scrub, descrub } from "./pii-scrubber.js";
 import {
   accounts,
@@ -152,6 +153,30 @@ interface GeneratedInsight {
   pathStepKey?: string;
 }
 
+/**
+ * Every holding this tenant owns, joined to the security that names it.
+ *
+ * One definition, because two readers need the same answer: the snapshot the
+ * model reasons over, and `heldSecurityNames` below, which decides whether an
+ * action names something the reader actually holds. Two copies of this query
+ * would be two different sets of holdings the day one of them gained a filter.
+ */
+function readHoldingRows(tenantId: string) {
+  return db
+    .select({
+      ticker: securities.tickerSymbol,
+      secName: securities.name,
+      quantity: holdings.quantity,
+      value: holdings.institutionValue,
+      costBasis: holdings.costBasis,
+      accountName: accounts.name,
+    })
+    .from(holdings)
+    .innerJoin(securities, eq(holdings.securityId, securities.id))
+    .innerJoin(accounts, eq(holdings.accountId, accounts.id))
+    .where(eq(holdings.tenantId, tenantId));
+}
+
 async function gatherFinancialData(
   tenantId: string
 ): Promise<FinancialSnapshot> {
@@ -234,19 +259,7 @@ async function gatherFinancialData(
   );
 
   // Holdings
-  const holdingRows = await db
-    .select({
-      ticker: securities.tickerSymbol,
-      secName: securities.name,
-      quantity: holdings.quantity,
-      value: holdings.institutionValue,
-      costBasis: holdings.costBasis,
-      accountName: accounts.name,
-    })
-    .from(holdings)
-    .innerJoin(securities, eq(holdings.securityId, securities.id))
-    .innerJoin(accounts, eq(holdings.accountId, accounts.id))
-    .where(eq(holdings.tenantId, tenantId));
+  const holdingRows = await readHoldingRows(tenantId);
 
   const holdingsData = holdingRows.map((h) => ({
     ticker: h.ticker || "Unknown",
@@ -903,6 +916,68 @@ Output at most 10 insights, ordered from most urgent/actionable to least. Skip a
 
 PRIORITIZATION against the 10-item cap: when you have more candidates than slots, RANK by how much of the user's own money the move puts in play combined with eligibility confidence, and let the highest-value moves the user is CLEARLY eligible for take their slots first. Do NOT drop a clearly-eligible, high-value tax optimization (a real credit, deduction, or Roth/HSA move on material dollars) in order to keep a lower-impact or marginal suggestion — the low-impact one is the one that yields its slot. This is directional ranking by value, not a quota: never invent or inflate an item to make the cut, and never emit anything the data does not genuinely support. A high-value, clearly-eligible move that also carries a pro-rata caveat and a tax-pro hedge (e.g. a backdoor Roth alongside a large pre-tax Traditional IRA) still counts as high-value — surface it responsibly (name the pro-rata drag and the standard remedy: roll the pre-tax Traditional IRA into an employer 401(k) first to clear pro-rata, THEN do the backdoor Roth, confirm with a tax professional) rather than dropping it at the cap.`;
 
+// Appended to INSIGHTS_PROMPT in hosted deployments, and never seen by a
+// self-hosted one.
+//
+// It has to REDIRECT, not just prohibit. Rules 1, 3 and 10 and the GUARDRAILS
+// all say the same thing in different words: no specific number from the user's
+// own data, no insight. A bare ban on naming what they hold therefore reads as
+// an instruction to emit nothing at all, and the portfolio lens goes quiet.
+// That failure is invisible from here: every reader of the actions list renders
+// nothing when the list is empty, so a silent lens looks exactly like a
+// household with no portfolio findings. So this names what the copy says
+// INSTEAD, and states outright that the general benchmark figure is the
+// specific number those rules are asking for.
+//
+// The trigger is untouched on purpose. The portfolio rules still run against
+// the real holdings and the real age, and that is still what decides whether an
+// action appears at all. Only the wording of the action changes.
+const HOSTED_PORTFOLIO_RULES = `
+
+---
+
+## PORTFOLIO AND INVESTING COPY IN THIS DEPLOYMENT
+
+This deployment states general allocation guidance in portfolio and investing actions instead of the reader's own holdings and figures. The rules in this section OVERRIDE everything above for every action in the portfolio family: the three portfolio rules (US versus international allocation, single-fund concentration, bond allocation versus age), tax-loss harvesting, asset location, and any other action whose subject is what the reader holds or how it is allocated.
+
+THE TRIGGER DOES NOT CHANGE. Keep evaluating every one of those rules against the reader's actual holdings, cost basis, account subtypes and age, exactly as described above. Their data still decides WHETHER one of these actions appears. Only the wording changes.
+
+These actions may NOT contain:
+- A ticker symbol, or the name of any fund, security or company.
+- A statement of what the reader holds, in dollars or in percent. Not "your portfolio is 92% US", not "you hold 4% in bonds at age 41", not "32% of your brokerage sits in one stock".
+- An allocation prescribed for the reader. Not "rebalance to a 70/30 split", not "move about 30% into international funds", not "trim it to under 10%".
+- An account name, or any dollar figure taken from their holdings.
+- The reader's age, or any other fact read off their profile, attached to the guideline. State the benchmark on its own: "Bonds should make up 20 percent of a balanced portfolio", never "at age 30".
+
+These actions say this instead:
+- State the general benchmark as a general fact, in the third person, about portfolios in general and not about theirs.
+- THIS SATISFIES RULE 1 AND RULE 10. For a portfolio action, the general benchmark figure IS the specific number those rules require. Never drop a portfolio action for lacking a figure from the reader's data, and never emit one without the benchmark figure.
+- THIS SATISFIES RULE 3 AND THE GUARDRAILS. For a portfolio action, the concrete next step is to open the Portfolio page and compare their own split against the guideline. That is the step these actions give, and it is enough.
+- RULE 14 IS OVERRIDDEN FOR THESE ACTIONS ONLY. The title states the guideline, so it is a statement and not an imperative. Never open one of these titles with Rebalance, Shift, Reallocate, Trim, Move or Sell.
+- The impact label names the guideline, never their number: "70/30 guideline", "10% guideline", "20% bonds", "$3,000 limit".
+
+Worked examples. The NO line is what this deployment must not produce. The YES line is what it produces instead, from the same trigger:
+
+Trigger: holdings are more than 80% US.
+NO: title "Move about 30% into international funds to diversify", impact "92% US"
+YES: title "The recommended stock allocation is about 70 percent US to 30 percent international", description "A globally diversified stock allocation holds roughly a third of it outside the US, which spreads the risk across more than one economy. Open the Portfolio page to see how the split compares.", impact "70/30 guideline"
+
+Trigger: one holding is more than 30% of the portfolio.
+NO: title "Trim Procter & Gamble from 32% to under 10% to cut single-stock risk", impact "$192,000 equity"
+YES: title "A single holding above 10 percent of a portfolio is generally considered concentrated", description "Concentration ties a large share of a portfolio to the results of one company. Open the Portfolio page to see the weight of the largest position.", impact "10% guideline"
+
+Trigger: bond allocation is far from what the reader's age suggests.
+NO: title "You hold 4% in bonds at age 41", impact "4% bonds"
+YES: title "Bonds should make up 20 percent of a balanced portfolio", description "A common rule of thumb raises the bond share with age, which cushions a portfolio as the time left to spend it shortens. Open the Portfolio page to see the current bond share.", impact "20% bonds"
+
+Trigger: a holding in a taxable account is worth less than it cost.
+NO: title "Harvest the $4,200 loss in VTSAX", impact "$4,200 loss"
+YES: title "Realized losses in a taxable account offset capital gains, and up to $3,000 of ordinary income a year", description "Selling a position worth less than it cost turns a paper loss into one that offsets gains, and any unused remainder carries forward to later years. Open the Portfolio page to see which positions sit below their cost basis.", impact "$3,000 limit"
+
+Everything OUTSIDE the portfolio family is UNCHANGED and still names the reader's own numbers exactly as described above: spending categories, cash flow, goals, debt balances and rates, employer match, contribution room, withholding, and account balances.
+
+ONE RULE APPLIES TO EVERY ACTION IN THIS DEPLOYMENT, portfolio family or not: never write a ticker symbol, a fund name or a security name. This holds even when the action is about something else and the fund is only an aside, which is where it is most often broken: a cash action saying where the idle money goes, a savings action naming what to buy, an HSA or 401(k) action naming what to invest it in. Name the KIND of fund instead. Write "a low-cost broad market index fund", "a total international fund", "a target-date fund". Never "VOO", "VTI", "VXUS", "index funds like VOO or VXUS", "a fund like BND".`;
+
 // Deterministic punctuation backstop for STYLE rule 13: the model is told to
 // avoid em dashes, en dashes, and middots but still slips on roughly a third
 // of generations, and regenerating over punctuation is not worth it — banned
@@ -1002,6 +1077,277 @@ export function pricesTaxSaving(copy: InsightCopy): boolean {
   );
 }
 
+/**
+ * A portfolio action states general allocation guidance in a hosted deployment,
+ * not the reader's own holdings and figures. The prompt asks for that, and the
+ * two predicates below are the deterministic backstop, applied on the write
+ * path as an action is stored and again on the read path as it is served, for
+ * the same reason the tax rule above is applied twice: a row written before the
+ * flag was turned on is still in the table saying "your portfolio is 92% US"
+ * until that household next regenerates, which is up to two days.
+ *
+ * Both are PURE. Neither reads the flag: the call sites do, so the rule can be
+ * unit-tested without an environment.
+ */
+export interface HeldSecurities {
+  tickers: string[];
+  names: string[];
+}
+
+export const NO_HELD_SECURITIES: HeldSecurities = { tickers: [], names: [] };
+
+/**
+ * The tickers and security names this tenant actually holds.
+ *
+ * Scoped to the tenant rather than matched by shape, because a blind
+ * uppercase-token rule fires on HSA, IRA, APR, ETF, RMD, LTCG, MAGI, NUA, ACA
+ * and US, and would take the tax lens down with the portfolio one.
+ *
+ * buildAliasMap aliases accounts, goals and users but NOT securities, so a
+ * ticker and a fund name survive scrubbing un-aliased. That is what lets the
+ * same predicate work on the raw generated text and on the stored, descrubbed
+ * text without either side translating first.
+ */
+export async function heldSecurityNames(tenantId: string): Promise<HeldSecurities> {
+  const rows = await readHoldingRows(tenantId);
+  const tickers = new Set<string>();
+  const names = new Set<string>();
+  for (const r of rows) {
+    if (r.ticker) tickers.add(r.ticker.trim());
+    if (r.secName) names.add(r.secName.trim());
+  }
+  return { tickers: [...tickers], names: [...names] };
+}
+
+// Symbols that are also ordinary words. Matching is case-sensitive, which
+// already spares "All" and "It" mid-sentence, but not a label written in caps.
+const TICKER_STOPLIST = new Set(["ALL", "IT", "CASH", "ONE", "NOW", "PAY", "REAL"]);
+
+// A one-character ticker is not evidence of anything, and the security's name
+// catches that holding anyway.
+const MIN_TICKER_LENGTH = 2;
+// Short enough that a name is a name and not a word. "Visa" and "Bitcoin" pass;
+// nothing shorter is worth the false positives.
+const MIN_NAME_LENGTH = 4;
+
+// The legal and corporate tail a custodian keeps and a writer drops, stripped
+// so "Procter & Gamble" still matches the stored "Procter & Gamble Co.".
+const LEGAL_SUFFIX =
+  /(?:[,\s]+(?:inc|corp|corporation|co|company|ltd|limited|llc|lp|plc|trust|holdings?|group)\.?)+$/i;
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The forms of a stored security name worth looking for in the copy. */
+function nameForms(name: string): string[] {
+  const raw = name.trim().replace(/\s+/g, " ");
+  const stripped = raw.replace(LEGAL_SUFFIX, "").replace(/[^\w)]+$/, "").trim();
+  return [...new Set([raw, stripped])].filter((n) => n.length >= MIN_NAME_LENGTH);
+}
+
+/**
+ * True when the text names a security this tenant holds.
+ *
+ * `matchNames` is what separates the two halves. A TICKER is matched
+ * everywhere: it is case-sensitive, word-bounded and stoplisted, so the only
+ * thing that produces "VOO" in a sentence is the fund. A security NAME is
+ * matched case-insensitively, and half the S&P is also a shop or a card: a
+ * household holding Visa, Target, Apple or American Express would otherwise
+ * lose "Pay down your Visa card", "Cut $240/mo at Target" and every other
+ * action whose subject is the merchant rather than the position. So names are
+ * looked for only where the action is ABOUT what the reader holds.
+ */
+export function namesHeldSecurity(
+  text: string,
+  held: HeldSecurities,
+  matchNames: boolean,
+): boolean {
+  if (!text) return false;
+  for (const ticker of held.tickers) {
+    if (ticker.length < MIN_TICKER_LENGTH || TICKER_STOPLIST.has(ticker.toUpperCase())) continue;
+    // Case-SENSITIVE and word-bounded: the alternative catches every acronym
+    // the tax lens is built out of.
+    if (new RegExp(`\\b${escapeRegExp(ticker)}\\b`).test(text)) return true;
+  }
+  if (!matchNames) return false;
+  for (const name of held.names) {
+    for (const form of nameForms(name)) {
+      if (new RegExp(`\\b${escapeRegExp(form)}\\b`, "i").test(text)) return true;
+    }
+  }
+  return false;
+}
+
+// The families whose subject is what the reader holds: the portfolio rules
+// themselves, and the tax rules written about positions (loss harvesting,
+// asset location, gain harvesting), which the model files under `tax`. Outside
+// these two an action is about a merchant, a card or a bill, and a security
+// name appearing in it is a coincidence of branding.
+const HOLDINGS_FAMILY = new Set(["portfolio", "tax"]);
+
+/** True when this action's subject is the reader's holdings. */
+function aboutHoldings(category?: string | null, type?: string | null): boolean {
+  return HOLDINGS_FAMILY.has(category ?? "") || HOLDINGS_FAMILY.has(type ?? "");
+}
+
+// The subject of the rule is ALLOCATION: how a portfolio is divided, and how
+// much of it sits where. It is NOT the fact that the reader owns an investment
+// account. "your brokerage" is an account noun, and a household with a card and
+// a brokerage says it in the cash, debt and contribution actions the rule must
+// never touch: "8% in your brokerage", "your brokerage balance of $15,629",
+// "moving $25,000 into your brokerage". So no account noun is a trigger on its
+// own, and neither is a bare dollar amount.
+
+// The slices a portfolio is divided into. Deliberately narrow. "equity" alone
+// is a house as often as it is a stock, so it counts only with something
+// investment-shaped attached; "index fund" is how every cash action names the
+// destination for idle money, so it is not here at all.
+const ASSET_CLASS =
+  "(?:stocks?|equities|bonds?|international|domestic|fixed\\s+income|emerging\\s+markets?|US\\s+equit(?:y|ies)|US\\s+stocks?|equity\\s+(?:position|allocation|exposure|holdings?))";
+// Words naming a portfolio's composition rather than an account someone owns.
+const ALLOCATION_NOUN =
+  "(?:allocations?|asset\\s+mix|asset\\s+class(?:es)?|splits?|weightings?|concentration|diversification)";
+// What a share can be a share OF, once the reader is named as its owner.
+const PORTFOLIO_ACCOUNT =
+  "(?:portfolios?|brokerages?|holdings?|investments?|positions?|assets)";
+// A tax-advantaged container is NOT one of them. It holds an allocation but is
+// not one, and a share of it is how the cash-drag actions are written: "put
+// 100% of your HSA into investments", "only 12% of your IRA is invested". So it
+// counts only where a slice of a portfolio is named beside it. No trailing word
+// boundary after "401(k)": the string ends in a bracket, so a \b there would
+// demand a word character that never comes.
+const RETIREMENT_ACCOUNT = "(?:401\\(k\\)|IRAs?\\b|HSAs?\\b)";
+// An allocation is written as a share or a ratio. A dollar figure is not one:
+// every action in the list moves dollars.
+const SHARE = "(?:\\d+(?:\\.\\d+)?\\s*(?:%|percent\\b)|\\b\\d{1,3}\\s*/\\s*\\d{1,3}\\b)";
+
+// Neither gap may contain a second figure, so a rate in one clause cannot reach
+// a noun in the next: "5% in cash vs ~8% expected market return" is two
+// statements, not one claim.
+const NEAR = "[^.!?%$]{0,16}?";
+const NEAR_MONEY = "[^.!?%$]{0,12}?";
+
+// A share bound to a slice of a portfolio: "100% US equity", "4% in bonds",
+// "30 to 40% to international stocks", "70/30 split", "$12,300 (79.6%) in
+// individual stocks".
+const SHARE_IN_ASSET_CLASS = `${SHARE}${NEAR}\\b(?:${ASSET_CLASS}|${ALLOCATION_NOUN})\\b`;
+// The same claim the other way round, and only with a connector that makes the
+// share the SIZE of the slice: "bonds from 19% down to 10%", "allocation near
+// 30%". That connector is the whole difference between it and the general forms
+// this deployment writes, which read "stocks historically return 8%" and "bonds
+// should make up 20 percent of a balanced portfolio".
+const ASSET_CLASS_AT_SHARE = `\\b(?:${ASSET_CLASS}|${ALLOCATION_NOUN})\\s+(?:from|at|to|near|of|around|about|under|above|over|below)\\s+(?:about\\s+|roughly\\s+|under\\s+|around\\s+)?${SHARE}`;
+// What may stand between the possessive and the noun: a qualifier, a figure,
+// "your taxable holdings", "your $67,597 in investments". Never a tax-advantaged
+// container, because then the share is a share of THAT and the noun after it is
+// only where the money is headed: without this, "100% of your HSA into
+// investments" reads as a share of the investments and the cash-drag action
+// disappears.
+const OF_QUALIFIER = `(?:(?!\\b${RETIREMENT_ACCOUNT})[^.!?]){0,30}?`;
+// A share of something that is theirs: "32% of your brokerage", "22% of your
+// taxable holdings". The share and the possessive are one phrase, so this is a
+// personal claim on its own.
+const SHARE_OF_YOUR_PORTFOLIO = `${SHARE}\\s+of\\s+your\\b${OF_QUALIFIER}\\b${PORTFOLIO_ACCOUNT}\\b`;
+// The same claim with a definite article: "32% of the brokerage". Personal in
+// context but not on its own, so it still needs the possessive or the
+// imperative beside it. "10 percent of a portfolio" is the general form and is
+// neither.
+const SHARE_OF_THE_PORTFOLIO = `${SHARE}\\s+of\\s+(?:the|this)\\b${OF_QUALIFIER}\\b${PORTFOLIO_ACCOUNT}\\b`;
+// A share of a retirement account, which counts only with a slice of a
+// portfolio beside it, on either side: "40% of your IRA sits in bonds" and
+// "bonds are only 12% of your IRA" both state an allocation, where "12% of your
+// IRA is invested" states a balance.
+const SHARE_OF_RETIREMENT = `${SHARE}\\s+of\\s+(?:your|the|this)\\b${OF_QUALIFIER}\\b${RETIREMENT_ACCOUNT}`;
+const SHARE_OF_RETIREMENT_ACCOUNT = `(?:${SHARE_OF_RETIREMENT}[^.!?]{0,30}?\\b${ASSET_CLASS}\\b|\\b${ASSET_CLASS}\\b[^.!?]{0,30}?${SHARE_OF_RETIREMENT})`;
+// What a moved percentage turns out to be a percentage OF, in every lens that
+// is not the portfolio one: a contribution, a deferral, a withholding, a
+// savings or spending share, a yield, an employer match. Each of these moves a
+// figure from one percent to another in exactly the words a reweighting uses,
+// and "raise your 401(k) contribution from 3% to 6%" is the most repeated
+// action the product has.
+const RATE_SUBJECT =
+  "(?:contributions?|deferrals?|withholding|savings|spending|yields?|APY|match(?:es|ing)?|pay)";
+// A prescribed reweighting: "from 18% to under 10%", "from 16.5% to 45%". Only
+// ever read beside the verb doing the reweighting, because on its own it is
+// also how a rate that moved is written.
+const FROM_SHARE_TO_SHARE = `\\bfrom\\s+${SHARE}\\s+(?:down\\s+)?to\\s+(?:about\\s+|under\\s+|over\\s+|around\\s+|roughly\\s+)?${SHARE}`;
+// The rates are SUBTRACTED from the sentence rather than a slice of a portfolio
+// being required in it, because what separates the two is not that an asset
+// class is named: "trim your largest position from 24% to under 10%" names none
+// and is an allocation all the same. A rate, by contrast, always says what it
+// is a rate of, on one side of the move or the other, so the run between the
+// verb and the move carries none of those words and neither does the rest of
+// the sentence after it.
+const NOT_A_RATE = `(?:(?!\\b${RATE_SUBJECT}\\b)[^.!?]){0,40}?`;
+const REWEIGHTING = `${NOT_A_RATE}${FROM_SHARE_TO_SHARE}(?![^.!?]*\\b${RATE_SUBJECT}\\b)`;
+// Dollars sitting in a slice: "your $192,000 US equity position". Tight, because
+// a dollar figure next to a loose noun is every other action in the list.
+const MONEY_IN_ASSET_CLASS = `${MONEY}${NEAR_MONEY}\\b${ASSET_CLASS}\\b`;
+
+const ALLOCATION_CLAIM = `(?:${SHARE_IN_ASSET_CLASS}|${ASSET_CLASS_AT_SHARE}|${SHARE_OF_THE_PORTFOLIO}|${MONEY_IN_ASSET_CLASS})`;
+
+// The reader named as the owner of what is described. "you have" is left out
+// on purpose: it opens half the actions in the list and owns none of them.
+const SECOND_PERSON = "(?:\\byour\\b|\\byou\\s+(?:hold|own|carry|keep)\\b)";
+const ALLOCATION_VERB =
+  "(?:rebalanc(?:e|es|ed|ing)|shift(?:s|ed|ing)?|reallocat(?:e|es|ed|ing)|allocat(?:e|es|ed|ing)|trim(?:s|med|ming)?|mov(?:e|es|ed|ing)|add(?:s|ed|ing)?|rais(?:e|es|ed|ing)|increas(?:e|es|ed|ing)|reduc(?:e|es|ed|ing)|tilt(?:s|ed|ing)?|diversify)";
+
+// Relationship-based, exactly like TAX_SAVING_PATTERNS above: an allocation
+// claim on its own is the general guidance this deployment is FOR, so a match
+// needs the possessive that makes the claim about THIS reader, or the
+// imperative that prescribes the allocation TO them. That is what leaves the
+// wanted forms standing: "The recommended stock allocation is 70/30" and
+// "Bonds should make up 20% of a balanced portfolio" have neither.
+const OWN_PORTFOLIO_PATTERNS: RegExp[] = [
+  // "your portfolio is 92% US equity", "your $192,000 US equity position",
+  // "you hold 4% in bonds at age 41"
+  new RegExp(`${SECOND_PERSON}[^.!?]{0,40}?${ALLOCATION_CLAIM}`, "i"),
+  // "10% bonds to align with your age", "32% of the brokerage in your Roth"
+  new RegExp(`${ALLOCATION_CLAIM}[^.!?]{0,40}?${SECOND_PERSON}`, "i"),
+  // "rebalance to a 70/30 split", "move about 30% into international funds"
+  new RegExp(`\\b${ALLOCATION_VERB}\\b[^.!?]{0,40}?${ALLOCATION_CLAIM}`, "i"),
+  // "trim it from 32% to under 10%", "trim your largest position from 24% to
+  // under 10%" — a move between two percentages that nothing in the sentence
+  // says is a rate.
+  new RegExp(`\\b${ALLOCATION_VERB}\\b${REWEIGHTING}`, "i"),
+  // "32% of your brokerage sits in one stock" — already both halves of a claim
+  // about this reader, with nothing left for a second leg to add. "40% of your
+  // IRA sits in bonds" is the same claim about a container, and carries the
+  // asset class that tells it apart from a cash-drag action.
+  new RegExp(`(?:${SHARE_OF_YOUR_PORTFOLIO}|${SHARE_OF_RETIREMENT_ACCOUNT})`, "i"),
+];
+
+/**
+ * True when the text states the reader's own allocation, or prescribes one for
+ * them, instead of stating general guidance.
+ */
+export function mentionsPersonalPortfolio(text: string): boolean {
+  if (!text) return false;
+  return OWN_PORTFOLIO_PATTERNS.some((p) => p.test(text));
+}
+
+/**
+ * True when this action states the reader's own holdings or allocation, so in a
+ * hosted deployment it may not be stored and may not be shown.
+ *
+ * The entry point both paths call, as `pricesTaxSaving` is for the tax rule.
+ * The fields are joined with a sentence break rather than a space: the patterns
+ * never cross a sentence boundary, and a title carries no terminal period, so a
+ * plain space would let a figure at the end of the title reach a noun at the
+ * start of the description and condemn a pair that never appeared together.
+ */
+export function personalizesPortfolio(
+  copy: InsightCopy & { category?: string | null; type?: string | null },
+  held: HeldSecurities,
+): boolean {
+  const text = `${copy.title ?? ""}. ${copy.description ?? ""}. ${copy.impact ?? ""}`;
+  return (
+    mentionsPersonalPortfolio(text) ||
+    namesHeldSecurity(text, held, aboutHoldings(copy.category, copy.type))
+  );
+}
+
 const VALID_IMPACT_COLORS = ["green", "amber", "red"] as const;
 export type ImpactColor = (typeof VALID_IMPACT_COLORS)[number];
 
@@ -1086,7 +1432,7 @@ export async function generateInsights(tenantId: string): Promise<number> {
     // descrubs each user-visible field after parsing.
     result = await llmGenerateText({ tenantId, aliasMap, descrubOutput: false }, {
       model,
-      system: INSIGHTS_PROMPT,
+      system: INSIGHTS_PROMPT + (env.HOSTED_MODE ? HOSTED_PORTFOLIO_RULES : ""),
       prompt:
         `Here is the user's complete financial data:\n\n${dataJson}` +
         (pathSteps.length > 0
@@ -1156,6 +1502,10 @@ export async function generateInsights(tenantId: string): Promise<number> {
 
   const onThePath = new Set(pathSteps.map((s) => s.key));
 
+  // Read once, and only where the rule applies: a self-hosted deployment never
+  // filters on this, so it never pays for the query.
+  const held = env.HOSTED_MODE ? await heldSecurityNames(tenantId) : NO_HELD_SECURITIES;
+
   let missingDataKept = 0;
   let insertCount = 0;
   for (const ins of generated) {
@@ -1166,6 +1516,15 @@ export async function generateInsights(tenantId: string): Promise<number> {
       // matcher over-reaching, and the title alone never says which.
       const insText = `${ins.title ?? ""} ${ins.description ?? ""} ${ins.impact ?? ""}`;
       console.log(`[Insights] Dropping insight that prices a tax saving: ${insText.slice(0, 240)}`);
+      continue;
+    }
+
+    // Also before the cap, and for the same reason.
+    if (env.HOSTED_MODE && personalizesPortfolio(ins, held)) {
+      const insText = `${ins.title ?? ""} ${ins.description ?? ""} ${ins.impact ?? ""}`;
+      console.log(
+        `[Insights] Dropping insight that states the reader's own holdings: ${insText.slice(0, 240)}`,
+      );
       continue;
     }
 

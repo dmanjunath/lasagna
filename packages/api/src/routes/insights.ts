@@ -4,11 +4,16 @@ import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import {
   generateInsights,
+  heldSecurityNames,
+  personalizesPortfolio,
   pricesTaxSaving,
   taxSafeImpactColor,
+  NO_HELD_SECURITIES,
+  type HeldSecurities,
 } from "../lib/insights-engine.js";
 import { readPathSteps } from "../lib/path-generator.js";
 import { readHouseholdProfile } from "../lib/profile-resolver.js";
+import { env } from "../lib/env.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
 
@@ -64,6 +69,44 @@ function inPathOrder<T extends { pathStepKey: string | null }>(
   // no key at all, which is what keeps a regenerated path from hiding anything.
   const at = (row: T) => position.get(row.pathStepKey ?? "") ?? Number.MAX_SAFE_INTEGER;
   return [...rows].sort((a, b) => at(a) - at(b));
+}
+
+/**
+ * Every rule that decides whether a STORED row may still be shown, in one place
+ * so the two routes below cannot disagree about what is servable.
+ *
+ * Applying these on the way out as well as on the way in is what makes a rule
+ * take effect the moment it deploys. A row written before the rule existed sits
+ * in the table saying the banned thing until that household next regenerates,
+ * which is a daily cron away at best and 48 hours at worst. Suppressed rather
+ * than deleted: the row is the model's output, not the user's data, but it
+ * still carries a dismissed/snoozed state a purge would throw away, and the
+ * next generation replaces every non-dismissed row anyway.
+ */
+function servable(
+  r: {
+    title: string;
+    description: string | null;
+    impact: string | null;
+    category: string | null;
+    insightType: string | null;
+  },
+  held: HeldSecurities,
+): boolean {
+  const copy = { title: r.title, description: r.description, impact: r.impact };
+  if (pricesTaxSaving(copy)) return false;
+  // The family is carried through because it decides whether a security NAME is
+  // looked for at all: outside the holdings families the same words are shops
+  // and cards, so a debt or spending action keeps its "Visa" and its "Target".
+  const withFamily = { ...copy, category: r.category, type: r.insightType };
+  if (env.HOSTED_MODE && personalizesPortfolio(withFamily, held)) return false;
+  return true;
+}
+
+// The securities this household holds, read once per request and only where the
+// rule that needs them applies. A self-hosted deployment never pays the query.
+function heldForRequest(tenantId: string): Promise<HeldSecurities> {
+  return env.HOSTED_MODE ? heldSecurityNames(tenantId) : Promise.resolve(NO_HELD_SECURITIES);
 }
 
 // Only a tenant with accounts can produce actions. Used to skip the backstop
@@ -122,17 +165,9 @@ insightsRoutes.get("/", async (c) => {
   // column would file an orphan under a step that is not on the plan.
   const onPath = new Set(pathSteps.map((s) => s.key));
 
-  // The same rule the insert loop applies, applied again on the way out.
-  // A row written before that rule existed is still sitting in the table
-  // saying "save $2,790 in taxes", and it stays there until that tenant's
-  // next generation. Suppressed rather than deleted: the row is the model's
-  // output, not the user's data, but it still carries a dismissed/snoozed
-  // state a purge would silently throw away, and generation already replaces
-  // every non-dismissed row on the next run, so hiding it is enough to make
-  // the copy unreachable and costs nothing to undo.
-  const shown = inPathOrder(rows, pathSteps).filter(
-    (r) => !pricesTaxSaving({ title: r.title, description: r.description, impact: r.impact }),
-  );
+  // The same rules the insert loop applies, applied again on the way out.
+  const held = await heldForRequest(session.tenantId);
+  const shown = inPathOrder(rows, pathSteps).filter((r) => servable(r, held));
 
   return c.json({
     insights: shown.map((r) => ({
@@ -217,8 +252,12 @@ insightsRoutes.get("/history", async (c) => {
     .orderBy(desc(insights.createdAt))
     .limit(50);
 
+  // Dismissed rows were served unfiltered, which left the banned copy readable
+  // in the one place a person goes to look back at it.
+  const held = await heldForRequest(session.tenantId);
+
   return c.json({
-    insights: rows.map((r) => ({
+    insights: rows.filter((r) => servable(r, held)).map((r) => ({
       id: r.id,
       category: r.category,
       title: r.title,
