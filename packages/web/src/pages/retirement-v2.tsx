@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
 import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
 import { FinancialPlansList } from './financial-plans/index';
+import { PlanFreshnessBanner } from '../components/common/plan-freshness-banner';
+import { planFreshness } from '../lib/plan-freshness';
+import type { FinancialPlanSummary } from '../lib/types';
 import { useChatStore } from '../lib/chat-store';
 import { cn, formatMoney } from '../lib/utils';
 import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
@@ -1186,8 +1189,16 @@ export function RetirementV2() {
   const { openChat } = useChatStore();
   const [loading, setLoading] = useState(true);
   const [hasAccounts, setHasAccounts] = useState(false);
-  // Page tabs: the retirement overview vs the Financial Reports list.
+  // Page tabs: the retirement overview vs the Retirement Plans list.
   const [pageTab, setPageTab] = useState<'overview' | 'reports'>('overview');
+  // The overview recommends generating a plan. Its button switches to the plans
+  // tab AND opens the create modal there, so the recommendation is one click
+  // from the thing it recommends.
+  const [autoCreatePlan, setAutoCreatePlan] = useState(false);
+  // Plan list, only for the freshness banner. Null until it lands, and nothing
+  // on the page waits on it, so a slow or failed fetch can never hold up the
+  // verdict band or the Monte Carlo.
+  const [planList, setPlanList] = useState<FinancialPlanSummary[] | null>(null);
 
   // Prefilled data (with spec fallbacks)
   const [currentAge, setCurrentAge] = useState(40);
@@ -1372,6 +1383,21 @@ export function RetirementV2() {
     obs.observe(el);
     return () => obs.disconnect();
   }, [loading, hasAccounts]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listFinancialPlans()
+      .then(({ plans }) => {
+        if (!cancelled) setPlanList(plans);
+      })
+      .catch(() => {
+        // No plan list, no banner. Nothing else on this page depends on it.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // SS benefit tracks the claim-age estimate until the user overrides it.
   useEffect(() => {
@@ -1798,6 +1824,10 @@ export function RetirementV2() {
     );
   }
 
+  // Null until the plan list lands, which is what keeps the banner out of the
+  // way of everything above it.
+  const planFresh = planList ? planFreshness(planList) : null;
+
   return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`
@@ -2024,28 +2054,67 @@ export function RetirementV2() {
           aria-label="Retirement page view"
           options={[
             { value: 'overview', label: 'Overview' },
-            { value: 'reports', label: 'Financial Reports' },
+            { value: 'reports', label: 'Retirement Plans' },
           ]}
         />
       </header>
 
-      {/* ── Financial Reports tab — the Insights report list ─────────────── */}
+      {/* ── Retirement Plans tab — the plan list ─────────────────────────── */}
       {pageTab === 'reports' && (
         <div className="mt-7">
-          <FinancialPlansList />
+          <FinancialPlansList
+            autoCreate={autoCreatePlan}
+            onAutoCreateHandled={() => setAutoCreatePlan(false)}
+          />
         </div>
       )}
 
       {pageTab === 'overview' && (<>
 
       {!hasAccounts && (
-        <div className="mt-5 flex flex-wrap items-center gap-3 rounded-ui-lg border border-line bg-canvas-sunken px-4 py-3">
-          <Building2 size={18} className="text-content-muted shrink-0" />
-          <span className="text-[13px] text-content-secondary flex-1 min-w-[220px]">
-            No linked accounts yet. These numbers start from example defaults. Connect your accounts to plan with real balances.
-          </span>
-          <Button variant="secondary" size="sm" onClick={() => navigate('/accounts')}>Link accounts</Button>
+        /* Same skeleton AND the same container-query break as the freshness
+           banner directly below: icon, then one column holding the message and
+           its action, so both strips stack together whenever the page is narrow
+           instead of one button hanging off the message and the other off the
+           container. */
+        <div className="alert-cq mt-5 flex items-start gap-3 rounded-ui-lg border border-line bg-canvas-sunken px-4 py-3">
+          <Building2 size={20} className="mt-0.5 shrink-0 text-content-muted" />
+          <div className="alert-body alert-body-center min-w-0 flex-1">
+            <span className="min-w-0 text-[13px] text-content-secondary">
+              No linked accounts yet. These numbers start from example defaults. Connect your accounts to plan with real balances.
+            </span>
+            <span className="alert-action shrink-0">
+              <Button variant="secondary" size="sm" onClick={() => navigate('/accounts')}>Link accounts</Button>
+            </span>
+          </div>
         </div>
+      )}
+
+      {planFresh && (
+        /* Radius matches the accounts strip directly above, which is the same
+           width and padding. tailwind-merge does not know the ui radius scale,
+           so it keeps both this class and the Alert's own `rounded-ui-md` and
+           source order decides the winner. `!` settles it regardless of order.
+           No planName here: this page already carries a "Financial insights"
+           section, so naming the plan read as a stale feature rather than a
+           stale document. */
+        <PlanFreshnessBanner
+          className="mt-5 !rounded-[var(--ui-r-lg)]"
+          freshness={planFresh}
+          refresh={{
+            label: 'Open plan',
+            onClick: () => {
+              if (planFresh.newest) navigate(`/financial-plans/${planFresh.newest.id}`);
+            },
+          }}
+          generate={{
+            label: 'Generate a plan',
+            onClick: () => {
+              setAutoCreatePlan(true);
+              setPageTab('reports');
+            },
+          }}
+        />
       )}
 
       {/* ── 1 · Verdict band ───────────────────────────────────────────────── */}

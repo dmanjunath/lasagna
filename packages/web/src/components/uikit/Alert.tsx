@@ -41,20 +41,30 @@ export function Alert({
   return (
     <div
       role="status"
-      className={cn('flex items-start gap-3 rounded-ui-md border px-4 py-3', t.wrap, className)}
+      className={cn('alert-cq flex items-start gap-3 rounded-ui-md border px-4 py-3', t.wrap, className)}
     >
       <span className="mt-0.5 shrink-0" aria-hidden>
         {t.icon}
       </span>
-      <div className="min-w-0 flex-1">
-        {title && <p className="text-[14px] font-semibold text-content">{title}</p>}
-        {children && (
-          <div className={cn('text-[13px] leading-relaxed text-content-secondary', title && 'mt-0.5')}>
-            {children}
-          </div>
-        )}
+      {/* Message and action share one column beside the icon. In a narrow alert
+          the action stacks under the message and inherits its left edge, and
+          the two sit side by side once the alert itself is wide enough. The
+          break measures the alert, not the viewport, because the sidebar makes
+          those two very different numbers (.alert-cq in index.css). It never
+          measures the label, so the same alert width always lays out the same.
+          The title clamps at two lines: a long plan name otherwise ran the
+          headline to six. */}
+      <div className="alert-body min-w-0 flex-1">
+        <div className="min-w-0">
+          {title && <p className="line-clamp-2 text-[14px] font-semibold text-content">{title}</p>}
+          {children && (
+            <div className={cn('text-[13px] leading-relaxed text-content-secondary', title && 'mt-0.5')}>
+              {children}
+            </div>
+          )}
+        </div>
+        {action && <div className="alert-action shrink-0">{action}</div>}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }

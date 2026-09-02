@@ -112,7 +112,7 @@ async function convergeIfStale(
       ...freeform,
       status: freeform.status === "revising" ? "ready" : "failed",
       startedAt: undefined,
-      error: "The advisor could not finish this report. Try again.",
+      error: "The advisor could not finish this plan. Try again.",
     };
     await saveFreeform(tenantId, userId, planId, converged);
     return converged;
@@ -158,7 +158,7 @@ function runFreeformInBackground(
       console.log(`[freeform] ${opts?.feedback ? "revision" : "generation"} ready for plan ${planId}`);
     } catch (e) {
       console.error(`[freeform] background run failed for plan ${planId}:`, e);
-      const msg = "The report could not be updated. Try again.";
+      const msg = "The plan could not be updated. Try again.";
       try {
         if (!(await isCurrentRun(tenantId, userId, planId, runToken))) {
           console.warn(`[freeform] run superseded for plan ${planId}; discarding failure`);
@@ -190,6 +190,12 @@ function safeJsonParse<T>(str: string | null, fallback: T): T {
 }
 
 // List this user's non-archived plans, newest first.
+//
+// The `document` blob is selected but NEVER returned — it is only read to derive
+// two scalars the list UI needs. Deriving them in Postgres with
+// `document::jsonb ->> 'generatedAt'` was rejected: the column is `text`, so one
+// malformed row would fail the cast and 500 the whole list. Parsing per row with
+// safeJsonParse degrades that same row to nulls instead.
 financialPlansRouter.get("/", async (c) => {
   const { tenantId, userId } = c.get("session");
 
@@ -200,6 +206,7 @@ financialPlansRouter.get("/", async (c) => {
       status: financialPlans.status,
       createdAt: financialPlans.createdAt,
       updatedAt: financialPlans.updatedAt,
+      document: financialPlans.document,
     })
     .from(financialPlans)
     .where(
@@ -211,7 +218,23 @@ financialPlansRouter.get("/", async (c) => {
     )
     .orderBy(desc(financialPlans.createdAt));
 
-  return c.json({ plans: results });
+  const plans = results.map(({ document, ...row }) => {
+    const doc = safeJsonParse<{
+      freeform?: FreeformReport;
+      sections?: { snapshot?: { generatedAt?: string } };
+    } | null>(document, null);
+    // `generatedAt` is the ONLY honest "when was this written" signal. `createdAt`
+    // is wrong (a months-old plan regenerated yesterday would read as stale), and
+    // `updatedAt` is wrong too ($onUpdate, so a rename or a convergence write
+    // bumps it and a genuinely stale plan reads as fresh).
+    return {
+      ...row,
+      generatedAt: doc?.freeform?.generatedAt ?? doc?.sections?.snapshot?.generatedAt ?? null,
+      reportStatus: doc?.freeform ? (doc.freeform.status ?? "ready") : null,
+    };
+  });
+
+  return c.json({ plans });
 });
 
 // Create a plan — assemble the Financial Snapshot document up front so the row
@@ -242,7 +265,7 @@ financialPlansRouter.post("/", async (c) => {
       (a) => (a.type === "investment" || a.type === "depository") && a.rawBalance > 0,
     );
     if (!hasInvestable) {
-      return c.json({ error: "Link an account first. The report needs real balances." }, 400);
+      return c.json({ error: "Link an account first. The plan needs real balances." }, 400);
     }
     const freeform: FreeformReport = {
       status: "generating",
@@ -525,7 +548,7 @@ financialPlansRouter.post("/:id/regenerate", async (c) => {
 
   const doc = safeJsonParse<{ freeform?: FreeformReport }>(plan.document, {});
   if (!doc.freeform) {
-    return c.json({ error: "This plan is not a Financial Insights report" }, 400);
+    return c.json({ error: "This plan has no written report to refresh" }, 400);
   }
   // Converge a dead run first so a mid-run process death can't lock the user
   // out behind the in-progress guard until a GET happens to converge it.
@@ -601,7 +624,7 @@ financialPlansRouter.patch("/:id/assumptions", async (c) => {
   );
   if (document.freeform) {
     return c.json(
-      { error: "Assumptions don't apply to Financial Insights reports. Use feedback instead." },
+      { error: "Assumptions don't apply to a written plan. Use feedback instead." },
       400,
     );
   }

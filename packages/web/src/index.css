@@ -2838,6 +2838,24 @@
   .goal-fields-grid { grid-template-columns: 1fr 1fr; }
 }
 
+/* ── Alert ── container-query layout ──
+   Same reason as the goal form above: the sidebar means a viewport breakpoint
+   says nothing about how wide an alert actually is. At a 768px viewport the
+   alert is only ~295px, and a viewport `sm:` split had already moved the
+   action beside the message there, leaving the message in an 88px column nine
+   lines tall next to a full-width button. The alert measures its own box
+   instead, so a container narrowed by the sidebar stacks however wide the
+   window is. Stacked is the default, so browsers without container queries
+   still get a working layout. */
+.alert-cq { container-type: inline-size; }
+.alert-body { display: flex; flex-direction: column; gap: 0.75rem; }
+.alert-action { width: 100%; }
+@container (min-width: 30rem) {
+  .alert-body { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+  .alert-body-center { align-items: center; }
+  .alert-action { width: auto; }
+}
+
 /* ── Home net-worth hero — container-query layout ──
    The app sidebar makes viewport breakpoints lie about how much room the
    home page actually has, so the page and the hero card measure their own

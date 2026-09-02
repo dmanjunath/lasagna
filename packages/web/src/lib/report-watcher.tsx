@@ -89,7 +89,7 @@ export function ReportWatcher() {
                   className="font-semibold underline underline-offset-2"
                   onClick={() => navigate(`/financial-plans/${w.id}`)}
                 >
-                  View the report
+                  View the plan
                 </button>
               ),
               duration: 15_000,
@@ -98,7 +98,7 @@ export function ReportWatcher() {
             toast({
               tone: "negative",
               title: `${w.title} could not be generated`,
-              description: "Open the report to retry.",
+              description: "Open the plan to retry.",
               duration: 15_000,
             });
           }

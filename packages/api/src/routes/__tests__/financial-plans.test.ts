@@ -391,6 +391,86 @@ describe("GET /api/financial-plans", () => {
     const body = (await res.json()) as { plans: Array<{ id: string }> };
     expect(body.plans.map((p) => p.id)).toEqual(["p1"]);
   });
+
+  // The list derives freshness scalars from the document blob but must never
+  // ship the blob itself.
+  type SummaryRow = {
+    id: string;
+    generatedAt: string | null;
+    reportStatus: string | null;
+    document?: unknown;
+  };
+  const listRows = async (): Promise<SummaryRow[]> => {
+    const res = await appWithSession(userA).request("/api/financial-plans");
+    return ((await res.json()) as { plans: SummaryRow[] }).plans;
+  };
+
+  it("derives generatedAt and a ready status from a freeform document", async () => {
+    planTable = [
+      {
+        id: "p1",
+        tenantId: "tenant-1",
+        userId: "user-a",
+        title: "A",
+        document: JSON.stringify({
+          freeform: { html: "<h1>x</h1>", generatedAt: "2026-03-01T00:00:00.000Z" },
+        }),
+        status: "draft",
+      },
+    ];
+    const [row] = await listRows();
+    expect(row.generatedAt).toBe("2026-03-01T00:00:00.000Z");
+    // Pre-async freeform documents carry no status — they are already written.
+    expect(row.reportStatus).toBe("ready");
+    expect(row).not.toHaveProperty("document");
+  });
+
+  it("reports an in-flight freeform run as generating", async () => {
+    planTable = [
+      {
+        id: "p1",
+        tenantId: "tenant-1",
+        userId: "user-a",
+        title: "A",
+        document: JSON.stringify({
+          freeform: { status: "generating", html: "", generatedAt: "2026-03-01T00:00:00.000Z" },
+        }),
+        status: "draft",
+      },
+    ];
+    const [row] = await listRows();
+    expect(row.reportStatus).toBe("generating");
+  });
+
+  it("falls back to the snapshot's generatedAt for a legacy structured plan", async () => {
+    planTable = [
+      {
+        id: "p1",
+        tenantId: "tenant-1",
+        userId: "user-a",
+        title: "A",
+        document: JSON.stringify({ sections: { snapshot: SNAPSHOT } }),
+        status: "draft",
+      },
+    ];
+    const [row] = await listRows();
+    expect(row.generatedAt).toBe(SNAPSHOT.generatedAt);
+    // No freeform run has ever happened on a structured plan.
+    expect(row.reportStatus).toBeNull();
+  });
+
+  it("nulls both scalars for a missing or malformed document, without throwing", async () => {
+    planTable = [
+      { id: "p1", tenantId: "tenant-1", userId: "user-a", title: "A", document: null, status: "draft" },
+      { id: "p2", tenantId: "tenant-1", userId: "user-a", title: "B", document: "{not json", status: "draft" },
+    ];
+    const rows = await listRows();
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.generatedAt).toBeNull();
+      expect(row.reportStatus).toBeNull();
+    }
+  });
 });
 
 describe("GET /api/financial-plans/:id", () => {

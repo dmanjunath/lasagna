@@ -70,6 +70,11 @@ export function formatRelativeTime(date: Date): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
 
+  // A bare "Dec 26" reads as this year, so a date from another year can read as
+  // months in the FUTURE. Carry the year whenever the year is not this one.
+  if (date.getFullYear() !== now.getFullYear()) {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 

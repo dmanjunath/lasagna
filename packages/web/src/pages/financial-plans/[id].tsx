@@ -9,6 +9,8 @@ import { vizColor } from "../../components/uikit/viz.js";
 import { formatMoney, splitParagraphs } from "../../lib/utils.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { BrandMark } from "../../components/common/BrandMark.js";
+import { PlanFreshnessBanner } from "../../components/common/plan-freshness-banner.js";
+import { planFreshness } from "../../lib/plan-freshness.js";
 import { DISCLAIMER_COPY } from "../../components/common/legal-disclaimer.js";
 import { useAuth } from "../../lib/auth.js";
 import type {
@@ -906,6 +908,15 @@ function StrategySectionView({
   );
 }
 
+// The rebuild control. One definition, because the banner and the bare button
+// are the same control in two places and must not drift apart.
+const REFRESH_ACTION = {
+  label: "Refresh from accounts",
+  title:
+    "Rebuild this plan from your current accounts and data. Use after linking a new account.",
+  icon: <RefreshCw className="h-3.5 w-3.5" />,
+};
+
 // ── Freeform advisor report (experiment) ─────────────────────────────────────
 // The model authored the entire report as one self-contained HTML document.
 // Rendered verbatim in a sandboxed iframe (no scripts run); the input box is a
@@ -929,6 +940,8 @@ function FreeformReportView({
 
   const status = report.status ?? "ready";
   const busy = status === "generating" || status === "revising";
+  // Freshness for the plan on screen. One item, so it never comes back "none".
+  const freshness = planFreshness([{ generatedAt: report.generatedAt, reportStatus: status }]);
 
   // Generation runs server-side: poll the plan while busy, and register with
   // the app-level watcher so leaving this page still ends in a toast.
@@ -1010,7 +1023,7 @@ function FreeformReportView({
             <Loader2 className="h-4.5 w-4.5 animate-spin text-content-muted" aria-hidden />
             <div>
               <p className="text-[14.5px] font-bold text-content">
-                Writing your Financial Insights report
+                Writing your plan
               </p>
               <p className="mt-0.5 text-[13px] text-content-secondary">
                 Usually about ten minutes. Feel free to browse the rest of the app. A
@@ -1036,8 +1049,8 @@ function FreeformReportView({
       <div className="mt-8">
         <EmptyState
           icon={<FileText className="h-5 w-5" />}
-          title="The report couldn't be generated"
-          description={report.error ?? "Something went wrong while writing this report."}
+          title="The plan couldn't be generated"
+          description={report.error ?? "Something went wrong while writing this plan."}
           action={<Button onClick={retry}>Try again</Button>}
         />
       </div>
@@ -1051,25 +1064,39 @@ function FreeformReportView({
         <div className="mb-4 flex items-center gap-3 rounded-ui-md border border-line bg-canvas-sunken px-4 py-3">
           <Loader2 className="h-4 w-4 animate-spin text-content-muted" aria-hidden />
           <p className="text-[13px] text-content-secondary">
-            Updating the report.
+            Updating the plan.
           </p>
         </div>
       )}
 
-      {/* Report actions — separate from feedback: Refresh rebuilds from
-          CURRENT data (new accounts etc.), feedback only revises the words. */}
-      <div className="mb-3 flex justify-end">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={retry}
-          disabled={sending || busy}
-          title="Rebuild this report from your current accounts and data. Use after linking a new account."
-          leadingIcon={<RefreshCw className="h-3.5 w-3.5" />}
-        >
-          Refresh from accounts
-        </Button>
-      </div>
+      {/* Plan actions — separate from feedback: Refresh rebuilds from CURRENT
+          data (new accounts etc.), feedback only revises the words. Once the
+          plan goes stale the banner carries the SAME control, so the bare
+          button steps aside rather than stacking a second one. */}
+      {freshness.kind === "stale" ? (
+        <PlanFreshnessBanner
+          className="mb-3"
+          freshness={freshness}
+          refresh={{
+            ...REFRESH_ACTION,
+            onClick: retry,
+            disabled: sending || busy,
+          }}
+        />
+      ) : (
+        <div className="mb-3 flex justify-end">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={retry}
+            disabled={sending || busy}
+            title={REFRESH_ACTION.title}
+            leadingIcon={REFRESH_ACTION.icon}
+          >
+            {REFRESH_ACTION.label}
+          </Button>
+        </div>
+      )}
 
       {/* Feedback composer — the only input on a freeform report. */}
       <div className="rounded-ui-md border border-line bg-panel px-4 py-3 shadow-ui-sm">
@@ -1081,7 +1108,7 @@ function FreeformReportView({
               if (e.key === "Enter") send();
             }}
             disabled={sending || busy}
-            placeholder="Feedback on this report"
+            placeholder="Feedback on this plan"
             className="min-w-0 flex-1 bg-transparent text-[14px] text-content placeholder:text-content-faint focus:outline-none disabled:opacity-60"
           />
           <Button onClick={send} disabled={sending || busy || !feedback.trim()}>
@@ -1107,7 +1134,7 @@ function FreeformReportView({
       {/* The report itself, exactly as the model wrote it. Sandboxed: no scripts. */}
       <iframe
         ref={frameRef}
-        title="Financial Insights report"
+        title="Retirement plan"
         sandbox="allow-same-origin"
         srcDoc={report.html}
         onLoad={measure}
@@ -2082,7 +2109,7 @@ export function FinancialPlanDetailPage() {
         className="plan-print-hide inline-flex items-center gap-1.5 text-[13px] font-semibold text-content-muted hover:text-content transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
-        Financial Plans
+        Retirement Plans
       </button>
 
       {/* ════════ Loading ════════ */}
@@ -2180,7 +2207,7 @@ export function FinancialPlanDetailPage() {
                   <SegmentedControl<ReportLayout>
                     size="sm"
                     stretch={false}
-                    aria-label="Report layout"
+                    aria-label="Plan layout"
                     value={layout}
                     onChange={setLayout}
                     options={[

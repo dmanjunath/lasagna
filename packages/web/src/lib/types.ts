@@ -744,13 +744,23 @@ export type FinancialPlanDocument = {
   freeform?: FreeformReport;
 };
 
-// List rows omit the (potentially large) document blob.
+// List rows omit the (potentially large) document blob, but carry two scalars
+// derived from it server-side.
+//
+// Both are OPTIONAL so either deploy order is safe: an old bundle ignores them,
+// and a new bundle talking to an old API sees `undefined`. `undefined` means
+// UNKNOWN and must render nothing. Never coerce it (`?? 0`, `new Date(undefined)`)
+// or every plan looks infinitely stale.
 export type FinancialPlanSummary = {
   id: string;
   title: string;
   status: PlanStatus;
   createdAt: string;
   updatedAt: string;
+  /** When the document was last WRITTEN. Null on a plan with no document. */
+  generatedAt?: string | null;
+  /** The freeform run's state. Null on legacy structured plans. */
+  reportStatus?: "generating" | "revising" | "ready" | "failed" | null;
 };
 
 // Scalar plan-change assumptions applied to the plan (mirrors PlanAssumptions in
