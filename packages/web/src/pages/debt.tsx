@@ -9,6 +9,8 @@ import {
   Button,
   Surface,
   Badge,
+  PageMeta,
+  PageMetaItem,
   Field,
   Input,
   EmptyState,
@@ -250,7 +252,7 @@ function DebtHeader({ tags }: { tags?: React.ReactNode }) {
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
           Debt
         </h1>
-        {tags && <p className="mt-1.5 flex flex-wrap items-center gap-2">{tags}</p>}
+        {tags && <PageMeta>{tags}</PageMeta>}
       </div>
     </header>
   );
@@ -628,12 +630,12 @@ function HasDebtView({
           <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
             How fast can you be debt-free?
           </h1>
-          <p className="mt-1.5 flex flex-wrap items-center gap-2">
-            <Badge tone="neutral">{debts.length} account{debts.length === 1 ? '' : 's'}</Badge>
+          <PageMeta>
+            <PageMetaItem className="ui-tnum">{debts.length} account{debts.length === 1 ? '' : 's'}</PageMetaItem>
             {highRateCount > 0 && (
-              <Badge tone="negative">{highRateCount} at a punishing rate</Badge>
+              <PageMetaItem tone="negative" className="ui-tnum">{highRateCount} at a punishing rate</PageMetaItem>
             )}
-          </p>
+          </PageMeta>
         </div>
       </header>
 
@@ -1027,7 +1029,7 @@ function PaidInFullSection({
 function NoRevolvingDebtView({ cards, onEdit }: { cards: DebtAccount[]; onEdit: (debt: DebtAccount) => void }) {
   return (
     <>
-      <DebtHeader tags={<Badge tone="positive">No debt to pay down</Badge>} />
+      <DebtHeader tags={<PageMetaItem tone="positive">No debt to pay down</PageMetaItem>} />
       <PaidInFullSection cards={cards} onEdit={onEdit} className="mt-8" />
       <section className="mt-12">
         <PageActions types="debt" />
@@ -1080,7 +1082,7 @@ function Toggle({
 function DebtFreeView({ openChat }: { openChat: (prompt: string) => void }) {
   return (
     <>
-      <DebtHeader tags={<Badge tone="positive">$0, debt-free</Badge>} />
+      <DebtHeader tags={<PageMetaItem tone="positive" className="ui-tnum">$0, debt-free</PageMetaItem>} />
 
       <section className="mt-8">
         <h2 className="mb-2 font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">

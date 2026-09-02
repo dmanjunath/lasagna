@@ -4,7 +4,7 @@ import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp, Lock }
 import { api } from '../lib/api';
 import { startUpgrade } from '../lib/billing';
 import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
-import { Badge, Button, Field, Input, Select, SegmentedControl, Skeleton, Tooltip } from '../components/uikit';
+import { Badge, Button, Field, Input, PageMeta, PageMetaItem, Select, SegmentedControl, Skeleton, Tooltip } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
 import { InstIcon } from '../components/common/InstIcon';
@@ -658,15 +658,15 @@ export function AccountDetail() {
             </h1>
             {/* Type lives in the key-facts strip below — keep it out of here to
                 avoid repeating it three times (title + pill + Type row). */}
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13.5px] font-medium text-content-muted">
-              <span>{institution}</span>
-              {acct.mask && <span className="ui-tnum">••{acct.mask}</span>}
+            <PageMeta>
+              <PageMetaItem>{institution}</PageMetaItem>
+              {acct.mask && <PageMetaItem className="ui-tnum">••{acct.mask}</PageMetaItem>}
               {acct.frozen && (
-                <Badge tone="info" size="sm">
-                  <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
+                <Badge tone="info">
+                  <Lock size={11} strokeWidth={2.2} aria-hidden="true" /> Frozen
                 </Badge>
               )}
-            </div>
+            </PageMeta>
           </div>
         </div>
         <div className="hidden items-center gap-2.5 sm:flex">

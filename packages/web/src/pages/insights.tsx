@@ -21,7 +21,7 @@ import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
 import { actionArea } from '../lib/action-destination';
 import { formatRelativeTime } from '../lib/utils';
-import { Badge, Button, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
+import { Badge, Button, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 
 // ---------------------------------------------------------------------------
 // Urgency → display group mapping (faithful to the API's urgency field)
@@ -594,19 +594,25 @@ export function Insights() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.03em] text-content">
             Actions
           </h1>
-          {!isLoading && totalActive > 0 && (
-            <p className="mt-2 flex items-center gap-2 flex-wrap">
-              {statusCounts.now > 0 && (
-                <Badge tone="brand">{statusCounts.now} worth doing now</Badge>
-              )}
-              {statusCounts.week > 0 && (
-                <Badge tone="neutral">{statusCounts.week} this week</Badge>
-              )}
-              {statusCounts.watch > 0 && (
-                <Badge tone="neutral">{statusCounts.watch} to keep an eye on</Badge>
-              )}
-            </p>
-          )}
+          <PageMeta>
+            {isLoading ? (
+              <PageMetaSkeleton widths={['w-[120px]', 'w-[72px]', 'w-[124px]']} />
+            ) : (
+              totalActive > 0 && (
+                <>
+                  {statusCounts.now > 0 && (
+                    <PageMetaItem tone="brand" className="ui-tnum">{statusCounts.now} worth doing now</PageMetaItem>
+                  )}
+                  {statusCounts.week > 0 && (
+                    <PageMetaItem className="ui-tnum">{statusCounts.week} this week</PageMetaItem>
+                  )}
+                  {statusCounts.watch > 0 && (
+                    <PageMetaItem className="ui-tnum">{statusCounts.watch} to keep an eye on</PageMetaItem>
+                  )}
+                </>
+              )
+            )}
+          </PageMeta>
         </div>
 
         {!isLoading && (
@@ -779,11 +785,8 @@ export function Insights() {
                     group.title
                   )}
                 </h2>
-                {/* brand-ink, not the badge's own brand green: it sits beside
-                    the numbered chip, which uses ink on the same tint, and two
-                    greens in one line read as two different states. */}
                 {group.current && (
-                  <Badge tone="brand" className="text-[rgb(var(--ui-brand-ink))]">
+                  <Badge tone="brand">
                     You are here
                   </Badge>
                 )}

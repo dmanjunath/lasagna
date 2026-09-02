@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
-import { Badge, Button, EmptyState, Field, Input, Label, Skeleton } from '../components/uikit';
+import { Badge, Button, EmptyState, Field, Input, Label, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from '../components/uikit';
 import { formatCurrency, iconFor, toggleId, AccountPicker, IconKey } from './goal-shared';
 import {
   isTypedGoalCategory, emptyDraft, resolveDraft, useGoalFormContext,
@@ -316,12 +316,14 @@ export function Goals() {
   const inProgressCount = activeGoals.length - fundedCount;
 
   const summaryLine = !loading && activeGoals.length > 0 && (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <Badge tone="brand">{inProgressCount} active</Badge>
-      {fundedCount > 0 && <Badge tone="positive">{fundedCount} funded</Badge>}
-      {fundedCount > 0 && <Badge tone="neutral">{activeGoals.length} goal{activeGoals.length === 1 ? '' : 's'} tracked</Badge>}
-      {completedGoals.length > 0 && <Badge tone="positive">{completedGoals.length} complete</Badge>}
-    </span>
+    // One tint per line. Only the live count is a state worth coloring, and
+    // brand green beside positive teal at this size read as one green smudge
+    // rather than as two meanings. Funded and complete are settled facts.
+    <>
+      <PageMetaItem tone="brand" className="ui-tnum">{inProgressCount} active</PageMetaItem>
+      {fundedCount > 0 && <PageMetaItem className="ui-tnum">{fundedCount} funded</PageMetaItem>}
+      {completedGoals.length > 0 && <PageMetaItem className="ui-tnum">{completedGoals.length} complete</PageMetaItem>}
+    </>
   );
 
   return (
@@ -345,9 +347,9 @@ export function Goals() {
           <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Goals
           </h1>
-          {summaryLine && (
-            <p className="mt-2">{summaryLine}</p>
-          )}
+          <PageMeta>
+            {loading ? <PageMetaSkeleton widths={['w-[51px]', 'w-[74px]']} /> : summaryLine}
+          </PageMeta>
         </div>
         {!isDemo && (
           <Button onClick={() => setShowCreate(v => !v)} leadingIcon={<Plus className="h-4 w-4" />}>

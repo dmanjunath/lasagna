@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { PlanType, PlanStatus } from "../../lib/types.js";
 import { api, API_BASE } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
-import { Badge, Button, type BadgeProps } from "../../components/uikit";
+import { Badge, Button, PageMeta, PageMetaItem, type BadgeProps } from "../../components/uikit";
 import { EditableTitle } from "../../components/ui/editable-title.js";
 import { PromptTransition, type TransitionState } from "../../components/plan/prompt-transition.js";
 import { PlanResponse } from "../../components/plan-response/index.js";
@@ -282,14 +282,14 @@ export function PlanDetailPage() {
                   )}
                 </div>
 
-                <p className="mt-2 flex flex-wrap items-center gap-2">
+                <PageMeta>
                   <Badge tone={statusTone(plan.status)} className="capitalize">
                     {plan.status}
                   </Badge>
-                  <Badge tone="neutral">
+                  <PageMetaItem className="ui-tnum">
                     Updated {new Date(plan.updatedAt).toLocaleDateString()}
-                  </Badge>
-                </p>
+                  </PageMetaItem>
+                </PageMeta>
               </div>
 
               <div className="flex shrink-0 items-center gap-2">

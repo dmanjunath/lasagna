@@ -10,7 +10,7 @@ import { useChatStore } from '../lib/chat-store';
 import { cn, formatMoney } from '../lib/utils';
 import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
-import { Badge, Button, SegmentedControl, Skeleton } from '../components/uikit';
+import { Badge, Button, PageMeta, PageMetaItem, SegmentedControl, Skeleton } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
 import {
   computeWithdrawal,
@@ -2043,9 +2043,9 @@ export function RetirementV2() {
           <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
             Retirement
           </h1>
-          <p className="mt-1.5 flex flex-wrap items-center gap-2">
-            <Badge tone="neutral">{formatMoney(portfolioValue, true)} in liquid savings</Badge>
-          </p>
+          <PageMeta>
+            <PageMetaItem className="ui-tnum">{formatMoney(portfolioValue, true)} in liquid savings</PageMetaItem>
+          </PageMeta>
         </div>
         <SegmentedControl
           value={pageTab}

@@ -18,7 +18,7 @@ import { cn, splitParagraphs, formatRelativeTime, exactSyncTime } from "../lib/u
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
 import { ActionItem } from "../components/common/action-item.js";
-import { Button, Badge, EmptyState, Skeleton, SkeletonText, Alert, Select, Tooltip, useToast } from "../components/uikit";
+import { Button, Badge, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SkeletonText, Alert, Select, Tooltip, useToast } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { useIsMobile } from "../lib/hooks/use-mobile.js";
 
@@ -29,13 +29,6 @@ const FILING_LABELS: Record<string, string> = {
   married_joint: "Married Filing Jointly",
   married_separate: "Married Filing Separately",
   head_of_household: "Head of Household",
-};
-
-const FILING_ABBR: Record<string, string> = {
-  single: "Single",
-  married_joint: "MFJ",
-  married_separate: "MFS",
-  head_of_household: "HoH",
 };
 
 /** The insight `type` this page filters on. Shared by the hook call and poll. */
@@ -306,6 +299,9 @@ const DOC_SORT_OPTIONS: { value: DocSort; label: string }[] = [
 export function TaxStrategy() {
   const [documents, setDocuments] = useState<TaxDocumentSummary[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // The filing runs below wrap to a second row once the profile lands, so
+  // the meta line has to reserve that row while the fetch is in flight.
+  const [profileLoading, setProfileLoading] = useState(true);
   const [insightStatus, setInsightStatus] = useState<"idle" | "generating" | "done">("idle");
   const [selectedDoc, setSelectedDoc] = useState<TaxDocument | null>(null);
   const [docLoading, setDocLoading] = useState<string | null>(null);
@@ -415,7 +411,8 @@ export function TaxStrategy() {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setProfileLoading(false));
   }, []);
 
   const loadDocuments = async () => {
@@ -603,9 +600,6 @@ export function TaxStrategy() {
 
   const filingLabel = profile?.filingStatus
     ? FILING_LABELS[profile.filingStatus] ?? profile.filingStatus
-    : null;
-  const filingAbbr = profile?.filingStatus
-    ? FILING_ABBR[profile.filingStatus] ?? filingLabel
     : null;
 
   // Group the flat document list into per-year sections — numeric years newest
@@ -1056,33 +1050,27 @@ export function TaxStrategy() {
                 )}
               </div>
 
-              {/* filing context chips */}
-              <div className="mt-5 flex flex-wrap items-center gap-2">
-                {filingAbbr &&
-                  (filingLabel ? (
-                    // Same tooltip idiom as the timestamp above: a native
-                    // title is slow, unstyled, and invisible to touch and to
-                    // the keyboard, and this abbreviation is the one string on
-                    // the card that has to expand.
-                    <Tooltip content={filingLabel}>
-                      <Badge tone="neutral" size="md" tabIndex={0} aria-label={filingLabel} className="ui-focus">
-                        <Receipt className="h-3 w-3 text-content-muted" />
-                        {filingAbbr}
-                      </Badge>
-                    </Tooltip>
-                  ) : (
-                    <Badge tone="neutral" size="md">
-                      <Receipt className="h-3 w-3 text-content-muted" />
-                      {filingAbbr}
-                    </Badge>
-                  ))}
-                {profile?.stateOfResidence && (
-                  <Badge tone="neutral" size="md">{profile.stateOfResidence}</Badge>
+              {/* Filing context. These are facts, not state, so they read as
+                  text: as plain runs there is room for the full filing label,
+                  which is why the abbreviation and its tooltip are gone. */}
+              <PageMeta className="mt-5">
+                {profileLoading ? (
+                  <PageMetaSkeleton widths={['w-[151px]', 'w-[19px]', 'w-[97px]']} />
+                ) : (
+                  <>
+                    {filingLabel && (
+                      <PageMetaItem className="inline-flex items-center gap-1.5">
+                        <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {filingLabel}
+                      </PageMetaItem>
+                    )}
+                    {profile?.stateOfResidence && (
+                      <PageMetaItem>{profile.stateOfResidence}</PageMetaItem>
+                    )}
+                    <PageMetaItem className="ui-tnum">{FILING_YEAR} filing year</PageMetaItem>
+                  </>
                 )}
-                <Badge tone="neutral" size="md" className="ui-tnum">
-                  {FILING_YEAR} filing year
-                </Badge>
-              </div>
+              </PageMeta>
             </>
           ) : (
             <>

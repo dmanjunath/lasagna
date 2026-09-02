@@ -13,7 +13,7 @@ const badge = cva(
     variants: {
       tone: {
         neutral: 'bg-canvas-sunken text-content-secondary border border-line',
-        brand: 'bg-brand-soft text-brand border border-transparent',
+        brand: 'bg-brand-soft text-[rgb(var(--ui-brand-ink))] border border-transparent',
         positive: 'bg-positive-soft text-positive border border-transparent',
         negative: 'bg-negative-soft text-negative border border-transparent',
         caution: 'bg-caution-soft text-caution border border-transparent',

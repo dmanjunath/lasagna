@@ -21,7 +21,7 @@ import { useAuth } from "../lib/auth";
 import { isNativeApp } from "../lib/native";
 import { useBilling, startUpgrade } from "../lib/billing";
 import { cn, stripAccountMask } from "../lib/utils";
-import { Badge, Button, Field, Input, Modal, Skeleton } from "../components/uikit";
+import { Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
 import { AccountLinkPicker, type AccountPickerOption } from "../components/common/AccountLinkPicker";
@@ -825,19 +825,19 @@ export function Accounts() {
   const headerTags: ReactNode[] = [];
   if (totalAccounts > 0)
     headerTags.push(
-      <Badge key="accounts" tone="neutral">{`${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`}</Badge>,
+      <PageMetaItem key="accounts" className="ui-tnum">{`${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`}</PageMetaItem>,
     );
   if (items.length > 0)
     headerTags.push(
-      <Badge key="institutions" tone="neutral">{`${items.length} institution${items.length !== 1 ? "s" : ""}`}</Badge>,
+      <PageMetaItem key="institutions" className="ui-tnum">{`${items.length} institution${items.length !== 1 ? "s" : ""}`}</PageMetaItem>,
     );
   if (totalTracked > 0)
     headerTags.push(
-      <Badge key="tracked" tone="neutral">{`${formatTotal(totalTracked)} tracked`}</Badge>,
+      <PageMetaItem key="tracked" className="ui-tnum">{`${formatTotal(totalTracked)} tracked`}</PageMetaItem>,
     );
   if (lastSync)
     headerTags.push(
-      <Badge key="synced" tone="neutral">{`synced ${formatRelativeTime(lastSync)}`}</Badge>,
+      <PageMetaItem key="synced" className="ui-tnum">{`Synced ${formatRelativeTime(lastSync)}`}</PageMetaItem>,
     );
 
   const usedPct = billing
@@ -852,9 +852,15 @@ export function Accounts() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
             Accounts
           </h1>
-          {!loading && headerTags.length > 0 && (
-            <p className="mt-1.5 flex flex-wrap items-center gap-2">{headerTags}</p>
-          )}
+          <PageMeta>
+            {loading ? (
+              // Widths of the four runs below, so the placeholder wraps where
+              // they wrap and the header holds still on load.
+              <PageMetaSkeleton widths={['w-20', 'w-[76px]', 'w-32', 'w-[105px]']} />
+            ) : (
+              headerTags
+            )}
+          </PageMeta>
         </div>
         {!isDemoMode && items.length > 0 && (
           <div className="flex flex-wrap items-center gap-2.5">

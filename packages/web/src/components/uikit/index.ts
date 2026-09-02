@@ -9,6 +9,8 @@ export { Select } from './Select';
 export type { SelectProps } from './Select';
 export { Badge } from './Badge';
 export type { BadgeProps } from './Badge';
+export { PageMeta, PageMetaItem, PageMetaSkeleton } from './PageMeta';
+export type { PageMetaItemProps } from './PageMeta';
 export { Stat, Delta } from './Stat';
 export type { DeltaDirection } from './Stat';
 export { PageHeader, Section } from './Section';

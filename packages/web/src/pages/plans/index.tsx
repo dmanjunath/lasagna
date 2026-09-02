@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
-import { Badge, Button, Skeleton } from "../../components/uikit";
+import { Button, PageMeta, PageMetaItem, Skeleton } from "../../components/uikit";
 import type { Plan, PlanType } from "../../lib/types.js";
 
 // ---------------------------------------------------------------------------
@@ -121,10 +121,10 @@ export function PlansPage() {
   const areasTracked = new Set(plans.map((p) => p.type)).size;
 
   const summaryLine = !loading && plans.length > 0 && (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      <Badge tone="brand">{plans.length} plan{plans.length === 1 ? "" : "s"}</Badge>
-      <Badge tone="neutral">{areasTracked} area{areasTracked === 1 ? "" : "s"} tracked</Badge>
-    </span>
+    <>
+      <PageMetaItem tone="brand" className="ui-tnum">{plans.length} plan{plans.length === 1 ? "" : "s"}</PageMetaItem>
+      <PageMetaItem className="ui-tnum">{areasTracked} area{areasTracked === 1 ? "" : "s"} tracked</PageMetaItem>
+    </>
   );
 
   return (
@@ -135,7 +135,13 @@ export function PlansPage() {
           <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
             Plans
           </h1>
-          {summaryLine && <p className="mt-2">{summaryLine}</p>}
+          <PageMeta>
+            {/* No bars while loading: the demo of this page for a new user
+                resolves to zero plans, and a placeholder that flashes and then
+                resolves to nothing promises data that never arrives. The
+                wrapper's own min-height still holds the row. */}
+            {loading ? null : summaryLine}
+          </PageMeta>
         </div>
         {!isDemo && plans.length > 0 && (
           <Link href="/plans/new">

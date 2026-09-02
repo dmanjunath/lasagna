@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useLocation } from 'wouter';
 import { PageActions } from '../components/common/page-actions';
-import { Badge, Button, Surface, SegmentedControl, EmptyState, Skeleton } from '../components/uikit';
+import { Button, Surface, SegmentedControl, EmptyState, PageMeta, PageMetaItem, Skeleton } from '../components/uikit';
 import { faviconUrl, tickerToIssuer } from '../components/ds/institutions';
 
 // ---------------------------------------------------------------------------
@@ -981,10 +981,10 @@ export default function PortfolioComposition() {
         <PageHead
           tags={
             <>
-              <Badge tone="neutral">{formatMoney(accountTotal, true)}</Badge>
-              <Badge tone="neutral">
+              <PageMetaItem className="ui-tnum">{formatMoney(accountTotal, true)} total</PageMetaItem>
+              <PageMetaItem className="ui-tnum">
                 {accountAllocation.length} account{accountAllocation.length === 1 ? '' : 's'}
-              </Badge>
+              </PageMetaItem>
             </>
           }
         />
@@ -1239,7 +1239,7 @@ function PageHead({ tags }: { tags?: React.ReactNode }) {
       <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
         Portfolio
       </h1>
-      {tags && <p className="mt-1.5 flex flex-wrap items-center gap-2">{tags}</p>}
+      {tags && <PageMeta>{tags}</PageMeta>}
     </header>
   );
 }

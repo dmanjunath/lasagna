@@ -8,7 +8,7 @@ import {
 import { api } from '../lib/api';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
-import { Badge, Button, SegmentedControl, EmptyState, Skeleton, useToast, Tooltip } from '../components/uikit';
+import { Button, SegmentedControl, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, useToast, Tooltip } from '../components/uikit';
 import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
 import { CategoryPicker } from '../components/common/CategoryPicker';
 import { TxnRow } from '../components/transactions/TransactionList';
@@ -219,29 +219,40 @@ export function SimpleMoney() {
           <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
             Money
           </h1>
-          {hasMoney && (
-            <p className="mt-1.5 flex flex-wrap items-center gap-2">
-              <Badge tone="neutral">
-                {totalAccountCount} account{totalAccountCount === 1 ? '' : 's'}
-              </Badge>
-              {lastSynced && (
-                exactSyncTime(lastSynced) ? (
-                  <Tooltip content={exactSyncTime(lastSynced)!}>
-                    <Badge
-                      tone="neutral"
-                      tabIndex={0}
-                      aria-label={`Last synced ${exactSyncTime(lastSynced)}`}
-                      className="ui-focus"
-                    >
-                      synced {relativeTime(lastSynced)}
-                    </Badge>
-                  </Tooltip>
-                ) : (
-                  <Badge tone="neutral">synced {relativeTime(lastSynced)}</Badge>
-                )
-              )}
-            </p>
-          )}
+          <PageMeta>
+            {loading ? (
+              <PageMetaSkeleton widths={['w-20', 'w-[109px]']} />
+            ) : (
+              hasMoney && (
+                <>
+                  <PageMetaItem className="ui-tnum">
+                    {totalAccountCount} account{totalAccountCount === 1 ? '' : 's'}
+                  </PageMetaItem>
+                  {lastSynced && (
+                    exactSyncTime(lastSynced) ? (
+                      <Tooltip content={exactSyncTime(lastSynced)!} side="bottom">
+                        {/* The dotted underline is the only thing separating
+                            this run from the inert one beside it, so without it
+                            the tooltip is undiscoverable. It is gated behind a
+                            hover-capable pointer: the tooltip cannot open on
+                            touch, and advertising an affordance a phone cannot
+                            deliver is worse than showing none. */}
+                        <PageMetaItem
+                          tabIndex={0}
+                          aria-label={`Last synced ${exactSyncTime(lastSynced)}`}
+                          className="ui-tnum ui-focus rounded-ui-sm -mx-0.5 px-0.5 [@media(hover:hover)]:cursor-help [@media(hover:hover)]:underline [@media(hover:hover)]:decoration-dotted [@media(hover:hover)]:underline-offset-[3px]"
+                        >
+                          Synced {relativeTime(lastSynced)}
+                        </PageMetaItem>
+                      </Tooltip>
+                    ) : (
+                      <PageMetaItem className="ui-tnum">Synced {relativeTime(lastSynced)}</PageMetaItem>
+                    )
+                  )}
+                </>
+              )
+            )}
+          </PageMeta>
         </div>
         {hasMoney && (
           <div className="flex w-full gap-2.5 sm:w-auto">

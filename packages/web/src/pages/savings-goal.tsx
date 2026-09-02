@@ -3,7 +3,7 @@ import { useRoute, useLocation } from 'wouter';
 import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
-import { Badge, Button, EmptyState, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
+import { Badge, Button, EmptyState, PageMeta, PageMetaItem, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
 import {
@@ -336,6 +336,8 @@ export function SavingsGoal() {
   const accent = complete ? 'rgb(var(--ui-brand))' : goalColor(goal.category, goal.name);
   const rawCategory = goal.category ? goal.category.replace(/_/g, ' ') : 'savings';
   const categoryLabel = rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1);
+  // "Retirement" under "Retirement Savings" says the same thing twice.
+  const showCategory = !goal.name.toLowerCase().includes(categoryLabel.toLowerCase());
 
   const isArchived = goal.status === 'completed';
 
@@ -597,17 +599,25 @@ export function SavingsGoal() {
             {iconFor(goal.icon, 27)}
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Badge tone="neutral" size="sm">{categoryLabel}</Badge>
-              {goal.status === 'completed' && (
-                <Badge tone="brand" size="sm">
-                  <Check className="h-2.5 w-2.5" strokeWidth={3} /> Completed
-                </Badge>
-              )}
-            </div>
-            <h1 className="mt-1.5 font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.05] tracking-[-0.024em] text-content">
+            <h1 className="font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.05] tracking-[-0.024em] text-content">
               {goal.name}
             </h1>
+            {/* Category is a fact, so it reads as text under the title. The
+                completion chip keeps its fill because it is real state. Gated
+                rather than reserved: the whole page holds a skeleton until the
+                goal loads, so there is nothing here to reserve against, and a
+                goal whose name already says its category would be left with an
+                empty band under the title. */}
+            {(showCategory || goal.status === 'completed') && (
+              <PageMeta>
+                {showCategory && <PageMetaItem>{categoryLabel}</PageMetaItem>}
+                {goal.status === 'completed' && (
+                  <Badge tone="brand">
+                    <Check className="h-3 w-3" strokeWidth={3} /> Completed
+                  </Badge>
+                )}
+              </PageMeta>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

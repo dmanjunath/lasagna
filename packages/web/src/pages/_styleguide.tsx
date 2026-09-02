@@ -24,6 +24,8 @@ import {
   Label,
   Modal,
   PageHeader,
+  PageMeta,
+  PageMetaItem,
   Section,
   SegmentedControl,
   Select,
@@ -337,6 +339,35 @@ function BadgesStats() {
           <Badge tone="negative" dot>Over budget</Badge>
           <Badge tone="caution" dot>Review</Badge>
           <Badge tone="info" dot>Syncing</Badge>
+        </Surface>
+        <Surface pad="lg">
+          <p className="text-[13px] text-content-muted">
+            Chips are state, meta is facts. Page context under an h1 uses PageMeta, not filled pills.
+            Tint at most one run per line, or the colors stop meaning anything.
+          </p>
+          <div className="mt-4">
+            <h1 className="font-editorial text-[28px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
+              Goals
+            </h1>
+            <PageMeta>
+              <PageMetaItem tone="brand" className="ui-tnum">3 active</PageMetaItem>
+              <PageMetaItem className="ui-tnum">1 funded</PageMetaItem>
+              <PageMetaItem>Synced 2h ago</PageMetaItem>
+              <Badge tone="info">Syncing</Badge>
+            </PageMeta>
+          </div>
+          <p className="mt-6 text-[13px] text-content-muted">
+            The tones a run can take. Pick the one the state actually means. Brand and positive sit
+            close together in light mode, so do not rely on the pair to carry a distinction.
+          </p>
+          <PageMeta className="mt-2">
+            <PageMetaItem>muted</PageMetaItem>
+            <PageMetaItem tone="strong">strong</PageMetaItem>
+            <PageMetaItem tone="positive">positive</PageMetaItem>
+            <PageMetaItem tone="negative">negative</PageMetaItem>
+            <PageMetaItem tone="caution">caution</PageMetaItem>
+            <PageMetaItem tone="brand">brand</PageMetaItem>
+          </PageMeta>
         </Surface>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Surface pad="md"><Stat label="Net worth" value={formatMoney(1284530, true)} delta="+4.2%" deltaDirection="up" caption="vs. last month" icon={<Wallet className="h-4 w-4" />} /></Surface>
