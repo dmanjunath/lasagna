@@ -9,6 +9,7 @@ import { useChatStore } from '../lib/chat-store';
 import { Button, Skeleton, useToast } from '../components/uikit';
 import { ActionItem } from '../components/common/action-item';
 import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
+import { NetWorthTrendCard } from '../components/common/NetWorthTrendCard';
 
 // Shared style for "go to this page" affordances on the home page, so every page
 // link reads as the same soft-brand button as the hero's Open Money.
@@ -139,25 +140,6 @@ function Track({ pct, color, shine = false }: { pct: number; color: string; shin
         }}
       />
     </div>
-  );
-}
-
-/** Net-worth 30-day delta chip — sign + arrow + tinted color (never color-only). */
-function DeltaChip({ delta, suffix }: { delta: number; suffix?: string }) {
-  const positive = delta >= 0;
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum whitespace-nowrap shrink-0"
-      style={{
-        background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
-        color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
-      }}
-    >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
-      </svg>
-      {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}{suffix ? ` (${suffix})` : ''}
-    </span>
   );
 }
 
@@ -419,15 +401,6 @@ export function SimpleHome() {
 
   const topGoal = goals.find((g) => g.status === 'active');
 
-  const monthDelta = useMemo(() => {
-    if (nwHistory.length < 2) return null;
-    const last = nwHistory[nwHistory.length - 1].value;
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const prior = [...nwHistory].reverse().find((p) => new Date(p.date).getTime() <= cutoff);
-    if (!prior) return null;
-    return last - prior.value;
-  }, [nwHistory]);
-
   const suggestedPrompts = useMemo(() => {
     const shortUsd = (n: number) => {
       const abs = Math.abs(n);
@@ -472,40 +445,47 @@ export function SimpleHome() {
         </h1>
       </header>
 
-      {/* First-paint skeleton — reserves the hero + grid footprint. */}
+      {/* First-paint skeleton — the trend card's own shell and spacing, block
+          for block, so it reserves the height the card really renders at and
+          the page does not jump when the data lands. */}
       {loading && !breakdown && (
         <div className="mt-7 home-hero-grid gap-7 items-start">
-          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
-            <Skeleton className="h-4 w-52" />
-            <Skeleton className="mt-5 h-8 w-full rounded-[11px]" />
-            <Skeleton className="mt-3 h-3 w-2/3" />
-            <Skeleton className="mt-8 h-8 w-32 rounded-[11px]" />
-            <Skeleton className="mt-6 h-16 w-full rounded-ui-lg" />
+          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
+            <div className="flex flex-wrap flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <Skeleton className="h-[19.5px] w-[68px]" />
+                <Skeleton className="mt-2 h-[37.23px] sm:h-[50.95px] w-[256px] rounded-[11px]" />
+                <Skeleton className="mt-3.5 h-7 w-[218px] rounded-full" />
+              </div>
+              <Skeleton className="h-[50px] w-full sm:h-[37.5px] sm:w-[187px] rounded-ui-md" />
+            </div>
+            <Skeleton className="mt-5 h-[250px] w-full rounded-ui-md" />
           </div>
           <div className="flex flex-col gap-[18px]">
-            <Skeleton className="h-[230px] w-full rounded-ui-xl" />
+            <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+              <Skeleton className="h-4 w-52" />
+              <Skeleton className="mt-5 h-8 w-full rounded-[11px]" />
+              <Skeleton className="mt-3 h-3 w-2/3" />
+              <Skeleton className="mt-8 h-8 w-32 rounded-[11px]" />
+              <Skeleton className="mt-6 h-16 w-full rounded-ui-lg" />
+            </div>
             <Skeleton className="h-[160px] w-full rounded-ui-xl" />
           </div>
         </div>
       )}
 
-      {/* ════════ MAIN GRID — 2/3 (HERO + ACTIONS) + 1/3 (CHART/CHAT/GOALS) ════════
-          Container-query grid: two columns only when the left column can hold
-          the one-line net-worth equation — otherwise the aside wraps under. */}
+      {/* ════════ MAIN GRID — 2/3 (TREND + ACTIONS) + 1/3 (BREAKDOWN/CHAT/GOALS) ════════
+          Container-query grid: two columns only when the page is wide enough
+          for the trend chart to keep its detail — otherwise the aside wraps
+          under and the breakdown card gets the full width for its equation.
+          The net-worth figure leads the trend card itself, so it is on the
+          first screen at every width without reordering the grid. */}
       {breakdown && (
         <div className="mt-7 home-hero-grid gap-7 items-start">
 
-          {/* ░░░░ LEFT COLUMN (2/3) — net-worth hero + the action queue ░░░░ */}
-          <div className="min-w-0 flex flex-col">
-            {hasComposition && (
-              <div className="mb-7">
-                <NetWorthBreakdown
-                  breakdown={breakdown}
-                  monthDelta={monthDelta}
-                  onOpenMoney={() => setLocation('/money')}
-                />
-              </div>
-            )}
+          {/* ░░░░ LEFT COLUMN (2/3) — net-worth trend + the action queue ░░░░ */}
+          <div className="min-w-0 flex flex-col gap-7">
+            <NetWorthTrendCard history={nwHistory} netWorth={breakdown.netWorth} defaultRange="1M" />
 
             {/* One block: where they are on the path, and the actions that
                 serve the step they are standing on. */}
@@ -541,7 +521,12 @@ export function SimpleHome() {
 
           {/* ░░░░ RIGHT COLUMN (1/3) ░░░░ */}
           <aside className="min-w-0 flex flex-col gap-[18px]">
-            <NetWorthChart history={nwHistory} monthDelta={monthDelta} netWorth={breakdown.netWorth} />
+            {hasComposition && (
+              <NetWorthBreakdown
+                breakdown={breakdown}
+                onOpenMoney={() => setLocation('/money')}
+              />
+            )}
             <AskComposer
               value={askDraft}
               onChange={setAskDraft}
@@ -631,11 +616,11 @@ function CompositionColumn({
         {segments.map((s) => {
           const pct = Math.round((s.value / (total || 1)) * 100);
           return (
-            <span key={s.key} className="inline-flex items-center gap-2 text-[13px]">
+            <span key={s.key} className="inline-flex flex-wrap items-center gap-1.5 text-[13px]">
               <span className="w-[9px] h-[9px] rounded-[3px] shrink-0" style={{ background: s.color }} />
               <span className="font-bold">{s.label}</span>
               <span className="font-editorial font-extrabold tracking-[-0.01em]">{fmtUsd(s.value)}</span>
-              <span className="text-[12px] font-semibold text-content-muted">{pct}%, {s.count} account{s.count === 1 ? '' : 's'}</span>
+              <span className="text-[12px] font-semibold text-content-muted whitespace-nowrap">{pct}%, {s.count} account{s.count === 1 ? '' : 's'}</span>
             </span>
           );
         })}
@@ -645,10 +630,9 @@ function CompositionColumn({
 }
 
 function NetWorthBreakdown({
-  breakdown, monthDelta, onOpenMoney,
+  breakdown, onOpenMoney,
 }: {
   breakdown: NetBreakdown;
-  monthDelta: number | null;
   onOpenMoney: () => void;
 }) {
   const assetTotal = breakdown.cash + breakdown.investments + breakdown.assets;
@@ -668,37 +652,28 @@ function NetWorthBreakdown({
   ].filter(Boolean) as CompSegment[];
 
   // One-line guarantee for the equation: measure its natural width at full
-  // size and set --nws (a 0..1 type-scale) so it always fits the card. The
-  // inline delta chip is dropped first — it buys ~115px before any shrink.
+  // size and set --nws (a 0..1 type-scale) so it always fits the card.
   const eqRef = useRef<HTMLDivElement>(null);
-  const [eqFit, setEqFit] = useState({ scale: 1, hideChip: false });
+  const [eqScale, setEqScale] = useState(1);
   useLayoutEffect(() => {
     const row = eqRef.current;
     if (!row) return;
     const measure = () => {
-      // Force full size + chip visible for a clean natural-width reading.
+      // Force full size for a clean natural-width reading.
       row.style.setProperty('--nws', '1');
-      row.classList.remove('nw-eq--tight');
       const avail = row.clientWidth;
       const natural = row.scrollWidth;
-      let next = { scale: 1, hideChip: false };
-      if (avail > 0 && natural > avail) {
-        const chip = row.querySelector('.nw-chip > *');
-        const chipW = chip ? chip.getBoundingClientRect().width + 10 : 0;
-        const noChip = Math.max(1, natural - chipW);
-        next = { scale: Math.min(1, (avail / noChip) * 0.99), hideChip: chipW > 0 };
-      }
+      const next = avail > 0 && natural > avail ? Math.min(1, (avail / natural) * 0.99) : 1;
       // Apply imperatively (state equality may skip the re-render)…
-      row.style.setProperty('--nws', String(next.scale));
-      row.classList.toggle('nw-eq--tight', next.hideChip);
-      // …and mirror into state so React re-renders keep the same values.
-      setEqFit((prev) => (prev.scale === next.scale && prev.hideChip === next.hideChip ? prev : next));
+      row.style.setProperty('--nws', String(next));
+      // …and mirror into state so React re-renders keep the same value.
+      setEqScale((prev) => (prev === next ? prev : next));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(row);
     return () => ro.disconnect();
-  }, [assetTotal, breakdown.debts, breakdown.netWorth, monthDelta]);
+  }, [assetTotal, breakdown.debts, breakdown.netWorth]);
 
   return (
     <Card className="cq-inline relative overflow-hidden p-6 sm:p-7 animate-fade-in" >
@@ -711,7 +686,7 @@ function NetWorthBreakdown({
             'radial-gradient(90% 70% at 0% 8%, var(--ui-accent-softer), transparent 60%)',
         }}
       />
-      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div className="relative nw-head">
         <div>
           <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Where your wealth stands</h2>
           <p className="mt-1 text-[13.5px] font-medium text-content-muted max-w-[52ch]">
@@ -743,11 +718,6 @@ function NetWorthBreakdown({
             <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</span>
             <span className="font-editorial text-[31px] font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">{fmtUsd(breakdown.netWorth)}</span>
           </div>
-          {monthDelta !== null && (
-            <div className="mt-2 flex justify-end">
-              <DeltaChip delta={monthDelta} suffix="30d" />
-            </div>
-          )}
         </div>
 
         {/* Assets − Debt = Net worth — always ONE line on desktop. Labels stay
@@ -757,8 +727,8 @@ function NetWorthBreakdown({
             wrapping. Font sizes/gaps live in index.css (.nw-* rules). */}
         <div
           ref={eqRef}
-          className={`nw-equation items-end${eqFit.hideChip ? ' nw-eq--tight' : ''}`}
-          style={{ '--nws': String(eqFit.scale) } as React.CSSProperties}
+          className="nw-equation items-end"
+          style={{ '--nws': String(eqScale) } as React.CSSProperties}
         >
           {/* ASSETS — no min-w-0 anywhere in the row: items must hold their
               natural width so the measuring effect reads a true scrollWidth. */}
@@ -789,15 +759,12 @@ function NetWorthBreakdown({
             <div aria-hidden className="nw-op pb-[4px] font-editorial font-semibold leading-none text-content-faint">=</div>
             <div>
               <div className="nw-label font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</div>
-              <div className="mt-1 flex items-end gap-x-2.5">
+              {/* No change chip here: the trend card above owns the 30-day move
+                  and states it once. This card answers what the total is made of. */}
+              <div className="mt-1">
                 <span className="nw-num nw-num--total font-editorial font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">
                   {fmtUsd(breakdown.netWorth)}
                 </span>
-                {monthDelta !== null && (
-                  <span className="nw-chip">
-                    <DeltaChip delta={monthDelta} suffix="30d" />
-                  </span>
-                )}
               </div>
             </div>
           </div>

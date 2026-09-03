@@ -2862,29 +2862,34 @@
    width instead. .cq-inline marks the measuring containers. */
 .cq-inline { container-type: inline-size; }
 
-/* Top grid: the aside (chart / ask / goals) sits beside the hero only when
-   the left 2/3 column can still hold the one-line "Assets − Debt = Net
-   worth" equation; below that the aside wraps underneath instead. */
+/* Top grid: the aside (breakdown / ask / goals) sits beside the 2/3 trend
+   column only when the page is wide enough for both; below that the aside
+   wraps underneath, which also hands the breakdown card the full width it
+   needs for the one-line "Assets − Debt = Net worth" equation. */
 .home-hero-grid { display: grid; grid-template-columns: 1fr; }
 @container (min-width: 1024px) {
   .home-hero-grid { grid-template-columns: 2fr 1fr; }
 }
 
-/* Hero card: the one-line equation everywhere except true phone widths
-   (<400px of card content), where the stacked statement rows take over.
+/* Breakdown card: the one-line equation whenever the card has room (>=400px
+   of card content), otherwise the stacked statement rows take over. That
+   covers phone widths and the narrow 1/3 aside the card sits in on desktop.
    Statement is the default so browsers without container queries still get
    a working layout. */
 .nw-equation { display: none; }
-.nw-chip { display: contents; }
+/* Header follows the same measurement: a viewport `sm:` split would put the
+   "Open Money" link beside the title inside the 335px aside and squeeze the
+   title to three lines, so the title and the link stack until the card itself
+   has the room. */
+.nw-head { display: flex; flex-direction: column; gap: 0.75rem; }
 @container (min-width: 400px) {
   .nw-statement { display: none; }
   .nw-equation { display: flex; }
+  .nw-head { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 }
 /* The equation NEVER wraps: a measuring effect sets --nws (0..1) so the type
    scales down until "Assets − Debt = Net worth" fits on one line — up to
-   9-digit values on desktop, open chat panel included. When space is tight
-   the inline delta chip is dropped first (.nw-eq--tight — the 30-day delta
-   still shows in the chart card) before the type shrinks. */
+   9-digit values on desktop, open chat panel included. */
 .nw-equation {
   flex-wrap: nowrap;
   column-gap: max(calc(14px * var(--nws, 1)), 10px);
@@ -2894,7 +2899,6 @@
 .nw-equation .nw-num { font-size: calc(30px * var(--nws, 1)); }
 .nw-equation .nw-num--total { font-size: calc(34px * var(--nws, 1)); }
 .nw-equation .nw-op { font-size: calc(26px * var(--nws, 1)); }
-.nw-eq--tight .nw-chip { display: none; }
 
 /* Report-scoped KPI size. The financial-plan report packs the shared uikit Stat
    (28px value) next to the plan's own GoalStat (21px). Two KPI sizes clash with
