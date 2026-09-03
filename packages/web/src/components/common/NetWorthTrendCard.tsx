@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { SegmentedControl } from '../uikit';
@@ -51,7 +51,7 @@ function DeltaChip({ delta }: { delta: number }) {
 // new palette, with hover crosshair that bubbles the index up to swap the lead.
 // ─────────────────────────────────────────────────────────────────────────
 
-const CHART_H = 250;
+const CHART_H = 200;
 const CHART_M = { top: 16, right: 12, bottom: 34, left: 68 };
 
 function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
@@ -190,7 +190,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
  * day. Shared by Money and Home so both surfaces scrub the same way.
  */
 export function NetWorthTrendCard({
-  history, netWorth, className, defaultRange = '6M',
+  history, netWorth, className, defaultRange = '6M', action,
 }: {
   history: TrendPoint[];
   netWorth: number;
@@ -198,6 +198,12 @@ export function NetWorthTrendCard({
   className?: string;
   /** Range the picker starts on. The user can still switch. */
   defaultRange?: Range;
+  /**
+   * Optional link out, shown beside the range picker. The host page supplies it
+   * so Money does not render a link to itself, and so the link keeps whatever
+   * idiom that page already uses for its other page links.
+   */
+  action?: ReactNode;
 }) {
   const [range, setRange] = useState<Range>(() => drawableRange(history, defaultRange));
   // A range the reader picked themselves is never overridden, so the empty-range
@@ -238,7 +244,7 @@ export function NetWorthTrendCard({
   return (
     <section
       className={cn(
-        'relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7',
+        'relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6',
         className,
       )}
     >
@@ -252,52 +258,65 @@ export function NetWorthTrendCard({
             'radial-gradient(90% 70% at 0% 4%, var(--ui-accent-softer), transparent 60%)',
         }}
       />
-      {/* The lead and the range picker share a row only while they both fit.
-          `sm:` alone lies about that: the app sidebar can leave this card ~305px
-          wide at a 768px viewport, where the row put the picker past the card's
-          clipped edge. Wrapping lets the widths decide, whatever the figure. */}
-      <div className="relative flex flex-wrap flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      {/* The controls ride on the label line, not beside the figure. Put beside
+          the figure they could not fit next to it at any usable card width, so
+          they wrapped to a line of their own and cost the card ~53px of height
+          for a row that was mostly empty. The label line has the room. */}
+      <div className="relative">
+        {/* Three items on one wrapping line. The order flips by width: narrow,
+            the link tucks beside the label and the picker takes a full row of
+            its own (the picker is the wide one); wide, both sit right of the
+            label. Grouping the link WITH the picker instead cost a third
+            stacked row on a phone. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           {/* Scrubbing the chart shows a past day, so the label says which one.
               Without it the figure silently contradicts every other net-worth
               number on the page. */}
-          <div className="text-[13px] font-semibold text-content-muted">
+          <div className="order-1 text-[13px] font-semibold text-content-muted">
             {hoveredPoint ? `Net worth on ${fmtDate(hoveredPoint.date)}` : 'Net worth'}
           </div>
-          <div className="mt-2 font-editorial text-[38px] sm:text-[52px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
+          {action && <div className="order-2 ml-auto sm:order-3 sm:ml-0">{action}</div>}
+          {hasRanges && (
+            <div className="order-3 sm:order-2 sm:ml-auto">
+              <SegmentedControl
+                aria-label="Time range"
+                value={range}
+                onChange={(r) => { rangeIsTheirs.current = true; setRange(r as Range); }}
+                options={[
+                  { value: '1M', label: '1M' },
+                  { value: '6M', label: '6M' },
+                  { value: '1Y', label: '1Y' },
+                  { value: 'All', label: 'All' },
+                ]}
+              />
+            </div>
+          )}
+        </div>
+        {/* Figure and change share a line: stacking them cost ~40px of card
+            height for a chip that fits comfortably beside the number. They
+            wrap onto separate lines only when the card is too narrow. */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum">
             {fmtUsd(displayValue)}
-          </div>
+          </span>
           {periodDelta !== null && sinceLabel && (
-            <div className="mt-3.5 flex items-center gap-2.5 flex-wrap">
+            <span className="flex items-center gap-2.5 flex-wrap">
               <DeltaChip delta={periodDelta} />
               <span className="text-[13px] font-medium text-content-muted ui-tnum">
                 since {sinceLabel}
                 {periodPct !== null ? ` (${periodPct < 0 ? '−' : '+'}${Math.abs(periodPct).toFixed(1)}%)` : ''}
               </span>
-            </div>
+            </span>
           )}
         </div>
-        {hasRanges && (
-          <SegmentedControl
-            aria-label="Time range"
-            value={range}
-            onChange={(r) => { rangeIsTheirs.current = true; setRange(r as Range); }}
-            options={[
-              { value: '1M', label: '1M' },
-              { value: '6M', label: '6M' },
-              { value: '1Y', label: '1Y' },
-              { value: 'All', label: 'All' },
-            ]}
-          />
-        )}
       </div>
 
       {hasChart ? (
-        <div className="relative mt-5 pr-2 sm:pr-0">
+        <div className="relative mt-4 pr-2 sm:pr-0">
           <NetWorthChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
         </div>
       ) : (
-        <div role="status" className="mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-10 text-center">
+        <div role="status" className="mt-4 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-10 text-center">
           <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
             <TrendingUp size={20} />
           </div>

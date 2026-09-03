@@ -485,7 +485,16 @@ export function SimpleHome() {
 
           {/* ░░░░ LEFT COLUMN (2/3) — net-worth trend + the action queue ░░░░ */}
           <div className="min-w-0 flex flex-col gap-7">
-            <NetWorthTrendCard history={nwHistory} netWorth={breakdown.netWorth} defaultRange="1M" />
+            <NetWorthTrendCard
+              history={nwHistory}
+              netWorth={breakdown.netWorth}
+              defaultRange="1M"
+              action={
+                <Link href="/money" className={pageLinkCls}>
+                  Open Money <ArrowRight className="h-4 w-4" />
+                </Link>
+              }
+            />
 
             {/* One block: where they are on the path, and the actions that
                 serve the step they are standing on. */}
@@ -522,10 +531,7 @@ export function SimpleHome() {
           {/* ░░░░ RIGHT COLUMN (1/3) ░░░░ */}
           <aside className="min-w-0 flex flex-col gap-[18px]">
             {hasComposition && (
-              <NetWorthBreakdown
-                breakdown={breakdown}
-                onOpenMoney={() => setLocation('/money')}
-              />
+              <NetWorthBreakdown breakdown={breakdown} />
             )}
             <AskComposer
               value={askDraft}
@@ -630,10 +636,9 @@ function CompositionColumn({
 }
 
 function NetWorthBreakdown({
-  breakdown, onOpenMoney,
+  breakdown,
 }: {
   breakdown: NetBreakdown;
-  onOpenMoney: () => void;
 }) {
   const assetTotal = breakdown.cash + breakdown.investments + breakdown.assets;
   const assetAccounts = breakdown.cashCount + breakdown.investmentsCount + breakdown.assetsCount;
@@ -693,12 +698,6 @@ function NetWorthBreakdown({
             Your Net Worth across {assetAccounts + breakdown.debtsCount} connected account{assetAccounts + breakdown.debtsCount === 1 ? '' : 's'}.
           </p>
         </div>
-        <button
-          onClick={onOpenMoney}
-          className={`self-start shrink-0 ${pageLinkCls}`}
-        >
-          Open Money <ArrowRight className="h-4 w-4" />
-        </button>
       </div>
 
       <div className="relative mt-6">
