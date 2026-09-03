@@ -68,6 +68,17 @@ chatRouter.post("/", async (c) => {
     return c.json({ error: "Thread not found" }, 404);
   }
 
+  // Read the prior turns BEFORE persisting this one, so the prompt never
+  // depends on the write happening. A demo tenant persists nothing, so reading
+  // after the insert left it with an empty prompt on a new thread (the SDK
+  // rejects that) and, worse, made it re-answer the previous turn on a thread
+  // that already had messages.
+  const history = await db
+    .select({ role: messages.role, content: messages.content })
+    .from(messages)
+    .where(eq(messages.threadId, body.threadId))
+    .orderBy(messages.createdAt);
+
   // Save user message — store only the actual user text, not the context prefix
   if (!isDemo) {
     await db.insert(messages).values({
@@ -79,18 +90,13 @@ chatRouter.post("/", async (c) => {
     });
   }
 
-  // Get conversation history
-  const history = await db
-    .select({ role: messages.role, content: messages.content })
-    .from(messages)
-    .where(eq(messages.threadId, body.threadId))
-    .orderBy(messages.createdAt);
-
-  // Build conversation messages for AI
+  // Build conversation messages for AI. `history` stops at the previous turn,
+  // so the turn being answered is always appended here, demo or not.
   let conversationMessages: any[] = history.map((m) => ({
     role: m.role as "user" | "assistant",
     content: m.content,
   }));
+  conversationMessages.push({ role: "user", content: body.message });
 
   // When the thread is scoped to a Financial Plan, prepend the SAME compact
   // sections the get_financial_plan tool returns as non-persisted context, so
@@ -111,7 +117,7 @@ chatRouter.post("/", async (c) => {
   // current (last) user message so the AI has it, without persisting the raw
   // context blob in the DB.
   const contextPrefix = planContext + (body.context ?? "");
-  if (contextPrefix && conversationMessages.length > 0) {
+  if (contextPrefix) {
     const lastIdx = conversationMessages.length - 1;
     conversationMessages[lastIdx] = {
       ...conversationMessages[lastIdx],

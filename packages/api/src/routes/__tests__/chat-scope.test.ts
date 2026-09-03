@@ -57,7 +57,28 @@ function matchThreads(where: unknown): ThreadRow[] {
   });
 }
 
-const insertValues = vi.fn(async (_v?: Record<string, unknown>) => undefined);
+interface MessageRow {
+  threadId: string;
+  role: string;
+  content: string;
+}
+let messageTable: MessageRow[] = [];
+
+function matchMessages(where: unknown): MessageRow[] {
+  const eqs = extractEqualities(where);
+  return messageTable.filter(
+    (row) => !("messages.threadId" in eqs) || row.threadId === eqs["messages.threadId"],
+  );
+}
+
+// Writes land in messageTable so a read taken after the write really would see
+// the new turn — that is what makes the "not duplicated" assertion mean
+// something.
+const insertValues = vi.fn(async (v?: Record<string, unknown>) => {
+  if (v && typeof v.threadId === "string" && typeof v.role === "string") {
+    messageTable.push({ threadId: v.threadId, role: v.role, content: String(v.content ?? "") });
+  }
+});
 
 vi.mock("../../lib/db.js", () => ({
   db: {
@@ -68,6 +89,12 @@ vi.mock("../../lib/db.js", () => ({
             const rows = matchThreads(where);
             const result = Promise.resolve(rows);
             (result as unknown as { orderBy: () => Promise<ThreadRow[]> }).orderBy = () => Promise.resolve(rows);
+            return result;
+          }
+          if ((table as { _table?: string })?._table === "messages") {
+            const rows = matchMessages(where).map((m) => ({ role: m.role, content: m.content }));
+            const result = Promise.resolve(rows);
+            (result as unknown as { orderBy: () => Promise<typeof rows> }).orderBy = () => Promise.resolve(rows);
             return result;
           }
           const result = Promise.resolve([] as unknown[]);
@@ -101,6 +128,7 @@ vi.mock("../../lib/model-gate.js", () => ({ resolveModelLevel: () => "free" }));
 vi.mock("../../lib/activity.js", () => ({ logLlmUsage: () => {}, actualLlmCostUsd: () => undefined }));
 vi.mock("ai", () => ({ generateText: vi.fn(async () => ({ text: "", toolCalls: [], finishReason: "stop", usage: {} })) }));
 
+import { generateText } from "ai";
 import type { AuthEnv } from "../../middleware/auth.js";
 import type { SessionPayload } from "../../lib/session.js";
 import { chatRouter } from "../chat.js";
@@ -116,10 +144,12 @@ function appWithSession(session: SessionPayload) {
 }
 
 const userA: SessionPayload = { userId: "user-a", tenantId: "tenant-1", role: "member", isDemo: false, isAdmin: false };
+const demoUser: SessionPayload = { userId: "user-demo", tenantId: "tenant-demo", role: "member", isDemo: true, isAdmin: false };
 
 beforeEach(() => {
   vi.clearAllMocks();
   threadTable = [];
+  messageTable = [];
 });
 
 describe("POST /api/chat verifies the thread by (tenantId AND userId)", () => {
@@ -135,5 +165,71 @@ describe("POST /api/chat verifies the thread by (tenantId AND userId)", () => {
     expect(res.status).toBe(404);
     // No message was persisted for the foreign thread.
     expect(insertValues).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/chat prompts the model with the turn it is answering", () => {
+  const THREAD_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+  function post(session: SessionPayload, message: string) {
+    return appWithSession(session).request("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId: THREAD_ID, message }),
+    });
+  }
+
+  /** The messages handed to the model on the first (and only) model call. */
+  function promptSent(): Array<{ role: string; content: string }> {
+    const [opts] = vi.mocked(generateText).mock.calls[0] as [{ messages: Array<{ role: string; content: string }> }];
+    return opts.messages;
+  }
+
+  beforeEach(() => {
+    // A non-empty answer means the route never falls through to the extra
+    // synthesis call, so call 0 is the only prompt to inspect.
+    vi.mocked(generateText).mockResolvedValue({
+      text: "The sky is blue.",
+      toolCalls: [],
+      finishReason: "stop",
+      usage: {},
+    } as never);
+  });
+
+  it("sends a demo tenant's first message even though nothing is persisted", async () => {
+    threadTable = [{ id: THREAD_ID, tenantId: "tenant-demo", userId: "user-demo", title: "Demo" }];
+
+    const res = await post(demoUser, "what colour is the sky?");
+
+    expect(res.status).toBe(200);
+    // Demo persists nothing, so the prompt cannot come from the DB read alone.
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(promptSent()).toEqual([{ role: "user", content: "what colour is the sky?" }]);
+    expect(await res.json()).toMatchObject({ response: { chat: "The sky is blue." } });
+  });
+
+  it("answers a demo tenant's newest message, not the previous turn", async () => {
+    threadTable = [{ id: THREAD_ID, tenantId: "tenant-demo", userId: "user-demo", title: "Demo" }];
+    messageTable = [
+      { threadId: THREAD_ID, role: "user", content: "how is my retirement plan?" },
+      { threadId: THREAD_ID, role: "assistant", content: "It looks on track." },
+    ];
+
+    await post(demoUser, "ignore that, what colour is the sky?");
+
+    const prompt = promptSent();
+    expect(prompt).toHaveLength(3);
+    expect(prompt[prompt.length - 1]).toEqual({ role: "user", content: "ignore that, what colour is the sky?" });
+  });
+
+  it("does not duplicate a non-demo turn in the prompt", async () => {
+    threadTable = [{ id: THREAD_ID, tenantId: "tenant-1", userId: "user-a", title: "Existing" }];
+
+    await post(userA, "how much did I spend last month?");
+
+    // The turn really was written, so a read taken after the write would have
+    // returned it — the prompt must still carry exactly one copy.
+    expect(messageTable).toContainEqual({ threadId: THREAD_ID, role: "user", content: "how much did I spend last month?" });
+    expect(promptSent()).toEqual([{ role: "user", content: "how much did I spend last month?" }]);
   });
 });
