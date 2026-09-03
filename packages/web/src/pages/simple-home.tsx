@@ -691,7 +691,7 @@ function NetWorthBreakdown({
             'radial-gradient(90% 70% at 0% 8%, var(--ui-accent-softer), transparent 60%)',
         }}
       />
-      <div className="relative nw-head">
+      <div className="relative">
         <div>
           <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Where your wealth stands</h2>
           <p className="mt-1 text-[13.5px] font-medium text-content-muted max-w-[52ch]">

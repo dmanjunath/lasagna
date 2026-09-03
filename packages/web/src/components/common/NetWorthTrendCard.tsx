@@ -263,33 +263,41 @@ export function NetWorthTrendCard({
           they wrapped to a line of their own and cost the card ~53px of height
           for a row that was mostly empty. The label line has the room. */}
       <div className="relative">
-        {/* Three items on one wrapping line. The order flips by width: narrow,
-            the link tucks beside the label and the picker takes a full row of
-            its own (the picker is the wide one); wide, both sit right of the
-            label. Grouping the link WITH the picker instead cost a third
-            stacked row on a phone. */}
+        {/* Label, link and picker on one wrapping line, in this order in the DOM
+            so focus follows what the eye follows. The picker carries its own
+            `w-full sm:w-auto` (its stretch behaviour), which is what breaks the
+            line on a phone: label and link share the first row, the picker
+            takes the second and fills it. Wrapping the picker in a positioning
+            div instead resolved that width against the div and shrank the rail
+            on phones, so it stays a direct child here. */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           {/* Scrubbing the chart shows a past day, so the label says which one.
               Without it the figure silently contradicts every other net-worth
-              number on the page. */}
-          <div className="order-1 text-[13px] font-semibold text-content-muted">
+              number on the page.
+
+              `flex-1` sizes this box from the row, not from its text, so
+              swapping in the longer scrubbing label cannot shift the controls
+              beside it. Sized by content, hovering the chart moved the picker,
+              jumped the link to a new row and dropped the chart out from under
+              the cursor doing the scrubbing. It also right-aligns whatever
+              follows without an auto margin, so the link still sits right when
+              there is no history and the picker is not rendered at all. */}
+          <div className="min-w-0 flex-1 truncate text-[13px] font-semibold text-content-muted">
             {hoveredPoint ? `Net worth on ${fmtDate(hoveredPoint.date)}` : 'Net worth'}
           </div>
-          {action && <div className="order-2 ml-auto sm:order-3 sm:ml-0">{action}</div>}
+          {action}
           {hasRanges && (
-            <div className="order-3 sm:order-2 sm:ml-auto">
-              <SegmentedControl
-                aria-label="Time range"
-                value={range}
-                onChange={(r) => { rangeIsTheirs.current = true; setRange(r as Range); }}
-                options={[
-                  { value: '1M', label: '1M' },
-                  { value: '6M', label: '6M' },
-                  { value: '1Y', label: '1Y' },
-                  { value: 'All', label: 'All' },
-                ]}
-              />
-            </div>
+            <SegmentedControl
+              aria-label="Time range"
+              value={range}
+              onChange={(r) => { rangeIsTheirs.current = true; setRange(r as Range); }}
+              options={[
+                { value: '1M', label: '1M' },
+                { value: '6M', label: '6M' },
+                { value: '1Y', label: '1Y' },
+                { value: 'All', label: 'All' },
+              ]}
+            />
           )}
         </div>
         {/* Figure and change share a line: stacking them cost ~40px of card

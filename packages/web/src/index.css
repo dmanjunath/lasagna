@@ -2877,15 +2877,9 @@
    Statement is the default so browsers without container queries still get
    a working layout. */
 .nw-equation { display: none; }
-/* Header follows the same measurement: a viewport `sm:` split would put the
-   "Open Money" link beside the title inside the 335px aside and squeeze the
-   title to three lines, so the title and the link stack until the card itself
-   has the room. */
-.nw-head { display: flex; flex-direction: column; gap: 0.75rem; }
 @container (min-width: 400px) {
   .nw-statement { display: none; }
   .nw-equation { display: flex; }
-  .nw-head { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 }
 /* The equation NEVER wraps: a measuring effect sets --nws (0..1) so the type
    scales down until "Assets − Debt = Net worth" fits on one line — up to
