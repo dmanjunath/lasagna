@@ -721,8 +721,11 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
                 chatPrompt={a.chatPrompt ?? a.title}
                 // The desktop panel is 360px wide at any viewport, so the row
                 // has to lay itself out for the column it is in, not the screen.
-                compact
-                onContextClick={() => navigate(actionArea(a.type, a.category).link)}
+                onContextClick={
+                  actionArea(a.type, a.category).link
+                    ? () => navigate(actionArea(a.type, a.category).link!)
+                    : undefined
+                }
               />
             ))}
           </div>

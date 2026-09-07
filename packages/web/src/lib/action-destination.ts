@@ -7,25 +7,54 @@
  * features, and the fork would drift the first time a page is renamed.
  */
 /**
- * The Badge tone each area wears, so the pill on a row is filled and readable
- * rather than sitting at the card's own colour.
+ * The one colour a row wears, on its edge, its page tag and its figure alike.
  *
- * Tones come from the Badge primitive, which pairs every tint with a foreground
- * that clears AA in both themes. Every area carries a hue of its own, including
- * the catch-all: a grey tag sat at the card's own colour and read as no tag at
- * all, which is the one thing a tag cannot do.
+ * It names the PART OF SOMEONE'S MONEY the action is about, and nothing else.
+ * It deliberately does not encode gain or loss: an earlier pass tinted the row
+ * by whether the figure was good or bad news, which painted the word
+ * "Spending" red and the word "Taxes" green, so the colour contradicted the
+ * label it sat on. Everyday areas therefore avoid red and green entirely, and
+ * the figure carries its own good-or-bad news in its words.
  */
-export type AreaTone = 'neutral' | 'brand' | 'positive' | 'negative' | 'caution' | 'info' | 'sky' | 'violet';
+export type AreaTone = 'neutral' | 'brand' | 'positive' | 'negative' | 'caution' | 'info' | 'sky' | 'violet' | 'slate';
 
-const AREAS: Record<string, { label: string; link: string; tone: AreaTone }> = {
+/**
+ * `link` is null for the catch-all, and that is the point: an action that is
+ * about no particular page has nowhere to open. It used to point at `/`, so
+ * "Open Overview" on the home page navigated to the page you were already on
+ * and the drill dead-ended. A null destination is offered as no button at all.
+ */
+const AREAS: Record<string, { label: string; link: string | null; tone: AreaTone }> = {
   tax: { label: 'Taxes', link: '/tax', tone: 'caution' },
+  // Coral and green are kept for the two areas where the colour agrees with the
+  // meaning rather than fighting it: a debt is a liability and savings are not.
   debt: { label: 'Debt', link: '/debt', tone: 'negative' },
-  portfolio: { label: 'Investing', link: '/portfolio', tone: 'info' },
-  retirement: { label: 'Retirement', link: '/retirement', tone: 'brand' },
   savings: { label: 'Savings', link: '/goals', tone: 'positive' },
+  portfolio: { label: 'Investing', link: '/portfolio', tone: 'info' },
+  retirement: { label: 'Retirement', link: '/retirement', tone: 'violet' },
   spending: { label: 'Spending', link: '/spending', tone: 'sky' },
   behavioral: { label: 'Spending', link: '/spending', tone: 'sky' },
-  general: { label: 'Overview', link: '/', tone: 'violet' },
+  general: { label: 'Overview', link: null, tone: 'slate' },
+};
+
+/**
+ * What each tone paints with: a soft fill and readable ink for the two pills,
+ * and a solid for the row's edge. One map, because the edge and the pills have
+ * to agree, and they sit in different files.
+ */
+export const TONE_STYLE: Record<AreaTone, { soft: string; ink: string; solid: string }> = {
+  // `--ui-canvas-sunken` is stored as an rgb TRIPLE, so `var()` alone is not a
+  // colour and the fill silently vanished. Every entry here resolves to a real
+  // colour value.
+  neutral:  { soft: 'rgb(var(--ui-canvas-sunken))', ink: 'rgb(var(--ui-content-secondary))', solid: 'rgb(var(--ui-content-muted))' },
+  slate:    { soft: 'var(--ui-slate-soft)',    ink: 'rgb(var(--ui-slate))',              solid: 'rgb(var(--ui-slate))' },
+  brand:    { soft: 'var(--ui-brand-soft)',    ink: 'rgb(var(--ui-brand-ink))',         solid: 'rgb(var(--ui-brand))' },
+  positive: { soft: 'var(--ui-positive-soft)', ink: 'rgb(var(--ui-positive))',          solid: 'rgb(var(--ui-positive))' },
+  negative: { soft: 'var(--ui-negative-soft)', ink: 'rgb(var(--ui-negative))',          solid: 'rgb(var(--ui-negative))' },
+  caution:  { soft: 'var(--ui-caution-soft)',  ink: 'rgb(var(--ui-caution))',           solid: 'rgb(var(--ui-caution))' },
+  info:     { soft: 'var(--ui-info-soft)',     ink: 'rgb(var(--ui-info))',              solid: 'rgb(var(--ui-info))' },
+  sky:      { soft: 'var(--ui-sky-soft)',      ink: 'rgb(var(--ui-sky))',               solid: 'rgb(var(--ui-sky))' },
+  violet:   { soft: 'var(--ui-violet-soft)',   ink: 'rgb(var(--ui-violet))',            solid: 'rgb(var(--ui-violet))' },
 };
 
 /** The page an action belongs to, from its type, or its category, or neither. */
@@ -41,11 +70,18 @@ export function actionArea(type: string | null, category: string | null) {
  * particular page, so leading with it would put the vaguest group above the
  * specific ones.
  */
-const AREA_ORDER = ['/goals', '/spending', '/retirement', '/portfolio', '/tax', '/debt', '/'];
+const OVERVIEW_KEY = 'overview';
+const AREA_ORDER = ['/goals', '/spending', '/retirement', '/portfolio', '/tax', '/debt', OVERVIEW_KEY];
+
+/** A stable id for an area, since the catch-all has no link to key on. */
+export function areaKey(area: { link: string | null }): string {
+  return area.link ?? OVERVIEW_KEY;
+}
 
 export interface ActionAreaGroup<T> {
   label: string;
-  link: string;
+  /** Null for the catch-all, which opens nowhere. */
+  link: string | null;
   actions: T[];
 }
 
@@ -59,16 +95,17 @@ export interface ActionAreaGroup<T> {
 export function groupByArea<T extends { type?: string | null; category?: string | null }>(
   actions: T[],
 ): ActionAreaGroup<T>[] {
-  const byLink = new Map<string, ActionAreaGroup<T>>();
+  const byKey = new Map<string, ActionAreaGroup<T>>();
   for (const action of actions) {
     const area = actionArea(action.type ?? null, action.category ?? null);
-    const group = byLink.get(area.link) ?? { label: area.label, link: area.link, actions: [] };
+    const key = areaKey(area);
+    const group = byKey.get(key) ?? { label: area.label, link: area.link, actions: [] };
     group.actions.push(action);
-    byLink.set(area.link, group);
+    byKey.set(key, group);
   }
-  const rank = (link: string) => {
-    const i = AREA_ORDER.indexOf(link);
+  const rank = (group: ActionAreaGroup<T>) => {
+    const i = AREA_ORDER.indexOf(areaKey(group));
     return i === -1 ? AREA_ORDER.length : i;
   };
-  return [...byLink.values()].sort((a, b) => rank(a.link) - rank(b.link));
+  return [...byKey.values()].sort((a, b) => rank(a) - rank(b));
 }

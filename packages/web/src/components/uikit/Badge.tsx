@@ -18,8 +18,6 @@ const badge = cva(
         negative: 'bg-negative-soft text-negative border border-transparent',
         caution: 'bg-caution-soft text-caution border border-transparent',
         info: 'bg-info-soft text-info border border-transparent',
-        sky: 'bg-sky-soft text-sky border border-transparent',
-        violet: 'bg-violet-soft text-violet border border-transparent',
       },
       size: {
         sm: 'px-2 py-0.5 text-[11px]',
@@ -43,8 +41,6 @@ const dotColor: Record<string, string> = {
   negative: 'bg-negative',
   caution: 'bg-caution',
   info: 'bg-info',
-  sky: 'bg-sky',
-  violet: 'bg-violet',
 };
 
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(

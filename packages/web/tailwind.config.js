@@ -203,14 +203,6 @@ export default {
           DEFAULT: v('--ui-info'),
           soft:    'var(--ui-info-soft)',
         },
-        sky: {
-          DEFAULT: v('--ui-sky'),
-          soft:    'var(--ui-sky-soft)',
-        },
-        violet: {
-          DEFAULT: v('--ui-violet'),
-          soft:    'var(--ui-violet-soft)',
-        },
         viz: {
           1: 'var(--ui-viz-1)',
           2: 'var(--ui-viz-2)',

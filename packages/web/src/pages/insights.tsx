@@ -19,7 +19,7 @@ import {
 import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
-import { actionArea, groupByArea, type AreaTone } from '../lib/action-destination';
+import { actionArea, areaKey, groupByArea, TONE_STYLE, type AreaTone } from '../lib/action-destination';
 import { formatRelativeTime } from '../lib/utils';
 import { Badge, Button, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 
@@ -168,6 +168,7 @@ interface ActionCardProps {
   impactColor: string | null;
   chatPrompt: string;
   calm?: boolean;
+  showArea: boolean;
   onPrimary: () => void;
   onAsk: () => void;
   onSkip: () => void;
@@ -183,99 +184,86 @@ function denseArticleCls(calm: boolean): string {
   }`;
 }
 
-// Shared dense row. `onTitle` is the row's primary click: Open (Dense) or
-// toggle (Accordion). The chat + skip buttons behave the same in both.
+// Shared dense row. The row that wraps it owns the click; this draws only what
+// the row shows when it is closed.
 function InsightsDenseRow({
   cat,
   Icon,
   title,
   area,
+  showArea,
   impact,
   impactColor,
-  onTitle,
   onAsk,
   onSkip,
-  hideActions,
   expandable,
   expanded,
 }: {
   cat: CatStyle;
   Icon: typeof Receipt;
   title: string;
-  /** The page this action is about, named and toned. Named on the row because
-   *  the list is no longer grouped by it, so nothing else on screen says which
-   *  one it is. */
+  /** The page this action is about, named and toned. Its tone is the row's one
+   *  colour, worn by the edge and both pills alike. Undefined when a page
+   *  filter is on and every row on screen is already that page. */
   area: { label: string; tone: AreaTone };
+  /** False when a page filter is on and every row on screen is that page, so
+   *  the tag would repeat the chip above it once per row. */
+  showArea: boolean;
   impact: string | null;
   impactColor: string | null;
-  onTitle: () => void;
   onAsk: () => void;
   onSkip: () => void;
-  hideActions?: boolean;
   expandable?: boolean;
   expanded?: boolean;
 }) {
   // Accordion rows expand for detail, so on phones the title wraps to two lines
   // and the per-row icons drop out (they live in the opened body), leaving the
   // chevron. Plain dense rows keep their inline icons.
-  const hideOnMobile = expandable ? 'max-sm:hidden' : '';
   return (
     <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
-      <span className="grid place-items-center h-6 w-6 shrink-0 rounded-ui-sm bg-canvas-sunken text-content-muted" aria-hidden>
+      {/* The chip wears the row's colour, as it does on home. Flat sunken grey
+          measured 1.12:1 against the card and read as a hole. */}
+      <span
+        className="grid place-items-center h-6 w-6 shrink-0 rounded-ui-sm"
+        style={{ background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }}
+        aria-hidden
+      >
         <Icon className="h-3.5 w-3.5" />
       </span>
 
-      <button
-        type="button"
-        onClick={onTitle}
-        className="flex-1 min-w-0 flex items-center gap-1.5 text-left group/title"
-      >
+      <div className="flex-1 min-w-0 flex items-center gap-1.5 text-left">
         <span className="min-w-0">
-          <span className="block text-[14px] font-semibold leading-tight text-content">{title}</span>
-          {/* A filled pill: it is the one thing on the row naming which part of
-              their money this is about, and a muted run sat at the card's own
-              colour. Same treatment as the home rows. */}
-          <Badge tone={area.tone} size="sm" className="mt-1.5">
-            {area.label}
-          </Badge>
+          <h3 className="text-[14px] font-semibold leading-tight text-content">{title}</h3>
+          {/* The page and the figure sit together, in one fill and one shape,
+              so they read as a pair rather than as two unrelated chips at
+              opposite ends of the row. */}
+          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {showArea && (
+              <span
+                className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none"
+                style={{ background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }}
+              >
+                {area.label}
+              </span>
+            )}
+            {impact && (
+              // No `whitespace-nowrap`: the card clips its overflow, so a long
+              // figure was guillotined mid-word on a phone rather than wrapping.
+              <span
+                className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum"
+                style={{ background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }}
+              >
+                {impact}
+              </span>
+            )}
+          </span>
         </span>
         {/* Dense navigates (→); Accordion toggles, so it shows no title arrow. */}
         {!expandable && (
-          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-content-faint transition-transform group-hover/title:translate-x-0.5" />
+          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-content-faint" />
         )}
-      </button>
+      </div>
 
-      {impact && (
-        <span
-          className="hidden sm:inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum whitespace-nowrap"
-          style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
-        >
-          {impact}
-        </span>
-      )}
-
-      {/* Collapsed only — when open these move to dedicated labeled buttons. */}
-      {!hideActions && (
-        <>
-          <button
-            type="button"
-            aria-label="Ask Lasagna about this"
-            onClick={onAsk}
-            className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-brand hover:bg-brand-softer transition-colors ${hideOnMobile}`}
-          >
-            <Sparkles className="h-4 w-4" />
-          </button>
-
-          <button
-            type="button"
-            aria-label="Skip"
-            onClick={onSkip}
-            className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-faint hover:bg-canvas-sunken hover:text-content transition-colors ${hideOnMobile}`}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </>
-      )}
 
       {/* Accordion affordance — points down to expand, flips up when open. */}
       {expandable && (
@@ -298,6 +286,7 @@ function ActionCard({
   impactColor,
   chatPrompt,
   calm = false,
+  showArea,
   onPrimary,
   onAsk,
   onSkip,
@@ -306,6 +295,7 @@ function ActionCard({
   const cat = catFor(type, category);
   const Icon = cat.icon;
   const area = actionArea(type, category);
+  const hasDestination = area.link !== null;
   const [expanded, setExpanded] = useState(false);
 
   // One accordion row per action: a collapsed row that toggles the details
@@ -317,21 +307,43 @@ function ActionCard({
         transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
         className={denseArticleCls(calm)}
       >
-        <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
+        {/* The edge wears the row's colour, the same one the two pills wear. */}
+        <span
+          className="absolute left-0 top-0 bottom-0 w-1"
+          style={{ background: TONE_STYLE[area.tone].solid }}
+          aria-hidden
+        />
+        {/* The whole row toggles, as it does on home. The chevron used to sit
+            outside the only clickable element, so the row's one visible
+            affordance did nothing when clicked. */}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          // Without this the name is the row's whole text content, so a screen
+          // reader read "…back to normalSpending$14,047 spike" as one word.
+          aria-label={title}
+          onClick={() => setExpanded((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v); }
+          }}
+          // Inset ring: the article clips overflow, so an outward ring vanishes.
+          className="cursor-pointer rounded-ui-md focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]"
+        >
         <InsightsDenseRow
           cat={cat}
           Icon={Icon}
           title={title}
           area={area}
+          showArea={showArea}
           impact={impact}
           impactColor={impactColor}
-          onTitle={() => setExpanded((v) => !v)}
           onAsk={onAsk}
           onSkip={onSkip}
-          hideActions={expanded}
           expandable
           expanded={expanded}
         />
+        </div>
 
         <AnimatePresence initial={false}>
           {expanded && (
@@ -343,14 +355,22 @@ function ActionCard({
               transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
               style={{ overflow: 'hidden' }}
             >
-              <div className="px-4 pb-3">
-                <p className="text-[13px] leading-[1.5] text-content-secondary">
+              {/* Aligned to the title, not to the icon, so the body hangs under
+                the row it belongs to. Capped to a readable measure: it ran ~130
+                characters a line at 1280 with nothing to stop it. */}
+            <div className="pl-[52px] pr-4 pb-3">
+                <p className="max-w-[70ch] text-[13px] leading-[1.5] text-content-secondary">
                   {description}
                 </p>
                 <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-                  <Button size="sm" onClick={onPrimary} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-                    Open {area.label}
-                  </Button>
+                  {/* Only offered when the area has a page behind it. The
+                      catch-all has none, and "Open Overview" navigated to the
+                      page the reader was already standing on. */}
+                  {hasDestination && (
+                    <Button size="sm" onClick={onPrimary} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                      Open {area.label}
+                    </Button>
+                  )}
                   <button
                     type="button"
                     onClick={onAsk}
@@ -474,7 +494,7 @@ export function Insights() {
   const availableFilters = useMemo(() => {
     const groups = groupByArea(activeInsights);
     return groups.length > 1
-      ? [{ value: ALL_FILTER, label: 'All' }, ...groups.map((g) => ({ value: g.link, label: g.label }))]
+      ? [{ value: ALL_FILTER, label: 'All' }, ...groups.map((g) => ({ value: areaKey(g), label: g.label }))]
       : [];
   }, [activeInsights]);
 
@@ -489,7 +509,7 @@ export function Insights() {
   const filteredInsights = useMemo(() => {
     if (activeFilter === ALL_FILTER) return activeInsights;
     return activeInsights.filter(
-      (i) => actionArea(i.type, i.category).link === activeFilter,
+      (i) => areaKey(actionArea(i.type, i.category)) === activeFilter,
     );
   }, [activeInsights, activeFilter]);
 
@@ -553,21 +573,16 @@ export function Insights() {
             Actions
           </h1>
           <PageMeta>
+            {/* The per-band counts used to be listed here, word for word the
+                same as the three headings a few hundred pixels below. They sit
+                on those headings now, where the rows they count are. */}
             {isLoading ? (
-              <PageMetaSkeleton widths={['w-[120px]', 'w-[72px]', 'w-[124px]']} />
+              <PageMetaSkeleton widths={['w-[150px]']} />
             ) : (
               totalActive > 0 && (
-                <>
-                  {statusCounts.now > 0 && (
-                    <PageMetaItem tone="brand" className="ui-tnum">{statusCounts.now} worth doing now</PageMetaItem>
-                  )}
-                  {statusCounts.week > 0 && (
-                    <PageMetaItem className="ui-tnum">{statusCounts.week} in the next month</PageMetaItem>
-                  )}
-                  {statusCounts.watch > 0 && (
-                    <PageMetaItem className="ui-tnum">{statusCounts.watch} to keep an eye on</PageMetaItem>
-                  )}
-                </>
+                <PageMetaItem className="ui-tnum">
+                  {totalActive === 1 ? '1 open action' : `${totalActive} open actions`}
+                </PageMetaItem>
               )
             )}
           </PageMeta>
@@ -608,16 +623,19 @@ export function Insights() {
               <Skeleton key={i} className={`h-11 rounded-full ${w}`} />
             ))}
           </div>
+          {/* Mirrors the real 62px row, so the list does not jump when it lands. */}
           {[2, 3].map((count, s) => (
             <div key={s} className="mb-9">
               <Skeleton className="h-5 w-44 mb-4" />
-              <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-2">
                 {Array.from({ length: count }).map((_, i) => (
-                  <div key={i} className="rounded-ui-lg border border-line bg-panel shadow-ui-sm p-6">
-                    <Skeleton className="h-[26px] w-24 rounded-full" />
-                    <Skeleton className="mt-3 h-5 w-2/3" />
-                    <Skeleton className="mt-2 h-4 w-full" />
-                    <Skeleton className="mt-4 h-9 w-36 rounded-ui-md" />
+                  <div key={i} className="flex items-center gap-3 rounded-ui-md border border-line bg-panel shadow-ui-sm pl-4 pr-2 py-2.5">
+                    <Skeleton className="h-6 w-6 shrink-0 rounded-ui-sm" />
+                    <div className="flex-1 min-w-0">
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="mt-1.5 h-5 w-40 rounded-ui-sm" />
+                    </div>
+                    <Skeleton className="h-4 w-4 shrink-0" />
                   </div>
                 ))}
               </div>
@@ -627,8 +645,12 @@ export function Insights() {
       )}
 
       {/* ════════ Category filter — shared SegmentedControl ════════ */}
+      {/* The mask fades the clipped edge, so a rail wider than the phone reads
+          as more-to-scroll rather than as a chip cut in half. */}
       {!isLoading && availableFilters.length > 1 && (
-        <div className="mt-7 -mx-3 sm:mx-0 px-3 sm:px-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden animate-fade-in">
+        <div
+          className="mt-7 -mx-3 sm:mx-0 px-3 sm:px-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden animate-fade-in [mask-image:linear-gradient(to_right,transparent_0,#000_12px,#000_calc(100%-24px),transparent_100%)] sm:[mask-image:none]"
+        >
           <SegmentedControl<FilterValue>
             aria-label="Filter actions by area"
             tone="brand"
@@ -712,6 +734,9 @@ export function Insights() {
               <h2 className="font-editorial text-[19px] font-bold tracking-[-0.02em] text-content">
                 {band.title}
               </h2>
+              <span className="shrink-0 text-[13px] font-semibold text-content-muted ui-tnum">
+                {band.actions.length}
+              </span>
               {/* bg-line, not bg-hairline: there is no `hairline` colour key,
                   so that class resolved to transparent and the rule never
                   drew. `line` IS --ui-hairline. */}
@@ -731,7 +756,11 @@ export function Insights() {
                   impactColor={insight.impactColor}
                   chatPrompt={insight.chatPrompt ?? insight.title}
                   calm={insight.urgency === 'low'}
-                  onPrimary={() => navigate(actionArea(insight.type, insight.category).link)}
+                  showArea={activeFilter === ALL_FILTER}
+                  onPrimary={() => {
+                    const { link } = actionArea(insight.type, insight.category);
+                    if (link) navigate(link);
+                  }}
                   onAsk={() =>
                     askAbout(insight.title, insight.description, insight.chatPrompt ?? insight.title)
                   }

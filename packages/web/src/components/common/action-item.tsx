@@ -13,8 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
-import { Badge } from '../uikit';
-import type { AreaTone } from '../../lib/action-destination';
+import { TONE_STYLE, type AreaTone } from '../../lib/action-destination';
 
 interface ActionItemProps {
   title: string;
@@ -25,17 +24,9 @@ interface ActionItemProps {
   chatPrompt: string;
   defaultOpen?: boolean;
   /**
-   * Stack the impact under the title instead of setting it beside the title on
-   * a wide screen. For a row in a NARROW container on a wide screen: the side
-   * panel on /financial-level is 360px at a 1440px viewport, where the inline
-   * pill takes half the row and leaves the title one word per line.
-   */
-  compact?: boolean;
-  /**
-   * The page this action belongs to, named and toned. Pass it on a list that is
-   * NOT already grouped by page, where the row has to say which page it came
-   * from. Comes from `actionArea()` so the name and its colour have one source,
-   * rather than the style map below growing a second copy of them.
+   * The page this action belongs to, named and toned. Its tone is the row's
+   * one colour: the edge, this tag and the figure all wear it. Comes from
+   * `actionArea()` so the name and the colour have a single source.
    */
   area?: { label: string; tone: AreaTone };
   onDismiss?: () => void;
@@ -96,28 +87,28 @@ function DenseRowInner({
   impact,
   impactColor,
   chatPrompt,
-  compact,
   area,
   onDismiss,
   onContextClick,
-  hideActions,
   expandable,
   expanded,
-}: ActionItemProps & { hideActions?: boolean; expandable?: boolean; expanded?: boolean }) {
+}: ActionItemProps & { expandable?: boolean; expanded?: boolean }) {
   const { openChat } = useChatStore();
   const cat = catForTag(tag);
   const Icon = cat.icon;
-  // Accordion rows expand for detail, so on phones we move the per-row icons into
-  // the opened body, leaving just the chevron. A compact row is in a column as
-  // narrow as a phone whatever the screen is, so it does the same: three 32px
-  // targets and a chevron took more of a 310px card than the title did.
-  const hideOnMobile = expandable ? (compact ? 'hidden' : 'max-sm:hidden') : '';
 
   return (
     <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
+      {/* The chip wears the row's colour too. Its own category tint measured
+          1.12:1 against the card, so it read as a hole punched in the row
+          rather than as a mark. */}
       <span
         className="grid place-items-center h-6 w-6 shrink-0 rounded-ui-sm"
-        style={{ background: cat.tagBg, color: cat.tagFg }}
+        style={
+          area
+            ? { background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }
+            : { background: cat.tagBg, color: cat.tagFg }
+        }
         aria-hidden
       >
         <Icon className="h-3.5 w-3.5" />
@@ -134,75 +125,32 @@ function DenseRowInner({
         <h3 className="text-[14px] font-semibold leading-tight text-content">
           {title}
         </h3>
-        {/* A filled pill, because it is the one thing on the row naming which
-            part of their money this is about, and a muted run sat at the card's
-            own colour. Badge pairs each tone with a foreground that clears AA
-            in both themes. */}
-        {area && (
-          <Badge tone={area.tone} size="sm" className="mt-1.5">
-            {area.label}
-          </Badge>
-        )}
-        {impact && (
-          <span
-            className={`mt-1.5 inline-flex items-center rounded-ui-sm px-2 py-1 text-[12px] font-bold leading-[1.35] ui-tnum ${compact ? '' : 'lg:hidden'}`}
-            style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
-          >
-            {impact}
+        {(area || impact) && (
+          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {area && (
+              <span
+                className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none"
+                style={{ background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }}
+              >
+                {area.label}
+              </span>
+            )}
+            {impact && (
+              <span
+                className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum"
+                style={
+                  area
+                    ? { background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }
+                    : { background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }
+                }
+              >
+                {impact}
+              </span>
+            )}
           </span>
         )}
       </div>
 
-      {impact && !compact && (
-        <span
-          className="hidden lg:inline-flex shrink-0 items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum whitespace-nowrap"
-          style={{ background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }}
-        >
-          {impact}
-        </span>
-      )}
-
-      {/* Collapsed only — when the accordion is open these move to dedicated
-          labeled buttons in the body. */}
-      {!hideActions && (
-        <>
-          <button
-            type="button"
-            aria-label="Ask Lasagna about this"
-            onClick={(e) => {
-              e.stopPropagation();
-              openChat(
-                `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${impact}\n\n${chatPrompt}`
-              );
-            }}
-            className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-brand hover:bg-brand-softer transition-colors ${hideOnMobile}`}
-          >
-            <Sparkles className="h-4 w-4" />
-          </button>
-
-          {onContextClick && (
-            <button
-              type="button"
-              aria-label="See in context"
-              onClick={(e) => { e.stopPropagation(); onContextClick(); }}
-              className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-muted hover:bg-canvas-sunken hover:text-content transition-colors ${hideOnMobile}`}
-            >
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          )}
-
-          {onDismiss && (
-            <button
-              type="button"
-              aria-label="Dismiss"
-              onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-              className={`touch-target grid h-8 w-8 shrink-0 place-items-center rounded-ui-md text-content-faint hover:bg-canvas-sunken hover:text-content transition-colors ${hideOnMobile}`}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </>
-      )}
 
       {/* Accordion affordance — points down to expand, flips up when open. */}
       {expandable && (
@@ -220,12 +168,16 @@ function AccordionActionItem(props: ActionItemProps) {
   const [open, setOpen] = useState(props.defaultOpen ?? false);
   const { openChat } = useChatStore();
   const cat = catForTag(props.tag);
+  // The edge wears the row's colour, the same one the two pills wear. It used
+  // to carry a category colour of its own while the pills carried another, so a
+  // row said two different things about itself at once.
+  const edge = props.area ? TONE_STYLE[props.area.tone].solid : cat.bar;
   const toggle = () => setOpen((v) => !v);
   const { title, description, impact, chatPrompt, onDismiss, onContextClick } = props;
 
   return (
     <article className="relative overflow-hidden rounded-ui-md border border-line bg-panel shadow-ui-sm transition-[box-shadow,border-color] hover:border-line-strong hover:shadow-ui-md">
-      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: cat.bar }} aria-hidden />
+      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: edge }} aria-hidden />
 
       <div
         role="button"
@@ -238,7 +190,7 @@ function AccordionActionItem(props: ActionItemProps) {
         // on a collapsed row and left a hairline across an expanded one.
         className="cursor-pointer rounded-ui-md focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]"
       >
-        <DenseRowInner {...props} hideActions={open} expandable expanded={open} />
+        <DenseRowInner {...props} expandable expanded={open} />
       </div>
 
       <AnimatePresence initial={false}>
@@ -251,8 +203,11 @@ function AccordionActionItem(props: ActionItemProps) {
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             style={{ overflow: 'hidden' }}
           >
-            <div className="px-4 pb-3">
-              <p className="text-[13px] leading-[1.5] text-content-secondary">
+            {/* Aligned to the title, not to the icon, so the body hangs under
+                the row it belongs to. Capped to a readable measure: it ran ~130
+                characters a line at 1280 with nothing to stop it. */}
+            <div className="pl-[52px] pr-4 pb-3">
+              <p className="max-w-[70ch] text-[13px] leading-[1.5] text-content-secondary">
                 {description}
               </p>
               <div className="flex items-center gap-2 mt-2.5 flex-wrap">

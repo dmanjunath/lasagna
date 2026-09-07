@@ -508,7 +508,11 @@ export function SimpleHome() {
                 setGeneratingInsights(true);
                 try { await refreshInsights(); } finally { setGeneratingInsights(false); }
               }}
-              onOpen={(a) => setLocation(actionArea(a.type, a.category).link)}
+              onOpen={(a) => {
+                // The catch-all opens nowhere, so there is nothing to navigate to.
+                const { link } = actionArea(a.type, a.category);
+                if (link) setLocation(link);
+              }}
               onDismiss={dismiss}
             />
 
@@ -890,7 +894,7 @@ export function ActionsSection({
               impact={a.impact ?? ''}
               impactColor={(a.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
               chatPrompt={a.chatPrompt ?? a.title}
-              onContextClick={() => onOpen(a)}
+              onContextClick={actionArea(a.type, a.category).link ? () => onOpen(a) : undefined}
               onDismiss={() => onDismiss(a.id)}
             />
           ))}
