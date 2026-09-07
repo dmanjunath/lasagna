@@ -13,6 +13,8 @@ import {
   X,
 } from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
+import { Badge } from '../uikit';
+import type { AreaTone } from '../../lib/action-destination';
 
 interface ActionItemProps {
   title: string;
@@ -29,6 +31,13 @@ interface ActionItemProps {
    * pill takes half the row and leaves the title one word per line.
    */
   compact?: boolean;
+  /**
+   * The page this action belongs to, named and toned. Pass it on a list that is
+   * NOT already grouped by page, where the row has to say which page it came
+   * from. Comes from `actionArea()` so the name and its colour have one source,
+   * rather than the style map below growing a second copy of them.
+   */
+  area?: { label: string; tone: AreaTone };
   onDismiss?: () => void;
   onContextClick?: () => void;
 }
@@ -88,6 +97,7 @@ function DenseRowInner({
   impactColor,
   chatPrompt,
   compact,
+  area,
   onDismiss,
   onContextClick,
   hideActions,
@@ -124,6 +134,15 @@ function DenseRowInner({
         <h3 className="text-[14px] font-semibold leading-tight text-content">
           {title}
         </h3>
+        {/* A filled pill, because it is the one thing on the row naming which
+            part of their money this is about, and a muted run sat at the card's
+            own colour. Badge pairs each tone with a foreground that clears AA
+            in both themes. */}
+        {area && (
+          <Badge tone={area.tone} size="sm" className="mt-1.5">
+            {area.label}
+          </Badge>
+        )}
         {impact && (
           <span
             className={`mt-1.5 inline-flex items-center rounded-ui-sm px-2 py-1 text-[12px] font-bold leading-[1.35] ui-tnum ${compact ? '' : 'lg:hidden'}`}

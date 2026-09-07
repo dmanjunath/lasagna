@@ -828,6 +828,8 @@ export const api = {
         id: string;
         category: string;
         urgency: string;
+        /** How much work the action is. Null when nothing rated it. */
+        effort: 'quick' | 'moderate' | 'involved' | null;
         type: string | null;
         title: string;
         description: string;

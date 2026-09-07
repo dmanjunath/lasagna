@@ -5,6 +5,12 @@ export interface Insight {
   id: string;
   category: string;
   urgency: string;
+  /**
+   * How much work the action is, as the generator judged it. Null on every
+   * action written before the field existed, and on one the model declined to
+   * rate, so a reader that ranks on it must say what an absent answer means.
+   */
+  effort: 'quick' | 'moderate' | 'involved' | null;
   type: string | null;
   title: string;
   description: string;

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Link, useLocation } from 'wouter';
+import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   RefreshCw,
@@ -16,10 +16,10 @@ import {
   Target,
   X,
 } from 'lucide-react';
-import { api, type FinancialPath } from '../lib/api';
+import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
-import { actionArea } from '../lib/action-destination';
+import { actionArea, groupByArea, type AreaTone } from '../lib/action-destination';
 import { formatRelativeTime } from '../lib/utils';
 import { Badge, Button, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 
@@ -42,6 +42,18 @@ const URGENCY_RANK: Record<string, number> = {
   medium: 2,
   low: 1,
 };
+
+/**
+ * The urgency bands in the order they are read, and what each is called.
+ *
+ * The wording matches the counts in the page heading, so the line saying "3
+ * worth doing now" names the same band as the heading over those three.
+ */
+const URGENCY_ORDER: Array<{ key: UrgencyGroup; title: string }> = [
+  { key: 'do_now', title: 'Worth doing now' },
+  { key: 'this_week', title: 'Worth doing in the next month' },
+  { key: 'watch', title: 'Keep an eye on' },
+];
 
 // ---------------------------------------------------------------------------
 // Category (type) → tag, accent bar, icon. Where an action OPENS lives in
@@ -130,22 +142,17 @@ function impactSoftVar(color: string | null): string {
 // Only the filters with real matching insights are rendered.
 // ---------------------------------------------------------------------------
 
-type FilterValue = 'all' | 'tax' | 'debt' | 'investing' | 'spending';
-
-const FILTER_TYPES: Record<Exclude<FilterValue, 'all'>, string[]> = {
-  tax: ['tax'],
-  debt: ['debt'],
-  investing: ['portfolio', 'retirement', 'savings'],
-  spending: ['spending', 'behavioral'],
-};
-
-const FILTER_LABELS: Record<FilterValue, string> = {
-  all: 'All',
-  tax: 'Taxes',
-  debt: 'Debt',
-  investing: 'Investing',
-  spending: 'Spending',
-};
+/**
+ * A filter is a page, named by the link that page lives at, or 'all'.
+ *
+ * Keyed on the SAME resolution the row's tag uses, so the chip and the tag can
+ * never disagree. The old filter had its own type lists and folded portfolio,
+ * retirement and savings into one "Investing" chip, so picking Investing
+ * returned rows tagged Retirement and Savings, which read as the filter being
+ * broken.
+ */
+type FilterValue = string;
+const ALL_FILTER = 'all';
 
 // ---------------------------------------------------------------------------
 // Action card — the locked home "three moves" anatomy, Bright actions skin
@@ -182,6 +189,7 @@ function InsightsDenseRow({
   cat,
   Icon,
   title,
+  area,
   impact,
   impactColor,
   onTitle,
@@ -194,6 +202,10 @@ function InsightsDenseRow({
   cat: CatStyle;
   Icon: typeof Receipt;
   title: string;
+  /** The page this action is about, named and toned. Named on the row because
+   *  the list is no longer grouped by it, so nothing else on screen says which
+   *  one it is. */
+  area: { label: string; tone: AreaTone };
   impact: string | null;
   impactColor: string | null;
   onTitle: () => void;
@@ -218,7 +230,15 @@ function InsightsDenseRow({
         onClick={onTitle}
         className="flex-1 min-w-0 flex items-center gap-1.5 text-left group/title"
       >
-        <span className="min-w-0 text-[14px] font-semibold leading-tight text-content">{title}</span>
+        <span className="min-w-0">
+          <span className="block text-[14px] font-semibold leading-tight text-content">{title}</span>
+          {/* A filled pill: it is the one thing on the row naming which part of
+              their money this is about, and a muted run sat at the card's own
+              colour. Same treatment as the home rows. */}
+          <Badge tone={area.tone} size="sm" className="mt-1.5">
+            {area.label}
+          </Badge>
+        </span>
         {/* Dense navigates (→); Accordion toggles, so it shows no title arrow. */}
         {!expandable && (
           <ArrowRight className="h-3.5 w-3.5 shrink-0 text-content-faint transition-transform group-hover/title:translate-x-0.5" />
@@ -302,6 +322,7 @@ function ActionCard({
           cat={cat}
           Icon={Icon}
           title={title}
+          area={area}
           impact={impact}
           impactColor={impactColor}
           onTitle={() => setExpanded((v) => !v)}
@@ -360,7 +381,7 @@ function ActionCard({
 // ---------------------------------------------------------------------------
 
 export function Insights() {
-  const [activeFilter, setActiveFilter] = useState<FilterValue>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterValue>(ALL_FILTER);
   const [, navigate] = useLocation();
   const { openChat } = useChatStore();
   const [refreshing, setRefreshing] = useState(false);
@@ -375,41 +396,13 @@ export function Insights() {
 
   const { insights, lastActionsGeneratedAt, isLoading: insightsLoading, refresh } = useInsights();
 
-  // The plan the actions hang off. Read from the path itself so the numbers and
-  // titles here are the ones /financial-level shows, rather than a second
-  // reckoning of the same steps. A path that will not load leaves the list
-  // ungrouped rather than empty.
-  const [pathSteps, setPathSteps] = useState<FinancialPath['steps']>([]);
-  const [currentStepId, setCurrentStepId] = useState('');
-  // Whether the answer is in, either way. The list waits for it: rendering
-  // before the path lands shows a flat feed that then reshuffles itself into
-  // the plan, which is the page changing its mind in front of the reader.
-  const [pathSettled, setPathSettled] = useState(false);
-  useEffect(() => {
-    let live = true;
-    api
-      .getFinancialPath()
-      .then((p) => {
-        if (!live) return;
-        setPathSteps(p.steps);
-        setCurrentStepId(p.currentStepId);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (live) setPathSettled(true);
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-
   const UNDO_WINDOW_MS = 6000;
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
   const msSinceLastGen = lastActionsGeneratedAt
     ? Date.now() - lastActionsGeneratedAt.getTime()
     : Infinity;
   const refreshReady = msSinceLastGen >= REFRESH_COOLDOWN_MS;
-  const isLoading = insightsLoading || !pathSettled;
+  const isLoading = insightsLoading;
 
   const handleRefresh = async () => {
     if (!refreshReady) return;
@@ -476,28 +469,28 @@ export function Insights() {
     [insights, dismissed],
   );
 
-  // Which category filters actually have data → only render those.
-  const availableFilters = useMemo<FilterValue[]>(() => {
-    const present = new Set(
-      activeInsights.map((i) => (i.type ?? i.category ?? 'general')),
-    );
-    const order: Exclude<FilterValue, 'all'>[] = ['tax', 'debt', 'investing', 'spending'];
-    const some = order.filter((f) => FILTER_TYPES[f].some((t) => present.has(t)));
-    return some.length > 1 ? ['all', ...some] : [];
+  // Only the pages that actually have an action, in the canonical page order.
+  // One chip is not a filter, so the row is dropped entirely below two.
+  const availableFilters = useMemo(() => {
+    const groups = groupByArea(activeInsights);
+    return groups.length > 1
+      ? [{ value: ALL_FILTER, label: 'All' }, ...groups.map((g) => ({ value: g.link, label: g.label }))]
+      : [];
   }, [activeInsights]);
 
   // Keep the active filter valid if the data shifts under it.
   useEffect(() => {
-    if (activeFilter !== 'all' && !availableFilters.includes(activeFilter)) {
-      setActiveFilter('all');
+    if (activeFilter !== ALL_FILTER && !availableFilters.some((f) => f.value === activeFilter)) {
+      setActiveFilter(ALL_FILTER);
     }
   }, [availableFilters, activeFilter]);
 
-  // Apply the category filter, then bucket by urgency.
+  // Apply the page filter, then bucket by urgency.
   const filteredInsights = useMemo(() => {
-    if (activeFilter === 'all') return activeInsights;
-    const types = FILTER_TYPES[activeFilter];
-    return activeInsights.filter((i) => types.includes(i.type ?? i.category ?? ''));
+    if (activeFilter === ALL_FILTER) return activeInsights;
+    return activeInsights.filter(
+      (i) => actionArea(i.type, i.category).link === activeFilter,
+    );
   }, [activeInsights, activeFilter]);
 
   // Header status counts — recomputed from the currently-filtered set so the
@@ -515,69 +508,34 @@ export function Insights() {
     return { now, week, watch };
   }, [filteredInsights]);
 
-  // The actions under the step each one serves, in path order, then the ones
-  // the path has no step for. Urgency decides the order WITHIN a step and
-  // nothing else, which is the whole change: a critical action six steps out
-  // used to sit above the step the person is standing on.
+  // Grouped by how pressing it is, and by nothing else.
   //
-  // The step numbers and titles come from the path itself rather than from the
-  // actions, so this page counts steps exactly as /financial-level and home do.
-  // A key naming no step on the path lands in the trailing group, which is also
-  // what happens when there is no path at all: then nothing is grouped and the
-  // list reads flat, with no heading over it.
+  // The page an action is about is named on the row and drives the filter above,
+  // so grouping by it as well split one short list into several shorter ones and
+  // said the same word twice on every row. Urgency is the order somebody works a
+  // list in, so it is the only division the page makes.
+  //
+  // Grouping used to be by the step of the path each action served, which placed
+  // an action by whether the path happened to have a rung for it rather than by
+  // when it is worth doing.
   const grouped = useMemo(() => {
-    const byKey = new Map<string, typeof filteredInsights>();
-    const unattached: typeof filteredInsights = [];
-    const onPath = new Set(pathSteps.map((s) => s.id));
+    const byUrgency = new Map<UrgencyGroup, typeof filteredInsights>();
     for (const i of filteredInsights) {
-      if (i.pathStepKey && onPath.has(i.pathStepKey)) {
-        const list = byKey.get(i.pathStepKey) ?? [];
-        list.push(i);
-        byKey.set(i.pathStepKey, list);
-      } else {
-        unattached.push(i);
-      }
+      const g = URGENCY_GROUP[i.urgency] ?? 'watch';
+      const list = byUrgency.get(g) ?? [];
+      list.push(i);
+      byUrgency.set(g, list);
     }
-    const byUrgency = (a: (typeof filteredInsights)[number], b: (typeof filteredInsights)[number]) =>
-      (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0);
-
-    const groups: Array<{
-      key: string | null;
-      step: number | null;
-      title: string;
-      current: boolean;
-      items: typeof filteredInsights;
-    }> = [];
-    for (const step of pathSteps) {
-      const items = byKey.get(step.id);
-      if (!items?.length) continue;
-      groups.push({
-        key: step.id,
-        step: step.order,
-        title: step.title,
-        current: step.id === currentStepId,
-        items: [...items].sort(byUrgency),
-      });
-    }
-    if (unattached.length > 0) {
-      groups.push({
-        key: null,
-        step: null,
-        // Named for what it is. These are not lesser actions, they are the ones
-        // the path has no step for, and hiding them would drop real advice.
-        //
-        // Empty when it would head the WHOLE list, which is a heading that
-        // groups nothing: there is no path, or nothing on the path has drawn an
-        // action yet — the state every existing list is in until it is next
-        // generated. Saying "not tied to a step" over every action a person has
-        // reads as a verdict on the list rather than as one group of it.
-        title: groups.length > 0 ? 'Not tied to a step' : '',
-        current: false,
-        items: [...unattached].sort(byUrgency),
-      });
-    }
-    return groups;
-  }, [filteredInsights, pathSteps, currentStepId]);
+    return URGENCY_ORDER.flatMap(({ key, title }) => {
+      const items = byUrgency.get(key);
+      if (!items?.length) return [];
+      // `critical` leads `high` where both land in "worth doing now".
+      const actions = [...items].sort(
+        (a, b) => (URGENCY_RANK[b.urgency] ?? 0) - (URGENCY_RANK[a.urgency] ?? 0),
+      );
+      return [{ key, title, actions }];
+    });
+  }, [filteredInsights]);
 
   const totalActive = activeInsights.length;
 
@@ -604,7 +562,7 @@ export function Insights() {
                     <PageMetaItem tone="brand" className="ui-tnum">{statusCounts.now} worth doing now</PageMetaItem>
                   )}
                   {statusCounts.week > 0 && (
-                    <PageMetaItem className="ui-tnum">{statusCounts.week} this week</PageMetaItem>
+                    <PageMetaItem className="ui-tnum">{statusCounts.week} in the next month</PageMetaItem>
                   )}
                   {statusCounts.watch > 0 && (
                     <PageMetaItem className="ui-tnum">{statusCounts.watch} to keep an eye on</PageMetaItem>
@@ -679,7 +637,7 @@ export function Insights() {
             stretch={false}
             value={activeFilter}
             onChange={setActiveFilter}
-            options={availableFilters.map((f) => ({ value: f, label: FILTER_LABELS[f] }))}
+            options={availableFilters}
           />
         </div>
       )}
@@ -745,60 +703,23 @@ export function Insights() {
         )
       )}
 
-      {/* ════════ The path, step by step ════════ */}
+      {/* ════════ By when each one is worth doing ════════ */}
       {!isLoading &&
         totalActive > 0 &&
-        grouped.map((group) => (
-          <section key={group.key ?? 'unattached'} className="mt-9 first:mt-8">
-            {group.title !== '' && (
-              <div className="flex items-center gap-3">
-                {/* The step's own number, as /financial-level counts them. The
-                    trailing group carries none because there is no step: its
-                    actions are real advice the path has no rung for, so its
-                    heading is indented to where the others' titles start. */}
-                {group.step !== null && (
-                  <span
-                    className="grid place-items-center h-6 w-6 shrink-0 rounded-full bg-brand-soft text-[12px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum"
-                    aria-hidden
-                  >
-                    {group.step}
-                  </span>
-                )}
-                <h2
-                  className={`font-editorial text-[19px] font-bold tracking-[-0.02em] text-content ${
-                    group.step === null ? 'pl-9' : ''
-                  }`}
-                >
-                  {/* The number is drawn, not read: it is the one thing this
-                      grouping adds, so it has to reach a screen reader too. */}
-                  {group.step !== null && <span className="sr-only">Step {group.step}, </span>}
-                  {/* A heading naming a step of the path opens that step. It
-                      read as the plan and went nowhere otherwise. */}
-                  {group.key ? (
-                    <Link
-                      href={`/financial-level?step=${encodeURIComponent(group.key)}`}
-                      className="ui-focus rounded-ui-sm hover:text-brand transition-colors"
-                    >
-                      {group.title}
-                    </Link>
-                  ) : (
-                    group.title
-                  )}
-                </h2>
-                {group.current && (
-                  <Badge tone="brand">
-                    You are here
-                  </Badge>
-                )}
-                {/* bg-line, not bg-hairline: there is no `hairline` colour key,
-                    so that class resolved to transparent and the rule never
-                    drew. `line` IS --ui-hairline. */}
-                <span className="flex-1 h-px bg-line min-w-[12px]" aria-hidden />
-              </div>
-            )}
+        grouped.map((band) => (
+          <section key={band.key} className="mt-9 first:mt-8">
+            <div className="flex items-center gap-3">
+              <h2 className="font-editorial text-[19px] font-bold tracking-[-0.02em] text-content">
+                {band.title}
+              </h2>
+              {/* bg-line, not bg-hairline: there is no `hairline` colour key,
+                  so that class resolved to transparent and the rule never
+                  drew. `line` IS --ui-hairline. */}
+              <span className="flex-1 h-px bg-line min-w-[12px]" aria-hidden />
+            </div>
 
-            <div className={`flex flex-col gap-2 ${group.title === '' ? '' : 'mt-4'}`}>
-              {group.items.map((insight, idx) => (
+            <div className="mt-4 flex flex-col gap-2">
+              {band.actions.map((insight, idx) => (
                 <ActionCard
                   key={insight.id}
                   index={idx}
@@ -822,7 +743,7 @@ export function Insights() {
         ))}
 
       {/* ════════ All caught up — closing seal ════════ */}
-      {!isLoading && totalActive > 0 && activeFilter === 'all' && (
+      {!isLoading && totalActive > 0 && activeFilter === ALL_FILTER && (
         <section
           className="mt-7 px-6 py-8 rounded-ui-xl border border-dashed border-line flex flex-col items-center text-center gap-2.5"
           style={{ background: 'linear-gradient(180deg, var(--ui-brand-softer), transparent 80%)' }}

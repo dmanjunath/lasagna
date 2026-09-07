@@ -143,6 +143,8 @@ interface FinancialSnapshot {
 interface GeneratedInsight {
   category: "portfolio" | "debt" | "tax" | "savings" | "general";
   urgency: "low" | "medium" | "high" | "critical";
+  /** How much work the action is. Absent on a model that skipped the field. */
+  effort?: "quick" | "moderate" | "involved";
   type: string;
   title: string;
   description: string;
@@ -872,6 +874,7 @@ Respond with ONLY a JSON array, no markdown:
   {
     "category": "portfolio" | "debt" | "tax" | "savings" | "general",
     "urgency": "critical" | "high" | "medium" | "low",
+    "effort": "quick" | "moderate" | "involved",
     "type": "spending" | "behavioral" | "debt" | "tax" | "portfolio" | "savings" | "retirement" | "general",
     "title": "The action to take: start with an imperative verb (Pay, Open, Move, Raise, Trim, Cancel, Add, Invest, Rebalance), name the specific move and a real number. Not a diagnosis or a bare metric.",
     "description": "2-3 sentences explaining WHY, with exact numbers and one comparison. The title already states the action, so use the description for the reasoning and specifics (amounts, timeline, tradeoffs).",
@@ -896,6 +899,18 @@ Respond with ONLY a JSON array, no markdown:
 - high: significant opportunity within 1-2 months
 - medium: meaningful improvement this quarter
 - low: optimization worth knowing
+
+## Effort:
+How much WORK the action is for the person, which is a separate question from
+how pressing it is. Judge the doing, not the payoff: a large sum moved by one
+transfer is quick, and a small sum that needs a new account opened first is not.
+- quick: one sitting. Change a payroll election, file a form, make a transfer, cancel something.
+- moderate: a few sittings, or a real decision to make first. Opening an account, choosing between options, a single rebalance.
+- involved: runs for months. Conversions with several steps, anything needing sustained behaviour change, moves across several accounts, anything paced by the tax year.
+
+The same category holds all three, so decide per action and never from the type:
+raising an HSA contribution is quick, converting a backdoor Roth is involved,
+and both are tax actions.
 
 ## Type:
 - spending: category trends, merchant patterns
@@ -1480,6 +1495,7 @@ export async function generateInsights(tenantId: string): Promise<number> {
     "general",
   ] as const;
   const validUrgencies = ["low", "medium", "high", "critical"] as const;
+  const validEfforts = ["quick", "moderate", "involved"] as const;
   const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
 
   // Cap "this data is missing" insights at one per generation. The LLM is told
@@ -1546,11 +1562,18 @@ export async function generateInsights(tenantId: string): Promise<number> {
     )
       ? ins.urgency
       : "medium";
+    // Left null when the model does not answer, rather than guessed at. Null
+    // reads as "no reading taken", which is what the rows written before this
+    // field existed also say, and both sort the same way.
+    const effort = validEfforts.includes(ins.effort as (typeof validEfforts)[number])
+      ? (ins.effort as (typeof validEfforts)[number])
+      : null;
 
     await db.insert(insights).values({
       tenantId,
       category,
       urgency,
+      effort,
       title: descrub(normalizePunctuation(ins.title || "Financial insight"), aliasMap),
       description: descrub(normalizePunctuation(ins.description || ""), aliasMap),
       impact: ins.impact ? descrub(normalizePunctuation(ins.impact), aliasMap) : null,

@@ -67,6 +67,15 @@
   --ui-caution-soft:   rgba(245, 158, 11, 0.16);
   --ui-info:           79 70 229;      /* periwinkle info, AA on white        */
   --ui-info-soft:      rgba(99, 102, 241, 0.13);
+  /* Sky. A sixth tag hue, because six areas want a colour and the five tones
+     above are spoken for. Kept clear of periwinkle so Spending and Investing
+     never read as the same tag. */
+  --ui-sky:            3 105 161;      /* deep sky TEXT on tint, AA           */
+  --ui-sky-soft:       rgba(14, 165, 233, 0.15);
+  /* Violet. The seventh tag hue, taken from the gap between periwinkle and
+     coral so it is confusable with neither. */
+  --ui-violet:         107 33 168;     /* deep violet TEXT on tint, AA        */
+  --ui-violet-soft:    rgba(168, 85, 247, 0.15);
 
   /* ── Elevation shadows (light, Bright cool-tinted) ────────────────────── */
   --ui-shadow-sm: 0 1px 2px rgba(20, 33, 61, 0.06), 0 2px 6px rgba(20, 33, 61, 0.05);
@@ -141,6 +150,10 @@
   --ui-caution-soft:   rgba(251, 191, 36, 0.16);
   --ui-info:           165 173 250;    /* periwinkle info                     */
   --ui-info-soft:      rgba(129, 140, 248, 0.18);
+  --ui-sky:            125 211 252;    /* pale sky text on dark               */
+  --ui-sky-soft:       rgba(56, 189, 248, 0.18);
+  --ui-violet:         216 180 254;    /* pale violet text on dark            */
+  --ui-violet-soft:    rgba(192, 132, 252, 0.18);
 
   --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
   --ui-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45), 0 12px 28px rgba(0, 0, 0, 0.40);

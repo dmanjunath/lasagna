@@ -563,6 +563,19 @@ export const insightUrgencyEnum = pgEnum("insight_urgency", [
   "critical",
 ]);
 
+// How much work the action is, which is a different question from how pressing
+// it is. Two actions can both be urgent while one is a ten-minute form and the
+// other runs for a year, and the category does not separate them: raising an
+// HSA election and converting a backdoor Roth are both `tax`.
+export const insightEffortEnum = pgEnum("insight_effort", [
+  // One sitting: change an election, file a form, move money once.
+  "quick",
+  // A few sittings, or a real decision to make first.
+  "moderate",
+  // Runs for months: conversions, behaviour change, multi-account moves.
+  "involved",
+]);
+
 export const insights = pgTable("insights", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id")
@@ -570,6 +583,11 @@ export const insights = pgTable("insights", {
     .references(() => tenants.id, { onDelete: "cascade" }),
   category: insightCategoryEnum("category").notNull(),
   urgency: insightUrgencyEnum("urgency").notNull().default("medium"),
+  // Nullable, and null is a real answer: every action written before this
+  // existed has no reading, and none can be inferred for them. Home sorts an
+  // unknown effort as if it were `moderate`, so the old rows interleave with
+  // the new instead of all sinking to the bottom or floating to the top.
+  effort: insightEffortEnum("effort"),
   title: text("title").notNull(),
   description: text("description").notNull(),
   impact: text("impact"), // e.g. "Saves $340/yr" or "+$2,080 free money"

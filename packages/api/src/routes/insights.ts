@@ -174,6 +174,9 @@ insightsRoutes.get("/", async (c) => {
       id: r.id,
       category: r.category,
       urgency: r.urgency,
+      // Null on every action written before effort existed, and on one the
+      // model declined to rate. The reader decides what an absent answer means.
+      effort: r.effort,
       type: r.insightType,
       title: r.title,
       description: r.description,
