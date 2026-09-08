@@ -1188,18 +1188,29 @@ function NavCard({
   );
 }
 
-// ─── Delete account — emailed-code + typed-DELETE confirmation ───────────────
+// ─── Delete account — re-authentication + typed-DELETE confirmation ──────────
+// Password accounts confirm with the password, passwordless ones with an
+// emailed code, matching how each signs in.
 
 function DeleteAccountCard() {
   const { user } = useAuth();
   const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
+  const usesPassword = Boolean(user?.hasPassword);
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const [code, setCode] = useState("");
+  const [secret, setSecret] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  // A rejected password or code belongs under its field. Anything else (a
+  // household that still has members, a network failure) belongs to the panel.
+  const [errorOnSecret, setErrorOnSecret] = useState(false);
+  // Without this the card says the same thing before and after a resend, so a
+  // user who got no email cannot tell the button did anything.
+  const [resent, setResent] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const secretRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Mobile: the panel expands behind the fixed tab bar — bring it into view
   // (again when an error alert grows it).
@@ -1207,13 +1218,27 @@ function DeleteAccountCard() {
     if (open) panelRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [open, error]);
 
+  // Send the user back to the field that was rejected. It has to wait for the
+  // render that re-enables it, since focus() does nothing on a disabled input.
+  useEffect(() => {
+    if (errorOnSecret) secretRef.current?.focus();
+  }, [errorOnSecret]);
+
+  // A failure that belongs to no field leaves focus nowhere, because disabling
+  // the pressed button blurs it. Park focus on the panel so Tab carries on here
+  // rather than restarting at the top of the page.
+  useEffect(() => {
+    if (open && error && !errorOnSecret) panelRef.current?.focus();
+  }, [open, error, errorOnSecret]);
+
   const start = async () => {
     setSending(true);
     setError("");
     try {
-      await api.requestDeletionCode();
-      setCode("");
+      if (!usesPassword) await api.requestDeletionCode();
+      setSecret("");
       setConfirmText("");
+      setResent(false);
       hapticWarning(); // warn as the destructive panel opens (ConfirmDialog precedent)
       setOpen(true);
     } catch (err) {
@@ -1227,8 +1252,12 @@ function DeleteAccountCard() {
   const resend = async () => {
     setSending(true);
     setError("");
+    // Cleared first, so a second resend changes the line again rather than
+    // leaving it already reading as sent.
+    setResent(false);
     try {
       await api.requestDeletionCode();
+      setResent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send a verification code.");
     } finally {
@@ -1239,19 +1268,38 @@ function DeleteAccountCard() {
   const confirmDelete = async () => {
     setDeleting(true);
     setError("");
+    setErrorOnSecret(false);
     try {
-      await api.deleteAccount(code.trim());
+      await api.deleteAccount(usesPassword ? { password: secret } : { code: secret.trim() });
       // The API already cleared the session cookie — drop the native token
       // and hard-reload to the signed-out landing page.
       setNativeToken(null);
       window.location.href = "/";
     } catch (err) {
+      const rejected = (err as { status?: number }).status === 401;
       setError(err instanceof Error ? err.message : "Could not delete your account.");
+      setErrorOnSecret(rejected);
       setDeleting(false);
     }
   };
 
-  const canConfirm = code.trim().length > 0 && confirmText === "DELETE";
+  const close = () => {
+    setOpen(false);
+    setSecret("");
+    setConfirmText("");
+    setError("");
+    setErrorOnSecret(false);
+    setResent(false);
+    // "Delete…" unmounts while the panel is open, so focus has to be put back.
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+
+  // Trimmed: the iOS predictive bar appends a space to a tapped word, and that
+  // space is not a mistake the user can see.
+  const typed = confirmText.trim();
+  const canConfirm = secret.trim().length > 0 && typed === "DELETE";
+  // Silence while the word is still being typed, complain once it cannot match.
+  const confirmError = typed && !"DELETE".startsWith(typed) ? "Type DELETE exactly." : undefined;
 
   // The API rejects demo/admin sessions anyway — don't show them a dead end.
   if (isDemo || !user || user.isDemo || user.isAdmin || user.role !== "owner") return null;
@@ -1271,7 +1319,7 @@ function DeleteAccountCard() {
           </div>
         </div>
         {!open && (
-          <Button variant="destructive" size="sm" onClick={start} loading={sending} disabled={sending}>
+          <Button ref={triggerRef} variant="destructive" size="sm" onClick={start} loading={sending} disabled={sending}>
             Delete…
           </Button>
         )}
@@ -1284,34 +1332,58 @@ function DeleteAccountCard() {
       )}
 
       {open && (
-        <div ref={panelRef} className="mt-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-            <p className="text-[13px] font-medium text-content-muted">
-              We sent a code to {user.email}.
-            </p>
-            {/* -ml-3.5 cancels the ghost padding so the label aligns with the copy when wrapped */}
-            <Button variant="ghost" size="sm" className="-ml-3.5" onClick={resend} loading={sending} disabled={sending}>
-              Resend code
-            </Button>
-          </div>
-          <Field label="Verification code">
-            <Input
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="123456"
-            />
-          </Field>
-          <Field label={'Type "DELETE" to confirm'}>
+        <div ref={panelRef} tabIndex={-1} className="mt-4 space-y-3 focus:outline-none">
+          {usesPassword ? (
+            <Field label="Password" error={errorOnSecret ? error : undefined}>
+              <Input
+                ref={secretRef}
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                invalid={errorOnSecret}
+                disabled={deleting}
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder="••••••••"
+              />
+            </Field>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <p className={cn("text-[13px] font-medium", resent ? "text-positive" : "text-content-muted")}>
+                  {resent ? "New code sent to" : "We sent a code to"} {user.email}.
+                </p>
+                {/* The negative margins cancel the ghost padding, so the label lines up with
+                    the field edge below it and with the copy when it wraps to its own line */}
+                <Button variant="ghost" size="sm" className="-ml-3.5 -mr-3.5" onClick={resend} loading={sending} disabled={sending || deleting}>
+                  Resend code
+                </Button>
+              </div>
+              <Field label="Verification code" error={errorOnSecret ? error : undefined}>
+                <Input
+                  ref={secretRef}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  invalid={errorOnSecret}
+                  disabled={deleting}
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  placeholder="123456"
+                />
+              </Field>
+            </>
+          )}
+          <Field label={'Type "DELETE" to confirm'} error={confirmError}>
             <Input
               autoComplete="off"
+              invalid={Boolean(confirmError)}
+              disabled={deleting}
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
             />
           </Field>
-          {error && <Alert tone="negative">{error}</Alert>}
+          {error && !errorOnSecret && <Alert tone="negative">{error}</Alert>}
           <div className="flex gap-2">
             <Button
               variant="destructive"
@@ -1322,16 +1394,9 @@ function DeleteAccountCard() {
             >
               Permanently delete
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setOpen(false);
-                setCode("");
-                setConfirmText("");
-                setError("");
-              }}
-            >
+            {/* Disabled mid-flight: closing the panel does not abort the request,
+                so an enabled Cancel would read as an undo that never happened. */}
+            <Button variant="ghost" size="sm" onClick={close} disabled={deleting}>
               Cancel
             </Button>
           </div>

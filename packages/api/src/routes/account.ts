@@ -12,7 +12,8 @@ import { cookieFlagsFor } from "./auth.js";
 export const accountRouter = new Hono<AuthEnv>();
 
 // Self-serve account deletion (App Store guideline 5.1.1(v)) — a two-step
-// flow: email a Magic Auth code, then confirm deletion with it.
+// flow: re-authenticate, then delete. An account with a password confirms with
+// it; a passwordless one gets an emailed Magic Auth code.
 
 // Step 1: send a verification code to the signed-in user's email.
 accountRouter.post("/deletion-code", async (c) => {
@@ -40,9 +41,12 @@ accountRouter.delete("/", async (c) => {
   if (session.isAdmin) return c.json({ error: "Operator accounts cannot self-delete" }, 403);
   if (session.role !== "owner") return c.json({ error: "Only the account owner can delete the account" }, 403);
 
-  const body = await c.req.json<{ code?: string }>().catch(() => ({ code: undefined }));
+  const body = await c.req
+    .json<{ code?: string; password?: string }>()
+    .catch(() => ({ code: undefined, password: undefined }));
   const code = typeof body.code === "string" ? body.code.trim() : "";
-  if (!code) return c.json({ error: "Verification code required" }, 400);
+  const password = typeof body.password === "string" ? body.password : "";
+  if (!code && !password) return c.json({ error: "Password or verification code required" }, 400);
 
   const user = await db.query.users.findFirst({
     where: eq(users.id, session.userId),
@@ -50,8 +54,17 @@ accountRouter.delete("/", async (c) => {
   });
   if (!user) return c.json({ error: "User not found" }, 404);
 
-  try { await workos.authenticateWithMagicAuth({ email: user.email, code }); }
-  catch { return c.json({ error: "Invalid or expired code" }, 401); }
+  if (password) {
+    // Mirrors POST /login. An unverified account resolves to needs_verification
+    // rather than throwing, and that is not proof of the password.
+    let r;
+    try { r = await workos.login({ email: user.email, password }); }
+    catch { return c.json({ error: "Incorrect password" }, 401); }
+    if (r.status !== "ok") return c.json({ error: "Incorrect password" }, 401);
+  } else {
+    try { await workos.authenticateWithMagicAuth({ email: user.email, code }); }
+    catch { return c.json({ error: "Invalid or expired code" }, 401); }
+  }
 
   // Deletion cascades from the tenant row, so it would take down every member
   // of a shared household. Refuse until the other members are removed first.

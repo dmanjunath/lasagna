@@ -30,7 +30,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     if (res.status === 502 || res.status === 503) {
       throw new Error("Server is temporarily unavailable. Please try again.");
     }
-    throw new Error(message);
+    // Carry the status so a caller can tell a rejected credential (401) from a
+    // failure that belongs to the whole form.
+    throw Object.assign(new Error(message), { status: res.status });
   }
   return res.json() as Promise<T>;
 }
@@ -720,14 +722,15 @@ export const api = {
   adminRemoveUser: (userId: string) =>
     request<{ ok: true; deleted: string }>(`/admin/users/${userId}`, { method: "DELETE" }),
 
-  // Account deletion (two-step: emailed code → confirm)
+  // Account deletion (two-step: re-authenticate → confirm). An account with a
+  // password confirms with it; a passwordless one confirms with an emailed code.
   requestDeletionCode: () =>
     request<{ ok: true }>("/account/deletion-code", { method: "POST" }),
 
-  deleteAccount: (code: string) =>
+  deleteAccount: (proof: { password: string } | { code: string }) =>
     request<{ ok: true; plaidRemoved: number; plaidFailed: number }>("/account", {
       method: "DELETE",
-      body: JSON.stringify({ code }),
+      body: JSON.stringify(proof),
     }),
 
   // Billing

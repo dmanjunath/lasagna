@@ -24,8 +24,11 @@ vi.mock("../../lib/db.js", () => ({
 }));
 
 vi.mock("../../lib/auth/mode.js", () => ({ authMode: () => "workos" }));
+const authenticateWithMagicAuth = vi.fn(async (_i: unknown) => ({}) as unknown);
+const workosLogin = vi.fn(async (_i: unknown) => ({ status: "ok", identity: {} }) as unknown);
 vi.mock("../../lib/auth/workos.js", () => ({
-  authenticateWithMagicAuth: vi.fn(async () => ({})),
+  authenticateWithMagicAuth: (i: unknown) => authenticateWithMagicAuth(i),
+  login: (i: unknown) => workosLogin(i),
   sendMagicAuth: vi.fn(async () => {}),
   friendlyError: (_e: unknown, m: string) => m,
 }));
@@ -54,11 +57,11 @@ function appWithSession(session: SessionPayload) {
 
 const owner: SessionPayload = { userId: "user-1", tenantId: "tenant-1", role: "owner", isDemo: false, isAdmin: false };
 
-function del(app: Hono<AuthEnv>) {
+function del(app: Hono<AuthEnv>, body: { code?: string; password?: string } = { code: "123456" }) {
   return app.request("/api/account", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: "123456" }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -66,6 +69,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   selfFindFirst.mockResolvedValue({ email: "owner@example.com" });
   tenantUsersFindMany.mockResolvedValue([{ id: "user-1", email: "owner@example.com" }]);
+  authenticateWithMagicAuth.mockResolvedValue({});
+  workosLogin.mockResolvedValue({ status: "ok", identity: {} });
 });
 
 describe("DELETE /api/account multi-user guard", () => {
@@ -85,6 +90,39 @@ describe("DELETE /api/account multi-user guard", () => {
     const body = (await res.json()) as { error: string; blockingUsers: string[] };
     expect(body.blockingUsers).toEqual(["partner@example.com"]);
     expect(body.error).toBeTruthy();
+    expect(deleteTenantAccount).not.toHaveBeenCalled();
+  });
+});
+
+// An account with a password re-authenticates with it, the same way login does.
+// Without this an App Review reviewer, who cannot read our email, can sign in
+// but never reach the deletion Apple requires them to test.
+describe("DELETE /api/account password re-auth", () => {
+  it("correct password → deletes without an emailed code", async () => {
+    const res = await del(appWithSession(owner), { password: "hunter2" });
+    expect(res.status).toBe(200);
+    expect(workosLogin).toHaveBeenCalledWith({ email: "owner@example.com", password: "hunter2" });
+    expect(authenticateWithMagicAuth).not.toHaveBeenCalled();
+    expect(deleteTenantAccount).toHaveBeenCalledWith("tenant-1");
+  });
+
+  it("wrong password → 401, does NOT delete the tenant", async () => {
+    workosLogin.mockRejectedValue(new Error("invalid credentials"));
+    const res = await del(appWithSession(owner), { password: "wrong" });
+    expect(res.status).toBe(401);
+    expect(deleteTenantAccount).not.toHaveBeenCalled();
+  });
+
+  it("unverified account → 401, does NOT delete the tenant", async () => {
+    workosLogin.mockResolvedValue({ status: "needs_verification", email: "owner@example.com" });
+    const res = await del(appWithSession(owner), { password: "hunter2" });
+    expect(res.status).toBe(401);
+    expect(deleteTenantAccount).not.toHaveBeenCalled();
+  });
+
+  it("neither password nor code → 400, does NOT delete the tenant", async () => {
+    const res = await del(appWithSession(owner), {});
+    expect(res.status).toBe(400);
     expect(deleteTenantAccount).not.toHaveBeenCalled();
   });
 });
