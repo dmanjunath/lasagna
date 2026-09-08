@@ -5,21 +5,25 @@ App: **LasagnaFi** · Bundle ID: **com.lasagnafi.app**
 ## 1. Prerequisites
 
 - Enroll in the Apple Developer Program ($99/yr) at https://developer.apple.com/programs/.
-- Publish a privacy policy at a public URL (e.g. `https://lasagnafi.com/privacy`). App Store Connect requires it; there isn't one yet.
-- Confirm the production API is up and reachable at `https://app.lasagnafi.com`.
+- Publish a privacy policy at a public URL. App Store Connect requires it. Done: `https://lasagnafi.com/privacy`.
+- Confirm the production API is up and reachable at `https://api.lasagnafi.com` (`app.lasagnafi.com` is the static web app, not the API).
 - Verify WorkOS **Magic Auth is enabled in the production WorkOS environment** — it gates both login codes and account-deletion re-auth codes. (It was found disabled in the dev sandbox; check prod explicitly.)
 
 ## 2. One-time setup after enrollment
 
-1. Copy `lasagna-infra/ios/signing.env.example` to `lasagna-infra/ios/signing.env` and set `IOS_TEAM_ID` to your Team ID (developer.apple.com → Membership details) and `VITE_API_URL=https://app.lasagnafi.com`. Keep the Team ID out of this public repo.
-2. Replace `TEAMID` in `packages/web/public/.well-known/apple-app-site-association` with the real Team ID (`TEAMID.com.lasagnafi.app` → `<TEAM_ID>.com.lasagnafi.app`) and redeploy the web app. Universal links (`applinks:app.lasagnafi.com` in the entitlements) depend on this file. Committing the Team ID *here* is fine and required — AASA files are publicly fetchable by design (unlike `signing.env`, which stays in lasagna-infra); don't "fix" it back to the placeholder.
+1. Copy `lasagna-infra/ios/signing.env.example` to `lasagna-infra/ios/signing.env` and set `IOS_TEAM_ID` to your Team ID (developer.apple.com → Membership details) and `VITE_API_URL` to the **API** host, not the SPA host. `app.lasagnafi.com` serves the static web app and 405s on `POST /api/*`, so a build pointed there ships an app that cannot log in. Keep the Team ID out of this public repo.
+2. Done. Replace `TEAMID` in `packages/web/public/.well-known/apple-app-site-association` with the real Team ID (`TEAMID.com.lasagnafi.app` → `<TEAM_ID>.com.lasagnafi.app`) and redeploy the web app. Universal links (`applinks:app.lasagnafi.com` in the entitlements) depend on this file. Committing the Team ID *here* is fine and required — AASA files are publicly fetchable by design (unlike `signing.env`, which stays in lasagna-infra); don't "fix" it back to the placeholder.
 3. Verify the AASA file is served correctly:
 
    ```sh
    curl -i https://app.lasagnafi.com/.well-known/apple-app-site-association
    ```
 
-   Expect HTTP 200, `Content-Type: application/json`, and no redirect.
+   Expect HTTP 200 and no redirect. Confirm Apple has ingested it, which is what universal links actually read:
+
+   ```sh
+   curl -i https://app-site-association.cdn-apple.com/a/v1/app.lasagnafi.com
+   ```
 4. Open `packages/web/ios/App/App.xcodeproj` in Xcode once, sign in with the Apple ID, and accept the team / let automatic provisioning register the bundle ID if prompted.
 
 ## 3. Build the artifact
@@ -45,9 +49,11 @@ Upload the build either way:
    - Contact Info (email) and Identifiers (user ID) — linked to identity, not used for tracking.
    - No third-party advertising or tracking. The privacy manifest is at `packages/web/ios/App/App/PrivacyInfo.xcprivacy`.
 4. Set the privacy policy URL (from Prerequisites).
-5. **Account deletion question: answer YES** — the app supports in-app deletion (Settings → Delete account).
-6. **Demo account for App Review**: provide working credentials. Seed one with `pnpm db:seed-demo` (root package.json) or create a dedicated review account on prod. Because login uses emailed codes, the demo account must work for reviewers — verify the flow end to end before submitting.
-7. **Screenshots**: required for 6.9" (iPhone 16 Pro Max) and 6.5" (e.g. iPhone 11 Pro Max) displays. Run the app in each simulator and capture:
+5. **Account deletion question: answer YES** — the app supports in-app deletion (Settings → Delete account). It re-authenticates first, with the account password if there is one, otherwise with an emailed code.
+6. **Review account**: sign up a dedicated account on prod through the normal flow and **set a password** in Settings. Do not use `pnpm db:seed-demo`: it flags the user `isDemo`, and both `POST /account/deletion-code` and `DELETE /account` refuse a demo session with a 403, so the reviewer could not test deletion.
+
+   A password matters for two reasons. It lets the reviewer sign in without reading our email, and it is the re-authentication the deletion flow asks for (a passwordless account is sent a code instead). Log in as that account and walk the whole path once, deletion included, before submitting.
+7. **Screenshots**: required for 6.9" (iPhone 16 Pro Max) and 6.5" (e.g. iPhone 11 Pro Max) displays. The target is iPhone-only (`TARGETED_DEVICE_FAMILY = 1`), so no iPad set is needed. Run the app in each simulator and capture:
 
    ```sh
    xcrun simctl io booted screenshot screenshot.png
@@ -63,9 +69,7 @@ Paste into App Review notes (adjust credentials):
 >
 > Subscriptions are purchased on our website via Stripe. The app links out to this external purchase flow under the updated US App Store guidelines (post-May 2025, external purchase links permitted for the US storefront). The app is distributed in the United States only.
 >
-> Demo account: [email] — login is passwordless; enter the emailed 6-digit code. If the reviewer cannot receive email, contact us and we will supply a code.
->
-> Account deletion is available in-app under Settings → Delete account.
+> Review account: [email] / [password]. Enter the email, then the password on the next screen. Account deletion is available in-app under Settings → Delete account, and confirms with the same password.
 
 ## 6. TestFlight, then submit
 
