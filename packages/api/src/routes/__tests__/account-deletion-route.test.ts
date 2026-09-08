@@ -34,6 +34,11 @@ vi.mock("../../lib/auth/workos.js", () => ({
 }));
 vi.mock("../auth.js", () => ({ cookieFlagsFor: () => ({ secure: false, sameSite: "Lax" }) }));
 
+const verifyPassword = vi.fn(async (_p: string, _h: string) => true);
+vi.mock("../../lib/password.js", () => ({
+  verifyPassword: (p: string, h: string) => verifyPassword(p, h),
+}));
+
 // The tenant-delete dependency — the thing the guard must NOT call for a
 // multi-user tenant, and MUST call for a single-user one.
 const deleteTenantAccount = vi.fn(async (_tenantId: string) => ({ plaidRemoved: 0, plaidFailed: 0 }));
@@ -71,6 +76,7 @@ beforeEach(() => {
   tenantUsersFindMany.mockResolvedValue([{ id: "user-1", email: "owner@example.com" }]);
   authenticateWithMagicAuth.mockResolvedValue({});
   workosLogin.mockResolvedValue({ status: "ok", identity: {} });
+  verifyPassword.mockResolvedValue(true);
 });
 
 describe("DELETE /api/account multi-user guard", () => {
@@ -124,5 +130,37 @@ describe("DELETE /api/account password re-auth", () => {
     const res = await del(appWithSession(owner), {});
     expect(res.status).toBe(400);
     expect(deleteTenantAccount).not.toHaveBeenCalled();
+  });
+});
+
+// A seeded account (a local hash and no WorkOS link) is verified against that
+// hash, exactly as POST /login does. WorkOS has never heard of it, so asking
+// WorkOS would reject the one password the account actually has.
+describe("DELETE /api/account local-account password", () => {
+  const localUser = { email: "review@example.com", passwordHash: "salt:hash", workosUserId: null };
+
+  it("correct password → deletes without consulting WorkOS", async () => {
+    selfFindFirst.mockResolvedValue(localUser);
+    const res = await del(appWithSession(owner), { password: "hunter2" });
+    expect(res.status).toBe(200);
+    expect(verifyPassword).toHaveBeenCalledWith("hunter2", "salt:hash");
+    expect(workosLogin).not.toHaveBeenCalled();
+    expect(deleteTenantAccount).toHaveBeenCalledWith("tenant-1");
+  });
+
+  it("wrong password → 401, does NOT delete the tenant", async () => {
+    selfFindFirst.mockResolvedValue(localUser);
+    verifyPassword.mockResolvedValue(false);
+    const res = await del(appWithSession(owner), { password: "wrong" });
+    expect(res.status).toBe(401);
+    expect(deleteTenantAccount).not.toHaveBeenCalled();
+  });
+
+  it("a WorkOS-linked account with a local hash still goes through WorkOS", async () => {
+    selfFindFirst.mockResolvedValue({ ...localUser, workosUserId: "user_123" });
+    const res = await del(appWithSession(owner), { password: "hunter2" });
+    expect(res.status).toBe(200);
+    expect(workosLogin).toHaveBeenCalled();
+    expect(verifyPassword).not.toHaveBeenCalled();
   });
 });

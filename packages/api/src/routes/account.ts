@@ -7,6 +7,7 @@ import { type AuthEnv } from "../middleware/auth.js";
 import * as workos from "../lib/auth/workos.js";
 import { authMode } from "../lib/auth/mode.js";
 import { deleteTenantAccount } from "../lib/account-deletion.js";
+import { verifyPassword } from "../lib/password.js";
 import { cookieFlagsFor } from "./auth.js";
 
 export const accountRouter = new Hono<AuthEnv>();
@@ -50,17 +51,24 @@ accountRouter.delete("/", async (c) => {
 
   const user = await db.query.users.findFirst({
     where: eq(users.id, session.userId),
-    columns: { email: true },
+    columns: { email: true, passwordHash: true, workosUserId: true },
   });
   if (!user) return c.json({ error: "User not found" }, 404);
 
   if (password) {
-    // Mirrors POST /login. An unverified account resolves to needs_verification
-    // rather than throwing, and that is not proof of the password.
-    let r;
-    try { r = await workos.login({ email: user.email, password }); }
-    catch { return c.json({ error: "Incorrect password" }, 401); }
-    if (r.status !== "ok") return c.json({ error: "Incorrect password" }, 401);
+    // Both branches mirror POST /login. A seeded account holds its own hash and
+    // WorkOS has never heard of it, so asking WorkOS would reject the only
+    // password it has. An unverified WorkOS account resolves to
+    // needs_verification rather than throwing, and that is not proof either.
+    if (user.passwordHash && !user.workosUserId) {
+      if (!(await verifyPassword(password, user.passwordHash)))
+        return c.json({ error: "Incorrect password" }, 401);
+    } else {
+      let r;
+      try { r = await workos.login({ email: user.email, password }); }
+      catch { return c.json({ error: "Incorrect password" }, 401); }
+      if (r.status !== "ok") return c.json({ error: "Incorrect password" }, 401);
+    }
   } else {
     try { await workos.authenticateWithMagicAuth({ email: user.email, code }); }
     catch { return c.json({ error: "Invalid or expired code" }, 401); }
