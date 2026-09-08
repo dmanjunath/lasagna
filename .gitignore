@@ -37,3 +37,6 @@ _shots*/
 
 # Local-only compose overrides (see docker-compose.override.yml.example)
 docker-compose.override.yml
+
+# App Review sign-in credentials (local only, never commit)
+.secrets/
