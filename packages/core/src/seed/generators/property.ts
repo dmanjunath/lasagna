@@ -1,5 +1,6 @@
 import type { Database } from "../../db.js";
 import { accounts, balanceSnapshots } from "../../schema.js";
+import { balanceHistory } from "./history.js";
 import type { PropertyConfig } from "../types.js";
 import { randomVariance } from "../utils.js";
 
@@ -39,19 +40,17 @@ export async function generateProperty(
 
     accountIds.push(account.id);
 
-    // Create 30 days of value history (property values don't change much)
-    for (let daysAgo = 30; daysAgo >= 0; daysAgo--) {
-      const snapshotDate = new Date(now);
-      snapshotDate.setDate(snapshotDate.getDate() - daysAgo);
-
-      await db.insert(balanceSnapshots).values({
+    // A year of value history. Property moves slowly, so it appreciates gently
+    // and carries almost no day-to-day noise.
+    await db.insert(balanceSnapshots).values(
+      balanceHistory(now, balance, 0.04, 0.001).map((p) => ({
         accountId: account.id,
         tenantId,
-        balance: String(randomVariance(balance, 0.5)), // ±0.5% variance for property
+        balance: p.balance.toFixed(2),
         isoCurrencyCode: "USD",
-        snapshotAt: snapshotDate,
-      });
-    }
+        snapshotAt: p.snapshotAt,
+      })),
+    );
   }
 
   return accountIds;

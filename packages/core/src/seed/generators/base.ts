@@ -1,5 +1,5 @@
 import type { Database } from "../../db.js";
-import { tenants, users, plaidItems, financialProfiles } from "../../schema.js";
+import { tenants, users, plaidItems, financialProfiles, userProfiles } from "../../schema.js";
 import { seedTaxonomyForTenant } from "../../taxonomy.js";
 import { hashPassword } from "../utils.js";
 import type { ProfileConfig } from "../types.js";
@@ -60,7 +60,15 @@ export async function createBaseEntities(
     })
     .returning();
 
-  // Create financial profile if config provided
+  // Create the profile if config provided. It lives in two tables, and the split
+  // is the one profile-resolver.ts defines: the household row carries what the
+  // tenant shares, the per-user row carries "your income vs your partner's".
+  //
+  // Writing the personal fields onto the household row instead leaves the app
+  // reading nulls — no age, no income, no retirement age, no employer match. A
+  // seeded account then reports zero income, which sends the financial level,
+  // the retirement projection, the tax surfaces and the generated actions down
+  // their "we don't know anything about you" paths.
   if (profileConfig) {
     const dob = profileConfig.age
       ? new Date(new Date().getFullYear() - profileConfig.age, 0, 15)
@@ -68,10 +76,15 @@ export async function createBaseEntities(
 
     await db.insert(financialProfiles).values({
       tenantId: tenant.id,
-      dateOfBirth: dob,
-      annualIncome: profileConfig.annualIncome ? String(profileConfig.annualIncome) : undefined,
       filingStatus: profileConfig.filingStatus,
       stateOfResidence: profileConfig.stateOfResidence,
+    });
+
+    await db.insert(userProfiles).values({
+      tenantId: tenant.id,
+      userId: user.id,
+      dateOfBirth: dob,
+      annualIncome: profileConfig.annualIncome ? String(profileConfig.annualIncome) : undefined,
       riskTolerance: profileConfig.riskTolerance,
       retirementAge: profileConfig.retirementAge,
       employerMatch: profileConfig.employerMatch ? String(profileConfig.employerMatch) : undefined,

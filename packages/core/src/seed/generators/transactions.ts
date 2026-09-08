@@ -244,12 +244,18 @@ export async function generateTransactions(
     allTransactions.push(...txns);
   }
 
+  // The current month is generated across its whole span, so on the 8th it
+  // carries transactions dated to the 20th. Those inflate this month's spending
+  // against a month that has not happened yet, and read as a bug to anyone
+  // scrolling the list.
+  const dated = allTransactions.filter((t) => t.date <= now);
+
   // Batch insert all transactions
-  if (allTransactions.length > 0) {
+  if (dated.length > 0) {
     // Insert in chunks to avoid exceeding parameter limits
     const CHUNK_SIZE = 50;
-    for (let i = 0; i < allTransactions.length; i += CHUNK_SIZE) {
-      const chunk = allTransactions.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < dated.length; i += CHUNK_SIZE) {
+      const chunk = dated.slice(i, i + CHUNK_SIZE);
       await db.insert(transactions).values(chunk);
     }
   }

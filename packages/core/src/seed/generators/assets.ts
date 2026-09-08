@@ -1,5 +1,6 @@
 import type { Database } from "../../db.js";
 import { accounts, balanceSnapshots } from "../../schema.js";
+import { balanceHistory } from "./history.js";
 import type { AssetConfig } from "../types.js";
 import { randomVariance } from "../utils.js";
 
@@ -54,20 +55,19 @@ export async function generateAssets(
 
     createdAccounts.push({ accountId: account.id, key });
 
-    // Create 30 days of balance history
-    for (let daysAgo = 30; daysAgo >= 0; daysAgo--) {
-      const snapshotDate = new Date(now);
-      snapshotDate.setDate(snapshotDate.getDate() - daysAgo);
-
-      await db.insert(balanceSnapshots).values({
+    // A year of balance history, so every range on the net worth card has
+    // something to draw. Inserted in one statement: a row at a time was the
+    // slowest part of seeding.
+    await db.insert(balanceSnapshots).values(
+      balanceHistory(now, balance, 0.08, 0.004).map((p) => ({
         accountId: account.id,
         tenantId,
-        balance: String(randomVariance(balance, 2)),
-        available: String(randomVariance(balance * 0.98, 2)),
+        balance: p.balance.toFixed(2),
+        available: (p.balance * 0.98).toFixed(2),
         isoCurrencyCode: "USD",
-        snapshotAt: snapshotDate,
-      });
-    }
+        snapshotAt: p.snapshotAt,
+      })),
+    );
   }
 
   return createdAccounts;

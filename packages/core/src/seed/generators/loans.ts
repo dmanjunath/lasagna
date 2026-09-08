@@ -1,5 +1,6 @@
 import type { Database } from "../../db.js";
 import { accounts, balanceSnapshots } from "../../schema.js";
+import { balanceHistory } from "./history.js";
 import type { LoanConfig } from "../types.js";
 import { DEFAULT_INTEREST_RATES } from "../types.js";
 import { parseLoanValue, randomVariance } from "../utils.js";
@@ -80,20 +81,18 @@ export async function generateLoans(
 
     accountIds.push(account.id);
 
-    // Create 30 days of balance history
-    for (let daysAgo = 30; daysAgo >= 0; daysAgo--) {
-      const snapshotDate = new Date(now);
-      snapshotDate.setDate(snapshotDate.getDate() - daysAgo);
-
-      await db.insert(balanceSnapshots).values({
+    // Negative drift: a debt stood higher a year ago than it does now, so the
+    // history reads as a balance being paid down rather than noise.
+    await db.insert(balanceSnapshots).values(
+      balanceHistory(now, balance, -0.06, 0.002).map((p) => ({
         accountId: account.id,
         tenantId,
-        balance: String(randomVariance(balance, 0.1)),
+        balance: p.balance.toFixed(2),
         limit: mapping.type === "credit" ? String(Math.abs(balance) * 2) : null,
         isoCurrencyCode: "USD",
-        snapshotAt: snapshotDate,
-      });
-    }
+        snapshotAt: p.snapshotAt,
+      })),
+    );
   }
 
   return accountIds;
