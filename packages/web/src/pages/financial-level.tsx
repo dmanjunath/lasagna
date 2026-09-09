@@ -792,7 +792,7 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
   );
 }
 
-// ── Financial Level ──────────────────────────────────────────────────────────
+// ── Personalized Financial Journey ───────────────────────────────────────────
 
 export function FinancialLevel() {
   const [data, setData] = useState<PathData | null>(null);
@@ -983,7 +983,7 @@ export function FinancialLevel() {
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       <header className="animate-fade-in">
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
-          Financial Level
+          Personalized Financial Journey
         </h1>
       </header>
       <EmptyState
@@ -1006,7 +1006,7 @@ export function FinancialLevel() {
   if (hasNoData) return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       <header className="animate-fade-in">
-        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">Financial Level</h1>
+        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">Personalized Financial Journey</h1>
       </header>
       <EmptyState
         className="mt-8"
@@ -1064,7 +1064,7 @@ export function FinancialLevel() {
       {/* ════════ Header ════════ */}
       <header className="animate-fade-in">
         <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
-          Financial Level
+          Personalized Financial Journey
         </h1>
         {/* The order below was settled once and only changes on an event. A
             page that showed a sequence without saying when it was settled

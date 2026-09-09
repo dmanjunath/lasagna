@@ -297,7 +297,7 @@ export interface PathView {
   currentStep: number | null;
   /**
    * True when this order is already due to be rebuilt: the household moved, and
-   * the Financial Level page has not chosen the new order yet. The steps are
+   * the Personalized Financial Journey page has not chosen the new order yet. The steps are
    * all here and their figures are current, but their POSITIONS are not settled,
    * so nothing may state one as final while this is true.
    */

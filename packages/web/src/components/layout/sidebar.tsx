@@ -42,7 +42,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Financial insights',
     items: [
       { id: 'actions',         label: 'Actions',         icon: Zap,    path: '/insights' },
-      { id: 'financial-level', label: 'Financial Level', icon: Layers, path: '/financial-level' },
+      { id: 'financial-level', label: 'Financial Journey', icon: Layers, path: '/financial-level' },
     ],
   },
   {

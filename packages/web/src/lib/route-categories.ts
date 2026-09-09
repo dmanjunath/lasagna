@@ -7,7 +7,7 @@ const routeCategories: Record<string, string> = {
   '/portfolio': 'Portfolio',
   '/tax': 'Tax',
   '/retirement': 'Retirement',
-  '/financial-level': 'Financial Level',
+  '/financial-level': 'Financial Journey',
   '/probability': 'Retirement',
   '/plans': 'Plans',
   '/profile': 'Profile',

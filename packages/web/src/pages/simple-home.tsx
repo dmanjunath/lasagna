@@ -799,7 +799,7 @@ function NetWorthBreakdown({
   );
 }
 
-// ─── Financial level section ────────────────────────────────────────────────────
+// ─── Personalized Financial Journey section ─────────────────────────────────────
 
 /** The financial-level standing, echoing the /financial-level hero (a level
  *  ladder), so it reads as its own thing — not another action card. */
@@ -943,7 +943,7 @@ export function LevelSection({
   const heading = (
     <div className="flex items-center justify-between gap-4">
       <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold leading-[1.1] tracking-[-0.02em]">
-        Your financial level
+        Personalized Financial Journey
       </h2>
       <Link href="/financial-level" className={`shrink-0 ${pageLinkCls}`}>
         All steps<ArrowRight className="h-4 w-4" />
