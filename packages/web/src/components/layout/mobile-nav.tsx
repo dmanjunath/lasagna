@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -72,19 +72,14 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const [location, navigate] = useLocation();
   const { tenant, logout, user } = useAuth();
 
+  useBodyScrollLock(isOpen);
+
   const isActive = (path: string) => path === '/' ? location === '/' : (location === path || location.startsWith(path + '/'));
 
   const handleNavigate = (path: string) => {
     navigate(path);
     onClose();
   };
-
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = ''; };
-    }
-  }, [isOpen]);
 
   const rawName = tenant?.name || '';
   const firstName = rawName.startsWith('Seed ') ? 'User' : (rawName.split(' ')[0] || 'User');

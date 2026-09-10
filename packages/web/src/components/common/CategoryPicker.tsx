@@ -4,6 +4,7 @@ import { motion, useDragControls, type PanInfo } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { Check, ChevronDown, Receipt, Search, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { Skeleton } from '../uikit';
 import { taxonomyIcon, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
 
@@ -65,6 +66,10 @@ export function CategoryPicker({
   const optId = (catId: string) => `${listId}-${catId}`;
 
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
+
+  // The phone sheet floats over a document that still scrolls, so a drag on
+  // a short category list would slide the page underneath instead.
+  useBodyScrollLock(open && isPhone);
 
   const current = value ? byId.get(value) : undefined;
   const triggerLabel = current?.name ?? currentLabel ?? 'Other';
@@ -272,7 +277,7 @@ export function CategoryPicker({
         role="listbox"
         aria-label="Category"
         id={listId}
-        className={cn('mt-1 min-h-0 overflow-y-auto', isPhone ? 'flex-1' : 'max-h-[320px]')}
+        className={cn('mt-1 min-h-0 overflow-y-auto overscroll-contain', isPhone ? 'flex-1' : 'max-h-[320px]')}
       >
         {loading && pickerGroups.length === 0 ? (
           [0, 1, 2].map((i) => (

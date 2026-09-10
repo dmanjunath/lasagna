@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 
 interface ConfirmOptions {
   title: string;
@@ -26,6 +27,10 @@ interface DialogState extends ConfirmOptions {
  */
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DialogState | null>(null);
+
+  // The backdrop is fixed over a document that still scrolls, and on phones it
+  // is a bottom sheet (index.css), so without this the page slides underneath.
+  useBodyScrollLock(state !== null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
 

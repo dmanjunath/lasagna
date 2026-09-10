@@ -9,6 +9,7 @@ import {
 import { api } from "./api.js";
 import { setNativeToken } from "./native.js";
 import { setPasskeyRegistered } from "./passkey-hint.js";
+import { clearFaceIdOnSignOut } from "./biometric-lock.js";
 
 interface User {
   id: string;
@@ -64,6 +65,14 @@ function saveAuthHint(user: User | null, tenant: Tenant | null) {
       window.localStorage.removeItem(HINT_KEY);
     }
   } catch {}
+}
+
+/**
+ * Synchronous "probably signed in" read, for gates that run before the provider
+ * mounts (the native boot cover). The cookie is still the source of truth.
+ */
+export function hasAuthHint(): boolean {
+  return loadAuthHint().user !== null;
 }
 
 interface AuthState {
@@ -159,6 +168,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await api.logout();
     setNativeToken(null);
+    // Face ID is device-local state tied to being signed in: leaving the lock on
+    // would gate the login screen with nothing behind it. Re-arms the one-time
+    // setup offer so the next account is asked instead of digging into Settings.
+    clearFaceIdOnSignOut();
     commitAuth({ user: null, tenant: null });
   }, [commitAuth]);
 

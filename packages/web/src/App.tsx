@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Route, Switch, Redirect, useLocation } from 'wouter';
-import { AuthProvider, useAuth } from './lib/auth';
+import { AuthProvider, useAuth, hasAuthHint } from './lib/auth';
 import { isNativeApp } from './lib/native';
 import { isLockEnabled } from './lib/biometric-lock';
 import { BootCover } from './components/common/BootCover';
@@ -250,7 +250,7 @@ export function App() {
               synchronously when the lock is on; isLockEnabled is a plain
               storage read, no Capacitor import. */}
           {isNativeApp() && (
-            <Suspense fallback={isLockEnabled() ? <BootCover /> : null}>
+            <Suspense fallback={isLockEnabled() && hasAuthHint() ? <BootCover /> : null}>
               <BiometricLock />
             </Suspense>
           )}

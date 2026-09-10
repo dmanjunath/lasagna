@@ -1,22 +1,33 @@
 /**
  * BiometricLock — full-screen Face ID gate for the native shell. Mounted lazily
  * from App.tsx (native only) so the Capacitor plugin never ships in the web
- * bundle. It gates pixels, not the session: locked state just covers the app
- * (including login) until BiometricAuth.authenticate() succeeds.
+ * bundle. It gates pixels, not the session: locked state covers the signed-in
+ * app until BiometricAuth.authenticate() succeeds. It never covers a signed-out
+ * screen, because there would be nothing to hide and no way past a failed scan.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
 import { ScanFace } from 'lucide-react';
 import { Button } from '../uikit';
 import { isLockEnabled, shouldLock } from '../../lib/biometric-lock';
+import { useAuth } from '../../lib/auth';
 
 export default function BiometricLock() {
+  // The lock exists to hide a signed-in session. Signed out there is only the
+  // login screen behind it, and a cancelled Face ID would strand the user there.
+  // user is hydrated synchronously from the auth hint, so this is right on the
+  // very first paint; /me correcting it later is handled by the effect below.
+  const { user } = useAuth();
+  const signedIn = user !== null;
   // Cold start: backgroundedAt === null → locked whenever the lock is enabled.
   const [locked, setLocked] = useState(() =>
-    shouldLock({ enabled: isLockEnabled(), backgroundedAt: null, now: Date.now() }),
+    shouldLock({ enabled: isLockEnabled(), signedIn, backgroundedAt: null, now: Date.now() }),
   );
   const backgroundedAt = useRef<number | null>(null);
   const prompting = useRef(false);
+  // The resume listener is registered once, so it reads the session from a ref
+  // rather than closing over a stale `signedIn`.
+  const signedInRef = useRef(signedIn);
 
   const unlock = useCallback(async () => {
     if (prompting.current) return;
@@ -34,6 +45,13 @@ export default function BiometricLock() {
     }
   }, []);
 
+  // Session ended (sign-out, or a boot where the hint was stale and /me 401'd):
+  // drop the lock so the login screen is reachable.
+  useEffect(() => {
+    signedInRef.current = signedIn;
+    if (!signedIn) setLocked(false);
+  }, [signedIn]);
+
   useEffect(() => {
     const onBackground = () => {
       backgroundedAt.current = Date.now();
@@ -41,6 +59,7 @@ export default function BiometricLock() {
     const onResume = () => {
       const lock = shouldLock({
         enabled: isLockEnabled(),
+        signedIn: signedInRef.current,
         backgroundedAt: backgroundedAt.current,
         now: Date.now(),
       });

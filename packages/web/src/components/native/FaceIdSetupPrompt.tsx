@@ -3,29 +3,28 @@ import { ScanFace } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Button } from '../uikit';
 import { isNativeApp } from '../../lib/native';
-import { setLockEnabled } from '../../lib/biometric-lock';
+import { setLockEnabled, isSetupPrompted, setSetupPrompted } from '../../lib/biometric-lock';
 import { setPasskeyRegistered } from '../../lib/passkey-hint';
-
-const PROMPTED_KEY = 'lasagna_faceid_prompted';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 
 /**
  * One-time post-login offer (native shell only) to turn on Face ID: it enables
  * the app-lock (Face ID to reopen the app) AND registers a passkey (Face ID to
  * sign in next time). Shown once — the `lasagna_faceid_prompted` flag is set on
- * accept, decline, or when the device has no biometrics.
+ * accept, decline, or when the device has no biometrics. Signing out re-arms
+ * it, so the next account is offered Face ID instead of inheriting the last
+ * account's answer.
  */
 export default function FaceIdSetupPrompt() {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  useBodyScrollLock(show);
+
   useEffect(() => {
     if (!isNativeApp()) return;
-    try {
-      if (localStorage.getItem(PROMPTED_KEY) === '1') return;
-    } catch {
-      return;
-    }
+    if (isSetupPrompted()) return;
     let cancelled = false;
     void import('@aparajita/capacitor-biometric-auth').then(async ({ BiometricAuth }) => {
       try {
@@ -42,13 +41,7 @@ export default function FaceIdSetupPrompt() {
     };
   }, []);
 
-  const markPrompted = () => {
-    try {
-      localStorage.setItem(PROMPTED_KEY, '1');
-    } catch {
-      /* storage unavailable */
-    }
-  };
+  const markPrompted = () => setSetupPrompted(true);
 
   const dismiss = () => {
     markPrompted();
