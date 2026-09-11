@@ -1,4 +1,5 @@
 import { ReactNode, useState, useRef, useEffect } from 'react';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { RefreshCw, Trash2, MoreHorizontal, SlidersHorizontal, Lock } from 'lucide-react';
 import { faviconUrl, institutionDomainFor } from './institutions';
 
@@ -162,6 +163,7 @@ export function RowMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
+  useBodyScrollLock(open);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);

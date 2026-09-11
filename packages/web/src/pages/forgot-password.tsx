@@ -25,7 +25,7 @@ export function ForgotPassword() {
   };
 
   return (
-    <div className="ui-root min-h-dvh bg-canvas flex items-center justify-center p-4">
+    <div className="ui-root min-h-dvh bg-canvas flex items-start justify-center p-4 pt-24 sm:items-center sm:pt-4">
       {/* Ambient warm glow — faint, single brand accent for atmosphere. */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <div
@@ -35,7 +35,7 @@ export function ForgotPassword() {
       </div>
 
       <div className="relative w-full max-w-[420px]">
-        <div className="rounded-ui-xl border border-line bg-panel shadow-ui-lg p-7 sm:p-8">
+        <div className="p-7 sm:rounded-ui-xl sm:border sm:border-line sm:bg-panel sm:shadow-ui-lg sm:p-8">
           <div className="flex flex-col items-center text-center mb-7">
             <BrandMark size={54} />
             <h1 className="mt-4 font-editorial text-[26px] font-medium tracking-[-0.015em] text-content">
@@ -67,6 +67,7 @@ export function ForgotPassword() {
               <Field label="Email">
                 <Input
                   type="email"
+                  enterKeyHint="go"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

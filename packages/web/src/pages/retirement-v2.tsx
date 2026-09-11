@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { useBodyScrollLock } from '../lib/hooks/use-body-scroll-lock';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
 import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
@@ -99,6 +100,7 @@ function MethodDropdown<T extends string>({ value, onChange, options, ariaLabel,
   triggerTestId?: string;
 }) {
   const [open, setOpen] = useState(false);
+  useBodyScrollLock(open);
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -188,6 +190,7 @@ function MethodDropdown<T extends string>({ value, onChange, options, ariaLabel,
 // on outside-click or Escape. Label is a screen-reader question for the metric.
 function InfoPopover({ label, children }: { label: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  useBodyScrollLock(open);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);

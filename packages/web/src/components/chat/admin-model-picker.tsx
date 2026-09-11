@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
@@ -33,6 +34,7 @@ export function AdminModelPicker({
   const [catalog, setCatalog] = useState<Provider[]>([]);
   const [override, setOverride] = useState<ChatModelOverride | null>(() => getPreferredModel());
   const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null);
+  useBodyScrollLock(pos !== null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const open = pos !== null;

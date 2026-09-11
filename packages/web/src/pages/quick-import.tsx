@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { Loader2, Sparkles, X, ChevronDown, ChevronUp, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { Select } from '../components/uikit';
 import { api, type QuickImportParseResult, type QuickImportAccount, type QuickImportGoal, type QuickImportProfile, type QuickImportCurrentProfile } from '../lib/api';
 
 type Stage = 'input' | 'preview' | 'done';
@@ -644,10 +645,9 @@ function EditProfileField({
   // State
   if (field === 'stateOfResidence') {
     return (
-      <select
+      <Select
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value || null)}
-        className={`${inputCls} appearance-none`}
       >
         <option value="">Select…</option>
         {US_STATE_CODES.map((s) => (
@@ -655,47 +655,44 @@ function EditProfileField({
             {s}
           </option>
         ))}
-      </select>
+      </Select>
     );
   }
 
   // Enums
   if (field === 'filingStatus') {
     return (
-      <select
+      <Select
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value || null)}
-        className={`${inputCls} appearance-none`}
       >
         <option value="">Select…</option>
         <option value="single">Single</option>
         <option value="married_joint">Married filing jointly</option>
         <option value="married_separate">Married filing separately</option>
         <option value="head_of_household">Head of household</option>
-      </select>
+      </Select>
     );
   }
   if (field === 'employmentType') {
     return (
-      <select
+      <Select
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value || null)}
-        className={`${inputCls} appearance-none`}
       >
         <option value="">Select…</option>
         <option value="w2">W2 employee</option>
         <option value="self_employed">Self-employed</option>
         <option value="1099">1099 contractor</option>
         <option value="business_owner">Business owner</option>
-      </select>
+      </Select>
     );
   }
   if (field === 'riskTolerance') {
     return (
-      <select
+      <Select
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value || null)}
-        className={`${inputCls} appearance-none`}
       >
         <option value="">Select…</option>
         <option value="conservative">Conservative</option>
@@ -703,7 +700,7 @@ function EditProfileField({
         <option value="moderate">Moderate</option>
         <option value="moderate_aggressive">Moderately Aggressive</option>
         <option value="aggressive">Aggressive</option>
-      </select>
+      </Select>
     );
   }
 
@@ -789,19 +786,18 @@ function AccountCard({
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Type">
-              <select
+              <Select
                 value={account.type}
                 onChange={(e) =>
                   onChange({ ...account, type: e.target.value as QuickImportAccount['type'] })
                 }
-                className={`${inputCls} appearance-none`}
               >
                 {Object.entries(ACCOUNT_TYPE_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Subtype">
               <input
@@ -1204,7 +1200,7 @@ function CurrencyInput({
 
 function StickyFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fixed bottom-0 inset-x-0 z-30 max-w-[640px] mx-auto bg-canvas/95 backdrop-blur border-t border-line px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+    <div className="fixed inset-x-0 z-30 max-w-[640px] mx-auto bg-canvas/95 backdrop-blur border-t border-line px-4 pt-3 bottom-[calc(env(safe-area-inset-bottom)+68px)] pb-3 md:bottom-0 md:pb-[calc(env(safe-area-inset-bottom)+12px)]">
       {children}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { createPortal } from 'react-dom';
 import { MoreHorizontal } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -19,6 +20,7 @@ export interface RowMenuItem {
  */
 export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string }) {
   const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null);
+  useBodyScrollLock(pos !== null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const open = pos !== null;

@@ -182,6 +182,7 @@ export function AccountPicker({ accounts, selected, onToggle }: AccountPickerPro
         <div className="w-full sm:w-[240px]">
           <Input
             type="search"
+            enterKeyHint="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search accounts"

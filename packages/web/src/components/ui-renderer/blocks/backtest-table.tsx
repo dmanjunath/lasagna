@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, Filter } from "lucide-react";
+import { Select } from '../../uikit';
 import type { BacktestTableBlock } from "../../../lib/types.js";
 
 type SortField = "startYear" | "endBalance" | "status" | "worstDrawdown";
@@ -101,16 +102,16 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
 
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-text-secondary" />
-          <select
+          <Select
             value={filter}
             onChange={(e) => setFilter(e.target.value as FilterStatus)}
-            className="bg-surface border border-border rounded-lg px-3 py-1 text-sm text-text"
+            className="h-9 w-auto"
           >
             <option value="all">All</option>
             <option value="failed">Failed Only</option>
             <option value="close">Close Calls</option>
             <option value="success">Successes</option>
-          </select>
+          </Select>
         </div>
       </div>
 

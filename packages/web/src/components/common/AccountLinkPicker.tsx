@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { ChevronDown, Plus, Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { faviconUrl, institutionDomainFor } from '../ds/institutions';
@@ -52,6 +53,7 @@ export function AccountLinkPicker({
 }: AccountLinkPickerProps) {
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
+  useBodyScrollLock(open);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);

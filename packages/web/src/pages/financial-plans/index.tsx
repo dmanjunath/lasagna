@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Plus, Loader2, Trash2, FileText, ChevronRight, Pencil, Check } from "lucide-react";
 import { api } from "../../lib/api.js";
-import { Button, Skeleton, EmptyState, Modal } from "../../components/uikit";
+import { Button, Skeleton, EmptyState, Modal, useToast } from "../../components/uikit";
 import { PlanFreshnessBanner } from "../../components/common/plan-freshness-banner.js";
 import { planFreshness } from "../../lib/plan-freshness.js";
 import { formatRelativeTime } from "../../lib/utils.js";
+import { useConfirm } from "../../components/ds";
 import type { FinancialPlanSummary } from "../../lib/types.js";
 
 // Default report name, versioned against the existing list so each new report
@@ -36,6 +37,8 @@ export function FinancialPlansList({
   /** Called once the modal is open, so the request is not replayed on remount. */
   onAutoCreateHandled?: () => void;
 } = {}) {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [plans, setPlans] = useState<FinancialPlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -148,13 +151,19 @@ export function FinancialPlansList({
   const handleDelete = async (id: string, title: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm(`Delete '${title}'? This will archive the plan.`)) return;
+    const ok = await confirm({
+      title: `Delete "${title}"?`,
+      body: "This archives the plan. You can still find it in your history.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await api.deleteFinancialPlan(id);
       setPlans((prev) => prev.filter((p) => p.id !== id));
     } catch {
-      alert("Failed to delete the plan. Please try again.");
+      toast({ tone: "negative", title: "Could not delete the plan", description: "Please try again." });
     } finally {
       setDeletingId(null);
     }

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { createPortal } from 'react-dom';
 import { Palette, Check } from 'lucide-react';
 import { useTheme, isValidHex, normalizeHex, type ThemeId } from '../../lib/theme';
@@ -16,6 +17,7 @@ export function SidebarThemePicker() {
   const [customOpen, setCustomOpen] = useState(false);
   const [hexDraft, setHexDraft] = useState(customAccent);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  useBodyScrollLock(popoverPos !== null);
   const customButtonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 

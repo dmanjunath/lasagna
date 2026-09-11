@@ -42,6 +42,17 @@ export default [
       },
     },
   },
+  // Repo tooling runs under Node, so declare its globals rather than ignore the
+  // files: the audit script should stay linted like everything else.
+  {
+    files: ["tools/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        console: "readonly",
+      },
+    },
+  },
   // exhaustive-deps is intentionally off (below), but disable directives for it
   // remain across the codebase — don't flag those as unused.
   { linterOptions: { reportUnusedDisableDirectives: "off" } },

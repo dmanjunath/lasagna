@@ -156,7 +156,17 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
   // Password field is visible in: demo, login password step, and signup (when revealed).
   const passwordVisible = isDemo || (!isSignup && step === "password") || (isSignup && showPassword);
   // Google + passkey belong on the "entry" screen: signup, or login before a password is asked for.
-  const showSocial = !isDemo && (isSignup || step === "email");
+  // Google is web-only (its redirect needs a system browser) and the passkey
+  // button needs a passkey already on this device, so in a fresh install both
+  // are hidden. Track each one, or the "or" divider renders separating nothing.
+  const showGoogle = !isNativeApp();
+  const showPasskey =
+    !isSignup &&
+    isNativeApp() &&
+    typeof window !== "undefined" &&
+    !!window.PublicKeyCredential &&
+    hasRegisteredPasskey();
+  const showSocial = !isDemo && (isSignup || step === "email") && (showGoogle || showPasskey);
 
   const submitLabel = loading
     ? "Processing…"
@@ -167,7 +177,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
     : "Continue";
 
   return (
-    <div className="ui-root min-h-dvh bg-canvas flex items-center justify-center p-4">
+    <div className="ui-root min-h-dvh bg-canvas flex items-start justify-center p-4 pt-24 sm:items-center sm:pt-4">
       {/* Ambient warm glow — faint, single brand accent for atmosphere. */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <div
@@ -177,7 +187,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
       </div>
 
       <div className="relative w-full max-w-[420px]">
-        <div className="rounded-ui-xl border border-line bg-panel shadow-ui-lg p-5 sm:p-8">
+        <div className="p-5 sm:rounded-ui-xl sm:border sm:border-line sm:bg-panel sm:shadow-ui-lg sm:p-8">
           {/* Brand + welcome — compact row on phones so the card fits one screen */}
           <div className="flex flex-col items-center text-center mb-3.5 sm:mb-7">
             <div className="flex items-center gap-2 sm:flex-col sm:gap-0">
@@ -224,6 +234,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
             <Field label="Email">
               <Input
                 type="email"
+                enterKeyHint="go"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -333,7 +344,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               </div>
               {/* Google OAuth is a full-page redirect — needs a system-browser
                   flow in the native shell, so it's web-only for now. */}
-              {!isNativeApp() && (
+              {showGoogle && (
                 <GoogleButton
                   label={isSignup ? "Sign up with Google" : "Continue with Google"}
                   disabled={isSignup && !consentOk}
@@ -344,7 +355,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
                   Shown only once a passkey has been registered on this device
                   (hasRegisteredPasskey) — a fresh install has none to use yet.
                   On mobile web the password + iCloud autofill flow covers it. */}
-              {!isSignup && isNativeApp() && typeof window !== "undefined" && !!window.PublicKeyCredential && hasRegisteredPasskey() && (
+              {showPasskey && (
                 <Button
                   type="button"
                   variant="secondary"

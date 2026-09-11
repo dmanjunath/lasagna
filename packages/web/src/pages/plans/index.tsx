@@ -15,6 +15,8 @@ import {
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { Button, PageMeta, PageMetaItem, Skeleton } from "../../components/uikit";
+import { useConfirm } from "../../components/ds";
+import { useToast } from "../../components/uikit";
 import type { Plan, PlanType } from "../../lib/types.js";
 
 // ---------------------------------------------------------------------------
@@ -74,6 +76,8 @@ const PLAN_META: Record<PlanType, PlanMeta> = {
 const PLAN_ORDER: PlanType[] = ["retirement", "net_worth", "debt_payoff", "custom"];
 
 export function PlansPage() {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
@@ -91,7 +95,12 @@ export function PlansPage() {
     e.preventDefault(); // Prevent navigation to plan detail
     e.stopPropagation();
 
-    const confirmed = window.confirm(`Delete '${planTitle}'? This will archive the plan.`);
+    const confirmed = await confirm({
+      title: `Delete "${planTitle}"?`,
+      body: "This archives the plan. You can still find it in your history.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
     if (!confirmed) return;
 
     setDeletingPlanId(planId);
@@ -100,7 +109,7 @@ export function PlansPage() {
       setPlans((prevPlans) => prevPlans.filter((plan) => plan.id !== planId));
     } catch (error) {
       console.error("Failed to delete plan:", error);
-      alert("Failed to delete plan. Please try again.");
+      toast({ tone: "negative", title: "Could not delete the plan", description: "Please try again." });
     } finally {
       setDeletingPlanId(null);
     }

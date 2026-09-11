@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
+import { useBodyScrollLock } from '../lib/hooks/use-body-scroll-lock';
 import { AnimatePresence, motion } from "framer-motion";
 import {
   FileText,
@@ -306,6 +307,7 @@ export function TaxStrategy() {
   const [selectedDoc, setSelectedDoc] = useState<TaxDocument | null>(null);
   const [docLoading, setDocLoading] = useState<string | null>(null);
   const [showSafety, setShowSafety] = useState(false);
+  useBodyScrollLock(showSafety);
   /** Popover opens upward when the trigger sits too low for the panel to fit. */
   const [safetyUp, setSafetyUp] = useState(false);
   /** Panel left edge, as an offset from the trigger's left edge. */

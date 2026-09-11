@@ -487,7 +487,7 @@ export function Onboarding() {
 
   if (initializing) {
     return (
-      <div className="ui-root min-h-dvh bg-canvas flex items-center justify-center">
+      <div className="ui-root min-h-dvh bg-canvas flex items-start justify-center pt-24 sm:items-center sm:pt-0">
         <Loader2 className="h-6 w-6 animate-spin text-content-muted" />
       </div>
     );
@@ -611,6 +611,7 @@ function InvitePartnerCard() {
       <div className="flex flex-col gap-2">
         <Input
           type="email"
+          enterKeyHint="send"
           value={email}
           onChange={(e) => { setEmail(e.target.value); setSent(false); }}
           onKeyDown={(e) => { if (e.key === 'Enter') void invite(); }}

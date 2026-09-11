@@ -686,6 +686,7 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             type="email"
+            enterKeyHint="send"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setSent(false); }}
             onKeyDown={(e) => { if (e.key === "Enter") void invite(); }}

@@ -21,6 +21,7 @@ import { PromptTransition, type TransitionState } from "../../components/plan/pr
 import { PlanResponse } from "../../components/plan-response/index.js";
 import type { Plan, ChatThread, Message, PlanEdit } from "../../lib/types.js";
 import type { ResponseV2, ToolResult } from "../../lib/types-v2.js";
+import { useConfirm } from "../../components/ds";
 import { isResponseV2 } from "../../lib/types-v2.js";
 
 const PLAN_META: Record<PlanType, { label: string; icon: typeof Target; accent: string }> = {
@@ -34,6 +35,7 @@ const statusTone = (status: PlanStatus): BadgeProps["tone"] =>
   status === "active" ? "brand" : "neutral";
 
 export function PlanDetailPage() {
+  const confirm = useConfirm();
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -139,7 +141,12 @@ export function PlanDetailPage() {
 
   const handleDelete = async () => {
     if (!id || !plan) return;
-    const confirmed = window.confirm(`Delete "${plan.title}"? This will archive the plan.`);
+    const confirmed = await confirm({
+      title: `Delete "${plan.title}"?`,
+      body: "This archives the plan. You can still find it in your history.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
     if (!confirmed) return;
 
     try {
