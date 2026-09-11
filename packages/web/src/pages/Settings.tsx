@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../components/ds";
 import { isNativeApp, setNativeToken } from "../lib/native";
-import { hapticWarning } from "../lib/haptics";
+import { hapticLight, hapticWarning } from "../lib/haptics";
 import { isLockEnabled, setLockEnabled } from "../lib/biometric-lock";
 import { setPasskeyRegistered } from "../lib/passkey-hint";
 import { CategoryManager } from "../components/settings/CategoryManager";
@@ -1576,7 +1576,7 @@ function Switch({
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
-      onClick={() => onChange(!checked)}
+      onClick={() => { hapticLight(); onChange(!checked); }}
       disabled={disabled}
       title={title}
       className="ui-focus flex min-h-touch w-full items-center gap-3 rounded-ui-md text-left disabled:opacity-50 disabled:cursor-not-allowed"

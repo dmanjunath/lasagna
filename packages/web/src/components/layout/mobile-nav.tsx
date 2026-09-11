@@ -66,13 +66,29 @@ const NAV_SECTIONS: NavSection[] = [
 interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * Live edge-swipe offset in px, 0 at the closed edge and PANEL_W when fully
+   * pulled open. Null when no drag is in flight. While it is a number the panel
+   * follows the finger with no transition, so opening tracks 1:1 instead of
+   * springing on its own clock.
+   */
+  dragX?: number | null;
 }
 
-export function MobileNav({ isOpen, onClose }: MobileNavProps) {
+/** Mirrors w-[88%] max-w-[360px] below, for the drag maths. */
+export function drawerWidth(): number {
+  if (typeof window === 'undefined') return 360;
+  return Math.min(window.innerWidth * 0.88, 360);
+}
+
+export function MobileNav({ isOpen, onClose, dragX = null }: MobileNavProps) {
   const [location, navigate] = useLocation();
   const { tenant, logout, user } = useAuth();
 
-  useBodyScrollLock(isOpen);
+  const dragging = dragX !== null;
+  const width = drawerWidth();
+
+  useBodyScrollLock(isOpen || dragging);
 
   const isActive = (path: string) => path === '/' ? location === '/' : (location === path || location.startsWith(path + '/'));
 
@@ -87,13 +103,14 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
 
   return (
     <AnimatePresence>
-      {isOpen && (
+      {(isOpen || dragging) && (
         <>
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            animate={{ opacity: dragging ? Math.min(1, (dragX as number) / width) : 1 }}
             exit={{ opacity: 0 }}
+            transition={dragging ? { duration: 0 } : undefined}
             onClick={onClose}
             className="fixed inset-0 top-[-5%] h-[110%] bg-black/50 z-40 md:hidden"
           />
@@ -101,10 +118,10 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
           {/* Drawer */}
           <motion.div
             initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
+            animate={{ x: dragging ? (dragX as number) - width : 0 }}
             exit={{ x: '-100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            drag="x"
+            transition={dragging ? { duration: 0 } : { type: 'spring', damping: 28, stiffness: 320 }}
+            drag={dragging ? false : 'x'}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={{ left: 0.9, right: 0 }}
             onDragEnd={(_e, info) => {

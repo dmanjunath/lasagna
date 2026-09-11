@@ -1,4 +1,5 @@
 import { cn } from '../../lib/utils';
+import { hapticLight } from '../../lib/haptics';
 
 export interface SegmentOption<T extends string> {
   value: T;
@@ -49,7 +50,7 @@ export function SegmentedControl<T extends string>({
             type="button"
             role="radio"
             aria-checked={active}
-            onClick={() => onChange(opt.value)}
+            onClick={() => { if (!active) hapticLight(); onChange(opt.value); }}
             className={cn(
               'ui-focus touch-target rounded-[calc(var(--ui-r-md)-3px)] font-medium transition-all duration-150 ease-ui',
               stretch && 'flex-1 sm:flex-none',

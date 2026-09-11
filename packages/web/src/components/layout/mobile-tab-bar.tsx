@@ -1,6 +1,7 @@
 import { useLocation } from 'wouter';
 import { LayoutDashboard, Wallet, CreditCard, Target, MessageSquare } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { hapticLight } from '../../lib/haptics';
 
 interface TabItem {
   name: string;
@@ -36,7 +37,7 @@ export function MobileTabBar() {
             <button
               key={tab.name}
               aria-current={active ? 'page' : undefined}
-              onClick={() => navigate(tab.path)}
+              onClick={() => { if (!active) hapticLight(); navigate(tab.path); }}
               className={`flex-1 flex flex-col items-center justify-center gap-1 py-1 rounded-ui-md
                          transition-colors duration-200 active:scale-95 min-w-[44px] min-h-[44px]
                          ${active ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-content-muted'}`}

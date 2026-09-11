@@ -1,8 +1,10 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useLocation } from 'wouter';
+import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Menu, Maximize2, Sparkles, ChevronLeft } from 'lucide-react';
 import { Sidebar } from './sidebar';
-import { MobileNav } from './mobile-nav';
+import { MobileNav, drawerWidth } from './mobile-nav';
+import { hapticLight } from '../../lib/haptics';
 import { MobileTabBar } from './mobile-tab-bar';
 import { AppHeader } from './app-header';
 import { PullToRefresh } from './pull-to-refresh';
@@ -20,11 +22,30 @@ interface ShellProps {
 
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Live edge-swipe offset, so the drawer opens under the finger. See MobileNav.
+  const [drawerDragX, setDrawerDragX] = useState<number | null>(null);
+  // Live back-swipe offset for the routed page, 0 when no gesture is running.
+  const [backSwipeX, setBackSwipeX] = useState(0);
+
   const [desktopChatOpen, setDesktopChatOpen] = useState(false);
   // Bumped by pull-to-refresh to remount (and so refetch) the current page.
   const [refreshKey, setRefreshKey] = useState(0);
   const isMobile = useIsMobile();
   const [location, setLocation] = useLocation();
+  // Push vs pop, so a route change slides the way the navigation actually went.
+  // Derived during render: with mode="wait" the outgoing page animates before
+  // effects flush, so an effect would hand it the previous direction.
+  const navStack = useRef<string[]>([]);
+  const navDirRef = useRef<1 | -1>(1);
+  if (navStack.current[navStack.current.length - 1] !== location) {
+    const st = navStack.current;
+    if (st[st.length - 2] === location) { st.pop(); navDirRef.current = -1; }
+    else { st.push(location); navDirRef.current = 1; }
+  }
+  const navDir = navDirRef.current;
+  // Transitions are for the app shell. On the web the browser owns navigation
+  // feel, and animating there fights the back/forward buttons.
+  const animateRoutes = isMobile && isNativeApp();
   const { chatOpen, closeChat, unreadCount, setChatReturnPath, activeThreadIndex } = useChatStore();
 
   // On mobile, an open chat thread on /chat owns the bottom of the screen with
@@ -60,6 +81,7 @@ export function Shell({ children }: ShellProps) {
     let startX: number | null = null;
     let startY = 0;
     let engaged = false;
+    let lastDx = 0;
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
       startX = t.clientX <= 24 ? t.clientX : null;
@@ -71,13 +93,23 @@ export function Shell({ children }: ShellProps) {
       const t = e.touches[0];
       const dx = t.clientX - startX;
       const dy = Math.abs(t.clientY - startY);
-      if (!engaged && dx > 20 && dx > dy * 1.5) {
-        engaged = true;
-        setMobileMenuOpen(true);
-      }
-      if (engaged) e.preventDefault();
+      if (!engaged && dx > 12 && dx > dy * 1.5) engaged = true;
+      if (!engaged) return;
+      e.preventDefault();
+      // Feed the live offset to the drawer so it tracks the finger, rather than
+      // flipping a boolean and letting a spring run on its own clock.
+      lastDx = Math.max(0, Math.min(drawerWidth(), dx));
+      setDrawerDragX(lastDx);
     };
-    const onEnd = () => { startX = null; engaged = false; };
+    const onEnd = () => {
+      if (engaged) {
+        // Past the midpoint, or a decisive flick, commits to open.
+        const w = drawerWidth();
+        setMobileMenuOpen(lastDx > w * 0.4);
+      }
+      setDrawerDragX(null);
+      startX = null; engaged = false; lastDx = 0;
+    };
     document.addEventListener('touchstart', onStart, { passive: true });
     document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onEnd);
@@ -98,25 +130,40 @@ export function Shell({ children }: ShellProps) {
     if (!isMobile || !isSubPage || !isNativeApp()) return;
     let startX: number | null = null;
     let startY = 0;
-    let fired = false;
+    let engaged = false;
+    let lastDx = 0;
+    let lastT = 0;
+    let velocity = 0;
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
       startX = t.clientX <= 24 ? t.clientX : null;
       startY = t.clientY;
-      fired = false;
+      engaged = false; lastDx = 0; velocity = 0; lastT = e.timeStamp;
     };
     const onMove = (e: TouchEvent) => {
-      if (startX === null || fired) return;
+      if (startX === null) return;
       const t = e.touches[0];
       const dx = t.clientX - startX;
       const dy = Math.abs(t.clientY - startY);
-      if (dx > 12 && dx > dy) e.preventDefault();
-      if (dx > 64 && dx > dy * 1.5) {
-        fired = true;
-        handleBack();
-      }
+      if (!engaged && dx > 12 && dx > dy) engaged = true;
+      if (!engaged) return;
+      e.preventDefault();
+      const dt = Math.max(1, e.timeStamp - lastT);
+      velocity = (dx - lastDx) / dt;          // px per ms
+      lastT = e.timeStamp;
+      // The page follows the finger, so the gesture is reversible: let go short
+      // of the commit point and it springs back instead of navigating.
+      lastDx = Math.max(0, dx);
+      setBackSwipeX(lastDx);
     };
-    const onEnd = () => { startX = null; fired = false; };
+    const onEnd = () => {
+      if (engaged) {
+        const commit = lastDx > window.innerWidth * 0.35 || velocity > 0.5;
+        if (commit) { hapticLight(); handleBack(); }
+      }
+      setBackSwipeX(0);
+      startX = null; engaged = false; lastDx = 0; velocity = 0;
+    };
     document.addEventListener('touchstart', onStart, { passive: true });
     document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onEnd);
@@ -202,6 +249,7 @@ export function Shell({ children }: ShellProps) {
             }
           />
           <MobileNav
+            dragX={drawerDragX}
             isOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
           />
@@ -219,12 +267,22 @@ export function Shell({ children }: ShellProps) {
           >
             {/* key remounts just the routed page — every page refetches its
                 data on mount, while the shell (header/tab bar) stays put. */}
-            <main
-              key={refreshKey}
-              className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]"
-            >
-              {children}
-            </main>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.main
+                key={`${location}:${refreshKey}`}
+                initial={animateRoutes ? { x: navDir * 26, opacity: 0 } : false}
+                animate={{ x: backSwipeX, opacity: 1 }}
+                exit={animateRoutes ? { x: navDir * -26, opacity: 0 } : undefined}
+                transition={
+                  backSwipeX > 0
+                    ? { duration: 0 }                       // follow the finger
+                    : { duration: 0.19, ease: [0.22, 1, 0.36, 1] }
+                }
+                className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]"
+              >
+                {children}
+              </motion.main>
+            </AnimatePresence>
           </PullToRefresh>
         ) : (
           /* Mobile /chat: height-constrained shell so the thread + composer

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
+import { hapticWarning } from '../../lib/haptics';
 
 interface ConfirmOptions {
   title: string;
@@ -35,6 +36,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
 
   const confirm = useCallback<ConfirmFn>((opts) => {
+    // iOS warns as a destructive sheet arrives. A plain confirmation does not
+    // buzz, so the tick still means something when it does.
+    if (opts.destructive) hapticWarning();
     return new Promise<boolean>((resolve) => {
       setState({ ...opts, resolve });
     });
